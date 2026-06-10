@@ -6,7 +6,7 @@ A humanities researcher moves from annotations to an approved extraction schema 
 
 ### Covered by
 - The researcher can create annotations in a source document.
-- FREE can suggest schemas from an annotation set.
+- FREE can generate schema suggestions from an annotation set.
 - The researcher can approve, edit, or reject schema suggestions.
 - The researcher can run extraction from an approved extraction schema.
 - The researcher can approve, edit, or reject extraction results with source-backed evidence.
