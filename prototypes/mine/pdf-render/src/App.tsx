@@ -6,6 +6,8 @@ import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import 'pdfjs-dist/web/pdf_viewer.css'
 import './App.css'
+import AnnotationSidebar from './AnnotationSidebar'
+import type { AnnotationSetItem } from './AnnotationSidebar'
 import {
   AnnotationEditorLayer,
   AnnotationEditorType,
@@ -162,9 +164,39 @@ type LoadState =
   | { status: 'ready'; pageCount: number }
   | { status: 'error'; message: string }
 
+type PdfAnnotationEditor = {
+  id: string
+  pageIndex: number
+  editorType?: string
+  div?: HTMLDivElement | null
+  remove: () => void
+}
+
+type PdfAnnotationEditorUIManager = {
+  addEditor: (editor: PdfAnnotationEditor) => void
+  removeEditor: (editor: PdfAnnotationEditor) => void
+  getEditor: (id: string) => PdfAnnotationEditor | undefined
+}
+
+type AnnotationEditorUIManagerEvent = {
+  uiManager: PdfAnnotationEditorUIManager
+}
+
+function getHighlightLabel(editor: PdfAnnotationEditor, fallbackIndex: number) {
+  const label = editor.div?.getAttribute('aria-label')?.trim()
+  return label ? label : `Highlight ${fallbackIndex}`
+}
+
+function isHighlightEditor(editor: PdfAnnotationEditor) {
+  return editor.editorType === 'highlight' || editor.div?.getAttribute('role') === 'mark'
+}
+
 function App() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
+  const pdfViewerRef = useRef<PDFViewer | null>(null)
+  const annotationManagerRef = useRef<PdfAnnotationEditorUIManager | null>(null)
+  const [annotationItems, setAnnotationItems] = useState<AnnotationSetItem[]>([])
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
 
   useEffect(() => {
@@ -195,7 +227,61 @@ function App() {
 
     const loadingTask = pdfjsLib.getDocument({ url: pdfUrl })
     let disposed = false
+    pdfViewerRef.current = pdfViewer
+    annotationManagerRef.current = null
+    setAnnotationItems([])
     setLoadState({ status: 'loading' })
+
+    const syncHighlightEditor = (editor: PdfAnnotationEditor) => {
+      if (!isHighlightEditor(editor)) {
+        return
+      }
+
+      setAnnotationItems((items) => {
+        const existingIndex = items.findIndex((item) => item.id === editor.id)
+        const nextItem: AnnotationSetItem = {
+          id: editor.id,
+          label: getHighlightLabel(editor, existingIndex === -1 ? items.length + 1 : existingIndex + 1),
+          pageNumber: editor.pageIndex + 1,
+        }
+
+        if (existingIndex === -1) {
+          return [...items, nextItem].sort((left, right) => left.pageNumber - right.pageNumber)
+        }
+
+        const nextItems = [...items]
+        nextItems[existingIndex] = nextItem
+        return nextItems.sort((left, right) => left.pageNumber - right.pageNumber)
+      })
+    }
+
+    const removeHighlightEditor = (editor: PdfAnnotationEditor) => {
+      setAnnotationItems((items) => items.filter((item) => item.id !== editor.id))
+    }
+
+    const onAnnotationEditorUIManager = ({ uiManager }: AnnotationEditorUIManagerEvent) => {
+      annotationManagerRef.current = uiManager
+
+      const { addEditor, removeEditor } = uiManager
+
+      uiManager.addEditor = function addEditorAndSync(
+        this: PdfAnnotationEditorUIManager,
+        editor: PdfAnnotationEditor,
+      ) {
+        addEditor.call(this, editor)
+        queueMicrotask(() => syncHighlightEditor(editor))
+      }
+
+      uiManager.removeEditor = function removeEditorAndSync(
+        this: PdfAnnotationEditorUIManager,
+        editor: PdfAnnotationEditor,
+      ) {
+        removeEditor.call(this, editor)
+        removeHighlightEditor(editor)
+      }
+    }
+
+    eventBus.on('annotationeditoruimanager', onAnnotationEditorUIManager)
 
     async function loadPdf() {
       try {
@@ -222,6 +308,9 @@ function App() {
 
     return () => {
       disposed = true
+      eventBus.off('annotationeditoruimanager', onAnnotationEditorUIManager)
+      pdfViewerRef.current = null
+      annotationManagerRef.current = null
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
         pdfViewer,
@@ -233,6 +322,24 @@ function App() {
     }
   }, [])
 
+  function selectAnnotationItem(id: string) {
+    const editor = annotationManagerRef.current?.getEditor(id)
+    if (!editor) {
+      return
+    }
+
+    if (editor.div) {
+      editor.div.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+      return
+    }
+
+    pdfViewerRef.current?.scrollPageIntoView({ pageNumber: editor.pageIndex + 1 })
+  }
+
+  function removeAnnotationItem(id: string) {
+    annotationManagerRef.current?.getEditor(id)?.remove()
+  }
+
   return (
     <main className="app-shell">
       <header className="pdf-toolbar">
@@ -243,11 +350,18 @@ function App() {
           {loadState.status === 'error' && loadState.message}
         </p>
       </header>
-      <section className="pdf-stage" aria-label="PDF document">
-        <div className="pdf-viewer" ref={containerRef}>
-          <div className="pdfViewer" ref={viewerRef} />
-        </div>
-      </section>
+      <div className="app-workspace">
+        <AnnotationSidebar
+          items={annotationItems}
+          onSelectItem={selectAnnotationItem}
+          onRemoveItem={removeAnnotationItem}
+        />
+        <section className="pdf-stage" aria-label="PDF document">
+          <div className="pdf-viewer" ref={containerRef}>
+            <div className="pdfViewer" ref={viewerRef} />
+          </div>
+        </section>
+      </div>
     </main>
   )
 }
