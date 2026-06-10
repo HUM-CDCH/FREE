@@ -1,0 +1,246 @@
+import { useEffect, useRef, useState } from 'react'
+import * as pdfjsLib from 'pdfjs-dist'
+import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
+import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
+import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
+import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
+import 'pdfjs-dist/web/pdf_viewer.css'
+import './App.css'
+import {
+  AnnotationEditorLayer,
+  AnnotationEditorType,
+  AnnotationEditorUIManager,
+  AnnotationMode,
+} from 'pdfjs-dist'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
+
+let textOnlyHighlightPatchInstalled = false
+
+function isFreeHighlightTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) {
+    return false
+  }
+
+  const textLayer = target.closest('.textLayer')
+  if (!textLayer) {
+    return false
+  }
+
+  return (
+    target === textLayer ||
+    target.getAttribute('role') === 'img' ||
+    target.classList.contains('endOfContent') ||
+    target.classList.contains('textLayerImages') ||
+    target.classList.contains('textLayerImagePlaceholder')
+  )
+}
+
+function getTextNodesInRange(range: Range, root: Element) {
+  const textNodes: Text[] = []
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode
+    if (node.nodeType !== Node.TEXT_NODE || !node.textContent || !range.intersectsNode(node)) {
+      continue
+    }
+
+    textNodes.push(node as Text)
+  }
+
+  return textNodes
+}
+
+function trimRangeTrailingWhitespace(range: Range, textLayer: Element) {
+  const trailingWhitespace = range.toString().match(/\s+$/)?.[0].length ?? 0
+  const trimmedRange = range.cloneRange()
+  if (trailingWhitespace === 0) {
+    return trimmedRange
+  }
+
+  let remainingWhitespace = trailingWhitespace
+  const textNodes = getTextNodesInRange(range, textLayer)
+  for (let index = textNodes.length - 1; index >= 0; index -= 1) {
+    const textNode = textNodes[index]
+    const text = textNode.textContent ?? ''
+    const startOffset = range.startContainer === textNode ? range.startOffset : 0
+    const endOffset = range.endContainer === textNode ? range.endOffset : text.length
+    const selectedLength = endOffset - startOffset
+    if (remainingWhitespace < selectedLength) {
+      trimmedRange.setEnd(textNode, endOffset - remainingWhitespace)
+      return trimmedRange
+    }
+
+    remainingWhitespace -= selectedLength
+  }
+
+  trimmedRange.setEnd(range.startContainer, range.startOffset)
+  return trimmedRange
+}
+
+function installTextOnlyHighlightPatch() {
+  if (textOnlyHighlightPatchInstalled) {
+    return
+  }
+
+  textOnlyHighlightPatchInstalled = true
+
+  const editorLayerPrototype = AnnotationEditorLayer.prototype
+  const enableTextSelection = editorLayerPrototype.enableTextSelection
+  editorLayerPrototype.enableTextSelection = function enableTextSelectionWithoutFreeHighlight() {
+    enableTextSelection.call(this)
+
+    const page = this.div?.closest('.page')
+    const textLayer = page?.querySelector('.textLayer')
+    if (!textLayer || textLayer.getAttribute('data-text-only-highlight') === 'true') {
+      return
+    }
+
+    textLayer.setAttribute('data-text-only-highlight', 'true')
+    textLayer.addEventListener(
+      'pointerdown',
+      (event) => {
+        if (!isFreeHighlightTarget(event.target)) {
+          return
+        }
+
+        event.preventDefault()
+        event.stopImmediatePropagation()
+      },
+      { capture: true },
+    )
+  }
+
+  const uiManagerPrototype = AnnotationEditorUIManager.prototype
+  const getSelectionBoxes = uiManagerPrototype.getSelectionBoxes
+  uiManagerPrototype.getSelectionBoxes = function getSelectionBoxesWithoutTrailingWhitespace(
+    textLayer: Element | null,
+  ) {
+    const selection = document.getSelection()
+    if (!selection || !textLayer) {
+      return getSelectionBoxes.call(this, textLayer)
+    }
+
+    const originalRanges: Range[] = []
+    const trimmedRanges: Range[] = []
+    for (let index = 0; index < selection.rangeCount; index += 1) {
+      const range = selection.getRangeAt(index)
+      if (range.collapsed || !textLayer.contains(range.commonAncestorContainer)) {
+        return null
+      }
+
+      originalRanges.push(range.cloneRange())
+      trimmedRanges.push(trimRangeTrailingWhitespace(range, textLayer))
+    }
+
+    selection.removeAllRanges()
+    for (const range of trimmedRanges) {
+      if (!range.collapsed) {
+        selection.addRange(range)
+      }
+    }
+
+    try {
+      return selection.rangeCount === 0 ? null : getSelectionBoxes.call(this, textLayer)
+    } finally {
+      selection.removeAllRanges()
+      for (const range of originalRanges) {
+        selection.addRange(range)
+      }
+      for (const range of trimmedRanges) {
+        range.detach()
+      }
+    }
+  }
+}
+
+installTextOnlyHighlightPatch()
+
+type LoadState =
+  | { status: 'loading' }
+  | { status: 'ready'; pageCount: number }
+  | { status: 'error'; message: string }
+
+function App() {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const viewerRef = useRef<HTMLDivElement | null>(null)
+  const eventBusRef = useRef<EventBus | null>(null)
+  const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
+
+  useEffect(() => {
+    const container = containerRef.current
+    const viewer = viewerRef.current
+    if (!container || !viewer) {
+      return
+    }
+
+    if (!eventBusRef.current) {
+      eventBusRef.current = new EventBus()
+    }
+
+    const viewerOptions: PDFViewerOptions = {
+      container,
+      viewer,
+      eventBus: eventBusRef.current,
+      annotationMode: AnnotationMode.ENABLE,
+      annotationEditorMode: AnnotationEditorType.HIGHLIGHT,
+    }
+
+    const pdfViewer = new PDFViewer(viewerOptions)
+
+    const loadingTask = pdfjsLib.getDocument({ url: pdfUrl })
+    let disposed = false
+    setLoadState({ status: 'loading' })
+
+    async function loadPdf() {
+      try {
+        const pdf = await loadingTask.promise
+        if (disposed) {
+          return
+        }
+
+        pdfViewer.setDocument(pdf)
+        setLoadState({ status: 'ready', pageCount: pdf.numPages })
+      } catch (error) {
+        if (disposed) {
+          return
+        }
+
+        setLoadState({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Unable to load the PDF.',
+        })
+      }
+    }
+
+    void loadPdf()
+
+    return () => {
+      disposed = true
+      pdfViewer.cleanup()
+      viewer.replaceChildren()
+      void loadingTask.destroy()
+    }
+  }, [])
+
+  return (
+    <main className="app-shell">
+      <header className="pdf-toolbar">
+        <h1>Beretning Ellekilde 8-13</h1>
+        <p aria-live="polite">
+          {loadState.status === 'loading' && 'Loading PDF...'}
+          {loadState.status === 'ready' && `${loadState.pageCount} pages - text highlights only`}
+          {loadState.status === 'error' && loadState.message}
+        </p>
+      </header>
+      <section className="pdf-stage" aria-label="PDF document">
+        <div className="pdf-viewer" ref={containerRef}>
+          <div className="pdfViewer" ref={viewerRef} />
+        </div>
+      </section>
+    </main>
+  )
+}
+
+export default App

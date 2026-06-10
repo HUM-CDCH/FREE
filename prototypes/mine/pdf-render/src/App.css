@@ -1,0 +1,79 @@
+.app-shell {
+  min-height: 100vh;
+  background: #eef0f3;
+}
+
+.pdf-toolbar {
+  position: relative;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 24px;
+  color: #17202a;
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid #d5d9df;
+  backdrop-filter: blur(12px);
+}
+
+.pdf-toolbar h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.pdf-toolbar p {
+  margin: 0;
+  color: #5f6b7a;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.pdf-stage {
+  position: relative;
+  height: calc(100vh - 57px);
+  min-height: 320px;
+}
+
+.pdf-viewer {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 32px 0;
+}
+
+.pdf-viewer .pdfViewer {
+  --scale-factor: 1;
+}
+
+.pdf-viewer .textLayer.highlighting[data-text-only-highlight='true'] {
+  cursor: default;
+}
+
+.pdf-viewer .textLayer.highlighting[data-text-only-highlight='true'] span {
+  cursor: var(--editorHighlight-editing-cursor);
+}
+
+@media (max-width: 640px) {
+  .pdf-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 16px;
+  }
+
+  .pdf-toolbar p {
+    white-space: normal;
+  }
+
+  .pdf-stage {
+    height: calc(100vh - 76px);
+  }
+
+  .pdf-viewer {
+    padding: 16px 0;
+  }
+}

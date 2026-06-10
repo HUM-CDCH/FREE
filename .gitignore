@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+
+.venv/
+.pytest_cache/
+.ruff_cache/
+.run/
+__pycache__/
+*.py[cod]
+
+node_modules/
+dist/
+coverage/
+
+.playwright-mcp/
