@@ -20,7 +20,7 @@ I want to create annotations in a source document,
 so that FREE can suggest a schema for what to extract from that document.
 
 ### Acceptance criteria
-- The researcher can create annotations by selecting text in a PDF/document viewer.
+- The researcher can create annotations by selecting text in a source document viewer.
 - FREE uses an annotation set from the source document to show one or more schema suggestions.
 - The researcher can approve, edit, or reject each schema suggestion.
 - An approved schema suggestion becomes an extraction schema for that source document.
