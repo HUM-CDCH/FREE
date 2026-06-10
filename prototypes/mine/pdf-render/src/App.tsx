@@ -165,7 +165,6 @@ type LoadState =
 function App() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
-  const eventBusRef = useRef<EventBus | null>(null)
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
 
   useEffect(() => {
@@ -175,19 +174,24 @@ function App() {
       return
     }
 
-    if (!eventBusRef.current) {
-      eventBusRef.current = new EventBus()
-    }
+    const abortController = new AbortController()
+    const eventBus = new EventBus()
 
     const viewerOptions: PDFViewerOptions = {
       container,
       viewer,
-      eventBus: eventBusRef.current,
+      eventBus,
       annotationMode: AnnotationMode.ENABLE,
       annotationEditorMode: AnnotationEditorType.HIGHLIGHT,
     }
 
-    const pdfViewer = new PDFViewer(viewerOptions)
+    // pdfjs-dist 6 supports abortSignal at runtime, but its PDFViewerOptions type omits it.
+    const abortableViewerOptions = {
+      ...viewerOptions,
+      abortSignal: abortController.signal,
+    }
+
+    const pdfViewer = new PDFViewer(abortableViewerOptions)
 
     const loadingTask = pdfjsLib.getDocument({ url: pdfUrl })
     let disposed = false
@@ -218,9 +222,14 @@ function App() {
 
     return () => {
       disposed = true
-      pdfViewer.cleanup()
-      viewer.replaceChildren()
+      // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
+      ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
+        pdfViewer,
+        null,
+      )
+      abortController.abort()
       void loadingTask.destroy()
+      viewer.replaceChildren()
     }
   }, [])
 
