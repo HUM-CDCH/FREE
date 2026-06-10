@@ -17,8 +17,8 @@ A document that contains the original material a researcher works from, includin
 _Avoid_: file, PDF, upload
 
 **Project Context**:
-The broader research workspace that contains one or more source documents, their annotations and annotation sets, schema suggestions, extraction schemas, extractions, and extraction results.
-_Avoid_: research context, workspace, project
+The broader context that contains one or more source documents, their annotations and annotation sets, schema suggestions, extraction schemas, extractions, and extraction results.
+_Avoid_: research context, workspace
 
 **Annotation**:
 A researcher-created mark on a source document that identifies source text as relevant for possible extraction.
