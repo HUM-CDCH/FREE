@@ -10,10 +10,29 @@ type AnnotationSidebarProps = {
   onRemoveItem: (id: string) => void
 }
 
+type AnnotationGroup = {
+  pageNumber: number
+  items: AnnotationSetItem[]
+}
+
+// Items arrive sorted by page, so adjacent runs form the position groups.
+function groupByPage(items: AnnotationSetItem[]): AnnotationGroup[] {
+  const groups: AnnotationGroup[] = []
+  for (const item of items) {
+    const last = groups[groups.length - 1]
+    if (last && last.pageNumber === item.pageNumber) {
+      last.items.push(item)
+    } else {
+      groups.push({ pageNumber: item.pageNumber, items: [item] })
+    }
+  }
+  return groups
+}
+
 function AnnotationSidebar({ items, onSelectItem, onRemoveItem }: AnnotationSidebarProps) {
   return (
     <aside
-      className="scrollbar-subtle max-h-36 min-h-0 overflow-y-auto border-b border-line bg-surface sm:max-h-none sm:border-b-0 sm:border-r"
+      className="scrollbar-subtle max-h-72 min-h-0 overflow-y-auto border-t border-line bg-surface sm:max-h-none sm:w-75 sm:shrink-0 sm:border-t-0 sm:border-l"
       aria-label="Annotation set"
     >
       <header className="sticky top-0 z-10 flex min-h-10 items-center gap-2.5 border-b border-line bg-surface px-4">
@@ -28,45 +47,52 @@ function AnnotationSidebar({ items, onSelectItem, onRemoveItem }: AnnotationSide
         </span>
       </header>
 
-      <section className="px-4 py-3 sm:px-3.5 sm:py-4" aria-labelledby="annotation-set-title">
-        <h3
-          id="annotation-set-title"
-          className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-faint"
-        >
-          Baggrund og udgravning
-        </h3>
+      <div className="px-4 py-3 sm:px-3.5 sm:py-4">
         {items.length === 0 ? (
-          <p className="mt-2.5 text-[13px] leading-snug text-ink-faint">
-            Select text in the document to create a highlight.
-          </p>
+          <div className="rounded-xl border border-dashed border-line px-4 py-7 text-center">
+            <p aria-hidden="true" className="text-lg leading-none text-ink-muted">
+              ✎
+            </p>
+            <p className="mt-2 text-[13px] font-semibold text-ink">Annotate the source</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+              Select any passage in the report — it becomes a grounded annotation in the set.
+            </p>
+          </div>
         ) : (
-          <ul className="mt-2.5 flex flex-wrap gap-2">
-            {items.map((item) => (
-              <li key={item.id}>
-                <span className="inline-flex h-6.5 max-w-full items-center overflow-hidden rounded-full border border-line bg-surface text-xs font-medium text-ink transition-colors hover:border-accent/50 hover:bg-accent-soft has-focus-visible:border-accent has-focus-visible:ring-2 has-focus-visible:ring-accent/40">
-                  <button
-                    className="h-full min-w-0 max-w-47.5 cursor-pointer truncate pl-2.5 pr-1.5 text-left outline-none transition-colors hover:text-accent"
-                    type="button"
-                    title={`Go to highlight on page ${item.pageNumber}: ${item.label}`}
-                    onClick={() => onSelectItem(item.id)}
-                  >
-                    {item.label}
-                  </button>
-                  <button
-                    className="flex h-full w-6 shrink-0 cursor-pointer items-center justify-center text-sm leading-none text-ink-faint outline-none transition-colors hover:bg-danger/10 hover:text-danger"
-                    type="button"
-                    aria-label={`Remove highlight: ${item.label}`}
-                    title={`Remove highlight: ${item.label}`}
-                    onClick={() => onRemoveItem(item.id)}
-                  >
-                    ×
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
+          groupByPage(items).map((group) => (
+            <section key={group.pageNumber} className="mb-4 last:mb-0">
+              <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-faint">
+                Page {group.pageNumber}
+              </h3>
+              <ul className="flex flex-wrap gap-1.5">
+                {group.items.map((item) => (
+                  <li key={item.id} className="max-w-full">
+                    <span className="inline-flex h-6.5 max-w-full items-center overflow-hidden rounded-full border border-line bg-surface text-xs font-medium text-ink transition-colors hover:border-accent/50 hover:bg-accent-soft has-focus-visible:border-accent has-focus-visible:ring-2 has-focus-visible:ring-accent/40">
+                      <button
+                        className="h-full min-w-0 max-w-47.5 cursor-pointer truncate pl-2.5 pr-1.5 text-left italic outline-none transition-colors hover:text-accent"
+                        type="button"
+                        title={`Go to highlight on page ${item.pageNumber}: ${item.label}`}
+                        onClick={() => onSelectItem(item.id)}
+                      >
+                        “{item.label}”
+                      </button>
+                      <button
+                        className="flex h-full w-6 shrink-0 cursor-pointer items-center justify-center text-sm leading-none text-ink-faint outline-none transition-colors hover:bg-danger/10 hover:text-danger"
+                        type="button"
+                        aria-label={`Remove highlight: ${item.label}`}
+                        title={`Remove highlight: ${item.label}`}
+                        onClick={() => onRemoveItem(item.id)}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))
         )}
-      </section>
+      </div>
     </aside>
   )
 }
