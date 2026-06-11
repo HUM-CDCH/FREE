@@ -14,7 +14,4 @@ services:
 models:
   nuextract3:
     model: ${NUEXTRACT3_MODEL:-hf.co/numind/NuExtract3-GGUF:mmproj}
-    context_size: 4096
-    runtime_flags:
-      - "--temp"
-      - "${NUEXTRACT3_TEMPERATURE:-0}"
+    context_size: 16384
