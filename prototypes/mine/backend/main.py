@@ -3,12 +3,12 @@ import io
 import json
 import re
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
 import pypdfium2 as pdfium
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, UploadFile
+from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from PIL import Image
@@ -33,7 +33,18 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-app = FastAPI(title="NuExtract3 extraction server")
+client: httpx.AsyncClient
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global client
+    client = httpx.AsyncClient(timeout=settings.timeout_seconds)
+    yield
+    await client.aclose()
+
+
+app = FastAPI(title="NuExtract3 extraction server", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -42,63 +53,11 @@ app.add_middleware(
 )
 
 JSONL_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-JSON_LINE_EVENT_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "required": ["event", "data"],
-    "properties": {
-        "event": {"type": "string"},
-        "data": {"type": "object", "additionalProperties": True},
-    },
-}
-STREAM_RESPONSES: dict[int, dict[str, Any]] = {
-    200: {
-        "description": (
-            "JSON Lines stream. Swagger UI receives a buffered JSON array preview "
-            "because it cannot render application/jsonl responses reliably."
-        ),
-        "content": {
-            "application/json": {
-                "schema": {"type": "array", "items": JSON_LINE_EVENT_SCHEMA}
-            },
-            "application/jsonl": {
-                "schema": {
-                    "type": "string",
-                    "description": "One JsonLineEvent JSON object per line.",
-                }
-            },
-        },
-    }
-}
 
 
 class JsonLineEvent(BaseModel):
     event: str
     data: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class ExtractRequest:
-    content: list[dict[str, Any]]
-    chat_kwargs: dict[str, Any]
-    temperature: float
-    reasoning: bool
-    pages: int
-
-
-@dataclass(frozen=True)
-class MarkdownRequest:
-    jpeg_pages: list[bytes]
-    chat_kwargs: dict[str, Any]
-    temperature: float
-    reasoning: bool
-
-
-@dataclass(frozen=True)
-class TemplateRequest:
-    content: list[dict[str, Any]]
-    chat_kwargs: dict[str, Any]
-    temperature: float
-    pages: int
 
 
 def resolve_temperature(temperature: float | None, reasoning: bool) -> float:
@@ -145,10 +104,6 @@ def make_image_content(jpeg_pages: list[bytes], extra_text: str | None) -> list[
     if extra_text:
         content.append({"type": "text", "text": extra_text})
     return content
-
-
-def make_text_content(text: str) -> list[dict[str, Any]]:
-    return [{"type": "text", "text": text}]
 
 
 def strip_code_fence(payload: str) -> str:
@@ -277,42 +232,48 @@ def parse_result(answer: str) -> Any:
         return answer
 
 
-def apply_jsonl_headers(response: Response) -> None:
-    for header, value in JSONL_HEADERS.items():
-        response.headers[header] = value
+class JSONLResponse(StreamingResponse):
+    media_type = "application/jsonl"
 
 
-def jsonl_event(event: str, data: dict[str, Any]) -> JsonLineEvent:
-    return JsonLineEvent(event=event, data=data)
+STREAM_RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": (
+            "JSON Lines stream of JsonLineEvent objects. Clients that accept "
+            "only application/json (e.g. Swagger UI) get a buffered array."
+        ),
+        "content": {
+            "application/json": {"schema": {"type": "array"}},
+            "application/jsonl": {"schema": {"type": "string"}},
+        },
+    }
+}
 
 
-def wants_buffered_json(request: Request) -> bool:
-    accept = request.headers.get("accept", "")
-    return "application/json" in accept and "application/jsonl" not in accept
-
-
-async def stream_jsonl_events(
+async def catch_model_errors(
     events: AsyncIterator[JsonLineEvent],
-) -> AsyncIterator[str]:
-    async for event in events:
-        yield f"{event.model_dump_json()}\n"
+) -> AsyncIterator[JsonLineEvent]:
+    try:
+        async for event in events:
+            yield event
+    except httpx.HTTPError as exc:
+        yield JsonLineEvent(
+            event="error", data={"detail": f"Model endpoint error: {exc}"}
+        )
 
 
-async def collect_json_events(
-    events: AsyncIterator[JsonLineEvent],
-) -> list[dict[str, Any]]:
-    return [event.model_dump(mode="json") async for event in events]
-
-
-async def render_event_response(
-    request: Request,
-    events: AsyncIterator[JsonLineEvent],
+async def jsonl_response(
+    request: Request, events: AsyncIterator[JsonLineEvent]
 ) -> Response:
-    if wants_buffered_json(request):
-        return JSONResponse(await collect_json_events(events), headers=JSONL_HEADERS)
-    return StreamingResponse(
-        stream_jsonl_events(events),
-        media_type="application/jsonl",
+    events = catch_model_errors(events)
+    accept = request.headers.get("accept", "")
+    if "application/json" in accept and "application/jsonl" not in accept:
+        return JSONResponse(
+            [event.model_dump(mode="json") async for event in events],
+            headers=JSONL_HEADERS,
+        )
+    return JSONLResponse(
+        (f"{event.model_dump_json()}\n" async for event in events),
         headers=JSONL_HEADERS,
     )
 
@@ -357,27 +318,26 @@ async def call_model_stream(
 ) -> AsyncIterator[tuple[str, str]]:
     """Yield (reasoning_delta, content_delta) for each streamed chunk."""
     payload = build_payload(content, chat_kwargs, temperature, stream=True)
-    async with httpx.AsyncClient(timeout=settings.timeout_seconds) as client:
-        async with client.stream(
-            "POST",
-            f"{settings.base_url.rstrip('/')}/chat/completions",
-            json=payload,
-            headers={"Authorization": f"Bearer {settings.api_key}"},
-        ) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if not line.startswith("data:"):
-                    continue
-                data = line[len("data:"):].strip()
-                if data == "[DONE]":
-                    break
-                try:
-                    chunk = json.loads(data)
-                except json.JSONDecodeError:
-                    continue
-                think_delta, answer_delta = delta_to_text(chunk)
-                if think_delta or answer_delta:
-                    yield think_delta, answer_delta
+    async with client.stream(
+        "POST",
+        f"{settings.base_url.rstrip('/')}/chat/completions",
+        json=payload,
+        headers={"Authorization": f"Bearer {settings.api_key}"},
+    ) as response:
+        response.raise_for_status()
+        async for line in response.aiter_lines():
+            if not line.startswith("data:"):
+                continue
+            data = line[len("data:"):].strip()
+            if data == "[DONE]":
+                break
+            try:
+                chunk = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            think_delta, answer_delta = delta_to_text(chunk)
+            if think_delta or answer_delta:
+                yield think_delta, answer_delta
 
 
 async def jsonl_delta_events(
@@ -390,12 +350,13 @@ async def jsonl_delta_events(
     async for reasoning_delta, content_delta in model_stream:
         think_delta, output_delta = splitter.feed(reasoning_delta, content_delta)
         if think_delta or output_delta:
-            yield jsonl_event(
-                "delta", {**base, "think": think_delta, "output": output_delta}
+            yield JsonLineEvent(
+                event="delta",
+                data={**base, "think": think_delta, "output": output_delta},
             )
     tail = splitter.close()
     if tail:
-        yield jsonl_event("delta", {**base, "think": tail, "output": ""})
+        yield JsonLineEvent(event="delta", data={**base, "think": tail, "output": ""})
 
 
 @app.get("/healthz")
@@ -403,16 +364,46 @@ def healthz():
     return {"status": "ok"}
 
 
-async def prepare_extract_request(
-    response: Response,
+async def extract_events(
+    content: list[dict[str, Any]],
+    chat_kwargs: dict[str, Any],
+    temperature: float,
+    reasoning: bool,
+    pages: int,
+) -> AsyncIterator[JsonLineEvent]:
+    splitter = ThinkSplitter(reasoning)
+    async for event in jsonl_delta_events(
+        splitter, call_model_stream(content, chat_kwargs, temperature)
+    ):
+        yield event
+    think = splitter.think.strip()
+    answer = extract_answer_block(splitter.output)
+    raw = (
+        f"{splitter.think}\n</think>\n{splitter.output}"
+        if think
+        else splitter.output
+    )
+    yield JsonLineEvent(
+        event="done",
+        data={
+            "result": parse_result(answer),
+            "reasoning": think or None,
+            "raw": raw,
+            "pages": pages,
+        },
+    )
+
+
+@app.post("/extract", responses=STREAM_RESPONSES)
+async def extract(
+    request: Request,
     file: UploadFile | None = None,
     text: str | None = Form(None),
     template: str | None = Form(None),
     instruction: str | None = Form(None),
     reasoning: bool = Form(False),
     temperature: float | None = Form(None),
-) -> ExtractRequest:
-    apply_jsonl_headers(response)
+) -> Response:
     text = (text or "").strip()
     if file is None and not text:
         raise HTTPException(400, "Provide a document file or text")
@@ -433,7 +424,9 @@ async def prepare_extract_request(
         content = make_image_content(jpeg_pages, extra_text)
     else:
         jpeg_pages = []
-        content = make_text_content(f"{text}\n\n{extra_text}" if extra_text else text)
+        content = [
+            {"type": "text", "text": f"{text}\n\n{extra_text}" if extra_text else text}
+        ]
 
     chat_kwargs: dict[str, Any] = {
         "mode": "structured" if use_structured else "content",
@@ -444,109 +437,65 @@ async def prepare_extract_request(
     if instruction:
         chat_kwargs["instructions"] = instruction
 
-    temp = resolve_temperature(temperature, reasoning)
-    return ExtractRequest(
-        content=content,
-        chat_kwargs=chat_kwargs,
-        temperature=temp,
-        reasoning=reasoning,
-        pages=len(jpeg_pages),
-    )
-
-
-async def extract_events(request: ExtractRequest) -> AsyncIterator[JsonLineEvent]:
-    splitter = ThinkSplitter(request.reasoning)
-    try:
-        async for event in jsonl_delta_events(
-            splitter,
-            call_model_stream(
-                request.content, request.chat_kwargs, request.temperature
-            ),
-        ):
-            yield event
-        think = splitter.think.strip()
-        answer = extract_answer_block(splitter.output)
-        raw = (
-            f"{splitter.think}\n</think>\n{splitter.output}"
-            if think
-            else splitter.output
-        )
-        yield jsonl_event(
-            "done",
-            {
-                "result": parse_result(answer),
-                "reasoning": think or None,
-                "raw": raw,
-                "pages": request.pages,
-            },
-        )
-    except httpx.HTTPError as exc:
-        yield jsonl_event("error", {"detail": f"Model endpoint error: {exc}"})
-
-
-@app.post("/extract", responses=STREAM_RESPONSES)
-async def extract(
-    http_request: Request,
-    request: ExtractRequest = Depends(prepare_extract_request),
-) -> Response:
-    return await render_event_response(http_request, extract_events(request))
-
-
-async def prepare_markdown_request(
-    response: Response,
-    file: UploadFile,
-    reasoning: bool = Form(False),
-    temperature: float | None = Form(None),
-) -> MarkdownRequest:
-    apply_jsonl_headers(response)
-    jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
-    chat_kwargs: dict[str, Any] = {"mode": "markdown", "enable_thinking": reasoning}
-    temp = resolve_temperature(temperature, reasoning)
-    return MarkdownRequest(
-        jpeg_pages=jpeg_pages,
-        chat_kwargs=chat_kwargs,
-        temperature=temp,
-        reasoning=reasoning,
+    return await jsonl_response(
+        request,
+        extract_events(
+            content,
+            chat_kwargs,
+            resolve_temperature(temperature, reasoning),
+            reasoning,
+            len(jpeg_pages),
+        ),
     )
 
 
 async def markdown_events(
-    request: MarkdownRequest,
+    jpeg_pages: list[bytes],
+    chat_kwargs: dict[str, Any],
+    temperature: float,
+    reasoning: bool,
 ) -> AsyncIterator[JsonLineEvent]:
     results = []
-    try:
-        for index, page in enumerate(request.jpeg_pages):
-            page_content = make_image_content([page], None)
-            splitter = ThinkSplitter(request.reasoning)
-            async for event in jsonl_delta_events(
-                splitter,
-                call_model_stream(
-                    page_content, request.chat_kwargs, request.temperature
-                ),
-                extra={"page": index},
-            ):
-                yield event
-            output = splitter.output.strip()
-            results.append(output)
-            yield jsonl_event(
-                "page_done",
-                {
-                    "page": index,
-                    "markdown": output,
-                    "reasoning": splitter.think.strip() or None,
-                },
-            )
-        yield jsonl_event("done", {"pages": results, "count": len(results)})
-    except httpx.HTTPError as exc:
-        yield jsonl_event("error", {"detail": f"Model endpoint error: {exc}"})
+    for index, page in enumerate(jpeg_pages):
+        page_content = make_image_content([page], None)
+        splitter = ThinkSplitter(reasoning)
+        async for event in jsonl_delta_events(
+            splitter,
+            call_model_stream(page_content, chat_kwargs, temperature),
+            extra={"page": index},
+        ):
+            yield event
+        output = splitter.output.strip()
+        results.append(output)
+        yield JsonLineEvent(
+            event="page_done",
+            data={
+                "page": index,
+                "markdown": output,
+                "reasoning": splitter.think.strip() or None,
+            },
+        )
+    yield JsonLineEvent(event="done", data={"pages": results, "count": len(results)})
 
 
 @app.post("/markdown", responses=STREAM_RESPONSES)
 async def markdown(
-    http_request: Request,
-    request: MarkdownRequest = Depends(prepare_markdown_request),
+    request: Request,
+    file: UploadFile,
+    reasoning: bool = Form(False),
+    temperature: float | None = Form(None),
 ) -> Response:
-    return await render_event_response(http_request, markdown_events(request))
+    jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
+    chat_kwargs: dict[str, Any] = {"mode": "markdown", "enable_thinking": reasoning}
+    return await jsonl_response(
+        request,
+        markdown_events(
+            jpeg_pages,
+            chat_kwargs,
+            resolve_temperature(temperature, reasoning),
+            reasoning,
+        ),
+    )
 
 
 TEMPLATE_GUIDANCE = (
@@ -557,13 +506,31 @@ TEMPLATE_GUIDANCE = (
 )
 
 
-async def prepare_template_request(
-    response: Response,
+async def generate_template_events(
+    content: list[dict[str, Any]],
+    chat_kwargs: dict[str, Any],
+    temperature: float,
+    pages: int,
+) -> AsyncIterator[JsonLineEvent]:
+    splitter = ThinkSplitter(False)
+    async for event in jsonl_delta_events(
+        splitter, call_model_stream(content, chat_kwargs, temperature)
+    ):
+        yield event
+    template = parse_result(pretty_json_or_text(splitter.output))
+    yield JsonLineEvent(
+        event="done",
+        data={"template": template, "raw": splitter.output, "pages": pages},
+    )
+
+
+@app.post("/generate-template", responses=STREAM_RESPONSES)
+async def generate_template(
+    request: Request,
     file: UploadFile | None = None,
     text: str | None = Form(None),
     temperature: float | None = Form(None),
-) -> TemplateRequest:
-    apply_jsonl_headers(response)
+) -> Response:
     text = (text or "").strip()
     if file is None and not text:
         raise HTTPException(400, "Provide a document file or text")
@@ -573,45 +540,16 @@ async def prepare_template_request(
         content = make_image_content(jpeg_pages, TEMPLATE_GUIDANCE)
     else:
         jpeg_pages = []
-        content = make_text_content(f"{text}\n\n{TEMPLATE_GUIDANCE}")
+        content = [{"type": "text", "text": f"{text}\n\n{TEMPLATE_GUIDANCE}"}]
 
     # the chat template defaults enable_thinking to true, which this mode forbids
     chat_kwargs: dict[str, Any] = {"mode": "template-generation", "enable_thinking": False}
-    temp = resolve_temperature(temperature, False)
-    return TemplateRequest(
-        content=content,
-        chat_kwargs=chat_kwargs,
-        temperature=temp,
-        pages=len(jpeg_pages),
-    )
-
-
-async def generate_template_events(
-    request: TemplateRequest,
-) -> AsyncIterator[JsonLineEvent]:
-    splitter = ThinkSplitter(False)
-    try:
-        async for event in jsonl_delta_events(
-            splitter,
-            call_model_stream(
-                request.content, request.chat_kwargs, request.temperature
-            ),
-        ):
-            yield event
-        template = parse_result(pretty_json_or_text(splitter.output))
-        yield jsonl_event(
-            "done",
-            {"template": template, "raw": splitter.output, "pages": request.pages},
-        )
-    except httpx.HTTPError as exc:
-        yield jsonl_event("error", {"detail": f"Model endpoint error: {exc}"})
-
-
-@app.post("/generate-template", responses=STREAM_RESPONSES)
-async def generate_template(
-    http_request: Request,
-    request: TemplateRequest = Depends(prepare_template_request),
-) -> Response:
-    return await render_event_response(
-        http_request, generate_template_events(request)
+    return await jsonl_response(
+        request,
+        generate_template_events(
+            content,
+            chat_kwargs,
+            resolve_temperature(temperature, False),
+            len(jpeg_pages),
+        ),
     )

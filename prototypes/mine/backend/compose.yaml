@@ -1,11 +1,10 @@
 services:
+  # Placeholder service: exists only so Docker Model Runner provisions the
+  # nuextract3 model on `docker compose up`. The backend runs outside compose
+  # and reads its configuration from its own .env.
   nuextract3-model:
     image: busybox:1.37
     command: ["sh", "-c", "sleep infinity"]
-    environment:
-      NUEXTRACT3_API_KEY: ${NUEXTRACT3_API_KEY:-EMPTY}
-      NUEXTRACT3_TIMEOUT_SECONDS: ${NUEXTRACT3_TIMEOUT_SECONDS:-120}
-      NUEXTRACT3_PDF_DPI: ${NUEXTRACT3_PDF_DPI:-64}
     models:
       nuextract3:
         endpoint_var: NUEXTRACT3_BASE_URL
