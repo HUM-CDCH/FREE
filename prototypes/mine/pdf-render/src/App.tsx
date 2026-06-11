@@ -5,7 +5,6 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import 'pdfjs-dist/web/pdf_viewer.css'
-import './App.css'
 import AnnotationSidebar from './AnnotationSidebar'
 import type { AnnotationSetItem } from './AnnotationSidebar'
 import {
@@ -340,24 +339,36 @@ function App() {
     annotationManagerRef.current?.getEditor(id)?.remove()
   }
 
+  const statusStyles: Record<LoadState['status'], { dot: string; text?: string }> = {
+    loading: { dot: 'animate-pulse bg-amber-500' },
+    ready: { dot: 'bg-emerald-500 dark:bg-emerald-400' },
+    error: { dot: 'bg-danger', text: 'text-danger' },
+  }
+
   return (
-    <main className="app-shell">
-      <header className="pdf-toolbar">
-        <h1>Beretning Ellekilde 8-13</h1>
-        <p aria-live="polite">
-          {loadState.status === 'loading' && 'Loading PDF...'}
-          {loadState.status === 'ready' && `${loadState.pageCount} pages - text highlights only`}
+    <main className="flex h-dvh flex-col bg-canvas text-ink">
+      <header className="relative z-10 flex shrink-0 flex-col gap-1.5 border-b border-line bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-6">
+        <h1 className="truncate text-[15px] font-semibold tracking-tight">
+          Beretning Ellekilde 8-13
+        </h1>
+        <p
+          aria-live="polite"
+          className={`inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-line bg-surface-muted py-1 pl-2.5 pr-3 text-xs font-medium text-ink-muted ${statusStyles[loadState.status].text ?? ''}`}
+        >
+          <span aria-hidden="true" className={`size-1.5 rounded-full ${statusStyles[loadState.status].dot}`} />
+          {loadState.status === 'loading' && 'Loading PDF…'}
+          {loadState.status === 'ready' && `${loadState.pageCount} pages · text highlights only`}
           {loadState.status === 'error' && loadState.message}
         </p>
       </header>
-      <div className="app-workspace">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-[260px_minmax(0,1fr)] sm:grid-rows-none">
         <AnnotationSidebar
           items={annotationItems}
           onSelectItem={selectAnnotationItem}
           onRemoveItem={removeAnnotationItem}
         />
-        <section className="pdf-stage" aria-label="PDF document">
-          <div className="pdf-viewer" ref={containerRef}>
+        <section className="relative min-h-0 min-w-0" aria-label="PDF document">
+          <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={containerRef}>
             <div className="pdfViewer" ref={viewerRef} />
           </div>
         </section>

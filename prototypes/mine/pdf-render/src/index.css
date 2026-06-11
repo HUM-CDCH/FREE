@@ -1,55 +1,91 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import "tailwindcss";
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+@theme {
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* Cool neutral grays, crisp blue accent — light values */
+  --color-canvas: #eef0f4;        /* backdrop behind PDF pages */
+  --color-surface: #ffffff;       /* toolbar, sidebar, chips */
+  --color-surface-muted: #f5f7fa; /* pills, subtle fills */
+  --color-ink: #1b2330;           /* primary text */
+  --color-ink-muted: #5b6573;     /* secondary text */
+  --color-ink-faint: #8b94a2;     /* tertiary text, overlines */
+  --color-line: #e4e7ec;          /* hairline borders */
+  --color-accent: #2f6bff;        /* crisp blue */
+  --color-accent-soft: #ecf1ff;   /* accent tint fill */
+  --color-danger: #dc2626;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --shadow-page:
+    0 0 0 1px rgb(17 24 39 / 0.07),
+    0 1px 2px rgb(17 24 39 / 0.05),
+    0 12px 32px -16px rgb(17 24 39 / 0.28);
 }
 
+/* Un-layered so it always wins over @layer theme. Canvas darkest so
+   white PDF pages glow on it; surfaces one step lighter. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+    --color-canvas: #101216;
+    --color-surface: #181b21;
+    --color-surface-muted: #21252d;
+    --color-ink: #e8ecf2;
+    --color-ink-muted: #9aa4b2;
+    --color-ink-faint: #6c7585;
+    --color-line: #2a2f39;
+    --color-accent: #6c9eff;
+    --color-accent-soft: #1d2840;
+    --color-danger: #f87171;
+    --shadow-page:
+      0 0 0 1px rgb(255 255 255 / 0.07),
+      0 10px 28px -10px rgb(0 0 0 / 0.75);
   }
 }
 
-body {
-  margin: 0;
+@layer base {
+  :root {
+    color-scheme: light dark;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-ink;
+  }
+}
+
+@utility scrollbar-subtle {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+/* pdf.js integration — these DOM nodes are created by pdfjs-dist at
+   runtime, so they cannot carry Tailwind utilities. */
+@layer components {
+  .pdf-viewer .pdfViewer {
+    --scale-factor: 1;
+  }
+
+  /* .page has a 9px transparent border (pdf_viewer.css), so the shadow
+     lives on a pseudo aligned to the visible white rect. */
+  .pdf-viewer .pdfViewer .page::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: var(--shadow-page);
+  }
+
+  .pdf-viewer .textLayer.highlighting[data-text-only-highlight='true'] {
+    cursor: default;
+  }
+
+  .pdf-viewer .textLayer.highlighting[data-text-only-highlight='true'] span {
+    cursor: var(--editorHighlight-editing-cursor);
+  }
+  .pdf-viewer .editToolbar {
+  font-size: 13px;
+  line-height: normal;
+}
 }
