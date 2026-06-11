@@ -61,31 +61,31 @@
 }
 
 /* pdf.js integration — these DOM nodes are created by pdfjs-dist at
-   runtime, so they cannot carry Tailwind utilities. */
-@layer components {
-  .pdf-viewer .pdfViewer {
-    --scale-factor: 1;
-  }
+   runtime, so they cannot carry Tailwind utilities. Un-layered because
+   pdf_viewer.css is un-layered too, and layered rules would lose to it
+   regardless of specificity. */
+.pdf-viewer .pdfViewer {
+  --scale-factor: 1;
+}
 
-  /* .page has a 9px transparent border (pdf_viewer.css), so the shadow
-     lives on a pseudo aligned to the visible white rect. */
-  .pdf-viewer .pdfViewer .page::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    box-shadow: var(--shadow-page);
-  }
+/* .page has a 9px transparent border (pdf_viewer.css), so the shadow
+   lives on a pseudo aligned to the visible white rect. */
+.pdf-viewer .pdfViewer .page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: var(--shadow-page);
+}
 
-  .pdf-viewer .textLayer.highlighting[data-text-only-highlight='true'] {
-    cursor: default;
-  }
+/* Free highlight is blocked in App.tsx, so blank text-layer areas get the
+   default cursor instead of pdf_viewer.css's marker cursor. Text spans keep
+   pdf.js's own highlight cursor. */
+.pdf-viewer .textLayer.highlighting {
+  cursor: default;
+}
 
-  .pdf-viewer .textLayer.highlighting[data-text-only-highlight='true'] span {
-    cursor: var(--editorHighlight-editing-cursor);
-  }
-  .pdf-viewer .editToolbar {
+.pdf-viewer .editToolbar {
   font-size: 13px;
   line-height: normal;
-}
 }

@@ -7,17 +7,15 @@ import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import 'pdfjs-dist/web/pdf_viewer.css'
 import AnnotationSidebar from './AnnotationSidebar'
 import type { AnnotationSetItem } from './AnnotationSidebar'
-import {
-  AnnotationEditorLayer,
-  AnnotationEditorType,
-  AnnotationEditorUIManager,
-  AnnotationMode,
-} from 'pdfjs-dist'
+import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
+import type { AnnotationEditorUIManager } from 'pdfjs-dist'
+import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
-let textOnlyHighlightPatchInstalled = false
-
+// Mirrors the target check in pdf.js's free-highlight pointerdown handler
+// (AnnotationEditorLayer #textLayerPointerDown): the text-layer background
+// and its non-text children.
 function isFreeHighlightTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) {
     return false
@@ -37,156 +35,17 @@ function isFreeHighlightTarget(target: EventTarget | null) {
   )
 }
 
-function getTextNodesInRange(range: Range, root: Element) {
-  const textNodes: Text[] = []
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-
-  while (walker.nextNode()) {
-    const node = walker.currentNode
-    if (node.nodeType !== Node.TEXT_NODE || !node.textContent || !range.intersectsNode(node)) {
-      continue
-    }
-
-    textNodes.push(node as Text)
-  }
-
-  return textNodes
-}
-
-function trimRangeTrailingWhitespace(range: Range, textLayer: Element) {
-  const trailingWhitespace = range.toString().match(/\s+$/)?.[0].length ?? 0
-  const trimmedRange = range.cloneRange()
-  if (trailingWhitespace === 0) {
-    return trimmedRange
-  }
-
-  let remainingWhitespace = trailingWhitespace
-  const textNodes = getTextNodesInRange(range, textLayer)
-  for (let index = textNodes.length - 1; index >= 0; index -= 1) {
-    const textNode = textNodes[index]
-    const text = textNode.textContent ?? ''
-    const startOffset = range.startContainer === textNode ? range.startOffset : 0
-    const endOffset = range.endContainer === textNode ? range.endOffset : text.length
-    const selectedLength = endOffset - startOffset
-    if (remainingWhitespace < selectedLength) {
-      trimmedRange.setEnd(textNode, endOffset - remainingWhitespace)
-      return trimmedRange
-    }
-
-    remainingWhitespace -= selectedLength
-  }
-
-  trimmedRange.setEnd(range.startContainer, range.startOffset)
-  return trimmedRange
-}
-
-function installTextOnlyHighlightPatch() {
-  if (textOnlyHighlightPatchInstalled) {
-    return
-  }
-
-  textOnlyHighlightPatchInstalled = true
-
-  const editorLayerPrototype = AnnotationEditorLayer.prototype
-  const enableTextSelection = editorLayerPrototype.enableTextSelection
-  editorLayerPrototype.enableTextSelection = function enableTextSelectionWithoutFreeHighlight() {
-    enableTextSelection.call(this)
-
-    const page = this.div?.closest('.page')
-    const textLayer = page?.querySelector('.textLayer')
-    if (!textLayer || textLayer.getAttribute('data-text-only-highlight') === 'true') {
-      return
-    }
-
-    textLayer.setAttribute('data-text-only-highlight', 'true')
-    textLayer.addEventListener(
-      'pointerdown',
-      (event) => {
-        if (!isFreeHighlightTarget(event.target)) {
-          return
-        }
-
-        event.preventDefault()
-        event.stopImmediatePropagation()
-      },
-      { capture: true },
-    )
-  }
-
-  const uiManagerPrototype = AnnotationEditorUIManager.prototype
-  const getSelectionBoxes = uiManagerPrototype.getSelectionBoxes
-  uiManagerPrototype.getSelectionBoxes = function getSelectionBoxesWithoutTrailingWhitespace(
-    textLayer: Element | null,
-  ) {
-    const selection = document.getSelection()
-    if (!selection || !textLayer) {
-      return getSelectionBoxes.call(this, textLayer)
-    }
-
-    const originalRanges: Range[] = []
-    const trimmedRanges: Range[] = []
-    for (let index = 0; index < selection.rangeCount; index += 1) {
-      const range = selection.getRangeAt(index)
-      if (range.collapsed || !textLayer.contains(range.commonAncestorContainer)) {
-        return null
-      }
-
-      originalRanges.push(range.cloneRange())
-      trimmedRanges.push(trimRangeTrailingWhitespace(range, textLayer))
-    }
-
-    selection.removeAllRanges()
-    for (const range of trimmedRanges) {
-      if (!range.collapsed) {
-        selection.addRange(range)
-      }
-    }
-
-    try {
-      return selection.rangeCount === 0 ? null : getSelectionBoxes.call(this, textLayer)
-    } finally {
-      selection.removeAllRanges()
-      for (const range of originalRanges) {
-        selection.addRange(range)
-      }
-      for (const range of trimmedRanges) {
-        range.detach()
-      }
-    }
-  }
-}
-
-installTextOnlyHighlightPatch()
-
 type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; pageCount: number }
   | { status: 'error'; message: string }
 
-type PdfAnnotationEditor = {
-  id: string
-  pageIndex: number
-  editorType?: string
-  div?: HTMLDivElement | null
-  remove: () => void
-}
-
-type PdfAnnotationEditorUIManager = {
-  addEditor: (editor: PdfAnnotationEditor) => void
-  removeEditor: (editor: PdfAnnotationEditor) => void
-  getEditor: (id: string) => PdfAnnotationEditor | undefined
-}
-
-type AnnotationEditorUIManagerEvent = {
-  uiManager: PdfAnnotationEditorUIManager
-}
-
-function getHighlightLabel(editor: PdfAnnotationEditor, fallbackIndex: number) {
+function getHighlightLabel(editor: AnnotationEditor, fallbackIndex: number) {
   const label = editor.div?.getAttribute('aria-label')?.trim()
   return label ? label : `Highlight ${fallbackIndex}`
 }
 
-function isHighlightEditor(editor: PdfAnnotationEditor) {
+function isHighlightEditor(editor: AnnotationEditor) {
   return editor.editorType === 'highlight' || editor.div?.getAttribute('role') === 'mark'
 }
 
@@ -194,7 +53,7 @@ function App() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
   const pdfViewerRef = useRef<PDFViewer | null>(null)
-  const annotationManagerRef = useRef<PdfAnnotationEditorUIManager | null>(null)
+  const annotationManagerRef = useRef<AnnotationEditorUIManager | null>(null)
   const [annotationItems, setAnnotationItems] = useState<AnnotationSetItem[]>([])
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
 
@@ -224,14 +83,27 @@ function App() {
 
     const pdfViewer = new PDFViewer(abortableViewerOptions)
 
+    // pdf.js starts a free (rectangular) highlight from pointerdown on blank
+    // text-layer areas; intercept those during capture, before its own
+    // text-layer listener, so only text selections can create highlights.
+    container.addEventListener(
+      'pointerdown',
+      (event) => {
+        if (isFreeHighlightTarget(event.target)) {
+          event.preventDefault()
+          event.stopPropagation()
+        }
+      },
+      { capture: true, signal: abortController.signal },
+    )
+
     const loadingTask = pdfjsLib.getDocument({ url: pdfUrl })
-    let disposed = false
     pdfViewerRef.current = pdfViewer
     annotationManagerRef.current = null
     setAnnotationItems([])
     setLoadState({ status: 'loading' })
 
-    const syncHighlightEditor = (editor: PdfAnnotationEditor) => {
+    const syncHighlightEditor = (editor: AnnotationEditor) => {
       if (!isHighlightEditor(editor)) {
         return
       }
@@ -250,32 +122,30 @@ function App() {
 
         const nextItems = [...items]
         nextItems[existingIndex] = nextItem
-        return nextItems.sort((left, right) => left.pageNumber - right.pageNumber)
+        return nextItems
       })
     }
 
-    const removeHighlightEditor = (editor: PdfAnnotationEditor) => {
+    const removeHighlightEditor = (editor: AnnotationEditor) => {
       setAnnotationItems((items) => items.filter((item) => item.id !== editor.id))
     }
 
-    const onAnnotationEditorUIManager = ({ uiManager }: AnnotationEditorUIManagerEvent) => {
+    // pdf.js has no public event for editor add/remove (annotationStorage's
+    // onAnnotationEditor only reports the type string), so wrap the manager's
+    // methods to keep the sidebar in sync.
+    const onAnnotationEditorUIManager = ({ uiManager }: { uiManager: AnnotationEditorUIManager }) => {
       annotationManagerRef.current = uiManager
 
       const { addEditor, removeEditor } = uiManager
 
-      uiManager.addEditor = function addEditorAndSync(
-        this: PdfAnnotationEditorUIManager,
-        editor: PdfAnnotationEditor,
-      ) {
-        addEditor.call(this, editor)
+      uiManager.addEditor = (editor) => {
+        addEditor.call(uiManager, editor)
+        // The editor's div and aria-label are populated after addEditor returns.
         queueMicrotask(() => syncHighlightEditor(editor))
       }
 
-      uiManager.removeEditor = function removeEditorAndSync(
-        this: PdfAnnotationEditorUIManager,
-        editor: PdfAnnotationEditor,
-      ) {
-        removeEditor.call(this, editor)
+      uiManager.removeEditor = (editor) => {
+        removeEditor.call(uiManager, editor)
         removeHighlightEditor(editor)
       }
     }
@@ -285,14 +155,14 @@ function App() {
     async function loadPdf() {
       try {
         const pdf = await loadingTask.promise
-        if (disposed) {
+        if (abortController.signal.aborted) {
           return
         }
 
         pdfViewer.setDocument(pdf)
         setLoadState({ status: 'ready', pageCount: pdf.numPages })
       } catch (error) {
-        if (disposed) {
+        if (abortController.signal.aborted) {
           return
         }
 
@@ -306,7 +176,6 @@ function App() {
     void loadPdf()
 
     return () => {
-      disposed = true
       eventBus.off('annotationeditoruimanager', onAnnotationEditorUIManager)
       pdfViewerRef.current = null
       annotationManagerRef.current = null
@@ -317,7 +186,6 @@ function App() {
       )
       abortController.abort()
       void loadingTask.destroy()
-      viewer.replaceChildren()
     }
   }, [])
 
