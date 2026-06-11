@@ -212,10 +212,13 @@ function App() {
   }, [])
 
   function selectAnnotationItem(id: string) {
-    const editor = annotationManagerRef.current?.getEditor(id)
-    if (!editor) {
+    const manager = annotationManagerRef.current
+    const editor = manager?.getEditor(id)
+    if (!manager || !editor) {
       return
     }
+
+    manager.setSelected(editor)
 
     if (editor.div) {
       editor.div.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
