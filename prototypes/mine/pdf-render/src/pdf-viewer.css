@@ -213,6 +213,14 @@
   transform: translate(100%, -100%) scale(0.75);
 }
 
+.pdf-viewer .annotationEditorLayer .highlightEditor .editToolbar .colorPicker {
+  display: none;
+}
+
+.pdf-viewer .annotationEditorLayer .highlightEditor .editToolbar .divider {
+  display: none;
+}
+
 .pdf-viewer .annotationEditorLayer .highlightEditor .editToolbar .buttons > :not(.divider):hover,
 .pdf-viewer .annotationEditorLayer .highlightEditor .editToolbar .buttons > :not(.divider):focus-visible {
   border-radius: 999px;

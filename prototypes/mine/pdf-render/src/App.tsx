@@ -23,6 +23,7 @@ const NAV_MIN = 150
 const NAV_MAX = 400
 const RAIL_MIN = 264
 const RAIL_MAX = 560
+const ANNOTATION_HIGHLIGHT_COLORS = 'annotation=#FFF066'
 
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
 // (AnnotationEditorLayer #textLayerPointerDown): the text-layer background
@@ -102,6 +103,7 @@ function App() {
       eventBus,
       annotationMode: AnnotationMode.ENABLE,
       annotationEditorMode: AnnotationEditorType.HIGHLIGHT,
+      annotationEditorHighlightColors: ANNOTATION_HIGHLIGHT_COLORS,
     }
 
     // pdfjs-dist 6 supports abortSignal at runtime, but its PDFViewerOptions type omits it.
