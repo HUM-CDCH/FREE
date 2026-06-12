@@ -4,7 +4,7 @@ import json
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 import pypdfium2 as pdfium
@@ -12,16 +12,17 @@ from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from PIL import Image
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NUEXTRACT3_", env_file=".env")
 
-    base_url: str = "http://127.0.0.1:12434/engines/v1"
-    model: str = "hf.co/numind/NuExtract3-GGUF:mmproj"
-    api_key: str = "EMPTY"
+    provider: Literal["ollama", "openai"] = "ollama"
+    base_url: str = "http://127.0.0.1:11434"
+    model: str = "hf.co/numind/NuExtract3-GGUF:Q4_K_M"
+    api_key: str = ""
     timeout_seconds: float = 120
     pdf_dpi: int = 64
     max_tokens: int = 10000
@@ -29,6 +30,11 @@ class Settings(BaseSettings):
         "You are a precise information extraction assistant. "
         "Return faithful, source-grounded results only."
     )
+
+    @field_validator("provider", mode="before")
+    @classmethod
+    def normalize_provider(cls, value: Any) -> Any:
+        return value.lower() if isinstance(value, str) else value
 
 
 settings = Settings()
@@ -232,6 +238,25 @@ def parse_result(answer: str) -> Any:
         return answer
 
 
+def model_api_base_url(base_url: str, provider: str) -> str:
+    """Return the OpenAI-compatible API base URL for the configured provider."""
+    normalized = base_url.rstrip("/")
+    if provider == "ollama" and not normalized.endswith("/v1"):
+        return f"{normalized}/v1"
+    return normalized
+
+
+def chat_completions_url() -> str:
+    return f"{model_api_base_url(settings.base_url, settings.provider)}/chat/completions"
+
+
+def model_headers(api_key: str) -> dict[str, str]:
+    key = api_key.strip()
+    if not key or key.upper() == "EMPTY":
+        return {}
+    return {"Authorization": f"Bearer {key}"}
+
+
 class JSONLResponse(StreamingResponse):
     media_type = "application/jsonl"
 
@@ -284,17 +309,65 @@ def build_payload(
     temperature: float,
     stream: bool,
 ) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "model": settings.model,
         "temperature": temperature,
         "max_tokens": settings.max_tokens,
         "stream": stream,
         "messages": [
             {"role": "system", "content": settings.system_prompt},
-            {"role": "user", "content": content},
         ],
-        "chat_template_kwargs": chat_kwargs,
     }
+    if settings.provider == "ollama":
+        payload["messages"].append(
+            {"role": "user", "content": ollama_content(content, chat_kwargs)}
+        )
+        if chat_kwargs.get("enable_thinking"):
+            payload["reasoning"] = {"effort": "medium"}
+    else:
+        payload["messages"].append({"role": "user", "content": content})
+        payload["chat_template_kwargs"] = chat_kwargs
+    return payload
+
+
+def ollama_content(
+    content: list[dict[str, Any]], chat_kwargs: dict[str, Any]
+) -> list[dict[str, Any]]:
+    task_prompt = ollama_task_prompt(chat_kwargs)
+    if not task_prompt:
+        return content
+    return [{"type": "text", "text": task_prompt}, *content]
+
+
+def ollama_task_prompt(chat_kwargs: dict[str, Any]) -> str:
+    mode = chat_kwargs.get("mode")
+    if mode == "markdown":
+        return (
+            "Convert the supplied document page or image to faithful Markdown. "
+            "Preserve reading order, headings, tables, lists, and visible text. "
+            "Return only Markdown."
+        )
+    if mode == "template-generation":
+        return (
+            "Generate an extraction template for the supplied document or text. "
+            "Return only a valid JSON object. Use concise field names and simple "
+            "type hints such as string, number, YYYY-MM-DD, boolean, or arrays "
+            "of objects."
+        )
+    if mode == "structured":
+        return (
+            "Extract source-grounded information from the supplied document or "
+            "text using the extraction template and instructions. Return the "
+            "final answer inside <answer>...</answer>. The answer content must "
+            "be valid JSON matching the requested template."
+        )
+    if mode == "content":
+        return (
+            "Extract source-grounded information from the supplied document or "
+            "text using any provided instructions. Return the final answer "
+            "inside <answer>...</answer>."
+        )
+    return ""
 
 
 def delta_to_text(chunk: dict[str, Any]) -> tuple[str, str]:
@@ -320,9 +393,9 @@ async def call_model_stream(
     payload = build_payload(content, chat_kwargs, temperature, stream=True)
     async with client.stream(
         "POST",
-        f"{settings.base_url.rstrip('/')}/chat/completions",
+        chat_completions_url(),
         json=payload,
-        headers={"Authorization": f"Bearer {settings.api_key}"},
+        headers=model_headers(settings.api_key),
     ) as response:
         response.raise_for_status()
         async for line in response.aiter_lines():
