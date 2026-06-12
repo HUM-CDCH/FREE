@@ -1,0 +1,77 @@
+# FREE Context
+
+FREE supports document extraction and evaluation for humanities research. In this context, researchers work from source text, extract information directly or with an explicit schema, and keep source-backed evidence that guards against hallucinated results.
+
+## Language
+
+**FREE**:
+The product context for document extraction and evaluation in humanities research.
+_Avoid_: app, system
+
+**Humanities Researcher**:
+A person using FREE to study source documents and decide which information should be extracted from them.
+_Avoid_: user, analyst
+
+**Source Document**:
+A document that contains the original material a researcher works from, including PDFs and other document formats.
+_Avoid_: file, PDF, upload
+
+**Project Context**:
+The broader context that contains one or more source documents, their annotations and annotation sets, schema suggestions, extraction schemas, extractions, and extraction results.
+_Avoid_: research context, workspace
+
+**Annotation**:
+A researcher-created mark on a source document that identifies source text as relevant for possible extraction and may guide direct extraction when present.
+_Avoid_: passage, highlight, selection
+
+**Annotation Set**:
+A collection of annotations from a single source document that may guide schema suggestions or direct extraction.
+_Avoid_: batch, selection set, training set
+
+**Feedback Set**:
+A collection of review decisions saved for audit purposes after a humanities researcher validates extraction results.
+_Avoid_: annotation set, validation set, correction set
+
+**Source Context**:
+Source material and annotations from a single source document that FREE may consider when proposing schemas or producing extraction results.
+_Avoid_: annotation text, surrounding text, document context, full context
+
+**Direct Extraction**:
+An extraction mode where a humanities researcher extracts information from a source document without first creating annotations, reviewing schema suggestions, or approving an extraction schema.
+_Avoid_: quick extraction, simple extraction, automatic extraction
+
+**Schema-Guided Extraction**:
+An extraction mode where a humanities researcher uses an explicit extraction schema to make extraction more precise and repeatable.
+_Avoid_: advanced extraction, technical extraction, schema extraction
+
+**Schema Suggestion**:
+A proposed set of entities and fields produced from a source document and, when present, its annotations for researcher review before schema-guided extraction.
+_Avoid_: extraction suggestion, recommendation, prediction, candidate
+
+**Entity**:
+A named or identifiable thing that can appear in an extraction schema, such as a person, place, organization, work, or event.
+_Avoid_: name, subject
+
+**Field**:
+A structured value or attribute that can appear in an extraction schema.
+_Avoid_: property, column, metadata
+
+**Extraction Schema**:
+A researcher-approved structure that belongs to a single source document and describes which entities and fields FREE should extract.
+_Avoid_: template, extraction target, target list
+
+**Extraction**:
+A run that applies an extraction schema to source context from its source document to produce extracted values.
+_Avoid_: schema, suggestion
+
+**Extraction Result**:
+A value or set of values produced by an extraction.
+_Avoid_: extraction, output, response
+
+**Review Decision**:
+A researcher's choice to approve, edit, or reject a schema suggestion or extraction result.
+_Avoid_: status, vote
+
+**Evidence**:
+Source material kept to show that a schema suggestion, extraction result, or review decision is grounded in the source document rather than invented.
+_Avoid_: citation, source, provenance, annotation text
