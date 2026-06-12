@@ -4,9 +4,10 @@ import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
-import AnnotationSidebar from './AnnotationSidebar'
 import type { AnnotationSetItem } from './AnnotationSidebar'
-import SchemaPanel from './SchemaPanel'
+import ProjectNav, { ACTIVE_DOC, ACTIVE_PROJECT } from './ProjectNav'
+import RightRail from './RightRail'
+import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
 import { countTemplateFields } from './template'
 import { requestTemplate } from './api'
@@ -16,6 +17,12 @@ import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
+
+const COLLAPSED_WIDTH = 46
+const NAV_MIN = 150
+const NAV_MAX = 400
+const RAIL_MIN = 264
+const RAIL_MAX = 560
 
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
 // (AnnotationEditorLayer #textLayerPointerDown): the text-layer background
@@ -67,11 +74,17 @@ function App() {
   const pdfViewerRef = useRef<PDFViewer | null>(null)
   const annotationManagerRef = useRef<AnnotationEditorUIManager | null>(null)
   const templateAbortRef = useRef<AbortController | null>(null)
+  const toastTimerRef = useRef<number | undefined>(undefined)
   const [annotationItems, setAnnotationItems] = useState<AnnotationSetItem[]>([])
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [templateState, setTemplateState] = useState<TemplateState>({ status: 'idle' })
   const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
-  const [schemaOpen, setSchemaOpen] = useState(false)
+  const [navOpen, setNavOpen] = useState(true)
+  const [navWidth, setNavWidth] = useState(212)
+  const [railOpen, setRailOpen] = useState(true)
+  const [railWidth, setRailWidth] = useState(344)
+  const [railTab, setRailTab] = useState<RailTab>('annot')
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -232,7 +245,19 @@ function App() {
     annotationManagerRef.current?.getEditor(id)?.remove()
   }
 
-  useEffect(() => () => templateAbortRef.current?.abort(), [])
+  useEffect(
+    () => () => {
+      templateAbortRef.current?.abort()
+      window.clearTimeout(toastTimerRef.current)
+    },
+    [],
+  )
+
+  function showToast(message: string) {
+    window.clearTimeout(toastTimerRef.current)
+    setToast(message)
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 2600)
+  }
 
   async function generateTemplate() {
     templateAbortRef.current?.abort()
@@ -245,7 +270,7 @@ function App() {
       const pdfBlob = await (await fetch(pdfUrl, { signal: abortController.signal })).blob()
       const template = await requestTemplate(
         pdfBlob,
-        'Beretning_Ellekilde_8_13.pdf',
+        ACTIVE_DOC,
         (output) => {
           // Buffered deltas from an aborted request can still arrive after the
           // next generation has reset the stream; drop them.
@@ -276,9 +301,38 @@ function App() {
     }
   }
 
+  function changeTemplate(template: unknown, message: string) {
+    setTemplateState((state) =>
+      state.status === 'ready' ? { ...state, template, edited: true } : state,
+    )
+    showToast(message)
+  }
+
+  function startResize(event: React.MouseEvent, side: 'nav' | 'rail') {
+    event.preventDefault()
+    const startX = event.clientX
+    const startWidth = side === 'nav' ? navWidth : railWidth
+    const onMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startX
+      if (side === 'nav') {
+        setNavWidth(Math.min(NAV_MAX, Math.max(NAV_MIN, startWidth + dx)))
+      } else {
+        setRailWidth(Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx)))
+      }
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   const statusStyles: Record<LoadState['status'], { dot: string; text?: string }> = {
     loading: { dot: 'animate-pulse bg-amber-500' },
-    ready: { dot: 'bg-emerald-500 dark:bg-emerald-400' },
+    ready: { dot: 'bg-green' },
     error: { dot: 'bg-danger', text: 'text-danger' },
   }
 
@@ -294,74 +348,100 @@ function App() {
       ? 'Select any passage in the report to add it to the annotation set'
       : templateState.status === 'ready'
         ? 'Click an annotation to jump back to its passage in the source'
-        : 'Open Schema to generate the extraction schema for this document'
+        : 'Open the Schema tab to generate the extraction schema for this document'
 
   return (
     <main className="flex h-dvh flex-col bg-canvas text-ink">
-      <header className="relative z-10 flex shrink-0 items-center gap-3 border-b border-line bg-surface px-4 py-2.5 sm:px-5">
-        <img src="/free-logo.png" alt="" className="size-7 shrink-0 object-contain" />
-        <h1 className="text-[15px] font-bold tracking-[0.04em]">FREE</h1>
-        <p className="hidden min-w-0 truncate text-[13px] text-ink-muted md:block">
-          Ellekilde, TAK 1355 <span className="mx-1 text-ink-faint">›</span>
-          <span className="font-semibold text-ink">Beretning_Ellekilde_8_13.pdf</span>
-        </p>
-        <div className="min-w-0 flex-1" />
-        <p
-          aria-live="polite"
-          className={`hidden w-fit shrink-0 items-center gap-2 rounded-full border border-line bg-surface-muted py-1 pl-2.5 pr-3 text-xs font-medium text-ink-muted sm:inline-flex ${statusStyles[loadState.status].text ?? ''}`}
-        >
-          <span aria-hidden="true" className={`size-1.5 rounded-full ${statusStyles[loadState.status].dot}`} />
-          {loadState.status === 'loading' && 'Loading PDF…'}
-          {loadState.status === 'ready' && `${loadState.pageCount} pages · text highlights only`}
-          {loadState.status === 'error' && loadState.message}
-        </p>
-        <button
-          className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold outline-none transition-colors focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40 ${
-            schemaOpen
-              ? 'border-accent/50 bg-accent-soft text-accent'
-              : 'border-line bg-surface text-ink-muted hover:border-accent/50 hover:text-accent'
+      <header className="relative z-10 flex shrink-0 items-stretch border-b border-line bg-surface">
+        <div
+          style={{ width: navOpen ? navWidth : COLLAPSED_WIDTH }}
+          className={`flex shrink-0 items-center gap-2.5 border-r border-line ${
+            navOpen ? 'justify-start px-4' : 'justify-center px-2'
           }`}
-          type="button"
-          aria-expanded={schemaOpen}
-          onClick={() => setSchemaOpen((open) => !open)}
         >
-          Schema
-          <span
-            className={`inline-grid h-4.5 min-w-5.5 place-items-center rounded-full px-1.5 text-[11px] font-semibold leading-none tabular-nums ${
-              schemaFieldCount > 0 ? 'bg-accent-soft text-accent' : 'bg-surface-muted text-ink-faint'
-            }`}
+          <img src="/free-logo.png" alt="" className="size-7.5 shrink-0 object-contain" />
+          {navOpen && <h1 className="text-[17px] font-extrabold tracking-[0.06em]">FREE</h1>}
+        </div>
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-5 py-2.5">
+          <p className="min-w-0 truncate text-[13px] text-ink-muted">
+            {ACTIVE_PROJECT}
+            <span className="mx-2.5">/</span>
+            <span className="font-semibold text-ink">{ACTIVE_DOC}</span>
+          </p>
+          <div className="min-w-0 flex-1" />
+          <p
+            aria-live="polite"
+            className={`hidden w-fit shrink-0 items-center gap-2 rounded-full border border-line bg-surface-muted py-1 pl-2.5 pr-3 text-xs font-medium text-ink-muted sm:inline-flex ${statusStyles[loadState.status].text ?? ''}`}
           >
-            {schemaFieldCount}
-          </span>
-        </button>
+            <span aria-hidden="true" className={`size-1.5 rounded-full ${statusStyles[loadState.status].dot}`} />
+            {loadState.status === 'loading' && 'Loading PDF…'}
+            {loadState.status === 'ready' && `${loadState.pageCount} pages · text highlights only`}
+            {loadState.status === 'error' && loadState.message}
+          </p>
+        </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-        {schemaOpen && (
-          <SchemaPanel
-            state={templateState}
-            stale={schemaStale}
-            onGenerate={() => void generateTemplate()}
-            annotationCount={annotationItems.length}
-            annotationsMode={annotationsMode}
-            onAnnotationsModeChange={setAnnotationsMode}
+      <div className="flex min-h-0 flex-1">
+        <aside
+          style={{ width: navOpen ? navWidth : COLLAPSED_WIDTH }}
+          className="min-h-0 shrink-0 border-r border-line bg-surface"
+          aria-label="Project navigation"
+        >
+          <ProjectNav open={navOpen} onToggle={() => setNavOpen((open) => !open)} onToast={showToast} />
+        </aside>
+        {navOpen && (
+          <div
+            className="z-[5] -ml-[3px] w-[5px] shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
+            title="Drag to resize"
+            onMouseDown={(event) => startResize(event, 'nav')}
           />
         )}
         <section className="relative min-h-0 min-w-0 flex-1" aria-label="PDF document">
           <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={containerRef}>
             <div className="pdfViewer" ref={viewerRef} />
           </div>
+          {toast && (
+            <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
+              <p className="animate-fadeup min-w-0 truncate rounded-xl border border-line-strong bg-surface px-4.5 py-2 text-xs font-semibold text-ink shadow-float">
+                {toast}
+              </p>
+            </div>
+          )}
           <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden justify-center sm:flex">
             <p className="flex min-w-0 items-center gap-2 rounded-full bg-ink px-4 py-2 text-xs font-medium text-canvas shadow-float">
-              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent" />
+              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent-soft" />
               <span className="truncate">{hintText}</span>
             </p>
           </div>
         </section>
-        <AnnotationSidebar
-          items={annotationItems}
-          onSelectItem={selectAnnotationItem}
-          onRemoveItem={removeAnnotationItem}
-        />
+        {railOpen && (
+          <div
+            className="z-[5] -mr-[3px] w-[5px] shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
+            title="Drag to resize"
+            onMouseDown={(event) => startResize(event, 'rail')}
+          />
+        )}
+        <aside
+          style={{ width: railOpen ? railWidth : COLLAPSED_WIDTH }}
+          className="min-h-0 shrink-0 border-l border-line bg-surface"
+          aria-label="Annotations, chat and schema"
+        >
+          <RightRail
+            open={railOpen}
+            onToggle={() => setRailOpen((open) => !open)}
+            tab={railTab}
+            onTabChange={setRailTab}
+            annotationItems={annotationItems}
+            onSelectAnnotation={selectAnnotationItem}
+            onRemoveAnnotation={removeAnnotationItem}
+            schemaState={templateState}
+            schemaStale={schemaStale}
+            schemaFieldCount={schemaFieldCount}
+            onGenerate={() => void generateTemplate()}
+            onTemplateChange={changeTemplate}
+            annotationsMode={annotationsMode}
+            onAnnotationsModeChange={setAnnotationsMode}
+          />
+        </aside>
       </div>
     </main>
   )

@@ -1,0 +1,137 @@
+import PanelToggleIcon from './PanelToggleIcon'
+import AnnotationSetTab from './AnnotationSidebar'
+import type { AnnotationSetItem } from './AnnotationSidebar'
+import ChatTab from './ChatTab'
+import SchemaPanel from './SchemaPanel'
+import type { TemplateState } from './SchemaPanel'
+import type { AnnotationsMode } from './api'
+
+export type RailTab = 'annot' | 'chat' | 'schema'
+
+type RightRailProps = {
+  open: boolean
+  onToggle: () => void
+  tab: RailTab
+  onTabChange: (tab: RailTab) => void
+  annotationItems: AnnotationSetItem[]
+  onSelectAnnotation: (id: string) => void
+  onRemoveAnnotation: (id: string) => void
+  schemaState: TemplateState
+  schemaStale: boolean
+  schemaFieldCount: number
+  onGenerate: () => void
+  onTemplateChange: (template: unknown, message: string) => void
+  annotationsMode: AnnotationsMode
+  onAnnotationsModeChange: (mode: AnnotationsMode) => void
+}
+
+function TabBadge({ count, active }: { count: number; active: boolean }) {
+  return (
+    <span
+      className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-[10px] leading-none text-accent tabular-nums ${
+        active ? 'bg-accent-soft' : 'bg-accent-ghost'
+      }`}
+    >
+      {count}
+    </span>
+  )
+}
+
+function RightRail({
+  open,
+  onToggle,
+  tab,
+  onTabChange,
+  annotationItems,
+  onSelectAnnotation,
+  onRemoveAnnotation,
+  schemaState,
+  schemaStale,
+  schemaFieldCount,
+  onGenerate,
+  onTemplateChange,
+  annotationsMode,
+  onAnnotationsModeChange,
+}: RightRailProps) {
+  if (!open) {
+    return (
+      <div className="flex h-full flex-col items-center">
+        <button
+          className="flex cursor-pointer items-center justify-center py-3 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+          type="button"
+          title="Expand panel"
+          onClick={onToggle}
+        >
+          <PanelToggleIcon side="right" />
+        </button>
+        <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
+          Annot · Chat · Schema
+        </span>
+      </div>
+    )
+  }
+
+  const tabs: { key: RailTab; label: string; count?: number }[] = [
+    { key: 'annot', label: 'Annot.', count: annotationItems.length },
+    { key: 'chat', label: 'Chat' },
+    { key: 'schema', label: 'Schema', count: schemaFieldCount },
+  ]
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-stretch border-b border-line" role="tablist">
+        {tabs.map(({ key, label, count }) => {
+          const active = tab === key
+          return (
+            <button
+              key={key}
+              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-xs font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
+                active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
+              }`}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onTabChange(key)}
+            >
+              <span>{label}</span>
+              {count != null && count > 0 && <TabBadge count={count} active={active} />}
+            </button>
+          )
+        })}
+        <button
+          className="flex cursor-pointer items-center justify-center border-b-2 border-transparent px-2.5 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+          type="button"
+          title="Collapse panel"
+          onClick={onToggle}
+        >
+          <PanelToggleIcon side="right" />
+        </button>
+      </div>
+
+      {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
+      <div className="min-h-0 flex-1" hidden={tab !== 'annot'}>
+        <AnnotationSetTab
+          items={annotationItems}
+          onSelectItem={onSelectAnnotation}
+          onRemoveItem={onRemoveAnnotation}
+        />
+      </div>
+      <div className="min-h-0 flex-1" hidden={tab !== 'chat'}>
+        <ChatTab />
+      </div>
+      <div className="min-h-0 flex-1" hidden={tab !== 'schema'}>
+        <SchemaPanel
+          state={schemaState}
+          stale={schemaStale}
+          onGenerate={onGenerate}
+          onTemplateChange={onTemplateChange}
+          annotationCount={annotationItems.length}
+          annotationsMode={annotationsMode}
+          onAnnotationsModeChange={onAnnotationsModeChange}
+        />
+      </div>
+    </div>
+  )
+}
+
+export default RightRail
