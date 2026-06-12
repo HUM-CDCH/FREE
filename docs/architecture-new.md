@@ -32,43 +32,58 @@ sequenceDiagram
     API-->>FE: Prepared document metadata
     FE-->>U: Show document in viewer, ready to annotate
 
-    Note over U,FS: Phase 2 - Annotation, repeatable across documents and sessions
+    Note over U,FS: Phase 2 - Context Gathering, all inputs are optional
 
-    U->>FE: Highlight text span and optionally add label or note
-    FE->>API: POST /annotations
-    API->>A: Save annotation with document hash, text span, page, quote, and label
-    A-->>API: Annotation ID
-    API-->>FE: Annotation saved
-    FE-->>U: Show highlight in document viewer
+    opt User highlights text spans
+        U->>FE: Highlight text span and optionally add label or note
+        FE->>API: POST /annotations
+        API->>A: Save annotation with document hash, text span, page, quote, and label
+        A-->>API: Annotation ID
+        API-->>FE: Annotation saved
+        FE-->>U: Show highlight in document viewer
+    end
 
-    Note over U,FS: Phase 3 - Schema Suggestion, user-initiated
+    opt User provides a natural language prompt
+        U->>FE: Type extraction prompt
+        FE->>API: POST /extraction-prompts
+        API->>A: Save prompt with document hash
+        API-->>FE: Prompt saved
+    end
 
-    U->>FE: Request schema suggestions from annotations
+    Note over U,FS: Phase 3 - Schema Derivation, always runs before extraction
+
+    U->>FE: Initiate extraction
     FE->>API: POST /schema-suggestions
-    API->>A: Load full annotation set for document hash
-    API->>SG: Infer schema from highlighted spans and labels
-    SG->>L: Send annotations and document context as JSON chat request
+    API->>A: Load annotations and prompt if available
+    API->>SG: Derive schema from available context
+
+    alt Annotations and/or prompt provided
+        SG->>L: Infer schema from annotations and prompt
+    else No context provided
+        SG->>L: Detect document domain and propose default schema
+    end
+
     L->>M: Provider API call
     M-->>L: JSON response
     L-->>SG: Suggested fields, types, and example values
     SG-->>API: Suggested schema
     API-->>FE: Schema suggestions
-    FE-->>U: Show schema suggestions with source highlights for each field
+    FE-->>U: Show proposed schema
 
-    U->>FE: Review, edit, and approve schema
-    FE->>API: POST /schema-suggestions/:id/review
-    API->>FS: Save approved schema and review decision
-    API-->>FE: Approved schema metadata
-    FE-->>U: Show approved schema and prompt user to run extraction
+    opt User reviews schema
+        U->>FE: Approve, edit, or reject schema fields
+        FE->>API: POST /schema-suggestions/:id/review
+        API->>FS: Save reviewed schema
+        API-->>FE: Reviewed schema confirmed
+    end
 
     Note over U,FS: Phase 4 - Extraction
 
-    U->>FE: Run extraction on selected documents with approved schema
     FE->>API: POST /extractions
-    API->>FS: Load approved schema
-    API->>S: Run single extraction with document hash, approved schema, and model
+    API->>FS: Load confirmed or auto-approved schema
+    API->>S: Run extraction with document hash, schema, and model
     S->>S: Optionally extract tables
-    S->>P: Run extraction with parsed text, approved schema, and model
+    S->>P: Run extraction with parsed text, schema, and model
     P->>C: Choose standard, doctags, or hierarchical extractor
     C->>L: Send messages as JSON chat request
     L->>M: Provider API call
@@ -81,11 +96,13 @@ sequenceDiagram
     API-->>FE: Extraction results
     FE-->>U: Show extracted records with source-linked evidence highlights
 
-    Note over U,FS: Phase 5 - Validation
+    Note over U,FS: Phase 5 - Validation, optional
 
-    U->>FE: Confirm, edit, or reject extracted values
-    FE->>API: POST /validations
-    API->>FS: Append validation decision to annotation JSONL
-    API-->>FE: Validation saved
-    FE-->>U: Show reviewed status and flag remaining unvalidated fields
+    opt User validates results
+        U->>FE: Confirm, edit, or reject extracted values
+        FE->>API: POST /validations
+        API->>FS: Append validation decision to annotation JSONL
+        API-->>FE: Validation saved
+        FE-->>U: Show reviewed status and flag remaining unvalidated fields
+    end
 ```
