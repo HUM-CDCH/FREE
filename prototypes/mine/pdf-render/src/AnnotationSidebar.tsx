@@ -52,7 +52,7 @@ function AnnotationSetTab({ items, onSelectItem, onRemoveItem }: AnnotationSetTa
         ) : (
           groupByPage(items).map((group) => (
             <section key={group.pageNumber} className="mb-3.5 last:mb-0">
-              <h3 className="mb-1.5 px-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted">
+              <h3 className="mb-1.5 px-0.5 text-[10px] font-bold uppercase tracking-widest text-ink-muted">
                 Page {group.pageNumber}
               </h3>
               <ul className="flex flex-wrap gap-1.5">

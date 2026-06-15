@@ -54,7 +54,7 @@ class ModelConfigTests(unittest.TestCase):
             {"Authorization": "Bearer secret"},
         )
 
-    def test_ollama_payload_excludes_custom_template_kwargs(self) -> None:
+    def test_ollama_payload_includes_custom_template_kwargs(self) -> None:
         self.configure(provider="ollama")
         content = [{"type": "text", "text": "Document body"}]
         chat_kwargs = {
@@ -65,7 +65,7 @@ class ModelConfigTests(unittest.TestCase):
 
         payload = main.build_payload(content, chat_kwargs, temperature=0.2, stream=True)
 
-        self.assertNotIn("chat_template_kwargs", payload)
+        self.assertEqual(payload["chat_template_kwargs"], chat_kwargs)
         self.assertEqual(payload["model"], "test-model")
         self.assertEqual(payload["max_tokens"], 123)
         self.assertEqual(payload["reasoning"], {"effort": "medium"})

@@ -436,7 +436,7 @@ function App() {
         </aside>
         {navOpen && (
           <div
-            className="z-[5] -ml-[3px] w-[5px] shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
+            className="z-5 -ml-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
             title="Drag to resize"
             onMouseDown={(event) => startResize(event, 'nav')}
           />
@@ -475,7 +475,7 @@ function App() {
         </section>
         {railOpen && (
           <div
-            className="z-[5] -mr-[3px] w-[5px] shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
+            className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
             title="Drag to resize"
             onMouseDown={(event) => startResize(event, 'rail')}
           />
