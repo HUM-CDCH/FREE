@@ -238,6 +238,16 @@ def parse_result(answer: str) -> Any:
         return answer
 
 
+def parse_json_object_result(answer: str) -> dict[str, Any]:
+    try:
+        result = json.loads(answer)
+    except json.JSONDecodeError:
+        raise ValueError("Model returned invalid JSON for the extraction result")
+    if not isinstance(result, dict):
+        raise ValueError("Model returned a JSON value instead of an object")
+    return result
+
+
 def model_api_base_url(base_url: str, provider: str) -> str:
     """Return the OpenAI-compatible API base URL for the configured provider."""
     normalized = base_url.rstrip("/")
@@ -456,14 +466,68 @@ async def extract_events(
         if think
         else splitter.output
     )
+    if chat_kwargs.get("mode") == "structured":
+        try:
+            result = parse_json_object_result(answer)
+        except ValueError as exc:
+            yield JsonLineEvent(event="error", data={"detail": str(exc), "raw": raw})
+            return
+    else:
+        result = parse_result(answer)
     yield JsonLineEvent(
         event="done",
         data={
-            "result": parse_result(answer),
+            "result": result,
             "reasoning": think or None,
             "raw": raw,
             "pages": pages,
         },
+    )
+
+
+async def chat_events(
+    content: list[dict[str, Any]],
+    chat_kwargs: dict[str, Any],
+    temperature: float,
+    reasoning: bool,
+) -> AsyncIterator[JsonLineEvent]:
+    splitter = ThinkSplitter(reasoning)
+    async for event in jsonl_delta_events(
+        splitter, call_model_stream(content, chat_kwargs, temperature)
+    ):
+        yield event
+    message = splitter.output.strip()
+    yield JsonLineEvent(
+        event="done",
+        data={
+            "message": message,
+            "reasoning": splitter.think.strip() or None,
+            "raw": splitter.output,
+        },
+    )
+
+
+@app.post("/chat", responses=STREAM_RESPONSES)
+async def chat(
+    request: Request,
+    text: str | None = Form(None),
+    reasoning: bool = Form(False),
+    temperature: float | None = Form(None),
+) -> Response:
+    text = (text or "").strip()
+    if not text:
+        raise HTTPException(400, "Provide chat text")
+
+    content = [{"type": "text", "text": text}]
+    chat_kwargs: dict[str, Any] = {"enable_thinking": reasoning}
+    return await jsonl_response(
+        request,
+        chat_events(
+            content,
+            chat_kwargs,
+            resolve_temperature(temperature, reasoning),
+            reasoning,
+        ),
     )
 
 
@@ -491,14 +555,22 @@ async def extract(
     if use_structured:
         extra_parts.append(f"Extraction template:\n```json\n{template_json}\n```")
     extra_text = "\n\n".join(extra_parts) or None
+    embedded_extra_text = extra_text if settings.provider == "ollama" else None
 
     if file is not None:
         jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
-        content = make_image_content(jpeg_pages, extra_text)
+        content = make_image_content(jpeg_pages, embedded_extra_text)
     else:
         jpeg_pages = []
         content = [
-            {"type": "text", "text": f"{text}\n\n{extra_text}" if extra_text else text}
+            {
+                "type": "text",
+                "text": (
+                    f"{text}\n\n{embedded_extra_text}"
+                    if embedded_extra_text
+                    else text
+                ),
+            }
         ]
 
     chat_kwargs: dict[str, Any] = {

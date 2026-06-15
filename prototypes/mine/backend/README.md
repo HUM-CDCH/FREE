@@ -28,9 +28,8 @@ NUEXTRACT3_MODEL=hf.co/numind/NuExtract3-GGUF:Q4_K_M
 ### Docker Model Runner or another OpenAI-style endpoint
 
 ```env
-NUEXTRACT3_PROVIDER=openai
 NUEXTRACT3_BASE_URL=http://127.0.0.1:12434/engines/v1
-NUEXTRACT3_MODEL=hf.co/numind/NuExtract3-GGUF:Q4_K_M
+NUEXTRACT3_MODEL=hf.co/numind/NuExtract3-GGUF:mmproj
 NUEXTRACT3_API_KEY=EMPTY
 ```
 
