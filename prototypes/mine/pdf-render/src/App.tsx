@@ -564,11 +564,8 @@ function App() {
             tab={railTab}
             onTabChange={setRailTab}
             annotationItems={annotationItems}
-            extractions={extractions}
             onSelectAnnotation={selectAnnotationItem}
             onRemoveAnnotation={removeAnnotationItem}
-            onExtractAnnotation={(id) => void handleExtractItem(id)}
-            onDecideExtraction={handleDecideExtraction}
             schemaState={templateState}
             schemaStale={schemaStale}
             schemaReady={schemaReady}

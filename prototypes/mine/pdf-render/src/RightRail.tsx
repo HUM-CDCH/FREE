@@ -1,6 +1,6 @@
 import PanelToggleIcon from './PanelToggleIcon'
 import AnnotationSetTab from './AnnotationSidebar'
-import type { AnnotationSetItem, ExtractionState } from './AnnotationSidebar'
+import type { AnnotationSetItem } from './AnnotationSidebar'
 import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
@@ -16,11 +16,8 @@ type RightRailProps = {
   tab: RailTab
   onTabChange: (tab: RailTab) => void
   annotationItems: AnnotationSetItem[]
-  extractions: Record<string, ExtractionState>
   onSelectAnnotation: (id: string) => void
   onRemoveAnnotation: (id: string) => void
-  onExtractAnnotation: (id: string) => void
-  onDecideExtraction: (id: string, decision: 'pending' | 'confirmed' | 'rejected', editedResult?: unknown) => void
   schemaState: TemplateState
   schemaStale: boolean
   schemaReady: boolean
@@ -51,11 +48,8 @@ function RightRail({
   tab,
   onTabChange,
   annotationItems,
-  extractions,
   onSelectAnnotation,
   onRemoveAnnotation,
-  onExtractAnnotation,
-  onDecideExtraction,
   schemaState,
   schemaStale,
   schemaReady,
@@ -132,11 +126,8 @@ function RightRail({
       <div className="min-h-0 flex-1" hidden={tab !== 'annot'}>
         <AnnotationSetTab
           items={annotationItems}
-          extractions={extractions}
           onSelectItem={onSelectAnnotation}
           onRemoveItem={onRemoveAnnotation}
-          onExtractItem={onExtractAnnotation}
-          onDecideExtraction={onDecideExtraction}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'chat'}>
