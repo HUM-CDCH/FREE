@@ -13,4 +13,8 @@ services:
 models:
   nuextract3:
     model: ${NUEXTRACT3_MODEL:-hf.co/numind/NuExtract3-GGUF:Q4_K_M}
-    context_size: 16384
+    context_size: 2048
+    runtime_flags:
+      # Keep NuExtract3 usable on 4 GiB GPUs by avoiding full layer offload.
+      - "--n-gpu-layers"
+      - "8"
