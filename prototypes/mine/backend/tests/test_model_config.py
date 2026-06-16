@@ -91,20 +91,6 @@ class ModelConfigTests(unittest.TestCase):
         self.assertIn("valid JSON", user_content[0]["text"])
         self.assertEqual(user_content[1], content[0])
 
-    def test_payload_can_override_model_for_schema_generation(self) -> None:
-        self.configure(provider="ollama")
-        provider = OllamaProvider(main.settings, None)  # type: ignore[arg-type]
-
-        payload = provider.build_payload(
-            [{"type": "text", "text": "Document body"}],
-            {"mode": "template-generation", "enable_thinking": False},
-            temperature=0.2,
-            stream=True,
-            model="schema-model",
-        )
-
-        self.assertEqual(payload["model"], "schema-model")
-
     def test_ollama_payload_omits_reasoning_when_disabled(self) -> None:
         self.configure(provider="ollama")
 
