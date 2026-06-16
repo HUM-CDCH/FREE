@@ -22,7 +22,7 @@
       "name": "FREE: Frontend dev (Vite -> FastAPI)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "pnpm.cmd dev --host 127.0.0.1 --port 5173",
+      "command": "pnpm dev --host 127.0.0.1 --port 5173",
       "cwd": "${workspaceFolder}/prototypes/mine/pdf-render",
       "env": {
         "VITE_API_BASE": "http://127.0.0.1:8000"

@@ -2,6 +2,8 @@ import asyncio
 import unittest
 from typing import Any
 
+import httpx
+
 import main
 from model_providers import (
     OllamaProvider,
@@ -24,6 +26,27 @@ class FakeStreamResponse:
             yield line
 
 
+class FakeErrorStreamResponse(FakeStreamResponse):
+    status_code = 500
+    reason_phrase = "Internal Server Error"
+
+    def __init__(self, body: str):
+        super().__init__([])
+        self.body = body.encode()
+        self.request = httpx.Request("POST", "http://example.test/v1/chat/completions")
+        self.url = self.request.url
+
+    def raise_for_status(self) -> None:
+        raise httpx.HTTPStatusError(
+            "unread streaming response",
+            request=self.request,
+            response=self,  # type: ignore[arg-type]
+        )
+
+    async def aread(self) -> bytes:
+        return self.body
+
+
 class FakeStreamContext:
     def __init__(self, response: FakeStreamResponse):
         self.response = response
@@ -43,6 +66,16 @@ class FakeAsyncClient:
     def stream(self, method: str, url: str, **kwargs: Any) -> FakeStreamContext:
         self.calls.append({"method": method, "url": url, **kwargs})
         return FakeStreamContext(FakeStreamResponse(self.lines))
+
+
+class FakeErrorAsyncClient(FakeAsyncClient):
+    def __init__(self, body: str):
+        super().__init__([])
+        self.body = body
+
+    def stream(self, method: str, url: str, **kwargs: Any) -> FakeStreamContext:
+        self.calls.append({"method": method, "url": url, **kwargs})
+        return FakeStreamContext(FakeErrorStreamResponse(self.body))
 
 
 class ModelProviderTests(unittest.TestCase):
@@ -126,6 +159,17 @@ class ModelProviderTests(unittest.TestCase):
         provider = OpenAICompatibleProvider(self.make_settings(), client)  # type: ignore[arg-type]
 
         self.assertEqual(self.collect(provider), [("", "done")])
+
+    def test_stream_chat_error_reads_stream_body_before_raising(self) -> None:
+        client = FakeErrorAsyncClient("upstream failed before streaming")
+        provider = OpenAICompatibleProvider(self.make_settings(), client)  # type: ignore[arg-type]
+
+        with self.assertRaises(httpx.HTTPStatusError) as error:
+            self.collect(provider)
+
+        message = str(error.exception)
+        self.assertIn("HTTP 500 Internal Server Error", message)
+        self.assertIn("upstream failed before streaming", message)
 
     def test_ollama_and_vllm_share_mode_task_prompts(self) -> None:
         content = [{"type": "text", "text": "Document body"}]

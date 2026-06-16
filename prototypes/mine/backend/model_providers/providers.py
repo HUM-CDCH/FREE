@@ -79,7 +79,19 @@ class OpenAICompatibleProvider(ModelProvider):
             json=payload,
             headers=self.headers(),
         ) as response:
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                body = (await response.aread()).decode(errors="replace").strip()
+                detail = (
+                    f"HTTP {response.status_code} {response.reason_phrase} "
+                    f"from {response.url}"
+                )
+                if body:
+                    detail = f"{detail}\n\n{body}"
+                raise httpx.HTTPStatusError(
+                    detail, request=exc.request, response=exc.response
+                ) from exc
             async for line in response.aiter_lines():
                 if not line.startswith("data:"):
                     continue

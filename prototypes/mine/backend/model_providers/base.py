@@ -20,7 +20,7 @@ class ModelProvider(Protocol):
     settings: ProviderSettings
     client: httpx.AsyncClient
 
-    async def stream_chat(
+    def stream_chat(
         self,
         content: ChatContent,
         chat_kwargs: dict[str, Any],
@@ -28,3 +28,4 @@ class ModelProvider(Protocol):
         model: str | None = None,
     ) -> AsyncIterator[ChatDelta]:
         """Yield streamed model deltas as (reasoning_delta, content_delta)."""
+        ...
