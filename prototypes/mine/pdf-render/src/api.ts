@@ -1,43 +1,5 @@
-const API_BASE: string =
-  (import.meta.env.VITE_API_BASE as string | undefined) ?? 'http://127.0.0.1:8000'
-
-type JsonLineEvent = {
-  event: string
-  data: Record<string, unknown>
-}
-
-async function* readJsonLines(body: ReadableStream<Uint8Array>): AsyncGenerator<JsonLineEvent> {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) {
-        break
-      }
-      buffer += decoder.decode(value, { stream: true })
-
-      let newlineIndex = buffer.indexOf('\n')
-      while (newlineIndex !== -1) {
-        const line = buffer.slice(0, newlineIndex).trim()
-        buffer = buffer.slice(newlineIndex + 1)
-        if (line) {
-          yield JSON.parse(line) as JsonLineEvent
-        }
-        newlineIndex = buffer.indexOf('\n')
-      }
-    }
-
-    const tail = buffer.trim()
-    if (tail) {
-      yield JSON.parse(tail) as JsonLineEvent
-    }
-  } finally {
-    reader.releaseLock()
-  }
-}
+import { isRecord } from './template'
+import { API_BASE, streamJsonl } from './jsonlStream'
 
 export type TemplateAnnotation = { text: string; pageNumber: number }
 
@@ -48,10 +10,56 @@ type TemplateOptions = {
   annotationsMode?: AnnotationsMode
 }
 
+// ---------- terminal `done` payloads (mirror main.py; one place to update) ----------
+
+export type ChatDone = { message: string; reasoning: string | null; raw: string }
+export type ExtractDone = {
+  result: Record<string, unknown>
+  reasoning: string | null
+  raw: string
+  pages: number
+}
+export type TemplateDone = { template: unknown; raw: string; pages: number }
+export type MarkdownDone = { pages: string[]; count: number }
+
+// ---------- boundary decoders ----------
+// One per `done` payload. They assert the fields the frontend depends on and
+// throw a named error on absence, so backend contract drift fails loud and
+// localized here instead of flowing through as a silent `undefined`.
+
+export function decodeTemplateDone(data: unknown): TemplateDone {
+  if (!isRecord(data) || !('template' in data)) {
+    throw new Error("generate-template: done payload missing 'template' — backend contract drift?")
+  }
+  return data as TemplateDone
+}
+
+export function decodeExtractDone(data: unknown): ExtractDone {
+  if (!isRecord(data) || !isRecord(data.result)) {
+    throw new Error("extract: done payload missing 'result' — backend contract drift?")
+  }
+  return data as ExtractDone
+}
+
+export function decodeChatDone(data: unknown): ChatDone {
+  if (!isRecord(data) || typeof data.message !== 'string') {
+    throw new Error("chat: done payload missing 'message' — backend contract drift?")
+  }
+  return data as ChatDone
+}
+
+export function decodeMarkdownDone(data: unknown): MarkdownDone {
+  if (!isRecord(data) || !Array.isArray(data.pages)) {
+    throw new Error("markdown: done payload missing 'pages' — backend contract drift?")
+  }
+  return data as MarkdownDone
+}
+
+// ---------- request wrappers ----------
+
 /**
- * Call the backend's /generate-template endpoint and stream its JSONL events.
- * Delta events carry incremental model output; the terminal done event carries
- * the parsed extraction template, which is this function's return value.
+ * Stream the `/generate-template` endpoint. Delta events carry incremental
+ * model output; the return value is the parsed extraction template.
  */
 export async function requestTemplate(
   file: Blob,
@@ -67,35 +75,28 @@ export async function requestTemplate(
     form.append('annotations_mode', options.annotationsMode ?? 'hints')
   }
 
-  const response = await fetch(`${API_BASE}/generate-template`, {
-    method: 'POST',
-    body: form,
-    headers: { accept: 'application/jsonl' },
-    signal,
-  })
+  const done = await streamJsonl('/generate-template', form, { onDelta }, decodeTemplateDone, signal)
+  return done.template
+}
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '')
-    throw new Error(detail || `Template request failed (HTTP ${response.status})`)
-  }
-  if (!response.body) {
-    throw new Error('Template request returned no response body')
-  }
+/**
+ * Stream the `/extract` endpoint with the approved extraction schema. Delta
+ * events carry incremental output; the return value is the extraction result
+ * object, mirroring the schema's structure with extracted values.
+ */
+export async function requestExtraction(
+  file: Blob,
+  fileName: string,
+  template: unknown,
+  onDelta: (output: string) => void,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const form = new FormData()
+  form.append('file', file, fileName)
+  form.append('template', JSON.stringify(template ?? {}))
 
-  for await (const { event, data } of readJsonLines(response.body)) {
-    if (event === 'delta') {
-      const output = typeof data.output === 'string' ? data.output : ''
-      if (output) {
-        onDelta(output)
-      }
-    } else if (event === 'error') {
-      throw new Error(typeof data.detail === 'string' ? data.detail : 'Model endpoint error')
-    } else if (event === 'done') {
-      return data.template
-    }
-  }
-
-  throw new Error('Template stream ended without a result')
+  const done = await streamJsonl('/extract', form, { onDelta }, decodeExtractDone, signal)
+  return done.result
 }
 
 export type DocumentRecord = {
@@ -136,26 +137,9 @@ export async function extractSelection(
     form.append('template', JSON.stringify(template))
   }
 
-  const response = await fetch(`${API_BASE}/extract-selection`, {
-    method: 'POST',
-    body: form,
-    headers: { accept: 'application/jsonl' },
-    signal,
-  })
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '')
-    throw new Error(detail || `Extraction failed (HTTP ${response.status})`)
+  const done = await streamJsonl('/extract-selection', form, { onDelta: () => {} }, decodeExtractDone, signal)
+  return {
+    result: done.result,
+    reasoning: done.reasoning,
   }
-  if (!response.body) throw new Error('No response body')
-
-  for await (const { event, data } of readJsonLines(response.body)) {
-    if (event === 'error') throw new Error(typeof data.detail === 'string' ? data.detail : 'Extraction error')
-    if (event === 'done') {
-      return {
-        result: data.result,
-        reasoning: typeof data.reasoning === 'string' ? data.reasoning : null,
-      }
-    }
-  }
-  throw new Error('Extraction stream ended without a result')
 }

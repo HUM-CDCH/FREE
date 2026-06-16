@@ -22,8 +22,12 @@
   --color-accent-ghost: #fbf1ec;  /* faint accent wash (hovers) */
   --color-ev: #4f8aa8;            /* evidence blue */
   --color-ev-soft: #d9eaf3;       /* evidence tint fill */
+  --color-ev-ghost: #eef6fa;      /* faint evidence wash (stepper, current row) */
   --color-green: #3e7c4f;
   --color-green-soft: #e7f1e9;
+  --color-stale: #c98a2b;         /* stale / re-run amber */
+  --color-stale-soft: #fdf3e3;    /* stale fill */
+  --color-stale-ink: #9a6b14;     /* stale text */
   --color-danger: #b3402a;
 
   --shadow-page:
@@ -65,4 +69,14 @@
 
 @utility animate-fadeup {
   animation: fadeup 0.2s ease;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@utility animate-spin-slow {
+  animation: spin 0.8s linear infinite;
 }

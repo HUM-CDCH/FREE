@@ -12,6 +12,7 @@ import pypdfium2 as pdfium
 from fastapi import FastAPI, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from model_providers import ChatContent, ModelProvider, create_model_provider
 from PIL import Image
 from pydantic import BaseModel, TypeAdapter, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,7 +21,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="NUEXTRACT3_", env_file=".env")
 
-    provider: Literal["ollama", "openai"] = "ollama"
+    provider: Literal["ollama", "vllm", "openai"] = "ollama"
     base_url: str = "http://127.0.0.1:11434"
     model: str = "nuextract"          # vision model: PDF images → extracted data
     schema_model: str = "qwen3.5:2b"  # text model: annotations → schema suggestion
@@ -41,15 +42,15 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-client: httpx.AsyncClient
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global client
-    client = httpx.AsyncClient(timeout=settings.timeout_seconds)
-    yield
-    await client.aclose()
+    app.state.client = httpx.AsyncClient(timeout=settings.timeout_seconds)
+    app.state.provider = create_model_provider(settings, app.state.client)
+    try:
+        yield
+    finally:
+        await app.state.client.aclose()
 
 
 app = FastAPI(title="NuExtract3 extraction server", lifespan=lifespan)
@@ -244,23 +245,90 @@ def parse_result(answer: str) -> Any:
         return answer
 
 
-def model_api_base_url(base_url: str, provider: str) -> str:
-    """Return the OpenAI-compatible API base URL for the configured provider."""
-    normalized = base_url.rstrip("/")
-    if provider == "ollama" and not normalized.endswith("/v1"):
-        return f"{normalized}/v1"
-    return normalized
+def quote_bare_hyphenated_numbers(payload: str) -> str:
+    """Quote JSON-like ID values such as 8-1 without touching string content."""
+    output: list[str] = []
+    in_string = False
+    escaped = False
+    last_significant: str | None = None
+    index = 0
+    while index < len(payload):
+        char = payload[index]
+        if in_string:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+                last_significant = '"'
+            index += 1
+            continue
+
+        if char == '"':
+            in_string = True
+            output.append(char)
+            index += 1
+            continue
+        if char.isspace():
+            output.append(char)
+            index += 1
+            continue
+        if last_significant in {":", "[", ","} and (char.isdigit() or char == "-"):
+            end = index + 1
+            while end < len(payload) and (
+                payload[end].isdigit() or payload[end] == "-"
+            ):
+                end += 1
+            token = payload[index:end]
+            next_index = end
+            while next_index < len(payload) and payload[next_index].isspace():
+                next_index += 1
+            if (
+                re.fullmatch(r"-?\d+(?:-\d+)+", token)
+                and next_index < len(payload)
+                and payload[next_index] in {",", "}", "]"}
+            ):
+                output.append(json.dumps(token))
+                last_significant = '"'
+                index = end
+                continue
+
+        output.append(char)
+        last_significant = char
+        index += 1
+
+    return "".join(output)
 
 
-def chat_completions_url() -> str:
-    return f"{model_api_base_url(settings.base_url, settings.provider)}/chat/completions"
+def parse_repaired_json_result(answer: str) -> Any:
+    repaired = quote_bare_hyphenated_numbers(answer)
+    candidates = [repaired]
+    stripped = repaired.strip()
+    if stripped.startswith("{"):
+        candidates.append(f"[{stripped}")
+        if stripped.endswith("}"):
+            candidates.append(f"[{stripped}]")
+
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+    raise ValueError("Model returned invalid JSON for the extraction result")
 
 
-def model_headers(api_key: str) -> dict[str, str]:
-    key = api_key.strip()
-    if not key or key.upper() == "EMPTY":
-        return {}
-    return {"Authorization": f"Bearer {key}"}
+def parse_json_object_result(answer: str) -> dict[str, Any]:
+    try:
+        result = json.loads(answer)
+    except json.JSONDecodeError:
+        result = parse_repaired_json_result(answer)
+    if not isinstance(result, dict):
+        if isinstance(result, list):
+            return {"items": result}
+        raise ValueError("Model returned a JSON value instead of an object")
+    return result
 
 
 class JSONLResponse(StreamingResponse):
@@ -309,116 +377,21 @@ async def jsonl_response(
     )
 
 
-def build_payload(
-    content: list[dict[str, Any]],
-    chat_kwargs: dict[str, Any],
-    temperature: float,
-    stream: bool,
-    model: str | None = None,
-) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "model": model or settings.model,
-        "temperature": temperature,
-        "max_tokens": settings.max_tokens,
-        "stream": stream,
-        "messages": [
-            {"role": "system", "content": settings.system_prompt},
-        ],
-    }
-    if settings.provider == "ollama":
-        payload["messages"].append(
-            {"role": "user", "content": ollama_content(content, chat_kwargs)}
-        )
-        if chat_kwargs.get("enable_thinking"):
-            payload["reasoning"] = {"effort": "medium"}
-    else:
-        payload["messages"].append({"role": "user", "content": content})
-        payload["chat_template_kwargs"] = chat_kwargs
-    return payload
-
-
-def ollama_content(
-    content: list[dict[str, Any]], chat_kwargs: dict[str, Any]
-) -> list[dict[str, Any]]:
-    task_prompt = ollama_task_prompt(chat_kwargs)
-    if not task_prompt:
-        return content
-    return [{"type": "text", "text": task_prompt}, *content]
-
-
-def ollama_task_prompt(chat_kwargs: dict[str, Any]) -> str:
-    mode = chat_kwargs.get("mode")
-    if mode == "markdown":
-        return (
-            "Convert the supplied document page or image to faithful Markdown. "
-            "Preserve reading order, headings, tables, lists, and visible text. "
-            "Return only Markdown."
-        )
-    if mode == "template-generation":
-        return (
-            "Generate an extraction template for the supplied document or text. "
-            "Return only a valid JSON object. Use concise field names and simple "
-            "type hints such as string, number, YYYY-MM-DD, boolean, or arrays "
-            "of objects."
-        )
-    if mode == "structured":
-        return (
-            "Extract source-grounded information from the supplied document or "
-            "text using the extraction template and instructions. Return the "
-            "final answer inside <answer>...</answer>. The answer content must "
-            "be valid JSON matching the requested template."
-        )
-    if mode == "content":
-        return (
-            "Extract source-grounded information from the supplied document or "
-            "text using any provided instructions. Return the final answer "
-            "inside <answer>...</answer>."
-        )
-    return ""
-
-
-def delta_to_text(chunk: dict[str, Any]) -> tuple[str, str]:
-    """Return (reasoning_delta, content_delta) from a streamed chunk."""
-    choices = chunk.get("choices") or []
-    if not choices:
-        return "", ""
-    delta = choices[0].get("delta") or {}
-    content = delta.get("content")
-    if isinstance(content, list):
-        content = "".join(
-            part.get("text", "") for part in content if isinstance(part, dict)
-        )
-    return delta.get("reasoning_content") or "", content or ""
+def get_model_provider() -> ModelProvider:
+    return app.state.provider
 
 
 async def call_model_stream(
-    content: list[dict[str, Any]],
+    content: ChatContent,
     chat_kwargs: dict[str, Any],
     temperature: float,
     model: str | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """Yield (reasoning_delta, content_delta) for each streamed chunk."""
-    payload = build_payload(content, chat_kwargs, temperature, stream=True, model=model)
-    async with client.stream(
-        "POST",
-        chat_completions_url(),
-        json=payload,
-        headers=model_headers(settings.api_key),
-    ) as response:
-        response.raise_for_status()
-        async for line in response.aiter_lines():
-            if not line.startswith("data:"):
-                continue
-            data = line[len("data:"):].strip()
-            if data == "[DONE]":
-                break
-            try:
-                chunk = json.loads(data)
-            except json.JSONDecodeError:
-                continue
-            think_delta, answer_delta = delta_to_text(chunk)
-            if think_delta or answer_delta:
-                yield think_delta, answer_delta
+    async for delta in get_model_provider().stream_chat(
+        content, chat_kwargs, temperature, model=model
+    ):
+        yield delta
 
 
 async def jsonl_delta_events(
@@ -464,14 +437,68 @@ async def extract_events(
         if think
         else splitter.output
     )
+    if chat_kwargs.get("mode") == "structured":
+        try:
+            result = parse_json_object_result(answer)
+        except ValueError as exc:
+            yield JsonLineEvent(event="error", data={"detail": str(exc), "raw": raw})
+            return
+    else:
+        result = parse_result(answer)
     yield JsonLineEvent(
         event="done",
         data={
-            "result": parse_result(answer),
+            "result": result,
             "reasoning": think or None,
             "raw": raw,
             "pages": pages,
         },
+    )
+
+
+async def chat_events(
+    content: list[dict[str, Any]],
+    chat_kwargs: dict[str, Any],
+    temperature: float,
+    reasoning: bool,
+) -> AsyncIterator[JsonLineEvent]:
+    splitter = ThinkSplitter(reasoning)
+    async for event in jsonl_delta_events(
+        splitter, call_model_stream(content, chat_kwargs, temperature)
+    ):
+        yield event
+    message = splitter.output.strip()
+    yield JsonLineEvent(
+        event="done",
+        data={
+            "message": message,
+            "reasoning": splitter.think.strip() or None,
+            "raw": splitter.output,
+        },
+    )
+
+
+@app.post("/chat", responses=STREAM_RESPONSES)
+async def chat(
+    request: Request,
+    text: str | None = Form(None),
+    reasoning: bool = Form(False),
+    temperature: float | None = Form(None),
+) -> Response:
+    text = (text or "").strip()
+    if not text:
+        raise HTTPException(400, "Provide chat text")
+
+    content = [{"type": "text", "text": text}]
+    chat_kwargs: dict[str, Any] = {"enable_thinking": reasoning}
+    return await jsonl_response(
+        request,
+        chat_events(
+            content,
+            chat_kwargs,
+            resolve_temperature(temperature, reasoning),
+            reasoning,
+        ),
     )
 
 
@@ -499,14 +526,22 @@ async def extract(
     if use_structured:
         extra_parts.append(f"Extraction template:\n```json\n{template_json}\n```")
     extra_text = "\n\n".join(extra_parts) or None
+    embedded_extra_text = extra_text
 
     if file is not None:
         jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
-        content = make_image_content(jpeg_pages, extra_text)
+        content = make_image_content(jpeg_pages, embedded_extra_text)
     else:
         jpeg_pages = []
         content = [
-            {"type": "text", "text": f"{text}\n\n{extra_text}" if extra_text else text}
+            {
+                "type": "text",
+                "text": (
+                    f"{text}\n\n{embedded_extra_text}"
+                    if embedded_extra_text
+                    else text
+                ),
+            }
         ]
 
     chat_kwargs: dict[str, Any] = {
@@ -633,26 +668,28 @@ def template_guidance(annotations: list[TemplateAnnotation], mode: str) -> str:
 
 
 async def generate_template_events(
-    guidance: str,
+    content: ChatContent,
+    chat_kwargs: dict[str, Any],
     temperature: float,
+    pages: int,
+    model: str | None = None,
 ) -> AsyncIterator[JsonLineEvent]:
-    content = [{"type": "text", "text": guidance}]
-    chat_kwargs: dict[str, Any] = {"mode": "template-generation", "enable_thinking": False}
     splitter = ThinkSplitter(False)
     async for event in jsonl_delta_events(
-        splitter, call_model_stream(content, chat_kwargs, temperature, model=settings.schema_model)
+        splitter, call_model_stream(content, chat_kwargs, temperature, model=model)
     ):
         yield event
     template = parse_result(pretty_json_or_text(splitter.output))
     yield JsonLineEvent(
         event="done",
-        data={"template": template, "raw": splitter.output, "pages": 0},
+        data={"template": template, "raw": splitter.output, "pages": pages},
     )
 
 
 @app.post("/generate-template", responses=STREAM_RESPONSES)
 async def generate_template(
     request: Request,
+    file: UploadFile | None = None,
     text: str | None = Form(None),
     temperature: float | None = Form(None),
     annotations: str | None = Form(None),
@@ -663,11 +700,26 @@ async def generate_template(
     if mode not in ANNOTATION_MODES:
         raise HTTPException(400, f"annotations_mode must be one of {ANNOTATION_MODES}")
     guidance = template_guidance(parse_annotations(annotations), mode)
-    if text:
-        guidance = f"{text}\n\n{guidance}"
+
+    chat_kwargs: dict[str, Any] = {"mode": "template-generation", "enable_thinking": False}
+    model = settings.schema_model
+    if file is not None:
+        jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
+        content = make_image_content(jpeg_pages, guidance)
+        model = None
+    else:
+        jpeg_pages = []
+        content = [{"type": "text", "text": f"{text}\n\n{guidance}" if text else guidance}]
+
     return await jsonl_response(
         request,
-        generate_template_events(guidance, resolve_temperature(temperature, False)),
+        generate_template_events(
+            content,
+            chat_kwargs,
+            resolve_temperature(temperature, False),
+            len(jpeg_pages),
+            model=model,
+        ),
     )
 
 

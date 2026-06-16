@@ -1,0 +1,67 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "FREE: Backend dev (uv + FastAPI)",
+      "type": "shell",
+      "command": "uv",
+      "args": [
+        "run",
+        "fastapi",
+        "dev",
+        "main.py",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/prototypes/mine/backend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "fastapi",
+        "pattern": {
+          "regexp": "^(.*)$",
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Application startup complete|Uvicorn running on"
+        }
+      }
+    },
+    {
+      "label": "FREE: Frontend dev (Vite -> FastAPI)",
+      "type": "shell",
+      "command": "pnpm.cmd",
+      "args": [
+        "dev",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5173"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/prototypes/mine/pdf-render",
+        "env": {
+          "VITE_API_BASE": "http://127.0.0.1:8000"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^(.*)$",
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Local:"
+        }
+      }
+    }
+  ]
+}

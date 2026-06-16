@@ -4,9 +4,11 @@ import type { AnnotationSetItem, ExtractionState } from './AnnotationSidebar'
 import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
+import ResultsTab from './ResultsTab'
+import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
 
-export type RailTab = 'annot' | 'chat' | 'schema'
+export type RailTab = 'annot' | 'chat' | 'schema' | 'results'
 
 type RightRailProps = {
   open: boolean
@@ -21,21 +23,24 @@ type RightRailProps = {
   onDecideExtraction: (id: string, decision: 'pending' | 'confirmed' | 'rejected', editedResult?: unknown) => void
   schemaState: TemplateState
   schemaStale: boolean
+  schemaReady: boolean
   schemaFieldCount: number
   onGenerate: () => void
   onTemplateChange: (template: unknown, message: string) => void
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
+  extraction: ExtractionController
 }
 
-function TabBadge({ count, active }: { count: number; active: boolean }) {
+function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
+  const tone = done
+    ? 'bg-green-soft text-green'
+    : `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
   return (
     <span
-      className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-[10px] leading-none text-accent tabular-nums ${
-        active ? 'bg-accent-soft' : 'bg-accent-ghost'
-      }`}
+      className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-[10px] leading-none tabular-nums ${tone}`}
     >
-      {count}
+      {label}
     </span>
   )
 }
@@ -53,11 +58,13 @@ function RightRail({
   onDecideExtraction,
   schemaState,
   schemaStale,
+  schemaReady,
   schemaFieldCount,
   onGenerate,
   onTemplateChange,
   annotationsMode,
   onAnnotationsModeChange,
+  extraction,
 }: RightRailProps) {
   if (!open) {
     return (
@@ -71,22 +78,29 @@ function RightRail({
           <PanelToggleIcon side="right" />
         </button>
         <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
-          Annot · Chat · Schema
+          Annot · Chat · Schema · Results
         </span>
       </div>
     )
   }
 
-  const tabs: { key: RailTab; label: string; count?: number }[] = [
-    { key: 'annot', label: 'Annot.', count: annotationItems.length },
+  const resultsBadge = extraction.hasResults ? { label: '✓', done: true } : null
+
+  const tabs: { key: RailTab; label: string; badge?: { label: string; done?: boolean } | null }[] = [
+    {
+      key: 'annot',
+      label: 'Annot.',
+      badge: annotationItems.length ? { label: String(annotationItems.length) } : null,
+    },
     { key: 'chat', label: 'Chat' },
-    { key: 'schema', label: 'Schema', count: schemaFieldCount },
+    { key: 'schema', label: 'Schema', badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null },
+    { key: 'results', label: 'Results', badge: resultsBadge },
   ]
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-stretch border-b border-line" role="tablist">
-        {tabs.map(({ key, label, count }) => {
+        {tabs.map(({ key, label, badge }) => {
           const active = tab === key
           return (
             <button
@@ -100,7 +114,7 @@ function RightRail({
               onClick={() => onTabChange(key)}
             >
               <span>{label}</span>
-              {count != null && count > 0 && <TabBadge count={count} active={active} />}
+              {badge && <TabBadge label={badge.label} active={active} done={badge.done} />}
             </button>
           )
         })}
@@ -138,6 +152,9 @@ function RightRail({
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}
         />
+      </div>
+      <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
+        <ResultsTab controller={extraction} schemaReady={schemaReady} />
       </div>
     </div>
   )

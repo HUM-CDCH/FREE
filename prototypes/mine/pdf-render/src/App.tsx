@@ -12,6 +12,7 @@ import { countTemplateFields } from './template'
 import { requestTemplate, prepareDocument, extractSelection } from './api'
 import type { AnnotationsMode } from './api'
 import type { ExtractionState } from './AnnotationSidebar'
+import { useExtraction } from './useExtraction'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
@@ -383,6 +384,9 @@ function App() {
     error: { dot: 'bg-danger', text: 'text-danger' },
   }
 
+  const schemaReady = templateState.status === 'ready'
+  const schemaTemplate = templateState.status === 'ready' ? templateState.template : null
+
   const schemaFieldCount =
     templateState.status === 'ready' ? countTemplateFields(templateState.template) : 0
 
@@ -390,12 +394,43 @@ function App() {
     templateState.status === 'ready' &&
     templateState.inputsKey !== annotationInputsKey(annotationItems, annotationsMode)
 
+  const extraction = useExtraction({
+    template: schemaTemplate,
+    schemaReady,
+    onComplete: (isRerun) => {
+      setRailTab('results')
+      showToast(
+        isRerun
+          ? '↻ Re-run complete — view the JSON in the Results tab'
+          : '✓ Extraction complete — view the JSON in the Results tab',
+      )
+    },
+    onError: () => {
+      setRailTab('results')
+      showToast('Extraction failed — see details in Results')
+    },
+  })
+
+  let runLabel = '▶ Run extraction'
+  if (extraction.state.status === 'running') {
+    runLabel = 'Running…'
+  } else if (extraction.hasResults) {
+    runLabel = '↻ Re-run extraction'
+  }
+
+  let runButtonClasses = 'cursor-default border-line bg-line text-ink-muted'
+  if (extraction.canRun) {
+    runButtonClasses = 'cursor-pointer border-accent bg-accent text-white hover:brightness-108'
+  }
+
   const hintText =
-    annotationItems.length === 0
-      ? 'Select any passage in the report to add it to the annotation set'
-      : templateState.status === 'ready'
-        ? 'Click an annotation to jump back to its passage in the source'
-        : 'Open the Schema tab to generate the extraction schema for this document'
+    extraction.hasResults
+      ? 'View the extracted JSON in the Results tab'
+      : schemaReady
+        ? 'Press Run extraction to apply the schema across the whole document'
+        : annotationItems.length === 0
+          ? 'Select any passage in the report to add it to the annotation set'
+          : 'Open the Schema tab to generate the extraction schema for this document'
 
   return (
     <main className="flex h-dvh flex-col bg-canvas text-ink">
@@ -441,6 +476,15 @@ function App() {
             {loadState.status === 'ready' && `${loadState.pageCount} pages · text highlights only`}
             {loadState.status === 'error' && loadState.message}
           </p>
+          <button
+            className={`shrink-0 rounded-lg border px-3.75 py-1.75 text-[13px] font-bold outline-none transition-[filter] focus-visible:ring-2 focus-visible:ring-accent/40 ${runButtonClasses}`}
+            type="button"
+            disabled={!extraction.canRun}
+            title={schemaReady ? 'Run extraction across the whole document' : 'Generate a schema in the Schema tab first'}
+            onClick={() => void extraction.runExtraction()}
+          >
+            {runLabel}
+          </button>
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
@@ -453,7 +497,7 @@ function App() {
         </aside>
         {navOpen && (
           <div
-            className="z-[5] -ml-[3px] w-[5px] shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
+            className="z-5 -ml-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
             title="Drag to resize"
             onMouseDown={(event) => startResize(event, 'nav')}
           />
@@ -462,6 +506,20 @@ function App() {
           <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={containerRef}>
             <div className="pdfViewer" ref={viewerRef} />
           </div>
+          {extraction.state.status === 'running' && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-canvas/85 backdrop-blur-[2px]">
+              <div className="flex flex-col items-center gap-4 rounded-2xl border border-line bg-surface px-11 py-7.5 shadow-float">
+                <span
+                  aria-hidden="true"
+                  className="animate-spin-slow size-8.5 rounded-full border-[3px] border-line border-t-accent"
+                />
+                <p className="font-mono text-[13px] font-semibold text-ink">
+                  Extracting structured results…
+                </p>
+                <p className="text-xs text-ink-muted">Applying the schema across the document</p>
+              </div>
+            </div>
+          )}
           {!pdfSource && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-canvas">
               <p className="text-sm text-ink-muted">Open a source document to get started</p>
@@ -490,7 +548,7 @@ function App() {
         </section>
         {railOpen && (
           <div
-            className="z-[5] -mr-[3px] w-[5px] shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
+            className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
             title="Drag to resize"
             onMouseDown={(event) => startResize(event, 'rail')}
           />
@@ -513,11 +571,13 @@ function App() {
             onDecideExtraction={handleDecideExtraction}
             schemaState={templateState}
             schemaStale={schemaStale}
+            schemaReady={schemaReady}
             schemaFieldCount={schemaFieldCount}
             onGenerate={() => void generateTemplate()}
             onTemplateChange={changeTemplate}
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
+            extraction={extraction}
           />
         </aside>
       </div>

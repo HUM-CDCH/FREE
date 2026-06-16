@@ -81,45 +81,45 @@ function AnnotationSidebar({ items, extractions, onSelectItem, onRemoveItem, onE
           </div>
         ) : (
           groupByPage(items).map((group) => (
-            <section key={group.pageNumber} className="mb-4 last:mb-0">
-              <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-ink-faint">
+            <section key={group.pageNumber} className="mb-3.5 last:mb-0">
+              <h3 className="mb-1.5 px-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted">
                 Page {group.pageNumber}
               </h3>
-              <ul className="flex flex-col gap-2">
+              <ul className="flex flex-col gap-2.5">
                 {group.items.map((item) => {
                   const ext = extractions[item.id]
                   const isEditing = editingId === item.id
 
                   return (
-                    <li key={item.id} className="rounded-lg border border-line bg-surface transition-colors">
-                      {/* Annotation row */}
-                      <div className="flex items-center gap-1 px-2 py-1.5">
+                    <li key={item.id} className="flex max-w-full flex-col items-start gap-1.5">
+                      <span className="inline-flex h-6.5 max-w-full items-center overflow-hidden rounded-full border border-accent bg-accent-soft transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent/40">
                         <button
-                          className="min-w-0 flex-1 cursor-pointer truncate text-left text-xs italic text-ink-muted outline-none hover:text-accent"
+                          className="h-full min-w-0 max-w-52.5 cursor-pointer truncate pl-2.5 pr-1 text-left font-serif text-xs italic text-ink outline-none transition-colors hover:text-accent"
                           type="button"
-                          title={`Go to page ${item.pageNumber}: ${item.label}`}
+                          title={`Go to highlight on page ${item.pageNumber}: ${item.label}`}
                           onClick={() => onSelectItem(item.id)}
                         >
-                          "{item.label}"
+                          “{item.label}”
                         </button>
                         <button
-                          className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center text-sm leading-none text-ink-faint outline-none hover:bg-danger/10 hover:text-danger"
+                          className="flex h-full w-6 shrink-0 cursor-pointer items-center justify-center text-sm leading-none text-ink-muted outline-none transition-colors hover:text-danger focus-visible:text-danger"
                           type="button"
                           aria-label={`Remove highlight: ${item.label}`}
+                          title={`Remove highlight: ${item.label}`}
                           onClick={() => onRemoveItem(item.id)}
                         >
                           ×
                         </button>
-                      </div>
+                      </span>
 
                       {ext?.status === 'extracting' && (
-                        <div className="border-t border-line px-2 py-2">
+                        <div className="w-full rounded-lg border border-line bg-surface px-2 py-2">
                           <p className="animate-pulse text-[11px] text-ink-faint">Extracting…</p>
                         </div>
                       )}
 
                       {ext?.status === 'error' && (
-                        <div className="border-t border-line px-2 py-2">
+                        <div className="w-full rounded-lg border border-line bg-surface px-2 py-2">
                           <p className="text-[11px] text-danger">{ext.message}</p>
                           <button className="mt-1 text-[11px] text-ink-muted underline hover:text-accent" type="button" onClick={() => onExtractItem(item.id)}>
                             Retry
@@ -128,7 +128,7 @@ function AnnotationSidebar({ items, extractions, onSelectItem, onRemoveItem, onE
                       )}
 
                       {ext?.status === 'done' && ext.decision === 'pending' && (
-                        <div className="border-t border-line px-2 py-2">
+                        <div className="w-full rounded-lg border border-line bg-surface px-2 py-2">
                           {isEditing ? (
                             <>
                               <textarea
@@ -156,7 +156,7 @@ function AnnotationSidebar({ items, extractions, onSelectItem, onRemoveItem, onE
                       )}
 
                       {ext?.status === 'done' && ext.decision !== 'pending' && (
-                        <div className="border-t border-line px-2 py-1.5">
+                        <div className="w-full rounded-lg border border-line bg-surface px-2 py-1.5">
                           <p className="text-[11px] text-ink-faint">
                             {ext.decision === 'confirmed'
                               ? <span className="text-emerald-600">✓ Extraction confirmed</span>

@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "FREE: Debug backend (FastAPI)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "fastapi",
+      "args": [
+        "dev",
+        "main.py",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000"
+      ],
+      "cwd": "${workspaceFolder}/prototypes/mine/backend",
+      "envFile": "${workspaceFolder}/prototypes/mine/backend/.env",
+      "justMyCode": true
+    },
+    {
+      "name": "FREE: Frontend dev (Vite -> FastAPI)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm.cmd dev --host 127.0.0.1 --port 5173",
+      "cwd": "${workspaceFolder}/prototypes/mine/pdf-render",
+      "env": {
+        "VITE_API_BASE": "http://127.0.0.1:8000"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "FREE: Debug backend + frontend",
+      "configurations": [
+        "FREE: Debug backend (FastAPI)",
+        "FREE: Frontend dev (Vite -> FastAPI)"
+      ],
+      "stopAll": true
+    }
+  ]
+}
