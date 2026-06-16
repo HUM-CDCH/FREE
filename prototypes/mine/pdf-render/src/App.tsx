@@ -9,8 +9,9 @@ import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
 import { countTemplateFields } from './template'
-import { requestTemplate } from './api'
+import { requestTemplate, prepareDocument, extractSelection } from './api'
 import type { AnnotationsMode } from './api'
+import type { ExtractionState } from './AnnotationSidebar'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
@@ -86,6 +87,8 @@ function App() {
   const [railTab, setRailTab] = useState<RailTab>('annot')
   const [toast, setToast] = useState<string | null>(null)
   const [pdfSource, setPdfSource] = useState<{ url: string; filename: string } | null>(null)
+  const [docHash, setDocHash] = useState<string | null>(null)
+  const [extractions, setExtractions] = useState<Record<string, ExtractionState>>({})
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -95,9 +98,36 @@ function App() {
       URL.revokeObjectURL(pdfSource.url)
     }
     setPdfSource({ url: URL.createObjectURL(file), filename: file.name })
+    setDocHash(null)
     setAnnotationItems([])
     setTemplateState({ status: 'idle' })
+    setExtractions({})
     event.target.value = ''
+    void prepareDocument(file).then(({ doc_hash }) => setDocHash(doc_hash)).catch(() => {})
+  }
+
+  async function handleExtractItem(id: string) {
+    if (!docHash) return
+    const item = annotationItems.find((a) => a.id === id)
+    if (!item) return
+    setExtractions((prev) => ({ ...prev, [id]: { status: 'extracting' } }))
+    try {
+      const { result } = await extractSelection(docHash, item.label, item.pageNumber)
+      setExtractions((prev) => ({ ...prev, [id]: { status: 'done', result, decision: 'pending' } }))
+    } catch (error) {
+      setExtractions((prev) => ({
+        ...prev,
+        [id]: { status: 'error', message: error instanceof Error ? error.message : 'Extraction failed.' },
+      }))
+    }
+  }
+
+  function handleDecideExtraction(id: string, decision: 'pending' | 'confirmed' | 'rejected', editedResult?: unknown) {
+    setExtractions((prev) => {
+      const current = prev[id]
+      if (current?.status !== 'done') return prev
+      return { ...prev, [id]: { ...current, decision, result: editedResult !== undefined ? editedResult : current.result } }
+    })
   }
 
   useEffect(() => {
@@ -476,8 +506,11 @@ function App() {
             tab={railTab}
             onTabChange={setRailTab}
             annotationItems={annotationItems}
+            extractions={extractions}
             onSelectAnnotation={selectAnnotationItem}
             onRemoveAnnotation={removeAnnotationItem}
+            onExtractAnnotation={(id) => void handleExtractItem(id)}
+            onDecideExtraction={handleDecideExtraction}
             schemaState={templateState}
             schemaStale={schemaStale}
             schemaFieldCount={schemaFieldCount}

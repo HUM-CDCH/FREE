@@ -97,3 +97,65 @@ export async function requestTemplate(
 
   throw new Error('Template stream ended without a result')
 }
+
+export type DocumentRecord = {
+  doc_hash: string
+  filename: string
+  page_count: number
+  has_text_layer: boolean
+}
+
+export async function prepareDocument(file: File): Promise<DocumentRecord> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  const response = await fetch(`${API_BASE}/documents/prepare`, { method: 'POST', body: form })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(detail || `Document prepare failed (HTTP ${response.status})`)
+  }
+  return response.json() as Promise<DocumentRecord>
+}
+
+export type ExtractionResult = {
+  result: unknown
+  reasoning: string | null
+}
+
+export async function extractSelection(
+  docHash: string,
+  selection: string,
+  pageNumber: number,
+  template?: unknown,
+  signal?: AbortSignal,
+): Promise<ExtractionResult> {
+  const form = new FormData()
+  form.append('doc_hash', docHash)
+  form.append('selection', selection)
+  form.append('page_number', String(pageNumber))
+  if (template != null) {
+    form.append('template', JSON.stringify(template))
+  }
+
+  const response = await fetch(`${API_BASE}/extract-selection`, {
+    method: 'POST',
+    body: form,
+    headers: { accept: 'application/jsonl' },
+    signal,
+  })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(detail || `Extraction failed (HTTP ${response.status})`)
+  }
+  if (!response.body) throw new Error('No response body')
+
+  for await (const { event, data } of readJsonLines(response.body)) {
+    if (event === 'error') throw new Error(typeof data.detail === 'string' ? data.detail : 'Extraction error')
+    if (event === 'done') {
+      return {
+        result: data.result,
+        reasoning: typeof data.reasoning === 'string' ? data.reasoning : null,
+      }
+    }
+  }
+  throw new Error('Extraction stream ended without a result')
+}
