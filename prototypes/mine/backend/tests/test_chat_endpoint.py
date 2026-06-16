@@ -7,6 +7,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 import main
+from use_cases import chat
 
 
 class ChatEndpointTests(unittest.TestCase):
@@ -23,7 +24,7 @@ class ChatEndpointTests(unittest.TestCase):
             yield "", " world"
 
         content = [{"type": "text", "text": "Say hello"}]
-        with patch.object(main, "call_model_stream", fake_model_stream):
+        with patch.object(chat, "call_model_stream", fake_model_stream):
             events = self.collect_events(
                 main.chat_events(
                     content,
@@ -54,7 +55,7 @@ class ChatEndpointTests(unittest.TestCase):
             self.assertEqual(temperature, 0.2)
             yield "", "Hi"
 
-        with patch.object(main, "call_model_stream", fake_model_stream):
+        with patch.object(chat, "call_model_stream", fake_model_stream):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/chat",
@@ -92,7 +93,7 @@ class ChatEndpointTests(unittest.TestCase):
                 yield "", ""
             raise httpx.ConnectError("boom")
 
-        with patch.object(main, "call_model_stream", fake_model_stream):
+        with patch.object(chat, "call_model_stream", fake_model_stream):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/chat",

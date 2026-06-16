@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 import main
+from use_cases import generate_template
 
 
 def make_pdf(page_count: int) -> bytes:
@@ -34,7 +35,7 @@ class GenerateTemplateEndpointTests(unittest.TestCase):
             captured["pages"] = pages
             yield main.JsonLineEvent(event="done", data={})
 
-        with patch.object(main, "generate_template_events", fake_events):
+        with patch.object(generate_template, "generate_template_events", fake_events):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/generate-template",

@@ -7,6 +7,7 @@ from unittest.mock import patch
 from PIL import Image
 
 import main
+from use_cases import extract
 
 
 class ExtractEndpointTests(unittest.TestCase):
@@ -37,7 +38,7 @@ class ExtractEndpointTests(unittest.TestCase):
         async def fake_model_stream(content, chat_kwargs, temperature):
             yield "", "not json at all"
 
-        with patch.object(main, "call_model_stream", fake_model_stream):
+        with patch.object(extract, "call_model_stream", fake_model_stream):
             events = self.collect_events(
                 main.extract_events(
                     [{"type": "text", "text": "Document"}],
@@ -63,7 +64,7 @@ class ExtractEndpointTests(unittest.TestCase):
                 '{"Gravnummer": 13, "fund": [{"nummer": 13-2}]}'
             )
 
-        with patch.object(main, "call_model_stream", fake_model_stream):
+        with patch.object(extract, "call_model_stream", fake_model_stream):
             events = self.collect_events(
                 main.extract_events(
                     [{"type": "text", "text": "Document"}],
@@ -93,7 +94,7 @@ class ExtractEndpointTests(unittest.TestCase):
                 '{"Gravnummer": 13, "fund": [{"nummer": 13-2}]}]'
             )
 
-        with patch.object(main, "call_model_stream", fake_model_stream):
+        with patch.object(extract, "call_model_stream", fake_model_stream):
             events = self.collect_events(
                 main.extract_events(
                     [{"type": "text", "text": "Document"}],
@@ -160,7 +161,7 @@ class ExtractEndpointTests(unittest.TestCase):
             self.assertEqual(temperature, 0.2)
             yield "", '{"store": "Trader Joe\'s"}'
 
-        with patch.object(main, "call_model_stream", fake_model_stream):
+        with patch.object(extract, "call_model_stream", fake_model_stream):
             from fastapi.testclient import TestClient
 
             with TestClient(main.app) as client:
@@ -201,7 +202,7 @@ class ExtractEndpointTests(unittest.TestCase):
             )
             yield "", '{"store": "Trader Joe\'s"}'
 
-        with patch.object(main, "call_model_stream", fake_model_stream):
+        with patch.object(extract, "call_model_stream", fake_model_stream):
             from fastapi.testclient import TestClient
 
             with TestClient(main.app) as client:
