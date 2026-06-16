@@ -4,11 +4,6 @@ export type AnnotationSetItem = {
   pageNumber: number
 }
 
-export type ExtractionState =
-  | { status: 'extracting' }
-  | { status: 'done'; result: unknown; decision: 'pending' | 'confirmed' | 'rejected' }
-  | { status: 'error'; message: string }
-
 type Props = {
   items: AnnotationSetItem[]
   onSelectItem: (id: string) => void
