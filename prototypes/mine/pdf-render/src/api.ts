@@ -1,5 +1,5 @@
 import { isRecord } from './template'
-import { streamJsonl } from './jsonlStream'
+import { API_BASE, streamJsonl } from './jsonlStream'
 
 export type TemplateAnnotation = { text: string; pageNumber: number }
 
@@ -97,4 +97,49 @@ export async function requestExtraction(
 
   const done = await streamJsonl('/extract', form, { onDelta }, decodeExtractDone, signal)
   return done.result
+}
+
+export type DocumentRecord = {
+  doc_hash: string
+  filename: string
+  page_count: number
+  has_text_layer: boolean
+}
+
+export async function prepareDocument(file: File): Promise<DocumentRecord> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  const response = await fetch(`${API_BASE}/documents/prepare`, { method: 'POST', body: form })
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(detail || `Document prepare failed (HTTP ${response.status})`)
+  }
+  return response.json() as Promise<DocumentRecord>
+}
+
+export type ExtractionResult = {
+  result: unknown
+  reasoning: string | null
+}
+
+export async function extractSelection(
+  docHash: string,
+  selection: string,
+  pageNumber: number,
+  template?: unknown,
+  signal?: AbortSignal,
+): Promise<ExtractionResult> {
+  const form = new FormData()
+  form.append('doc_hash', docHash)
+  form.append('selection', selection)
+  form.append('page_number', String(pageNumber))
+  if (template != null) {
+    form.append('template', JSON.stringify(template))
+  }
+
+  const done = await streamJsonl('/extract-selection', form, { onDelta: () => {} }, decodeExtractDone, signal)
+  return {
+    result: done.result,
+    reasoning: done.reasoning,
+  }
 }

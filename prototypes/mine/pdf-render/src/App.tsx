@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
-import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import type { AnnotationSetItem } from './AnnotationSidebar'
-import ProjectNav, { ACTIVE_DOC, ACTIVE_PROJECT } from './ProjectNav'
+import ProjectNav from './ProjectNav'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
 import { countTemplateFields } from './template'
-import { requestTemplate } from './api'
+import { requestTemplate, prepareDocument, extractSelection } from './api'
 import type { AnnotationsMode } from './api'
+import type { ExtractionState } from './AnnotationSidebar'
 import { useExtraction } from './useExtraction'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
@@ -87,8 +87,52 @@ function App() {
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
   const [toast, setToast] = useState<string | null>(null)
+  const [pdfSource, setPdfSource] = useState<{ url: string; filename: string } | null>(null)
+  const [docHash, setDocHash] = useState<string | null>(null)
+  const [extractions, setExtractions] = useState<Record<string, ExtractionState>>({})
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (pdfSource?.url.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfSource.url)
+    }
+    setPdfSource({ url: URL.createObjectURL(file), filename: file.name })
+    setDocHash(null)
+    setAnnotationItems([])
+    setTemplateState({ status: 'idle' })
+    setExtractions({})
+    event.target.value = ''
+    void prepareDocument(file).then(({ doc_hash }) => setDocHash(doc_hash)).catch(() => {})
+  }
+
+  async function handleExtractItem(id: string) {
+    if (!docHash) return
+    const item = annotationItems.find((a) => a.id === id)
+    if (!item) return
+    setExtractions((prev) => ({ ...prev, [id]: { status: 'extracting' } }))
+    try {
+      const { result } = await extractSelection(docHash, item.label, item.pageNumber)
+      setExtractions((prev) => ({ ...prev, [id]: { status: 'done', result, decision: 'pending' } }))
+    } catch (error) {
+      setExtractions((prev) => ({
+        ...prev,
+        [id]: { status: 'error', message: error instanceof Error ? error.message : 'Extraction failed.' },
+      }))
+    }
+  }
+
+  function handleDecideExtraction(id: string, decision: 'pending' | 'confirmed' | 'rejected', editedResult?: unknown) {
+    setExtractions((prev) => {
+      const current = prev[id]
+      if (current?.status !== 'done') return prev
+      return { ...prev, [id]: { ...current, decision, result: editedResult !== undefined ? editedResult : current.result } }
+    })
+  }
 
   useEffect(() => {
+    if (!pdfSource) return
     const container = containerRef.current
     const viewer = viewerRef.current
     if (!container || !viewer) {
@@ -129,7 +173,7 @@ function App() {
       { capture: true, signal: abortController.signal },
     )
 
-    const loadingTask = pdfjsLib.getDocument({ url: pdfUrl })
+    const loadingTask = pdfjsLib.getDocument({ url: pdfSource.url })
     pdfViewerRef.current = pdfViewer
     annotationManagerRef.current = null
     setAnnotationItems([])
@@ -225,7 +269,7 @@ function App() {
       abortController.abort()
       void loadingTask.destroy()
     }
-  }, [])
+  }, [pdfSource])
 
   function selectAnnotationItem(id: string) {
     const manager = annotationManagerRef.current
@@ -263,6 +307,7 @@ function App() {
   }
 
   async function generateTemplate() {
+    if (!pdfSource) return
     templateAbortRef.current?.abort()
     const abortController = new AbortController()
     templateAbortRef.current = abortController
@@ -270,10 +315,10 @@ function App() {
     setTemplateState({ status: 'generating', raw: '' })
 
     try {
-      const pdfBlob = await (await fetch(pdfUrl, { signal: abortController.signal })).blob()
+      const pdfBlob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
       const template = await requestTemplate(
         pdfBlob,
-        ACTIVE_DOC,
+        pdfSource.filename,
         (output) => {
           // Buffered deltas from an aborted request can still arrive after the
           // next generation has reset the stream; drop them.
@@ -400,11 +445,27 @@ function App() {
           {navOpen && <h1 className="text-[17px] font-extrabold tracking-[0.06em]">FREE</h1>}
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-3 px-5 py-2.5">
-          <p className="min-w-0 truncate text-[13px] text-ink-muted">
-            {ACTIVE_PROJECT}
-            <span className="mx-2.5">/</span>
-            <span className="font-semibold text-ink">{ACTIVE_DOC}</span>
-          </p>
+          {pdfSource ? (
+            <p className="min-w-0 truncate text-[13px] text-ink-muted">
+              <span className="font-semibold text-ink">{pdfSource.filename}</span>
+            </p>
+          ) : (
+            <p className="text-[13px] text-ink-faint">No source document open</p>
+          )}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="shrink-0 rounded border border-line bg-surface px-2 py-1 text-xs text-ink-muted transition-colors hover:border-accent/50 hover:text-accent"
+          >
+            {pdfSource ? 'Switch PDF' : 'Open PDF'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="sr-only"
+            onChange={handleFileChange}
+          />
           <div className="min-w-0 flex-1" />
           <p
             aria-live="polite"
@@ -459,6 +520,18 @@ function App() {
               </div>
             </div>
           )}
+          {!pdfSource && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-canvas">
+              <p className="text-sm text-ink-muted">Open a source document to get started</p>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="cursor-pointer rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-accent/50 hover:text-accent"
+              >
+                Open PDF
+              </button>
+            </div>
+          )}
           {toast && (
             <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
               <p className="animate-fadeup min-w-0 truncate rounded-xl border border-line-strong bg-surface px-4.5 py-2 text-xs font-semibold text-ink shadow-float">
@@ -491,8 +564,11 @@ function App() {
             tab={railTab}
             onTabChange={setRailTab}
             annotationItems={annotationItems}
+            extractions={extractions}
             onSelectAnnotation={selectAnnotationItem}
             onRemoveAnnotation={removeAnnotationItem}
+            onExtractAnnotation={(id) => void handleExtractItem(id)}
+            onDecideExtraction={handleDecideExtraction}
             schemaState={templateState}
             schemaStale={schemaStale}
             schemaReady={schemaReady}

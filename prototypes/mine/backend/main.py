@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import io
 import json
 import re
@@ -22,7 +23,8 @@ class Settings(BaseSettings):
 
     provider: Literal["ollama", "vllm", "openai"] = "ollama"
     base_url: str = "http://127.0.0.1:11434"
-    model: str = "hf.co/numind/NuExtract3-GGUF:Q4_K_M"
+    model: str = "nuextract"          # vision model: PDF images → extracted data
+    schema_model: str = "qwen3.5:2b"  # text model: annotations → schema suggestion
     api_key: str = ""
     timeout_seconds: float = 120
     pdf_dpi: int = 64
@@ -60,6 +62,10 @@ app.add_middleware(
 )
 
 JSONL_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+# In-memory document store (prototype — cleared on restart)
+_pdf_cache: dict[str, bytes] = {}        # doc_hash → raw PDF bytes
+_pdf_text: dict[str, list[str]] = {}     # doc_hash → [page_0_text, page_1_text, ...]
 
 
 class JsonLineEvent(BaseModel):
@@ -379,10 +385,11 @@ async def call_model_stream(
     content: ChatContent,
     chat_kwargs: dict[str, Any],
     temperature: float,
+    model: str | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """Yield (reasoning_delta, content_delta) for each streamed chunk."""
     async for delta in get_model_provider().stream_chat(
-        content, chat_kwargs, temperature
+        content, chat_kwargs, temperature, model=model
     ):
         yield delta
 
@@ -661,14 +668,15 @@ def template_guidance(annotations: list[TemplateAnnotation], mode: str) -> str:
 
 
 async def generate_template_events(
-    content: list[dict[str, Any]],
+    content: ChatContent,
     chat_kwargs: dict[str, Any],
     temperature: float,
     pages: int,
+    model: str | None = None,
 ) -> AsyncIterator[JsonLineEvent]:
     splitter = ThinkSplitter(False)
     async for event in jsonl_delta_events(
-        splitter, call_model_stream(content, chat_kwargs, temperature)
+        splitter, call_model_stream(content, chat_kwargs, temperature, model=model)
     ):
         yield event
     template = parse_result(pretty_json_or_text(splitter.output))
@@ -688,23 +696,21 @@ async def generate_template(
     annotations_mode: str | None = Form(None),
 ) -> Response:
     text = (text or "").strip()
-    if file is None and not text:
-        raise HTTPException(400, "Provide a document file or text")
-
     mode = annotations_mode or "hints"
     if mode not in ANNOTATION_MODES:
         raise HTTPException(400, f"annotations_mode must be one of {ANNOTATION_MODES}")
     guidance = template_guidance(parse_annotations(annotations), mode)
 
+    chat_kwargs: dict[str, Any] = {"mode": "template-generation", "enable_thinking": False}
+    model = settings.schema_model
     if file is not None:
         jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
         content = make_image_content(jpeg_pages, guidance)
+        model = None
     else:
         jpeg_pages = []
-        content = [{"type": "text", "text": f"{text}\n\n{guidance}"}]
+        content = [{"type": "text", "text": f"{text}\n\n{guidance}" if text else guidance}]
 
-    # the chat template defaults enable_thinking to true, which this mode forbids
-    chat_kwargs: dict[str, Any] = {"mode": "template-generation", "enable_thinking": False}
     return await jsonl_response(
         request,
         generate_template_events(
@@ -712,5 +718,110 @@ async def generate_template(
             chat_kwargs,
             resolve_temperature(temperature, False),
             len(jpeg_pages),
+            model=model,
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Document preparation (Phase 1)
+# ---------------------------------------------------------------------------
+
+class DocumentRecord(BaseModel):
+    doc_hash: str
+    filename: str
+    page_count: int
+    has_text_layer: bool
+
+
+@app.post("/documents/prepare")
+async def prepare_document(file: UploadFile) -> DocumentRecord:
+    data = await file.read()
+    if not (data.startswith(b"%PDF") or (file.content_type or "").startswith("application/pdf")):
+        raise HTTPException(400, "Only PDF files are supported")
+
+    doc_hash = hashlib.sha256(data).hexdigest()
+    if doc_hash not in _pdf_cache:
+        pdf = pdfium.PdfDocument(data)
+        pages_text: list[str] = []
+        try:
+            for page in pdf:
+                try:
+                    text = page.get_textpage().get_text_range()
+                    pages_text.append(text or "")
+                except Exception:
+                    pages_text.append("")
+            page_count = len(pdf)
+        finally:
+            pdf.close()
+
+        _pdf_cache[doc_hash] = data
+        _pdf_text[doc_hash] = pages_text
+
+    stored_pages = _pdf_text[doc_hash]
+    has_text_layer = any(t.strip() for t in stored_pages)
+    return DocumentRecord(
+        doc_hash=doc_hash,
+        filename=file.filename or "document.pdf",
+        page_count=len(stored_pages),
+        has_text_layer=has_text_layer,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Per-selection extraction (Phase 2 → 4 shortcut)
+# ---------------------------------------------------------------------------
+
+_SELECTION_TEMPLATE = json.dumps(
+    {"find_type": "string", "description": "string", "location": "string", "period": "string"},
+    indent=4,
+)
+
+_CONTEXT_WINDOW = 600  # characters on each side of the selection
+
+
+def _surrounding_context(page_text: str, selection: str, window: int) -> str:
+    idx = page_text.find(selection)
+    if idx == -1:
+        return selection
+    start = max(0, idx - window)
+    end = min(len(page_text), idx + len(selection) + window)
+    return page_text[start:end].strip()
+
+
+@app.post("/extract-selection", responses=STREAM_RESPONSES)
+async def extract_selection(
+    request: Request,
+    doc_hash: str = Form(...),
+    selection: str = Form(...),
+    page_number: int = Form(...),
+    template: str | None = Form(None),
+    reasoning: bool = Form(False),
+    temperature: float | None = Form(None),
+) -> Response:
+    if doc_hash not in _pdf_text:
+        raise HTTPException(404, "Document not found — call /documents/prepare first")
+
+    page_idx = page_number - 1
+    pages = _pdf_text[doc_hash]
+    if page_idx < 0 or page_idx >= len(pages):
+        raise HTTPException(400, f"page_number {page_number} out of range (document has {len(pages)} pages)")
+
+    context = _surrounding_context(pages[page_idx], selection, _CONTEXT_WINDOW)
+    template_json = normalize_template(template) if template else _SELECTION_TEMPLATE
+
+    prompt = (
+        f"Context (page {page_number}):\n{context}\n\n"
+        f"Highlighted selection: {selection}\n\n"
+        f"Extraction template:\n```json\n{template_json}\n```"
+    )
+    content = [{"type": "text", "text": prompt}]
+    chat_kwargs: dict[str, Any] = {
+        "mode": "structured",
+        "enable_thinking": reasoning,
+        "template": template_json,
+    }
+    return await jsonl_response(
+        request,
+        extract_events(content, chat_kwargs, resolve_temperature(temperature, reasoning), reasoning, 0),
     )
