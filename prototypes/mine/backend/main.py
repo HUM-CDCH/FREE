@@ -23,7 +23,6 @@ class Settings(BaseSettings):
     provider: Literal["ollama", "vllm", "openai"] = "ollama"
     base_url: str = "http://127.0.0.1:11434"
     model: str = "nuextract"          # vision model: PDF images → extracted data
-    schema_model: str = "qwen3.5:2b"  # text model: annotations → schema suggestion
     api_key: str = ""
     timeout_seconds: float = 120
     pdf_dpi: int = 64
@@ -379,11 +378,10 @@ async def call_model_stream(
     content: ChatContent,
     chat_kwargs: dict[str, Any],
     temperature: float,
-    model: str | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """Yield (reasoning_delta, content_delta) for each streamed chunk."""
     async for delta in get_model_provider().stream_chat(
-        content, chat_kwargs, temperature, model=model
+        content, chat_kwargs, temperature
     ):
         yield delta
 
@@ -666,11 +664,10 @@ async def generate_template_events(
     chat_kwargs: dict[str, Any],
     temperature: float,
     pages: int,
-    model: str | None = None,
 ) -> AsyncIterator[JsonLineEvent]:
     splitter = ThinkSplitter(False)
     async for event in jsonl_delta_events(
-        splitter, call_model_stream(content, chat_kwargs, temperature, model=model)
+        splitter, call_model_stream(content, chat_kwargs, temperature)
     ):
         yield event
     template = parse_result(pretty_json_or_text(splitter.output))
@@ -684,26 +681,20 @@ async def generate_template_events(
 async def generate_template(
     request: Request,
     file: UploadFile | None = None,
-    text: str | None = Form(None),
     temperature: float | None = Form(None),
     annotations: str | None = Form(None),
     annotations_mode: str | None = Form(None),
 ) -> Response:
-    text = (text or "").strip()
+    if file is None:
+        raise HTTPException(400, "Provide a document file")
     mode = annotations_mode or "hints"
     if mode not in ANNOTATION_MODES:
         raise HTTPException(400, f"annotations_mode must be one of {ANNOTATION_MODES}")
     guidance = template_guidance(parse_annotations(annotations), mode)
 
     chat_kwargs: dict[str, Any] = {"mode": "template-generation", "enable_thinking": False}
-    model = settings.schema_model
-    if file is not None:
-        jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
-        content = make_image_content(jpeg_pages, guidance)
-        model = None
-    else:
-        jpeg_pages = []
-        content = [{"type": "text", "text": f"{text}\n\n{guidance}" if text else guidance}]
+    jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
+    content = make_image_content(jpeg_pages, guidance)
 
     return await jsonl_response(
         request,
@@ -712,6 +703,5 @@ async def generate_template(
             chat_kwargs,
             resolve_temperature(temperature, False),
             len(jpeg_pages),
-            model=model,
         ),
     )

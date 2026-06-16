@@ -25,7 +25,6 @@ class ModelProvider(Protocol):
         content: ChatContent,
         chat_kwargs: dict[str, Any],
         temperature: float,
-        model: str | None = None,
     ) -> AsyncIterator[ChatDelta]:
         """Yield streamed model deltas as (reasoning_delta, content_delta)."""
         ...

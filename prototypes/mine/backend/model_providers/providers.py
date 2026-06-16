@@ -48,11 +48,10 @@ class OpenAICompatibleProvider(ModelProvider):
         chat_kwargs: dict[str, Any],
         temperature: float,
         stream: bool,
-        model: str | None = None,
     ) -> dict[str, Any]:
         prepared_content = prepare_nuextract_content(content, chat_kwargs)
         return {
-            "model": model or self.settings.model,
+            "model": self.settings.model,
             "temperature": temperature,
             "max_tokens": self.settings.max_tokens,
             "stream": stream,
@@ -68,10 +67,9 @@ class OpenAICompatibleProvider(ModelProvider):
         content: ChatContent,
         chat_kwargs: dict[str, Any],
         temperature: float,
-        model: str | None = None,
     ) -> AsyncIterator[ChatDelta]:
         payload = self.build_payload(
-            content, chat_kwargs, temperature, stream=True, model=model
+            content, chat_kwargs, temperature, stream=True
         )
         async with self.client.stream(
             "POST",
@@ -120,10 +118,9 @@ class OllamaProvider(OpenAICompatibleProvider):
         chat_kwargs: dict[str, Any],
         temperature: float,
         stream: bool,
-        model: str | None = None,
     ) -> dict[str, Any]:
         payload = super().build_payload(
-            content, chat_kwargs, temperature, stream, model=model
+            content, chat_kwargs, temperature, stream
         )
         if chat_kwargs.get("enable_thinking"):
             payload["reasoning"] = {"effort": "medium"}
