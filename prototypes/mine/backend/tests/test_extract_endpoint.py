@@ -137,8 +137,8 @@ class ExtractEndpointTests(unittest.TestCase):
         self.assertEqual(len(pages), 1)
         self.assertTrue(pages[0].startswith(b"\xff\xd8"))
 
-    def test_openai_extract_duplicates_nuextract_controls_in_message_text(self) -> None:
-        self.configure(provider="openai")
+    def test_vllm_extract_duplicates_nuextract_controls_in_message_text(self) -> None:
+        self.configure(provider="vllm")
         expected_template = '{\n    "store": "verbatim-string"\n}'
         expected_text = (
             "Invoice text\n\n"

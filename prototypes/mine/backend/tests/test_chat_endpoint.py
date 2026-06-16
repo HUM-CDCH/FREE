@@ -3,6 +3,7 @@ import unittest
 from collections.abc import AsyncIterator
 from unittest.mock import patch
 
+import httpx
 from fastapi.testclient import TestClient
 
 import main
@@ -84,6 +85,40 @@ class ChatEndpointTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json(), {"detail": "Provide chat text"})
+
+    def test_chat_returns_error_event_for_model_http_errors(self) -> None:
+        async def fake_model_stream(content, chat_kwargs, temperature):
+            if False:
+                yield "", ""
+            raise httpx.ConnectError("boom")
+
+        with patch.object(main, "call_model_stream", fake_model_stream):
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/chat",
+                    data={"text": "Hello"},
+                    headers={"accept": "application/json"},
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            [
+                {
+                    "event": "error",
+                    "data": {"detail": "Model endpoint error: boom"},
+                }
+            ],
+        )
+
+    def test_streaming_routes_advertise_jsonl_and_json_responses(self) -> None:
+        with TestClient(main.app) as client:
+            openapi = client.get("/openapi.json").json()
+
+        for path in ["/chat", "/extract", "/markdown", "/generate-template"]:
+            content = openapi["paths"][path]["post"]["responses"]["200"]["content"]
+            self.assertIn("application/json", content)
+            self.assertIn("application/jsonl", content)
 
 
 if __name__ == "__main__":
