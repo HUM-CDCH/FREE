@@ -93,7 +93,7 @@ export async function requestExtraction(
 ): Promise<unknown> {
   const form = new FormData()
   form.append('file', file, fileName)
-  form.append('template', JSON.stringify(template))
+  form.append('template', JSON.stringify(template ?? {}))
 
   const done = await streamJsonl('/extract', form, { onDelta }, decodeExtractDone, signal)
   return done.result
