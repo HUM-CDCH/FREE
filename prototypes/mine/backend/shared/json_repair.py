@@ -74,6 +74,13 @@ def parse_repaired_json_result(answer: str) -> Any:
             return json.loads(candidate)
         except json.JSONDecodeError:
             pass
+    try:
+        result, index = json.JSONDecoder().raw_decode(stripped)
+    except json.JSONDecodeError:
+        pass
+    else:
+        if stripped[index:].strip():
+            return result
     raise ValueError("Model returned invalid JSON for the extraction result")
 
 

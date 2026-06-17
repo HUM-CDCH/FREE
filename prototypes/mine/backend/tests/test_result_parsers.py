@@ -29,6 +29,16 @@ class StructuredParserTests(unittest.TestCase):
         )
         self.assertEqual(len(result["items"]), 2)
 
+    def test_repairs_trailing_malformed_field_after_complete_object(self) -> None:
+        result = self.parser.parse(
+            '{"title": "Grav 8", "summary": "source-grounded text"}, '
+            '"summary": null}'
+        )
+        self.assertEqual(
+            result,
+            {"title": "Grav 8", "summary": "source-grounded text"},
+        )
+
     def test_pulls_answer_block_before_parsing(self) -> None:
         result = self.parser.parse('<answer>{"store": "Trader Joe\'s"}</answer>')
         self.assertEqual(result, {"store": "Trader Joe's"})

@@ -5,7 +5,10 @@ import httpx
 from config import Settings
 from model_providers import create_model_provider
 from shared.model_gateway import ModelGateway
-from shared.nuextract_request import NuExtractRequestBuilder
+from shared.nuextract_request import (
+    NuExtractRequestBuilder,
+    nuextract_control_channel_for_provider,
+)
 from shared.source_context import SourceContextBuilder
 from shared.source_document import SourceDocumentInputPreparer
 from shared.temperature import ReasoningTemperature
@@ -29,7 +32,9 @@ def build_application_services(
 ) -> ApplicationServices:
     provider = create_model_provider(settings, client)
     model_gateway = ModelGateway(provider, temperature=ReasoningTemperature())
-    nuextract_requests = NuExtractRequestBuilder()
+    nuextract_requests = NuExtractRequestBuilder(
+        task_control_channel=nuextract_control_channel_for_provider(settings.provider)
+    )
     source_documents = SourceDocumentInputPreparer(pdf_dpi=settings.pdf_dpi)
     source_context = SourceContextBuilder()
     return ApplicationServices(

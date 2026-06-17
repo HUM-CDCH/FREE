@@ -1,0 +1,42 @@
+{
+  "trial": "pdf-page1-tight-current-local",
+  "elapsed_ms": 3363,
+  "source": {
+    "kind": "pdf",
+    "path": "E:\\progetti\\FREE\\examples\\Beretning_Ellekilde_8_13.pdf",
+    "pages_sent": 1,
+    "image_bytes": [
+      145111
+    ],
+    "dpi": 64
+  },
+  "request": {
+    "host": "http://127.0.0.1:11434",
+    "model": "hf.co/numind/NuExtract3-GGUF:Q4_K_M",
+    "options": {
+      "num_predict": 1024,
+      "num_ctx": 8192,
+      "temperature": 0.0
+    },
+    "think": false,
+    "format": "json"
+  },
+  "thinking": null,
+  "raw_text": "{\"title\": \"Grav 8\", \"location\": \"Ellekilde, TÅK 1355\", \"feature_or_context\": \"Skeletmaterialer\", \"description\": \"Anlægget blev oprindeligt tolket som værende væsentlig større end det reelt var grundet områdets spættede undergrund. Efter afdrensning blev anlægget fotograferet, tegnet og nivelleret, samt gennemgået med GPS. Der fandtes knogler i overfladen, hvorfor anlægget udelukkende blev gravet med grøveskærer og spatler. Der var en smule skeletmaterialer bevaret og ca. 5 cm tilbage af gravfylden. Da skeletmaterialet var fremdraget blev det fotograferet og tegnet på planen.\", \"methods\": [\"fotografere\", \"tegne\", \"nivellere\"], \"photo_references\": [\"S/H (film 4): 22-23\", \"Dias (film 4): 22-23\"], \"summary\": \"Grav 8 er en digitalt dokumenteret grav fra Ellekilde. Anlægget blev oprindeligt tolket som væsentlig større end det reelt var grundet områdets spættede undergrund. Efter afdrensning blev anlægget fotograferet, tegnet og nivelleret, samt gennemgået med GPS. Der fandtes knogler i overfladen, hvorfor anlægget udelukkende blev gravet med grøveskærer og spatler. Der var en smule skeletmaterialer bevaret og ca. 5 cm tilbage af gravfylden. Da skeletmaterialet var fremdraget blev det fotograferet og tegnet på planen.\"}, \"summary\": null}",
+  "parsed": {
+    "title": "Grav 8",
+    "location": "Ellekilde, TÅK 1355",
+    "feature_or_context": "Skeletmaterialer",
+    "description": "Anlægget blev oprindeligt tolket som værende væsentlig større end det reelt var grundet områdets spættede undergrund. Efter afdrensning blev anlægget fotograferet, tegnet og nivelleret, samt gennemgået med GPS. Der fandtes knogler i overfladen, hvorfor anlægget udelukkende blev gravet med grøveskærer og spatler. Der var en smule skeletmaterialer bevaret og ca. 5 cm tilbage af gravfylden. Da skeletmaterialet var fremdraget blev det fotograferet og tegnet på planen.",
+    "methods": [
+      "fotografere",
+      "tegne",
+      "nivellere"
+    ],
+    "photo_references": [
+      "S/H (film 4): 22-23",
+      "Dias (film 4): 22-23"
+    ],
+    "summary": "Grav 8 er en digitalt dokumenteret grav fra Ellekilde. Anlægget blev oprindeligt tolket som væsentlig større end det reelt var grundet områdets spættede undergrund. Efter afdrensning blev anlægget fotograferet, tegnet og nivelleret, samt gennemgået med GPS. Der fandtes knogler i overfladen, hvorfor anlægget udelukkende blev gravet med grøveskærer og spatler. Der var en smule skeletmaterialer bevaret og ca. 5 cm tilbage af gravfylden. Da skeletmaterialet var fremdraget blev det fotograferet og tegnet på planen."
+  }
+}

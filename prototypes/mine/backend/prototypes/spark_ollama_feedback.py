@@ -21,17 +21,28 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
-def load_parsing_helpers() -> tuple[Any, Any]:
+def load_parsing_helpers() -> tuple[Any, Any, Any]:
     parsing_path = BACKEND_ROOT / "shared" / "parsing.py"
     spec = importlib.util.spec_from_file_location("backend_parsing", parsing_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load {parsing_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.extract_answer_block, module.parse_result
+    parsing_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(parsing_module)
+
+    repair_path = BACKEND_ROOT / "shared" / "json_repair.py"
+    repair_spec = importlib.util.spec_from_file_location("backend_json_repair", repair_path)
+    if repair_spec is None or repair_spec.loader is None:
+        raise RuntimeError(f"Cannot load {repair_path}")
+    repair_module = importlib.util.module_from_spec(repair_spec)
+    repair_spec.loader.exec_module(repair_module)
+    return (
+        parsing_module.extract_answer_block,
+        parsing_module.parse_result,
+        repair_module.parse_json_object_result,
+    )
 
 
-extract_answer_block, parse_result = load_parsing_helpers()
+extract_answer_block, parse_result, parse_json_object_result = load_parsing_helpers()
 
 
 @dataclass
@@ -303,7 +314,10 @@ def parse_output(raw_text: str) -> Any:
     try:
         parsed = json.loads(answer, object_pairs_hook=reject_duplicate_keys)
     except Exception:
-        return parse_result(answer)
+        try:
+            return parse_json_object_result(answer)
+        except ValueError:
+            return parse_result(answer)
     if duplicate_keys:
         return {
             "parse_warning": "duplicate_json_keys",
@@ -311,7 +325,6 @@ def parse_output(raw_text: str) -> Any:
             "best_effort": parsed,
         }
     return parsed
-    return parse_result(answer)
 
 
 def dry_run_result(

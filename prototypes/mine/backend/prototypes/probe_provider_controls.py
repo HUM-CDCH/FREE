@@ -7,8 +7,8 @@ The backend can tell a NuExtract-style runtime what to do in two ways:
 * chat_template_kwargs: structured kwargs consumed by NuExtract-aware chat
   templates on some OpenAI-compatible servers
 
-This script sends three small requests to the configured OpenAI-compatible
-chat/completions endpoint and prints JSONL results plus a recommendation.
+This script sends message-only, kwargs-only, and conflict requests for the
+NuExtract workflows FREE uses, then prints JSONL results plus recommendations.
 """
 
 from __future__ import annotations
@@ -35,14 +35,18 @@ from model_providers import model_headers
 DOCUMENT_VALUE = "CONTROL_VALUE_7391"
 MESSAGE_KEY = "message_probe_channel"
 KWARGS_KEY = "kwargs_probe_channel"
+MESSAGE_MARKER = "MESSAGE_CHANNEL_MARKER"
+KWARGS_MARKER = "KWARGS_CHANNEL_MARKER"
 
 
 @dataclass(frozen=True, slots=True)
 class ProbeCase:
+    workflow: str
     name: str
     user_content: list[dict[str, Any]]
     chat_template_kwargs: dict[str, Any] | None
-    expected_key: str
+    expected_key: str | None
+    expected_marker: str
 
 
 def normalize_base_url(provider: str, base_url: str) -> str:
@@ -76,28 +80,71 @@ def extraction_prompt(key: str) -> str:
     )
 
 
-def build_probe_cases() -> list[ProbeCase]:
+def content_prompt(marker: str) -> str:
+    return "\n".join(
+        [
+            "Extract source-grounded information from the supplied document.",
+            f"Return the exact answer inside <answer>{marker}</answer>.",
+            "",
+            "Document:",
+            f"The probe value is {DOCUMENT_VALUE}.",
+        ]
+    )
+
+
+def schema_suggestion_prompt(field_name: str) -> str:
+    return "\n".join(
+        [
+            "Generate an extraction template for this document.",
+            f"Include a field named {field_name}.",
+            "",
+            "Document:",
+            f"The probe value is {DOCUMENT_VALUE}.",
+        ]
+    )
+
+
+def markdown_prompt(marker: str) -> str:
+    return "\n".join(
+        [
+            "Convert the supplied document to markdown.",
+            f"Include the heading '# {marker}'.",
+            "",
+            "Document:",
+            f"The probe value is {DOCUMENT_VALUE}.",
+        ]
+    )
+
+
+def source_content() -> list[dict[str, Any]]:
+    return [text_part(f"Document: The probe value is {DOCUMENT_VALUE}.")]
+
+
+def structured_cases() -> list[ProbeCase]:
     kwargs_template = json.dumps({KWARGS_KEY: "verbatim-string"}, indent=2)
     return [
         ProbeCase(
+            workflow="structured",
             name="kwargs_only",
-            user_content=[
-                text_part(f"Document: The probe value is {DOCUMENT_VALUE}.")
-            ],
+            user_content=source_content(),
             chat_template_kwargs={
                 "mode": "structured",
                 "enable_thinking": False,
                 "template": kwargs_template,
             },
             expected_key=KWARGS_KEY,
+            expected_marker=DOCUMENT_VALUE,
         ),
         ProbeCase(
+            workflow="structured",
             name="message_only",
             user_content=[text_part(extraction_prompt(MESSAGE_KEY))],
             chat_template_kwargs=None,
             expected_key=MESSAGE_KEY,
+            expected_marker=DOCUMENT_VALUE,
         ),
         ProbeCase(
+            workflow="structured",
             name="conflict",
             user_content=[text_part(extraction_prompt(MESSAGE_KEY))],
             chat_template_kwargs={
@@ -106,7 +153,126 @@ def build_probe_cases() -> list[ProbeCase]:
                 "template": kwargs_template,
             },
             expected_key=KWARGS_KEY,
+            expected_marker=DOCUMENT_VALUE,
         ),
+    ]
+
+
+def content_cases() -> list[ProbeCase]:
+    return [
+        ProbeCase(
+            workflow="content",
+            name="kwargs_only",
+            user_content=source_content(),
+            chat_template_kwargs={
+                "mode": "content",
+                "enable_thinking": False,
+                "instructions": f"Return exactly <answer>{KWARGS_MARKER}</answer>.",
+            },
+            expected_key=None,
+            expected_marker=KWARGS_MARKER,
+        ),
+        ProbeCase(
+            workflow="content",
+            name="message_only",
+            user_content=[text_part(content_prompt(MESSAGE_MARKER))],
+            chat_template_kwargs=None,
+            expected_key=None,
+            expected_marker=MESSAGE_MARKER,
+        ),
+        ProbeCase(
+            workflow="content",
+            name="conflict",
+            user_content=[text_part(content_prompt(MESSAGE_MARKER))],
+            chat_template_kwargs={
+                "mode": "content",
+                "enable_thinking": False,
+                "instructions": f"Return exactly <answer>{KWARGS_MARKER}</answer>.",
+            },
+            expected_key=None,
+            expected_marker=KWARGS_MARKER,
+        ),
+    ]
+
+
+def schema_suggestion_cases() -> list[ProbeCase]:
+    return [
+        ProbeCase(
+            workflow="schema_suggestion",
+            name="kwargs_only",
+            user_content=[text_part(schema_suggestion_prompt(KWARGS_KEY))],
+            chat_template_kwargs={
+                "mode": "template-generation",
+                "enable_thinking": False,
+            },
+            expected_key=KWARGS_KEY,
+            expected_marker=KWARGS_KEY,
+        ),
+        ProbeCase(
+            workflow="schema_suggestion",
+            name="message_only",
+            user_content=[text_part(schema_suggestion_prompt(MESSAGE_KEY))],
+            chat_template_kwargs=None,
+            expected_key=MESSAGE_KEY,
+            expected_marker=MESSAGE_KEY,
+        ),
+        ProbeCase(
+            workflow="schema_suggestion",
+            name="conflict",
+            user_content=[text_part(schema_suggestion_prompt(MESSAGE_KEY))],
+            chat_template_kwargs={
+                "mode": "template-generation",
+                "enable_thinking": False,
+            },
+            expected_key=MESSAGE_KEY,
+            expected_marker=MESSAGE_KEY,
+        ),
+    ]
+
+
+def markdown_cases() -> list[ProbeCase]:
+    return [
+        ProbeCase(
+            workflow="markdown",
+            name="kwargs_only",
+            user_content=source_content(),
+            chat_template_kwargs={
+                "mode": "markdown",
+                "enable_thinking": False,
+                "instructions": f"Include the heading '# {KWARGS_MARKER}'.",
+            },
+            expected_key=None,
+            expected_marker=KWARGS_MARKER,
+        ),
+        ProbeCase(
+            workflow="markdown",
+            name="message_only",
+            user_content=[text_part(markdown_prompt(MESSAGE_MARKER))],
+            chat_template_kwargs=None,
+            expected_key=None,
+            expected_marker=MESSAGE_MARKER,
+        ),
+        ProbeCase(
+            workflow="markdown",
+            name="conflict",
+            user_content=[text_part(markdown_prompt(MESSAGE_MARKER))],
+            chat_template_kwargs={
+                "mode": "markdown",
+                "enable_thinking": False,
+                "instructions": f"Include the heading '# {KWARGS_MARKER}'.",
+            },
+            expected_key=None,
+            expected_marker=KWARGS_MARKER,
+        ),
+    ]
+
+
+def build_probe_cases() -> list[ProbeCase]:
+    return [
+        *structured_cases(),
+        *content_cases(),
+        *schema_suggestion_cases(),
+        *markdown_cases(),
     ]
 
 
@@ -197,19 +363,37 @@ def parse_json_object(text: str) -> dict[str, Any] | None:
 def classify_case(case: ProbeCase, raw_text: str) -> dict[str, Any]:
     parsed = parse_json_object(raw_text)
     keys = sorted(parsed) if parsed is not None else []
-    expected_value = parsed.get(case.expected_key) if parsed is not None else None
-    has_expected_key = parsed is not None and case.expected_key in parsed
-    has_expected_value = expected_value == DOCUMENT_VALUE
+    expected_value = (
+        parsed.get(case.expected_key)
+        if parsed is not None and case.expected_key is not None
+        else None
+    )
+    has_expected_key = (
+        parsed is not None
+        and case.expected_key is not None
+        and case.expected_key in parsed
+    )
+    has_expected_value = expected_value in {DOCUMENT_VALUE, "verbatim-string", "string"}
     has_message_key = parsed is not None and MESSAGE_KEY in parsed
     has_kwargs_key = parsed is not None and KWARGS_KEY in parsed
+    has_expected_marker = case.expected_marker in raw_text
+    has_message_marker = MESSAGE_MARKER in raw_text
+    has_kwargs_marker = KWARGS_MARKER in raw_text
     return {
         "parsed_json": parsed,
         "json_keys": keys,
         "has_expected_key": has_expected_key,
         "has_expected_value": has_expected_value,
+        "has_expected_marker": has_expected_marker,
         "has_message_key": has_message_key,
         "has_kwargs_key": has_kwargs_key,
-        "success": has_expected_key and has_expected_value,
+        "has_message_marker": has_message_marker,
+        "has_kwargs_marker": has_kwargs_marker,
+        "success": (
+            has_expected_key and (has_expected_value or has_expected_marker)
+            if case.expected_key is not None
+            else has_expected_marker
+        ),
     }
 
 
@@ -221,6 +405,7 @@ async def run_case(
     payload = build_payload(args, case)
     if args.dry_run:
         return {
+            "workflow": case.workflow,
             "case": case.name,
             "url": args.url,
             "request": compact_payload(payload),
@@ -239,6 +424,7 @@ async def run_case(
     except Exception as exc:
         elapsed_ms = round((time.perf_counter() - started) * 1000)
         return {
+            "workflow": case.workflow,
             "case": case.name,
             "elapsed_ms": elapsed_ms,
             "request": compact_payload(payload),
@@ -247,6 +433,7 @@ async def run_case(
 
     raw_text = extract_response_text(response_json)
     return {
+        "workflow": case.workflow,
         "case": case.name,
         "elapsed_ms": elapsed_ms,
         "request": compact_payload(payload),
@@ -255,7 +442,7 @@ async def run_case(
     }
 
 
-def recommend(results: list[dict[str, Any]]) -> dict[str, Any]:
+def recommend_workflow(workflow: str, results: list[dict[str, Any]]) -> dict[str, Any]:
     by_name = {result["case"]: result for result in results}
 
     def success(name: str) -> bool:
@@ -263,18 +450,36 @@ def recommend(results: list[dict[str, Any]]) -> dict[str, Any]:
         return bool(classification.get("success"))
 
     conflict = (by_name.get("conflict", {}).get("classification") or {})
-    conflict_kwargs = bool(conflict.get("has_kwargs_key"))
-    conflict_message = bool(conflict.get("has_message_key"))
+    conflict_kwargs = bool(
+        conflict.get("has_kwargs_key") or conflict.get("has_kwargs_marker")
+    )
+    conflict_message = bool(
+        conflict.get("has_message_key") or conflict.get("has_message_marker")
+    )
 
-    if success("kwargs_only") and conflict_kwargs and not conflict_message:
+    kwargs_ok = success("kwargs_only")
+    message_ok = success("message_only")
+
+    if kwargs_ok and message_ok:
+        strategy = "both_single_channel"
+        if conflict_kwargs and not conflict_message:
+            reason = "both single-channel probes worked; the conflict probe followed chat_template_kwargs."
+        elif conflict_message and not conflict_kwargs:
+            reason = "both single-channel probes worked; the conflict probe followed message-embedded controls."
+        else:
+            reason = "both single-channel probes worked; the conflict probe did not show a single clear precedence."
+    elif kwargs_ok and conflict_kwargs and not conflict_message:
         strategy = "kwargs_only"
         reason = "chat_template_kwargs produced the expected key/value and won the conflict probe."
-    elif success("message_only") and not success("kwargs_only"):
+    elif message_ok and conflict_message and not conflict_kwargs:
+        strategy = "message_only"
+        reason = "message-embedded controls produced the expected key/value and won the conflict probe."
+    elif message_ok and not kwargs_ok:
         strategy = "message_only"
         reason = "message-embedded controls worked, while chat_template_kwargs alone did not."
-    elif success("kwargs_only") and success("message_only"):
-        strategy = "kwargs_preferred"
-        reason = "both single-channel probes worked; prefer kwargs if this deployment is known to use NuExtract chat templates."
+    elif kwargs_ok and not message_ok:
+        strategy = "kwargs_only"
+        reason = "chat_template_kwargs worked, while message-embedded controls alone did not."
     else:
         strategy = "inconclusive"
         reason = "single-channel probes did not produce a clean expected JSON object."
@@ -284,7 +489,20 @@ def recommend(results: list[dict[str, Any]]) -> dict[str, Any]:
             f"{reason} The conflict probe mixed both keys, so avoid automatic "
             "single-channel selection without inspecting the raw response."
         )
-    return {"strategy": strategy, "reason": reason}
+    return {"workflow": workflow, "strategy": strategy, "reason": reason}
+
+
+def recommend(results: list[dict[str, Any]]) -> dict[str, Any]:
+    workflows = sorted({result["workflow"] for result in results})
+    return {
+        "workflow_recommendations": [
+            recommend_workflow(
+                workflow,
+                [result for result in results if result["workflow"] == workflow],
+            )
+            for workflow in workflows
+        ]
+    }
 
 
 def write_json(value: dict[str, Any], pretty: bool) -> None:

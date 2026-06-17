@@ -24,19 +24,20 @@ class MarkdownEndpointTests(unittest.TestCase):
         class FakeProvider:
             async def stream_chat(self, content, template_kwargs, temperature):
                 calls.append(content)
-                test_case.assertIn("Markdown", content[0]["text"])
+                test_case.assertEqual(content[0]["type"], "image_url")
                 test_case.assertEqual(template_kwargs["mode"], "markdown")
                 yield "", "  # Document\n\nbody text  "
 
-        with patch.object(
-            application, "create_model_provider", return_value=FakeProvider()
-        ):
-            with TestClient(main.app) as client:
-                response = client.post(
-                    "/markdown",
-                    headers={"accept": "application/json"},
-                    files={"file": ("doc.pdf", make_pdf(3), "application/pdf")},
-                )
+        with patch.object(main.settings, "provider", "vllm"):
+            with patch.object(
+                application, "create_model_provider", return_value=FakeProvider()
+            ):
+                with TestClient(main.app) as client:
+                    response = client.post(
+                        "/markdown",
+                        headers={"accept": "application/json"},
+                        files={"file": ("doc.pdf", make_pdf(3), "application/pdf")},
+                    )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -46,7 +47,7 @@ class MarkdownEndpointTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(
             [part["type"] for part in calls[0]],
-            ["text", "image_url", "image_url", "image_url"],
+            ["image_url", "image_url", "image_url"],
         )
 
 

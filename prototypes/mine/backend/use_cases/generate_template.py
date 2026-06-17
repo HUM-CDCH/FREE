@@ -106,7 +106,7 @@ class GenerateTemplatePipeline:
             SourceContextRequest(document=document)
         )
         result = await self._model_gateway.collect(
-            self._nuextract_requests.template_generation(
+            self._nuextract_requests.schema_suggestion(
                 content=source_context.content,
                 guidance=guidance,
                 temperature=request.temperature,

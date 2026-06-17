@@ -37,24 +37,24 @@ class GenerateTemplateEndpointTests(unittest.TestCase):
     def test_returns_template_and_counts_pages(self) -> None:
         def check(content, template_kwargs, temperature):
             self.assertEqual(temperature, 0.2)
-            self.assertIn("Generate an extraction template", content[0]["text"])
             self.assertEqual(
-                [part["type"] for part in content[1:3]],
+                [part["type"] for part in content[:2]],
                 ["image_url", "image_url"],
             )
-            self.assertIn("Generate a concise JSON extraction template", content[3]["text"])
+            self.assertIn("Generate a concise JSON extraction template", content[2]["text"])
             self.assertEqual(template_kwargs["mode"], "template-generation")
 
         provider = self.provider([("", '{"site": "string"}')], check)
 
-        with patch.object(application, "create_model_provider", return_value=provider):
-            with TestClient(main.app) as client:
-                response = client.post(
-                    "/generate-template",
-                    headers={"accept": "application/json"},
-                    files={"file": ("doc.pdf", make_pdf(2), "application/pdf")},
-                    data={"temperature": "0.2"},
-                )
+        with patch.object(main.settings, "provider", "vllm"):
+            with patch.object(application, "create_model_provider", return_value=provider):
+                with TestClient(main.app) as client:
+                    response = client.post(
+                        "/generate-template",
+                        headers={"accept": "application/json"},
+                        files={"file": ("doc.pdf", make_pdf(2), "application/pdf")},
+                        data={"temperature": "0.2"},
+                    )
 
         self.assertEqual(response.status_code, 200)
         body = response.json()

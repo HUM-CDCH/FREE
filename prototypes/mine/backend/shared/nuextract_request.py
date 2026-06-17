@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Any
+from enum import Enum
+from typing import Any, Literal
 
 from model_providers import ChatContent
 from shared.model_gateway import ModelRequest
@@ -30,6 +31,19 @@ _TEMPLATE_GENERATION_TASK_INSTRUCTIONS = (
 )
 
 
+class NuExtractTaskControlChannel(str, Enum):
+    MESSAGE_TEXT = "message_text"
+    TEMPLATE_KWARGS = "template_kwargs"
+
+
+def nuextract_control_channel_for_provider(
+    provider: Literal["ollama", "vllm", "openai"],
+) -> NuExtractTaskControlChannel:
+    if provider == "ollama":
+        return NuExtractTaskControlChannel.MESSAGE_TEXT
+    return NuExtractTaskControlChannel.TEMPLATE_KWARGS
+
+
 def _prepend_task_prompt(content: ChatContent, task_prompt: str) -> ChatContent:
     if _content_starts_with_prompt(content, task_prompt):
         return content
@@ -53,6 +67,21 @@ def _append_text(content: ChatContent, text: str | None) -> ChatContent:
 
 
 class NuExtractRequestBuilder:
+    def __init__(
+        self,
+        *,
+        task_control_channel: NuExtractTaskControlChannel = (
+            NuExtractTaskControlChannel.TEMPLATE_KWARGS
+        ),
+    ) -> None:
+        self._task_control_channel = task_control_channel
+
+    def _uses_message_text_controls(self) -> bool:
+        return self._task_control_channel == NuExtractTaskControlChannel.MESSAGE_TEXT
+
+    def _thinking_kwargs(self, reasoning: bool) -> dict[str, Any]:
+        return {"enable_thinking": reasoning}
+
     def markdown(
         self,
         *,
@@ -60,10 +89,42 @@ class NuExtractRequestBuilder:
         reasoning: bool,
         temperature: float | None,
     ) -> ModelRequest:
+        if self._uses_message_text_controls():
+            return ModelRequest(
+                content=_prepend_task_prompt(content, _MARKDOWN_TASK_INSTRUCTIONS),
+                template_kwargs=self._thinking_kwargs(reasoning),
+                reasoning=reasoning,
+                temperature=temperature,
+            )
         return ModelRequest(
-            content=_prepend_task_prompt(content, _MARKDOWN_TASK_INSTRUCTIONS),
+            content=content,
             template_kwargs={"mode": "markdown", "enable_thinking": reasoning},
             reasoning=reasoning,
+            temperature=temperature,
+        )
+
+    def schema_suggestion(
+        self,
+        *,
+        content: ChatContent,
+        guidance: str,
+        temperature: float | None,
+    ) -> ModelRequest:
+        prepared_content = _append_text(content, guidance)
+        if self._uses_message_text_controls():
+            prepared_content = _prepend_task_prompt(
+                prepared_content, _TEMPLATE_GENERATION_TASK_INSTRUCTIONS
+            )
+            return ModelRequest(
+                content=prepared_content,
+                template_kwargs={"enable_thinking": False},
+                reasoning=False,
+                temperature=temperature,
+            )
+        return ModelRequest(
+            content=prepared_content,
+            template_kwargs={"mode": "template-generation", "enable_thinking": False},
+            reasoning=False,
             temperature=temperature,
         )
 
@@ -74,14 +135,9 @@ class NuExtractRequestBuilder:
         guidance: str,
         temperature: float | None,
     ) -> ModelRequest:
-        prepared_content = _append_text(
-            _prepend_task_prompt(content, _TEMPLATE_GENERATION_TASK_INSTRUCTIONS),
-            guidance,
-        )
-        return ModelRequest(
-            content=prepared_content,
-            template_kwargs={"mode": "template-generation", "enable_thinking": False},
-            reasoning=False,
+        return self.schema_suggestion(
+            content=content,
+            guidance=guidance,
             temperature=temperature,
         )
 
@@ -93,10 +149,18 @@ class NuExtractRequestBuilder:
         reasoning: bool,
         temperature: float | None,
     ) -> ModelRequest:
-        prepared_content = _append_text(
-            _prepend_task_prompt(content, _CONTENT_TASK_INSTRUCTIONS),
-            f"Instructions:\n{instruction}" if instruction else None,
-        )
+        prepared_content = content
+        if self._uses_message_text_controls():
+            prepared_content = _append_text(
+                _prepend_task_prompt(content, _CONTENT_TASK_INSTRUCTIONS),
+                f"Instructions:\n{instruction}" if instruction else None,
+            )
+            return ModelRequest(
+                content=prepared_content,
+                template_kwargs=self._thinking_kwargs(reasoning),
+                reasoning=reasoning,
+                temperature=temperature,
+            )
         template_kwargs: dict[str, Any] = {
             "mode": "content",
             "enable_thinking": reasoning,
@@ -119,15 +183,7 @@ class NuExtractRequestBuilder:
         reasoning: bool,
         temperature: float | None,
     ) -> ModelRequest:
-        controls = []
-        if instruction:
-            controls.append(f"Instructions:\n{instruction}")
-        if template_json:
-            controls.append(f"Extraction template:\n```json\n{template_json}\n```")
-        prepared_content = _append_text(
-            _prepend_task_prompt(content, _STRUCTURED_TASK_INSTRUCTIONS),
-            "\n\n".join(controls) or None,
-        )
+        prepared_content = content
         template_kwargs: dict[str, Any] = {
             "mode": "structured",
             "enable_thinking": reasoning,
@@ -135,6 +191,17 @@ class NuExtractRequestBuilder:
         }
         if instruction:
             template_kwargs["instructions"] = instruction
+        if self._uses_message_text_controls():
+            controls = []
+            if instruction:
+                controls.append(f"Instructions:\n{instruction}")
+            if template_json:
+                controls.append(f"Extraction template:\n```json\n{template_json}\n```")
+            prepared_content = _append_text(
+                _prepend_task_prompt(content, _STRUCTURED_TASK_INSTRUCTIONS),
+                "\n\n".join(controls) or None,
+            )
+            template_kwargs = self._thinking_kwargs(reasoning)
         return ModelRequest(
             content=prepared_content,
             template_kwargs=template_kwargs,
