@@ -6,7 +6,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from shared.model_gateway import ModelGateway, ModelGatewayError
-from shared.nuextract_request import NuExtractRequestBuilder
+from shared.nuextract_request import (
+    NuExtractRequestBuilder,
+    TEMPLATE_GENERATION_TASK_INSTRUCTIONS,
+)
 from shared.result_parsers import TemplateParser
 from shared.source_context import (
     SourceAnnotation,
@@ -22,12 +25,7 @@ from shared.streaming import JSON_RESPONSES
 
 router = APIRouter()
 
-TEMPLATE_GUIDANCE = (
-    "Generate a concise JSON extraction template for this document. "
-    "Use descriptive field names and simple type hints like string, "
-    "number, YYYY-MM-DD, boolean, or arrays of objects. Return only "
-    "the JSON template."
-)
+TEMPLATE_GUIDANCE = TEMPLATE_GENERATION_TASK_INSTRUCTIONS
 
 ANNOTATION_MODES = ("hints", "fields")
 

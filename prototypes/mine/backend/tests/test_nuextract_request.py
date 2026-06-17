@@ -3,6 +3,7 @@ import unittest
 from shared.nuextract_request import (
     NuExtractRequestBuilder,
     NuExtractTaskControlChannel,
+    TEMPLATE_GENERATION_TASK_INSTRUCTIONS,
     nuextract_control_channel_for_provider,
 )
 
@@ -120,12 +121,19 @@ class NuExtractRequestBuilderTests(unittest.TestCase):
         )
 
         request = builder.schema_suggestion(
-            content=[{"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}}],
+            content=[
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,AA=="},
+                }
+            ],
             guidance="Generate a concise JSON extraction template.",
             temperature=0.3,
         )
 
-        self.assertIn("Generate an extraction template", request.content[0]["text"])
+        self.assertIn(
+            "Generate a concise JSON extraction template", request.content[0]["text"]
+        )
         self.assertEqual(request.content[1]["type"], "image_url")
         self.assertEqual(
             request.content[2]["text"],
@@ -134,6 +142,39 @@ class NuExtractRequestBuilderTests(unittest.TestCase):
         self.assertEqual(request.template_kwargs, {"enable_thinking": False})
         self.assertFalse(request.reasoning)
         self.assertEqual(request.temperature, 0.3)
+
+    def test_message_text_schema_suggestion_does_not_repeat_base_task_guidance(self) -> None:
+        builder = NuExtractRequestBuilder(
+            task_control_channel=NuExtractTaskControlChannel.MESSAGE_TEXT
+        )
+        annotation_guidance = (
+            f"{TEMPLATE_GENERATION_TASK_INSTRUCTIONS}\n\n"
+            "Design the extraction template from the whole source document."
+        )
+
+        request = builder.schema_suggestion(
+            content=[
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,AA=="},
+                }
+            ],
+            guidance=annotation_guidance,
+            temperature=None,
+        )
+
+        self.assertEqual(
+            request.content[0]["text"], TEMPLATE_GENERATION_TASK_INSTRUCTIONS
+        )
+        self.assertEqual(request.content[1]["type"], "image_url")
+        self.assertEqual(
+            request.content[2]["text"],
+            "Design the extraction template from the whole source document.",
+        )
+        rendered_text = "\n\n".join(
+            part["text"] for part in request.content if part.get("type") == "text"
+        )
+        self.assertEqual(rendered_text.count(TEMPLATE_GENERATION_TASK_INSTRUCTIONS), 1)
 
     def test_template_kwargs_schema_suggestion_keeps_guidance_in_content(self) -> None:
         builder = NuExtractRequestBuilder(

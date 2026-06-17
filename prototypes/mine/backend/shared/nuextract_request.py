@@ -23,11 +23,11 @@ _CONTENT_TASK_INSTRUCTIONS = (
     "text using any provided instructions. Return the final answer "
     "inside <answer>...</answer>."
 )
-_TEMPLATE_GENERATION_TASK_INSTRUCTIONS = (
-    "Generate an extraction template for the supplied document or text. "
-    "Return only a valid JSON object. Use concise field names and simple "
-    "type hints such as string, number, YYYY-MM-DD, boolean, or arrays "
-    "of objects."
+TEMPLATE_GENERATION_TASK_INSTRUCTIONS = (
+    "Generate a concise JSON extraction template for the supplied document "
+    "or text. Use descriptive field names and simple type hints such as "
+    "string, number, YYYY-MM-DD, boolean, or arrays of objects. Return only "
+    "the JSON template."
 )
 
 
@@ -64,6 +64,15 @@ def _append_text(content: ChatContent, text: str | None) -> ChatContent:
     if not text:
         return content
     return [*content, {"type": "text", "text": text}]
+
+
+def _without_repeated_task_prompt(guidance: str) -> str | None:
+    if not guidance:
+        return None
+    if not guidance.startswith(TEMPLATE_GENERATION_TASK_INSTRUCTIONS):
+        return guidance
+    remainder = guidance[len(TEMPLATE_GENERATION_TASK_INSTRUCTIONS) :].strip()
+    return remainder or None
 
 
 class NuExtractRequestBuilder:
@@ -110,10 +119,12 @@ class NuExtractRequestBuilder:
         guidance: str,
         temperature: float | None,
     ) -> ModelRequest:
-        prepared_content = _append_text(content, guidance)
         if self._uses_message_text_controls():
+            prepared_content = _append_text(
+                content, _without_repeated_task_prompt(guidance)
+            )
             prepared_content = _prepend_task_prompt(
-                prepared_content, _TEMPLATE_GENERATION_TASK_INSTRUCTIONS
+                prepared_content, TEMPLATE_GENERATION_TASK_INSTRUCTIONS
             )
             return ModelRequest(
                 content=prepared_content,
@@ -121,6 +132,7 @@ class NuExtractRequestBuilder:
                 reasoning=False,
                 temperature=temperature,
             )
+        prepared_content = _append_text(content, guidance)
         return ModelRequest(
             content=prepared_content,
             template_kwargs={"mode": "template-generation", "enable_thinking": False},
@@ -202,6 +214,11 @@ class NuExtractRequestBuilder:
                 "\n\n".join(controls) or None,
             )
             template_kwargs = self._thinking_kwargs(reasoning)
+        else:
+            # For providers that don't use message text controls
+            # we include _STRUCTURED_TASK_INSTRUCTIONS in template_kwargs to ensure the model understands the task, since it won't see the prompt in the message text.
+            template_kwargs["instructions"] = _STRUCTURED_TASK_INSTRUCTIONS
+           
         return ModelRequest(
             content=prepared_content,
             template_kwargs=template_kwargs,
