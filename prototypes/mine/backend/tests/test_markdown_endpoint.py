@@ -22,9 +22,10 @@ class MarkdownEndpointTests(unittest.TestCase):
         test_case = self
 
         class FakeProvider:
-            async def stream_chat(self, content, chat_kwargs, temperature):
+            async def stream_chat(self, content, template_kwargs, temperature):
                 calls.append(content)
-                test_case.assertEqual(chat_kwargs["mode"], "markdown")
+                test_case.assertIn("Markdown", content[0]["text"])
+                test_case.assertEqual(template_kwargs["mode"], "markdown")
                 yield "", "  # Document\n\nbody text  "
 
         with patch.object(
@@ -45,7 +46,7 @@ class MarkdownEndpointTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(
             [part["type"] for part in calls[0]],
-            ["image_url", "image_url", "image_url"],
+            ["text", "image_url", "image_url", "image_url"],
         )
 
 

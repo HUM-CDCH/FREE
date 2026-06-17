@@ -6,7 +6,6 @@ from model_providers import (
     OllamaProvider,
     OpenAICompatibleProvider,
     model_headers,
-    nuextract_task_prompt,
 )
 
 
@@ -72,8 +71,11 @@ class ModelConfigTests(unittest.TestCase):
 
     def test_ollama_payload_includes_custom_template_kwargs(self) -> None:
         self.configure(provider="ollama")
-        content = [{"type": "text", "text": "Document body"}]
-        chat_kwargs = {
+        content = [
+            {"type": "text", "text": "Prepared structured prompt"},
+            {"type": "text", "text": "Document body"},
+        ]
+        template_kwargs = {
             "mode": "structured",
             "enable_thinking": True,
             "template": '{"name": "string"}',
@@ -81,16 +83,14 @@ class ModelConfigTests(unittest.TestCase):
 
         provider = OllamaProvider(main.settings, None)  # type: ignore[arg-type]
 
-        payload = provider.build_payload(content, chat_kwargs, temperature=0.2, stream=True)
+        payload = provider.build_payload(content, template_kwargs, temperature=0.2, stream=True)
 
-        self.assertEqual(payload["chat_template_kwargs"], chat_kwargs)
+        self.assertEqual(payload["chat_template_kwargs"], template_kwargs)
         self.assertEqual(payload["model"], "test-model")
         self.assertEqual(payload["max_tokens"], 123)
         self.assertEqual(payload["reasoning"], {"effort": "medium"})
         user_content = payload["messages"][1]["content"]
-        self.assertIn("Return ONLY a single JSON object", user_content[0]["text"])
-        self.assertIn("INPUT SCHEMA", user_content[0]["text"])
-        self.assertEqual(user_content[1], content[0])
+        self.assertEqual(user_content, content)
 
     def test_ollama_payload_omits_reasoning_when_disabled(self) -> None:
         self.configure(provider="ollama")
@@ -106,27 +106,22 @@ class ModelConfigTests(unittest.TestCase):
 
         self.assertNotIn("reasoning", payload)
 
-    def test_vllm_payload_includes_shared_task_prompt(self) -> None:
+    def test_vllm_payload_preserves_prepared_content(self) -> None:
         self.configure(provider="vllm", base_url="http://127.0.0.1:12434/engines/v1")
-        content = [{"type": "text", "text": "Document body"}]
-        chat_kwargs = {"mode": "structured", "enable_thinking": True}
+        content = [
+            {"type": "text", "text": "Prepared structured prompt"},
+            {"type": "text", "text": "Document body"},
+        ]
+        template_kwargs = {"mode": "structured", "enable_thinking": True}
 
         provider = OpenAICompatibleProvider(main.settings, None)  # type: ignore[arg-type]
 
-        payload = provider.build_payload(content, chat_kwargs, temperature=0.2, stream=True)
+        payload = provider.build_payload(content, template_kwargs, temperature=0.2, stream=True)
 
-        self.assertEqual(payload["chat_template_kwargs"], chat_kwargs)
+        self.assertEqual(payload["chat_template_kwargs"], template_kwargs)
         user_content = payload["messages"][1]["content"]
-        self.assertIn("Return ONLY a single JSON object", user_content[0]["text"])
-        self.assertIn("INPUT SCHEMA", user_content[0]["text"])
-        self.assertEqual(user_content[1], content[0])
+        self.assertEqual(user_content, content)
         self.assertNotIn("reasoning", payload)
-
-    def test_nuextract_task_prompts_cover_supported_modes(self) -> None:
-        self.assertIn("valid JSON object", nuextract_task_prompt({"mode": "template-generation"}))
-        self.assertIn("Return ONLY a single JSON object", nuextract_task_prompt({"mode": "structured"}))
-        self.assertIn("<answer>", nuextract_task_prompt({"mode": "content"}))
-        self.assertIn("Markdown", nuextract_task_prompt({"mode": "markdown"}))
 
 
 if __name__ == "__main__":

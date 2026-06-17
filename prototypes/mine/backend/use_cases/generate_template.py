@@ -5,7 +5,8 @@ from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFil
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from shared.model_gateway import ModelGateway, ModelGatewayError, ModelRequest
+from shared.model_gateway import ModelGateway, ModelGatewayError
+from shared.nuextract_request import NuExtractRequestBuilder
 from shared.result_parsers import TemplateParser
 from shared.source_context import SourceContextBuilder, SourceContextRequest
 from shared.source_document import (
@@ -91,22 +92,23 @@ class GenerateTemplatePipeline:
         model_gateway: ModelGateway,
         source_documents: SourceDocumentInputPreparer,
         source_context: SourceContextBuilder,
+        nuextract_requests: NuExtractRequestBuilder,
     ) -> None:
         self._model_gateway = model_gateway
         self._source_documents = source_documents
         self._source_context = source_context
+        self._nuextract_requests = nuextract_requests
 
     async def run(self, request: GenerateTemplateRequest) -> GenerateTemplateResult:
         guidance = template_guidance(request.annotations, request.annotations_mode)
         document = self._source_documents.prepare(request.source_document)
         source_context = self._source_context.build(
-            SourceContextRequest(text=guidance, document=document)
+            SourceContextRequest(document=document)
         )
         result = await self._model_gateway.collect(
-            ModelRequest(
+            self._nuextract_requests.template_generation(
                 content=source_context.content,
-                chat_kwargs={"mode": "template-generation", "enable_thinking": False},
-                reasoning=False,
+                guidance=guidance,
                 temperature=request.temperature,
             ),
             parser=TemplateParser(),

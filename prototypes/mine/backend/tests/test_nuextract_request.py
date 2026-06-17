@@ -1,0 +1,104 @@
+import unittest
+
+from shared.nuextract_request import NuExtractRequestBuilder
+
+
+class NuExtractRequestBuilderTests(unittest.TestCase):
+    def test_structured_extraction_request_is_fully_prepared(self) -> None:
+        builder = NuExtractRequestBuilder()
+        content = [{"type": "text", "text": "Document body"}]
+
+        request = builder.structured_extraction(
+            content=content,
+            template_json='{"name": "string"}',
+            instruction="Use source text only.",
+            reasoning=True,
+            temperature=0.2,
+        )
+
+        self.assertIn("Return ONLY a single JSON object", request.content[0]["text"])
+        self.assertEqual(request.content[1], content[0])
+        self.assertEqual(
+            request.content[2]["text"],
+            'Instructions:\nUse source text only.\n\n'
+            'Extraction template:\n```json\n{"name": "string"}\n```',
+        )
+        self.assertEqual(
+            request.template_kwargs,
+            {
+                "mode": "structured",
+                "enable_thinking": True,
+                "template": '{"name": "string"}',
+                "instructions": "Use source text only.",
+            },
+        )
+        self.assertTrue(request.reasoning)
+        self.assertEqual(request.temperature, 0.2)
+
+    def test_content_extraction_request_is_fully_prepared(self) -> None:
+        builder = NuExtractRequestBuilder()
+
+        request = builder.content_extraction(
+            content=[{"type": "text", "text": "Document body"}],
+            instruction="Summarize the site.",
+            reasoning=False,
+            temperature=None,
+        )
+
+        self.assertIn("<answer>", request.content[0]["text"])
+        self.assertEqual(request.content[1]["text"], "Document body")
+        self.assertEqual(request.content[2]["text"], "Instructions:\nSummarize the site.")
+        self.assertEqual(
+            request.template_kwargs,
+            {
+                "mode": "content",
+                "enable_thinking": False,
+                "instructions": "Summarize the site.",
+            },
+        )
+        self.assertFalse(request.reasoning)
+        self.assertIsNone(request.temperature)
+
+    def test_template_generation_request_is_fully_prepared(self) -> None:
+        builder = NuExtractRequestBuilder()
+
+        request = builder.template_generation(
+            content=[{"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}}],
+            guidance="Generate a concise JSON extraction template.",
+            temperature=0.3,
+        )
+
+        self.assertIn("Generate an extraction template", request.content[0]["text"])
+        self.assertEqual(request.content[1]["type"], "image_url")
+        self.assertEqual(
+            request.content[2]["text"],
+            "Generate a concise JSON extraction template.",
+        )
+        self.assertEqual(
+            request.template_kwargs,
+            {"mode": "template-generation", "enable_thinking": False},
+        )
+        self.assertFalse(request.reasoning)
+        self.assertEqual(request.temperature, 0.3)
+
+    def test_markdown_request_is_fully_prepared(self) -> None:
+        builder = NuExtractRequestBuilder()
+
+        request = builder.markdown(
+            content=[{"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}}],
+            reasoning=True,
+            temperature=0.1,
+        )
+
+        self.assertIn("Markdown", request.content[0]["text"])
+        self.assertEqual(request.content[1]["type"], "image_url")
+        self.assertEqual(
+            request.template_kwargs,
+            {"mode": "markdown", "enable_thinking": True},
+        )
+        self.assertTrue(request.reasoning)
+        self.assertEqual(request.temperature, 0.1)
+
+
+if __name__ == "__main__":
+    unittest.main()

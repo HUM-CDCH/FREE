@@ -5,6 +5,7 @@ import httpx
 from config import Settings
 from model_providers import create_model_provider
 from shared.model_gateway import ModelGateway
+from shared.nuextract_request import NuExtractRequestBuilder
 from shared.source_context import SourceContextBuilder
 from shared.source_document import SourceDocumentInputPreparer
 from shared.temperature import ReasoningTemperature
@@ -28,13 +29,18 @@ def build_application_services(
 ) -> ApplicationServices:
     provider = create_model_provider(settings, client)
     model_gateway = ModelGateway(provider, temperature=ReasoningTemperature())
+    nuextract_requests = NuExtractRequestBuilder()
     source_documents = SourceDocumentInputPreparer(pdf_dpi=settings.pdf_dpi)
     source_context = SourceContextBuilder()
     return ApplicationServices(
         chat=ChatPipeline(model_gateway),
-        extract=ExtractPipeline(model_gateway, source_documents, source_context),
-        generate_template=GenerateTemplatePipeline(
-            model_gateway, source_documents, source_context
+        extract=ExtractPipeline(
+            model_gateway, source_documents, source_context, nuextract_requests
         ),
-        markdown=MarkdownPipeline(model_gateway, source_documents, source_context),
+        generate_template=GenerateTemplatePipeline(
+            model_gateway, source_documents, source_context, nuextract_requests
+        ),
+        markdown=MarkdownPipeline(
+            model_gateway, source_documents, source_context, nuextract_requests
+        ),
     )

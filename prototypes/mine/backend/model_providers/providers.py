@@ -5,7 +5,6 @@ from typing import Any
 import httpx
 
 from model_providers.base import ChatContent, ChatDelta, ModelProvider, ProviderSettings
-from model_providers.nuextract import prepare_nuextract_content
 
 
 def model_headers(api_key: str) -> dict[str, str]:
@@ -45,11 +44,10 @@ class OpenAICompatibleProvider(ModelProvider):
     def build_payload(
         self,
         content: ChatContent,
-        chat_kwargs: dict[str, Any],
+        template_kwargs: dict[str, Any],
         temperature: float,
         stream: bool,
     ) -> dict[str, Any]:
-        prepared_content = prepare_nuextract_content(content, chat_kwargs)
         return {
             "model": self.settings.model,
             "temperature": temperature,
@@ -57,19 +55,19 @@ class OpenAICompatibleProvider(ModelProvider):
             "stream": stream,
             "messages": [
                 {"role": "system", "content": self.settings.system_prompt},
-                {"role": "user", "content": prepared_content},
+                {"role": "user", "content": content},
             ],
-            "chat_template_kwargs": chat_kwargs,
+            "chat_template_kwargs": template_kwargs,
         }
 
     async def stream_chat(
         self,
         content: ChatContent,
-        chat_kwargs: dict[str, Any],
+        template_kwargs: dict[str, Any],
         temperature: float,
     ) -> AsyncIterator[ChatDelta]:
         payload = self.build_payload(
-            content, chat_kwargs, temperature, stream=True
+            content, template_kwargs, temperature, stream=True
         )
         async with self.client.stream(
             "POST",
@@ -115,14 +113,14 @@ class OllamaProvider(OpenAICompatibleProvider):
     def build_payload(
         self,
         content: ChatContent,
-        chat_kwargs: dict[str, Any],
+        template_kwargs: dict[str, Any],
         temperature: float,
         stream: bool,
     ) -> dict[str, Any]:
         payload = super().build_payload(
-            content, chat_kwargs, temperature, stream
+            content, template_kwargs, temperature, stream
         )
-        if chat_kwargs.get("enable_thinking"):
+        if template_kwargs.get("enable_thinking"):
             payload["reasoning"] = {"effort": "medium"}
         return payload
 

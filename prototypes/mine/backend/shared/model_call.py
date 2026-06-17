@@ -93,7 +93,7 @@ class ModelCall:
         self,
         model_stream: ModelStream,
         content: ChatContent,
-        chat_kwargs: dict[str, Any],
+        template_kwargs: dict[str, Any],
         *,
         reasoning: bool,
         temperature: float | None,
@@ -103,7 +103,9 @@ class ModelCall:
         seam."""
         resolved = self._temperature.resolve(temperature, reasoning)
         splitter = self._splitter(reasoning)
-        async for reasoning_delta, content_delta in model_stream(content, chat_kwargs, resolved):
+        async for reasoning_delta, content_delta in model_stream(
+            content, template_kwargs, resolved
+        ):
             splitter.feed(reasoning_delta, content_delta)
         splitter.close()
         return _finish(splitter.output, splitter.think.strip() or None, self._parser)
@@ -112,7 +114,7 @@ class ModelCall:
         self,
         model_stream: ModelStream,
         content: ChatContent,
-        chat_kwargs: dict[str, Any],
+        template_kwargs: dict[str, Any],
         *,
         reasoning: bool,
         temperature: float | None,
@@ -121,7 +123,7 @@ class ModelCall:
         (think, output) delta tuples, exposing `.result` after iteration."""
         resolved = self._temperature.resolve(temperature, reasoning)
         return _Streamer(
-            model_stream(content, chat_kwargs, resolved),
+            model_stream(content, template_kwargs, resolved),
             self._splitter(reasoning),
             self._parser,
         )

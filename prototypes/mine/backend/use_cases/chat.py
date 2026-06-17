@@ -23,10 +23,9 @@ class ChatPipeline:
 
     async def stream(self, request: ChatRequest) -> AsyncIterator[JsonLineEvent]:
         content: list[dict[str, Any]] = [{"type": "text", "text": request.text}]
-        chat_kwargs: dict[str, Any] = {"enable_thinking": request.reasoning}
         model_request = ModelRequest(
             content=content,
-            chat_kwargs=chat_kwargs,
+            template_kwargs={"enable_thinking": request.reasoning},
             reasoning=request.reasoning,
             temperature=request.temperature,
         )

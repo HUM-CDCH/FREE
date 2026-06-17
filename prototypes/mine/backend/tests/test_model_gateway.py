@@ -21,8 +21,8 @@ class FakeProvider:
         ]
         self.error = error
 
-    async def stream_chat(self, content, chat_kwargs, temperature):
-        self.calls.append((content, chat_kwargs, temperature))
+    async def stream_chat(self, content, template_kwargs, temperature):
+        self.calls.append((content, template_kwargs, temperature))
         if self.error is not None:
             raise self.error
         for chunk in self.chunks:
@@ -37,7 +37,7 @@ class ModelGatewayTests(unittest.TestCase):
         gateway = ModelGateway(provider, temperature=ReasoningTemperature())
         request = ModelRequest(
             content=[{"type": "text", "text": "Invoice"}],
-            chat_kwargs={"mode": "structured", "enable_thinking": True},
+            template_kwargs={"mode": "structured", "enable_thinking": True},
             reasoning=True,
             temperature=None,
         )
@@ -66,7 +66,7 @@ class ModelGatewayTests(unittest.TestCase):
         gateway = ModelGateway(provider, temperature=ReasoningTemperature())
         request = ModelRequest(
             content=[{"type": "text", "text": "Invoice"}],
-            chat_kwargs={"mode": "structured", "enable_thinking": False},
+            template_kwargs={"mode": "structured", "enable_thinking": False},
             reasoning=False,
         )
 
@@ -85,7 +85,7 @@ class ModelGatewayTests(unittest.TestCase):
         gateway = ModelGateway(
             FakeProvider(error=cause), temperature=ReasoningTemperature()
         )
-        request = ModelRequest(content=[], chat_kwargs={})
+        request = ModelRequest(content=[], template_kwargs={})
 
         async def drive():
             return await gateway.collect(request)

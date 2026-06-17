@@ -5,7 +5,8 @@ from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFil
 from fastapi.responses import JSONResponse
 
 from shared.model_call import ResultParseError
-from shared.model_gateway import ModelGateway, ModelGatewayError, ModelRequest
+from shared.model_gateway import ModelGateway, ModelGatewayError
+from shared.nuextract_request import NuExtractRequestBuilder
 from shared.parsing import normalize_template
 from shared.result_parsers import AnswerParser, StructuredParser
 from shared.source_context import SourceContextBuilder, SourceContextRequest
@@ -49,22 +50,17 @@ class ExtractPipeline:
         model_gateway: ModelGateway,
         source_documents: SourceDocumentInputPreparer,
         source_context: SourceContextBuilder,
+        nuextract_requests: NuExtractRequestBuilder,
     ) -> None:
         self._model_gateway = model_gateway
         self._source_documents = source_documents
         self._source_context = source_context
+        self._nuextract_requests = nuextract_requests
 
     async def run(self, request: ExtractRequest) -> ExtractResult:
         instruction = (request.instruction or "").strip()
         template_json = normalize_template(request.template)
         use_structured = template_json != "{}"
-
-        extra_parts = []
-        if instruction:
-            extra_parts.append(f"Instructions:\n{instruction}")
-        if use_structured:
-            extra_parts.append(f"Extraction template:\n```json\n{template_json}\n```")
-        extra_text = "\n\n".join(extra_parts) or None
 
         document = (
             self._source_documents.prepare(request.source_document)
@@ -72,29 +68,28 @@ class ExtractPipeline:
             else None
         )
         text = (request.text or "").strip()
-        source_text = (
-            f"{text}\n\n{extra_text}" if text and extra_text else text or extra_text
-        )
         source_context = self._source_context.build(
-            SourceContextRequest(text=source_text, document=document)
+            SourceContextRequest(text=text, document=document)
         )
-
-        chat_kwargs: dict[str, Any] = {
-            "mode": "structured" if use_structured else "content",
-            "enable_thinking": request.reasoning,
-        }
-        if use_structured:
-            chat_kwargs["template"] = template_json
-        if instruction:
-            chat_kwargs["instructions"] = instruction
-
-        result = await self._model_gateway.collect(
-            ModelRequest(
+        model_request = (
+            self._nuextract_requests.structured_extraction(
                 content=source_context.content,
-                chat_kwargs=chat_kwargs,
+                template_json=template_json,
+                instruction=instruction,
                 reasoning=request.reasoning,
                 temperature=request.temperature,
-            ),
+            )
+            if use_structured
+            else self._nuextract_requests.content_extraction(
+                content=source_context.content,
+                instruction=instruction,
+                reasoning=request.reasoning,
+                temperature=request.temperature,
+            )
+        )
+
+        result = await self._model_gateway.collect(
+            model_request,
             parser=StructuredParser() if use_structured else AnswerParser(),
         )
         return ExtractResult(

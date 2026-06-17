@@ -2,7 +2,6 @@
 
 ## Purpose
 TBD - created by archiving change compose-application-services. Update Purpose after archive.
-
 ## Requirements
 ### Requirement: Application services are composed in FastAPI lifespan
 
@@ -35,14 +34,14 @@ The backend SHALL expose model access to use cases through a `ModelGateway` that
 #### Scenario: ModelRequest is outbound-only
 
 - **WHEN** a pipeline creates a `ModelRequest`
-- **THEN** the request contains outbound model-call data: content, `chat_kwargs`, reasoning flag, and optional temperature
+- **THEN** the request contains outbound model-call data: prepared content, provider-neutral `template_kwargs`, reasoning flag, and optional temperature
 - **AND** it does not contain a result parser
 
 #### Scenario: Parser remains inbound interpretation
 
 - **WHEN** a pipeline needs structured parsing, template parsing, or raw text
 - **THEN** it passes the parser or absence of parser to the model gateway execution method
-- **AND** any model behavior required by that parser is represented in outbound prompt text or `chat_kwargs`
+- **AND** any model behavior required by that parser is represented in a prepared outbound `ModelRequest`
 
 ### Requirement: Source-document input preparation is FastAPI-neutral
 
@@ -86,14 +85,14 @@ The backend SHALL assemble source context through `SourceContextBuilder` using t
 #### Scenario: Extraction schema remains task-specific
 
 - **WHEN** schema-guided extraction is prepared
-- **THEN** extraction schema text is added by the extraction pipeline or an extraction-specific collaborator
+- **THEN** extraction schema text is added by an extraction-specific request-construction collaborator
 - **AND** `SourceContextBuilder` does not treat the extraction schema as part of source context
 
 #### Scenario: Task text remains outside source context
 
 - **WHEN** a source context is built
 - **THEN** `SourceContext` contains source-facing model content and page count only
-- **AND** task instructions, extraction schema text, markdown mode instructions, template-generation guidance, and parser expectations are added by use-case pipelines rather than `SourceContextBuilder`
+- **AND** task instructions, extraction schema text, markdown mode instructions, template-generation guidance, and parser expectations are added by task-specific request construction rather than `SourceContextBuilder`
 
 ### Requirement: Use-case pipelines return plain results
 
@@ -142,3 +141,4 @@ The application composition SHALL allow future chat conversation state to be inj
 - **WHEN** chat conversation state is added in a future change
 - **THEN** the application composition can inject a conversation store or context builder into the chat pipeline
 - **AND** `ModelGateway` remains focused on executing prepared model requests
+

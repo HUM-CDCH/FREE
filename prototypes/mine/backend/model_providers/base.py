@@ -23,7 +23,7 @@ class ModelProvider(Protocol):
     def stream_chat(
         self,
         content: ChatContent,
-        chat_kwargs: dict[str, Any],
+        template_kwargs: dict[str, Any],
         temperature: float,
     ) -> AsyncIterator[ChatDelta]:
         """Yield streamed model deltas as (reasoning_delta, content_delta)."""

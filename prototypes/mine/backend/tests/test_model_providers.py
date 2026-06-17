@@ -9,8 +9,6 @@ from model_providers import (
     OllamaProvider,
     OpenAICompatibleProvider,
     create_model_provider,
-    nuextract_task_prompt,
-    prepare_nuextract_content,
 )
 
 
@@ -171,44 +169,32 @@ class ModelProviderTests(unittest.TestCase):
         self.assertIn("HTTP 500 Internal Server Error", message)
         self.assertIn("upstream failed before streaming", message)
 
-    def test_ollama_and_vllm_share_mode_task_prompts(self) -> None:
-        content = [{"type": "text", "text": "Document body"}]
-        modes = ["structured", "content", "markdown", "template-generation"]
+    def test_ollama_and_vllm_preserve_prepared_content(self) -> None:
+        content = [
+            {"type": "text", "text": "Prepared task prompt"},
+            {"type": "text", "text": "Document body"},
+        ]
+        template_kwargs = {"mode": "structured", "enable_thinking": False}
+        ollama = OllamaProvider(self.make_settings("ollama"), None)  # type: ignore[arg-type]
+        vllm = OpenAICompatibleProvider(self.make_settings("vllm"), None)  # type: ignore[arg-type]
 
-        for mode in modes:
-            chat_kwargs = {"mode": mode, "enable_thinking": False}
-            ollama = OllamaProvider(self.make_settings("ollama"), None)  # type: ignore[arg-type]
-            vllm = OpenAICompatibleProvider(self.make_settings("vllm"), None)  # type: ignore[arg-type]
-
-            ollama_payload = ollama.build_payload(
-                content, chat_kwargs, temperature=0.2, stream=True
-            )
-            vllm_payload = vllm.build_payload(
-                content, chat_kwargs, temperature=0.2, stream=True
-            )
-            ollama_content = ollama_payload["messages"][1]["content"]
-            vllm_content = vllm_payload["messages"][1]["content"]
-
-            self.assertEqual(ollama_content[0], vllm_content[0])
-            self.assertEqual(ollama_content[0]["text"], nuextract_task_prompt(chat_kwargs))
-            self.assertEqual(ollama_content[1], content[0])
-            self.assertEqual(vllm_content[1], content[0])
-
-    def test_shared_task_prompt_is_not_duplicated(self) -> None:
-        chat_kwargs = {"mode": "structured", "enable_thinking": False}
-        prompt = nuextract_task_prompt(chat_kwargs)
-        prepared = [{"type": "text", "text": prompt}, {"type": "text", "text": "Document"}]
-
-        self.assertIs(prepare_nuextract_content(prepared, chat_kwargs), prepared)
-        payload = OpenAICompatibleProvider(self.make_settings("vllm"), None).build_payload(  # type: ignore[arg-type]
-            prepared, chat_kwargs, temperature=0.2, stream=True
+        ollama_payload = ollama.build_payload(
+            content, template_kwargs, temperature=0.2, stream=True
         )
-        user_content = payload["messages"][1]["content"]
-
-        self.assertEqual(
-            [part for part in user_content if part.get("text") == prompt],
-            [prepared[0]],
+        vllm_payload = vllm.build_payload(
+            content, template_kwargs, temperature=0.2, stream=True
         )
+
+        self.assertEqual(ollama_payload["messages"][1]["content"], content)
+        self.assertEqual(vllm_payload["messages"][1]["content"], content)
+        self.assertEqual(ollama_payload["chat_template_kwargs"], template_kwargs)
+        self.assertEqual(vllm_payload["chat_template_kwargs"], template_kwargs)
+
+    def test_provider_package_does_not_export_nuextract_prompt_helpers(self) -> None:
+        import model_providers
+
+        self.assertFalse(hasattr(model_providers, "nuextract_task_prompt"))
+        self.assertFalse(hasattr(model_providers, "prepare_nuextract_content"))
 
 
 if __name__ == "__main__":

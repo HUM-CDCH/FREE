@@ -26,8 +26,8 @@ class ChatEndpointTests(unittest.TestCase):
             def __init__(self):
                 self.calls = []
 
-            async def stream_chat(self, content, chat_kwargs, temperature):
-                self.calls.append((content, chat_kwargs, temperature))
+            async def stream_chat(self, content, template_kwargs, temperature):
+                self.calls.append((content, template_kwargs, temperature))
                 if error is not None:
                     raise error
                 for chunk in chunks or []:

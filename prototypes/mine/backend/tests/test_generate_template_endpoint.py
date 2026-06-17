@@ -26,18 +26,24 @@ class GenerateTemplateEndpointTests(unittest.TestCase):
 
     def provider(self, chunks, check=None):
         class FakeProvider:
-            async def stream_chat(self, content, chat_kwargs, temperature):
+            async def stream_chat(self, content, template_kwargs, temperature):
                 if check is not None:
-                    check(content, chat_kwargs, temperature)
+                    check(content, template_kwargs, temperature)
                 for chunk in chunks:
                     yield chunk
 
         return FakeProvider()
 
     def test_returns_template_and_counts_pages(self) -> None:
-        def check(content, chat_kwargs, temperature):
+        def check(content, template_kwargs, temperature):
             self.assertEqual(temperature, 0.2)
-            self.assertEqual(chat_kwargs["mode"], "template-generation")
+            self.assertIn("Generate an extraction template", content[0]["text"])
+            self.assertEqual(
+                [part["type"] for part in content[1:3]],
+                ["image_url", "image_url"],
+            )
+            self.assertIn("Generate a concise JSON extraction template", content[3]["text"])
+            self.assertEqual(template_kwargs["mode"], "template-generation")
 
         provider = self.provider([("", '{"site": "string"}')], check)
 
@@ -47,6 +53,7 @@ class GenerateTemplateEndpointTests(unittest.TestCase):
                     "/generate-template",
                     headers={"accept": "application/json"},
                     files={"file": ("doc.pdf", make_pdf(2), "application/pdf")},
+                    data={"temperature": "0.2"},
                 )
 
         self.assertEqual(response.status_code, 200)

@@ -14,7 +14,7 @@ from shared.think_splitter import ThinkSplitter
 @dataclass(frozen=True, slots=True)
 class ModelRequest:
     content: ChatContent
-    chat_kwargs: dict[str, Any]
+    template_kwargs: dict[str, Any]
     reasoning: bool = False
     temperature: float | None = None
 
@@ -41,11 +41,13 @@ class ModelGateway:
     async def _stream_provider(
         self,
         content: ChatContent,
-        chat_kwargs: dict[str, Any],
+        template_kwargs: dict[str, Any],
         temperature: float,
     ) -> AsyncIterator[tuple[str, str]]:
         try:
-            async for delta in self._provider.stream_chat(content, chat_kwargs, temperature):
+            async for delta in self._provider.stream_chat(
+                content, template_kwargs, temperature
+            ):
                 yield delta
         except httpx.HTTPError as exc:
             raise ModelGatewayError(
@@ -69,7 +71,7 @@ class ModelGateway:
             return await self._call(parser).collect(
                 self._stream_provider,
                 request.content,
-                request.chat_kwargs,
+                request.template_kwargs,
                 reasoning=request.reasoning,
                 temperature=request.temperature,
             )
@@ -87,7 +89,7 @@ class ModelGateway:
         return self._call(parser).stream(
             self._stream_provider,
             request.content,
-            request.chat_kwargs,
+            request.template_kwargs,
             reasoning=request.reasoning,
             temperature=request.temperature,
         )
