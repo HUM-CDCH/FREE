@@ -50,8 +50,9 @@ def parse_annotations(annotations: str | None) -> list[SourceAnnotation]:
             400, f"annotations must be a JSON array of {{text, pageNumber}} objects: {error}"
         ) from error
     return [
-        SourceAnnotation(text=annotation.text, page_number=annotation.pageNumber)
+        SourceAnnotation(text=text, page_number=annotation.pageNumber)
         for annotation in parsed
+        if (text := annotation.text.strip())
     ]
 
 

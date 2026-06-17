@@ -98,6 +98,36 @@ class GenerateTemplateEndpointTests(unittest.TestCase):
         self.assertEqual(body["template"], {"inscription": "string"})
         self.assertEqual(body["pages"], 1)
 
+    def test_blank_annotations_do_not_activate_annotation_guidance(self) -> None:
+        def check(content, template_kwargs, temperature):
+            self.assertEqual(content[0]["type"], "image_url")
+            self.assertIn("Generate a concise JSON extraction template", content[1]["text"])
+            self.assertNotIn("Annotations from source document", content[1]["text"])
+            self.assertNotIn("primary signal", content[1]["text"])
+            self.assertNotIn("additional guidance", content[1]["text"])
+
+        provider = self.provider([("", '{"site": "string"}')], check)
+
+        with patch.object(main.settings, "provider", "vllm"):
+            with patch.object(application, "create_model_provider", return_value=provider):
+                with TestClient(main.app) as client:
+                    response = client.post(
+                        "/generate-template",
+                        headers={"accept": "application/json"},
+                        files={"file": ("doc.pdf", make_pdf(1), "application/pdf")},
+                        data={
+                            "annotations": json.dumps(
+                                [{"text": "   ", "pageNumber": 1}]
+                            ),
+                            "annotations_mode": "fields",
+                        },
+                    )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["template"], {"site": "string"})
+        self.assertEqual(body["pages"], 1)
+
     def test_missing_file_is_rejected(self) -> None:
         with TestClient(main.app) as client:
             response = client.post(
