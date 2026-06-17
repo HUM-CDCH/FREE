@@ -282,29 +282,14 @@ function App() {
     const abortController = new AbortController()
     templateAbortRef.current = abortController
     const inputsKey = annotationInputsKey(annotationItems, annotationsMode)
-    setTemplateState({ status: 'generating', raw: '' })
+    setTemplateState({ status: 'generating' })
 
     try {
       const pdfBlob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
-      const template = await requestTemplate(
-        pdfBlob,
-        pdfSource.filename,
-        (output) => {
-          // Buffered deltas from an aborted request can still arrive after the
-          // next generation has reset the stream; drop them.
-          if (abortController.signal.aborted) {
-            return
-          }
-          setTemplateState((state) =>
-            state.status === 'generating' ? { status: 'generating', raw: state.raw + output } : state,
-          )
-        },
-        abortController.signal,
-        {
-          annotations: annotationItems.map(({ label, pageNumber }) => ({ text: label, pageNumber })),
-          annotationsMode,
-        },
-      )
+      const template = await requestTemplate(pdfBlob, pdfSource.filename, abortController.signal, {
+        annotations: annotationItems.map(({ label, pageNumber }) => ({ text: label, pageNumber })),
+        annotationsMode,
+      })
       if (!abortController.signal.aborted) {
         setTemplateState({ status: 'ready', template, inputsKey })
       }

@@ -112,14 +112,18 @@ class ChatEndpointTests(unittest.TestCase):
             ],
         )
 
-    def test_streaming_routes_advertise_jsonl_and_json_responses(self) -> None:
+    def test_only_chat_advertises_jsonl_other_endpoints_json_only(self) -> None:
         with TestClient(main.app) as client:
             openapi = client.get("/openapi.json").json()
 
-        for path in ["/chat", "/extract", "/markdown", "/generate-template"]:
+        chat_content = openapi["paths"]["/chat"]["post"]["responses"]["200"]["content"]
+        self.assertIn("application/json", chat_content)
+        self.assertIn("application/jsonl", chat_content)
+
+        for path in ["/extract", "/generate-template", "/markdown"]:
             content = openapi["paths"][path]["post"]["responses"]["200"]["content"]
             self.assertIn("application/json", content)
-            self.assertIn("application/jsonl", content)
+            self.assertNotIn("application/jsonl", content)
 
 
 if __name__ == "__main__":

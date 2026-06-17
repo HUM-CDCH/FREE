@@ -23,7 +23,16 @@ function ResultsTab({ controller, schemaReady }: ResultsTabProps) {
       {state.status === 'ready' && <pre className={preClasses}>{JSON.stringify(state.result, null, 2)}</pre>}
 
       {state.status === 'running' && (
-        <pre className={preClasses}>{state.raw || 'Extracting…'}</pre>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <span
+            aria-hidden="true"
+            className="animate-spin-slow size-7 rounded-full border-[3px] border-line border-t-accent"
+          />
+          <p className="text-[13px] font-semibold text-ink">Extracting…</p>
+          <p className="max-w-[34ch] text-[11.5px] leading-snug text-ink-muted">
+            This can take a while on large documents.
+          </p>
+        </div>
       )}
 
       {state.status === 'error' && (

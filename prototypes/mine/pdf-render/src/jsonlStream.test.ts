@@ -33,39 +33,8 @@ describe('streamJsonl', () => {
     )
     const onDelta = vi.fn()
     const result = await streamJsonl('/chat', new FormData(), { onDelta }, identity)
-    expect(onDelta).toHaveBeenCalledWith('foo', undefined)
+    expect(onDelta).toHaveBeenCalledWith('foo')
     expect(result).toEqual({ message: 'hi' })
-  })
-
-  it('forwards the page index on delta events', async () => {
-    mockFetch(
-      streamOf([
-        '{"event":"delta","data":{"output":"x","page":2}}\n',
-        '{"event":"done","data":{}}\n',
-      ]),
-    )
-    const onDelta = vi.fn()
-    await streamJsonl('/markdown', new FormData(), { onDelta }, identity)
-    expect(onDelta).toHaveBeenCalledWith('x', 2)
-  })
-
-  it('invokes onPageDone for well-formed page_done events', async () => {
-    mockFetch(
-      streamOf([
-        '{"event":"page_done","data":{"page":0,"markdown":"# H","reasoning":null}}\n',
-        '{"event":"done","data":{}}\n',
-      ]),
-    )
-    const onPageDone = vi.fn()
-    await streamJsonl('/markdown', new FormData(), { onDelta: vi.fn(), onPageDone }, identity)
-    expect(onPageDone).toHaveBeenCalledWith({ page: 0, markdown: '# H', reasoning: null })
-  })
-
-  it('throws a named error when page_done is missing required fields', async () => {
-    mockFetch(streamOf(['{"event":"page_done","data":{"page":0}}\n']))
-    await expect(
-      streamJsonl('/markdown', new FormData(), { onDelta: vi.fn(), onPageDone: vi.fn() }, identity),
-    ).rejects.toThrow(/page_done event missing/)
   })
 
   it('throws the detail from an error event', async () => {

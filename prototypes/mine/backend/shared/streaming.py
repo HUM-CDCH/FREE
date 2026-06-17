@@ -6,8 +6,6 @@ from fastapi import Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-from shared.think_splitter import ThinkSplitter
-
 JSONL_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
 
@@ -20,6 +18,7 @@ class JSONLResponse(StreamingResponse):
     media_type = "application/jsonl"
 
 
+# OpenAPI 200 block for the one streaming endpoint (/chat).
 STREAM_RESPONSES: dict[int | str, dict[str, Any]] = {
     200: {
         "description": (
@@ -30,6 +29,15 @@ STREAM_RESPONSES: dict[int | str, dict[str, Any]] = {
             "application/json": {"schema": {"type": "array"}},
             "application/jsonl": {"schema": {"type": "string"}},
         },
+    }
+}
+
+# OpenAPI 200 block for the buffered endpoints (/extract, /generate-template,
+# /markdown): a single JSON result object, never JSON Lines.
+JSON_RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": "A single JSON result object.",
+        "content": {"application/json": {"schema": {"type": "object"}}},
     }
 }
 
@@ -60,22 +68,3 @@ async def jsonl_response(
         (f"{event.model_dump_json()}\n" async for event in events),
         headers=JSONL_HEADERS,
     )
-
-
-async def jsonl_delta_events(
-    splitter: ThinkSplitter,
-    model_stream: AsyncIterator[tuple[str, str]],
-    extra: dict[str, Any] | None = None,
-) -> AsyncIterator[JsonLineEvent]:
-    """Emit a delta JSON Lines event per chunk, carrying only the new text."""
-    base = extra or {}
-    async for reasoning_delta, content_delta in model_stream:
-        think_delta, output_delta = splitter.feed(reasoning_delta, content_delta)
-        if think_delta or output_delta:
-            yield JsonLineEvent(
-                event="delta",
-                data={**base, "think": think_delta, "output": output_delta},
-            )
-    tail = splitter.close()
-    if tail:
-        yield JsonLineEvent(event="delta", data={**base, "think": tail, "output": ""})

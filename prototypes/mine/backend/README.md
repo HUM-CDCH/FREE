@@ -25,6 +25,49 @@ NUEXTRACT3_BASE_URL=http://spark.cdch-dgxspark.lan.ku.dk:11434
 NUEXTRACT3_MODEL=hf.co/numind/NuExtract3-GGUF:Q4_K_M
 ```
 
+### Spark Ollama feedback prototype
+
+There is a throwaway agent feedback-loop probe at
+`prototypes/spark_ollama_feedback.py`. It uses `ollama-python` against the
+native Ollama API, prints one JSONL record with full request/result state for
+each trial, and keeps all state in memory.
+
+From `prototypes/mine/backend`:
+
+```sh
+uv run --with ollama prototypes/spark_ollama_feedback.py --dry-run --pretty
+```
+
+Run the default two-trial sweep against the KU Spark host:
+
+```sh
+uv run --with ollama prototypes/spark_ollama_feedback.py
+```
+
+Run the same sweep against the example PDF from either the repo root or
+`prototypes/mine/backend`:
+
+```sh
+uv run --with ollama --with pypdfium2 --with pillow \
+  prototypes/mine/backend/prototypes/spark_ollama_feedback.py \
+  --source examples/Beretning_Ellekilde_8_13.pdf \
+  --pdf-pages 1 \
+  --template '{"title":"string","location":"string","feature_or_context":"string","description":"string","methods":["string"],"photo_references":["string"],"summary":"string"}' \
+  --config '{"name":"pdf-page1-tight","enable_thinking":false,"temperature":0.0,"num_ctx":8192,"num_predict":1024,"format":"json"}'
+```
+
+Try a custom NuExtract/Ollama configuration:
+
+```sh
+uv run --with ollama prototypes/spark_ollama_feedback.py \
+  --config '{"name":"ctx8k-json","enable_thinking":false,"temperature":0.2,"num_ctx":8192,"num_predict":2048,"format":"json"}'
+```
+
+Because `ollama-python` calls Ollama's native `/api/chat`, this prototype does
+not send OpenAI-compatible `chat_template_kwargs`. It duplicates the NuExtract
+mode, instructions, and extraction template in the prompt, then sweeps native
+Ollama `options` and `think`.
+
 ### Docker Model Runner with NuExtract3 GGUF
 
 ```env

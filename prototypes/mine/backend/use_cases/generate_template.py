@@ -1,21 +1,23 @@
-from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile
+import httpx
+from fastapi import APIRouter, Form, HTTPException, Response, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+from shared.model_call import ModelCall
 from shared.model_stream import call_model_stream
-from shared.parsing import parse_result, pretty_json_or_text, resolve_temperature
 from shared.pdf import make_image_content, pages_to_jpeg
-from shared.streaming import (
-    STREAM_RESPONSES,
-    JsonLineEvent,
-    jsonl_delta_events,
-    jsonl_response,
-)
-from shared.think_splitter import ThinkSplitter
+from shared.result_parsers import TemplateParser
+from shared.streaming import JSON_RESPONSES
+from shared.temperature import ReasoningTemperature
 
 router = APIRouter()
+
+# Reasoning off, no reasoning splitting, JSON-or-text result parser.
+GENERATE_TEMPLATE_CALL = ModelCall(
+    temperature=ReasoningTemperature(), parser=TemplateParser()
+)
 
 TEMPLATE_GUIDANCE = (
     "Generate a concise JSON extraction template for this document. "
@@ -70,27 +72,8 @@ def template_guidance(annotations: list[TemplateAnnotation], mode: str) -> str:
     )
 
 
-async def generate_template_events(
-    content: list[dict[str, Any]],
-    chat_kwargs: dict[str, Any],
-    temperature: float,
-    pages: int,
-) -> AsyncIterator[JsonLineEvent]:
-    splitter = ThinkSplitter(False)
-    async for event in jsonl_delta_events(
-        splitter, call_model_stream(content, chat_kwargs, temperature)
-    ):
-        yield event
-    template = parse_result(pretty_json_or_text(splitter.output))
-    yield JsonLineEvent(
-        event="done",
-        data={"template": template, "raw": splitter.output, "pages": pages},
-    )
-
-
-@router.post("/generate-template", responses=STREAM_RESPONSES)
+@router.post("/generate-template", responses=JSON_RESPONSES)
 async def generate_template(
-    request: Request,
     file: UploadFile | None = None,
     temperature: float | None = Form(None),
     annotations: str | None = Form(None),
@@ -107,12 +90,17 @@ async def generate_template(
     jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
     content = make_image_content(jpeg_pages, guidance)
 
-    return await jsonl_response(
-        request,
-        generate_template_events(
+    try:
+        result = await GENERATE_TEMPLATE_CALL.collect(
+            call_model_stream,
             content,
             chat_kwargs,
-            resolve_temperature(temperature, False),
-            len(jpeg_pages),
-        ),
+            reasoning=False,
+            temperature=temperature,
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, detail=f"Model endpoint error: {exc}") from exc
+
+    return JSONResponse(
+        {"template": result.value, "raw": result.output, "pages": len(jpeg_pages)}
     )

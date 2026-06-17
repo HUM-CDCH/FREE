@@ -8,14 +8,10 @@ export const API_BASE: string =
 
 // ---------- event envelope (typed view of the {event, data} line protocol) ----------
 
-export type DeltaEvent = { event: 'delta'; data: { think?: string; output?: string; page?: number } }
+export type DeltaEvent = { event: 'delta'; data: { think?: string; output?: string } }
 export type ErrorEvent = { event: 'error'; data: { detail?: string; raw?: string } }
-export type PageDoneEvent = {
-  event: 'page_done'
-  data: { page: number; markdown: string; reasoning: string | null }
-}
 export type DoneEvent<T> = { event: 'done'; data: T }
-export type JsonlEvent<T> = DeltaEvent | ErrorEvent | PageDoneEvent | DoneEvent<T>
+export type JsonlEvent<T> = DeltaEvent | ErrorEvent | DoneEvent<T>
 
 // ---------- raw line framing ----------
 
@@ -57,16 +53,14 @@ async function* readJsonLines(body: ReadableStream<Uint8Array>): AsyncGenerator<
 // ---------- the sealed surface ----------
 
 export type StreamHandlers = {
-  /** Incremental model output; `page` is present only for the markdown endpoint. */
-  onDelta: (output: string, page?: number) => void
-  /** Per-page terminal event; only the markdown endpoint emits these. */
-  onPageDone?: (page: PageDoneEvent['data']) => void
+  /** Incremental model output. */
+  onDelta: (output: string) => void
 }
 
 /**
  * POST `endpoint` and consume its JSONL stream. Dispatches `delta` to onDelta,
- * `page_done` to onPageDone, throws on `error`, and resolves with the decoded
- * terminal `done` payload. Throws if the stream closes without a `done` event.
+ * throws on `error`, and resolves with the decoded terminal `done` payload.
+ * Throws if the stream closes without a `done` event.
  */
 export async function streamJsonl<T>(
   endpoint: string,
@@ -99,20 +93,8 @@ export async function streamJsonl<T>(
     if (event === 'delta') {
       const output = typeof data.output === 'string' ? data.output : ''
       if (output) {
-        handlers.onDelta(output, typeof data.page === 'number' ? data.page : undefined)
+        handlers.onDelta(output)
       }
-    } else if (event === 'page_done') {
-      if (typeof data.page !== 'number' || typeof data.markdown !== 'string') {
-        throw new Error(
-          `${endpoint}: page_done event missing 'page'/'markdown' — backend contract drift?`,
-        )
-      }
-      // `reasoning` is legitimately null (backend emits None when absent).
-      handlers.onPageDone?.({
-        page: data.page,
-        markdown: data.markdown,
-        reasoning: typeof data.reasoning === 'string' ? data.reasoning : null,
-      })
     } else if (event === 'error') {
       throw new Error(typeof data.detail === 'string' ? data.detail : 'Model endpoint error')
     } else if (event === 'done') {

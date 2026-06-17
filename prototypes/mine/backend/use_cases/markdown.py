@@ -1,66 +1,42 @@
-from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, Form, Request, Response, UploadFile
+import httpx
+from fastapi import APIRouter, Form, HTTPException, Response, UploadFile
+from fastapi.responses import JSONResponse
 
+from shared.model_call import ModelCall
 from shared.model_stream import call_model_stream
-from shared.parsing import resolve_temperature
 from shared.pdf import make_image_content, pages_to_jpeg
-from shared.streaming import (
-    STREAM_RESPONSES,
-    JsonLineEvent,
-    jsonl_delta_events,
-    jsonl_response,
-)
+from shared.streaming import JSON_RESPONSES
+from shared.temperature import ReasoningTemperature
 from shared.think_splitter import ThinkSplitter
 
 router = APIRouter()
 
-
-async def markdown_events(
-    jpeg_pages: list[bytes],
-    chat_kwargs: dict[str, Any],
-    temperature: float,
-    reasoning: bool,
-) -> AsyncIterator[JsonLineEvent]:
-    results = []
-    for index, page in enumerate(jpeg_pages):
-        page_content = make_image_content([page], None)
-        splitter = ThinkSplitter(reasoning)
-        async for event in jsonl_delta_events(
-            splitter,
-            call_model_stream(page_content, chat_kwargs, temperature),
-            extra={"page": index},
-        ):
-            yield event
-        output = splitter.output.strip()
-        results.append(output)
-        yield JsonLineEvent(
-            event="page_done",
-            data={
-                "page": index,
-                "markdown": output,
-                "reasoning": splitter.think.strip() or None,
-            },
-        )
-    yield JsonLineEvent(event="done", data={"pages": results, "count": len(results)})
+MARKDOWN_CALL = ModelCall(temperature=ReasoningTemperature(), splitter=ThinkSplitter)
 
 
-@router.post("/markdown", responses=STREAM_RESPONSES)
+@router.post("/markdown", responses=JSON_RESPONSES)
 async def markdown(
-    request: Request,
     file: UploadFile,
     reasoning: bool = Form(False),
     temperature: float | None = Form(None),
 ) -> Response:
     jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
+    # Per the NuExtract3 model card, send every page image in one call, in page
+    # order — the same one-call pattern /extract uses.
+    content = make_image_content(jpeg_pages, None)
     chat_kwargs: dict[str, Any] = {"mode": "markdown", "enable_thinking": reasoning}
-    return await jsonl_response(
-        request,
-        markdown_events(
-            jpeg_pages,
+
+    try:
+        result = await MARKDOWN_CALL.collect(
+            call_model_stream,
+            content,
             chat_kwargs,
-            resolve_temperature(temperature, reasoning),
-            reasoning,
-        ),
-    )
+            reasoning=reasoning,
+            temperature=temperature,
+        )
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, detail=f"Model endpoint error: {exc}") from exc
+
+    return JSONResponse({"markdown": result.output.strip(), "pages": len(jpeg_pages)})

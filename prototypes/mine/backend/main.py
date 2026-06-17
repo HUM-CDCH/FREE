@@ -7,12 +7,11 @@ from model_providers import create_model_provider
 
 from config import Settings, settings
 from shared import bind_provider
-from shared.parsing import parse_json_object_result
+from shared.json_repair import parse_json_object_result
 from shared.pdf import pages_to_jpeg
 from shared.streaming import JsonLineEvent
 from use_cases import chat, extract, generate_template, health, markdown
 from use_cases.chat import chat_events
-from use_cases.extract import extract_events
 
 # Public re-exports kept stable for the runtime entry point and the test suite.
 __all__ = [
@@ -23,7 +22,6 @@ __all__ = [
     "pages_to_jpeg",
     "parse_json_object_result",
     "chat_events",
-    "extract_events",
 ]
 
 

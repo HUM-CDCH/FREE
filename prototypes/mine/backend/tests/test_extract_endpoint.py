@@ -1,12 +1,12 @@
-import asyncio
 import io
 import unittest
-from collections.abc import AsyncIterator
 from unittest.mock import patch
 
+from fastapi.testclient import TestClient
 from PIL import Image
 
 import main
+from shared.json_repair import parse_json_object_result
 from use_cases import extract
 
 
@@ -28,34 +28,28 @@ class ExtractEndpointTests(unittest.TestCase):
             _env_file=None,
         )
 
-    def collect_events(self, events: AsyncIterator[main.JsonLineEvent]):
-        async def collect():
-            return [event async for event in events]
-
-        return asyncio.run(collect())
+    def post_extract(self, data: dict) -> "object":
+        with TestClient(main.app) as client:
+            return client.post(
+                "/extract", data=data, headers={"accept": "application/json"}
+            )
 
     def test_structured_extract_rejects_invalid_json_result(self) -> None:
         async def fake_model_stream(content, chat_kwargs, temperature):
             yield "", "not json at all"
 
         with patch.object(extract, "call_model_stream", fake_model_stream):
-            events = self.collect_events(
-                main.extract_events(
-                    [{"type": "text", "text": "Document"}],
-                    {"mode": "structured", "template": '{"field":"string"}'},
-                    temperature=0.2,
-                    reasoning=False,
-                    pages=0,
-                )
+            response = self.post_extract(
+                {"text": "Document", "template": '{"field":"string"}'}
             )
 
-        self.assertEqual(events[0].event, "delta")
-        self.assertEqual(events[1].event, "error")
+        self.assertEqual(response.status_code, 502)
+        detail = response.json()["detail"]
         self.assertEqual(
-            events[1].data["detail"],
+            detail["message"],
             "Model returned invalid JSON for the extraction result",
         )
-        self.assertEqual(len(events), 2)
+        self.assertEqual(detail["raw"], "not json at all")
 
     def test_structured_extract_repairs_object_sequence_with_hyphenated_ids(self) -> None:
         async def fake_model_stream(content, chat_kwargs, temperature):
@@ -65,20 +59,14 @@ class ExtractEndpointTests(unittest.TestCase):
             )
 
         with patch.object(extract, "call_model_stream", fake_model_stream):
-            events = self.collect_events(
-                main.extract_events(
-                    [{"type": "text", "text": "Document"}],
-                    {"mode": "structured", "template": '{"field":"string"}'},
-                    temperature=0.2,
-                    reasoning=False,
-                    pages=0,
-                )
+            response = self.post_extract(
+                {"text": "Document", "template": '{"field":"string"}'}
             )
 
-        self.assertEqual(events[0].event, "delta")
-        self.assertEqual(events[1].event, "done")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
         self.assertEqual(
-            events[1].data["result"],
+            body["result"],
             {
                 "items": [
                     {"Gravnummer": 8, "fund": [{"nummer": "8-1"}]},
@@ -86,6 +74,7 @@ class ExtractEndpointTests(unittest.TestCase):
                 ]
             },
         )
+        self.assertEqual(body["pages"], 0)
 
     def test_structured_extract_repairs_missing_opening_array_bracket(self) -> None:
         async def fake_model_stream(content, chat_kwargs, temperature):
@@ -95,21 +84,15 @@ class ExtractEndpointTests(unittest.TestCase):
             )
 
         with patch.object(extract, "call_model_stream", fake_model_stream):
-            events = self.collect_events(
-                main.extract_events(
-                    [{"type": "text", "text": "Document"}],
-                    {"mode": "structured", "template": '{"field":"string"}'},
-                    temperature=0.2,
-                    reasoning=False,
-                    pages=0,
-                )
+            response = self.post_extract(
+                {"text": "Document", "template": '{"field":"string"}'}
             )
 
-        self.assertEqual(events[1].event, "done")
-        self.assertEqual(len(events[1].data["result"]["items"]), 2)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["result"]["items"]), 2)
 
     def test_structured_result_parser_repairs_missing_opening_array_bracket(self) -> None:
-        result = main.parse_json_object_result(
+        result = parse_json_object_result(
             '{"Gravnummer": 8, "fund": [{"nummer": 8-1}]}, '
             '{"Gravnummer": 13, "fund": [{"nummer": 13-2}]}]'
         )
@@ -162,22 +145,16 @@ class ExtractEndpointTests(unittest.TestCase):
             yield "", '{"store": "Trader Joe\'s"}'
 
         with patch.object(extract, "call_model_stream", fake_model_stream):
-            from fastapi.testclient import TestClient
-
-            with TestClient(main.app) as client:
-                response = client.post(
-                    "/extract",
-                    data={
-                        "text": " Invoice text ",
-                        "template": '{"store":"verbatim-string"}',
-                        "instruction": " Use ISO dates ",
-                    },
-                    headers={"accept": "application/json"},
-                )
+            response = self.post_extract(
+                {
+                    "text": " Invoice text ",
+                    "template": '{"store":"verbatim-string"}',
+                    "instruction": " Use ISO dates ",
+                }
+            )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()[-1]["event"], "done")
-        self.assertEqual(response.json()[-1]["data"]["result"]["store"], "Trader Joe's")
+        self.assertEqual(response.json()["result"]["store"], "Trader Joe's")
 
     def test_ollama_extract_embeds_nuextract_controls_in_message_text(self) -> None:
         self.configure(provider="ollama")
@@ -203,21 +180,16 @@ class ExtractEndpointTests(unittest.TestCase):
             yield "", '{"store": "Trader Joe\'s"}'
 
         with patch.object(extract, "call_model_stream", fake_model_stream):
-            from fastapi.testclient import TestClient
-
-            with TestClient(main.app) as client:
-                response = client.post(
-                    "/extract",
-                    data={
-                        "text": " Invoice text ",
-                        "template": '{"store":"verbatim-string"}',
-                        "instruction": " Use ISO dates ",
-                    },
-                    headers={"accept": "application/json"},
-                )
+            response = self.post_extract(
+                {
+                    "text": " Invoice text ",
+                    "template": '{"store":"verbatim-string"}',
+                    "instruction": " Use ISO dates ",
+                }
+            )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()[-1]["event"], "done")
+        self.assertEqual(response.json()["result"]["store"], "Trader Joe's")
 
 
 if __name__ == "__main__":

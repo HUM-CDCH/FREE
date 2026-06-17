@@ -35,22 +35,11 @@ export function useExtraction({
     const abortController = new AbortController()
     abortRef.current = abortController
     const isRerun = state.status === 'ready'
-    setState({ status: 'running', raw: '' })
+    setState({ status: 'running' })
 
     try {
       const blob = await (await fetch(pdfUrl, { signal: abortController.signal })).blob()
-      const result = await requestExtraction(
-        blob,
-        ACTIVE_DOC,
-        template,
-        (output) => {
-          if (abortController.signal.aborted) {
-            return
-          }
-          setState((s) => (s.status === 'running' ? { status: 'running', raw: s.raw + output } : s))
-        },
-        abortController.signal,
-      )
+      const result = await requestExtraction(blob, ACTIVE_DOC, template, abortController.signal)
       if (abortController.signal.aborted) {
         return
       }

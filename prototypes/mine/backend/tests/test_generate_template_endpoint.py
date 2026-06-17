@@ -21,38 +21,27 @@ def make_pdf(page_count: int) -> bytes:
 
 class GenerateTemplateEndpointTests(unittest.TestCase):
     """Exercise the file-only /generate-template routing: a document file is
-    required, pages reflect the rendered page count, and bad input is rejected."""
+    required, the buffered response carries the template and the rendered page
+    count, and bad input is rejected."""
 
-    def post_and_capture(self, **post_kwargs) -> dict:
-        """POST to /generate-template, capturing the args handed to
-        generate_template_events so we can assert on the page count."""
-        captured: dict = {}
+    def test_returns_template_and_counts_pages(self) -> None:
+        async def fake_model_stream(content, chat_kwargs, temperature):
+            self.assertEqual(temperature, 0.2)
+            self.assertEqual(chat_kwargs["mode"], "template-generation")
+            yield "", '{"site": "string"}'
 
-        async def fake_events(content, chat_kwargs, temperature, pages):
-            captured["content"] = content
-            captured["chat_kwargs"] = chat_kwargs
-            captured["temperature"] = temperature
-            captured["pages"] = pages
-            yield main.JsonLineEvent(event="done", data={})
-
-        with patch.object(generate_template, "generate_template_events", fake_events):
+        with patch.object(generate_template, "call_model_stream", fake_model_stream):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/generate-template",
                     headers={"accept": "application/json"},
-                    **post_kwargs,
+                    files={"file": ("doc.pdf", make_pdf(2), "application/pdf")},
                 )
 
         self.assertEqual(response.status_code, 200)
-        return captured
-
-    def test_file_branch_counts_pages(self) -> None:
-        captured = self.post_and_capture(
-            files={"file": ("doc.pdf", make_pdf(2), "application/pdf")},
-        )
-
-        # pages reflects the number of rendered PDF pages.
-        self.assertEqual(captured["pages"], 2)
+        body = response.json()
+        self.assertEqual(body["template"], {"site": "string"})
+        self.assertEqual(body["pages"], 2)
 
     def test_missing_file_is_rejected(self) -> None:
         with TestClient(main.app) as client:

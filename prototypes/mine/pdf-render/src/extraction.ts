@@ -5,6 +5,6 @@
 
 export type ExtractionState =
   | { status: 'idle' }
-  | { status: 'running'; raw: string }
+  | { status: 'running' }
   | { status: 'ready'; result: unknown }
   | { status: 'error'; message: string }

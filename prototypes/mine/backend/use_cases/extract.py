@@ -1,69 +1,29 @@
-from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile
+import httpx
+from fastapi import APIRouter, Form, HTTPException, Response, UploadFile
+from fastapi.responses import JSONResponse
 
+from shared.model_call import ModelCall, ResultParseError, Result
 from shared.model_stream import call_model_stream
-from shared.parsing import (
-    extract_answer_block,
-    normalize_template,
-    parse_json_object_result,
-    parse_result,
-    resolve_temperature,
-)
+from shared.parsing import normalize_template
 from shared.pdf import make_image_content, pages_to_jpeg
-from shared.streaming import (
-    STREAM_RESPONSES,
-    JsonLineEvent,
-    jsonl_delta_events,
-    jsonl_response,
-)
+from shared.result_parsers import AnswerParser, StructuredParser
+from shared.streaming import JSON_RESPONSES
+from shared.temperature import ReasoningTemperature
 from shared.think_splitter import ThinkSplitter
 
 router = APIRouter()
 
 
-async def extract_events(
-    content: list[dict[str, Any]],
-    chat_kwargs: dict[str, Any],
-    temperature: float,
-    reasoning: bool,
-    pages: int,
-) -> AsyncIterator[JsonLineEvent]:
-    splitter = ThinkSplitter(reasoning)
-    async for event in jsonl_delta_events(
-        splitter, call_model_stream(content, chat_kwargs, temperature)
-    ):
-        yield event
-    think = splitter.think.strip()
-    answer = extract_answer_block(splitter.output)
-    raw = (
-        f"{splitter.think}\n</think>\n{splitter.output}"
-        if think
-        else splitter.output
-    )
-    if chat_kwargs.get("mode") == "structured":
-        try:
-            result = parse_json_object_result(answer)
-        except ValueError as exc:
-            yield JsonLineEvent(event="error", data={"detail": str(exc), "raw": raw})
-            return
-    else:
-        result = parse_result(answer)
-    yield JsonLineEvent(
-        event="done",
-        data={
-            "result": result,
-            "reasoning": think or None,
-            "raw": raw,
-            "pages": pages,
-        },
-    )
+def _reconstruct_raw(output: str, reasoning: str | None) -> str:
+    """Preserve the prior raw shape: reasoning is wrapped in a </think> marker
+    ahead of the answer; without reasoning the output is used verbatim."""
+    return f"{reasoning}\n</think>\n{output}" if reasoning else output
 
 
-@router.post("/extract", responses=STREAM_RESPONSES)
+@router.post("/extract", responses=JSON_RESPONSES)
 async def extract(
-    request: Request,
     file: UploadFile | None = None,
     text: str | None = Form(None),
     template: str | None = Form(None),
@@ -112,13 +72,35 @@ async def extract(
     if instruction:
         chat_kwargs["instructions"] = instruction
 
-    return await jsonl_response(
-        request,
-        extract_events(
+    call = ModelCall(
+        temperature=ReasoningTemperature(),
+        splitter=ThinkSplitter,
+        parser=StructuredParser() if use_structured else AnswerParser(),
+    )
+    try:
+        result: Result = await call.collect(
+            call_model_stream,
             content,
             chat_kwargs,
-            resolve_temperature(temperature, reasoning),
-            reasoning,
-            len(jpeg_pages),
-        ),
+            reasoning=reasoning,
+            temperature=temperature,
+        )
+    except ResultParseError as exc:
+        raise HTTPException(
+            502,
+            detail={
+                "message": str(exc),
+                "raw": _reconstruct_raw(exc.output, exc.reasoning),
+            },
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, detail=f"Model endpoint error: {exc}") from exc
+
+    return JSONResponse(
+        {
+            "result": result.value,
+            "reasoning": result.reasoning,
+            "raw": _reconstruct_raw(result.output, result.reasoning),
+            "pages": len(jpeg_pages),
+        }
     )
