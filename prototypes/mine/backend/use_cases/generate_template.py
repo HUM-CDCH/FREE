@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Sequence
 from dataclasses import dataclass
 
 from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile
@@ -8,7 +8,11 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from shared.model_gateway import ModelGateway, ModelGatewayError
 from shared.nuextract_request import NuExtractRequestBuilder
 from shared.result_parsers import TemplateParser
-from shared.source_context import SourceContextBuilder, SourceContextRequest
+from shared.source_context import (
+    SourceAnnotation,
+    SourceContextBuilder,
+    SourceContextRequest,
+)
 from shared.source_document import (
     SourceDocumentError,
     SourceDocumentInput,
@@ -36,45 +40,42 @@ class TemplateAnnotation(BaseModel):
 TEMPLATE_ANNOTATIONS = TypeAdapter(list[TemplateAnnotation])
 
 
-def parse_annotations(annotations: str | None) -> list[TemplateAnnotation]:
+def parse_annotations(annotations: str | None) -> list[SourceAnnotation]:
     if not annotations:
         return []
     try:
-        return TEMPLATE_ANNOTATIONS.validate_json(annotations)
+        parsed = TEMPLATE_ANNOTATIONS.validate_json(annotations)
     except ValidationError as error:
         raise HTTPException(
             400, f"annotations must be a JSON array of {{text, pageNumber}} objects: {error}"
         ) from error
+    return [
+        SourceAnnotation(text=annotation.text, page_number=annotation.pageNumber)
+        for annotation in parsed
+    ]
 
 
-def template_guidance(annotations: list[TemplateAnnotation], mode: str) -> str:
+def template_guidance(annotations: Sequence[SourceAnnotation], mode: str) -> str:
     if not annotations:
         return TEMPLATE_GUIDANCE
-    lines = "\n".join(
-        f"- page {item.pageNumber}: {item.text}" for item in annotations
-    )
     if mode == "fields":
         instruction = (
-            "Build the template primarily from these highlights - derive the "
-            "fields from the highlighted information, using the rest of the "
+            "Use the annotations as the primary signal for which fields the "
+            "extraction template should include, using the rest of the "
             "document only as context."
         )
     else:
         instruction = (
-            "Design the template from the whole document, but make sure every "
-            "highlighted piece of information is covered by a field."
+            "Design the extraction template from the whole source document, "
+            "and treat annotations as additional guidance for field coverage."
         )
-    return (
-        f"{TEMPLATE_GUIDANCE}\n\n"
-        f"The user highlighted these passages in the document:\n{lines}\n"
-        f"{instruction}"
-    )
+    return f"{TEMPLATE_GUIDANCE}\n\n{instruction}"
 
 
 @dataclass(frozen=True, slots=True)
 class GenerateTemplateRequest:
     source_document: SourceDocumentInput
-    annotations: list[TemplateAnnotation]
+    annotations: list[SourceAnnotation]
     annotations_mode: str
     temperature: float | None = None
 
@@ -103,7 +104,7 @@ class GenerateTemplatePipeline:
         guidance = template_guidance(request.annotations, request.annotations_mode)
         document = self._source_documents.prepare(request.source_document)
         source_context = self._source_context.build(
-            SourceContextRequest(document=document)
+            SourceContextRequest(document=document, annotations=request.annotations)
         )
         result = await self._model_gateway.collect(
             self._nuextract_requests.schema_suggestion(

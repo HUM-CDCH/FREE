@@ -34,4 +34,19 @@ class SourceContextBuilder:
         text = (request.text or "").strip()
         if text:
             content.append({"type": "text", "text": text})
+        annotations_text = self._annotations_text(request.annotations)
+        if annotations_text:
+            content.append({"type": "text", "text": annotations_text})
         return SourceContext(content=content, page_count=page_count)
+
+    def _annotations_text(
+        self, annotations: Sequence[SourceAnnotation]
+    ) -> str | None:
+        lines = [
+            f"- page {annotation.page_number}: {annotation.text.strip()}"
+            for annotation in annotations
+            if annotation.text.strip()
+        ]
+        if not lines:
+            return None
+        return "Annotations from source document:\n" + "\n".join(lines)

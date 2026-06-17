@@ -28,10 +28,27 @@ class SourceContextBuilderTests(unittest.TestCase):
             [
                 {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,x"}},
                 {"type": "text", "text": "Invoice text"},
+                {
+                    "type": "text",
+                    "text": "Annotations from source document:\n- page 1: total",
+                },
             ],
         )
         self.assertFalse(hasattr(context, "with_task_text"))
         self.assertFalse(hasattr(context, "template"))
+        self.assertFalse(hasattr(context, "template_guidance"))
+        self.assertFalse(hasattr(context, "instruction"))
+        self.assertFalse(hasattr(context, "annotations_mode"))
+
+    def test_omits_empty_annotations(self) -> None:
+        context = SourceContextBuilder().build(
+            SourceContextRequest(
+                annotations=(SourceAnnotation(text="  ", page_number=3),)
+            )
+        )
+
+        self.assertEqual(context.content, [])
+        self.assertEqual(context.page_count, 0)
 
 
 if __name__ == "__main__":
