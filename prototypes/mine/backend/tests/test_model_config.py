@@ -87,8 +87,8 @@ class ModelConfigTests(unittest.TestCase):
         self.assertEqual(payload["max_tokens"], 123)
         self.assertEqual(payload["reasoning"], {"effort": "medium"})
         user_content = payload["messages"][1]["content"]
-        self.assertIn("<answer>", user_content[0]["text"])
-        self.assertIn("valid JSON", user_content[0]["text"])
+        self.assertIn("Return ONLY a single JSON object", user_content[0]["text"])
+        self.assertIn("INPUT SCHEMA", user_content[0]["text"])
         self.assertEqual(user_content[1], content[0])
 
     def test_ollama_payload_omits_reasoning_when_disabled(self) -> None:
@@ -116,14 +116,14 @@ class ModelConfigTests(unittest.TestCase):
 
         self.assertEqual(payload["chat_template_kwargs"], chat_kwargs)
         user_content = payload["messages"][1]["content"]
-        self.assertIn("<answer>", user_content[0]["text"])
-        self.assertIn("valid JSON", user_content[0]["text"])
+        self.assertIn("Return ONLY a single JSON object", user_content[0]["text"])
+        self.assertIn("INPUT SCHEMA", user_content[0]["text"])
         self.assertEqual(user_content[1], content[0])
         self.assertNotIn("reasoning", payload)
 
     def test_nuextract_task_prompts_cover_supported_modes(self) -> None:
         self.assertIn("valid JSON object", nuextract_task_prompt({"mode": "template-generation"}))
-        self.assertIn("valid JSON", nuextract_task_prompt({"mode": "structured"}))
+        self.assertIn("Return ONLY a single JSON object", nuextract_task_prompt({"mode": "structured"}))
         self.assertIn("<answer>", nuextract_task_prompt({"mode": "content"}))
         self.assertIn("Markdown", nuextract_task_prompt({"mode": "markdown"}))
 
