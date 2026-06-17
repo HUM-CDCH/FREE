@@ -7,8 +7,8 @@ from shared.result_parsers import ResultParser
 from shared.temperature import TemperaturePolicy
 from shared.think_splitter import ThinkSplitter
 
-# The model-stream collaborator, passed in by each use case at call time so the
-# test seam stays `patch.object(use_cases.<module>, "call_model_stream", ...)`.
+# The model-stream collaborator is passed in by the gateway/use case at call
+# time so ModelCall stays independent of provider transport details.
 ModelStream = Callable[[ChatContent, dict[str, Any], float], AsyncIterator[tuple[str, str]]]
 
 

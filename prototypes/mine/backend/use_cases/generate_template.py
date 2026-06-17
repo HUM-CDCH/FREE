@@ -1,23 +1,21 @@
 from typing import Any
+from dataclasses import dataclass
 
-import httpx
-from fastapi import APIRouter, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from shared.model_call import ModelCall
-from shared.model_stream import call_model_stream
-from shared.pdf import make_image_content, pages_to_jpeg
+from shared.model_gateway import ModelGateway, ModelGatewayError, ModelRequest
 from shared.result_parsers import TemplateParser
+from shared.source_context import SourceContextBuilder, SourceContextRequest
+from shared.source_document import (
+    SourceDocumentError,
+    SourceDocumentInput,
+    SourceDocumentInputPreparer,
+)
 from shared.streaming import JSON_RESPONSES
-from shared.temperature import ReasoningTemperature
 
 router = APIRouter()
-
-# Reasoning off, no reasoning splitting, JSON-or-text result parser.
-GENERATE_TEMPLATE_CALL = ModelCall(
-    temperature=ReasoningTemperature(), parser=TemplateParser()
-)
 
 TEMPLATE_GUIDANCE = (
     "Generate a concise JSON extraction template for this document. "
@@ -72,8 +70,57 @@ def template_guidance(annotations: list[TemplateAnnotation], mode: str) -> str:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class GenerateTemplateRequest:
+    source_document: SourceDocumentInput
+    annotations: list[TemplateAnnotation]
+    annotations_mode: str
+    temperature: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class GenerateTemplateResult:
+    template: Any
+    raw: str
+    pages: int
+
+
+class GenerateTemplatePipeline:
+    def __init__(
+        self,
+        model_gateway: ModelGateway,
+        source_documents: SourceDocumentInputPreparer,
+        source_context: SourceContextBuilder,
+    ) -> None:
+        self._model_gateway = model_gateway
+        self._source_documents = source_documents
+        self._source_context = source_context
+
+    async def run(self, request: GenerateTemplateRequest) -> GenerateTemplateResult:
+        guidance = template_guidance(request.annotations, request.annotations_mode)
+        document = self._source_documents.prepare(request.source_document)
+        source_context = self._source_context.build(
+            SourceContextRequest(text=guidance, document=document)
+        )
+        result = await self._model_gateway.collect(
+            ModelRequest(
+                content=source_context.content,
+                chat_kwargs={"mode": "template-generation", "enable_thinking": False},
+                reasoning=False,
+                temperature=request.temperature,
+            ),
+            parser=TemplateParser(),
+        )
+        return GenerateTemplateResult(
+            template=result.value,
+            raw=result.output,
+            pages=source_context.page_count,
+        )
+
+
 @router.post("/generate-template", responses=JSON_RESPONSES)
 async def generate_template(
+    request: Request,
     file: UploadFile | None = None,
     temperature: float | None = Form(None),
     annotations: str | None = Form(None),
@@ -84,23 +131,21 @@ async def generate_template(
     mode = annotations_mode or "hints"
     if mode not in ANNOTATION_MODES:
         raise HTTPException(400, f"annotations_mode must be one of {ANNOTATION_MODES}")
-    guidance = template_guidance(parse_annotations(annotations), mode)
-
-    chat_kwargs: dict[str, Any] = {"mode": "template-generation", "enable_thinking": False}
-    jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
-    content = make_image_content(jpeg_pages, guidance)
 
     try:
-        result = await GENERATE_TEMPLATE_CALL.collect(
-            call_model_stream,
-            content,
-            chat_kwargs,
-            reasoning=False,
-            temperature=temperature,
+        result = await request.app.state.services.generate_template.run(
+            GenerateTemplateRequest(
+                source_document=SourceDocumentInput(await file.read(), file.content_type),
+                annotations=parse_annotations(annotations),
+                annotations_mode=mode,
+                temperature=temperature,
+            )
         )
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, detail=f"Model endpoint error: {exc}") from exc
+    except SourceDocumentError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except ModelGatewayError as exc:
+        raise HTTPException(502, detail=str(exc)) from exc
 
     return JSONResponse(
-        {"template": result.value, "raw": result.output, "pages": len(jpeg_pages)}
+        {"template": result.template, "raw": result.raw, "pages": result.pages}
     )

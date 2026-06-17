@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-import main
+from config import Settings
 from model_providers import (
     OllamaProvider,
     OpenAICompatibleProvider,
@@ -79,8 +79,8 @@ class FakeErrorAsyncClient(FakeAsyncClient):
 
 
 class ModelProviderTests(unittest.TestCase):
-    def make_settings(self, provider: str = "vllm") -> main.Settings:
-        return main.Settings(
+    def make_settings(self, provider: str = "vllm") -> Settings:
+        return Settings(
             provider=provider,
             base_url="http://example.test/v1",
             model="test-model",

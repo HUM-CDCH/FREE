@@ -1,42 +1,79 @@
-from typing import Any
+from dataclasses import dataclass
 
-import httpx
-from fastapi import APIRouter, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 
-from shared.model_call import ModelCall
-from shared.model_stream import call_model_stream
-from shared.pdf import make_image_content, pages_to_jpeg
+from shared.model_gateway import ModelGateway, ModelGatewayError, ModelRequest
+from shared.source_context import SourceContextBuilder, SourceContextRequest
+from shared.source_document import (
+    SourceDocumentError,
+    SourceDocumentInput,
+    SourceDocumentInputPreparer,
+)
 from shared.streaming import JSON_RESPONSES
-from shared.temperature import ReasoningTemperature
-from shared.think_splitter import ThinkSplitter
 
 router = APIRouter()
 
-MARKDOWN_CALL = ModelCall(temperature=ReasoningTemperature(), splitter=ThinkSplitter)
+
+@dataclass(frozen=True, slots=True)
+class MarkdownRequest:
+    source_document: SourceDocumentInput
+    reasoning: bool = False
+    temperature: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MarkdownResult:
+    markdown: str
+    pages: int
+
+
+class MarkdownPipeline:
+    def __init__(
+        self,
+        model_gateway: ModelGateway,
+        source_documents: SourceDocumentInputPreparer,
+        source_context: SourceContextBuilder,
+    ) -> None:
+        self._model_gateway = model_gateway
+        self._source_documents = source_documents
+        self._source_context = source_context
+
+    async def run(self, request: MarkdownRequest) -> MarkdownResult:
+        document = self._source_documents.prepare(request.source_document)
+        source_context = self._source_context.build(SourceContextRequest(document=document))
+        result = await self._model_gateway.collect(
+            ModelRequest(
+                content=source_context.content,
+                chat_kwargs={"mode": "markdown", "enable_thinking": request.reasoning},
+                reasoning=request.reasoning,
+                temperature=request.temperature,
+            )
+        )
+        return MarkdownResult(
+            markdown=result.output.strip(),
+            pages=source_context.page_count,
+        )
 
 
 @router.post("/markdown", responses=JSON_RESPONSES)
 async def markdown(
+    request: Request,
     file: UploadFile,
     reasoning: bool = Form(False),
     temperature: float | None = Form(None),
 ) -> Response:
-    jpeg_pages = pages_to_jpeg(await file.read(), file.content_type)
-    # Per the NuExtract3 model card, send every page image in one call, in page
-    # order — the same one-call pattern /extract uses.
-    content = make_image_content(jpeg_pages, None)
-    chat_kwargs: dict[str, Any] = {"mode": "markdown", "enable_thinking": reasoning}
-
     try:
-        result = await MARKDOWN_CALL.collect(
-            call_model_stream,
-            content,
-            chat_kwargs,
-            reasoning=reasoning,
-            temperature=temperature,
+        result = await request.app.state.services.markdown.run(
+            MarkdownRequest(
+                source_document=SourceDocumentInput(await file.read(), file.content_type),
+                reasoning=reasoning,
+                temperature=temperature,
+            )
         )
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, detail=f"Model endpoint error: {exc}") from exc
+    except SourceDocumentError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except ModelGatewayError as exc:
+        raise HTTPException(502, detail=str(exc)) from exc
 
-    return JSONResponse({"markdown": result.output.strip(), "pages": len(jpeg_pages)})
+    return JSONResponse({"markdown": result.markdown, "pages": result.pages})

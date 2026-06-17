@@ -3,33 +3,16 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from model_providers import create_model_provider
+from application import build_application_services
 
-from config import Settings, settings
-from shared import bind_provider
-from shared.json_repair import parse_json_object_result
-from shared.pdf import pages_to_jpeg
-from shared.streaming import JsonLineEvent
+from config import settings
 from use_cases import chat, extract, generate_template, health, markdown
-from use_cases.chat import chat_events
-
-# Public re-exports kept stable for the runtime entry point and the test suite.
-__all__ = [
-    "Settings",
-    "settings",
-    "app",
-    "JsonLineEvent",
-    "pages_to_jpeg",
-    "parse_json_object_result",
-    "chat_events",
-]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.client = httpx.AsyncClient(timeout=settings.timeout_seconds)
-    app.state.provider = create_model_provider(settings, app.state.client)
-    bind_provider(app.state.provider)
+    app.state.services = build_application_services(settings, app.state.client)
     try:
         yield
     finally:

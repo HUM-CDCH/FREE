@@ -6,33 +6,52 @@ from unittest.mock import patch
 import httpx
 from fastapi.testclient import TestClient
 
+import application
 import main
-from use_cases import chat
+from shared.model_gateway import ModelGateway
+from shared.streaming import JsonLineEvent
+from shared.temperature import ReasoningTemperature
+from use_cases.chat import ChatPipeline, ChatRequest
 
 
 class ChatEndpointTests(unittest.TestCase):
-    def collect_events(self, events: AsyncIterator[main.JsonLineEvent]):
+    def collect_events(self, events: AsyncIterator[JsonLineEvent]):
         async def collect():
             return [event async for event in events]
 
         return asyncio.run(collect())
 
-    def test_chat_events_emit_final_message(self) -> None:
-        async def fake_model_stream(content, chat_kwargs, temperature):
-            yield "thinking ", ""
-            yield "", "Hello"
-            yield "", " world"
+    def make_provider(self, chunks=None, error=None):
+        class FakeProvider:
+            def __init__(self):
+                self.calls = []
 
-        content = [{"type": "text", "text": "Say hello"}]
-        with patch.object(chat, "call_model_stream", fake_model_stream):
-            events = self.collect_events(
-                main.chat_events(
-                    content,
-                    {"enable_thinking": True},
+            async def stream_chat(self, content, chat_kwargs, temperature):
+                self.calls.append((content, chat_kwargs, temperature))
+                if error is not None:
+                    raise error
+                for chunk in chunks or []:
+                    yield chunk
+
+        return FakeProvider()
+
+    def test_chat_events_emit_final_message(self) -> None:
+        provider = self.make_provider(
+            [("thinking ", ""), ("", "Hello"), ("", " world")]
+        )
+        pipeline = ChatPipeline(
+            ModelGateway(provider, temperature=ReasoningTemperature())
+        )
+
+        events = self.collect_events(
+            pipeline.stream(
+                ChatRequest(
+                    text="Say hello",
                     temperature=0.6,
                     reasoning=True,
                 )
             )
+        )
 
         self.assertEqual(events[0].event, "delta")
         self.assertEqual(events[0].data, {"think": "thinking ", "output": ""})
@@ -49,13 +68,9 @@ class ChatEndpointTests(unittest.TestCase):
         )
 
     def test_chat_returns_buffered_json_for_json_clients(self) -> None:
-        async def fake_model_stream(content, chat_kwargs, temperature):
-            self.assertEqual(content, [{"type": "text", "text": "Hello"}])
-            self.assertEqual(chat_kwargs, {"enable_thinking": False})
-            self.assertEqual(temperature, 0.2)
-            yield "", "Hi"
+        provider = self.make_provider([("", "Hi")])
 
-        with patch.object(chat, "call_model_stream", fake_model_stream):
+        with patch.object(application, "create_model_provider", return_value=provider):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/chat",
@@ -64,6 +79,10 @@ class ChatEndpointTests(unittest.TestCase):
                 )
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            provider.calls,
+            [([{"type": "text", "text": "Hello"}], {"enable_thinking": False}, 0.2)],
+        )
         self.assertEqual(response.headers["content-type"], "application/json")
         self.assertEqual(
             response.json(),
@@ -88,12 +107,9 @@ class ChatEndpointTests(unittest.TestCase):
         self.assertEqual(response.json(), {"detail": "Provide chat text"})
 
     def test_chat_returns_error_event_for_model_http_errors(self) -> None:
-        async def fake_model_stream(content, chat_kwargs, temperature):
-            if False:
-                yield "", ""
-            raise httpx.ConnectError("boom")
+        provider = self.make_provider(error=httpx.ConnectError("boom"))
 
-        with patch.object(chat, "call_model_stream", fake_model_stream):
+        with patch.object(application, "create_model_provider", return_value=provider):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/chat",

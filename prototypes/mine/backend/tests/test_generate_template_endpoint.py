@@ -5,8 +5,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from PIL import Image
 
+import application
 import main
-from use_cases import generate_template
 
 
 def make_pdf(page_count: int) -> bytes:
@@ -24,13 +24,24 @@ class GenerateTemplateEndpointTests(unittest.TestCase):
     required, the buffered response carries the template and the rendered page
     count, and bad input is rejected."""
 
+    def provider(self, chunks, check=None):
+        class FakeProvider:
+            async def stream_chat(self, content, chat_kwargs, temperature):
+                if check is not None:
+                    check(content, chat_kwargs, temperature)
+                for chunk in chunks:
+                    yield chunk
+
+        return FakeProvider()
+
     def test_returns_template_and_counts_pages(self) -> None:
-        async def fake_model_stream(content, chat_kwargs, temperature):
+        def check(content, chat_kwargs, temperature):
             self.assertEqual(temperature, 0.2)
             self.assertEqual(chat_kwargs["mode"], "template-generation")
-            yield "", '{"site": "string"}'
 
-        with patch.object(generate_template, "call_model_stream", fake_model_stream):
+        provider = self.provider([("", '{"site": "string"}')], check)
+
+        with patch.object(application, "create_model_provider", return_value=provider):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/generate-template",

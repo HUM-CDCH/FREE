@@ -5,8 +5,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from PIL import Image
 
+import application
 import main
-from use_cases import markdown
 
 
 def make_pdf(page_count: int) -> bytes:
@@ -19,13 +19,17 @@ def make_pdf(page_count: int) -> bytes:
 class MarkdownEndpointTests(unittest.TestCase):
     def test_renders_whole_document_in_one_call(self) -> None:
         calls: list[list[dict]] = []
+        test_case = self
 
-        async def fake_model_stream(content, chat_kwargs, temperature):
-            calls.append(content)
-            self.assertEqual(chat_kwargs["mode"], "markdown")
-            yield "", "  # Document\n\nbody text  "
+        class FakeProvider:
+            async def stream_chat(self, content, chat_kwargs, temperature):
+                calls.append(content)
+                test_case.assertEqual(chat_kwargs["mode"], "markdown")
+                yield "", "  # Document\n\nbody text  "
 
-        with patch.object(markdown, "call_model_stream", fake_model_stream):
+        with patch.object(
+            application, "create_model_provider", return_value=FakeProvider()
+        ):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/markdown",

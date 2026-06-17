@@ -1,6 +1,7 @@
 import unittest
 
 import main
+from config import Settings
 from model_providers import (
     OllamaProvider,
     OpenAICompatibleProvider,
@@ -22,7 +23,7 @@ class ModelConfigTests(unittest.TestCase):
         base_url: str = "http://127.0.0.1:11434",
         api_key: str = "",
     ) -> None:
-        main.settings = main.Settings(
+        main.settings = Settings(
             provider=provider,
             base_url=base_url,
             model="test-model",

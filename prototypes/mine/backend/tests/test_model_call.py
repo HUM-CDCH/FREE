@@ -7,8 +7,8 @@ from shared.temperature import ReasoningTemperature
 
 
 def make_stream(chunks):
-    """A fresh call_model_stream-shaped async generator each call, so collect()
-    and stream() can each drive an independent pass over the same chunks."""
+    """A fresh stream function for each call, so collect() and stream() can each
+    drive an independent pass over the same chunks."""
 
     async def stream(content, chat_kwargs, temperature):
         for reasoning_delta, content_delta in chunks:
