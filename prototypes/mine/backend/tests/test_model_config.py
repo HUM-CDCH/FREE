@@ -123,6 +123,25 @@ class ModelConfigTests(unittest.TestCase):
         self.assertEqual(user_content, content)
         self.assertNotIn("reasoning", payload)
 
+    def test_openai_provider_means_extension_compatible_endpoint(self) -> None:
+        self.configure(provider="openai", base_url="http://127.0.0.1:12434/engines/v1")
+        content = [{"type": "text", "text": "Document body"}]
+        template_kwargs = {
+            "mode": "structured",
+            "enable_thinking": False,
+            "instructions": "Return structured JSON.",
+        }
+
+        provider = OpenAICompatibleProvider(main.settings, None)  # type: ignore[arg-type]
+
+        payload = provider.build_payload(
+            content, template_kwargs, temperature=0.2, stream=True
+        )
+
+        self.assertEqual(payload["chat_template_kwargs"], template_kwargs)
+        self.assertEqual(payload["messages"][1]["content"], content)
+        self.assertNotIn("reasoning", payload)
+
 
 if __name__ == "__main__":
     unittest.main()

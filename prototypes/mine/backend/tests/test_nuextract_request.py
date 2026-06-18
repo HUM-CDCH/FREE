@@ -63,14 +63,42 @@ class NuExtractRequestBuilderTests(unittest.TestCase):
 
         self.assertEqual(request.content, [{"type": "text", "text": "Document body"}])
         self.assertEqual(
-            request.template_kwargs,
+            {
+                key: value
+                for key, value in request.template_kwargs.items()
+                if key != "instructions"
+            },
             {
                 "mode": "structured",
                 "enable_thinking": True,
                 "template": '{"name": "string"}',
-                "instructions": "Use source text only.",
             },
         )
+        instructions = request.template_kwargs["instructions"]
+        self.assertIn(
+            "Return ONLY a single JSON object",
+            instructions,
+        )
+        self.assertIn("Additional instructions:\nUse source text only.", instructions)
+        self.assertNotIn("task_instructions", request.template_kwargs)
+
+    def test_template_kwargs_structured_extraction_combines_task_and_user_instructions(self) -> None:
+        builder = NuExtractRequestBuilder(
+            task_control_channel=NuExtractTaskControlChannel.TEMPLATE_KWARGS
+        )
+
+        request = builder.structured_extraction(
+            content=[{"type": "text", "text": "Document body"}],
+            template_json='{"name": "string"}',
+            instruction="Use source text only.",
+            reasoning=False,
+            temperature=None,
+        )
+
+        instructions = request.template_kwargs["instructions"]
+        self.assertIn("TASK", instructions)
+        self.assertIn("Additional instructions:\nUse source text only.", instructions)
+        self.assertNotIn("task_instructions", request.template_kwargs)
 
     def test_message_text_content_extraction_places_instruction_in_content(self) -> None:
         builder = NuExtractRequestBuilder(

@@ -12,3 +12,17 @@ dependencies = [
     "pydantic-settings>=2.14.1",
     "pypdfium2>=5.9.0",
 ]
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["application", "config", "main"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["model_providers*", "shared*", "use_cases*"]
+
+[tool.setuptools.package-data]
+model_providers = ["task_instructions/*.txt"]

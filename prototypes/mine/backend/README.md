@@ -121,7 +121,10 @@ backend requires a Safetensors model and supported NVIDIA/CUDA hardware; GGUF
 NuExtract3 models should use the Docker Model Runner example above.
 
 `NUEXTRACT3_PROVIDER=openai` and `NUEXTRACT3_PROVIDER=vllm` both select the
-backend's OpenAI-compatible adapter.
+backend's OpenAI-compatible adapter. In this backend, `openai` means an
+OpenAI-compatible endpoint that may accept NuExtract/vLLM-style request
+extensions such as `chat_template_kwargs`; it is not a strict official OpenAI
+payload mode.
 
 `NUEXTRACT3_API_KEY` is optional. The backend omits the `Authorization`
 header when the value is empty or `EMPTY`, which lets local Ollama and the

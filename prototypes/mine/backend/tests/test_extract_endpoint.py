@@ -17,14 +17,27 @@ class ExtractEndpointTests(unittest.TestCase):
                 calls.append((content, template_kwargs, temperature))
                 test_case.assertEqual(content[0]["text"], "Document body")
                 test_case.assertEqual(
-                    template_kwargs,
+                    {
+                        key: value
+                        for key, value in template_kwargs.items()
+                        if key != "instructions"
+                    },
                     {
                         "mode": "structured",
                         "enable_thinking": False,
                         "template": '{\n    "name": "string"\n}',
-                        "instructions": "Use source text only.",
                     },
                 )
+                instructions = template_kwargs["instructions"]
+                test_case.assertIn(
+                    "Return ONLY a single JSON object",
+                    instructions,
+                )
+                test_case.assertIn(
+                    "Additional instructions:\nUse source text only.",
+                    instructions,
+                )
+                test_case.assertNotIn("task_instructions", template_kwargs)
                 test_case.assertEqual(temperature, 0.2)
                 yield "", '{"name": "Ellekilde"}'
 

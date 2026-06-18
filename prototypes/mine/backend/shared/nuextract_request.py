@@ -1,19 +1,17 @@
-from pathlib import Path
 from enum import Enum
+from importlib import resources
 from typing import Any, Literal
 
 from model_providers import ChatContent
 from shared.model_gateway import ModelRequest
 
-_INSTRUCTIONS_DIR = (
-    Path(__file__).resolve().parent.parent
-    / "model_providers"
-    / "task_instructions"
-)
-
-
 def _load_instructions(name: str) -> str:
-    return (_INSTRUCTIONS_DIR / name).read_text(encoding="utf-8").strip()
+    return (
+        resources.files("model_providers")
+        .joinpath("task_instructions", name)
+        .read_text(encoding="utf-8")
+        .strip()
+    )
 
 
 _STRUCTURED_TASK_INSTRUCTIONS = _load_instructions("structured.txt")
@@ -201,8 +199,6 @@ class NuExtractRequestBuilder:
             "enable_thinking": reasoning,
             "template": template_json,
         }
-        if instruction:
-            template_kwargs["instructions"] = instruction
         if self._uses_message_text_controls():
             controls = []
             if instruction:
@@ -216,9 +212,13 @@ class NuExtractRequestBuilder:
             template_kwargs = self._thinking_kwargs(reasoning)
         else:
             # For providers that don't use message text controls
-            # we include _STRUCTURED_TASK_INSTRUCTIONS in template_kwargs to ensure the model understands the task, since it won't see the prompt in the message text.
-            template_kwargs["instructions"] = _STRUCTURED_TASK_INSTRUCTIONS
-           
+            # combine the base task prompt and caller instructions into the
+            # documented NuExtract chat-template kwarg.
+            instructions = [_STRUCTURED_TASK_INSTRUCTIONS]
+            if instruction:
+                instructions.append(f"Additional instructions:\n{instruction}")
+            template_kwargs["instructions"] = "\n\n".join(instructions)
+
         return ModelRequest(
             content=prepared_content,
             template_kwargs=template_kwargs,
