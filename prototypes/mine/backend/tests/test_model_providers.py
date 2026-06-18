@@ -4,12 +4,8 @@ from typing import Any
 
 import httpx
 
-from config import Settings
-from model_providers import (
-    OllamaProvider,
-    OpenAICompatibleProvider,
-    create_model_provider,
-)
+from model_providers import ModelProviderError, ProviderHTTPTransport, chat_delta_to_text
+from shared.request_compiler import PreparedProviderRequest
 
 
 class FakeStreamResponse:
@@ -76,53 +72,51 @@ class FakeErrorAsyncClient(FakeAsyncClient):
         return FakeStreamContext(FakeErrorStreamResponse(self.body))
 
 
-class ModelProviderTests(unittest.TestCase):
-    def make_settings(self, provider: str = "vllm") -> Settings:
-        return Settings(
-            provider=provider,
-            base_url="http://example.test/v1",
-            model="test-model",
-            api_key="secret",
-            max_tokens=123,
-            system_prompt="test system",
-            _env_file=None,
+class FakeConnectErrorClient:
+    def stream(self, method: str, url: str, **kwargs: Any) -> FakeStreamContext:
+        raise httpx.ConnectError("boom")
+
+
+class ProviderHTTPTransportTests(unittest.TestCase):
+    def prepared(self) -> PreparedProviderRequest:
+        return PreparedProviderRequest(
+            url="http://example.test/v1/chat/completions",
+            headers={"Authorization": "Bearer secret"},
+            payload={
+                "model": "test-model",
+                "stream": True,
+                "messages": [],
+                "chat_template_kwargs": {"enable_thinking": True},
+            },
         )
 
-    def collect(self, provider: OpenAICompatibleProvider):
+    def collect(self, transport: ProviderHTTPTransport, prepared=None):
         async def run():
             return [
                 delta
-                async for delta in provider.stream_chat(
-                    [{"type": "text", "text": "Document body"}],
-                    {"enable_thinking": True},
-                    temperature=0.2,
-                )
+                async for delta in transport.stream(prepared or self.prepared())
             ]
 
         return asyncio.run(run())
 
-    def test_factory_selects_ollama_provider(self) -> None:
-        client = FakeAsyncClient([])
+    def test_chat_delta_to_text_reads_reasoning_and_content(self) -> None:
+        self.assertEqual(
+            chat_delta_to_text(
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "reasoning_content": "thinking ",
+                                "content": [{"text": "Hi"}, {"text": " there"}],
+                            }
+                        }
+                    ]
+                }
+            ),
+            ("thinking ", "Hi there"),
+        )
 
-        provider = create_model_provider(self.make_settings("ollama"), client)  # type: ignore[arg-type]
-
-        self.assertIsInstance(provider, OllamaProvider)
-
-    def test_factory_selects_vllm_provider(self) -> None:
-        client = FakeAsyncClient([])
-
-        provider = create_model_provider(self.make_settings("vllm"), client)  # type: ignore[arg-type]
-
-        self.assertIs(type(provider), OpenAICompatibleProvider)
-
-    def test_factory_keeps_openai_provider_as_openai_compatible(self) -> None:
-        client = FakeAsyncClient([])
-
-        provider = create_model_provider(self.make_settings("openai"), client)  # type: ignore[arg-type]
-
-        self.assertIs(type(provider), OpenAICompatibleProvider)
-
-    def test_stream_chat_yields_reasoning_and_content_deltas(self) -> None:
+    def test_stream_posts_prepared_request_unchanged(self) -> None:
         client = FakeAsyncClient(
             [
                 'data: {"choices":[{"delta":{"reasoning_content":"thinking ","content":"Hi"}}]}',
@@ -131,20 +125,26 @@ class ModelProviderTests(unittest.TestCase):
                 'data: {"choices":[{"delta":{"content":"ignored"}}]}',
             ]
         )
-        provider = OpenAICompatibleProvider(self.make_settings(), client)  # type: ignore[arg-type]
+        transport = ProviderHTTPTransport(client)  # type: ignore[arg-type]
+        prepared = self.prepared()
 
         self.assertEqual(
-            self.collect(provider),
+            self.collect(transport, prepared),
             [("thinking ", "Hi"), ("", " there")],
         )
-        self.assertEqual(client.calls[0]["method"], "POST")
         self.assertEqual(
-            client.calls[0]["url"],
-            "http://example.test/v1/chat/completions",
+            client.calls,
+            [
+                {
+                    "method": "POST",
+                    "url": prepared.url,
+                    "json": dict(prepared.payload),
+                    "headers": dict(prepared.headers),
+                }
+            ],
         )
-        self.assertEqual(client.calls[0]["headers"], {"Authorization": "Bearer secret"})
 
-    def test_stream_chat_ignores_malformed_and_empty_chunks(self) -> None:
+    def test_stream_ignores_malformed_and_empty_chunks(self) -> None:
         client = FakeAsyncClient(
             [
                 "event: keep-alive",
@@ -154,47 +154,44 @@ class ModelProviderTests(unittest.TestCase):
                 "data: [DONE]",
             ]
         )
-        provider = OpenAICompatibleProvider(self.make_settings(), client)  # type: ignore[arg-type]
+        transport = ProviderHTTPTransport(client)  # type: ignore[arg-type]
 
-        self.assertEqual(self.collect(provider), [("", "done")])
+        self.assertEqual(self.collect(transport), [("", "done")])
 
-    def test_stream_chat_error_reads_stream_body_before_raising(self) -> None:
-        client = FakeErrorAsyncClient("upstream failed before streaming")
-        provider = OpenAICompatibleProvider(self.make_settings(), client)  # type: ignore[arg-type]
-
-        with self.assertRaises(httpx.HTTPStatusError) as error:
-            self.collect(provider)
-
-        message = str(error.exception)
-        self.assertIn("HTTP 500 Internal Server Error", message)
-        self.assertIn("upstream failed before streaming", message)
-
-    def test_ollama_and_vllm_preserve_prepared_content(self) -> None:
-        content = [
-            {"type": "text", "text": "Prepared task prompt"},
-            {"type": "text", "text": "Document body"},
-        ]
-        template_kwargs = {"mode": "structured", "enable_thinking": False}
-        ollama = OllamaProvider(self.make_settings("ollama"), None)  # type: ignore[arg-type]
-        vllm = OpenAICompatibleProvider(self.make_settings("vllm"), None)  # type: ignore[arg-type]
-
-        ollama_payload = ollama.build_payload(
-            content, template_kwargs, temperature=0.2, stream=True
-        )
-        vllm_payload = vllm.build_payload(
-            content, template_kwargs, temperature=0.2, stream=True
+    def test_status_error_preserves_response_body(self) -> None:
+        transport = ProviderHTTPTransport(  # type: ignore[arg-type]
+            FakeErrorAsyncClient("upstream failed before streaming")
         )
 
-        self.assertEqual(ollama_payload["messages"][1]["content"], content)
-        self.assertEqual(vllm_payload["messages"][1]["content"], content)
-        self.assertEqual(ollama_payload["chat_template_kwargs"], template_kwargs)
-        self.assertEqual(vllm_payload["chat_template_kwargs"], template_kwargs)
+        with self.assertRaises(ModelProviderError) as error:
+            self.collect(transport)
 
-    def test_provider_package_does_not_export_nuextract_prompt_helpers(self) -> None:
+        self.assertEqual(error.exception.status_code, 500)
+        self.assertEqual(
+            error.exception.url, "http://example.test/v1/chat/completions"
+        )
+        self.assertIn("HTTP 500 Internal Server Error", error.exception.raw_detail)
+        self.assertIn(
+            "upstream failed before streaming", error.exception.raw_detail
+        )
+        self.assertIn("Model endpoint error:", str(error.exception))
+
+    def test_connection_error_preserves_cause(self) -> None:
+        transport = ProviderHTTPTransport(FakeConnectErrorClient())  # type: ignore[arg-type]
+
+        with self.assertRaises(ModelProviderError) as error:
+            self.collect(transport)
+
+        self.assertEqual(error.exception.raw_detail, "boom")
+        self.assertIsInstance(error.exception.__cause__, httpx.ConnectError)
+
+    def test_provider_package_does_not_export_legacy_adapters(self) -> None:
         import model_providers
 
-        self.assertFalse(hasattr(model_providers, "nuextract_task_prompt"))
-        self.assertFalse(hasattr(model_providers, "prepare_nuextract_content"))
+        self.assertFalse(hasattr(model_providers, "ModelProvider"))
+        self.assertFalse(hasattr(model_providers, "OllamaProvider"))
+        self.assertFalse(hasattr(model_providers, "OpenAICompatibleProvider"))
+        self.assertFalse(hasattr(model_providers, "create_model_provider"))
 
 
 if __name__ == "__main__":

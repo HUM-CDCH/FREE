@@ -3,12 +3,9 @@ from dataclasses import dataclass
 import httpx
 
 from config import Settings
-from model_providers import create_model_provider
-from shared.model_gateway import ModelGateway
-from shared.nuextract_request import (
-    NuExtractRequestBuilder,
-    nuextract_control_channel_for_provider,
-)
+from model_providers import ProviderHTTPTransport
+from shared.model_executor import ModelExecutor
+from shared.request_compiler import RequestCompiler
 from shared.source_context import SourceContextBuilder
 from shared.source_document import SourceDocumentInputPreparer
 from shared.temperature import ReasoningTemperature
@@ -30,22 +27,20 @@ def build_application_services(
     settings: Settings,
     client: httpx.AsyncClient,
 ) -> ApplicationServices:
-    provider = create_model_provider(settings, client)
-    model_gateway = ModelGateway(provider, temperature=ReasoningTemperature())
-    nuextract_requests = NuExtractRequestBuilder(
-        task_control_channel=nuextract_control_channel_for_provider(settings.provider)
-    )
+    compiler = RequestCompiler(settings, temperature=ReasoningTemperature())
+    transport = ProviderHTTPTransport(client)
+    model_executor = ModelExecutor(compiler, transport)
     source_documents = SourceDocumentInputPreparer(pdf_dpi=settings.pdf_dpi)
     source_context = SourceContextBuilder()
     return ApplicationServices(
-        chat=ChatPipeline(model_gateway),
+        chat=ChatPipeline(model_executor),
         extract=ExtractPipeline(
-            model_gateway, source_documents, source_context, nuextract_requests
+            model_executor, source_documents, source_context
         ),
         generate_template=GenerateTemplatePipeline(
-            model_gateway, source_documents, source_context, nuextract_requests
+            model_executor, source_documents, source_context
         ),
         markdown=MarkdownPipeline(
-            model_gateway, source_documents, source_context, nuextract_requests
+            model_executor, source_documents, source_context
         ),
     )

@@ -5,11 +5,9 @@ from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFil
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from shared.model_gateway import ModelGateway, ModelGatewayError
-from shared.nuextract_request import (
-    NuExtractRequestBuilder,
-    TEMPLATE_GENERATION_TASK_INSTRUCTIONS,
-)
+from model_providers import ModelProviderError
+from shared.model_command import ModelCommand, TemplateGenerationTask
+from shared.model_executor import ModelExecutor
 from shared.result_parsers import TemplateParser
 from shared.source_context import (
     SourceAnnotation,
@@ -24,8 +22,6 @@ from shared.source_document import (
 from shared.streaming import JSON_RESPONSES
 
 router = APIRouter()
-
-TEMPLATE_GUIDANCE = TEMPLATE_GENERATION_TASK_INSTRUCTIONS
 
 ANNOTATION_MODES = ("hints", "fields")
 
@@ -56,19 +52,17 @@ def parse_annotations(annotations: str | None) -> list[SourceAnnotation]:
 
 def template_guidance(annotations: Sequence[SourceAnnotation], mode: str) -> str:
     if not annotations:
-        return TEMPLATE_GUIDANCE
+        return ""
     if mode == "fields":
-        instruction = (
+        return (
             "Use the annotations as the primary signal for which fields the "
             "extraction template should include, using the rest of the "
             "document only as context."
         )
-    else:
-        instruction = (
-            "Design the extraction template from the whole source document, "
-            "and treat annotations as additional guidance for field coverage."
-        )
-    return f"{TEMPLATE_GUIDANCE}\n\n{instruction}"
+    return (
+        "Design the extraction template from the whole source document, "
+        "and treat annotations as additional guidance for field coverage."
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,15 +83,13 @@ class GenerateTemplateResult:
 class GenerateTemplatePipeline:
     def __init__(
         self,
-        model_gateway: ModelGateway,
+        model_executor: ModelExecutor,
         source_documents: SourceDocumentInputPreparer,
         source_context: SourceContextBuilder,
-        nuextract_requests: NuExtractRequestBuilder,
     ) -> None:
-        self._model_gateway = model_gateway
+        self._model_executor = model_executor
         self._source_documents = source_documents
         self._source_context = source_context
-        self._nuextract_requests = nuextract_requests
 
     async def run(self, request: GenerateTemplateRequest) -> GenerateTemplateResult:
         guidance = template_guidance(request.annotations, request.annotations_mode)
@@ -105,10 +97,10 @@ class GenerateTemplatePipeline:
         source_context = self._source_context.build(
             SourceContextRequest(document=document, annotations=request.annotations)
         )
-        result = await self._model_gateway.collect(
-            self._nuextract_requests.schema_suggestion(
+        result = await self._model_executor.collect(
+            ModelCommand(
+                task=TemplateGenerationTask(guidance=guidance),
                 content=source_context.content,
-                guidance=guidance,
                 temperature=request.temperature,
             ),
             parser=TemplateParser(),
@@ -145,7 +137,7 @@ async def generate_template(
         )
     except SourceDocumentError as exc:
         raise HTTPException(400, str(exc)) from exc
-    except ModelGatewayError as exc:
+    except ModelProviderError as exc:
         raise HTTPException(502, detail=str(exc)) from exc
 
     return JSONResponse(

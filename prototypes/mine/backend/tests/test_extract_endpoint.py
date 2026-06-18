@@ -12,9 +12,12 @@ class ExtractEndpointTests(unittest.TestCase):
         calls = []
         test_case = self
 
-        class FakeProvider:
-            async def stream_chat(self, content, template_kwargs, temperature):
-                calls.append((content, template_kwargs, temperature))
+        class FakeTransport:
+            async def stream(self, prepared):
+                calls.append(prepared)
+                payload = prepared.payload
+                content = payload["messages"][1]["content"]
+                template_kwargs = payload["chat_template_kwargs"]
                 test_case.assertEqual(content[0]["text"], "Document body")
                 test_case.assertEqual(
                     {
@@ -38,14 +41,14 @@ class ExtractEndpointTests(unittest.TestCase):
                     instructions,
                 )
                 test_case.assertNotIn("task_instructions", template_kwargs)
-                test_case.assertEqual(temperature, 0.2)
+                test_case.assertEqual(payload["temperature"], 0.2)
                 yield "", '{"name": "Ellekilde"}'
 
         with patch.object(main.settings, "provider", "vllm"):
-            provider_patch = patch.object(
-                application, "create_model_provider", return_value=FakeProvider()
+            transport_patch = patch.object(
+                application, "ProviderHTTPTransport", return_value=FakeTransport()
             )
-            with provider_patch:
+            with transport_patch:
                 with TestClient(main.app) as client:
                     response = client.post(
                         "/extract",

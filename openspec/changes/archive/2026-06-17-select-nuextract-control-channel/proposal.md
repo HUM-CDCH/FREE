@@ -26,6 +26,6 @@ NuExtract request construction currently has two competing decisions in the work
 ## Impact
 
 - Affected backend modules: `application.py`, `shared/nuextract_request.py`, `use_cases/generate_template.py`, tests for request construction, application services, endpoints, and provider payloads.
-- Affected prototype evidence: `prototypes/probe_provider_controls.py` and `prototypes/provider-control-probe-results.md` should cover structured extraction, content extraction, schema suggestion, and markdown.
+- Affected prototype evidence: `tools/probe_provider_controls.py` and `tools/provider-control-probe-results.md` should cover structured extraction, content extraction, schema suggestion, and markdown.
 - Public HTTP routes stay compatible: `/extract`, `/generate-template`, `/markdown`, and `/chat` keep their current request/response shapes.
 - No new runtime dependencies are expected.

@@ -28,28 +28,27 @@ NUEXTRACT3_MODEL=hf.co/numind/NuExtract3-GGUF:Q4_K_M
 ### Spark Ollama feedback prototype
 
 There is a throwaway agent feedback-loop probe at
-`prototypes/spark_ollama_feedback.py`. It uses `ollama-python` against the
+`../../../tools/spark_ollama_feedback.py`. It uses `ollama-python` against the
 native Ollama API, prints one JSONL record with full request/result state for
 each trial, and keeps all state in memory.
 
 From `prototypes/mine/backend`:
 
 ```sh
-uv run --with ollama prototypes/spark_ollama_feedback.py --dry-run --pretty
+uv run --with ollama ../../../tools/spark_ollama_feedback.py --dry-run --pretty
 ```
 
 Run the default two-trial sweep against the KU Spark host:
 
 ```sh
-uv run --with ollama prototypes/spark_ollama_feedback.py
+uv run --with ollama ../../../tools/spark_ollama_feedback.py
 ```
 
-Run the same sweep against the example PDF from either the repo root or
-`prototypes/mine/backend`:
+Run the same sweep against the example PDF from `prototypes/mine/backend`:
 
 ```sh
 uv run --with ollama --with pypdfium2 --with pillow \
-  prototypes/mine/backend/prototypes/spark_ollama_feedback.py \
+  ../../../tools/spark_ollama_feedback.py \
   --source examples/Beretning_Ellekilde_8_13.pdf \
   --pdf-pages 1 \
   --template '{"title":"string","location":"string","feature_or_context":"string","description":"string","methods":["string"],"photo_references":["string"],"summary":"string"}' \
@@ -59,7 +58,7 @@ uv run --with ollama --with pypdfium2 --with pillow \
 Try a custom NuExtract/Ollama configuration:
 
 ```sh
-uv run --with ollama prototypes/spark_ollama_feedback.py \
+uv run --with ollama ../../../tools/spark_ollama_feedback.py \
   --config '{"name":"ctx8k-json","enable_thinking":false,"temperature":0.2,"num_ctx":8192,"num_predict":2048,"format":"json"}'
 ```
 
@@ -121,8 +120,8 @@ backend requires a Safetensors model and supported NVIDIA/CUDA hardware; GGUF
 NuExtract3 models should use the Docker Model Runner example above.
 
 `NUEXTRACT3_PROVIDER=openai` and `NUEXTRACT3_PROVIDER=vllm` both select the
-backend's OpenAI-compatible adapter. In this backend, `openai` means an
-OpenAI-compatible endpoint that may accept NuExtract/vLLM-style request
+backend's OpenAI-compatible compiler profile. In this backend, `openai` means
+an OpenAI-compatible endpoint that may accept NuExtract/vLLM-style request
 extensions such as `chat_template_kwargs`; it is not a strict official OpenAI
 payload mode.
 

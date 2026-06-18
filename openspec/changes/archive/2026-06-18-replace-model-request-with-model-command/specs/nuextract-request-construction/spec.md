@@ -1,20 +1,36 @@
-# nuextract-request-construction Specification
+## REMOVED Requirements
 
-## Purpose
-NuExtract request construction centralizes model-family task preparation before `ModelGateway`. It builds prepared `ModelRequest` values for extraction, schema suggestion, and markdown workflows while selecting exactly one authoritative NuExtract control channel from provider capability.
-## Requirements
-### Requirement: Provider-control probe covers supported NuExtract workflows
-The backend SHALL maintain local provider-control probe evidence for each NuExtract workflow FREE depends on.
+### Requirement: NuExtract request builder exposes a configured typed API
+**Reason**: The configured request-builder API is replaced by provider-neutral `ModelCommand` task construction and compiler-owned provider encoding.
 
-#### Scenario: Probe exercises all workflow modes
-- **WHEN** the provider-control probe is run against a supported NuExtract runtime
-- **THEN** it checks structured extraction, content extraction, schema suggestion, and markdown control placement
-- **AND** it records whether message text, template kwargs, or both single-channel formats work for each workflow
+**Migration**: Use cases construct `ModelCommand` values with typed task variants; provider control channel selection moves to `RequestCompiler`.
 
-#### Scenario: Probe records conflict precedence
-- **WHEN** a probed workflow can be expressed through both message text and template kwargs
-- **THEN** the probe includes a conflict case where the two channels disagree
-- **AND** the probe results identify which channel the runtime followed
+### Requirement: NuExtract request builder prepares outbound model requests
+**Reason**: The builder currently returns prepared `ModelRequest` values with raw `template_kwargs`, which is the legacy contract being removed.
+
+**Migration**: Use cases pass source context into semantic task variants, and `RequestCompiler` prepares provider payloads.
+
+### Requirement: NuExtract request construction selects one authoritative control channel
+**Reason**: Control-channel selection remains required, but it no longer belongs to NuExtract request construction.
+
+**Migration**: `RequestCompiler` chooses message text for `ollama` and `chat_template_kwargs` for `vllm` and `openai`.
+
+### Requirement: NuExtract request construction hides raw control keys from pipelines
+**Reason**: This remains a product goal, but the builder-specific requirement is superseded by command construction.
+
+**Migration**: Pipelines create typed task variants and never construct `mode`, `template`, `instructions`, or `enable_thinking` dictionaries.
+
+### Requirement: Request builder is the public NuExtract prompt-preparation surface
+**Reason**: There is no request builder after this change.
+
+**Migration**: The compiler is the only NuExtract prompt-preparation and provider-control encoding surface.
+
+### Requirement: NuExtract request builder follows provider-channel placement rules
+**Reason**: Provider-channel placement moves from the builder to the compiler so command creation stays provider-neutral.
+
+**Migration**: Preserve the same placement rules in compiler tests and implementation.
+
+## ADDED Requirements
 
 ### Requirement: NuExtract use cases construct typed model commands
 NuExtract use-case pipelines SHALL construct `ModelCommand` values with typed task variants instead of prepared `ModelRequest` values or raw NuExtract control dictionaries.
@@ -59,20 +75,3 @@ Use-case pipelines SHALL leave NuExtract task prompt rendering to the request co
 - **WHEN** no annotations are supplied to `/generate-template`
 - **THEN** the schema-suggestion task guidance may be empty
 - **AND** the compiler still encodes the base template-generation task
-
-### Requirement: Schema suggestion separates annotation source material from task intent
-
-Schema-suggestion request construction SHALL receive annotation-backed source material through source content and SHALL receive annotation-mode behavior only as task guidance.
-
-#### Scenario: Annotation text is source content for schema suggestion
-
-- **WHEN** the schema-suggestion pipeline builds a request from a source document and annotations
-- **THEN** annotation-backed source material is present in the source content passed to NuExtract request construction
-- **AND** natural-language schema-suggestion guidance does not duplicate the annotation text
-
-#### Scenario: Annotation mode remains schema-suggestion guidance
-
-- **WHEN** schema suggestion is requested with an annotation mode such as hints or fields
-- **THEN** the pipeline represents the mode as schema-suggestion task guidance
-- **AND** the source-context builder does not decide how schema suggestion should interpret annotations
-

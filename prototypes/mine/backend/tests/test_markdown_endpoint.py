@@ -21,8 +21,11 @@ class MarkdownEndpointTests(unittest.TestCase):
         calls: list[list[dict]] = []
         test_case = self
 
-        class FakeProvider:
-            async def stream_chat(self, content, template_kwargs, temperature):
+        class FakeTransport:
+            async def stream(self, prepared):
+                payload = prepared.payload
+                content = payload["messages"][1]["content"]
+                template_kwargs = payload["chat_template_kwargs"]
                 calls.append(content)
                 test_case.assertEqual(content[0]["type"], "image_url")
                 test_case.assertEqual(template_kwargs["mode"], "markdown")
@@ -30,7 +33,7 @@ class MarkdownEndpointTests(unittest.TestCase):
 
         with patch.object(main.settings, "provider", "vllm"):
             with patch.object(
-                application, "create_model_provider", return_value=FakeProvider()
+                application, "ProviderHTTPTransport", return_value=FakeTransport()
             ):
                 with TestClient(main.app) as client:
                     response = client.post(

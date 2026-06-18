@@ -26,8 +26,8 @@
 - [x] 4.2 Add request-builder tests for template-kwargs mode across structured extraction, content extraction, schema suggestion, and markdown.
 - [x] 4.3 Add application-composition tests proving `ollama`, `vllm`, and `openai` select the expected task-control channel.
 - [x] 4.4 Update endpoint and provider tests affected by channel-specific request shapes.
-- [x] 4.5 Extend `prototypes/probe_provider_controls.py` to probe structured extraction, content extraction, schema suggestion, and markdown.
-- [x] 4.6 Update `prototypes/provider-control-probe-results.md` with the expanded probe cases and the official-docs-versus-local-runtime decision.
+- [x] 4.5 Extend `tools/probe_provider_controls.py` to probe structured extraction, content extraction, schema suggestion, and markdown.
+- [x] 4.6 Update `tools/provider-control-probe-results.md` with the expanded probe cases and the official-docs-versus-local-runtime decision.
 
 ## 5. Verification
 

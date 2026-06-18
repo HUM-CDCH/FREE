@@ -2,7 +2,6 @@
 
 ## Purpose
 TBD - created by archiving change compose-model-features. Update Purpose after archive.
-
 ## Requirements
 ### Requirement: Pure parsing is separated from domain logic
 
@@ -19,20 +18,6 @@ The `shared/parsing.py` module SHALL contain only domain-agnostic text/JSON help
 - **WHEN** the temperature policy or the JSON repair / structured-result handling is needed
 - **THEN** it is provided by a dedicated module other than `parsing.py`
 - **AND** no use case redefines a local copy of that logic
-
-### Requirement: Temperature is resolved by an injectable policy
-
-The temperature for a model call SHALL be produced by an injectable temperature-policy collaborator rather than a free function in the parsing module. The default policy SHALL honor an explicit override and otherwise apply the model-card rule.
-
-#### Scenario: Explicit temperature is honored
-
-- **WHEN** a request supplies an explicit temperature
-- **THEN** the policy returns that value unchanged regardless of the reasoning flag
-
-#### Scenario: Default temperature depends on reasoning
-
-- **WHEN** no temperature override is supplied
-- **THEN** the default policy returns 0.2 when reasoning is off and 0.6 when reasoning is on
 
 ### Requirement: Result parsing and repair are an injectable strategy
 
@@ -55,43 +40,42 @@ The transform from raw model output to a use case's result value SHALL be an inj
 
 ### Requirement: Reasoning splitting is decoupled from streaming
 
-The `ThinkSplitter` SHALL be usable to split reasoning from output over a fully buffered model response, not only through a per-delta streaming loop. The streaming module MUST NOT import or own the `ThinkSplitter`, and the model-call composition root MUST NOT import the JSONL/streaming transport types.
+The `ThinkSplitter` SHALL be usable to split reasoning from output over a fully buffered model response and over a streamed model response. The streaming transport module MUST NOT import or own the `ThinkSplitter`, and this change SHALL preserve the current hybrid reasoning-splitting behavior without introducing provider-specific reasoning-format selection.
 
 #### Scenario: Reasoning is split over a buffered response
 
-- **WHEN** a buffered model call runs with reasoning enabled
+- **WHEN** a buffered model command runs with reasoning enabled
 - **THEN** the completed output is split into reasoning and answer text without emitting any streaming delta event
 
 #### Scenario: Splitter and transport do not import each other
 
-- **WHEN** `shared/streaming.py` and `shared/model_call.py` are inspected
-- **THEN** `streaming.py` does not import `ThinkSplitter`
-- **AND** `model_call.py` does not import any JSONL/streaming transport type
-- **AND** driving the splitter is the responsibility of the model-call composition root
+- **WHEN** `shared/streaming.py`, provider transport code, and model-execution code are inspected
+- **THEN** streaming response helpers and provider transport do not import `ThinkSplitter`
+- **AND** model execution does not import any JSONL/streaming response helper type
+- **AND** driving the splitter is the responsibility of `ModelExecutor`
 
-### Requirement: Each use case composes a uniform, stateless model call
+#### Scenario: Separate reasoning deltas remain supported
+- **WHEN** a model stream emits reasoning text on the reasoning-delta channel
+- **THEN** `ThinkSplitter` routes that text to reasoning
+- **AND** content deltas from the same stream are emitted as output
 
-A use case SHALL assemble its model call through a single, uniform composition root (`ModelCall`) built from injectable collaborators — a temperature policy, an optional reasoning splitter, and a result parser. The composition root SHALL expose both a buffered mode and a streaming mode on every composed handler, and SHALL hold no per-request state (per-request state lives on a per-request object), so a once-composed handler is safe under concurrent requests.
+#### Scenario: Inline reasoning tags remain supported
+- **WHEN** a model stream emits inline `<think>...</think>` tags in content while reasoning is enabled
+- **THEN** `ThinkSplitter` routes tagged text to reasoning
+- **AND** emits content after the closing tag as output
 
-#### Scenario: Every handler exposes both modes
-
-- **WHEN** a use-case module composes its model call
-- **THEN** the resulting handler exposes both a buffered `collect()` mode and a streaming `stream()` mode
-- **AND** the same composition root serves the buffered and the streaming use cases
-
-#### Scenario: The composed handler is stateless per request
-
-- **WHEN** a single composed handler serves two concurrent requests
-- **THEN** neither request observes the other's reasoning or output
-- **AND** the handler stores no per-request splitter or result on itself
+#### Scenario: Provider reasoning format selection is deferred
+- **WHEN** this change is implemented
+- **THEN** the code does not add a hard-coded provider-to-reasoning-format mapping
+- **AND** explicit provider reasoning-format selection waits for future runtime evidence
 
 ### Requirement: Both response versions are testable from one composed core
 
-The buffered and streaming versions of a model call SHALL be exercisable from the same composed core without the HTTP layer, and SHALL be consistent: given the same model output, the buffered result equals the accumulation of the streamed deltas.
+The buffered and streaming versions of a model command SHALL be exercisable from the same `ModelExecutor` core without the HTTP layer, and SHALL be consistent: given the same compiled transport output, the buffered result equals the accumulation of the streamed deltas.
 
 #### Scenario: Either mode is drivable in a test
 
-- **WHEN** a test holds a composed handler and a stubbed model stream
+- **WHEN** a test holds a composed executor and a stubbed provider transport stream
 - **THEN** it can drive the buffered mode and assert the returned value
 - **AND** it can drive the streaming mode and assert the emitted deltas
 - **AND** neither requires an HTTP request
@@ -99,7 +83,7 @@ The buffered and streaming versions of a model call SHALL be exercisable from th
 #### Scenario: Buffered and streamed results agree
 
 - **WHEN** the buffered mode and the streaming mode run against the same stubbed model output
-- **THEN** the buffered result value, reasoning, and raw equal the result obtained by accumulating the streamed deltas
+- **THEN** the buffered result value, reasoning, and raw output equal the result obtained by accumulating the streamed deltas
 
 ### Requirement: Buffered endpoints return a single JSON object
 
@@ -164,3 +148,36 @@ Apart from the response transport of the buffered endpoints and the `/markdown` 
 - **WHEN** `/markdown` is called
 - **THEN** its response shape changes from a per-page `pages: string[]` array to `{ markdown, pages }`
 - **AND** this is the only intended behavioral change beyond transport
+
+### Requirement: ModelExecutor is the use-case-facing model boundary
+The backend SHALL expose model access to use cases through a `ModelExecutor` that executes provider-neutral `ModelCommand` values and accepts an optional result parser at execution time.
+
+#### Scenario: Executor streams a command
+- **WHEN** a pipeline asks the executor to stream a `ModelCommand`
+- **THEN** the executor compiles the command once
+- **AND** it streams the prepared provider request through transport
+- **AND** it yields normalized reasoning and output deltas
+
+#### Scenario: Executor collects through streaming
+- **WHEN** a pipeline asks the executor to collect a `ModelCommand`
+- **THEN** `collect()` drains the same streaming execution path used by `stream()`
+- **AND** it returns the final `Result` produced by that stream
+
+#### Scenario: Executor is stateless across requests
+- **WHEN** a single executor serves two concurrent model commands
+- **THEN** neither request observes the other's reasoning, output, parser result, or prepared provider request
+- **AND** per-request state lives only inside per-request execution objects
+
+### Requirement: Executor does not own provider payload fields
+`ModelExecutor` SHALL execute commands through the compiler and transport without adding provider payload fields itself.
+
+#### Scenario: Executor does not resolve temperature
+- **WHEN** model-execution code is inspected
+- **THEN** it does not call the temperature policy or model-card temperature rule
+- **AND** it uses the compiled provider request produced by `RequestCompiler`
+
+#### Scenario: Executor does not mutate template kwargs
+- **WHEN** model-execution code is inspected
+- **THEN** it does not create or mutate `chat_template_kwargs`
+- **AND** task-control placement is absent from executor logic
+

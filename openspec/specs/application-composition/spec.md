@@ -5,12 +5,12 @@ TBD - created by archiving change compose-application-services. Update Purpose a
 ## Requirements
 ### Requirement: Application services are composed in FastAPI lifespan
 
-The backend SHALL compose runtime dependencies and use-case pipelines from FastAPI lifespan through an explicit application composition container. Route handlers SHALL access route-facing pipelines through `request.app.state.services` rather than module-level runtime globals. `request.app.state.services` SHALL NOT expose lower-level collaborators such as the model gateway, provider, source-document input preparer, or source-context builder.
+The backend SHALL compose runtime dependencies and use-case pipelines from FastAPI lifespan through an explicit application composition container. Route handlers SHALL access route-facing pipelines through `request.app.state.services` rather than module-level runtime globals. `request.app.state.services` SHALL NOT expose lower-level collaborators such as the request compiler, provider transport, model executor, source-document input preparer, or source-context builder.
 
 #### Scenario: Lifespan composes application services
 
 - **WHEN** the FastAPI application starts
-- **THEN** lifespan creates the shared HTTP client, configured model provider, model gateway, source-document input preparer, source-context builder, and use-case pipelines
+- **THEN** lifespan creates the shared HTTP client, request compiler, provider transport, model executor, source-document input preparer, source-context builder, and use-case pipelines
 - **AND** it stores an `ApplicationServices` facade on `app.state.services`
 - **AND** the facade exposes only the `chat`, `extract`, `generate_template`, and `markdown` pipelines
 
@@ -18,30 +18,8 @@ The backend SHALL compose runtime dependencies and use-case pipelines from FastA
 
 - **WHEN** a request reaches `/chat`, `/extract`, `/generate-template`, or `/markdown`
 - **THEN** the route handler retrieves the relevant pipeline from `request.app.state.services`
-- **AND** the handler does not read a process-global model provider
+- **AND** the handler does not read a process-global model provider, compiler, or executor
 - **AND** the handler does not reach through application state for lower-level collaborators
-
-### Requirement: ModelGateway is the use-case-facing model boundary
-
-The backend SHALL expose model access to use cases through a `ModelGateway` that executes prepared `ModelRequest` values. `ModelGateway` MUST be deeper than the provider transport adapter: it SHALL execute requests through the model-call spine and MUST NOT merely duplicate the `ModelProvider.stream_chat` protocol.
-
-#### Scenario: ModelGateway executes a prepared request
-
-- **WHEN** a pipeline asks the model gateway to collect or stream a `ModelRequest`
-- **THEN** the gateway resolves model-call execution through the configured provider and existing model-call collaborators
-- **AND** the pipeline does not call `ModelProvider.stream_chat` directly
-
-#### Scenario: ModelRequest is outbound-only
-
-- **WHEN** a pipeline creates a `ModelRequest`
-- **THEN** the request contains outbound model-call data: prepared content, provider-neutral `template_kwargs`, reasoning flag, and optional temperature
-- **AND** it does not contain a result parser
-
-#### Scenario: Parser remains inbound interpretation
-
-- **WHEN** a pipeline needs structured parsing, template parsing, or raw text
-- **THEN** it passes the parser or absence of parser to the model gateway execution method
-- **AND** any model behavior required by that parser is represented in a prepared outbound `ModelRequest`
 
 ### Requirement: Source-document input preparation is FastAPI-neutral
 
@@ -68,19 +46,19 @@ The backend SHALL prepare source-document bytes through a FastAPI-neutral `Sourc
 
 ### Requirement: SourceContextBuilder assembles source context
 
-The backend SHALL assemble source context through `SourceContextBuilder` using typed request and result objects. Source context MAY include direct text, prepared source-document input, and future annotations, but MUST NOT own extraction schema semantics, task instructions, or prompt controls.
+The backend SHALL assemble source context through `SourceContextBuilder` using typed request and result objects. Source context SHALL include provided annotation-backed source material along with direct text and prepared source-document input, but MUST NOT own extraction schema semantics, task instructions, or prompt controls.
 
 #### Scenario: Source context returns content and page count
 
-- **WHEN** a pipeline builds source context from direct text, prepared source-document input, or both
+- **WHEN** a pipeline builds source context from direct text, prepared source-document input, annotations, or a combination of them
 - **THEN** the builder returns a `SourceContext` containing model content and page count
 - **AND** the page count is preserved for pipeline results
 
-#### Scenario: Builder has a stable slot for future annotations
+#### Scenario: Builder renders annotations as source material
 
-- **WHEN** the source-context request type is inspected
-- **THEN** it has a typed place for annotations or equivalent source-facing context
-- **AND** adding annotation-backed context later does not require changing every use-case pipeline signature
+- **WHEN** a source-context request contains annotations
+- **THEN** the builder adds annotation-backed source material to the returned model content
+- **AND** each annotation preserves its text and page number in a source-facing representation
 
 #### Scenario: Extraction schema remains task-specific
 
@@ -92,7 +70,7 @@ The backend SHALL assemble source context through `SourceContextBuilder` using t
 
 - **WHEN** a source context is built
 - **THEN** `SourceContext` contains source-facing model content and page count only
-- **AND** task instructions, extraction schema text, markdown mode instructions, template-generation guidance, and parser expectations are added by task-specific request construction rather than `SourceContextBuilder`
+- **AND** task instructions, extraction schema text, markdown mode instructions, template-generation guidance, annotation-mode guidance, and parser expectations are added by task-specific request construction rather than `SourceContextBuilder`
 
 ### Requirement: Use-case pipelines return plain results
 
@@ -118,12 +96,12 @@ The backend SHALL move use-case orchestration behind pipeline interfaces that ac
 
 ### Requirement: Typed internal errors preserve diagnostic detail
 
-The backend SHALL use typed internal exceptions for source-document preparation, model-gateway failures, and result parsing failures. These exceptions SHALL preserve raw detail and original causes so developer-stage diagnostics for vLLM, Ollama, and Docker Model Runner failures remain inspectable.
+The backend SHALL use typed internal exceptions for source-document preparation, model-provider failures, and result parsing failures. These exceptions SHALL preserve raw detail and original causes so developer-stage diagnostics for vLLM, Ollama, and Docker Model Runner failures remain inspectable.
 
 #### Scenario: Model failure preserves raw provider detail
 
 - **WHEN** the provider returns or raises a detailed failure
-- **THEN** the model-gateway error retains the raw detail and original cause
+- **THEN** the model-provider error retains the raw detail and original cause
 - **AND** the API response preserves the current developer-stage model endpoint error detail
 
 #### Scenario: Source-document failure maps at HTTP boundary
@@ -142,27 +120,23 @@ The application composition SHALL allow future chat conversation state to be inj
 - **THEN** the application composition can inject a conversation store or context builder into the chat pipeline
 - **AND** `ModelGateway` remains focused on executing prepared model requests
 
-### Requirement: Application composition configures NuExtract control channel
+### Requirement: Application composition configures model compilation
+Application composition SHALL configure model command compilation from provider settings and SHALL NOT configure a separate NuExtract task-control channel.
 
-The backend SHALL derive the NuExtract task-control channel from provider settings during application composition and inject it into NuExtract request construction.
-
-#### Scenario: Ollama selects message-text control
-
+#### Scenario: Ollama compiler profile is configured
 - **WHEN** application services are built with `NUEXTRACT3_PROVIDER` set to `ollama`
-- **THEN** the NuExtract request builder is configured to use message text as the authoritative task-control channel
+- **THEN** the request compiler compiles provider requests using the Ollama URL, header, payload, task-control, and reasoning behavior
 
-#### Scenario: vLLM selects template-kwargs control
-
+#### Scenario: vLLM compiler profile is configured
 - **WHEN** application services are built with `NUEXTRACT3_PROVIDER` set to `vllm`
-- **THEN** the NuExtract request builder is configured to use template kwargs as the authoritative task-control channel
+- **THEN** the request compiler compiles provider requests using vLLM/OpenAI-compatible URL, header, payload, task-control, and reasoning behavior
 
-#### Scenario: OpenAI alias selects template-kwargs control
-
+#### Scenario: OpenAI-compatible compiler profile is configured
 - **WHEN** application services are built with `NUEXTRACT3_PROVIDER` set to `openai`
-- **THEN** the NuExtract request builder is configured to use template kwargs as the authoritative task-control channel
+- **THEN** the request compiler compiles provider requests using the existing OpenAI-compatible NuExtract extension behavior
 
-#### Scenario: Application services hide lower-level channel decisions
-
+#### Scenario: Application services hide lower-level compiler decisions
 - **WHEN** route handlers access `request.app.state.services`
 - **THEN** they receive only route-facing pipelines
-- **AND** they do not access or override the NuExtract task-control channel directly
+- **AND** they do not access or override provider profiles, task-control placement, headers, URLs, or payload construction
+

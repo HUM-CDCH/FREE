@@ -4,9 +4,13 @@ from dataclasses import dataclass
 from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 
-from shared.model_call import ResultParseError
-from shared.model_gateway import ModelGateway, ModelGatewayError
-from shared.nuextract_request import NuExtractRequestBuilder
+from model_providers import ModelProviderError
+from shared.model_command import (
+    ContentExtractionTask,
+    ModelCommand,
+    StructuredExtractionTask,
+)
+from shared.model_executor import ModelExecutor, ResultParseError
 from shared.parsing import normalize_template
 from shared.result_parsers import AnswerParser, StructuredParser
 from shared.source_context import SourceContextBuilder, SourceContextRequest
@@ -47,15 +51,13 @@ class ExtractResult:
 class ExtractPipeline:
     def __init__(
         self,
-        model_gateway: ModelGateway,
+        model_executor: ModelExecutor,
         source_documents: SourceDocumentInputPreparer,
         source_context: SourceContextBuilder,
-        nuextract_requests: NuExtractRequestBuilder,
     ) -> None:
-        self._model_gateway = model_gateway
+        self._model_executor = model_executor
         self._source_documents = source_documents
         self._source_context = source_context
-        self._nuextract_requests = nuextract_requests
 
     async def run(self, request: ExtractRequest) -> ExtractResult:
         instruction = (request.instruction or "").strip()
@@ -71,25 +73,27 @@ class ExtractPipeline:
         source_context = self._source_context.build(
             SourceContextRequest(text=text, document=document)
         )
-        model_request = (
-            self._nuextract_requests.structured_extraction(
+        command = (
+            ModelCommand(
+                task=StructuredExtractionTask(
+                    template_json=template_json,
+                    instruction=instruction,
+                ),
                 content=source_context.content,
-                template_json=template_json,
-                instruction=instruction,
                 reasoning=request.reasoning,
                 temperature=request.temperature,
             )
             if use_structured
-            else self._nuextract_requests.content_extraction(
+            else ModelCommand(
+                task=ContentExtractionTask(instruction=instruction),
                 content=source_context.content,
-                instruction=instruction,
                 reasoning=request.reasoning,
                 temperature=request.temperature,
             )
         )
 
-        result = await self._model_gateway.collect(
-            model_request,
+        result = await self._model_executor.collect(
+            command,
             parser=StructuredParser() if use_structured else AnswerParser(),
         )
         return ExtractResult(
@@ -139,7 +143,7 @@ async def extract(
                 "raw": _reconstruct_raw(exc.output, exc.reasoning),
             },
         ) from exc
-    except ModelGatewayError as exc:
+    except ModelProviderError as exc:
         raise HTTPException(502, detail=str(exc)) from exc
 
     return JSONResponse(

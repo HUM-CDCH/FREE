@@ -25,30 +25,32 @@ class GenerateTemplateEndpointTests(unittest.TestCase):
     required, the buffered response carries the template and the rendered page
     count, and bad input is rejected."""
 
-    def provider(self, chunks, check=None):
-        class FakeProvider:
-            async def stream_chat(self, content, template_kwargs, temperature):
+    def transport(self, chunks, check=None):
+        class FakeTransport:
+            async def stream(self, prepared):
                 if check is not None:
-                    check(content, template_kwargs, temperature)
+                    check(prepared)
                 for chunk in chunks:
                     yield chunk
 
-        return FakeProvider()
+        return FakeTransport()
 
     def test_returns_template_and_counts_pages(self) -> None:
-        def check(content, template_kwargs, temperature):
-            self.assertEqual(temperature, 0.2)
+        def check(prepared):
+            payload = prepared.payload
+            content = payload["messages"][1]["content"]
+            template_kwargs = payload["chat_template_kwargs"]
+            self.assertEqual(payload["temperature"], 0.2)
             self.assertEqual(
-                [part["type"] for part in content[:2]],
+                [part["type"] for part in content],
                 ["image_url", "image_url"],
             )
-            self.assertIn("Generate a concise JSON extraction template", content[2]["text"])
             self.assertEqual(template_kwargs["mode"], "template-generation")
 
-        provider = self.provider([("", '{"site": "string"}')], check)
+        transport = self.transport([("", '{"site": "string"}')], check)
 
         with patch.object(main.settings, "provider", "vllm"):
-            with patch.object(application, "create_model_provider", return_value=provider):
+            with patch.object(application, "ProviderHTTPTransport", return_value=transport):
                 with TestClient(main.app) as client:
                     response = client.post(
                         "/generate-template",
@@ -63,23 +65,27 @@ class GenerateTemplateEndpointTests(unittest.TestCase):
         self.assertEqual(body["pages"], 2)
 
     def test_annotations_are_source_content_not_guidance(self) -> None:
-        def check(content, template_kwargs, temperature):
+        def check(prepared):
+            payload = prepared.payload
+            content = payload["messages"][1]["content"]
+            template_kwargs = payload["chat_template_kwargs"]
             self.assertEqual(content[0]["type"], "image_url")
             self.assertEqual(
                 content[1]["text"],
                 "Annotations from source document:\n- page 1: funerary inscription",
             )
             self.assertIn("primary signal", content[2]["text"])
+            self.assertNotIn("Generate a concise JSON extraction template", content[2]["text"])
             self.assertNotIn("funerary inscription", content[2]["text"])
             self.assertEqual(
                 template_kwargs,
                 {"mode": "template-generation", "enable_thinking": False},
             )
 
-        provider = self.provider([("", '{"inscription": "string"}')], check)
+        transport = self.transport([("", '{"inscription": "string"}')], check)
 
         with patch.object(main.settings, "provider", "vllm"):
-            with patch.object(application, "create_model_provider", return_value=provider):
+            with patch.object(application, "ProviderHTTPTransport", return_value=transport):
                 with TestClient(main.app) as client:
                     response = client.post(
                         "/generate-template",
@@ -99,17 +105,15 @@ class GenerateTemplateEndpointTests(unittest.TestCase):
         self.assertEqual(body["pages"], 1)
 
     def test_blank_annotations_do_not_activate_annotation_guidance(self) -> None:
-        def check(content, template_kwargs, temperature):
+        def check(prepared):
+            content = prepared.payload["messages"][1]["content"]
             self.assertEqual(content[0]["type"], "image_url")
-            self.assertIn("Generate a concise JSON extraction template", content[1]["text"])
-            self.assertNotIn("Annotations from source document", content[1]["text"])
-            self.assertNotIn("primary signal", content[1]["text"])
-            self.assertNotIn("additional guidance", content[1]["text"])
+            self.assertEqual(len(content), 1)
 
-        provider = self.provider([("", '{"site": "string"}')], check)
+        transport = self.transport([("", '{"site": "string"}')], check)
 
         with patch.object(main.settings, "provider", "vllm"):
-            with patch.object(application, "create_model_provider", return_value=provider):
+            with patch.object(application, "ProviderHTTPTransport", return_value=transport):
                 with TestClient(main.app) as client:
                     response = client.post(
                         "/generate-template",

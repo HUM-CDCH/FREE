@@ -1,10 +1,11 @@
 from collections.abc import AsyncIterator
 from typing import Any
 
-import httpx
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
+
+from model_providers import ModelProviderError
 
 JSONL_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 
@@ -48,10 +49,8 @@ async def catch_model_errors(
     try:
         async for event in events:
             yield event
-    except httpx.HTTPError as exc:
-        yield JsonLineEvent(
-            event="error", data={"detail": f"Model endpoint error: {exc}"}
-        )
+    except ModelProviderError as exc:
+        yield JsonLineEvent(event="error", data={"detail": str(exc)})
 
 
 async def jsonl_response(

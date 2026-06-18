@@ -8,9 +8,11 @@ from fastapi.testclient import TestClient
 
 import application
 import main
-from shared.model_gateway import ModelGateway
+from config import Settings
+from model_providers import ModelProviderError
+from shared.model_executor import ModelExecutor
+from shared.request_compiler import RequestCompiler
 from shared.streaming import JsonLineEvent
-from shared.temperature import ReasoningTemperature
 from use_cases.chat import ChatPipeline, ChatRequest
 
 
@@ -21,27 +23,40 @@ class ChatEndpointTests(unittest.TestCase):
 
         return asyncio.run(collect())
 
-    def make_provider(self, chunks=None, error=None):
-        class FakeProvider:
+    def make_transport(self, chunks=None, error=None):
+        class FakeTransport:
             def __init__(self):
                 self.calls = []
 
-            async def stream_chat(self, content, template_kwargs, temperature):
-                self.calls.append((content, template_kwargs, temperature))
+            async def stream(self, prepared):
+                self.calls.append(prepared)
                 if error is not None:
                     raise error
                 for chunk in chunks or []:
                     yield chunk
 
-        return FakeProvider()
+        return FakeTransport()
 
-    def test_chat_events_emit_final_message(self) -> None:
-        provider = self.make_provider(
+    def make_executor(self, transport) -> ModelExecutor:
+        return ModelExecutor(
+            RequestCompiler(
+                Settings(
+                    provider="vllm",
+                    base_url="http://example.test/v1",
+                    model="test-model",
+                    max_tokens=123,
+                    system_prompt="test system",
+                    _env_file=None,
+                )
+            ),
+            transport,
+        )
+
+    def test_chat_stream_emits_final_message(self) -> None:
+        transport = self.make_transport(
             [("thinking ", ""), ("", "Hello"), ("", " world")]
         )
-        pipeline = ChatPipeline(
-            ModelGateway(provider, temperature=ReasoningTemperature())
-        )
+        pipeline = ChatPipeline(self.make_executor(transport))
 
         events = self.collect_events(
             pipeline.stream(
@@ -68,9 +83,9 @@ class ChatEndpointTests(unittest.TestCase):
         )
 
     def test_chat_returns_buffered_json_for_json_clients(self) -> None:
-        provider = self.make_provider([("", "Hi")])
+        transport = self.make_transport([("", "Hi")])
 
-        with patch.object(application, "create_model_provider", return_value=provider):
+        with patch.object(application, "ProviderHTTPTransport", return_value=transport):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/chat",
@@ -79,10 +94,16 @@ class ChatEndpointTests(unittest.TestCase):
                 )
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(transport.calls), 1)
         self.assertEqual(
-            provider.calls,
-            [([{"type": "text", "text": "Hello"}], {"enable_thinking": False}, 0.2)],
+            transport.calls[0].payload["messages"][1]["content"],
+            [{"type": "text", "text": "Hello"}],
         )
+        self.assertEqual(
+            transport.calls[0].payload["chat_template_kwargs"],
+            {"enable_thinking": False},
+        )
+        self.assertEqual(transport.calls[0].payload["temperature"], 0.2)
         self.assertEqual(response.headers["content-type"], "application/json")
         self.assertEqual(
             response.json(),
@@ -107,9 +128,13 @@ class ChatEndpointTests(unittest.TestCase):
         self.assertEqual(response.json(), {"detail": "Provide chat text"})
 
     def test_chat_returns_error_event_for_model_http_errors(self) -> None:
-        provider = self.make_provider(error=httpx.ConnectError("boom"))
+        cause = httpx.ConnectError("boom")
+        error = ModelProviderError(
+            "Model endpoint error: boom", raw_detail="boom", cause=cause
+        )
+        transport = self.make_transport(error=error)
 
-        with patch.object(application, "create_model_provider", return_value=provider):
+        with patch.object(application, "ProviderHTTPTransport", return_value=transport):
             with TestClient(main.app) as client:
                 response = client.post(
                     "/chat",

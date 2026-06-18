@@ -1,22 +1,31 @@
-# model-provider-adapters Specification
+## REMOVED Requirements
 
-## Purpose
-Provider adapters isolate transport details for supported model runtimes. They select endpoint URLs and headers, serialize already prepared `ModelRequest` content and template kwargs into provider payloads, and decode streaming deltas without owning NuExtract task semantics.
-## Requirements
-### Requirement: Route contracts remain unchanged
-The provider refactor SHALL NOT change existing backend route contracts.
+### Requirement: Provider selection uses a shared adapter interface
+**Reason**: Payload-building provider adapter classes are removed.
 
-#### Scenario: JSONL clients request streaming responses
-- **WHEN** a client requests `/chat`, `/extract`, `/markdown`, or `/generate-template` with JSONL-compatible accept headers
-- **THEN** the response remains a JSON Lines stream of `JsonLineEvent` objects
+**Migration**: `RequestCompiler` performs the single provider-profile match for `ollama`, `vllm`, and `openai`; `create_model_provider` is removed; provider transport is generic.
 
-#### Scenario: JSON clients request buffered responses
-- **WHEN** a client requests a streaming endpoint with `Accept: application/json` and not `application/jsonl`
-- **THEN** the response remains a buffered JSON array of `JsonLineEvent` objects
+### Requirement: Provider adapters preserve endpoint and authentication behavior
+**Reason**: Endpoint and authentication behavior remain required, but they move from adapter methods to compiled provider requests.
 
-#### Scenario: Existing validation errors are preserved
-- **WHEN** a request violates an existing route validation rule
-- **THEN** the response status and error detail remain unchanged
+**Migration**: Preserve URL normalization and authorization-header behavior in compiler tests.
+
+### Requirement: Provider adapters preserve prepared payload behavior
+**Reason**: There is no prepared `ModelRequest` with `content` and `template_kwargs` for adapters to serialize.
+
+**Migration**: Compile complete provider payloads from `ModelCommand` and post them unchanged through generic transport.
+
+### Requirement: Provider adapters remain NuExtract task-channel agnostic
+**Reason**: Provider adapters are removed, and task-channel placement is centralized in the compiler.
+
+**Migration**: Keep transport task-agnostic by accepting only `PreparedProviderRequest`.
+
+### Requirement: Provider adapters preserve stream output contract
+**Reason**: The stream output contract remains, but it belongs to generic provider transport rather than provider adapter subclasses.
+
+**Migration**: Move SSE chunk decoding into transport tests and implementation.
+
+## ADDED Requirements
 
 ### Requirement: Compiled provider requests preserve endpoint and authentication behavior
 The backend SHALL preserve existing endpoint URL and authorization-header behavior when compiling provider requests for Ollama and vLLM/OpenAI-compatible providers.
@@ -104,4 +113,3 @@ The provider transport SHALL be the only boundary that converts HTTP transport f
 - **WHEN** executor and route error-handling code is inspected
 - **THEN** it handles the backend model-provider error type
 - **AND** it does not include redundant raw `httpx.HTTPError` provider-boundary catches
-
