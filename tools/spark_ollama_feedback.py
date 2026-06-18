@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = Path(__file__).resolve().parents[4]
+REPO_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_ROOT = REPO_ROOT / "prototypes" / "mine" / "backend"
 
 
 def load_parsing_helpers() -> tuple[Any, Any, Any]:

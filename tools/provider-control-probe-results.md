@@ -1,11 +1,13 @@
-# NuExtract Provider Control Probe Results
+# NuExtract Provider Control and Reasoning Probe Results
 
-Date: 2026-06-17
+Created: 2026-06-17
+Updated: 2026-06-18
 
 This document records the one-shot probe used to decide where NuExtract
-extraction controls should be sent for different OpenAI-compatible providers.
-It is intended to make the run reproducible from a clean checkout and to
-preserve the exact operational evidence behind the provider recommendations.
+extraction controls should be sent for different OpenAI-compatible providers
+and how each runtime emits reasoning output. It is intended to make the run
+reproducible from a clean checkout and to preserve the exact operational
+evidence behind provider recommendations.
 
 ## Question
 
@@ -22,23 +24,31 @@ and `chat_template_kwargs` disagree. The probe checks which single channel works
 for each provider, and which channel wins if both are sent with conflicting
 templates.
 
+When reasoning is enabled, the backend currently accepts both streamed
+`delta.reasoning_content` and inline `<think>...</think>` tags inside
+`delta.content`. The probe now also checks which reasoning output format a live
+runtime actually emits before any future code maps providers to
+`separate_channel`, `inline_tags`, `both`, or `none`.
+
 ## Probe Script
 
 Script:
 
 ```powershell
-prototypes\probe_provider_controls.py
+..\..\..\tools\probe_provider_controls.py
 ```
 
 Compile check:
 
 ```powershell
-.venv\Scripts\python.exe -m py_compile prototypes\probe_provider_controls.py
+.venv\Scripts\python.exe -m py_compile ..\..\..\tools\probe_provider_controls.py
 ```
 
 The current probe sends three `/chat/completions` requests for each NuExtract
 workflow that FREE uses: structured extraction, content extraction, schema
-suggestion, and markdown. That is 12 requests per provider.
+suggestion, and markdown. That is 12 control-channel requests per provider.
+By default it also sends one reasoning-enabled streaming chat request to
+classify reasoning output format, for 13 requests per provider total.
 
 | Case | Message content | `chat_template_kwargs` | Expected success signal |
 | --- | --- | --- | --- |
@@ -54,6 +64,15 @@ Workflow-specific kwargs:
 | Content extraction | `mode: content`, `instructions` |
 | Schema suggestion | `mode: template-generation` |
 | Markdown | `mode: markdown` |
+
+Reasoning-format request:
+
+| Case | Stream | `chat_template_kwargs` | Ollama extra field | Classification |
+| --- | --- | --- | --- | --- |
+| `reasoning_format` | `true` | `enable_thinking: true` | `reasoning: {"effort": "medium"}` | `separate_channel`, `inline_tags`, `both`, or `none` |
+
+Use `--skip-control-cases` to run only the reasoning-format probe. Use
+`--skip-reasoning-format` to run only the historical control-channel matrix.
 
 The sentinel document value is:
 
@@ -75,13 +94,25 @@ The 2026-06-17 code update expanded the probe matrix and verified the script
 with:
 
 ```powershell
-.venv\Scripts\python.exe -m py_compile prototypes\probe_provider_controls.py
-.venv\Scripts\python.exe prototypes\probe_provider_controls.py --dry-run
+.venv\Scripts\python.exe -m py_compile ..\..\..\tools\probe_provider_controls.py
+.venv\Scripts\python.exe ..\..\..\tools\probe_provider_controls.py --dry-run
+```
+
+The 2026-06-18 code update added the reasoning-format streaming probe and
+verified the script with:
+
+```bash
+uv run python -m py_compile ../../../tools/probe_provider_controls.py
+uv run python ../../../tools/probe_provider_controls.py --dry-run --skip-control-cases
 ```
 
 The historical live observations below were gathered with the earlier
 structured-extraction matrix. Re-run the expanded probe before treating
 workflow-specific local behavior as current.
+
+The historical live observations below did not classify reasoning output
+format. Re-run the reasoning-format probe before replacing the backend's
+current hybrid reasoning parser with a provider-specific mapping.
 
 ## Environment
 
@@ -113,6 +144,14 @@ Tested providers:
 | Docker Model Runner | Passed | Passed | Message | Either single channel works; use one channel only |
 | Docker vLLM | Passed | Passed | Message | Either single channel works; use one channel only |
 
+Reasoning output format summary:
+
+| Provider | Reasoning format observation |
+| --- | --- |
+| Ollama | Not yet captured with the 2026-06-18 probe extension |
+| Docker Model Runner | Not yet captured with the 2026-06-18 probe extension |
+| Docker vLLM | Not yet captured with the 2026-06-18 probe extension |
+
 Practical interpretation:
 
 - Ollama should use message-embedded NuExtract controls. The OpenAI-compatible
@@ -141,7 +180,7 @@ hf.co/numind/NuExtract3-GGUF:Q4_K_M
 Command:
 
 ```powershell
-.venv\Scripts\python.exe prototypes\probe_provider_controls.py `
+.venv\Scripts\python.exe ..\..\..\tools\probe_provider_controls.py `
   --provider ollama `
   --base-url http://127.0.0.1:11434 `
   --model hf.co/numind/NuExtract3-GGUF:Q4_K_M `
@@ -213,7 +252,7 @@ Docker Model Runner was not visible as a normal application container in
 Probe command:
 
 ```powershell
-.venv\Scripts\python.exe prototypes\probe_provider_controls.py `
+.venv\Scripts\python.exe ..\..\..\tools\probe_provider_controls.py `
   --provider openai `
   --base-url http://127.0.0.1:12434/engines/v1 `
   --model huggingface.co/numind/nuextract3-gguf:Q4_K_M `
@@ -392,7 +431,7 @@ max_model_len: 16384
 Command:
 
 ```powershell
-.venv\Scripts\python.exe prototypes\probe_provider_controls.py `
+.venv\Scripts\python.exe ..\..\..\tools\probe_provider_controls.py `
   --provider vllm `
   --base-url http://127.0.0.1:8000/v1 `
   --model numind/NuExtract3 `

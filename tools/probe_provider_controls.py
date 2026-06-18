@@ -1,4 +1,4 @@
-"""One-shot probe for NuExtract prompt-control channels.
+"""One-shot probe for NuExtract prompt-control and reasoning channels.
 
 The backend can tell a NuExtract-style runtime what to do in two ways:
 
@@ -9,6 +9,9 @@ The backend can tell a NuExtract-style runtime what to do in two ways:
 
 This script sends message-only, kwargs-only, and conflict requests for the
 NuExtract workflows FREE uses, then prints JSONL results plus recommendations.
+It also sends one reasoning-enabled streaming chat request and classifies
+whether the runtime emits reasoning through delta.reasoning_content, inline
+<think> tags in delta.content, both, or neither.
 """
 
 from __future__ import annotations
@@ -24,12 +27,12 @@ from typing import Any
 
 import httpx
 
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_ROOT = Path(__file__).resolve().parents[1] / "prototypes" / "mine" / "backend"
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from config import settings
-from model_providers import model_headers
+from model_providers import chat_delta_to_text, model_headers
 
 
 DOCUMENT_VALUE = "CONTROL_VALUE_7391"
@@ -37,6 +40,8 @@ MESSAGE_KEY = "message_probe_channel"
 KWARGS_KEY = "kwargs_probe_channel"
 MESSAGE_MARKER = "MESSAGE_CHANNEL_MARKER"
 KWARGS_MARKER = "KWARGS_CHANNEL_MARKER"
+REASONING_FINAL_MARKER = "REASONING_FORMAT_FINAL_4821"
+SSE_PREFIX = "data:"
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +123,20 @@ def markdown_prompt(marker: str) -> str:
 
 def source_content() -> list[dict[str, Any]]:
     return [text_part(f"Document: The probe value is {DOCUMENT_VALUE}.")]
+
+
+def reasoning_probe_content() -> list[dict[str, Any]]:
+    return [
+        text_part(
+            "\n".join(
+                [
+                    "Reason briefly before answering.",
+                    f"Then return exactly this final answer: {REASONING_FINAL_MARKER}",
+                    "Do not add any other final-answer text.",
+                ]
+            )
+        )
+    ]
 
 
 def structured_cases() -> list[ProbeCase]:
@@ -289,7 +308,37 @@ def build_payload(args: argparse.Namespace, case: ProbeCase) -> dict[str, Any]:
     }
     if case.chat_template_kwargs is not None:
         payload["chat_template_kwargs"] = case.chat_template_kwargs
+    add_ollama_reasoning_control(args.provider, payload)
     return payload
+
+
+def build_reasoning_payload(args: argparse.Namespace) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "model": args.model,
+        "temperature": args.reasoning_temperature,
+        "max_tokens": args.reasoning_max_tokens,
+        "stream": True,
+        "messages": [
+            {"role": "system", "content": args.system_prompt},
+            {"role": "user", "content": reasoning_probe_content()},
+        ],
+        "chat_template_kwargs": {"enable_thinking": True},
+    }
+    add_ollama_reasoning_control(args.provider, payload)
+    return payload
+
+
+def add_ollama_reasoning_control(
+    provider: str, payload: dict[str, Any]
+) -> None:
+    if provider != "ollama":
+        return
+    template_kwargs = payload.get("chat_template_kwargs")
+    if (
+        isinstance(template_kwargs, dict)
+        and template_kwargs.get("enable_thinking") is True
+    ):
+        payload["reasoning"] = {"effort": "medium"}
 
 
 def compact_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -397,6 +446,64 @@ def classify_case(case: ProbeCase, raw_text: str) -> dict[str, Any]:
     }
 
 
+def delta_from_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
+    choices = chunk.get("choices") or []
+    if not choices:
+        return {}
+    delta = choices[0].get("delta") or {}
+    return delta if isinstance(delta, dict) else {}
+
+
+def content_text_from_delta(delta: dict[str, Any]) -> str:
+    content = delta.get("content")
+    if isinstance(content, list):
+        return "".join(
+            part.get("text", "") for part in content if isinstance(part, dict)
+        )
+    return content if isinstance(content, str) else ""
+
+
+def compact_text(text: str, limit: int = 240) -> str:
+    return text if len(text) <= limit else f"{text[:limit]}..."
+
+
+def classify_reasoning_format(
+    *,
+    reasoning_text: str,
+    content_text: str,
+    delta_keys: set[str],
+    chunk_count: int,
+    malformed_line_count: int,
+    non_sse_line_count: int,
+    saw_done: bool,
+) -> dict[str, Any]:
+    lower_content = content_text.lower()
+    has_separate_channel = bool(reasoning_text)
+    has_inline_tags = "<think" in lower_content or "</think>" in lower_content
+
+    if has_separate_channel and has_inline_tags:
+        reasoning_format = "both"
+    elif has_separate_channel:
+        reasoning_format = "separate_channel"
+    elif has_inline_tags:
+        reasoning_format = "inline_tags"
+    else:
+        reasoning_format = "none"
+
+    return {
+        "reasoning_format": reasoning_format,
+        "has_separate_reasoning_channel": has_separate_channel,
+        "has_inline_think_tags": has_inline_tags,
+        "has_content_delta": bool(content_text),
+        "saw_done": saw_done,
+        "chunk_count": chunk_count,
+        "malformed_line_count": malformed_line_count,
+        "non_sse_line_count": non_sse_line_count,
+        "delta_keys": sorted(delta_keys),
+        "final_marker_seen": REASONING_FINAL_MARKER in content_text,
+    }
+
+
 async def run_case(
     client: httpx.AsyncClient,
     args: argparse.Namespace,
@@ -439,6 +546,118 @@ async def run_case(
         "request": compact_payload(payload),
         "raw_text": raw_text,
         "classification": classify_case(case, raw_text),
+    }
+
+
+async def run_reasoning_format_probe(
+    client: httpx.AsyncClient,
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    payload = build_reasoning_payload(args)
+    if args.dry_run:
+        return {
+            "event": "reasoning_format",
+            "provider": args.provider,
+            "url": args.url,
+            "request": compact_payload(payload),
+            "dry_run": True,
+            "evidence": (
+                "Run without --dry-run to classify streamed SSE deltas by "
+                "delta.reasoning_content and inline <think> tags in delta.content."
+            ),
+        }
+
+    started = time.perf_counter()
+    reasoning_text = ""
+    content_text = ""
+    delta_keys: set[str] = set()
+    chunk_count = 0
+    malformed_line_count = 0
+    non_sse_line_count = 0
+    saw_done = False
+    samples: list[dict[str, Any]] = []
+
+    try:
+        async with client.stream(
+            "POST",
+            args.url,
+            json=payload,
+            headers=model_headers(args.api_key),
+        ) as response:
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                body = (await response.aread()).decode(errors="replace").strip()
+                detail = (
+                    f"HTTP {response.status_code} {response.reason_phrase} "
+                    f"from {response.url}"
+                )
+                if body:
+                    detail = f"{detail}\n\n{body}"
+                raise httpx.HTTPStatusError(
+                    detail, request=exc.request, response=exc.response
+                ) from exc
+
+            async for line in response.aiter_lines():
+                if not line.startswith(SSE_PREFIX):
+                    if line.strip():
+                        non_sse_line_count += 1
+                    continue
+                data = line[len(SSE_PREFIX) :].strip()
+                if data == "[DONE]":
+                    saw_done = True
+                    break
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    malformed_line_count += 1
+                    continue
+
+                chunk_count += 1
+                delta = delta_from_chunk(chunk)
+                delta_keys.update(delta)
+                reasoning_delta, content_delta = chat_delta_to_text(chunk)
+                reasoning_text += reasoning_delta
+                content_text += content_delta
+
+                if len(samples) < args.reasoning_sample_limit:
+                    samples.append(
+                        {
+                            "delta_keys": sorted(delta),
+                            "reasoning_content": compact_text(
+                                str(delta.get("reasoning_content") or "")
+                            ),
+                            "content": compact_text(content_text_from_delta(delta)),
+                        }
+                    )
+    except Exception as exc:
+        elapsed_ms = round((time.perf_counter() - started) * 1000)
+        return {
+            "event": "reasoning_format",
+            "provider": args.provider,
+            "elapsed_ms": elapsed_ms,
+            "request": compact_payload(payload),
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+    elapsed_ms = round((time.perf_counter() - started) * 1000)
+    return {
+        "event": "reasoning_format",
+        "provider": args.provider,
+        "elapsed_ms": elapsed_ms,
+        "request": compact_payload(payload),
+        "classification": classify_reasoning_format(
+            reasoning_text=reasoning_text,
+            content_text=content_text,
+            delta_keys=delta_keys,
+            chunk_count=chunk_count,
+            malformed_line_count=malformed_line_count,
+            non_sse_line_count=non_sse_line_count,
+            saw_done=saw_done,
+        ),
+        "reasoning_excerpt": compact_text(reasoning_text),
+        "content_excerpt": compact_text(content_text),
+        "sample_deltas": samples,
     }
 
 
@@ -512,7 +731,7 @@ def write_json(value: dict[str, Any], pretty: bool) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="One-shot NuExtract provider prompt-control probe."
+        description="One-shot NuExtract provider prompt-control and reasoning probe."
     )
     parser.add_argument("--provider", default=settings.provider)
     parser.add_argument("--base-url", default=settings.base_url)
@@ -521,7 +740,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=settings.timeout_seconds)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int, default=512)
+    parser.add_argument("--reasoning-temperature", type=float, default=0.6)
+    parser.add_argument("--reasoning-max-tokens", type=int, default=512)
+    parser.add_argument("--reasoning-sample-limit", type=int, default=8)
     parser.add_argument("--system-prompt", default=settings.system_prompt)
+    parser.add_argument("--skip-control-cases", action="store_true")
+    parser.add_argument("--skip-reasoning-format", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--pretty", action="store_true")
     return parser
@@ -530,6 +754,8 @@ def build_parser() -> argparse.ArgumentParser:
 async def async_main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if args.skip_control_cases and args.skip_reasoning_format:
+        parser.error("cannot skip both control cases and reasoning format probe")
     args.url = chat_completions_url(args.provider, args.base_url)
 
     write_json(
@@ -540,19 +766,25 @@ async def async_main() -> int:
             "url": args.url,
             "model": args.model,
             "dry_run": args.dry_run,
+            "control_cases": not args.skip_control_cases,
+            "reasoning_format": not args.skip_reasoning_format,
         },
         args.pretty,
     )
 
-    cases = build_probe_cases()
     async with httpx.AsyncClient(timeout=args.timeout) as client:
-        results = []
-        for case in cases:
-            result = await run_case(client, args, case)
-            results.append(result)
-            write_json(result, args.pretty)
+        if not args.skip_control_cases:
+            cases = build_probe_cases()
+            results = []
+            for case in cases:
+                result = await run_case(client, args, case)
+                results.append(result)
+                write_json(result, args.pretty)
 
-    write_json({"event": "recommendation", **recommend(results)}, args.pretty)
+            write_json({"event": "recommendation", **recommend(results)}, args.pretty)
+
+        if not args.skip_reasoning_format:
+            write_json(await run_reasoning_format_probe(client, args), args.pretty)
     return 0
 
 
