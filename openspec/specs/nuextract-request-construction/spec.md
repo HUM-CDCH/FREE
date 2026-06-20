@@ -50,6 +50,11 @@ The backend SHALL construct NuExtract-specific outbound model requests through a
 - **AND** template-kwargs-authoritative providers receive provider-neutral template kwargs for template-generation mode with thinking disabled
 - **AND** message-text-authoritative providers receive message content sufficient to request a schema suggestion without relying on template-generation kwargs
 
+#### Scenario: Schema suggestion instructs the model against wrapper keys
+- **WHEN** the NuExtract request builder prepares a schema-suggestion request
+- **THEN** the task instructions sent to the model include a constraint that top-level keys must be semantic field names
+- **AND** the instructions prohibit using record identifiers, document titles, or subject names as top-level wrapper keys
+
 #### Scenario: Markdown request is fully prepared
 - **WHEN** markdown source content, reasoning, and temperature are provided to the NuExtract request builder
 - **THEN** it returns a `ModelRequest` whose content and template kwargs place markdown mode instructions in the selected authoritative control channel

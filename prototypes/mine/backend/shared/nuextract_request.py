@@ -33,7 +33,9 @@ _TEMPLATE_GENERATION_TASK_INSTRUCTIONS = (
     "Generate an extraction template for the supplied document or text. "
     "Return only a valid JSON object. Use concise field names and simple "
     "type hints such as string, number, YYYY-MM-DD, boolean, or arrays "
-    "of objects."
+    "of objects. "
+    "Top-level keys must be semantic field names — do not wrap fields "
+    "under a record identifier, document title, or subject name."
 )
 
 

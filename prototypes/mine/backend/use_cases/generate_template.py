@@ -22,7 +22,9 @@ TEMPLATE_GUIDANCE = (
     "Generate a concise JSON extraction template for this document. "
     "Use descriptive field names and simple type hints like string, "
     "number, YYYY-MM-DD, boolean, or arrays of objects. Return only "
-    "the JSON template."
+    "the JSON template. "
+    "Top-level keys must be semantic field names — do not wrap fields "
+    "under a record identifier, document title, or subject name."
 )
 
 ANNOTATION_MODES = ("hints", "fields")
