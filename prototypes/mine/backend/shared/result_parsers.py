@@ -1,5 +1,6 @@
 from typing import Any, Protocol
 
+from shared.evidence_template import split_evidence_result
 from shared.json_repair import parse_json_object_result
 from shared.parsing import extract_answer_block, parse_result, pretty_json_or_text
 
@@ -17,6 +18,15 @@ class StructuredParser:
 
     def parse(self, output: str) -> Any:
         return parse_json_object_result(extract_answer_block(output))
+
+
+class EvidenceStructuredParser:
+    """Like StructuredParser but splits _evidence from the result.
+    Returns (clean_result, evidence) as a tuple."""
+
+    def parse(self, output: str) -> tuple[Any, dict[str, Any] | None]:
+        parsed = parse_json_object_result(extract_answer_block(output))
+        return split_evidence_result(parsed)
 
 
 class AnswerParser:

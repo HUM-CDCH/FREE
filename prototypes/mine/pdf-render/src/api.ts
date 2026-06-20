@@ -13,11 +13,15 @@ type TemplateOptions = {
 // ---------- response payloads (mirror main.py; one place to update) ----------
 
 export type ChatDone = { message: string; reasoning: string | null; raw: string }
+export type EvidenceItem = { snippet: string; page: number }
+export type Evidence = Record<string, EvidenceItem>
+
 export type ExtractDone = {
   result: Record<string, unknown>
   reasoning: string | null
   raw: string
   pages: number
+  evidence: Evidence | null
 }
 export type TemplateDone = { template: unknown; raw: string; pages: number }
 export type MarkdownDone = { markdown: string; pages: number }
@@ -127,11 +131,15 @@ export async function requestExtraction(
   fileName: string,
   template: unknown,
   signal?: AbortSignal,
-): Promise<unknown> {
+  includeEvidence = true,
+): Promise<{ result: unknown; evidence: Evidence | null }> {
   const form = new FormData()
   form.append('file', file, fileName)
   form.append('template', JSON.stringify(template ?? {}))
+  if (includeEvidence) {
+    form.append('include_evidence', 'true')
+  }
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
-  return done.result
+  return { result: done.result, evidence: done.evidence ?? null }
 }

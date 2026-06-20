@@ -12,6 +12,7 @@ import { countTemplateFields } from './template'
 import { requestTemplate } from './api'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
+import EvidenceHighlightLayer from './EvidenceHighlightLayer'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
@@ -460,6 +461,12 @@ function App() {
         <section className="relative min-h-0 min-w-0 flex-1" aria-label="PDF document">
           <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={containerRef}>
             <div className="pdfViewer" ref={viewerRef} />
+            <EvidenceHighlightLayer
+              pdfViewer={pdfViewerRef.current}
+              evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
+              containerEl={containerRef.current}
+              schema={templateState.status === 'ready' ? templateState.template : null}
+            />
           </div>
           {extraction.state.status === 'running' && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-canvas/85 backdrop-blur-[2px]">

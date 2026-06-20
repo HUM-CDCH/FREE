@@ -17,6 +17,12 @@ def _load_instructions(name: str) -> str:
 
 
 _STRUCTURED_TASK_INSTRUCTIONS = _load_instructions("structured.txt")
+
+_EVIDENCE_INSTRUCTION = (
+    "For each field in the _evidence block, copy the verbatim text passage "
+    "from the document that supports the extracted value into 'snippet', and "
+    "set 'page' to the 1-based page number where that passage appears."
+)
 _MARKDOWN_TASK_INSTRUCTIONS = _load_instructions("markdown.txt")
 _CONTENT_TASK_INSTRUCTIONS = (
     "Extract source-grounded information from the supplied document or "
@@ -182,6 +188,7 @@ class NuExtractRequestBuilder:
         instruction: str,
         reasoning: bool,
         temperature: float | None,
+        include_evidence: bool = False,
     ) -> ModelRequest:
         prepared_content = content
         template_kwargs: dict[str, Any] = {
@@ -191,10 +198,18 @@ class NuExtractRequestBuilder:
         }
         if instruction:
             template_kwargs["instructions"] = instruction
+        if include_evidence:
+            template_kwargs["instructions"] = (
+                f"{template_kwargs['instructions']}\n\n{_EVIDENCE_INSTRUCTION}"
+                if template_kwargs.get("instructions")
+                else _EVIDENCE_INSTRUCTION
+            )
         if self._uses_message_text_controls():
             controls = []
             if instruction:
                 controls.append(f"Instructions:\n{instruction}")
+            if include_evidence:
+                controls.append(_EVIDENCE_INSTRUCTION)
             if template_json:
                 controls.append(f"Extraction template:\n```json\n{template_json}\n```")
             prepared_content = _append_text(
