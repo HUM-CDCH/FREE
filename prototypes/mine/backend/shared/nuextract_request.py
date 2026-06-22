@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any, Literal
 
 from model_providers import ChatContent
+from shared.few_shot_examples import FewShotExample
 from shared.model_gateway import ModelRequest
 
 _INSTRUCTIONS_DIR = (
@@ -72,6 +73,14 @@ def _append_text(content: ChatContent, text: str | None) -> ChatContent:
     if not text:
         return content
     return [*content, {"type": "text", "text": text}]
+
+
+def _render_few_shot_block(example: FewShotExample) -> str:
+    return (
+        "Example of a correctly filled extraction:\n\n"
+        f"Schema:\n```json\n{example.schema_json}\n```\n\n"
+        f"Correct output:\n```json\n{example.result_json}\n```"
+    )
 
 
 class NuExtractRequestBuilder:
@@ -191,8 +200,13 @@ class NuExtractRequestBuilder:
         reasoning: bool,
         temperature: float | None,
         include_evidence: bool = False,
+        few_shot: FewShotExample | None = None,
     ) -> ModelRequest:
         prepared_content = content
+        if few_shot is not None:
+            prepared_content = _prepend_task_prompt(
+                prepared_content, _render_few_shot_block(few_shot)
+            )
         template_kwargs: dict[str, Any] = {
             "mode": "structured",
             "enable_thinking": reasoning,
@@ -215,7 +229,7 @@ class NuExtractRequestBuilder:
             if template_json:
                 controls.append(f"Extraction template:\n```json\n{template_json}\n```")
             prepared_content = _append_text(
-                _prepend_task_prompt(content, _STRUCTURED_TASK_INSTRUCTIONS),
+                _prepend_task_prompt(prepared_content, _STRUCTURED_TASK_INSTRUCTIONS),
                 "\n\n".join(controls) or None,
             )
             template_kwargs = self._thinking_kwargs(reasoning)

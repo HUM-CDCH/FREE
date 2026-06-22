@@ -351,6 +351,7 @@ function App() {
     templateState.inputsKey !== annotationInputsKey(annotationItems, annotationsMode)
 
   const extraction = useExtraction({
+    pdfSource,
     template: schemaTemplate,
     schemaReady,
     onComplete: (isRerun) => {

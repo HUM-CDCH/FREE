@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
-import { ACTIVE_DOC } from './ProjectNav'
 import { requestExtraction } from './api'
 import type { ExtractionState } from './extraction'
 
+type PdfSource = { url: string; filename: string }
+
 type UseExtractionOptions = {
+  pdfSource: PdfSource | null
   template: unknown
   schemaReady: boolean
   onComplete: (isRerun: boolean) => void
@@ -14,6 +15,7 @@ type UseExtractionOptions = {
 export type ExtractionController = ReturnType<typeof useExtraction>
 
 export function useExtraction({
+  pdfSource,
   template,
   schemaReady,
   onComplete,
@@ -25,10 +27,10 @@ export function useExtraction({
   useEffect(() => () => abortRef.current?.abort(), [])
 
   const hasResults = state.status === 'ready'
-  const canRun = schemaReady && state.status !== 'running'
+  const canRun = schemaReady && state.status !== 'running' && pdfSource !== null
 
   async function runExtraction() {
-    if (state.status === 'running') {
+    if (state.status === 'running' || !pdfSource) {
       return
     }
     abortRef.current?.abort()
@@ -38,8 +40,8 @@ export function useExtraction({
     setState({ status: 'running' })
 
     try {
-      const blob = await (await fetch(pdfUrl, { signal: abortController.signal })).blob()
-      const { result, evidence } = await requestExtraction(blob, ACTIVE_DOC, template, abortController.signal, true)
+      const blob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
+      const { result, evidence } = await requestExtraction(blob, pdfSource.filename, template, abortController.signal, true)
       if (abortController.signal.aborted) {
         return
       }

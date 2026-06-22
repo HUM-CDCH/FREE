@@ -14,7 +14,9 @@ type TemplateOptions = {
 
 export type ChatDone = { message: string; reasoning: string | null; raw: string }
 export type EvidenceItem = { snippet: string; page: number }
-export type Evidence = Record<string, EvidenceItem>
+// The model may use any nesting structure in _evidence — leaves are collected
+// recursively by the highlight layer, so we accept any shape here.
+export type Evidence = Record<string, unknown>
 
 export type ExtractDone = {
   result: Record<string, unknown>

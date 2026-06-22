@@ -5,6 +5,7 @@ from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFil
 from fastapi.responses import JSONResponse
 
 from shared.evidence_template import wrap_template_with_evidence
+from shared.few_shot_examples import STRUCTURED_EXTRACTION_EXAMPLE
 from shared.model_call import ResultParseError
 from shared.model_gateway import ModelGateway, ModelGatewayError
 from shared.nuextract_request import NuExtractRequestBuilder
@@ -86,6 +87,7 @@ class ExtractPipeline:
                 reasoning=request.reasoning,
                 temperature=request.temperature,
                 include_evidence=use_evidence,
+                few_shot=STRUCTURED_EXTRACTION_EXAMPLE if use_structured else None,
             )
             if use_structured
             else self._nuextract_requests.content_extraction(
