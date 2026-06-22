@@ -56,7 +56,10 @@ async function searchValueInPage(
   if (!pdfPage) return []
 
   const textContent = await pdfPage.getTextContent()
-  const viewport = pdfPage.getViewport({ scale: pdfViewer.currentScale })
+  // PDF.js renders pages at currentScale × CSS_UNITS (96/72) to convert PDF
+  // points to CSS pixels. We must apply the same factor when computing rects.
+  const CSS_UNITS = 96.0 / 72.0
+  const viewport = pdfPage.getViewport({ scale: pdfViewer.currentScale * CSS_UNITS })
 
   type HasStr = { str: string; transform: number[]; width: number; height: number }
   const rawItems = textContent.items.filter(
