@@ -198,8 +198,8 @@ export default function EvidenceHighlightLayer({ pdfViewer, evidence, containerE
         if (!pageEl) continue
 
         const pageRect = pageEl.getBoundingClientRect()
-        const pageTop = pageRect.top - containerRect.top + containerEl.scrollTop
-        const pageLeft = pageRect.left - containerRect.left + containerEl.scrollLeft
+        const pageTop = pageRect.top - containerRect.top + containerEl.scrollTop + pageEl.clientTop
+        const pageLeft = pageRect.left - containerRect.left + containerEl.scrollLeft + pageEl.clientLeft
 
         for (const rect of found.rects) {
           if (cancelled) return

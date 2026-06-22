@@ -38,6 +38,19 @@ The backend SHALL construct NuExtract-specific outbound model requests through a
 - **AND** the request contains provider-neutral template kwargs for mode, extraction schema, researcher instructions, and thinking
 - **AND** the request carries the requested reasoning flag and temperature
 
+#### Scenario: Structured extraction embeds a few-shot example when provided
+
+- **WHEN** a `FewShotExample` is passed to `structured_extraction`
+- **THEN** the request content includes a text block showing the example schema and the correctly filled result
+- **AND** the example block appears before the source document content so the model sees the pattern before the document
+- **AND** the example is included regardless of the authoritative control channel
+
+#### Scenario: Structured extraction omits few-shot block when no example is provided
+
+- **WHEN** `structured_extraction` is called without a `few_shot` argument (or with `None`)
+- **THEN** the request content does not include any few-shot example block
+- **AND** the request is otherwise identical to a request built without the parameter
+
 #### Scenario: Content extraction request is fully prepared
 - **WHEN** content extraction source content and optional researcher instructions are provided to the NuExtract request builder
 - **THEN** it returns a `ModelRequest` whose content and template kwargs place researcher instructions in the selected authoritative control channel
