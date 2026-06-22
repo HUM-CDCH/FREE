@@ -3,7 +3,6 @@ from enum import Enum
 from typing import Any, Literal
 
 from model_providers import ChatContent
-from shared.few_shot_examples import FewShotExample
 from shared.model_gateway import ModelRequest
 
 _INSTRUCTIONS_DIR = (
@@ -19,11 +18,6 @@ def _load_instructions(name: str) -> str:
 
 _STRUCTURED_TASK_INSTRUCTIONS = _load_instructions("structured.txt")
 
-_EVIDENCE_INSTRUCTION = (
-    "For each field in the _evidence block, copy the verbatim text passage "
-    "from the document that supports the extracted value into 'snippet', and "
-    "set 'page' to the 1-based page number where that passage appears."
-)
 _MARKDOWN_TASK_INSTRUCTIONS = _load_instructions("markdown.txt")
 _CONTENT_TASK_INSTRUCTIONS = (
     "Extract source-grounded information from the supplied document or "
@@ -74,13 +68,6 @@ def _append_text(content: ChatContent, text: str | None) -> ChatContent:
         return content
     return [*content, {"type": "text", "text": text}]
 
-
-def _render_few_shot_block(example: FewShotExample) -> str:
-    return (
-        "Example of a correctly filled extraction:\n\n"
-        f"Schema:\n```json\n{example.schema_json}\n```\n\n"
-        f"Correct output:\n```json\n{example.result_json}\n```"
-    )
 
 
 class NuExtractRequestBuilder:
@@ -199,14 +186,7 @@ class NuExtractRequestBuilder:
         instruction: str,
         reasoning: bool,
         temperature: float | None,
-        include_evidence: bool = False,
-        few_shot: FewShotExample | None = None,
     ) -> ModelRequest:
-        prepared_content = content
-        if few_shot is not None:
-            prepared_content = _prepend_task_prompt(
-                prepared_content, _render_few_shot_block(few_shot)
-            )
         template_kwargs: dict[str, Any] = {
             "mode": "structured",
             "enable_thinking": reasoning,
@@ -214,27 +194,25 @@ class NuExtractRequestBuilder:
         }
         if instruction:
             template_kwargs["instructions"] = instruction
-        if include_evidence:
-            template_kwargs["instructions"] = (
-                f"{template_kwargs['instructions']}\n\n{_EVIDENCE_INSTRUCTION}"
-                if template_kwargs.get("instructions")
-                else _EVIDENCE_INSTRUCTION
-            )
         if self._uses_message_text_controls():
             controls = []
             if instruction:
                 controls.append(f"Instructions:\n{instruction}")
-            if include_evidence:
-                controls.append(_EVIDENCE_INSTRUCTION)
             if template_json:
                 controls.append(f"Extraction template:\n```json\n{template_json}\n```")
             prepared_content = _append_text(
-                _prepend_task_prompt(prepared_content, _STRUCTURED_TASK_INSTRUCTIONS),
+                _prepend_task_prompt(content, _STRUCTURED_TASK_INSTRUCTIONS),
                 "\n\n".join(controls) or None,
             )
             template_kwargs = self._thinking_kwargs(reasoning)
+            return ModelRequest(
+                content=prepared_content,
+                template_kwargs=template_kwargs,
+                reasoning=reasoning,
+                temperature=temperature,
+            )
         return ModelRequest(
-            content=prepared_content,
+            content=content,
             template_kwargs=template_kwargs,
             reasoning=reasoning,
             temperature=temperature,

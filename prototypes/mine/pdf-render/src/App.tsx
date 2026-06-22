@@ -464,7 +464,7 @@ function App() {
             <div className="pdfViewer" ref={viewerRef} />
             <EvidenceHighlightLayer
               pdfViewer={pdfViewerRef.current}
-              evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
+              result={extraction.state.status === 'ready' ? extraction.state.result : null}
               containerEl={containerRef.current}
               schema={templateState.status === 'ready' ? templateState.template : null}
             />
