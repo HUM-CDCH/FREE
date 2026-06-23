@@ -9,7 +9,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Response
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
@@ -393,6 +393,103 @@ async def download_task_zip(task_id: str):
             raise HTTPException(status_code=500, detail=f"Failed to generate output ZIP: {e}")
             
     return FileResponse(zip_path, media_type="application/zip", filename=f"extraction_results_{task_id[:8]}.zip")
+
+
+
+# Direct Markdown Retrieval Endpoint
+@app.get("/tasks/{task_id}/markdown")
+async def get_task_markdown(task_id: str, pipeline: Optional[str] = None):
+    metadata = load_metadata(task_id)
+    if metadata["status"] != "completed":
+        raise HTTPException(status_code=400, detail=f"Task is in status '{metadata['status']}' and markdown is not ready.")
+        
+    task_dir = os.path.join(DATA_DIR, task_id)
+    output_dir = os.path.join(task_dir, "output")
+    
+    # Locate output subdirectory (named after the PDF file)
+    pdf_base_dir = None
+    if os.path.exists(output_dir):
+        for entry in os.listdir(output_dir):
+            entry_path = os.path.join(output_dir, entry)
+            if os.path.isdir(entry_path):
+                pdf_base_dir = entry_path
+                break
+                
+    if not pdf_base_dir:
+        raise HTTPException(status_code=404, detail="Task output directory not found.")
+        
+    docling_pdf_path = os.path.join(pdf_base_dir, "docling_pdf", "document.md")
+    docling_img_dir = os.path.join(pdf_base_dir, "docling_images")
+    paddle_img_dir = os.path.join(pdf_base_dir, "paddleocr_images")
+    
+    # If a specific pipeline was requested, try to serve that
+    if pipeline:
+        if pipeline == "docling_pdf":
+            if os.path.exists(docling_pdf_path):
+                return FileResponse(docling_pdf_path, media_type="text/markdown", filename="document.md")
+            else:
+                raise HTTPException(status_code=404, detail="Docling PDF direct markdown not found for this task.")
+                
+        elif pipeline == "docling_images":
+            if os.path.exists(docling_img_dir) and os.listdir(docling_img_dir):
+                pages = sorted([f for f in os.listdir(docling_img_dir) if f.startswith("page_") and f.endswith(".md")])
+                if not pages:
+                    raise HTTPException(status_code=404, detail="No Docling image page markdown files found.")
+                
+                content_parts = []
+                for p in pages:
+                    with open(os.path.join(docling_img_dir, p), "r", encoding="utf-8") as f:
+                        content_parts.append(f.read())
+                return Response(content="\n\n".join(content_parts), media_type="text/markdown")
+            else:
+                raise HTTPException(status_code=404, detail="Docling Images markdown not found for this task.")
+                
+        elif pipeline == "paddleocr":
+            if os.path.exists(paddle_img_dir) and os.listdir(paddle_img_dir):
+                page_dirs = sorted([d for d in os.listdir(paddle_img_dir) if d.startswith("page_") and os.path.isdir(os.path.join(paddle_img_dir, d))])
+                if not page_dirs:
+                    raise HTTPException(status_code=404, detail="No PaddleOCR page directories found.")
+                
+                content_parts = []
+                for p_dir in page_dirs:
+                    md_file = os.path.join(paddle_img_dir, p_dir, f"{p_dir}.md")
+                    if os.path.exists(md_file):
+                        with open(md_file, "r", encoding="utf-8") as f:
+                            content_parts.append(f.read())
+                if not content_parts:
+                    raise HTTPException(status_code=404, detail="No PaddleOCR markdown files found.")
+                return Response(content="\n\n".join(content_parts), media_type="text/markdown")
+            else:
+                raise HTTPException(status_code=404, detail="PaddleOCR markdown not found for this task.")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid pipeline query parameter. Use 'docling_pdf', 'docling_images', or 'paddleocr'.")
+            
+    # Auto-detect best available markdown
+    if os.path.exists(docling_pdf_path):
+        return FileResponse(docling_pdf_path, media_type="text/markdown", filename="document.md")
+        
+    if os.path.exists(docling_img_dir) and os.listdir(docling_img_dir):
+        pages = sorted([f for f in os.listdir(docling_img_dir) if f.startswith("page_") and f.endswith(".md")])
+        if pages:
+            content_parts = []
+            for p in pages:
+                with open(os.path.join(docling_img_dir, p), "r", encoding="utf-8") as f:
+                    content_parts.append(f.read())
+            return Response(content="\n\n".join(content_parts), media_type="text/markdown")
+            
+    if os.path.exists(paddle_img_dir) and os.listdir(paddle_img_dir):
+        page_dirs = sorted([d for d in os.listdir(paddle_img_dir) if d.startswith("page_") and os.path.isdir(os.path.join(paddle_img_dir, d))])
+        if page_dirs:
+            content_parts = []
+            for p_dir in page_dirs:
+                md_file = os.path.join(paddle_img_dir, p_dir, f"{p_dir}.md")
+                if os.path.exists(md_file):
+                    with open(md_file, "r", encoding="utf-8") as f:
+                        content_parts.append(f.read())
+            if content_parts:
+                return Response(content="\n\n".join(content_parts), media_type="text/markdown")
+                
+    raise HTTPException(status_code=404, detail="No markdown output files found for this task.")
 
 
 # Custom OpenAPI schema overrides

@@ -109,6 +109,83 @@ class TestService(unittest.TestCase):
             import shutil
             shutil.rmtree(task_dir)
 
+
+    def test_get_task_markdown_endpoint(self):
+        task_id = "test-markdown-direct-id"
+        task_dir = os.path.join(DATA_DIR, task_id)
+        os.makedirs(task_dir, exist_ok=True)
+        
+        # Save metadata
+        metadata = {
+            "task_id": task_id,
+            "status": "completed",
+            "created_at": "2026-06-23T00:00:00Z",
+            "updated_at": "2026-06-23T00:00:00Z",
+            "params": {"pipeline": "all", "device": "cpu", "source_name": "test.pdf"},
+            "stats": {},
+            "error": None
+        }
+        save_metadata(task_id, metadata)
+        
+        # Create output directories for the various pipelines
+        output_dir = os.path.join(task_dir, "output", "test_doc")
+        
+        docling_pdf_dir = os.path.join(output_dir, "docling_pdf")
+        docling_img_dir = os.path.join(output_dir, "docling_images")
+        paddle_img_dir = os.path.join(output_dir, "paddleocr_images")
+        
+        os.makedirs(docling_pdf_dir, exist_ok=True)
+        os.makedirs(docling_img_dir, exist_ok=True)
+        os.makedirs(paddle_img_dir, exist_ok=True)
+        
+        # 1. Write docling_pdf markdown
+        with open(os.path.join(docling_pdf_dir, "document.md"), "w") as f:
+            f.write("# Docling PDF Content")
+            
+        # 2. Write docling_images page markdowns
+        with open(os.path.join(docling_img_dir, "page_01.md"), "w") as f:
+            f.write("# Docling Img Page 1")
+        with open(os.path.join(docling_img_dir, "page_02.md"), "w") as f:
+            f.write("# Docling Img Page 2")
+            
+        # 3. Write paddleocr page markdowns
+        os.makedirs(os.path.join(paddle_img_dir, "page_01"), exist_ok=True)
+        os.makedirs(os.path.join(paddle_img_dir, "page_02"), exist_ok=True)
+        with open(os.path.join(paddle_img_dir, "page_01", "page_01.md"), "w") as f:
+            f.write("# Paddle Page 1")
+        with open(os.path.join(paddle_img_dir, "page_02", "page_02.md"), "w") as f:
+            f.write("# Paddle Page 2")
+            
+        try:
+            # A. Test auto-detect (defaults to docling_pdf)
+            response = self.client.get(f"/tasks/{task_id}/markdown")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers.get("content-type"), "text/markdown; charset=utf-8")
+            self.assertEqual(response.text, "# Docling PDF Content")
+            
+            # B. Test explicit docling_pdf pipeline
+            response = self.client.get(f"/tasks/{task_id}/markdown?pipeline=docling_pdf")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.text, "# Docling PDF Content")
+            
+            # C. Test explicit docling_images pipeline
+            response = self.client.get(f"/tasks/{task_id}/markdown?pipeline=docling_images")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.text, "# Docling Img Page 1\n\n# Docling Img Page 2")
+            
+            # D. Test explicit paddleocr pipeline
+            response = self.client.get(f"/tasks/{task_id}/markdown?pipeline=paddleocr")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.text, "# Paddle Page 1\n\n# Paddle Page 2")
+            
+            # E. Test invalid pipeline
+            response = self.client.get(f"/tasks/{task_id}/markdown?pipeline=invalid")
+            self.assertEqual(response.status_code, 400)
+        finally:
+            if os.path.exists(task_dir):
+                import shutil
+                shutil.rmtree(task_dir)
+
     def test_openapi_schema_custom_objects(self):
         response = self.client.get("/openapi.json")
         self.assertEqual(response.status_code, 200)
