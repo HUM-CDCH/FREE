@@ -10,11 +10,8 @@ import {
 export type TemplateAnnotation = { text: string; pageNumber: number }
 export type AnnotationsMode = 'hints' | 'fields'
 
-const SYSTEM_PROMPT =
-  'You are a precise information extraction assistant. Return faithful, source-grounded results only.'
-
 const TEMPLATE_GENERATION_TASK_INSTRUCTIONS =
-  'Generate a concise JSON extraction template for the supplied document or text. Use descriptive field names and simple type hints such as string, number, YYYY-MM-DD, boolean, or arrays of objects. Return only the JSON template.'
+  'Generate a concise NuExtract JSON template for the supplied document. Use descriptive field names. Use leaf types such as verbatim-string, string, integer, number, date, date-time, time, country, currency, or email. Use JSON objects for nested groups and arrays such as ["string"] or [{"field":"verbatim-string"}] for repeated values. Return only the JSON template.'
 
 const STRUCTURED_TASK_INSTRUCTIONS = `You will extract structured information from the CONTEXT using the INPUT SCHEMA (JSON) below and return exactly ONE JSON object that matches the INPUT SCHEMA.
 
@@ -41,12 +38,22 @@ export type ProviderRequestInput = {
 // ollama -> images[]. Raw PDF parts never reach the vision model — see
 // app/components/rasterize.ts for why we send images instead.
 function imageParts(pageDataUrls: string[]) {
-  return pageDataUrls.map((dataUrl, index) => ({
-    type: 'file' as const,
-    data: Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64'),
-    mediaType: 'image/jpeg',
-    filename: `page-${index + 1}.jpg`,
-  }))
+  return pageDataUrls.map((dataUrl, index) => {
+    const match = /^data:image\/jpeg;base64,([a-z0-9+/=\r\n]+)$/i.exec(dataUrl)
+    if (!match) {
+      throw new Error(`Page ${index + 1} is not a valid JPEG data URL`)
+    }
+    const data = Buffer.from(match[1], 'base64')
+    if (data.length === 0) {
+      throw new Error(`Page ${index + 1} is empty`)
+    }
+    return {
+      type: 'file' as const,
+      data,
+      mediaType: 'image/jpeg',
+      filename: `page-${index + 1}.jpg`,
+    }
+  })
 }
 
 export function parseAnnotations(value: FormDataEntryValue | null): TemplateAnnotation[] {
@@ -62,7 +69,7 @@ export function parseAnnotations(value: FormDataEntryValue | null): TemplateAnno
     const record = entry as Record<string, unknown>
     const text = typeof record.text === 'string' ? record.text.trim() : ''
     const pageNumber = typeof record.pageNumber === 'number' ? record.pageNumber : Number(record.pageNumber)
-    return text && Number.isFinite(pageNumber) ? [{ text, pageNumber }] : []
+    return text && Number.isInteger(pageNumber) && pageNumber >= 1 ? [{ text, pageNumber }] : []
   })
 }
 
@@ -104,8 +111,8 @@ export async function runTemplateGeneration({
 
   const result = await generateText({
     model: prepared.model,
-    system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content }],
+    temperature: 0,
     maxOutputTokens: 10000,
   })
 
@@ -130,7 +137,6 @@ export async function runStructuredExtraction({
   const prepared = prepareModel({
     providerSettings,
     templateKwargs: {
-      mode: 'structured',
       enable_thinking: false,
       template: templateJson,
       instructions: STRUCTURED_TASK_INSTRUCTIONS,
@@ -147,8 +153,8 @@ export async function runStructuredExtraction({
 
   const result = await generateText({
     model: prepared.model,
-    system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content }],
+    temperature: 0.2,
     maxOutputTokens: 10000,
   })
 
@@ -219,10 +225,44 @@ function stripCodeFence(text: string) {
 }
 
 function firstJsonObject(text: string) {
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  if (start === -1 || end === -1 || end <= start) {
-    return null
+  let start = -1
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]
+
+    if (start === -1) {
+      if (character === '{') {
+        start = index
+        depth = 1
+      }
+      continue
+    }
+
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (character === '\\') {
+        escaped = true
+      } else if (character === '"') {
+        inString = false
+      }
+      continue
+    }
+
+    if (character === '"') {
+      inString = true
+    } else if (character === '{') {
+      depth += 1
+    } else if (character === '}') {
+      depth -= 1
+      if (depth === 0) {
+        return text.slice(start, index + 1)
+      }
+    }
   }
-  return text.slice(start, end + 1)
+
+  return null
 }

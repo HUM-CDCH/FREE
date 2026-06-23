@@ -6,6 +6,9 @@ import './pdf-viewer.css'
 export const metadata: Metadata = {
   title: 'FREE AI SDK Prototype',
   description: 'Parallel FREE prototype using Next.js and the Vercel AI SDK.',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

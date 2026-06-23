@@ -1,6 +1,6 @@
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, type FileUIPart } from 'ai'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { rasterizePdfToJpegPages } from './rasterize'
 import type { AiProviderSettings } from '../lib/provider-settings'
 
@@ -20,37 +20,79 @@ function messageText(message: { parts?: Array<{ type: string; text?: string }> }
 function ChatTab({ providerSettings, pdfSource }: ChatTabProps) {
   const [draft, setDraft] = useState('')
   const [attachingSource, setAttachingSource] = useState(false)
+  const [localError, setLocalError] = useState<string | null>(null)
   const providerSettingsRef = useRef(providerSettings)
+  const sourcePartsPromiseRef = useRef<Promise<FileUIPart[]> | null>(null)
+  const sourceAbortRef = useRef<AbortController | null>(null)
   providerSettingsRef.current = providerSettings
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: '/api/chat',
-        body: () => ({ providerSettings: providerSettingsRef.current }),
+        prepareSendMessagesRequest: ({ messages }) => {
+          // Keep the single source-bearing message plus a bounded recent chat
+          // window. Re-attaching the document to every user turn causes the
+          // request body to grow by another full PDF on each submission.
+          const sourceMessage = messages.find((message) =>
+            message.parts.some((part) => part.type === 'file'),
+          )
+          const recentMessages = messages
+            .filter((message) => message.id !== sourceMessage?.id)
+            .slice(-12)
+
+          return {
+            body: {
+              providerSettings: providerSettingsRef.current,
+              messages: sourceMessage ? [sourceMessage, ...recentMessages] : recentMessages,
+            },
+          }
+        },
       }),
     [],
   )
   const { messages, sendMessage, error, status } = useChat({ transport })
 
+  useEffect(
+    () => () => {
+      sourceAbortRef.current?.abort()
+    },
+    [],
+  )
+
   async function sourceFileParts(): Promise<FileUIPart[]> {
     if (!pdfSource) {
       return []
     }
-    setAttachingSource(true)
-    try {
-      // Attach the document as page images, not raw PDF — NuExtract3 is vision-only
-      // and the provider SDKs drop PDF parts. See app/components/rasterize.ts.
-      const blob = await (await fetch(pdfSource.url)).blob()
-      const pages = await rasterizePdfToJpegPages(blob)
-      return pages.map((dataUrl, index) => ({
-        type: 'file',
-        filename: `page-${index + 1}.jpg`,
-        mediaType: 'image/jpeg',
-        url: dataUrl,
-      }))
-    } finally {
-      setAttachingSource(false)
+
+    if (!sourcePartsPromiseRef.current) {
+      const abortController = new AbortController()
+      sourceAbortRef.current = abortController
+      setAttachingSource(true)
+      sourcePartsPromiseRef.current = (async () => {
+        // Attach the document as page images, not raw PDF. NuExtract3 is a
+        // vision model and the local runtimes need image inputs.
+        const response = await fetch(pdfSource.url, { signal: abortController.signal })
+        if (!response.ok) {
+          throw new Error(`Unable to load ${pdfSource.filename} (HTTP ${response.status})`)
+        }
+        const pages = await rasterizePdfToJpegPages(await response.blob(), abortController.signal)
+        return pages.map((dataUrl, index) => ({
+          type: 'file' as const,
+          filename: `page-${index + 1}.jpg`,
+          mediaType: 'image/jpeg',
+          url: dataUrl,
+        }))
+      })()
+        .catch((caughtError) => {
+          sourcePartsPromiseRef.current = null
+          throw caughtError
+        })
+        .finally(() => {
+          setAttachingSource(false)
+        })
     }
+
+    return sourcePartsPromiseRef.current
   }
 
   async function send() {
@@ -58,9 +100,21 @@ function ChatTab({ providerSettings, pdfSource }: ChatTabProps) {
     if (!text || status !== 'ready') {
       return
     }
-    const files = await sourceFileParts()
-    sendMessage({ text, files })
-    setDraft('')
+
+    setLocalError(null)
+    try {
+      const sourceAlreadyAttached = messages.some((message) =>
+        message.parts.some((part) => part.type === 'file'),
+      )
+      const files = sourceAlreadyAttached ? [] : await sourceFileParts()
+      await sendMessage({ text, files })
+      setDraft('')
+    } catch (caughtError) {
+      if (caughtError instanceof DOMException && caughtError.name === 'AbortError') {
+        return
+      }
+      setLocalError(caughtError instanceof Error ? caughtError.message : 'Unable to send message')
+    }
   }
 
   return (
@@ -89,9 +143,9 @@ function ChatTab({ providerSettings, pdfSource }: ChatTabProps) {
             {messageText(message)}
           </div>
         ))}
-        {error && (
+        {(localError || error) && (
           <div className="animate-fadeup max-w-[90%] self-start rounded-xl border border-danger/40 bg-surface px-3 py-2 text-xs leading-relaxed text-danger">
-            {error.message}
+            {localError ?? error?.message}
           </div>
         )}
       </div>

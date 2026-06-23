@@ -136,7 +136,11 @@ function RightRail({
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'chat'}>
-        <ChatTab providerSettings={providerSettings} pdfSource={pdfSource} />
+        <ChatTab
+          key={pdfSource?.url ?? 'no-source'}
+          providerSettings={providerSettings}
+          pdfSource={pdfSource}
+        />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'schema'}>
         <SchemaPanel
@@ -147,6 +151,7 @@ function RightRail({
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}
+          sourceFilename={pdfSource?.filename}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>

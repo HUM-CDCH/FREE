@@ -10,15 +10,17 @@ export const DEFAULT_PROVIDER_SETTINGS: Record<AiProviderKind, AiProviderSetting
   ollama: {
     provider: 'ollama',
     baseURL: 'http://127.0.0.1:11434',
-    model: 'nuextract',
+    model: 'hf.co/numind/NuExtract3-GGUF:Q4_K_M',
   },
   'docker-runner': {
     provider: 'docker-runner',
     baseURL: 'http://127.0.0.1:12434/engines/v1',
-    model: 'hf.co/numind/NuExtract3-GGUF:mmproj',
+    model: 'huggingface.co/numind/nuextract3-gguf:Q4_K_M',
   },
 }
 
+// Ollama is the local development default. Docker Model Runner remains
+// selectable for environments that can load NuExtract3 with chat_template_kwargs.
 export const DEFAULT_PROVIDER = DEFAULT_PROVIDER_SETTINGS.ollama
 
 export function normalizeProviderSettings(value: unknown): AiProviderSettings {

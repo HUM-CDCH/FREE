@@ -173,14 +173,26 @@ function App() {
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
-    if (pdfSource?.url.startsWith('blob:')) {
-      URL.revokeObjectURL(pdfSource.url)
-    }
     setPdfSource({ url: URL.createObjectURL(file), filename: file.name })
     setAnnotationItems([])
     setTemplateState({ status: 'idle' })
     event.target.value = ''
   }
+
+  useEffect(() => {
+    const sourceUrl = pdfSource?.url
+    return () => {
+      if (sourceUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(sourceUrl)
+      }
+    }
+  }, [pdfSource?.url])
+
+  useEffect(() => {
+    templateAbortRef.current?.abort()
+    templateAbortRef.current = null
+    setTemplateState({ status: 'idle' })
+  }, [pdfSource?.url])
 
   useEffect(() => {
     const container = containerRef.current

@@ -25,6 +25,7 @@ type SchemaPanelProps = {
   annotationCount: number
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
+  sourceFilename?: string
 }
 
 type FieldEditing = {
@@ -333,6 +334,7 @@ function SchemaPanel({
   annotationCount,
   annotationsMode,
   onAnnotationsModeChange,
+  sourceFilename,
 }: SchemaPanelProps) {
   const [view, setView] = useState<'fields' | 'json'>('fields')
   const [editing, setEditing] = useState<FieldEditing | null>(null)
@@ -401,7 +403,7 @@ function SchemaPanel({
             Extraction Schema
           </h2>
           <p className="truncate font-mono text-xs font-medium text-ink">
-            Beretning_Ellekilde_8_13.pdf
+            {sourceFilename ?? 'No source document'}
           </p>
         </div>
         <div className="flex shrink-0 overflow-hidden rounded-md border border-line">
