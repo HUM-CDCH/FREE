@@ -234,8 +234,8 @@ async def create_task(
         raise HTTPException(status_code=400, detail="Must provide either 'file' upload or 'url' path.")
     if file and url:
         raise HTTPException(status_code=400, detail="Provide either 'file' or 'url', not both.")
-    if pipeline not in ["all", "docling", "paddleocr"]:
-        raise HTTPException(status_code=400, detail="Invalid pipeline. Choose 'all', 'docling', or 'paddleocr'.")
+    if pipeline not in ["all", "docling", "docling_pdf", "docling_images", "paddleocr"]:
+        raise HTTPException(status_code=400, detail="Invalid pipeline. Choose 'all', 'docling', 'docling_pdf', 'docling_images', or 'paddleocr'.")
         
     # Resolve default device
     if not device:

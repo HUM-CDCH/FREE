@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument(
         "--pipeline",
         type=str,
-        choices=["all", "docling", "paddleocr"],
+        choices=["all", "docling", "docling_pdf", "docling_images", "paddleocr"],
         default="all",
         help="Which pipeline step to run (default: all, which runs subprocesses)."
     )
@@ -176,64 +176,76 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
         return
 
     # 4. Docling Pipeline Subprocess
-    if args.pipeline == "docling":
-        print(f"\n--- Running Docling direct PDF & page images ---")
+    if args.pipeline in ["docling", "docling_pdf", "docling_images"]:
+        print(f"\n--- Running Docling pipelines: {args.pipeline} ---")
         docling_pdf_dir = os.path.join(pdf_output_dir, "docling_pdf")
         docling_img_dir = os.path.join(pdf_output_dir, "docling_images")
-        os.makedirs(docling_pdf_dir, exist_ok=True)
-        os.makedirs(docling_img_dir, exist_ok=True)
         
-        stats = {
-            "docling_pdf": {"time": 0.0, "char_count": 0, "status": "Not run"},
-            "docling_images": {"time": 0.0, "char_count": 0, "status": "Not run"}
-        }
+        stats = {}
         
         # Run Docling PDF Direct
-        start_time = time.time()
-        try:
-            from docling.document_converter import DocumentConverter
-            converter = DocumentConverter()
-            doc_result = converter.convert(local_pdf_path).document
-            docling_pdf_md = doc_result.export_to_markdown()
-            
-            docling_pdf_path = os.path.join(docling_pdf_dir, "document.md")
-            with open(docling_pdf_path, "w", encoding="utf-8") as f:
-                f.write(docling_pdf_md)
+        if args.pipeline in ["docling", "docling_pdf"]:
+            os.makedirs(docling_pdf_dir, exist_ok=True)
+            stats["docling_pdf"] = {"time": 0.0, "char_count": 0, "status": "Not run"}
+            start_time = time.time()
+            try:
+                from docling.document_converter import DocumentConverter
+                converter = DocumentConverter()
+                doc_result = converter.convert(local_pdf_path).document
+                docling_pdf_md = doc_result.export_to_markdown()
                 
-            stats["docling_pdf"]["time"] = time.time() - start_time
-            stats["docling_pdf"]["char_count"] = len(docling_pdf_md)
-            stats["docling_pdf"]["status"] = "Success"
-            print(f"Docling PDF direct completed in {stats['docling_pdf']['time']:.2f} seconds.")
-        except Exception as e:
-            stats["docling_pdf"]["status"] = f"Failed: {e}"
-            print(f"Error running Docling on PDF: {e}")
+                docling_pdf_path = os.path.join(docling_pdf_dir, "document.md")
+                with open(docling_pdf_path, "w", encoding="utf-8") as f:
+                    f.write(docling_pdf_md)
+                    
+                stats["docling_pdf"]["time"] = time.time() - start_time
+                stats["docling_pdf"]["char_count"] = len(docling_pdf_md)
+                stats["docling_pdf"]["status"] = "Success"
+                print(f"Docling PDF direct completed in {stats['docling_pdf']['time']:.2f} seconds.")
+            except Exception as e:
+                stats["docling_pdf"]["status"] = f"Failed: {e}"
+                print(f"Error running Docling on PDF: {e}")
             
         # Run Docling on converted page images
-        start_time = time.time()
-        docling_img_mds = []
-        try:
-            from docling.document_converter import DocumentConverter
-            converter = DocumentConverter()
-            for idx, img_path in enumerate(image_paths):
-                print(f"Processing page {idx+1}/{len(image_paths)} with Docling...")
-                page_res = converter.convert(img_path).document
-                page_md = page_res.export_to_markdown()
+        if args.pipeline in ["docling", "docling_images"]:
+            os.makedirs(docling_img_dir, exist_ok=True)
+            stats["docling_images"] = {"time": 0.0, "char_count": 0, "status": "Not run"}
+            start_time = time.time()
+            docling_img_mds = []
+            try:
+                from docling.document_converter import DocumentConverter
+                converter = DocumentConverter()
+                for idx, img_path in enumerate(image_paths):
+                    print(f"Processing page {idx+1}/{len(image_paths)} with Docling...")
+                    page_res = converter.convert(img_path).document
+                    page_md = page_res.export_to_markdown()
+                    
+                    page_output_path = os.path.join(docling_img_dir, f"page_{idx+1:02d}.md")
+                    with open(page_output_path, "w", encoding="utf-8") as f:
+                        f.write(page_md)
+                    docling_img_mds.append(page_md)
+                    
+                stats["docling_images"]["time"] = time.time() - start_time
+                stats["docling_images"]["char_count"] = sum(len(md) for md in docling_img_mds)
+                stats["docling_images"]["status"] = "Success"
+                print(f"Docling Images completed in {stats['docling_images']['time']:.2f} seconds.")
+            except Exception as e:
+                stats["docling_images"]["status"] = f"Failed: {e}"
+                print(f"Error running Docling on images: {e}")
                 
-                page_output_path = os.path.join(docling_img_dir, f"page_{idx+1:02d}.md")
-                with open(page_output_path, "w", encoding="utf-8") as f:
-                    f.write(page_md)
-                docling_img_mds.append(page_md)
-                
-            stats["docling_images"]["time"] = time.time() - start_time
-            stats["docling_images"]["char_count"] = sum(len(md) for md in docling_img_mds)
-            stats["docling_images"]["status"] = "Success"
-            print(f"Docling Images completed in {stats['docling_images']['time']:.2f} seconds.")
-        except Exception as e:
-            stats["docling_images"]["status"] = f"Failed: {e}"
-            print(f"Error running Docling on images: {e}")
-            
-        with open(os.path.join(pdf_output_dir, "stats_docling.json"), "w") as f:
-            json.dump(stats, f)
+        # Merge stats if stats_docling.json exists
+        stats_path = os.path.join(pdf_output_dir, "stats_docling.json")
+        existing_stats = {}
+        if os.path.exists(stats_path):
+            try:
+                with open(stats_path, "r") as f:
+                    existing_stats = json.load(f)
+            except Exception:
+                pass
+        existing_stats.update(stats)
+        
+        with open(stats_path, "w") as f:
+            json.dump(existing_stats, f)
         return
 
     # 5. PaddleOCR Pipeline Subprocess
