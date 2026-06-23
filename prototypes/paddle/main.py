@@ -219,6 +219,34 @@ async def get_system_status():
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
 
+from pydantic import BaseModel, Field
+
+class PipelineConfig(BaseModel):
+    type: str = Field("all", description="Pipeline to run: 'all', 'docling', 'docling_pdf', 'docling_images', or 'paddleocr'")
+
+class DeviceConfig(BaseModel):
+    type: str = Field("cpu", description="Device to use, e.g. cpu, gpu:0")
+
+def parse_pipeline(pipeline_val: str) -> str:
+    try:
+        data = json.loads(pipeline_val)
+        if isinstance(data, dict) and "type" in data:
+            return data["type"]
+    except Exception:
+        pass
+    return pipeline_val
+
+def parse_device(device_val: Optional[str]) -> Optional[str]:
+    if not device_val:
+        return None
+    try:
+        data = json.loads(device_val)
+        if isinstance(data, dict) and "type" in data:
+            return data["type"]
+    except Exception:
+        pass
+    return device_val
+
 # Create Ingestion Task Endpoint
 @app.post("/tasks", status_code=202)
 async def create_task(
@@ -229,6 +257,10 @@ async def create_task(
     pipeline: str = Form("all"),
     device: Optional[str] = Form(None)
 ):
+    # Parse potential JSON strings into values
+    pipeline = parse_pipeline(pipeline)
+    device = parse_device(device)
+
     # Validate inputs
     if not file and not url:
         raise HTTPException(status_code=400, detail="Must provide either 'file' upload or 'url' path.")
@@ -361,3 +393,74 @@ async def download_task_zip(task_id: str):
             raise HTTPException(status_code=500, detail=f"Failed to generate output ZIP: {e}")
             
     return FileResponse(zip_path, media_type="application/zip", filename=f"extraction_results_{task_id[:8]}.zip")
+
+
+# Custom OpenAPI schema overrides
+from fastapi.openapi.utils import get_openapi
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    
+    # Ensure components and schemas exist
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+    if "schemas" not in openapi_schema["components"]:
+        openapi_schema["components"]["schemas"] = {}
+        
+    # Inject PipelineConfig and DeviceConfig schemas
+    openapi_schema["components"]["schemas"]["PipelineConfig"] = {
+        "title": "PipelineConfig",
+        "type": "object",
+        "properties": {
+            "type": {
+                "title": "Type",
+                "type": "string",
+                "enum": ["all", "docling", "docling_pdf", "docling_images", "paddleocr"],
+                "default": "all",
+                "description": "Which pipeline step to run"
+            }
+        }
+    }
+    
+    openapi_schema["components"]["schemas"]["DeviceConfig"] = {
+        "title": "DeviceConfig",
+        "type": "object",
+        "properties": {
+            "type": {
+                "title": "Type",
+                "type": "string",
+                "default": "cpu",
+                "description": "Device to use, e.g. cpu, gpu:0"
+            }
+        }
+    }
+    
+    # Update requestBody for create_task_tasks_post (/tasks POST)
+    try:
+        body_schema = openapi_schema.get("components", {}).get("schemas", {}).get("Body_create_task_tasks_post", {})
+        properties = body_schema.get("properties", {})
+        
+        if "pipeline" in properties:
+            properties["pipeline"] = {
+                "$ref": "#/components/schemas/PipelineConfig"
+            }
+        if "device" in properties:
+            properties["device"] = {
+                "$ref": "#/components/schemas/DeviceConfig"
+            }
+    except Exception as e:
+        print(f"Error customizing OpenAPI schema: {e}")
+        
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+

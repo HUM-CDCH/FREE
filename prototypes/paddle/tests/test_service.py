@@ -75,5 +75,55 @@ class TestService(unittest.TestCase):
         response = self.client.get("/tasks/nonexistent-id")
         self.assertEqual(response.status_code, 404)
 
+    @patch("main.asyncio.create_subprocess_exec")
+    @patch("main.run_in_threadpool")
+    def test_create_task_with_json_params(self, mock_threadpool, mock_subproc):
+        # Mock download success
+        mock_threadpool.return_value = None
+        
+        # Mock subprocess completion
+        mock_process = AsyncMock()
+        mock_process.wait.return_value = 0
+        mock_subproc.return_value = mock_process
+        
+        response = self.client.post(
+            "/tasks",
+            data={
+                "url": "https://example.com/test.pdf",
+                "pipeline": '{"type": "paddleocr"}',
+                "device": '{"type": "cpu"}'
+            }
+        )
+        self.assertEqual(response.status_code, 202)
+        res_data = response.json()
+        self.assertIn("task_id", res_data)
+        
+        task_id = res_data["task_id"]
+        metadata = load_metadata(task_id)
+        self.assertEqual(metadata["params"]["pipeline"], "paddleocr")
+        self.assertEqual(metadata["params"]["device"], "cpu")
+        
+        # Clean up task dir
+        task_dir = os.path.join(DATA_DIR, task_id)
+        if os.path.exists(task_dir):
+            import shutil
+            shutil.rmtree(task_dir)
+
+    def test_openapi_schema_custom_objects(self):
+        response = self.client.get("/openapi.json")
+        self.assertEqual(response.status_code, 200)
+        openapi = response.json()
+        
+        # Check that PipelineConfig and DeviceConfig exist in components/schemas
+        schemas = openapi["components"]["schemas"]
+        self.assertIn("PipelineConfig", schemas)
+        self.assertIn("DeviceConfig", schemas)
+        
+        # Check that /tasks POST requestBody schema properties use these schemas
+        body_schema = schemas["Body_create_task_tasks_post"]
+        multipart_properties = body_schema["properties"]
+        self.assertEqual(multipart_properties["pipeline"]["$ref"], "#/components/schemas/PipelineConfig")
+        self.assertEqual(multipart_properties["device"]["$ref"], "#/components/schemas/DeviceConfig")
+
 if __name__ == "__main__":
     unittest.main()
