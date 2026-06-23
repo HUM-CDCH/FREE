@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF OCR Comparison Hub</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-gradient: radial-gradient(circle at 50% 50%, #1e1233 0%, #0d0714 100%);
+            --primary: #9d4edd;
+            --primary-glow: rgba(157, 78, 221, 0.4);
+            --accent: #240046;
+            --accent-glow: #e0aaff;
+            --text: #f3f0fc;
+            --text-muted: #b5a9cf;
+            --glass-bg: rgba(25, 16, 41, 0.6);
+            --glass-border: rgba(157, 78, 221, 0.2);
+            --glass-border-focus: rgba(224, 170, 255, 0.45);
+            --success: #06d6a0;
+            --danger: #ff5d73;
+            --card-radius: 20px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Decorative background glow spheres */
+        body::before, body::after {
+            content: '';
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: var(--primary);
+            filter: blur(150px);
+            opacity: 0.15;
+            z-index: -1;
+        }
+        body::before {
+            top: 10%;
+            left: 5%;
+        }
+        body::after {
+            bottom: 15%;
+            right: 5%;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            padding: 40px 20px;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeInDown 0.8s ease;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 30%, var(--accent-glow) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+
+        p.subtitle {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Status Pill */
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 100px;
+            margin-top: 16px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        /* Main Glass Card */
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--card-radius);
+            padding: 36px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            margin-bottom: 30px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(157, 78, 221, 0.3);
+        }
+
+        /* Upload Area */
+        .upload-section {
+            margin-bottom: 28px;
+        }
+
+        .input-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            background: rgba(0,0,0,0.2);
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-weight: 500;
+            font-size: 0.95rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--glass-border);
+            border-radius: 14px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(25, 16, 41, 0.2);
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent-glow);
+            background: rgba(157, 78, 221, 0.05);
+        }
+
+        .drop-zone svg {
+            width: 48px;
+            height: 48px;
+            fill: var(--text-muted);
+            margin-bottom: 16px;
+            transition: fill 0.3s, transform 0.3s;
+        }
+
+        .drop-zone:hover svg {
+            fill: var(--accent-glow);
+            transform: translateY(-4px);
+        }
+
+        .drop-zone p {
+            font-size: 1.05rem;
+            margin-bottom: 6px;
+        }
+
+        .drop-zone span {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .url-input-container {
+            display: none;
+        }
+
+        .url-input-container.active {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .text-input {
+            width: 100%;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .text-input:focus {
+            border-color: var(--glass-border-focus);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        /* Settings Grid */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        @media (max-width: 600px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .select-input {
+            width: 100%;
+            padding: 14px;
+            background: rgba(25, 16, 41, 0.8);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .select-input:focus {
+            border-color: var(--glass-border-focus);
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 8px 0;
+        }
+
+        .range-slider {
+            flex: 1;
+            accent-color: var(--primary);
+            height: 6px;
+            border-radius: 100px;
+            outline: none;
+        }
+
+        .slider-val {
+            font-weight: 600;
+            font-size: 1.1rem;
+            min-width: 60px;
+            text-align: right;
+            color: var(--accent-glow);
+        }
+
+        /* Button styling */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--primary) 0%, #7b2cbf 100%);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 8px 24px var(--primary-glow);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(157, 78, 221, 0.6);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Progress Card */
+        .progress-container {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(157, 78, 221, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s infinite linear;
+            margin: 0 auto 24px;
+        }
+
+        .progress-container h3 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+        }
+
+        .progress-sub {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+        }
+
+        .timer {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-glow);
+            letter-spacing: 0.5px;
+        }
+
+        /* Results Card */
+        .results-container {
+            display: none;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .results-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--text);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-family: inherit;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-outline:hover {
+            background: rgba(157, 78, 221, 0.15);
+            border-color: var(--accent-glow);
+        }
+
+        .btn-primary-small {
+            background: var(--primary);
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-family: inherit;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn-primary-small:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(157, 78, 221, 0.5);
+        }
+
+        /* Metrics Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        th {
+            padding: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 2px solid rgba(157, 78, 221, 0.3);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 16px 14px;
+            border-bottom: 1px solid rgba(157, 78, 221, 0.1);
+            font-size: 0.95rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .td-pipeline {
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-success {
+            background: rgba(6, 214, 160, 0.2);
+            color: var(--success);
+            border: 1px solid rgba(6, 214, 160, 0.3);
+        }
+        
+        .badge-danger {
+            background: rgba(255, 93, 115, 0.2);
+            color: var(--danger);
+            border: 1px solid rgba(255, 93, 115, 0.3);
+        }
+
+        /* Report Preview Frame */
+        .report-preview-container {
+            margin-top: 30px;
+            border-top: 1px solid rgba(157, 78, 221, 0.2);
+            padding-top: 24px;
+        }
+
+        .report-preview-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--accent-glow);
+        }
+
+        .report-box {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(157, 78, 221, 0.15);
+            border-radius: 12px;
+            padding: 24px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(157, 78, 221, 0.4);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(157, 78, 221, 0.6);
+        }
+
+        /* Animations */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>OCR Pipeline Comparison</h1>
+            <p class="subtitle">Evaluate and benchmark native PDF extraction vs. visual models like Docling and PaddleOCR (PPStructureV3).</p>
+            <div class="status-pill">
+                <div class="status-dot"></div>
+                <span id="gpu-status">GPU Status: Checking...</span>
+            </div>
+        </header>
+
+        <!-- Ingestion Form -->
+        <div id="ingest-card" class="card">
+            <div class="upload-section">
+                <div class="input-tabs">
+                    <button class="tab-btn active" onclick="switchTab('file')">Upload PDF File</button>
+                    <button class="tab-btn" onclick="switchTab('url')">Process PDF from URL</button>
+                </div>
+                
+                <!-- File Input Group -->
+                <div id="file-group" class="drop-zone" onclick="document.getElementById('file-input').click()">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                    </svg>
+                    <p id="file-label">Drag & drop your PDF here, or click to browse</p>
+                    <span>Only supports PDF files</span>
+                    <input type="file" id="file-input" style="display: none;" accept=".pdf" onchange="handleFileSelect(event)">
+                </div>
+
+                <!-- URL Input Group -->
+                <div id="url-group" class="url-input-container">
+                    <input type="text" id="url-input" class="text-input" placeholder="https://example.com/document.pdf">
+                </div>
+            </div>
+
+            <!-- Parameters Grid -->
+            <div class="settings-grid">
+                <div class="form-group">
+                    <label>Extraction Pipeline</label>
+                    <select id="pipeline-select" class="select-input">
+                        <option value="all">Compare All (Docling & PaddleOCR)</option>
+                        <option value="docling">Docling Only</option>
+                        <option value="paddleocr">PaddleOCR Only</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Target Compute Device</label>
+                    <select id="device-select" class="select-input">
+                        <option value="">Auto-Detect Default</option>
+                        <option value="gpu:0">Nvidia GPU (gpu:0)</option>
+                        <option value="cpu">CPU Only</option>
+                    </select>
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>Image Render Resolution (DPI)</label>
+                    <div class="slider-container">
+                        <input type="range" id="dpi-slider" class="range-slider" min="100" max="300" step="10" value="150" oninput="document.getElementById('dpi-val').innerText = this.value">
+                        <span id="dpi-val" class="slider-val">150</span>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn" onclick="submitTask()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                Launch Extraction Task
+            </button>
+        </div>
+
+        <!-- Task Processing Card -->
+        <div id="progress-card" class="card progress-container">
+            <div class="spinner"></div>
+            <h3 id="progress-title">Running Extraction Pipelines</h3>
+            <p id="progress-sub" class="progress-sub">Executing subprocesses... This may take up to a minute.</p>
+            <div id="timer" class="timer">00:00</div>
+        </div>
+
+        <!-- Task Results Card -->
+        <div id="results-card" class="card results-container">
+            <div class="results-header">
+                <div class="results-title">Extraction Summary</div>
+                <div class="action-buttons">
+                    <button class="btn-outline" onclick="resetForm()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                            <path d="M21 3v5h-5"></path>
+                        </svg>
+                        New Run
+                    </button>
+                    <a id="download-zip-btn" href="#" class="btn-primary-small">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download ZIP Archive
+                    </a>
+                </div>
+            </div>
+
+            <!-- Table of Metrics -->
+            <table id="metrics-table">
+                <thead>
+                    <tr>
+                        <th>Pipeline Step</th>
+                        <th>Status</th>
+                        <th>Total Time</th>
+                        <th>Characters</th>
+                    </tr>
+                </thead>
+                <tbody id="metrics-tbody">
+                    <!-- Dynamic Rows -->
+                </tbody>
+            </table>
+
+            <!-- Markdown Report Preview -->
+            <div id="report-section" class="report-preview-container" style="display: none;">
+                <div class="report-preview-title">Markdown Comparison Report Preview</div>
+                <div id="report-content" class="report-box">Loading report...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentInputType = 'file';
+        let selectedFile = null;
+        let activeTaskId = null;
+        let pollInterval = null;
+        let timerInterval = null;
+        let secondsElapsed = 0;
+
+        // Initialize status check
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchSystemStatus();
+            
+            // Drag and drop events
+            const dropZone = document.getElementById('file-group');
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('dragover');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('dragover');
+                }, false);
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            }, false);
+        });
+
+        async function fetchSystemStatus() {
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+                const text = data.gpu_available ? 'GPU Status: Nvidia GPU Available' : 'GPU Status: CPU Only';
+                document.getElementById('gpu-status').innerText = text;
+            } catch (e) {
+                document.getElementById('gpu-status').innerText = 'GPU Status: Connection Error';
+            }
+        }
+
+        function switchTab(type) {
+            currentInputType = type;
+            const buttons = document.querySelectorAll('.tab-btn');
+            buttons[0].classList.toggle('active', type === 'file');
+            buttons[1].classList.toggle('active', type === 'url');
+
+            document.getElementById('file-group').style.display = type === 'file' ? 'block' : 'none';
+            document.getElementById('url-group').classList.toggle('active', type === 'url');
+        }
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        function handleFile(file) {
+            if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+                alert('Only PDF files are supported.');
+                return;
+            }
+            selectedFile = file;
+            document.getElementById('file-label').innerText = `Selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+        }
+
+        function startTimer() {
+            secondsElapsed = 0;
+            document.getElementById('timer').innerText = '00:00';
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+                const secs = String(secondsElapsed % 60).padStart(2, '0');
+                document.getElementById('timer').innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        async function submitTask() {
+            // Build Form Data
+            const formData = new FormData();
+            formData.append('dpi', document.getElementById('dpi-slider').value);
+            formData.append('pipeline', document.getElementById('pipeline-select').value);
+            formData.append('device', document.getElementById('device-select').value);
+
+            if (currentInputType === 'file') {
+                if (!selectedFile) {
+                    alert('Please select a PDF file to upload.');
+                    return;
+                }
+                formData.append('file', selectedFile);
+            } else {
+                const url = document.getElementById('url-input').value.trim();
+                if (!url) {
+                    alert('Please enter a valid PDF URL.');
+                    return;
+                }
+                formData.append('url', url);
+            }
+
+            // UI Transitions
+            document.getElementById('ingest-card').style.display = 'none';
+            document.getElementById('progress-card').style.display = 'block';
+            document.getElementById('progress-title').innerText = 'Queuing Task...';
+            document.getElementById('progress-sub').innerText = 'Initializing backend subprocess dependencies...';
+            startTimer();
+
+            try {
+                const res = await fetch('/tasks', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Failed to submit task');
+                }
+
+                const data = await res.json();
+                activeTaskId = data.task_id;
+                
+                document.getElementById('progress-title').innerText = 'Running Extraction Pipelines';
+                document.getElementById('progress-sub').innerText = 'Running isolated Python processes to prevent OOM conflicts...';
+                
+                // Start polling
+                pollInterval = setInterval(pollTaskStatus, 3000);
+            } catch (e) {
+                stopTimer();
+                alert(`Error: ${e.message}`);
+                resetForm();
+            }
+        }
+
+        async function pollTaskStatus() {
+            if (!activeTaskId) return;
+            try {
+                const res = await fetch(`/tasks/${activeTaskId}`);
+                const data = await res.json();
+                
+                if (data.status === 'completed') {
+                    stopPolling();
+                    renderResults(data);
+                } else if (data.status === 'failed') {
+                    stopPolling();
+                    alert(`Task Failed: ${data.error || 'Unknown error'}`);
+                    resetForm();
+                } else if (data.status === 'running') {
+                    document.getElementById('progress-title').innerText = 'Processing Document Pages';
+                    document.getElementById('progress-sub').innerText = 'Converting pages to images and extracting layouts...';
+                }
+            } catch (e) {
+                console.error('Error polling status:', e);
+            }
+        }
+
+        function stopPolling() {
+            clearInterval(pollInterval);
+            stopTimer();
+        }
+
+        function renderResults(data) {
+            document.getElementById('progress-card').style.display = 'none';
+            document.getElementById('results-card').style.display = 'block';
+
+            // Set ZIP download link
+            document.getElementById('download-zip-btn').href = `/tasks/${data.task_id}/download`;
+
+            // Render table rows
+            const tbody = document.getElementById('metrics-tbody');
+            tbody.innerHTML = '';
+
+            const stats = data.stats || {};
+            
+            // Map labels
+            const pipelineKeys = {
+                'docling_pdf': 'Docling (PDF Direct)',
+                'docling_images': 'Docling (Page Images)',
+                'paddle_images': 'PaddleOCR (Page Images)'
+            };
+
+            let rowCount = 0;
+            for (const [key, details] of Object.entries(stats)) {
+                if (!pipelineKeys[key]) continue;
+                rowCount++;
+                
+                const timeStr = details.time ? `${details.time.toFixed(2)}s` : 'N/A';
+                const statusBadge = details.status === 'Success' 
+                    ? `<span class="badge badge-success">Success</span>`
+                    : `<span class="badge badge-danger">${details.status || 'Failed'}</span>`;
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="td-pipeline">${pipelineKeys[key]}</td>
+                    <td>${statusBadge}</td>
+                    <td>${timeStr}</td>
+                    <td>${details.char_count || 0} chars</td>
+                `;
+                tbody.appendChild(row);
+            }
+
+            if (rowCount === 0) {
+                // Single pipeline or alternative keys
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="td-pipeline" colspan="4" style="text-align: center; color: var(--text-muted);">
+                        Extraction complete. Standard stats collected.
+                    </td>
+                `;
+                tbody.appendChild(row);
+            }
+
+            // Load and render report preview if 'all' pipeline was run
+            const runPipeline = data.params.pipeline;
+            const reportSection = document.getElementById('report-section');
+            if (runPipeline === 'all') {
+                reportSection.style.display = 'block';
+                fetchReportPreview(data.task_id);
+            } else {
+                reportSection.style.display = 'none';
+            }
+        }
+
+        async function fetchReportPreview(taskId) {
+            const reportBox = document.getElementById('report-content');
+            reportBox.innerText = 'Loading report...';
+            try {
+                const res = await fetch(`/tasks/${taskId}/report`);
+                if (res.ok) {
+                    const text = await res.text();
+                    reportBox.innerText = text;
+                } else {
+                    reportBox.innerText = 'Report preview unavailable for this run.';
+                }
+            } catch (e) {
+                reportBox.innerText = `Error loading report: ${e.message}`;
+            }
+        }
+
+        function resetForm() {
+            stopPolling();
+            activeTaskId = null;
+            selectedFile = null;
+            document.getElementById('file-input').value = '';
+            document.getElementById('file-label').innerText = 'Drag & drop your PDF here, or click to browse';
+            document.getElementById('url-input').value = '';
+            
+            document.getElementById('results-card').style.display = 'none';
+            document.getElementById('progress-card').style.display = 'none';
+            document.getElementById('ingest-card').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

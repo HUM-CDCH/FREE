@@ -1,0 +1,14 @@
+{
+    "task_id": "45af1f86-37f6-4975-807a-4367b1ebde7e",
+    "status": "running",
+    "created_at": "2026-06-23T13:21:05.223781+00:00",
+    "updated_at": "2026-06-23T13:21:05.225421+00:00",
+    "params": {
+        "dpi": 100,
+        "pipeline": "docling",
+        "device": "gpu:0",
+        "source_name": "Beretning_Ellekilde_8_13.pdf"
+    },
+    "stats": {},
+    "error": null
+}

@@ -1,0 +1,14 @@
+{
+    "task_id": "293dfd05-bc22-4d7b-bdc8-510739207666",
+    "status": "completed",
+    "created_at": "2026-06-23T13:14:28.716160+00:00",
+    "updated_at": "2026-06-23T13:14:28.717290+00:00",
+    "params": {
+        "dpi": 150,
+        "pipeline": "all",
+        "device": "cpu",
+        "source_name": "test.pdf"
+    },
+    "stats": {},
+    "error": null
+}
