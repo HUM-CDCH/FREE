@@ -10,6 +10,7 @@ import type { Annotation, AnnotationMode, DocumentInput } from './_document'
 import { documentFileParts, type DocumentFilePart } from './_pdf'
 import { schemaPrompt } from './_schema'
 import { RequestError } from './_http'
+import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template'
 import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output'
 
 export {
@@ -102,18 +103,32 @@ export async function extractWithModel({
   template,
   instruction,
   temperature,
-}: ExtractModelInput): Promise<{ readonly result: Record<string, unknown>; readonly raw: string; readonly reasoning: null; readonly pages: number | null }> {
+}: ExtractModelInput): Promise<{
+  readonly result: Record<string, unknown>
+  readonly evidence: Record<string, unknown> | null
+  readonly raw: string
+  readonly reasoning: null
+  readonly pages: number | null
+}> {
   const documentParts = await documentContentParts(document)
+  const evidenceTemplate = wrapTemplateWithEvidence(template ?? {})
   const generated = await generateWithNuExtractRawPrompt({
     mode: 'structured',
-    template: JSON.stringify(template ?? {}, null, 2),
+    template: JSON.stringify(evidenceTemplate, null, 2),
     instructions: instruction?.trim() || null,
     documentParts: documentParts.parts,
     temperature,
   })
-  const parsed = await parseExtractionResult(generated.response, template)
+  const parsed = await parseExtractionResult(generated.response, evidenceTemplate)
+  const split = splitEvidenceResult(parsed)
 
-  return { result: parsed, raw: generated.response, reasoning: null, pages: documentParts.pages ?? document.pages }
+  return {
+    result: split.result,
+    evidence: split.evidence,
+    raw: generated.response,
+    reasoning: null,
+    pages: documentParts.pages ?? document.pages,
+  }
 }
 
 export async function generateSchemaWithModel({

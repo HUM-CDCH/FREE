@@ -22,6 +22,7 @@ type TemplateOptions = {
 
 export type ExtractDone = {
   result: Record<string, unknown>
+  evidence: Record<string, unknown> | null
   reasoning: string | null
   raw: string
   pages: number | null
@@ -39,6 +40,9 @@ export function decodeSchemaDone(data: unknown): SchemaDone {
 export function decodeExtractDone(data: unknown): ExtractDone {
   if (!isRecord(data) || !isRecord(data.result)) {
     throw new Error("extract: response missing 'result' — API contract drift?")
+  }
+  if (!('evidence' in data)) {
+    throw new Error("extract: response missing 'evidence' — API contract drift?")
   }
   return data as ExtractDone
 }
@@ -158,7 +162,7 @@ export async function requestExtraction(
   template: unknown,
   signal?: AbortSignal,
   markdown?: string | null,
-): Promise<unknown> {
+): Promise<{ result: unknown; evidence: unknown }> {
   const form = new FormData()
   form.append('file', file, fileName)
   form.append('template', JSON.stringify(template ?? {}))
@@ -167,7 +171,7 @@ export async function requestExtraction(
   }
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
-  return done.result
+  return { result: done.result, evidence: done.evidence }
 }
 
 export async function requestMarkdown(

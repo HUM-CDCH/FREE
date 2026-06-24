@@ -16,24 +16,24 @@ def download_file(url: str, dest_path: str):
 def convert_pdf_to_images(pdf_path: str, output_dir: str, dpi: int = 150) -> list[str]:
     """
     Converts a PDF file into a sequence of PNG images (one per page).
-
+    
     Args:
         pdf_path: Path to the input PDF file.
         output_dir: Directory where the output images will be saved.
         dpi: Dots Per Inch for rendering resolution (default 150).
-
+        
     Returns:
         List of absolute file paths to the generated images.
     """
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
-
+        
     os.makedirs(output_dir, exist_ok=True)
     scale = dpi / 72.0
-
+    
     pdf = pdfium.PdfDocument(pdf_path)
     image_paths = []
-
+    
     try:
         for i in range(len(pdf)):
             page = pdf.get_page(i)
@@ -44,7 +44,7 @@ def convert_pdf_to_images(pdf_path: str, output_dir: str, dpi: int = 150) -> lis
                 fill_color=(255, 255, 255, 255)
             )
             pil_image = bitmap.to_pil()
-
+            
             # Format filename, e.g., page_01.png, page_02.png
             filename = f"page_{i+1:02d}.png"
             image_path = os.path.join(output_dir, filename)
@@ -52,5 +52,5 @@ def convert_pdf_to_images(pdf_path: str, output_dir: str, dpi: int = 150) -> lis
             image_paths.append(os.path.abspath(image_path))
     finally:
         pdf.close()
-
+        
     return image_paths

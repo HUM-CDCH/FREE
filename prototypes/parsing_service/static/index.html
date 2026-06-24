@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
+    
     <style>
         :root {
             --bg-gradient: radial-gradient(circle at 50% 50%, #1e1233 0%, #0d0714 100%);
@@ -478,7 +478,7 @@
             color: var(--success);
             border: 1px solid rgba(6, 214, 160, 0.3);
         }
-
+        
         .badge-danger {
             background: rgba(255, 93, 115, 0.2);
             color: var(--danger);
@@ -579,7 +579,7 @@
                     <button class="tab-btn active" onclick="switchTab('file')">Upload PDF File</button>
                     <button class="tab-btn" onclick="switchTab('url')">Process PDF from URL</button>
                 </div>
-
+                
                 <!-- File Input Group -->
                 <div id="file-group" class="drop-zone" onclick="document.getElementById('file-input').click()">
                     <svg viewBox="0 0 24 24">
@@ -698,7 +698,7 @@
         // Initialize status check
         window.addEventListener('DOMContentLoaded', () => {
             fetchSystemStatus();
-
+            
             // Drag and drop events
             const dropZone = document.getElementById('file-group');
             ['dragenter', 'dragover'].forEach(eventName => {
@@ -810,7 +810,7 @@
                     method: 'POST',
                     body: formData
                 });
-
+                
                 if (!res.ok) {
                     const err = await res.json();
                     throw new Error(err.detail || 'Failed to submit task');
@@ -818,10 +818,10 @@
 
                 const data = await res.json();
                 activeTaskId = data.task_id;
-
+                
                 document.getElementById('progress-title').innerText = 'Running Extraction Pipelines';
                 document.getElementById('progress-sub').innerText = 'Running isolated Python processes to prevent OOM conflicts...';
-
+                
                 // Start polling
                 pollInterval = setInterval(pollTaskStatus, 3000);
             } catch (e) {
@@ -836,7 +836,7 @@
             try {
                 const res = await fetch(`/tasks/${activeTaskId}`);
                 const data = await res.json();
-
+                
                 if (data.status === 'completed') {
                     stopPolling();
                     renderResults(data);
@@ -870,7 +870,7 @@
             tbody.innerHTML = '';
 
             const stats = data.stats || {};
-
+            
             // Map labels
             const pipelineKeys = {
                 'docling_pdf': 'Docling (PDF Direct)',
@@ -882,12 +882,12 @@
             for (const [key, details] of Object.entries(stats)) {
                 if (!pipelineKeys[key]) continue;
                 rowCount++;
-
+                
                 const timeStr = details.time ? `${details.time.toFixed(2)}s` : 'N/A';
-                const statusBadge = details.status === 'Success'
+                const statusBadge = details.status === 'Success' 
                     ? `<span class="badge badge-success">Success</span>`
                     : `<span class="badge badge-danger">${details.status || 'Failed'}</span>`;
-
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td class="td-pipeline">${pipelineKeys[key]}</td>
@@ -943,7 +943,7 @@
             document.getElementById('file-input').value = '';
             document.getElementById('file-label').innerText = 'Drag & drop your PDF here, or click to browse';
             document.getElementById('url-input').value = '';
-
+            
             document.getElementById('results-card').style.display = 'none';
             document.getElementById('progress-card').style.display = 'none';
             document.getElementById('ingest-card').style.display = 'block';
