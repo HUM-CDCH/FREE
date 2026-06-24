@@ -9,7 +9,7 @@ FREE is a document extraction and evaluation prototype for humanities researcher
 The active prototype code is under:
 
 - `prototypes/parsing_service` - FastAPI backend, Python 3.14+, managed with `uv`
-- `prototypes/mine/pdf-render` - React/Vite frontend, managed with `pnpm`
+- `prototypes/pdf-render` - React/Vite frontend, managed with `pnpm`
 
 There is no shared monorepo toolchain; run commands from the relevant prototype directory.
 
@@ -18,7 +18,7 @@ There is no shared monorepo toolchain; run commands from the relevant prototype 
 Always use `uv run` for backend Python commands so dependencies come from the project environment instead of the system Python.
 
 ```bash
-cd prototypes/mine/backend
+cd prototypes/parsing_service
 uv run python -m unittest discover -s tests
 uv run fastapi dev main.py
 uv run fastapi run main.py
@@ -31,7 +31,7 @@ Avoid running backend tests with bare `python -m unittest ...`; it may miss proj
 Use `pnpm` from the frontend directory.
 
 ```bash
-cd prototypes/mine/pdf-render
+cd prototypes/pdf-render
 pnpm install
 pnpm dev
 pnpm build

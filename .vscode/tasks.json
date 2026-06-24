@@ -16,7 +16,7 @@
         "8000"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/prototypes/mine/backend"
+        "cwd": "${workspaceFolder}/prototypes/parsing_service"
       },
       "isBackground": true,
       "problemMatcher": {
@@ -44,7 +44,7 @@
         "5173"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/prototypes/mine/pdf-render",
+        "cwd": "${workspaceFolder}/prototypes/pdf-render",
         "env": {
           "VITE_API_BASE": "http://127.0.0.1:8000"
         }
