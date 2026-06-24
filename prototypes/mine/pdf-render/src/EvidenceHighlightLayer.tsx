@@ -1,13 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
+import { buildHighlights, PALETTE } from './evidenceHighlights'
 import { isRecord } from './template'
-
-const PALETTE: string[] = [
-  'rgba(255, 220, 0, 0.35)',   // yellow
-  'rgba(59, 130, 246, 0.30)',  // blue
-  'rgba(34, 197, 94, 0.30)',   // green
-  'rgba(239, 68, 68, 0.25)',   // red
-]
 
 function buildTopLevelColorMap(schema: unknown): Record<string, string> {
   if (!isRecord(schema)) return {}
@@ -18,60 +12,6 @@ function buildTopLevelColorMap(schema: unknown): Record<string, string> {
     i++
   }
   return map
-}
-
-// A highlight carries value (what to mark) + snippet (where to anchor) + hint page
-type Highlight = { value: string; snippet: string | null; hintPage: number | null; color: string }
-
-// Collect {value, snippet, page} leaves from the evidence tree
-function collectEvidenceLeaves(node: unknown, color: string, out: Highlight[]): void {
-  if (
-    isRecord(node) &&
-    typeof node.value === 'string' &&
-    typeof node.snippet === 'string'
-  ) {
-    const v = node.value.trim()
-    const s = node.snippet.trim()
-    if (v && s) {
-      out.push({ value: v, snippet: s, hintPage: typeof node.page === 'number' ? node.page : null, color })
-    }
-  } else if (Array.isArray(node)) {
-    for (const item of node) collectEvidenceLeaves(item, color, out)
-  } else if (isRecord(node)) {
-    for (const sub of Object.values(node)) collectEvidenceLeaves(sub, color, out)
-  }
-}
-
-// Fallback: collect string leaves from result (no snippet, no hint)
-function collectResultLeaves(node: unknown, color: string, out: Highlight[]): void {
-  if (typeof node === 'string') {
-    const v = node.trim()
-    if (v) out.push({ value: v, snippet: null, hintPage: null, color })
-  } else if (Array.isArray(node)) {
-    for (const item of node) collectResultLeaves(item, color, out)
-  } else if (isRecord(node)) {
-    for (const sub of Object.values(node)) collectResultLeaves(sub, color, out)
-  }
-}
-
-function buildHighlights(
-  result: Record<string, unknown>,
-  evidence: unknown,
-  colorMap: Record<string, string>,
-): Highlight[] {
-  const out: Highlight[] = []
-  if (isRecord(evidence)) {
-    // Evidence available: collect snippet-anchored highlights
-    for (const [key, sub] of Object.entries(evidence)) {
-      collectEvidenceLeaves(sub, colorMap[key] ?? PALETTE[0], out)
-    }
-  } else {
-    // No evidence: fall back to direct result search
-    for (const [key, value] of Object.entries(result)) {
-      collectResultLeaves(value, colorMap[key] ?? PALETTE[0], out)
-    }
-  }
-  return out
 }
 
 // ── text-layer helpers ────────────────────────────────────────────────────────

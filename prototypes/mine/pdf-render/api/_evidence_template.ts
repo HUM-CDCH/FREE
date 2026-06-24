@@ -78,7 +78,12 @@ function splitNode(node: unknown): SplitEvidence {
 }
 
 function isInlineEvidence(value: unknown): value is Record<'page' | 'snippet' | 'value', unknown> {
-  return isRecord(value) && 'value' in value && 'snippet' in value && 'page' in value
+  return (
+    isRecord(value) &&
+    'value' in value &&
+    (typeof value.snippet === 'string' || value.snippet === null) &&
+    (typeof value.page === 'number' || value.page === null)
+  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -36,4 +36,25 @@ describe('splitEvidenceResult', () => {
       evidence: { grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 2 } }] },
     })
   })
+
+  it('keeps domain objects with value snippet and page fields intact', () => {
+    const extracted = {
+      measurement: {
+        value: { value: '42 cm', snippet: null, page: null },
+        snippet: { value: 'recorded in trench notes', snippet: null, page: null },
+        page: { value: 12, snippet: null, page: null },
+      },
+    }
+
+    expect(splitEvidenceResult(extracted)).toEqual({
+      result: {
+        measurement: {
+          value: '42 cm',
+          snippet: 'recorded in trench notes',
+          page: 12,
+        },
+      },
+      evidence: null,
+    })
+  })
 })
