@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
@@ -14,6 +14,7 @@ import { countTemplateFields } from './template'
 import { requestSchema, parseDocumentToMarkdown } from './api'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
+import EvidenceHighlightLayer from './EvidenceHighlightLayer'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
@@ -95,6 +96,8 @@ function App() {
   const [railTab, setRailTab] = useState<RailTab>('annot')
   const [toast, setToast] = useState<string | null>(null)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
+  const [activePdfViewer, setActivePdfViewer] = useState<PDFViewer | null>(null)
   const [pdfSource, setPdfSource] = useState<{ url: string; filename: string } | null>({
     url: pdfUrl,
     filename: ACTIVE_DOC,
@@ -104,6 +107,15 @@ function App() {
 
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
+
+  const setContainerNode = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node
+    setContainerEl(node)
+  }, [])
+
+  const setViewerNode = useCallback((node: HTMLDivElement | null) => {
+    viewerRef.current = node
+  }, [])
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth)
@@ -167,6 +179,7 @@ function App() {
 
     const loadingTask = pdfjsLib.getDocument({ url: pdfSource.url })
     pdfViewerRef.current = pdfViewer
+    setActivePdfViewer(pdfViewer)
     annotationManagerRef.current = null
     setAnnotationItems([])
     setLoadState({ status: 'loading' })
@@ -252,6 +265,7 @@ function App() {
     return () => {
       eventBus.off('annotationeditoruimanager', onAnnotationEditorUIManager)
       pdfViewerRef.current = null
+      setActivePdfViewer(null)
       annotationManagerRef.current = null
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
@@ -414,9 +428,9 @@ function App() {
     : COLLAPSED_WIDTH
 
   const extraction = useExtraction({
+    pdfSource,
     template: schemaTemplate,
     schemaReady,
-    pdfSource,
     markdown: documentMarkdown,
     indexing,
     onComplete: (isRerun) => {
@@ -533,8 +547,15 @@ function App() {
           />
         )}
         <section className="relative min-h-0 min-w-0 flex-1" aria-label="PDF document">
-          <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={containerRef}>
-            <div className="pdfViewer" ref={viewerRef} />
+          <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
+            <div className="pdfViewer" ref={setViewerNode} />
+            <EvidenceHighlightLayer
+              pdfViewer={activePdfViewer}
+              result={extraction.state.status === 'ready' ? extraction.state.result : null}
+              evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
+              containerEl={containerEl}
+              schema={templateState.status === 'ready' ? templateState.template : null}
+            />
           </div>
           {extraction.state.status === 'running' && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-canvas/85 backdrop-blur-[2px]">
