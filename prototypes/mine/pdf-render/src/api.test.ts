@@ -1,17 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { requestExtraction } from './api'
+import {
+  decodeExtractDone,
+  decodeMarkdownDone,
+  decodeSchemaDone,
+  parseDocumentToMarkdown,
+  requestExtraction,
+  requestSchema,
+} from './api'
 
-function streamOf(chunks: string[], init: ResponseInit = {}): Response {
-  const enc = new TextEncoder()
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of chunks) {
-        controller.enqueue(enc.encode(chunk))
-      }
-      controller.close()
-    },
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
   })
-  return new Response(body, { status: 200, ...init })
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -23,12 +24,92 @@ describe('requestExtraction', () => {
       'fetch',
       vi.fn().mockImplementation((_url: string, init: RequestInit) => {
         submittedTemplate = init.body instanceof FormData ? init.body.get('template') : null
-        return Promise.resolve(streamOf(['{"event":"done","data":{"result":{},"raw":"","pages":1}}\n']))
+        return Promise.resolve(jsonResponse({ result: {}, reasoning: null, raw: '', pages: null }))
       }),
     )
 
-    await requestExtraction(new Blob(['pdf']), 'report.pdf', null, vi.fn())
+    await requestExtraction(new Blob(['pdf']), 'report.pdf', null)
 
     expect(submittedTemplate).toBe('{}')
+  })
+
+  it('throws the API detail on a non-OK response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ detail: 'Model endpoint error: boom' }), {
+          status: 502,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    )
+
+    await expect(requestExtraction(new Blob(['pdf']), 'report.pdf', {})).rejects.toThrow(
+      'Model endpoint error: boom',
+    )
+  })
+})
+
+describe('requestSchema', () => {
+  it('calls the schema generation endpoint', async () => {
+    let submittedUrl = ''
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        submittedUrl = url
+        return Promise.resolve(jsonResponse({ template: {}, raw: '', pages: null }))
+      }),
+    )
+
+    await requestSchema(new Blob(['pdf']), 'report.pdf')
+
+    expect(submittedUrl).toBe('/api/generate_schema')
+  })
+})
+
+describe('parseDocumentToMarkdown', () => {
+  it('starts a job, polls until completed, and returns the markdown', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith('/tasks')) {
+          return Promise.resolve(jsonResponse({ task_id: 'abc', status: 'pending' }))
+        }
+        if (url.endsWith('/tasks/abc')) {
+          return Promise.resolve(jsonResponse({ status: 'completed' }))
+        }
+        if (url.endsWith('/tasks/abc/markdown')) {
+          return Promise.resolve(new Response('# Doc', { status: 200 }))
+        }
+        return Promise.reject(new Error(`unexpected ${url}`))
+      }),
+    )
+
+    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).resolves.toBe('# Doc')
+  })
+
+  it('throws the job error when parsing fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith('/tasks')) {
+          return Promise.resolve(jsonResponse({ task_id: 'abc' }))
+        }
+        if (url.endsWith('/tasks/abc')) {
+          return Promise.resolve(jsonResponse({ status: 'failed', error: 'boom' }))
+        }
+        return Promise.reject(new Error(`unexpected ${url}`))
+      }),
+    )
+
+    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).rejects.toThrow('boom')
+  })
+})
+
+describe('decoders', () => {
+  it('fail loud when response contracts drift', () => {
+    expect(() => decodeExtractDone({ raw: '{}' })).toThrow("extract: response missing 'result'")
+    expect(() => decodeSchemaDone({ raw: '{}' })).toThrow("generate_schema: response missing 'template'")
+    expect(() => decodeMarkdownDone({ pages: null })).toThrow("markdown: response missing 'markdown'")
   })
 })

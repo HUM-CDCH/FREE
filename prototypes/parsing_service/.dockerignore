@@ -1,0 +1,11 @@
+.venv
+data
+comparison_output
+__pycache__
+**/__pycache__
+*.pyc
+.git
+.gitignore
+Dockerfile
+compose.yaml
+.dockerignore
