@@ -1,0 +1,18 @@
+services:
+  parsing_service:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data        # task outputs persist on host
+      - models:/models          # docling/HF + paddlex model caches (HOME)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  models:

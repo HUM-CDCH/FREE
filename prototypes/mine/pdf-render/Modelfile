@@ -1,0 +1,4 @@
+FROM hf.co/numind/NuExtract3-GGUF:Q2_K
+
+# Full-document markdown + schema prompt blows past the 4K default.
+PARAMETER num_ctx 32768

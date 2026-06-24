@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
-import { ACTIVE_DOC } from './ProjectNav'
 import { requestExtraction } from './api'
 import type { ExtractionState } from './extraction'
 
 type UseExtractionOptions = {
   template: unknown
   schemaReady: boolean
+  pdfSource: { url: string; filename: string } | null
+  markdown: string | null
+  indexing: boolean
   onComplete: (isRerun: boolean) => void
   onError: (message: string) => void
 }
@@ -16,6 +17,9 @@ export type ExtractionController = ReturnType<typeof useExtraction>
 export function useExtraction({
   template,
   schemaReady,
+  pdfSource,
+  markdown,
+  indexing,
   onComplete,
   onError,
 }: UseExtractionOptions) {
@@ -25,7 +29,7 @@ export function useExtraction({
   useEffect(() => () => abortRef.current?.abort(), [])
 
   const hasResults = state.status === 'ready'
-  const canRun = schemaReady && state.status !== 'running'
+  const canRun = Boolean(pdfSource) && schemaReady && state.status !== 'running' && !indexing
 
   async function runExtraction() {
     if (state.status === 'running') {
@@ -35,22 +39,14 @@ export function useExtraction({
     const abortController = new AbortController()
     abortRef.current = abortController
     const isRerun = state.status === 'ready'
-    setState({ status: 'running', raw: '' })
+    setState({ status: 'running' })
 
     try {
-      const blob = await (await fetch(pdfUrl, { signal: abortController.signal })).blob()
-      const result = await requestExtraction(
-        blob,
-        ACTIVE_DOC,
-        template,
-        (output) => {
-          if (abortController.signal.aborted) {
-            return
-          }
-          setState((s) => (s.status === 'running' ? { status: 'running', raw: s.raw + output } : s))
-        },
-        abortController.signal,
-      )
+      if (!pdfSource) {
+        return
+      }
+      const blob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
+      const result = await requestExtraction(blob, pdfSource.filename, template, abortController.signal, markdown)
       if (abortController.signal.aborted) {
         return
       }
