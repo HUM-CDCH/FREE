@@ -12,6 +12,9 @@ const supportedMediaTypes = new Set([
 export type DocumentInput = {
   readonly file: File
   readonly pages: number | null
+  // Pre-parsed Markdown from the parsing service (the document's "index"). When
+  // present it replaces page-image rendering as the model's view of the document.
+  readonly markdown: string | null
 }
 
 export type AnnotationMode = 'hints' | 'fields'
@@ -58,7 +61,10 @@ export async function parseDocument(form: FormData): Promise<DocumentInput> {
     throw new RequestError(400, `Unsupported source document type: ${mediaType || 'unknown'}`)
   }
 
-  return { file: new File([file], file.name, { type: mediaType }), pages: null }
+  const markdownEntry = form.get('document_markdown')
+  const markdown = typeof markdownEntry === 'string' && markdownEntry.trim() ? markdownEntry : null
+
+  return { file: new File([file], file.name, { type: mediaType }), pages: null, markdown }
 }
 
 function mediaTypeFromName(name: string): string {

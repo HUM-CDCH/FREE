@@ -42,7 +42,9 @@ def check_gpu_available() -> bool:
             sys.executable, "-c",
             "import paddle; print(paddle.device.is_compiled_with_cuda() and paddle.device.cuda.device_count() > 0)"
         ]
-        result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=5)
+        # ponytail: importing paddle alone takes >5s, so the old 5s timeout always
+        # expired -> GPU went undetected and every pipeline silently ran on CPU.
+        result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=120)
         return result.stdout.strip() == "True"
     except Exception as e:
         print(f"Error checking GPU availability: {e}")

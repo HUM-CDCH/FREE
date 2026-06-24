@@ -3,6 +3,7 @@ import {
   decodeExtractDone,
   decodeMarkdownDone,
   decodeSchemaDone,
+  parseDocumentToMarkdown,
   requestExtraction,
   requestSchema,
 } from './api'
@@ -63,6 +64,45 @@ describe('requestSchema', () => {
     await requestSchema(new Blob(['pdf']), 'report.pdf')
 
     expect(submittedUrl).toBe('/api/generate_schema')
+  })
+})
+
+describe('parseDocumentToMarkdown', () => {
+  it('starts a job, polls until completed, and returns the markdown', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith('/tasks')) {
+          return Promise.resolve(jsonResponse({ task_id: 'abc', status: 'pending' }))
+        }
+        if (url.endsWith('/tasks/abc')) {
+          return Promise.resolve(jsonResponse({ status: 'completed' }))
+        }
+        if (url.endsWith('/tasks/abc/markdown')) {
+          return Promise.resolve(new Response('# Doc', { status: 200 }))
+        }
+        return Promise.reject(new Error(`unexpected ${url}`))
+      }),
+    )
+
+    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).resolves.toBe('# Doc')
+  })
+
+  it('throws the job error when parsing fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.endsWith('/tasks')) {
+          return Promise.resolve(jsonResponse({ task_id: 'abc' }))
+        }
+        if (url.endsWith('/tasks/abc')) {
+          return Promise.resolve(jsonResponse({ status: 'failed', error: 'boom' }))
+        }
+        return Promise.reject(new Error(`unexpected ${url}`))
+      }),
+    )
+
+    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).rejects.toThrow('boom')
   })
 })
 

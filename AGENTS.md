@@ -8,7 +8,7 @@ FREE is a document extraction and evaluation prototype for humanities researcher
 
 The active prototype code is under:
 
-- `prototypes/mine/backend` - FastAPI backend, Python 3.14+, managed with `uv`
+- `prototypes/parsing_service` - FastAPI backend, Python 3.14+, managed with `uv`
 - `prototypes/mine/pdf-render` - React/Vite frontend, managed with `pnpm`
 
 There is no shared monorepo toolchain; run commands from the relevant prototype directory.

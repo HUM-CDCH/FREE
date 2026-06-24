@@ -8,6 +8,7 @@ type ResultsTabProps = {
   controller: ExtractionController
   schemaReady: boolean
   pdfSource: { url: string; filename: string } | null
+  documentMarkdown: string | null
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -29,7 +30,7 @@ function summaryItem(label: string, value: string | number) {
   )
 }
 
-function ResultsTab({ controller, schemaReady, pdfSource }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
   const [markdown, setMarkdown] = useState<MarkdownState>({ status: 'idle' })
@@ -62,7 +63,7 @@ function ResultsTab({ controller, schemaReady, pdfSource }: ResultsTabProps) {
     setMarkdown({ status: 'running' })
     try {
       const blob = await (await fetch(pdfSource.url)).blob()
-      const done = await requestMarkdown(blob, pdfSource.filename)
+      const done = await requestMarkdown(blob, pdfSource.filename, undefined, documentMarkdown)
       setMarkdown({ status: 'ready', markdown: done.markdown })
     } catch (error) {
       setMarkdown({

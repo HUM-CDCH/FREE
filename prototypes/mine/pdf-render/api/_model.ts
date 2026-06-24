@@ -10,7 +10,7 @@ import {
 import type { LanguageModel, UIMessage } from 'ai'
 import { z } from 'zod'
 import type { Annotation, AnnotationMode, DocumentInput } from './_document'
-import { documentFileParts } from './_pdf'
+import { documentFileParts, type DocumentFilePart } from './_pdf'
 import { extractionPrompt, schemaFromTemplate, schemaPrompt } from './_schema'
 import { RequestError } from './_http'
 
@@ -49,6 +49,21 @@ export type MarkdownModelInput = {
 const templateEnvelopeSchema = z.object({
   template: z.record(z.string(), z.unknown()),
 })
+
+// The document's content for the model: parsed Markdown when the parsing service
+// has indexed it (the chosen "replace page-images" path), otherwise rasterised
+// page images (covers non-PDF image uploads and parse failures).
+type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
+
+async function documentContentParts(
+  document: DocumentInput,
+): Promise<{ readonly parts: readonly DocumentContentPart[]; readonly pages: number | null }> {
+  if (document.markdown) {
+    return { parts: [{ type: 'text', text: document.markdown }], pages: document.pages }
+  }
+  const fileParts = await documentFileParts(document.file)
+  return { parts: fileParts.parts, pages: fileParts.pages }
+}
 
 function model(): LanguageModel {
   const modelId = process.env.AI_MODEL || DEFAULT_MODEL
@@ -97,7 +112,7 @@ export async function extractWithModel({
   })
 
   try {
-    const documentParts = await documentFileParts(document.file)
+    const documentParts = await documentContentParts(document)
     const result = await generateText({
       model: model(),
       temperature,
@@ -135,7 +150,7 @@ export async function generateSchemaWithModel({
   temperature,
 }: SchemaModelInput): Promise<{ readonly template: Record<string, unknown>; readonly raw: string; readonly pages: number | null }> {
   try {
-    const documentParts = await documentFileParts(document.file)
+    const documentParts = await documentContentParts(document)
     const result = await generateText({
       model: model(),
       temperature,
@@ -170,6 +185,12 @@ export async function markdownWithModel({
   document,
   temperature,
 }: MarkdownModelInput): Promise<{ readonly markdown: string; readonly pages: number | null }> {
+  // The parsing service already produces Markdown — serve it as-is rather than
+  // re-deriving it from page images.
+  if (document.markdown) {
+    return { markdown: document.markdown, pages: document.pages }
+  }
+
   const documentParts = await documentFileParts(document.file)
   const result = await generateText({
     model: model(),

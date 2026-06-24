@@ -6,6 +6,8 @@ type UseExtractionOptions = {
   template: unknown
   schemaReady: boolean
   pdfSource: { url: string; filename: string } | null
+  markdown: string | null
+  indexing: boolean
   onComplete: (isRerun: boolean) => void
   onError: (message: string) => void
 }
@@ -16,6 +18,8 @@ export function useExtraction({
   template,
   schemaReady,
   pdfSource,
+  markdown,
+  indexing,
   onComplete,
   onError,
 }: UseExtractionOptions) {
@@ -25,7 +29,7 @@ export function useExtraction({
   useEffect(() => () => abortRef.current?.abort(), [])
 
   const hasResults = state.status === 'ready'
-  const canRun = Boolean(pdfSource) && schemaReady && state.status !== 'running'
+  const canRun = Boolean(pdfSource) && schemaReady && state.status !== 'running' && !indexing
 
   async function runExtraction() {
     if (state.status === 'running') {
@@ -42,7 +46,7 @@ export function useExtraction({
         return
       }
       const blob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
-      const result = await requestExtraction(blob, pdfSource.filename, template, abortController.signal)
+      const result = await requestExtraction(blob, pdfSource.filename, template, abortController.signal, markdown)
       if (abortController.signal.aborted) {
         return
       }

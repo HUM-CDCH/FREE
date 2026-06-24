@@ -11,7 +11,7 @@ import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
 import { countTemplateFields } from './template'
-import { requestSchema } from './api'
+import { requestSchema, parseDocumentToMarkdown } from './api'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
@@ -54,6 +54,12 @@ type LoadState =
   | { status: 'ready'; pageCount: number }
   | { status: 'error'; message: string }
 
+// The parsing service's Markdown index of the current document, built on upload.
+type DocIndex =
+  | { status: 'parsing' }
+  | { status: 'ready'; markdown: string }
+  | { status: 'error'; message: string }
+
 function getHighlightLabel(editor: AnnotationEditor) {
   return editor.div?.getAttribute('aria-label')?.replace(/\s+/g, ' ').trim() ?? ''
 }
@@ -93,7 +99,11 @@ function App() {
     url: pdfUrl,
     filename: ACTIVE_DOC,
   })
+  const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const indexing = docIndex.status === 'parsing'
+  const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth)
@@ -253,6 +263,33 @@ function App() {
     }
   }, [pdfSource])
 
+  // Index the source document via the parsing service as soon as it is opened.
+  // Kept separate from the viewer effect so a finished parse never re-loads the
+  // PDF or clears annotations.
+  useEffect(() => {
+    if (!pdfSource) return
+    const abortController = new AbortController()
+
+    void (async () => {
+      setDocIndex({ status: 'parsing' })
+      try {
+        const blob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
+        const markdown = await parseDocumentToMarkdown(blob, pdfSource.filename, abortController.signal)
+        if (!abortController.signal.aborted) {
+          setDocIndex({ status: 'ready', markdown })
+        }
+      } catch (error) {
+        if (abortController.signal.aborted) return
+        setDocIndex({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Document indexing failed.',
+        })
+      }
+    })()
+
+    return () => abortController.abort()
+  }, [pdfSource])
+
   function selectAnnotationItem(id: string) {
     const manager = annotationManagerRef.current
     const editor = manager?.getEditor(id)
@@ -290,6 +327,10 @@ function App() {
 
   async function generateSchema() {
     if (!pdfSource) return
+    if (indexing) {
+      showToast('Document is still being indexed…')
+      return
+    }
     templateAbortRef.current?.abort()
     const abortController = new AbortController()
     templateAbortRef.current = abortController
@@ -301,6 +342,7 @@ function App() {
       const template = await requestSchema(pdfBlob, pdfSource.filename, abortController.signal, {
         annotations: annotationItems.map(({ label, pageNumber }) => ({ text: label, pageNumber })),
         annotationsMode,
+        markdown: documentMarkdown,
       })
       if (!abortController.signal.aborted) {
         setTemplateState({ status: 'ready', template, inputsKey })
@@ -375,6 +417,8 @@ function App() {
     template: schemaTemplate,
     schemaReady,
     pdfSource,
+    markdown: documentMarkdown,
+    indexing,
     onComplete: (isRerun) => {
       setRailTab('results')
       showToast(
@@ -444,6 +488,14 @@ function App() {
             className="sr-only"
             onChange={handleFileChange}
           />
+          {indexing && (
+            <span className="shrink-0 text-xs font-medium text-ink-muted">Indexing document…</span>
+          )}
+          {docIndex.status === 'error' && (
+            <span className="shrink-0 text-xs font-medium text-danger" title={docIndex.message}>
+              Indexing failed
+            </span>
+          )}
           <div className="min-w-0 flex-1" />
           <p
             aria-live="polite"
@@ -554,6 +606,7 @@ function App() {
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
             pdfSource={pdfSource}
+            documentMarkdown={documentMarkdown}
           />
         </aside>
       </div>
