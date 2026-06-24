@@ -2,17 +2,15 @@ import { createOllama, ollama } from 'ai-sdk-ollama'
 import {
   convertToModelMessages,
   generateText,
-  jsonSchema,
-  NoObjectGeneratedError,
-  Output,
   streamText,
 } from 'ai'
 import type { LanguageModel, UIMessage } from 'ai'
 import { z } from 'zod'
 import type { Annotation, AnnotationMode, DocumentInput } from './_document'
 import { documentFileParts, type DocumentFilePart } from './_pdf'
-import { extractionPrompt, schemaFromTemplate, schemaPrompt } from './_schema'
+import { schemaPrompt } from './_schema'
 import { RequestError } from './_http'
+import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output'
 
 export {
   parseAnnotationMode,
@@ -22,6 +20,8 @@ export {
 export { json, modelError, parseTemperature, RequestError } from './_http'
 
 const DEFAULT_MODEL = 'llama3.2'
+const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
+const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -46,14 +46,11 @@ export type MarkdownModelInput = {
   readonly temperature?: number
 }
 
-const templateEnvelopeSchema = z.object({
-  template: z.record(z.string(), z.unknown()),
-})
-
 // The document's content for the model: parsed Markdown when the parsing service
 // has indexed it (the chosen "replace page-images" path), otherwise rasterised
 // page images (covers non-PDF image uploads and parse failures).
 type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
+type NuExtractMode = 'structured' | 'template-generation' | 'markdown' | 'content'
 
 async function documentContentParts(
   document: DocumentInput,
@@ -106,44 +103,17 @@ export async function extractWithModel({
   instruction,
   temperature,
 }: ExtractModelInput): Promise<{ readonly result: Record<string, unknown>; readonly raw: string; readonly reasoning: null; readonly pages: number | null }> {
-  const resultSchema = jsonSchema<Record<string, unknown>>(schemaFromTemplate(template), {
-    validate(value) {
-      return isRecord(value)
-        ? { success: true, value }
-        : { success: false, error: new Error('Extraction result must be a JSON object') }
-    },
+  const documentParts = await documentContentParts(document)
+  const generated = await generateWithNuExtractRawPrompt({
+    mode: 'structured',
+    template: JSON.stringify(template ?? {}, null, 2),
+    instructions: instruction?.trim() || null,
+    documentParts: documentParts.parts,
+    temperature,
   })
+  const parsed = await parseExtractionResult(generated.response, template)
 
-  try {
-    const documentParts = await documentContentParts(document)
-    const result = await generateText({
-      model: model(),
-      temperature,
-      output: Output.object({
-        schema: resultSchema,
-        name: 'extraction_result',
-      }),
-      messages: [
-        {
-          role: 'user',
-          content: [
-            ...documentParts.parts,
-            {
-              type: 'text',
-              text: extractionPrompt(template, instruction),
-            },
-          ],
-        },
-      ],
-    })
-
-    return { result: result.output, raw: result.text, reasoning: null, pages: documentParts.pages ?? document.pages }
-  } catch (error) {
-    if (NoObjectGeneratedError.isInstance(error)) {
-      throw new RequestError(502, 'Model returned output that did not match the extraction schema.', error.text ?? null)
-    }
-    throw error
-  }
+  return { result: parsed, raw: generated.response, reasoning: null, pages: documentParts.pages ?? document.pages }
 }
 
 export async function generateSchemaWithModel({
@@ -152,36 +122,16 @@ export async function generateSchemaWithModel({
   annotationsMode,
   temperature,
 }: SchemaModelInput): Promise<{ readonly template: Record<string, unknown>; readonly raw: string; readonly pages: number | null }> {
-  try {
-    const documentParts = await documentContentParts(document)
-    const result = await generateText({
-      model: model(),
-      temperature,
-      output: Output.object({
-        schema: templateEnvelopeSchema,
-        name: 'extraction_schema',
-      }),
-      messages: [
-        {
-          role: 'user',
-          content: [
-            ...documentParts.parts,
-            {
-              type: 'text',
-              text: schemaPrompt(annotations, annotationsMode),
-            },
-          ],
-        },
-      ],
-    })
+  const documentParts = await documentContentParts(document)
+  const generated = await generateWithNuExtractRawPrompt({
+    mode: 'template-generation',
+    instructions: null,
+    documentParts: [...documentParts.parts, { type: 'text', text: schemaPrompt(annotations, annotationsMode) }],
+    temperature,
+  })
+  const template = await parseTemplate(generated.response)
 
-    return { template: result.output.template, raw: result.text, pages: documentParts.pages ?? document.pages }
-  } catch (error) {
-    if (NoObjectGeneratedError.isInstance(error)) {
-      throw new RequestError(502, 'Model returned an invalid extraction schema.', error.text ?? null)
-    }
-    throw error
-  }
+  return { template, raw: generated.response, pages: documentParts.pages ?? document.pages }
 }
 
 export async function markdownWithModel({
@@ -219,6 +169,99 @@ export async function markdownWithModel({
   return { markdown: result.text.trim(), pages: documentParts.pages ?? document.pages }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+async function generateWithNuExtractRawPrompt({
+  mode,
+  template,
+  instructions,
+  documentParts,
+  temperature,
+}: {
+  readonly mode: NuExtractMode
+  readonly template?: string
+  readonly instructions: string | null
+  readonly documentParts: readonly DocumentContentPart[]
+  readonly temperature?: number
+}): Promise<{ readonly response: string }> {
+  const rendered = renderNuExtractPrompt({ mode, template, instructions, documentParts })
+  const response = await fetch(ollamaGenerateUrl(), {
+    method: 'POST',
+    headers: ollamaHeaders(),
+    body: JSON.stringify({
+      model: process.env.AI_MODEL || DEFAULT_MODEL,
+      prompt: rendered.prompt,
+      images: rendered.images.length > 0 ? rendered.images : undefined,
+      raw: true,
+      stream: false,
+      options: temperature === undefined ? undefined : { temperature },
+    }),
+  })
+
+  const bodyText = await response.text()
+  if (!response.ok) {
+    throw new RequestError(response.status, 'Ollama generation failed.', bodyText || null)
+  }
+
+  const parsed = ollamaGenerateResponseSchema.safeParse(await parseUnknownJson(bodyText, 'Ollama returned invalid JSON.'))
+  if (!parsed.success) {
+    throw new RequestError(502, 'Ollama returned an unexpected generation response.', bodyText)
+  }
+  return { response: parsed.data.response }
+}
+
+const ollamaGenerateResponseSchema = z.object({
+  response: z.string(),
+})
+
+function renderNuExtractPrompt({
+  mode,
+  template,
+  instructions,
+  documentParts,
+}: {
+  readonly mode: NuExtractMode
+  readonly template?: string
+  readonly instructions: string | null
+  readonly documentParts: readonly DocumentContentPart[]
+}): { readonly prompt: string; readonly images: readonly string[] } {
+  const images: string[] = []
+  let prompt = '<|im_start|>user\n'
+  prompt += `【task】${mode.replaceAll('-', ' ')}\n`
+  if (template) {
+    prompt += `【template_start】${template}【template_end】\n`
+    if (instructions) {
+      prompt += `【instructions_start】${instructions}【instructions_end】\n`
+    }
+  }
+  prompt += '【document_start】\n'
+  for (const part of documentParts) {
+    if (part.type === 'text') {
+      prompt += `${part.text.trim()}\n`
+    } else {
+      images.push(imageData(part))
+      prompt += `${IMAGE_PLACEHOLDER}\n`
+    }
+  }
+  prompt += '【document_end】<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n'
+  return { prompt, images }
+}
+
+function imageData(part: DocumentFilePart): string {
+  if (typeof part.data === 'string') {
+    const [, base64] = part.data.split(',', 2)
+    return base64 ?? part.data
+  }
+  return Buffer.from(part.data).toString('base64')
+}
+
+function ollamaGenerateUrl(): string {
+  const baseURL = (process.env.AI_BASE_URL || DEFAULT_OLLAMA_BASE_URL).replace(/\/$/, '')
+  return baseURL.endsWith('/api') ? `${baseURL}/generate` : `${baseURL}/api/generate`
+}
+
+function ollamaHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (process.env.AI_API_KEY) {
+    headers.authorization = `Bearer ${process.env.AI_API_KEY}`
+  }
+  return headers
 }
