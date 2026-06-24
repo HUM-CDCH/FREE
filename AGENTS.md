@@ -37,3 +37,19 @@ pnpm dev
 pnpm build
 pnpm lint
 ```
+
+## NuExtract Prompting
+
+The frontend's model layer (`prototypes/mine/pdf-render/api/_model.ts`) drives
+NuExtract3 with **hand-built raw prompts** sent to Ollama's `/api/generate`
+(`raw: true`), not `chat_template_kwargs`. The probe in
+`tools/provider-control-probe-results.md` showed Ollama ignores those kwargs
+(`mode`/`template`/`enable_thinking`), so the control tokens are reconstructed in
+code to match `nuextract.template.jinja`. When editing prompts:
+
+- Only `structured` mode has an `【instructions】` slot. `template-generation` and
+  `markdown` carry all guidance inline in the message — lead with it.
+- `enable_thinking` is valid only for `structured`/`content`; other modes always
+  render the non-thinking `<think></think>` prompt.
+- Default temperature is `0.2` (non-thinking, `NON_THINKING_TEMPERATURE`); leaving
+  it unset lets Ollama apply ~0.8.

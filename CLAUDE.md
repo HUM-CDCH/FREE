@@ -99,6 +99,32 @@ Set `VITE_API_BASE` to override the backend URL (default `http://127.0.0.1:8000`
 - `hints` — model designs schema from the whole document, but every highlighted passage must be covered.
 - `fields` — model derives schema primarily from the highlighted passages.
 
+## NuExtract prompting (raw prompts to Ollama)
+
+NuExtract3 is driven with a **hand-built raw prompt**, not OpenAI-style
+`chat_template_kwargs`. The repo's probe (`tools/provider-control-probe-results.md`)
+found the **Ollama** OpenAI-compatible endpoint silently ignores
+`chat_template_kwargs` (`mode`, `template`, `enable_thinking`) — kwargs-only
+requests come back as plain text. So `pdf-render/api/_model.ts` posts to Ollama's
+`/api/generate` with `raw: true` and reconstructs the NuExtract control tokens
+itself (`【task】`, `【template_start】`, `【document_start】…【document_end】`, trailing
+`<think>` block), mirroring `nuextract.template.jinja`. Consequences when editing
+schema/extraction prompts:
+
+- **No `【instructions】` slot outside `structured` mode** (jinja only emits it for
+  extraction). `template-generation` and `markdown` carry all guidance inline in
+  the message body, so schema-suggestion guidance must *lead* the document parts —
+  it's just message text, not a privileged slot.
+- **Thinking is `structured`/`content` only.** The jinja forbids `enable_thinking`
+  for `template-generation`/`markdown`; those always render the empty
+  `<think></think>` (non-thinking) prompt.
+- **Temperature:** NuExtract recommends `0.2` non-thinking / `0.6` thinking. We send
+  `0.2` by default (`NON_THINKING_TEMPERATURE`); leaving it unset lets Ollama apply
+  ~0.8, which produced noisy, instance-enumerated templates.
+
+Docker Model Runner and vLLM *do* honor `chat_template_kwargs` — see the probe doc
+for the per-provider channel if NuExtract is ever served that way.
+
 ## What the prototype does not yet have
 
 The backend has no persistence layer. There are no `/annotations`, `/validations`, or `/documents/prepare` endpoints. Annotations are passed inline with each `/generate-template` request. Adding a thin in-memory store (or SQLite) with these three endpoints is the next backend task.
