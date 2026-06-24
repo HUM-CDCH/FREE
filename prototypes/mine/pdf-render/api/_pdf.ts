@@ -6,11 +6,17 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { z } from 'zod'
+import { createRequire } from 'node:module'
+
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 const execFileAsync = promisify(execFile)
 const PDF_DPI = 150
 const SERVICE_TIMEOUT_MS = 3_000
 const LOCAL_MAX_BUFFER = 256 * 1024 * 1024
+
+const require = createRequire(import.meta.url)
+const { createCanvas } = require('@napi-rs/canvas')
 
 declare const process: {
   cwd(): string
@@ -84,7 +90,8 @@ export async function documentFileParts(file: File): Promise<PreparedFileParts> 
 }
 
 export async function pdfFileParts(file: File): Promise<PreparedFileParts> {
-  const converted = (await pdfFromService(file)) ?? (await pdfFromLocalPython(file))
+  const converted =
+    (await pdfFromService(file)) ?? (await pdfFromLocalPdfJs(file)) ?? (await pdfFromLocalPython(file))
   return {
     pages: converted.pages,
     parts: converted.images.map((image) => ({
@@ -93,6 +100,47 @@ export async function pdfFileParts(file: File): Promise<PreparedFileParts> {
       filename: image.filename,
       mediaType: image.media_type,
     })),
+  }
+}
+
+async function pdfFromLocalPdfJs(file: File): Promise<z.infer<typeof convertedPdfSchema> | null> {
+  const data = new Uint8Array(await file.arrayBuffer())
+  const loadingTask = pdfjsLib.getDocument({ data })
+  const doc = await loadingTask.promise
+  const images: Array<{ filename: string; media_type: 'image/png'; data_url: string }> = []
+
+  try {
+    for (let pageIndex = 1; pageIndex <= doc.numPages; pageIndex += 1) {
+      const page = await doc.getPage(pageIndex)
+      const viewport = page.getViewport({ scale: PDF_DPI / 72 })
+
+      const canvas = createCanvas(viewport.width, viewport.height)
+      const canvasContext = canvas.getContext('2d')
+
+      await page.render({ canvasContext, viewport }).promise
+
+      const pngBuffer = Buffer.from(canvas.toBuffer('image/png'))
+      const base64Data = pngBuffer.toString('base64')
+      images.push({
+        filename: `page_${String(pageIndex).padStart(2, '0')}.png`,
+        media_type: 'image/png',
+        data_url: `data:image/png;base64,${base64Data}`,
+      })
+
+      await page.cleanup()
+    }
+
+    return {
+      pages: doc.numPages,
+      images,
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      return null
+    }
+    throw error
+  } finally {
+    await doc.cleanup()
   }
 }
 
