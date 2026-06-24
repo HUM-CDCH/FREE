@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
@@ -52,11 +52,19 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [
-    react(),
-    babel({ presets: [reactCompilerPreset()] }),
-    tailwindcss(),
-    apiFunctions(),
-  ],
+export default defineConfig(({ mode }) => {
+  // ponytail: Vite only exposes VITE_* to the client; the api/* handlers read
+  // process.env. Load .env into process.env so `pnpm dev` matches `vercel dev`.
+  // Shell vars win, so an inline `AI_MODEL=… pnpm dev` still overrides .env.
+  for (const [key, value] of Object.entries(loadEnv(mode, process.cwd(), '')))
+    if (process.env[key] === undefined) process.env[key] = value
+
+  return {
+    plugins: [
+      react(),
+      babel({ presets: [reactCompilerPreset()] }),
+      tailwindcss(),
+      apiFunctions(),
+    ],
+  }
 })

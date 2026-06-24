@@ -11,12 +11,13 @@ pnpm build
 pnpm vercel:dev
 ```
 
-`pnpm vercel:dev` serves the Vite app and `/api/*` routes together. Configure model access with:
+`pnpm vercel:dev` serves the Vite app and `/api/*` routes together. Configure Ollama access with:
 
 ```bash
-AI_MODEL=openai/gpt-5.4-mini
+AI_MODEL=hf.co/numind/NuExtract3-GGUF:Q2_K
+AI_BASE_URL=http://127.0.0.1:11434
+# optional, for hosted Ollama-compatible endpoints
 AI_API_KEY=...
-AI_BASE_URL=...
 ```
 
-Set `AI_BASE_URL` only for an OpenAI-compatible provider. Without it, FREE uses the AI SDK global provider with `AI_MODEL`.
+If `AI_BASE_URL` is omitted, FREE uses the local/default Ollama provider with `AI_MODEL`.
