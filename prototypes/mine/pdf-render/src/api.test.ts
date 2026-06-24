@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { requestExtraction } from './api'
+import {
+  decodeExtractDone,
+  decodeMarkdownDone,
+  decodeSchemaDone,
+  requestExtraction,
+  requestSchema,
+} from './api'
 
-/** A buffered 200 JSON response, the shape /extract now returns. */
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -18,7 +23,7 @@ describe('requestExtraction', () => {
       'fetch',
       vi.fn().mockImplementation((_url: string, init: RequestInit) => {
         submittedTemplate = init.body instanceof FormData ? init.body.get('template') : null
-        return Promise.resolve(jsonResponse({ result: {}, reasoning: null, raw: '', pages: 1 }))
+        return Promise.resolve(jsonResponse({ result: {}, reasoning: null, raw: '', pages: null }))
       }),
     )
 
@@ -27,7 +32,7 @@ describe('requestExtraction', () => {
     expect(submittedTemplate).toBe('{}')
   })
 
-  it('throws the backend detail on a non-OK response', async () => {
+  it('throws the API detail on a non-OK response', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -41,5 +46,30 @@ describe('requestExtraction', () => {
     await expect(requestExtraction(new Blob(['pdf']), 'report.pdf', {})).rejects.toThrow(
       'Model endpoint error: boom',
     )
+  })
+})
+
+describe('requestSchema', () => {
+  it('calls the schema generation endpoint', async () => {
+    let submittedUrl = ''
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        submittedUrl = url
+        return Promise.resolve(jsonResponse({ template: {}, raw: '', pages: null }))
+      }),
+    )
+
+    await requestSchema(new Blob(['pdf']), 'report.pdf')
+
+    expect(submittedUrl).toBe('/api/generate_schema')
+  })
+})
+
+describe('decoders', () => {
+  it('fail loud when response contracts drift', () => {
+    expect(() => decodeExtractDone({ raw: '{}' })).toThrow("extract: response missing 'result'")
+    expect(() => decodeSchemaDone({ raw: '{}' })).toThrow("generate_schema: response missing 'template'")
+    expect(() => decodeMarkdownDone({ pages: null })).toThrow("markdown: response missing 'markdown'")
   })
 })

@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
+import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import type { AnnotationSetItem } from './AnnotationSidebar'
 import ProjectNav from './ProjectNav'
+import { ACTIVE_DOC } from './ProjectNav'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
 import { countTemplateFields } from './template'
-import { requestTemplate } from './api'
+import { requestSchema } from './api'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
@@ -60,7 +62,7 @@ function isHighlightEditor(editor: AnnotationEditor) {
   return editor.editorType === 'highlight' || editor.div?.getAttribute('role') === 'mark'
 }
 
-// Mode only shapes the request when annotations are sent (see requestTemplate),
+// Mode only shapes the request when annotations are sent (see requestSchema),
 // so an empty set keys to '' regardless of mode.
 function annotationInputsKey(items: AnnotationSetItem[], mode: AnnotationsMode) {
   if (items.length === 0) {
@@ -86,8 +88,18 @@ function App() {
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
   const [toast, setToast] = useState<string | null>(null)
-  const [pdfSource, setPdfSource] = useState<{ url: string; filename: string } | null>(null)
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+  const [pdfSource, setPdfSource] = useState<{ url: string; filename: string } | null>({
+    url: pdfUrl,
+    filename: ACTIVE_DOC,
+  })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -276,7 +288,7 @@ function App() {
     toastTimerRef.current = window.setTimeout(() => setToast(null), 2600)
   }
 
-  async function generateTemplate() {
+  async function generateSchema() {
     if (!pdfSource) return
     templateAbortRef.current?.abort()
     const abortController = new AbortController()
@@ -286,7 +298,7 @@ function App() {
 
     try {
       const pdfBlob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
-      const template = await requestTemplate(pdfBlob, pdfSource.filename, abortController.signal, {
+      const template = await requestSchema(pdfBlob, pdfSource.filename, abortController.signal, {
         annotations: annotationItems.map(({ label, pageNumber }) => ({ text: label, pageNumber })),
         annotationsMode,
       })
@@ -299,7 +311,7 @@ function App() {
       }
       setTemplateState({
         status: 'error',
-        message: error instanceof Error ? error.message : 'Template generation failed.',
+        message: error instanceof Error ? error.message : 'Schema generation failed.',
       })
     }
   }
@@ -349,9 +361,20 @@ function App() {
     templateState.status === 'ready' &&
     templateState.inputsKey !== annotationInputsKey(annotationItems, annotationsMode)
 
+  const compactLayout = viewportWidth < 860
+  const effectiveNavOpen = navOpen && !compactLayout
+  const effectiveRailOpen = railOpen
+  const effectiveNavWidth = effectiveNavOpen ? navWidth : COLLAPSED_WIDTH
+  const effectiveRailWidth = effectiveRailOpen
+    ? compactLayout
+      ? Math.max(RAIL_MIN, viewportWidth - effectiveNavWidth)
+      : railWidth
+    : COLLAPSED_WIDTH
+
   const extraction = useExtraction({
     template: schemaTemplate,
     schemaReady,
+    pdfSource,
     onComplete: (isRerun) => {
       setRailTab('results')
       showToast(
@@ -388,16 +411,16 @@ function App() {
           : 'Open the Schema tab to generate the extraction schema for this document'
 
   return (
-    <main className="flex h-dvh flex-col bg-canvas text-ink">
+    <main className="flex h-dvh flex-col overflow-hidden bg-canvas text-ink">
       <header className="relative z-10 flex shrink-0 items-stretch border-b border-line bg-surface">
         <div
-          style={{ width: navOpen ? navWidth : COLLAPSED_WIDTH }}
+          style={{ width: effectiveNavWidth }}
           className={`flex shrink-0 items-center gap-2.5 border-r border-line ${
-            navOpen ? 'justify-start px-4' : 'justify-center px-2'
+            effectiveNavOpen ? 'justify-start px-4' : 'justify-center px-2'
           }`}
         >
           <img src="/free-logo.png" alt="" className="size-7.5 shrink-0 object-contain" />
-          {navOpen && <h1 className="text-[17px] font-extrabold tracking-[0.06em]">FREE</h1>}
+          {effectiveNavOpen && <h1 className="text-[17px] font-extrabold tracking-[0.06em]">FREE</h1>}
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-3 px-5 py-2.5">
           {pdfSource ? (
@@ -444,13 +467,13 @@ function App() {
       </header>
       <div className="flex min-h-0 flex-1">
         <aside
-          style={{ width: navOpen ? navWidth : COLLAPSED_WIDTH }}
+          style={{ width: effectiveNavWidth }}
           className="min-h-0 shrink-0 border-r border-line bg-surface"
           aria-label="Project navigation"
         >
-          <ProjectNav open={navOpen} onToggle={() => setNavOpen((open) => !open)} onToast={showToast} />
+          <ProjectNav open={effectiveNavOpen} onToggle={() => setNavOpen((open) => !open)} onToast={showToast} />
         </aside>
-        {navOpen && (
+        {effectiveNavOpen && (
           <div
             className="z-5 -ml-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
             title="Drag to resize"
@@ -501,7 +524,7 @@ function App() {
             </p>
           </div>
         </section>
-        {railOpen && (
+        {effectiveRailOpen && !compactLayout && (
           <div
             className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
             title="Drag to resize"
@@ -509,12 +532,12 @@ function App() {
           />
         )}
         <aside
-          style={{ width: railOpen ? railWidth : COLLAPSED_WIDTH }}
+          style={{ width: effectiveRailWidth }}
           className="min-h-0 shrink-0 border-l border-line bg-surface"
           aria-label="Annotations, chat and schema"
         >
           <RightRail
-            open={railOpen}
+            open={effectiveRailOpen}
             onToggle={() => setRailOpen((open) => !open)}
             tab={railTab}
             onTabChange={setRailTab}
@@ -525,11 +548,12 @@ function App() {
             schemaStale={schemaStale}
             schemaReady={schemaReady}
             schemaFieldCount={schemaFieldCount}
-            onGenerate={() => void generateTemplate()}
+            onGenerate={() => void generateSchema()}
             onTemplateChange={changeTemplate}
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
+            pdfSource={pdfSource}
           />
         </aside>
       </div>

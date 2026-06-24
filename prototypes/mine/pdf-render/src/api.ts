@@ -1,5 +1,6 @@
 import { isRecord } from './template'
-import { API_BASE } from './jsonlStream'
+
+export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
 
 export type TemplateAnnotation = { text: string; pageNumber: number }
 
@@ -10,55 +11,36 @@ type TemplateOptions = {
   annotationsMode?: AnnotationsMode
 }
 
-// ---------- response payloads (mirror main.py; one place to update) ----------
-
-export type ChatDone = { message: string; reasoning: string | null; raw: string }
 export type ExtractDone = {
   result: Record<string, unknown>
   reasoning: string | null
   raw: string
-  pages: number
+  pages: number | null
 }
-export type TemplateDone = { template: unknown; raw: string; pages: number }
-export type MarkdownDone = { markdown: string; pages: number }
+export type SchemaDone = { template: unknown; raw: string; pages: number | null }
+export type MarkdownDone = { markdown: string; pages: number | null }
 
-// ---------- boundary decoders ----------
-// One per response payload. They assert the fields the frontend depends on and
-// throw a named error on absence, so backend contract drift fails loud and
-// localized here instead of flowing through as a silent `undefined`.
-
-export function decodeTemplateDone(data: unknown): TemplateDone {
+export function decodeSchemaDone(data: unknown): SchemaDone {
   if (!isRecord(data) || !('template' in data)) {
-    throw new Error("generate-template: response missing 'template' — backend contract drift?")
+    throw new Error("generate_schema: response missing 'template' — API contract drift?")
   }
-  return data as TemplateDone
+  return data as SchemaDone
 }
 
 export function decodeExtractDone(data: unknown): ExtractDone {
   if (!isRecord(data) || !isRecord(data.result)) {
-    throw new Error("extract: response missing 'result' — backend contract drift?")
+    throw new Error("extract: response missing 'result' — API contract drift?")
   }
   return data as ExtractDone
 }
 
-export function decodeChatDone(data: unknown): ChatDone {
-  if (!isRecord(data) || typeof data.message !== 'string') {
-    throw new Error("chat: done payload missing 'message' — backend contract drift?")
-  }
-  return data as ChatDone
-}
-
 export function decodeMarkdownDone(data: unknown): MarkdownDone {
   if (!isRecord(data) || typeof data.markdown !== 'string') {
-    throw new Error("markdown: response missing 'markdown' — backend contract drift?")
+    throw new Error("markdown: response missing 'markdown' — API contract drift?")
   }
   return data as MarkdownDone
 }
 
-// ---------- buffered POST helper ----------
-
-/** FastAPI surfaces failures as `{ detail }` — a string (400 / model-unreachable
- * 502) or an object with `message` (the unparseable-output 502). */
 async function readErrorDetail(response: Response): Promise<string> {
   const body = await response.json().catch(() => null)
   const detail = isRecord(body) ? body.detail : null
@@ -71,10 +53,6 @@ async function readErrorDetail(response: Response): Promise<string> {
   return ''
 }
 
-/**
- * POST `form` to a buffered endpoint and decode its single JSON response,
- * throwing the backend's `detail` on a non-OK response.
- */
 async function postForm<T>(
   endpoint: string,
   form: FormData,
@@ -96,11 +74,7 @@ async function postForm<T>(
 
 // ---------- request wrappers ----------
 
-/**
- * Request a schema suggestion from `/generate-template`. Resolves with the
- * parsed extraction template.
- */
-export async function requestTemplate(
+export async function requestSchema(
   file: Blob,
   fileName: string,
   signal?: AbortSignal,
@@ -113,15 +87,10 @@ export async function requestTemplate(
     form.append('annotations_mode', options.annotationsMode ?? 'hints')
   }
 
-  const done = await postForm('/generate-template', form, decodeTemplateDone, signal)
+  const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)
   return done.template
 }
 
-/**
- * Run `/extract` with the approved extraction schema. Resolves with the
- * extraction result object, mirroring the schema's structure with extracted
- * values.
- */
 export async function requestExtraction(
   file: Blob,
   fileName: string,
@@ -134,4 +103,15 @@ export async function requestExtraction(
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
   return done.result
+}
+
+export async function requestMarkdown(
+  file: Blob,
+  fileName: string,
+  signal?: AbortSignal,
+): Promise<MarkdownDone> {
+  const form = new FormData()
+  form.append('file', file, fileName)
+
+  return postForm('/markdown', form, decodeMarkdownDone, signal)
 }

@@ -1,32 +1,108 @@
-import { useState } from 'react'
+import { DefaultChatTransport, readUIMessageStream } from 'ai'
+import type { FileUIPart, UIMessage } from 'ai'
+import { useRef, useState } from 'react'
+import { API_BASE } from './api'
 
-type ChatMessage = {
-  id: number
-  role: 'user' | 'free'
-  text: string
+type ChatTabProps = {
+  pdfSource: { url: string; filename: string } | null
 }
 
-let nextMessageId = 1
+const transport = new DefaultChatTransport<UIMessage>({ api: `${API_BASE}/chat` })
 
-function ChatTab() {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+function messageText(message: UIMessage): string {
+  return message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('')
+}
+
+function nextId(): string {
+  return crypto.randomUUID()
+}
+
+async function filePart(pdfSource: { url: string; filename: string }): Promise<FileUIPart> {
+  const blob = await (await fetch(pdfSource.url)).blob()
+  return {
+    type: 'file',
+    filename: pdfSource.filename,
+    mediaType: blob.type || 'application/pdf',
+    url: await dataUrl(blob),
+  }
+}
+
+function dataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error('Unable to read source document.'))
+    }
+    reader.onerror = () => reject(new Error('Unable to read source document.'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+function ChatTab({ pdfSource }: ChatTabProps) {
+  const [messages, setMessages] = useState<UIMessage[]>([])
   const [draft, setDraft] = useState('')
+  const [status, setStatus] = useState<'ready' | 'running' | 'error'>('ready')
+  const abortRef = useRef<AbortController | null>(null)
 
-  function send() {
+  async function send() {
     const text = draft.trim()
-    if (!text) {
+    if (!text || status === 'running') {
       return
     }
-    setMessages((current) => [
-      ...current,
-      { id: nextMessageId++, role: 'user', text },
-      {
-        id: nextMessageId++,
-        role: 'free',
-        text: 'Chat is not connected to the backend yet — grounded answers with jump-to-source citations are coming soon.',
-      },
-    ])
+
+    abortRef.current?.abort()
+    const abortController = new AbortController()
+    abortRef.current = abortController
+    setStatus('running')
     setDraft('')
+
+    const textPart = { type: 'text' as const, text }
+    const parts = pdfSource ? [textPart, await filePart(pdfSource)] : [textPart]
+    const nextMessages: UIMessage[] = [
+      ...messages,
+      {
+        id: nextId(),
+        role: 'user',
+        parts,
+      },
+    ]
+    setMessages(nextMessages)
+
+    try {
+      const stream = await transport.sendMessages({
+        chatId: 'free-document-chat',
+        messages: nextMessages,
+        trigger: 'submit-message',
+        messageId: undefined,
+        abortSignal: abortController.signal,
+      })
+
+      for await (const assistantMessage of readUIMessageStream({ stream })) {
+        setMessages([...nextMessages, assistantMessage])
+      }
+      setStatus('ready')
+    } catch (error) {
+      if (abortController.signal.aborted) {
+        return
+      }
+      const message = error instanceof Error ? error.message : 'Chat failed.'
+      setMessages([
+        ...nextMessages,
+        {
+          id: nextId(),
+          role: 'assistant',
+          parts: [{ type: 'text', text: message }],
+        },
+      ])
+      setStatus('error')
+    }
   }
 
   return (
@@ -34,12 +110,11 @@ function ChatTab() {
       <div className="scrollbar-subtle flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3.5 py-3.5">
         {messages.length === 0 && (
           <div className="mt-1.5 rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
-            <p aria-hidden="true" className="font-serif text-[22px] leading-none text-ink-muted">
-              ❝
-            </p>
-            <p className="mt-1.5 text-[13.5px] font-semibold text-ink">Ask about this document</p>
+            <p className="text-[13.5px] font-semibold text-ink">Ask about this source document</p>
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-              Answers are grounded in the open report — every citation jumps to its source passage.
+              {pdfSource
+                ? 'The current source document is attached to each question.'
+                : 'No source document context is available yet.'}
             </p>
           </div>
         )}
@@ -52,7 +127,7 @@ function ChatTab() {
                 : 'self-start border-line bg-canvas'
             }`}
           >
-            {message.text}
+            {messageText(message)}
           </div>
         ))}
       </div>
@@ -60,19 +135,21 @@ function ChatTab() {
         <input
           className="min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3 py-2 text-xs text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent"
           value={draft}
-          placeholder="Ask about this document…"
+          placeholder="Ask about this source document..."
+          disabled={status === 'running'}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
-              send()
+              void send()
             }
           }}
         />
         <button
-          className="shrink-0 cursor-pointer rounded-lg border border-accent bg-accent px-3.5 py-2 text-[13px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40"
+          className="shrink-0 cursor-pointer rounded-lg border border-accent bg-accent px-3.5 py-2 text-[13px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60"
           type="button"
           title="Send"
-          onClick={send}
+          disabled={status === 'running'}
+          onClick={() => void send()}
         >
           ↑
         </button>
