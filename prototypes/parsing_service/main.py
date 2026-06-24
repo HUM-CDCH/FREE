@@ -35,7 +35,7 @@ def check_gpu_available() -> bool:
         res = shutil.which("nvidia-smi")
         if not res:
             return False
-        
+
         # Verify with paddle device count
         import subprocess
         check_cmd = [
@@ -81,15 +81,15 @@ async def run_extraction_task(task_id: str, source_path: str, dpi: int, pipeline
     metadata["status"] = "running"
     metadata["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     save_metadata(task_id, metadata)
-    
+
     task_dir = os.path.join(DATA_DIR, task_id)
     output_dir = os.path.join(task_dir, "output")
     os.makedirs(output_dir, exist_ok=True)
-    
+
     try:
         # Build compare.py command line
         compare_script = os.path.join(BASE_DIR, "compare.py")
-        
+
         # We spawn the subprocess and let it print stdout/stderr directly to parent server console
         process = await asyncio.create_subprocess_exec(
             sys.executable, compare_script,
@@ -99,12 +99,12 @@ async def run_extraction_task(task_id: str, source_path: str, dpi: int, pipeline
             "--device", device,
             "--pipeline", pipeline,
         )
-        
+
         # Wait for the subprocess to complete
         returncode = await process.wait()
-        
+
         metadata = load_metadata(task_id) # reload to merge changes
-        
+
         if returncode == 0:
             # Locate the output subfolder named after the PDF name
             pdf_base_dir = None
@@ -114,37 +114,37 @@ async def run_extraction_task(task_id: str, source_path: str, dpi: int, pipeline
                     if os.path.isdir(entry_path):
                         pdf_base_dir = entry_path
                         break
-            
+
             stats = {}
             if pdf_base_dir:
                 stats_docling_path = os.path.join(pdf_base_dir, "stats_docling.json")
                 stats_paddle_path = os.path.join(pdf_base_dir, "stats_paddleocr.json")
-                
+
                 if os.path.exists(stats_docling_path):
                     try:
                         with open(stats_docling_path, "r") as f:
                             stats.update(json.load(f))
                     except Exception as e:
                         print(f"Error loading docling stats: {e}")
-                        
+
                 if os.path.exists(stats_paddle_path):
                     try:
                         with open(stats_paddle_path, "r") as f:
                             stats.update(json.load(f))
                     except Exception as e:
                         print(f"Error loading paddleocr stats: {e}")
-            
+
             metadata["status"] = "completed"
             metadata["stats"] = stats
         else:
             metadata["status"] = "failed"
             metadata["error"] = f"Extraction process exited with code {returncode}"
-            
+
     except Exception as e:
         import traceback
         metadata["status"] = "failed"
         metadata["error"] = f"Exception: {str(e)}\n{traceback.format_exc()}"
-        
+
     metadata["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     save_metadata(task_id, metadata)
 
@@ -177,7 +177,7 @@ async def lifespan(app: FastAPI):
     print("[Startup] Detecting GPU availability...")
     GPU_AVAILABLE = await run_in_threadpool(check_gpu_available)
     print(f"[Startup] GPU Available: {GPU_AVAILABLE}")
-    
+
     # Start cleanup background task
     cleanup_task = asyncio.create_task(cleanup_loop())
     yield
@@ -314,19 +314,19 @@ async def create_task(
         raise HTTPException(status_code=400, detail="Provide either 'file' or 'url', not both.")
     if pipeline not in ["all", "docling", "docling_pdf", "docling_images", "paddleocr"]:
         raise HTTPException(status_code=400, detail="Invalid pipeline. Choose 'all', 'docling', 'docling_pdf', 'docling_images', or 'paddleocr'.")
-        
+
     # Resolve default device
     if not device:
         device = "gpu:0" if GPU_AVAILABLE else "cpu"
     else:
         if device.startswith("gpu") and not GPU_AVAILABLE:
             raise HTTPException(status_code=400, detail=f"GPU device '{device}' requested but CUDA is not available on this server.")
-            
+
     # Generate unique Task ID
     task_id = str(uuid.uuid4())
     task_dir = os.path.join(DATA_DIR, task_id)
     os.makedirs(task_dir, exist_ok=True)
-    
+
     # Save input source
     source_filename = "document.pdf"
     if file:
@@ -370,7 +370,7 @@ async def create_task(
         "error": None
     }
     save_metadata(task_id, metadata)
-    
+
     # Run the background task
     background_tasks.add_task(
         run_extraction_task,
@@ -380,7 +380,7 @@ async def create_task(
         pipeline=pipeline,
         device=device
     )
-    
+
     return {
         "task_id": task_id,
         "status": "pending",
@@ -398,10 +398,10 @@ async def get_task_report(task_id: str):
     metadata = load_metadata(task_id)
     if metadata["status"] != "completed":
         raise HTTPException(status_code=400, detail=f"Task is in status '{metadata['status']}' and report is not ready.")
-        
+
     task_dir = os.path.join(DATA_DIR, task_id)
     output_dir = os.path.join(task_dir, "output")
-    
+
     # Locate report file
     report_path = None
     if os.path.exists(output_dir):
@@ -412,10 +412,10 @@ async def get_task_report(task_id: str):
                 if os.path.exists(r_file):
                     report_path = r_file
                     break
-                    
+
     if not report_path or not os.path.exists(report_path):
         raise HTTPException(status_code=404, detail="Comparison report file not found. It may not have been generated for single-pipeline runs.")
-        
+
     return FileResponse(report_path, media_type="text/markdown", filename="comparison_report.md")
 
 # Download Task ZIP Endpoint
@@ -424,11 +424,11 @@ async def download_task_zip(task_id: str):
     metadata = load_metadata(task_id)
     if metadata["status"] != "completed":
         raise HTTPException(status_code=400, detail=f"Task is in status '{metadata['status']}' and output archive is not ready.")
-        
+
     task_dir = os.path.join(DATA_DIR, task_id)
     output_dir = os.path.join(task_dir, "output")
     zip_path = os.path.join(task_dir, f"{task_id}.zip")
-    
+
     if not os.path.exists(zip_path):
         if not os.path.exists(output_dir) or not os.listdir(output_dir):
             raise HTTPException(status_code=404, detail="Task output directory is empty or missing.")
@@ -437,7 +437,7 @@ async def download_task_zip(task_id: str):
             await run_in_threadpool(shutil.make_archive, zip_path.replace(".zip", ""), 'zip', output_dir)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to generate output ZIP: {e}")
-            
+
     return FileResponse(zip_path, media_type="application/zip", filename=f"extraction_results_{task_id[:8]}.zip")
 
 
@@ -448,10 +448,10 @@ async def get_task_markdown(task_id: str, pipeline: Optional[str] = None):
     metadata = load_metadata(task_id)
     if metadata["status"] != "completed":
         raise HTTPException(status_code=400, detail=f"Task is in status '{metadata['status']}' and markdown is not ready.")
-        
+
     task_dir = os.path.join(DATA_DIR, task_id)
     output_dir = os.path.join(task_dir, "output")
-    
+
     # Locate output subdirectory (named after the PDF file)
     pdf_base_dir = None
     if os.path.exists(output_dir):
@@ -460,14 +460,14 @@ async def get_task_markdown(task_id: str, pipeline: Optional[str] = None):
             if os.path.isdir(entry_path):
                 pdf_base_dir = entry_path
                 break
-                
+
     if not pdf_base_dir:
         raise HTTPException(status_code=404, detail="Task output directory not found.")
-        
+
     docling_pdf_path = os.path.join(pdf_base_dir, "docling_pdf", "document.md")
     docling_img_dir = os.path.join(pdf_base_dir, "docling_images")
     paddle_img_dir = os.path.join(pdf_base_dir, "paddleocr_images")
-    
+
     # If a specific pipeline was requested, try to serve that
     if pipeline:
         if pipeline == "docling_pdf":
@@ -475,13 +475,13 @@ async def get_task_markdown(task_id: str, pipeline: Optional[str] = None):
                 return FileResponse(docling_pdf_path, media_type="text/markdown", filename="document.md")
             else:
                 raise HTTPException(status_code=404, detail="Docling PDF direct markdown not found for this task.")
-                
+
         elif pipeline == "docling_images":
             if os.path.exists(docling_img_dir) and os.listdir(docling_img_dir):
                 pages = sorted([f for f in os.listdir(docling_img_dir) if f.startswith("page_") and f.endswith(".md")])
                 if not pages:
                     raise HTTPException(status_code=404, detail="No Docling image page markdown files found.")
-                
+
                 content_parts = []
                 for p in pages:
                     with open(os.path.join(docling_img_dir, p), "r", encoding="utf-8") as f:
@@ -489,13 +489,13 @@ async def get_task_markdown(task_id: str, pipeline: Optional[str] = None):
                 return Response(content="\n\n".join(content_parts), media_type="text/markdown")
             else:
                 raise HTTPException(status_code=404, detail="Docling Images markdown not found for this task.")
-                
+
         elif pipeline == "paddleocr":
             if os.path.exists(paddle_img_dir) and os.listdir(paddle_img_dir):
                 page_dirs = sorted([d for d in os.listdir(paddle_img_dir) if d.startswith("page_") and os.path.isdir(os.path.join(paddle_img_dir, d))])
                 if not page_dirs:
                     raise HTTPException(status_code=404, detail="No PaddleOCR page directories found.")
-                
+
                 content_parts = []
                 for p_dir in page_dirs:
                     md_file = os.path.join(paddle_img_dir, p_dir, f"{p_dir}.md")
@@ -509,11 +509,11 @@ async def get_task_markdown(task_id: str, pipeline: Optional[str] = None):
                 raise HTTPException(status_code=404, detail="PaddleOCR markdown not found for this task.")
         else:
             raise HTTPException(status_code=400, detail="Invalid pipeline query parameter. Use 'docling_pdf', 'docling_images', or 'paddleocr'.")
-            
+
     # Auto-detect best available markdown
     if os.path.exists(docling_pdf_path):
         return FileResponse(docling_pdf_path, media_type="text/markdown", filename="document.md")
-        
+
     if os.path.exists(docling_img_dir) and os.listdir(docling_img_dir):
         pages = sorted([f for f in os.listdir(docling_img_dir) if f.startswith("page_") and f.endswith(".md")])
         if pages:
@@ -522,7 +522,7 @@ async def get_task_markdown(task_id: str, pipeline: Optional[str] = None):
                 with open(os.path.join(docling_img_dir, p), "r", encoding="utf-8") as f:
                     content_parts.append(f.read())
             return Response(content="\n\n".join(content_parts), media_type="text/markdown")
-            
+
     if os.path.exists(paddle_img_dir) and os.listdir(paddle_img_dir):
         page_dirs = sorted([d for d in os.listdir(paddle_img_dir) if d.startswith("page_") and os.path.isdir(os.path.join(paddle_img_dir, d))])
         if page_dirs:
@@ -534,7 +534,7 @@ async def get_task_markdown(task_id: str, pipeline: Optional[str] = None):
                         content_parts.append(f.read())
             if content_parts:
                 return Response(content="\n\n".join(content_parts), media_type="text/markdown")
-                
+
     raise HTTPException(status_code=404, detail="No markdown output files found for this task.")
 
 
@@ -544,20 +544,20 @@ from fastapi.openapi.utils import get_openapi
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     openapi_schema = get_openapi(
         title=app.title,
         version=app.version,
         description=app.description,
         routes=app.routes,
     )
-    
+
     # Ensure components and schemas exist
     if "components" not in openapi_schema:
         openapi_schema["components"] = {}
     if "schemas" not in openapi_schema["components"]:
         openapi_schema["components"]["schemas"] = {}
-        
+
     # Inject PipelineConfig and DeviceConfig schemas
     openapi_schema["components"]["schemas"]["PipelineConfig"] = {
         "title": "PipelineConfig",
@@ -572,7 +572,7 @@ def custom_openapi():
             }
         }
     }
-    
+
     openapi_schema["components"]["schemas"]["DeviceConfig"] = {
         "title": "DeviceConfig",
         "type": "object",
@@ -585,12 +585,12 @@ def custom_openapi():
             }
         }
     }
-    
+
     # Update requestBody for create_task_tasks_post (/tasks POST)
     try:
         body_schema = openapi_schema.get("components", {}).get("schemas", {}).get("Body_create_task_tasks_post", {})
         properties = body_schema.get("properties", {})
-        
+
         if "pipeline" in properties:
             properties["pipeline"] = {
                 "$ref": "#/components/schemas/PipelineConfig"
@@ -601,7 +601,7 @@ def custom_openapi():
             }
     except Exception as e:
         print(f"Error customizing OpenAPI schema: {e}")
-        
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 

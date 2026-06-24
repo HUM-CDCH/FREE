@@ -43,11 +43,11 @@ def parse_args():
 
 def main():
     args = parse_args()
-    
+
     # 1. Resolve source and download if URL
     source = args.source
     os.makedirs(args.output_dir, exist_ok=True)
-    
+
     if source.startswith("http://") or source.startswith("https://"):
         pdf_name = source.split("/")[-1]
         if not pdf_name.endswith(".pdf"):
@@ -60,15 +60,15 @@ def main():
     else:
         local_pdf_path = os.path.abspath(source)
         pdf_name = os.path.basename(local_pdf_path)
-        
+
     if not os.path.exists(local_pdf_path):
         print(f"Error: PDF file does not exist at {local_pdf_path}")
         return
-        
+
     pdf_base = os.path.splitext(pdf_name)[0]
     pdf_output_dir = os.path.join(args.output_dir, pdf_base)
     os.makedirs(pdf_output_dir, exist_ok=True)
-    
+
     # 2. Convert PDF to images
     images_dir = os.path.join(pdf_output_dir, "images")
     print(f"\n--- Converting PDF to images ({args.dpi} DPI) ---")
@@ -82,7 +82,7 @@ def main():
         print("\n==================================================")
         print("Starting isolated pipeline runs to prevent CUDA OOM conflicts")
         print("==================================================")
-        
+
         # Step A: Run Docling subprocess
         docling_cmd = [
             sys.executable, __file__,
@@ -94,7 +94,7 @@ def main():
         ]
         print(f"\nSpawning Docling process: {' '.join(docling_cmd)}")
         subprocess.run(docling_cmd, check=True)
-        
+
         # Step B: Run PaddleOCR subprocess
         paddle_cmd = [
             sys.executable, __file__,
@@ -106,21 +106,21 @@ def main():
         ]
         print(f"\nSpawning PaddleOCR process: {' '.join(paddle_cmd)}")
         subprocess.run(paddle_cmd, check=True)
-        
+
         # Step C: Load stats and build final report
         stats_docling = {}
         stats_paddle = {}
-        
+
         stats_docling_path = os.path.join(pdf_output_dir, "stats_docling.json")
         stats_paddle_path = os.path.join(pdf_output_dir, "stats_paddleocr.json")
-        
+
         if os.path.exists(stats_docling_path):
             with open(stats_docling_path, "r") as f:
                 stats_docling = json.load(f)
         if os.path.exists(stats_paddle_path):
             with open(stats_paddle_path, "r") as f:
                 stats_paddle = json.load(f)
-                
+
         # Merge stats
         comparison_stats = {
             "pages": len(image_paths),
@@ -128,15 +128,15 @@ def main():
             "docling_images": stats_docling.get("docling_images", {"time": 0.0, "char_count": 0, "status": "Failed to run"}),
             "paddle_images": stats_paddle.get("paddle_images", {"time": 0.0, "char_count": 0, "status": "Failed to run"})
         }
-        
+
         # Save summary report
         report_path = os.path.join(pdf_output_dir, "comparison_report.md")
         docling_pdf_dir = os.path.join(pdf_output_dir, "docling_pdf")
         docling_img_dir = os.path.join(pdf_output_dir, "docling_images")
         paddle_dir = os.path.join(pdf_output_dir, "paddleocr_images")
-        
+
         report_content = f"""# Extraction Comparison Report
-    
+
 - **Document**: `{pdf_name}`
 - **Total Pages**: {comparison_stats["pages"]}
 - **DPI for Images**: {args.dpi}
@@ -170,7 +170,7 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
 """
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(report_content)
-            
+
         print(report_content)
         print(f"\nReport successfully saved to {report_path}")
         return
@@ -180,9 +180,9 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
         print(f"\n--- Running Docling pipelines: {args.pipeline} ---")
         docling_pdf_dir = os.path.join(pdf_output_dir, "docling_pdf")
         docling_img_dir = os.path.join(pdf_output_dir, "docling_images")
-        
+
         stats = {}
-        
+
         # Run Docling PDF Direct
         if args.pipeline in ["docling", "docling_pdf"]:
             os.makedirs(docling_pdf_dir, exist_ok=True)
@@ -193,11 +193,11 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
                 converter = DocumentConverter()
                 doc_result = converter.convert(local_pdf_path).document
                 docling_pdf_md = doc_result.export_to_markdown()
-                
+
                 docling_pdf_path = os.path.join(docling_pdf_dir, "document.md")
                 with open(docling_pdf_path, "w", encoding="utf-8") as f:
                     f.write(docling_pdf_md)
-                    
+
                 stats["docling_pdf"]["time"] = time.time() - start_time
                 stats["docling_pdf"]["char_count"] = len(docling_pdf_md)
                 stats["docling_pdf"]["status"] = "Success"
@@ -205,7 +205,7 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
             except Exception as e:
                 stats["docling_pdf"]["status"] = f"Failed: {e}"
                 print(f"Error running Docling on PDF: {e}")
-            
+
         # Run Docling on converted page images
         if args.pipeline in ["docling", "docling_images"]:
             os.makedirs(docling_img_dir, exist_ok=True)
@@ -219,12 +219,12 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
                     print(f"Processing page {idx+1}/{len(image_paths)} with Docling...")
                     page_res = converter.convert(img_path).document
                     page_md = page_res.export_to_markdown()
-                    
+
                     page_output_path = os.path.join(docling_img_dir, f"page_{idx+1:02d}.md")
                     with open(page_output_path, "w", encoding="utf-8") as f:
                         f.write(page_md)
                     docling_img_mds.append(page_md)
-                    
+
                 stats["docling_images"]["time"] = time.time() - start_time
                 stats["docling_images"]["char_count"] = sum(len(md) for md in docling_img_mds)
                 stats["docling_images"]["status"] = "Success"
@@ -232,7 +232,7 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
             except Exception as e:
                 stats["docling_images"]["status"] = f"Failed: {e}"
                 print(f"Error running Docling on images: {e}")
-                
+
         # Merge stats if stats_docling.json exists
         stats_path = os.path.join(pdf_output_dir, "stats_docling.json")
         existing_stats = {}
@@ -243,7 +243,7 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
             except Exception:
                 pass
         existing_stats.update(stats)
-        
+
         with open(stats_path, "w") as f:
             json.dump(existing_stats, f)
         return
@@ -256,14 +256,14 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
         os.environ["FLAGS_allocator_strategy"] = "auto_growth"
         os.environ["FLAGS_eager_delete_tensor_gb"] = "0.0"
         os.environ["FLAGS_use_onednn"] = "0"
-        
+
         paddle_dir = os.path.join(pdf_output_dir, "paddleocr_images")
         os.makedirs(paddle_dir, exist_ok=True)
-        
+
         stats = {
             "paddle_images": {"time": 0.0, "char_count": 0, "status": "Not run"}
         }
-        
+
         start_time = time.time()
         paddle_texts = []
         try:
@@ -275,22 +275,22 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
                 use_textline_orientation=False,
                 device=args.device,
             )
-            
+
             for idx, img_path in enumerate(image_paths):
                 print(f"Processing page {idx+1}/{len(image_paths)} with PaddleOCR...")
                 output = pipeline.predict(img_path)
-                
+
                 page_paddle_dir = os.path.join(paddle_dir, f"page_{idx+1:02d}")
                 os.makedirs(page_paddle_dir, exist_ok=True)
-                
+
                 for res in output:
                     res.save_to_markdown(save_path=page_paddle_dir)
                     res.save_to_json(save_path=page_paddle_dir)
-                    
+
                     md_dict = getattr(res, "markdown", {})
                     if md_dict and isinstance(md_dict, dict):
                         paddle_texts.append(md_dict.get("markdown_texts", ""))
-                        
+
             stats["paddle_images"]["time"] = time.time() - start_time
             stats["paddle_images"]["char_count"] = sum(len(txt) for txt in paddle_texts)
             stats["paddle_images"]["status"] = "Success"
@@ -298,7 +298,7 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
         except Exception as e:
             stats["paddle_images"]["status"] = f"Failed: {e}"
             print(f"Error running PaddleOCR: {e}")
-            
+
         with open(os.path.join(pdf_output_dir, "stats_paddleocr.json"), "w") as f:
             json.dump(stats, f)
         return

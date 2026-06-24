@@ -111,4 +111,3 @@ async function pdfFromLocalPdfJs(file: File): Promise<ConvertedPdf | null> {
     await doc.cleanup()
   }
 }
-

@@ -24,7 +24,7 @@ describe('requestExtraction', () => {
       'fetch',
       vi.fn().mockImplementation((_url: string, init: RequestInit) => {
         submittedTemplate = init.body instanceof FormData ? init.body.get('template') : null
-        return Promise.resolve(jsonResponse({ result: {}, evidence: null, reasoning: null, raw: '', pages: null }))
+        return Promise.resolve(jsonResponse({ result: {}, reasoning: null, raw: '', pages: null }))
       }),
     )
 
@@ -109,7 +109,6 @@ describe('parseDocumentToMarkdown', () => {
 describe('decoders', () => {
   it('fail loud when response contracts drift', () => {
     expect(() => decodeExtractDone({ raw: '{}' })).toThrow("extract: response missing 'result'")
-    expect(() => decodeExtractDone({ result: {}, raw: '{}' })).toThrow("extract: response missing 'evidence'")
     expect(() => decodeSchemaDone({ raw: '{}' })).toThrow("generate_schema: response missing 'template'")
     expect(() => decodeMarkdownDone({ pages: null })).toThrow("markdown: response missing 'markdown'")
   })
