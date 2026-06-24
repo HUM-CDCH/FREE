@@ -36,32 +36,35 @@ describe('extractWithModel', () => {
     })
   })
 
-  it('rejects valid JSON with fields outside the extraction schema', async () => {
+  it('warns but keeps valid JSON with fields outside the extraction schema', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     stubOllamaResponse('{"grave":[{"name":"Grave 1","extra":"invented"}]}')
 
-    await expect(
-      extractWithModel({
-        document,
-        template: { grave: [{ name: 'verbatim-string' }] },
-      }),
-    ).rejects.toMatchObject({
-      status: 502,
-      message: 'Model returned output that did not match the extraction schema.',
+    const result = await extractWithModel({
+      document,
+      template: { grave: [{ name: 'verbatim-string' }] },
     })
+
+    expect(result.result).toEqual({ grave: [{ name: 'Grave 1', extra: 'invented' }] })
+    expect(warn).toHaveBeenCalledWith(
+      'Model returned output that did not match the extraction schema.',
+      expect.anything(),
+    )
+    warn.mockRestore()
   })
 
-  it('rejects valid JSON with primitive types outside the extraction schema', async () => {
+  it('warns but keeps valid JSON with primitive types outside the extraction schema', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     stubOllamaResponse('{"grave":[{"name":42}]}')
 
-    await expect(
-      extractWithModel({
-        document,
-        template: { grave: [{ name: 'verbatim-string' }] },
-      }),
-    ).rejects.toMatchObject({
-      status: 502,
-      message: 'Model returned output that did not match the extraction schema.',
+    const result = await extractWithModel({
+      document,
+      template: { grave: [{ name: 'verbatim-string' }] },
     })
+
+    expect(result.result).toEqual({ grave: [{ name: 42 }] })
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
   })
 })
 

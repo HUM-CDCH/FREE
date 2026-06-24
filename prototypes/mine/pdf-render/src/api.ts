@@ -164,10 +164,11 @@ export async function requestExtraction(
   markdown?: string | null,
 ): Promise<{ result: unknown; evidence: unknown }> {
   const form = new FormData()
-  form.append('file', file, fileName)
   form.append('template', JSON.stringify(template ?? {}))
   if (markdown) {
     form.append('document_markdown', markdown)
+  } else {
+    form.append('file', file, fileName)
   }
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)

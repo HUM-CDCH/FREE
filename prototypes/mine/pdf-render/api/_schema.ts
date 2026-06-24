@@ -23,8 +23,6 @@ export function schemaPrompt(annotations: readonly Annotation[], mode: Annotatio
 
 Generate a compact JSON extraction schema for this source document. Return an object named "template". Field values should be simple type labels such as "verbatim-string", "string", "date", "number", "integer", "boolean", nested objects, or arrays.
 
-Represent every repeating structure as an array holding EXACTLY ONE representative element that describes the shape of the items. Do not enumerate or repeat the document's actual items — one example element only, even when the document lists many.
-
 Annotations:
 ${annotationText}`
 }
