@@ -4,11 +4,12 @@ from dataclasses import dataclass
 from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 
+from shared.evidence_template import wrap_template_with_evidence
 from shared.model_call import ResultParseError
 from shared.model_gateway import ModelGateway, ModelGatewayError
 from shared.nuextract_request import NuExtractRequestBuilder
 from shared.parsing import normalize_template
-from shared.result_parsers import AnswerParser, StructuredParser
+from shared.result_parsers import AnswerParser, EvidenceStructuredParser
 from shared.source_context import SourceContextBuilder, SourceContextRequest
 from shared.source_document import (
     SourceDocumentError,
@@ -39,6 +40,7 @@ class ExtractRequest:
 @dataclass(frozen=True, slots=True)
 class ExtractResult:
     result: Any
+    evidence: dict[str, Any] | None
     reasoning: str | None
     raw: str
     pages: int
@@ -71,11 +73,20 @@ class ExtractPipeline:
         source_context = self._source_context.build(
             SourceContextRequest(text=text, document=document)
         )
+        _EVIDENCE_PAGE_INSTRUCTION = (
+            "For each 'page' field, output the index of the image you are "
+            "viewing (1 for the first image, 2 for the second, etc.), "
+            "not the page number printed in the document content."
+        )
+        evidence_instruction = (
+            f"{instruction}\n{_EVIDENCE_PAGE_INSTRUCTION}" if instruction
+            else _EVIDENCE_PAGE_INSTRUCTION
+        )
         model_request = (
             self._nuextract_requests.structured_extraction(
                 content=source_context.content,
-                template_json=template_json,
-                instruction=instruction,
+                template_json=wrap_template_with_evidence(template_json),
+                instruction=evidence_instruction,
                 reasoning=request.reasoning,
                 temperature=request.temperature,
             )
@@ -88,11 +99,16 @@ class ExtractPipeline:
             )
         )
 
-        parser = StructuredParser() if use_structured else AnswerParser()
-        result = await self._model_gateway.collect(model_request, parser=parser)
+        if use_structured:
+            result = await self._model_gateway.collect(model_request, parser=EvidenceStructuredParser())
+            clean_result, evidence = result.value
+        else:
+            result = await self._model_gateway.collect(model_request, parser=AnswerParser())
+            clean_result, evidence = result.value, None
 
         return ExtractResult(
-            result=result.value,
+            result=clean_result,
+            evidence=evidence,
             reasoning=result.reasoning,
             raw=_reconstruct_raw(result.output, result.reasoning),
             pages=source_context.page_count,
@@ -144,6 +160,7 @@ async def extract(
     return JSONResponse(
         {
             "result": result.result,
+            "evidence": result.evidence,
             "reasoning": result.reasoning,
             "raw": result.raw,
             "pages": result.pages,

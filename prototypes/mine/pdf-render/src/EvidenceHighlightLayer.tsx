@@ -20,120 +20,226 @@ function buildTopLevelColorMap(schema: unknown): Record<string, string> {
   return map
 }
 
-type Highlight = {
-  value: string
-  color: string
+// A highlight carries value (what to mark) + snippet (where to anchor) + hint page
+type Highlight = { value: string; snippet: string | null; hintPage: number | null; color: string }
+
+// Collect {value, snippet, page} leaves from the evidence tree
+function collectEvidenceLeaves(node: unknown, color: string, out: Highlight[]): void {
+  if (
+    isRecord(node) &&
+    typeof node.value === 'string' &&
+    typeof node.snippet === 'string'
+  ) {
+    const v = node.value.trim()
+    const s = node.snippet.trim()
+    if (v && s) {
+      out.push({ value: v, snippet: s, hintPage: typeof node.page === 'number' ? node.page : null, color })
+    }
+  } else if (Array.isArray(node)) {
+    for (const item of node) collectEvidenceLeaves(item, color, out)
+  } else if (isRecord(node)) {
+    for (const sub of Object.values(node)) collectEvidenceLeaves(sub, color, out)
+  }
 }
 
-function collectLeaves(node: unknown, color: string, out: Highlight[]): void {
+// Fallback: collect string leaves from result (no snippet, no hint)
+function collectResultLeaves(node: unknown, color: string, out: Highlight[]): void {
   if (typeof node === 'string') {
     const v = node.trim()
-    if (v) out.push({ value: v, color })
+    if (v) out.push({ value: v, snippet: null, hintPage: null, color })
   } else if (Array.isArray(node)) {
-    for (const item of node) collectLeaves(item, color, out)
+    for (const item of node) collectResultLeaves(item, color, out)
   } else if (isRecord(node)) {
-    for (const sub of Object.values(node)) collectLeaves(sub, color, out)
+    for (const sub of Object.values(node)) collectResultLeaves(sub, color, out)
   }
-  // numbers, booleans, null → skip (not reliably searchable as text)
 }
 
-function buildHighlights(result: Record<string, unknown>, colorMap: Record<string, string>): Highlight[] {
+function buildHighlights(
+  result: Record<string, unknown>,
+  evidence: unknown,
+  colorMap: Record<string, string>,
+): Highlight[] {
   const out: Highlight[] = []
-  for (const [key, value] of Object.entries(result)) {
-    collectLeaves(value, colorMap[key] ?? PALETTE[0], out)
+  if (isRecord(evidence)) {
+    // Evidence available: collect snippet-anchored highlights
+    for (const [key, sub] of Object.entries(evidence)) {
+      collectEvidenceLeaves(sub, colorMap[key] ?? PALETTE[0], out)
+    }
+  } else {
+    // No evidence: fall back to direct result search
+    for (const [key, value] of Object.entries(result)) {
+      collectResultLeaves(value, colorMap[key] ?? PALETTE[0], out)
+    }
   }
   return out
 }
 
-type PageRects = { pageNumber: number; rects: DOMRect[] }
+// ── text-layer helpers ────────────────────────────────────────────────────────
 
-async function searchValueInPage(
-  pdfViewer: PDFViewer,
-  pageNumber: number,
-  query: string,
-): Promise<DOMRect[]> {
+type HasStr = { str: string; transform: number[]; width: number; height: number }
+
+type PageTextData = {
+  items: HasStr[]
+  normStrs: string[]
+  fullText: string
+  viewportScale: number
+  viewportHeight: number
+}
+
+async function getPageTextData(pdfViewer: PDFViewer, pageNumber: number): Promise<PageTextData | null> {
+  const pageCount = pdfViewer.pdfDocument?.numPages ?? 0
+  if (pageNumber < 1 || pageNumber > pageCount) return null
   const pdfPage = await pdfViewer.pdfDocument?.getPage(pageNumber)
-  if (!pdfPage) return []
+  if (!pdfPage) return null
 
   const textContent = await pdfPage.getTextContent()
-  // PDF.js renders pages at currentScale × CSS_UNITS (96/72) to convert PDF
-  // points to CSS pixels. We must apply the same factor when computing rects.
   const CSS_UNITS = 96.0 / 72.0
   const viewport = pdfPage.getViewport({ scale: pdfViewer.currentScale * CSS_UNITS })
 
-  type HasStr = { str: string; transform: number[]; width: number; height: number }
-  const rawItems = textContent.items.filter(
-    (item): item is typeof item & HasStr => 'str' in item,
-  )
-  const items: typeof rawItems = []
+  const items: HasStr[] = []
   const normStrs: string[] = []
-  for (const item of rawItems) {
+  for (const raw of textContent.items) {
+    if (!('str' in raw)) continue
+    const item = raw as HasStr
     const norm = item.str.replace(/\s+/g, ' ').trim()
     if (norm) { items.push(item); normStrs.push(norm) }
   }
 
-  const fullText = normStrs.join(' ')
-  const idx = fullText.toLowerCase().indexOf(query.toLowerCase())
+  return {
+    items,
+    normStrs,
+    fullText: normStrs.join(' '),
+    viewportScale: viewport.scale,
+    viewportHeight: viewport.height,
+  }
+}
+
+function rectsForQuery(data: PageTextData, query: string, searchFrom = 0): DOMRect[] {
+  const idx = data.fullText.toLowerCase().indexOf(query.toLowerCase(), searchFrom)
   if (idx === -1) return []
 
   const rects: DOMRect[] = []
   let cursor = 0
   const end = idx + query.length
-  for (let i = 0; i < items.length; i++) {
-    const normLen = normStrs[i].length
+  for (let i = 0; i < data.items.length; i++) {
+    const normLen = data.normStrs[i].length
     const itemEnd = cursor + normLen
     if (itemEnd > idx && cursor < end) {
-      const [, , , , tx, ty] = items[i].transform
-      const x = tx * viewport.scale
-      const y = viewport.height - (ty + items[i].height) * viewport.scale
-      rects.push(new DOMRect(x, y, items[i].width * viewport.scale, items[i].height * viewport.scale))
+      const [, , , , tx, ty] = data.items[i].transform
+      const x = tx * data.viewportScale
+      const y = data.viewportHeight - (ty + data.items[i].height) * data.viewportScale
+      rects.push(new DOMRect(x, y, data.items[i].width * data.viewportScale, data.items[i].height * data.viewportScale))
     }
     cursor += normLen + 1
   }
   return rects
 }
 
+// Find `value` within the region where `snippet` appears on a page.
+// Falls back to searching value across the whole page if snippet isn't found.
+function searchValueAnchoredBySnippet(data: PageTextData, snippet: string, value: string): DOMRect[] {
+  const snippetNorm = snippet.replace(/\s+/g, ' ').trim()
+  const snippetIdx = data.fullText.toLowerCase().indexOf(snippetNorm.toLowerCase())
+
+  if (snippetIdx !== -1) {
+    // Build a sub-text covering the snippet's item range
+    const snippetEnd = snippetIdx + snippetNorm.length
+    let cursor = 0
+    let subStart = -1
+    let subEnd = 0
+    for (let i = 0; i < data.items.length; i++) {
+      const normLen = data.normStrs[i].length
+      const itemEnd = cursor + normLen
+      if (itemEnd > snippetIdx && subStart === -1) subStart = i
+      if (cursor < snippetEnd) subEnd = i
+      cursor += normLen + 1
+    }
+
+    if (subStart !== -1) {
+      const subData: PageTextData = {
+        items: data.items.slice(subStart, subEnd + 1),
+        normStrs: data.normStrs.slice(subStart, subEnd + 1),
+        fullText: data.normStrs.slice(subStart, subEnd + 1).join(' '),
+        viewportScale: data.viewportScale,
+        viewportHeight: data.viewportHeight,
+      }
+      const valueNorm = value.replace(/\s+/g, ' ').trim()
+      const rects = rectsForQuery(subData, valueNorm)
+      if (rects.length > 0) return rects
+    }
+  }
+
+  // Snippet not found or value not in snippet — search value across whole page
+  const valueNorm = value.replace(/\s+/g, ' ').trim()
+  return rectsForQuery(data, valueNorm)
+}
+
+// ── main search ───────────────────────────────────────────────────────────────
+
+type PageRects = { pageNumber: number; rects: DOMRect[] }
+
 async function findValueRects(
   pdfViewer: PDFViewer,
   value: string,
+  snippet: string | null,
+  hintPage: number | null,
 ): Promise<PageRects | null> {
   const pageCount = pdfViewer.pdfDocument?.numPages ?? 0
-  const base = value.replace(/\s+/g, ' ').trim()
-  if (!base) return null
+  const valueNorm = value.replace(/\s+/g, ' ').trim()
+  if (!valueNorm) return null
 
-  // Try progressively shorter prefixes to tolerate OCR/formatting differences
-  const words = base.split(' ')
-  const seen = new Set<string>()
-  const queries: string[] = []
-  const add = (q: string) => { const t = q.trim(); if (t && !seen.has(t)) { seen.add(t); queries.push(t) } }
-  add(base)
-  if (words.length > 4) add(words.slice(0, 5).join(' '))
-  if (words.length > 2) add(words.slice(0, 3).join(' '))
+  // Build query list with progressive shortening for direct fallback
+  const words = valueNorm.split(' ')
+  const queries: string[] = [valueNorm]
+  if (words.length > 4) queries.push(words.slice(0, 5).join(' '))
+  if (words.length > 2) queries.push(words.slice(0, 3).join(' '))
 
-  for (const query of queries) {
-    for (let p = 1; p <= pageCount; p++) {
-      const rects = await searchValueInPage(pdfViewer, p, query)
+  // Page order: hint page first, then the rest
+  const pages = hintPage != null
+    ? [hintPage, ...Array.from({ length: pageCount }, (_, i) => i + 1).filter(p => p !== hintPage)]
+    : Array.from({ length: pageCount }, (_, i) => i + 1)
+
+  if (snippet) {
+    // Snippet-anchored: search for value within snippet context
+    for (const p of pages) {
+      const data = await getPageTextData(pdfViewer, p)
+      if (!data) continue
+      const rects = searchValueAnchoredBySnippet(data, snippet, valueNorm)
       if (rects.length > 0) return { pageNumber: p, rects }
     }
   }
+
+  // Direct search with progressive shortening (no snippet, or snippet search failed)
+  for (const query of queries) {
+    for (const p of pages) {
+      const data = await getPageTextData(pdfViewer, p)
+      if (!data) continue
+      const rects = rectsForQuery(data, query)
+      if (rects.length > 0) return { pageNumber: p, rects }
+    }
+  }
+
   return null
 }
+
+// ── component ─────────────────────────────────────────────────────────────────
 
 type Props = {
   pdfViewer: PDFViewer | null
   result: unknown
+  evidence: unknown
   containerEl: HTMLDivElement | null
   schema: unknown
 }
 
-export default function EvidenceHighlightLayer({ pdfViewer, result, containerEl, schema }: Props) {
+export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, containerEl, schema }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
     const colorMap = buildTopLevelColorMap(schema)
-    const highlights = buildHighlights(result, colorMap)
+    const highlights = buildHighlights(result, evidence, colorMap)
     if (highlights.length === 0) return
 
     let cancelled = false
@@ -155,7 +261,7 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, containerEl,
       for (const h of highlights) {
         if (cancelled) return
 
-        const found = await findValueRects(pdfViewer, h.value)
+        const found = await findValueRects(pdfViewer, h.value, h.snippet, h.hintPage)
         if (!found) continue
 
         const pageEl = containerEl.querySelector(
@@ -177,7 +283,7 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, containerEl,
 
     void render()
     return () => { cancelled = true }
-  }, [pdfViewer, result, containerEl, schema])
+  }, [pdfViewer, result, evidence, containerEl, schema])
 
   if (!result) return null
 

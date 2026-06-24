@@ -15,6 +15,7 @@ type TemplateOptions = {
 export type ChatDone = { message: string; reasoning: string | null; raw: string }
 export type ExtractDone = {
   result: Record<string, unknown>
+  evidence: Record<string, unknown> | null
   reasoning: string | null
   raw: string
   pages: number
@@ -127,11 +128,11 @@ export async function requestExtraction(
   fileName: string,
   template: unknown,
   signal?: AbortSignal,
-): Promise<unknown> {
+): Promise<{ result: unknown; evidence: unknown }> {
   const form = new FormData()
   form.append('file', file, fileName)
   form.append('template', JSON.stringify(template ?? {}))
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
-  return done.result
+  return { result: done.result, evidence: done.evidence }
 }

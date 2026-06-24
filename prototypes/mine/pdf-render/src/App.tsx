@@ -465,6 +465,7 @@ function App() {
             <EvidenceHighlightLayer
               pdfViewer={pdfViewerRef.current}
               result={extraction.state.status === 'ready' ? extraction.state.result : null}
+              evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
               containerEl={containerRef.current}
               schema={templateState.status === 'ready' ? templateState.template : null}
             />

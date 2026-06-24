@@ -41,11 +41,11 @@ export function useExtraction({
 
     try {
       const blob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
-      const result = await requestExtraction(blob, pdfSource.filename, template, abortController.signal)
+      const { result, evidence } = await requestExtraction(blob, pdfSource.filename, template, abortController.signal)
       if (abortController.signal.aborted) {
         return
       }
-      setState({ status: 'ready', result })
+      setState({ status: 'ready', result, evidence })
       onComplete(isRerun)
     } catch (error) {
       if (abortController.signal.aborted) {
