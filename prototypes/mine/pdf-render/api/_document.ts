@@ -10,7 +10,7 @@ const supportedMediaTypes = new Set([
 ])
 
 export type DocumentInput = {
-  readonly file: File
+  readonly file: File | null
   readonly pages: number | null
   // Pre-parsed Markdown from the parsing service (the document's "index"). When
   // present it replaces page-image rendering as the model's view of the document.
@@ -52,17 +52,21 @@ export function parseAnnotationMode(value: FormDataEntryValue | null): Annotatio
 
 export async function parseDocument(form: FormData): Promise<DocumentInput> {
   const file = form.get('file')
+  const markdownEntry = form.get('document_markdown')
+  const markdown = typeof markdownEntry === 'string' && markdownEntry.trim() ? markdownEntry : null
+
+  // Markdown-only: no file to validate or rasterise.
   if (!(file instanceof File)) {
-    throw new RequestError(400, "FormData must include a 'file'")
+    if (!markdown) {
+      throw new RequestError(400, "FormData must include a 'file' or 'document_markdown' entry")
+    }
+    return { file: null, pages: null, markdown }
   }
 
   const mediaType = file.type || mediaTypeFromName(file.name)
   if (!supportedMediaTypes.has(mediaType)) {
     throw new RequestError(400, `Unsupported source document type: ${mediaType || 'unknown'}`)
   }
-
-  const markdownEntry = form.get('document_markdown')
-  const markdown = typeof markdownEntry === 'string' && markdownEntry.trim() ? markdownEntry : null
 
   return { file: new File([file], file.name, { type: mediaType }), pages: null, markdown }
 }

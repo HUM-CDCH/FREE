@@ -61,6 +61,9 @@ async function documentContentParts(
   if (document.markdown) {
     return { parts: [{ type: 'text', text: document.markdown }], pages: document.pages }
   }
+  if (!document.file) {
+    throw new RequestError(400, "No document content: provide a 'file' or 'document_markdown'")
+  }
   const fileParts = await documentFileParts(document.file)
   return { parts: fileParts.parts, pages: fileParts.pages }
 }
@@ -189,6 +192,9 @@ export async function markdownWithModel({
   // re-deriving it from page images.
   if (document.markdown) {
     return { markdown: document.markdown, pages: document.pages }
+  }
+  if (!document.file) {
+    throw new RequestError(400, "No document content: provide a 'file' or 'document_markdown'")
   }
 
   const documentParts = await documentFileParts(document.file)

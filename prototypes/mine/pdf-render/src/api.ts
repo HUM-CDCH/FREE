@@ -138,9 +138,10 @@ export async function requestSchema(
   options?: TemplateOptions,
 ): Promise<unknown> {
   const form = new FormData()
-  form.append('file', file, fileName)
   if (options?.markdown) {
     form.append('document_markdown', options.markdown)
+  } else {
+    form.append('file', file, fileName)
   }
   if (options?.annotations?.length) {
     form.append('annotations', JSON.stringify(options.annotations))
