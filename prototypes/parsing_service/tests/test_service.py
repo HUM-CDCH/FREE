@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+import tempfile
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 
@@ -37,6 +38,35 @@ class TestService(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("Provide either 'file' or 'url', not both", response.json()["detail"])
+
+    @patch("main.convert_pdf_to_images")
+    def test_convert_images_endpoint_returns_png_data_urls(self, mock_convert):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            image_path = os.path.join(tmp_dir, "page_01.png")
+            with open(image_path, "wb") as image_file:
+                image_file.write(b"page")
+            mock_convert.return_value = [image_path]
+
+            response = self.client.post(
+                "/convert/images",
+                data={"dpi": "150"},
+                files={"file": ("report.pdf", b"%PDF-1.4", "application/pdf")},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "pages": 1,
+                "images": [
+                    {
+                        "filename": "page_01.png",
+                        "media_type": "image/png",
+                        "data_url": "data:image/png;base64,cGFnZQ==",
+                    }
+                ],
+            },
+        )
 
     @patch("main.asyncio.create_subprocess_exec")
     @patch("main.run_in_threadpool")

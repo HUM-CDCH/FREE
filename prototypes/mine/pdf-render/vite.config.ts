@@ -55,9 +55,9 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
 export default defineConfig(({ mode }) => {
   // ponytail: Vite only exposes VITE_* to the client; the api/* handlers read
   // process.env. Load .env into process.env so `pnpm dev` matches `vercel dev`.
-  // Shell vars win, so an inline `AI_MODEL=… pnpm dev` still overrides .env.
-  for (const [key, value] of Object.entries(loadEnv(mode, process.cwd(), '')))
-    if (process.env[key] === undefined) process.env[key] = value
+  // Override (not soft-merge): Vite restarts in-process on .env edits, so stale
+  // process.env values must be replaced for edits to take effect.
+  Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
 
   return {
     plugins: [

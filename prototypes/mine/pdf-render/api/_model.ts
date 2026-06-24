@@ -10,6 +10,7 @@ import {
 import type { LanguageModel, UIMessage } from 'ai'
 import { z } from 'zod'
 import type { Annotation, AnnotationMode, DocumentInput } from './_document'
+import { documentFileParts } from './_pdf'
 import { extractionPrompt, schemaFromTemplate, schemaPrompt } from './_schema'
 import { RequestError } from './_http'
 
@@ -43,13 +44,6 @@ export type SchemaModelInput = {
 export type MarkdownModelInput = {
   readonly document: DocumentInput
   readonly temperature?: number
-}
-
-type DocumentFilePart = {
-  readonly type: 'file'
-  readonly data: Uint8Array
-  readonly filename: string
-  readonly mediaType: string
 }
 
 const templateEnvelopeSchema = z.object({
@@ -103,6 +97,7 @@ export async function extractWithModel({
   })
 
   try {
+    const documentParts = await documentFileParts(document.file)
     const result = await generateText({
       model: model(),
       temperature,
@@ -114,7 +109,7 @@ export async function extractWithModel({
         {
           role: 'user',
           content: [
-            await filePart(document.file),
+            ...documentParts.parts,
             {
               type: 'text',
               text: extractionPrompt(template, instruction),
@@ -124,7 +119,7 @@ export async function extractWithModel({
       ],
     })
 
-    return { result: result.output, raw: result.text, reasoning: null, pages: document.pages }
+    return { result: result.output, raw: result.text, reasoning: null, pages: documentParts.pages ?? document.pages }
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error)) {
       throw new RequestError(502, 'Model returned output that did not match the extraction schema.', error.text ?? null)
@@ -140,6 +135,7 @@ export async function generateSchemaWithModel({
   temperature,
 }: SchemaModelInput): Promise<{ readonly template: Record<string, unknown>; readonly raw: string; readonly pages: number | null }> {
   try {
+    const documentParts = await documentFileParts(document.file)
     const result = await generateText({
       model: model(),
       temperature,
@@ -151,7 +147,7 @@ export async function generateSchemaWithModel({
         {
           role: 'user',
           content: [
-            await filePart(document.file),
+            ...documentParts.parts,
             {
               type: 'text',
               text: schemaPrompt(annotations, annotationsMode),
@@ -161,7 +157,7 @@ export async function generateSchemaWithModel({
       ],
     })
 
-    return { template: result.output.template, raw: result.text, pages: document.pages }
+    return { template: result.output.template, raw: result.text, pages: documentParts.pages ?? document.pages }
   } catch (error) {
     if (NoObjectGeneratedError.isInstance(error)) {
       throw new RequestError(502, 'Model returned an invalid extraction schema.', error.text ?? null)
@@ -174,6 +170,7 @@ export async function markdownWithModel({
   document,
   temperature,
 }: MarkdownModelInput): Promise<{ readonly markdown: string; readonly pages: number | null }> {
+  const documentParts = await documentFileParts(document.file)
   const result = await generateText({
     model: model(),
     temperature,
@@ -181,7 +178,7 @@ export async function markdownWithModel({
       {
         role: 'user',
         content: [
-          await filePart(document.file),
+          ...documentParts.parts,
           {
             type: 'text',
             text:
@@ -192,16 +189,7 @@ export async function markdownWithModel({
     ],
   })
 
-  return { markdown: result.text.trim(), pages: document.pages }
-}
-
-async function filePart(file: File): Promise<DocumentFilePart> {
-  return {
-    type: 'file',
-    data: new Uint8Array(await file.arrayBuffer()),
-    filename: file.name,
-    mediaType: file.type,
-  }
+  return { markdown: result.text.trim(), pages: documentParts.pages ?? document.pages }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

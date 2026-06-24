@@ -6,6 +6,8 @@ import json
 import uuid
 import datetime
 import asyncio
+import base64
+import tempfile
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -15,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 import urllib.request
+from pdf_utils import convert_pdf_to_images
 
 # Define paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -219,13 +222,54 @@ async def get_system_status():
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 class PipelineConfig(BaseModel):
     type: str = Field("all", description="Pipeline to run: 'all', 'docling', 'docling_pdf', 'docling_images', or 'paddleocr'")
 
 class DeviceConfig(BaseModel):
     type: str = Field("cpu", description="Device to use, e.g. cpu, gpu:0")
+
+class ConvertedImage(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    filename: str
+    media_type: str = "image/png"
+    data_url: str
+
+class ConvertedImagesResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    pages: int
+    images: list[ConvertedImage]
+
+def encode_image(image_path: str) -> str:
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
+@app.post("/convert/images")
+async def convert_images(file: UploadFile = File(...), dpi: int = Form(150)) -> ConvertedImagesResponse:
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Uploaded file must be a PDF.")
+    if dpi < 1:
+        raise HTTPException(status_code=400, detail="dpi must be greater than zero.")
+
+    with tempfile.TemporaryDirectory() as task_dir:
+        source_path = os.path.join(task_dir, "document.pdf")
+        output_dir = os.path.join(task_dir, "images")
+        with open(source_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        image_paths = await run_in_threadpool(convert_pdf_to_images, source_path, output_dir, dpi)
+        images = [
+            ConvertedImage(
+                filename=os.path.basename(image_path),
+                data_url=f"data:image/png;base64,{encode_image(image_path)}",
+            )
+            for image_path in image_paths
+        ]
+
+    return ConvertedImagesResponse(pages=len(images), images=images)
 
 def parse_pipeline(pipeline_val: str) -> str:
     try:
@@ -560,4 +604,3 @@ def custom_openapi():
     return app.openapi_schema
 
 app.openapi = custom_openapi
-
