@@ -79,4 +79,19 @@ describe('generateSchemaWithModel', () => {
 
     expect(result.template).toEqual({ grave: [{ name: 'verbatim-string' }] })
   })
+
+  it('leads the prompt with schema guidance, before the document body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ response: '{"grave":[{"name":"verbatim-string"}]}' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await generateSchemaWithModel({ document, annotations: [], annotationsMode: 'hints' })
+
+    const prompt = JSON.parse(fetchMock.mock.calls[0][1].body as string).prompt as string
+    expect(prompt.indexOf('compact JSON extraction schema')).toBeLessThan(prompt.indexOf('Grave 1'))
+  })
 })
