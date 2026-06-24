@@ -22,8 +22,8 @@ function stubOllamaResponse(response: string): void {
 describe('extractWithModel', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('repairs malformed Ollama JSON before validating the extraction schema', async () => {
-    stubOllamaResponse('{"grave":[{"name":"Grave 1"}}]')
+  it('returns clean extraction results with mirrored evidence', async () => {
+    stubOllamaResponse('{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}')
 
     const result = await extractWithModel({
       document,
@@ -31,6 +31,9 @@ describe('extractWithModel', () => {
     })
 
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
+    expect(result.evidence).toEqual({
+      grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1 } }],
+    })
   })
 
   it('rejects valid JSON with fields outside the extraction schema', async () => {
