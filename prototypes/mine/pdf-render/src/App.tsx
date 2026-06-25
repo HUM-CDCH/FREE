@@ -554,7 +554,6 @@ function App() {
               result={extraction.state.status === 'ready' ? extraction.state.result : null}
               evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
               containerEl={containerEl}
-              schema={templateState.status === 'ready' ? templateState.template : null}
             />
           </div>
           {extraction.state.status === 'running' && (

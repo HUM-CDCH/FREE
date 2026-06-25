@@ -1,18 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
-import { buildHighlights, PALETTE } from './evidenceHighlights'
+import { buildHighlights } from './evidenceHighlights'
 import { isRecord } from './template'
-
-function buildTopLevelColorMap(schema: unknown): Record<string, string> {
-  if (!isRecord(schema)) return {}
-  const map: Record<string, string> = {}
-  let i = 0
-  for (const key of Object.keys(schema)) {
-    map[key] = PALETTE[i % PALETTE.length]
-    i++
-  }
-  return map
-}
 
 // ── text-layer helpers ────────────────────────────────────────────────────────
 
@@ -169,17 +158,15 @@ type Props = {
   result: unknown
   evidence: unknown
   containerEl: HTMLDivElement | null
-  schema: unknown
 }
 
-export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, containerEl, schema }: Props) {
+export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, containerEl }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
-    const colorMap = buildTopLevelColorMap(schema)
-    const highlights = buildHighlights(result, evidence, colorMap)
+    const highlights = buildHighlights(result, evidence)
     if (highlights.length === 0) return
 
     let cancelled = false
@@ -223,7 +210,7 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, co
 
     void render()
     return () => { cancelled = true }
-  }, [pdfViewer, result, evidence, containerEl, schema])
+  }, [pdfViewer, result, evidence, containerEl])
 
   if (!result) return null
 
