@@ -28,28 +28,41 @@ Use the terminology in `CONTEXT.md` precisely. Key terms:
 ```
 docs/                   vision, architecture, user stories, evaluation notes
 examples/               sample source documents
-prototypes/mine/
-  backend/              FastAPI server (Python, uv)
-  pdf-render/           React + Vite frontend (pnpm)
+prototypes/
+  parsing_service/      FastAPI server (Python, uv)
+  studio/               React + Vite frontend (pnpm)
 ```
 
-Each prototype is self-contained. There is no shared monorepo tooling.
+Each prototype is self-contained, but orchestrated using **pnpm workspaces**. Prefer root commands for normal work:
 
-## Backend (`prototypes/mine/backend`)
+```bash
+pnpm install   # installs JS deps and runs uv sync for Python services
+pnpm start     # alias for pnpm dev
+pnpm dev       # backend + frontend
+pnpm test
+pnpm build
+```
 
-**Stack:** FastAPI · httpx · pypdfium2 · Pillow · pydantic-settings · Python 3.14+  
+Python services opt into root install with an `install:python` script; the root `postinstall` discovers them with `pnpm --recursive --if-present install:python`.
+
+## Backend (`prototypes/parsing_service`)
+
+**Stack:** FastAPI · httpx · pypdfium2 · Pillow · pydantic-settings · Python 3.13+  
 **Package manager:** uv
 
 ```bash
-cd prototypes/mine/backend
-uv run fastapi dev main.py        # dev server on :8000
+cd prototypes/parsing_service
+uv sync
+uv run python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
 uv run fastapi run main.py        # production
 ```
+
+The package script `pnpm --filter parsing-service dev` is the preferred dev entry point. It uses Python UTF-8 mode for Windows and binds the backend to `http://127.0.0.1:8000`, which is what the studio frontend expects.
 
 **Model dependency:** The backend proxies to a local NuExtract3 model endpoint. Start it with Docker Model Runner:
 
 ```bash
-cd prototypes/mine/backend
+cd prototypes/parsing_service
 docker compose up                 # provisions hf.co/numind/NuExtract3-GGUF:mmproj
 ```
 
@@ -73,12 +86,12 @@ All endpoints stream **JSON Lines** (`application/jsonl`). Each line is `{"event
 
 **Reasoning support:** `ThinkSplitter` handles both llama.cpp-style `reasoning_content` deltas and inline `<think>…</think>` blocks, routing them to separate `think` / `output` channels in delta events.
 
-## Frontend (`prototypes/mine/pdf-render`)
+## Frontend (`prototypes/studio`)
 
 **Stack:** React 19 · TypeScript · Vite · Tailwind CSS v4 · pdfjs-dist 6 · pnpm
 
 ```bash
-cd prototypes/mine/pdf-render
+cd prototypes/studio
 pnpm install
 pnpm dev          # dev server on :5173
 pnpm build        # tsc + vite build
@@ -86,6 +99,8 @@ pnpm lint         # eslint
 ```
 
 Set `VITE_API_BASE` to override the backend URL (default `http://127.0.0.1:8000`).
+
+VS Code tasks and launches should call pnpm workspace scripts from the repository root. Keep backend debug launch direct through `debugpy`, but keep dev tasks on `pnpm --filter ...` so package scripts remain the source of truth.
 
 **Key architecture points:**
 
