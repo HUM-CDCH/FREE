@@ -24,6 +24,9 @@ const DEFAULT_MODEL = 'llama3.2'
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
 const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 
+const EVIDENCE_FIELD_INSTRUCTION =
+  'For every evidence field in the template, set "snippet" to a short verbatim excerpt from the document that contains the value, and set "page" to the 1-based index of the page or image where the value appears. Never leave "snippet" or "page" as null.'
+
 declare const process: {
   env: Record<string, string | undefined>
 }
@@ -112,10 +115,12 @@ export async function extractWithModel({
 }> {
   const documentParts = await documentContentParts(document)
   const evidenceTemplate = wrapTemplateWithEvidence(template ?? {})
+  const callerInstruction = instruction?.trim() || null
+  const combinedInstruction = [EVIDENCE_FIELD_INSTRUCTION, callerInstruction].filter(Boolean).join('\n')
   const generated = await generateWithNuExtractRawPrompt({
     mode: 'structured',
     template: JSON.stringify(evidenceTemplate, null, 2),
-    instructions: instruction?.trim() || null,
+    instructions: combinedInstruction,
     documentParts: documentParts.parts,
     temperature,
   })
