@@ -9,6 +9,6 @@ of the change that surfaced it.
 
 Per `CONTEXT.md` terminology, the `template` concept is the **Extraction Schema**
 produced by **Schema Suggestion**. The code still uses `template` widely
-(`/generate-template`, `TemplateParser`, `requestTemplate`, `TemplateState`,
-`decodeTemplateDone`, …). A dedicated rename change should align the vocabulary
-end-to-end (endpoint path, backend symbols, frontend state/decoders, tests).
+(`TemplateState`, schema template variables, and related tests). A dedicated
+rename change should align the vocabulary end-to-end without introducing
+old endpoint names.

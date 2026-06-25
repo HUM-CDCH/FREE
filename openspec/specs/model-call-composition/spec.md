@@ -36,7 +36,7 @@ The transform from raw model output to a use case's result value SHALL be an inj
 #### Scenario: Each use case injects its own parser
 
 - **WHEN** a use case composes its model call
-- **THEN** `/extract` in structured mode injects the repairing object parser, `/extract` in free-text mode and `/generate-template` inject the JSON-or-text parser, and `/chat` and `/markdown` inject no result parser (their result is raw text)
+- **THEN** `/extract` in structured mode injects the repairing object parser, `/extract` in free-text mode and `/api/generate_schema` inject the JSON-or-text parser, and `/chat` and `/markdown` inject no result parser (their result is raw text)
 
 ### Requirement: Reasoning splitting is decoupled from streaming
 
@@ -87,7 +87,7 @@ The buffered and streaming versions of a model command SHALL be exercisable from
 
 ### Requirement: Buffered endpoints return a single JSON object
 
-`POST /extract`, `POST /generate-template`, and `POST /markdown` SHALL return a single plain JSON result object with `200 application/json`. They MUST NOT emit JSON Lines, a streaming response, or a buffered array of events. Their OpenAPI `200` response SHALL advertise only `application/json`. `POST /markdown` SHALL produce its result from a single multi-page model call. This is a BREAKING change to the prior streaming contract.
+`POST /extract`, `POST /api/generate_schema`, and `POST /markdown` SHALL return a single plain JSON result object with `200 application/json`. They MUST NOT emit JSON Lines, a streaming response, or a buffered array of events. Their OpenAPI `200` response SHALL advertise only `application/json`. `POST /markdown` SHALL produce its result from a single multi-page model call. This is a BREAKING change to the prior streaming contract.
 
 #### Scenario: Extract returns a plain result object
 
@@ -97,7 +97,7 @@ The buffered and streaming versions of a model command SHALL be exercisable from
 
 #### Scenario: Generate-template returns a plain template object
 
-- **WHEN** a client posts a document to `/generate-template`
+- **WHEN** a client posts a document to `/api/generate_schema`
 - **THEN** the response is a single JSON object containing `template`, `raw`, and `pages`
 
 #### Scenario: Markdown returns one document from a single multi-page call
@@ -115,7 +115,7 @@ The buffered and streaming versions of a model command SHALL be exercisable from
 #### Scenario: OpenAPI advertises only JSON for these endpoints
 
 - **WHEN** the OpenAPI document is inspected
-- **THEN** the `200` response of `/extract`, `/generate-template`, and `/markdown` advertises `application/json` and does not advertise `application/jsonl`
+- **THEN** the `200` response of `/extract`, `/api/generate_schema`, and `/markdown` advertises `application/json` and does not advertise `application/jsonl`
 
 ### Requirement: Chat is the only streaming endpoint
 
@@ -131,7 +131,7 @@ The buffered and streaming versions of a model command SHALL be exercisable from
 
 - **WHEN** the OpenAPI document is inspected
 - **THEN** the `200` response of `/chat` advertises both `application/json` and `application/jsonl`
-- **AND** `/extract`, `/generate-template`, and `/markdown` advertise `application/json` only
+- **AND** `/extract`, `/api/generate_schema`, and `/markdown` advertise `application/json` only
 
 ### Requirement: Model-call behavior is otherwise preserved
 
@@ -139,7 +139,7 @@ Apart from the response transport of the buffered endpoints and the `/markdown` 
 
 #### Scenario: Results and validation are unchanged
 
-- **WHEN** `/extract`, `/generate-template`, or `/chat` is called with the same inputs as before the change
+- **WHEN** `/extract`, `/api/generate_schema`, or `/chat` is called with the same inputs as before the change
 - **THEN** the extracted / template / chat result values, the reasoning text, and the page counts are identical to the prior behavior
 - **AND** the same invalid inputs are rejected with HTTP 400 and the same messages
 

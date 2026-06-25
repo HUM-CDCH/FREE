@@ -1,6 +1,6 @@
 import { isRecord } from './template'
 
-export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
+export const API_BASE = '/api'
 
 // The parsing service runs the docling/paddleocr extraction. The browser starts
 // the job on upload and polls it; the resulting Markdown becomes the document's

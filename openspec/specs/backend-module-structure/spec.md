@@ -88,6 +88,6 @@ The refactor SHALL NOT change any endpoint's request parameters, response shape,
 
 #### Scenario: External contracts are unchanged
 
-- **WHEN** any of `/healthz`, `/chat`, `/extract`, `/markdown`, or `/generate-template` is called after the refactor
+- **WHEN** any of `/healthz`, `/chat`, `/extract`, `/markdown`, or `/api/generate_schema` is called after the refactor
 - **THEN** it accepts the same inputs and produces the same JSON Lines (and buffered `application/json`) output as before the refactor
 - **AND** the `NUEXTRACT3_*` configuration variables and their defaults are unchanged

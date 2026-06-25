@@ -10,7 +10,7 @@ The frontend SHALL consume every backend JSONL-streaming endpoint through one sh
 
 #### Scenario: Endpoint consumed through the shared transport
 
-- **WHEN** the frontend calls a streaming endpoint (`/chat`, `/extract`, `/generate-template`, or `/markdown`)
+- **WHEN** the frontend calls a streaming endpoint (`/chat`, `/extract`, `/api/generate_schema`, or `/markdown`)
 - **THEN** the request is issued through `streamJsonl<T>` with `accept: application/jsonl`
 - **AND** no per-endpoint code parses raw response lines or buffers the byte stream itself
 
@@ -76,12 +76,12 @@ Each streaming endpoint SHALL define exactly one boundary decoder for its `done`
 
 ### Requirement: Behavior-preserving migration of existing wrappers
 
-The existing `requestTemplate` and `requestExtraction` functions SHALL retain their current call signatures and observable behavior after being re-implemented on `streamJsonl<T>`. Existing callers (`App.tsx`, `useExtraction.ts`) SHALL require no changes.
+The existing `requestSchema` and `requestExtraction` functions SHALL retain their current call signatures and observable behavior after API-client changes. Existing callers (`App.tsx`, `useExtraction.ts`) SHALL require no changes.
 
-#### Scenario: Template request unchanged for callers
+#### Scenario: Schema request unchanged for callers
 
-- **WHEN** `App.tsx` calls `requestTemplate` with the same arguments as before
-- **THEN** it streams `delta` output through the same callback and resolves with the parsed template
+- **WHEN** `App.tsx` calls `requestSchema` with the same arguments as before
+- **THEN** it resolves with the parsed extraction schema
 - **AND** the function signature is unchanged
 
 #### Scenario: Extraction request unchanged for callers
