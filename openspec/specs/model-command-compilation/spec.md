@@ -89,7 +89,7 @@ The request compiler SHALL translate task variants into exactly one authoritativ
 - **AND** `chat_template_kwargs.enable_thinking` equals the command reasoning flag
 
 ### Requirement: Compiled payloads preserve characterized behavior
-The backend SHALL use compiler-level golden tests as the oracle for current provider payload behavior before removing the legacy request path.
+The backend SHALL use compiler-level golden tests as the oracle for current provider payload behavior before removing superseded request construction.
 
 #### Scenario: Golden tests cover supported task and provider combinations
 - **WHEN** compiler payload tests are inspected
@@ -100,4 +100,3 @@ The backend SHALL use compiler-level golden tests as the oracle for current prov
 - **WHEN** schema-suggestion compiler payload tests run for `vllm` or `openai`
 - **THEN** they assert that use-case guidance no longer contributes the base template-generation prompt to content
 - **AND** they still assert template-generation mode in `chat_template_kwargs`
-

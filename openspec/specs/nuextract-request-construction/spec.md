@@ -19,7 +19,7 @@ The backend SHALL configure NuExtract request construction with a single task-co
 #### Scenario: Schema suggestion uses canonical internal terminology
 - **WHEN** the schema-suggestion pipeline asks the request builder for a model request
 - **THEN** it uses a schema-suggestion-oriented builder method
-- **AND** legacy route or payload names such as `generate-template` or `template` do not define the internal request-construction vocabulary
+- **AND** HTTP route or payload names do not define the internal request-construction vocabulary
 
 ### Requirement: NuExtract request builder prepares outbound model requests
 The backend SHALL construct NuExtract-specific outbound model requests through a dedicated request builder before those requests reach `ModelGateway`.
@@ -160,7 +160,7 @@ NuExtract use-case pipelines SHALL construct `ModelCommand` values with typed ta
 - **AND** the pipeline passes source-context content, reasoning, and optional temperature without task-control kwargs
 
 #### Scenario: Schema suggestion creates a template-generation task
-- **WHEN** `/generate-template` prepares a schema suggestion
+- **WHEN** `/api/generate_schema` prepares a schema suggestion
 - **THEN** the schema-suggestion pipeline creates a `ModelCommand` with `TemplateGenerationTask`
 - **AND** annotation-mode guidance is stored as task guidance
 - **AND** the pipeline does not include the base template-generation task prompt in that guidance
@@ -174,12 +174,12 @@ Use-case pipelines SHALL leave NuExtract task prompt rendering to the request co
 - **AND** task prompt loading is reachable only from compiler-owned code
 
 #### Scenario: Schema-suggestion guidance is annotation intent only
-- **WHEN** annotations are supplied to `/generate-template`
+- **WHEN** annotations are supplied to `/api/generate_schema`
 - **THEN** `template_guidance()` returns only the annotation-mode instruction
 - **AND** it does not prepend or repeat the base template-generation task prompt
 
 #### Scenario: Empty schema-suggestion guidance is representable
-- **WHEN** no annotations are supplied to `/generate-template`
+- **WHEN** no annotations are supplied to `/api/generate_schema`
 - **THEN** the schema-suggestion task guidance may be empty
 - **AND** the compiler still encodes the base template-generation task
 

@@ -4,19 +4,17 @@
     {
       "label": "FREE: Backend dev (uv + FastAPI)",
       "type": "shell",
-      "command": "uv",
+      "command": "pnpm",
+      "windows": {
+        "command": "pnpm.cmd"
+      },
       "args": [
-        "run",
-        "fastapi",
-        "dev",
-        "main.py",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "8000"
+        "--filter",
+        "parsing-service",
+        "dev"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/prototypes/mine/backend"
+        "cwd": "${workspaceFolder}"
       },
       "isBackground": true,
       "problemMatcher": {
@@ -35,8 +33,14 @@
     {
       "label": "FREE: Frontend dev (Vite -> FastAPI)",
       "type": "shell",
-      "command": "pnpm.cmd",
+      "command": "pnpm",
+      "windows": {
+        "command": "pnpm.cmd"
+      },
       "args": [
+        "--filter",
+        "studio",
+        "run",
         "dev",
         "--host",
         "127.0.0.1",
@@ -44,7 +48,7 @@
         "5173"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/prototypes/mine/pdf-render",
+        "cwd": "${workspaceFolder}",
         "env": {
           "VITE_API_BASE": "http://127.0.0.1:8000"
         }

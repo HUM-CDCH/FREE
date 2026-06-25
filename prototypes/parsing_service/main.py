@@ -227,7 +227,7 @@ async def get_system_status():
 from pydantic import BaseModel, ConfigDict, Field
 
 class PipelineConfig(BaseModel):
-    type: str = Field("all", description="Pipeline to run: 'all', 'docling', 'docling_pdf', 'docling_images', or 'paddleocr'")
+    type: str = Field("docling_pdf", description="Pipeline to run: 'all', 'docling', 'docling_pdf', 'docling_images', or 'paddleocr'")
 
 class DeviceConfig(BaseModel):
     type: str = Field("cpu", description="Device to use, e.g. cpu, gpu:0")
@@ -300,7 +300,7 @@ async def create_task(
     file: Optional[UploadFile] = File(None),
     url: Optional[str] = Form(None),
     dpi: int = Form(150),
-    pipeline: str = Form("all"),
+    pipeline: str = Form("docling_pdf"),
     device: Optional[str] = Form(None)
 ):
     # Parse potential JSON strings into values
@@ -567,7 +567,7 @@ def custom_openapi():
                 "title": "Type",
                 "type": "string",
                 "enum": ["all", "docling", "docling_pdf", "docling_images", "paddleocr"],
-                "default": "all",
+                "default": "docling_pdf",
                 "description": "Which pipeline step to run"
             }
         }
