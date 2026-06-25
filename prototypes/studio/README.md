@@ -4,12 +4,23 @@ Minimal FREE prototype with a Vite/React frontend and Vercel API functions under
 
 ## Commands
 
+Run the full prototype from the repository root:
+
+```bash
+pnpm install
+pnpm start
+```
+
+Frontend-only commands from this folder:
+
 ```bash
 pnpm install
 pnpm test
 pnpm build
 pnpm vercel:dev
 ```
+
+The full prototype expects the parsing service at `http://127.0.0.1:8000` and the Vite studio at `http://localhost:5173`.
 
 `pnpm vercel:dev` serves the Vite app and `/api/*` routes together. Configure Ollama access with:
 

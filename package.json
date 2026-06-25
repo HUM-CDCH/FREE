@@ -2,6 +2,8 @@
   "name": "free-root",
   "private": true,
   "scripts": {
+    "postinstall": "pnpm --recursive --if-present install:python",
+    "start": "pnpm dev",
     "dev": "pnpm --recursive --parallel dev",
     "test": "pnpm --recursive test",
     "build": "pnpm --filter studio build"

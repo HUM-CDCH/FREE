@@ -4,19 +4,14 @@
     {
       "label": "FREE: Backend dev (uv + FastAPI)",
       "type": "shell",
-      "command": "uv",
+      "command": "pnpm.cmd",
       "args": [
-        "run",
-        "fastapi",
-        "dev",
-        "main.py",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "8000"
+        "--filter",
+        "parsing-service",
+        "dev"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/prototypes/parsing_service"
+        "cwd": "${workspaceFolder}"
       },
       "isBackground": true,
       "problemMatcher": {
@@ -37,6 +32,9 @@
       "type": "shell",
       "command": "pnpm.cmd",
       "args": [
+        "--filter",
+        "studio",
+        "run",
         "dev",
         "--host",
         "127.0.0.1",
@@ -44,7 +42,7 @@
         "5173"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/prototypes/studio",
+        "cwd": "${workspaceFolder}",
         "env": {
           "VITE_API_BASE": "http://127.0.0.1:8000"
         }

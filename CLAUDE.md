@@ -33,18 +33,31 @@ prototypes/
   studio/               React + Vite frontend (pnpm)
 ```
 
-Each prototype is self-contained, but orchestrated using **pnpm workspaces**. You can run commands (`pnpm dev`, `pnpm test`, `pnpm build`) from the root directory.
+Each prototype is self-contained, but orchestrated using **pnpm workspaces**. Prefer root commands for normal work:
+
+```bash
+pnpm install   # installs JS deps and runs uv sync for Python services
+pnpm start     # alias for pnpm dev
+pnpm dev       # backend + frontend
+pnpm test
+pnpm build
+```
+
+Python services opt into root install with an `install:python` script; the root `postinstall` discovers them with `pnpm --recursive --if-present install:python`.
 
 ## Backend (`prototypes/parsing_service`)
 
-**Stack:** FastAPI · httpx · pypdfium2 · Pillow · pydantic-settings · Python 3.14+  
+**Stack:** FastAPI · httpx · pypdfium2 · Pillow · pydantic-settings · Python 3.13+  
 **Package manager:** uv
 
 ```bash
 cd prototypes/parsing_service
-uv run fastapi dev main.py        # dev server on :8000
+uv sync
+uv run python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
 uv run fastapi run main.py        # production
 ```
+
+The package script `pnpm --filter parsing-service dev` is the preferred dev entry point. It uses Python UTF-8 mode for Windows and binds the backend to `http://127.0.0.1:8000`, which is what the studio frontend expects.
 
 **Model dependency:** The backend proxies to a local NuExtract3 model endpoint. Start it with Docker Model Runner:
 
@@ -86,6 +99,8 @@ pnpm lint         # eslint
 ```
 
 Set `VITE_API_BASE` to override the backend URL (default `http://127.0.0.1:8000`).
+
+VS Code tasks and launches should call pnpm workspace scripts from the repository root. Keep backend debug launch direct through `debugpy`, but keep dev tasks on `pnpm --filter ...` so package scripts remain the source of truth.
 
 **Key architecture points:**
 
