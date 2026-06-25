@@ -8,7 +8,7 @@ FREE is a document extraction and evaluation prototype for humanities researcher
 
 The active prototype code is under:
 
-- `prototypes/parsing_service` - FastAPI backend, Python 3.14+, managed with `uv`
+- `prototypes/parsing_service` - FastAPI backend, Python 3.13+, managed with `uv`
 - `prototypes/studio` - React/Vite frontend, managed with `pnpm`
 
 We use a **pnpm workspace** to orchestrate commands across the monorepo from the root directory, though each prototype remains self-contained.
@@ -18,11 +18,14 @@ We use a **pnpm workspace** to orchestrate commands across the monorepo from the
 Run commands from the workspace root:
 
 ```bash
-pnpm install                   # Install dependencies across all packages
+pnpm install                   # Install JS deps and run uv sync for Python services
+pnpm start                     # Alias for pnpm dev
 pnpm dev                       # Run backend and frontend dev servers concurrently
 pnpm test                      # Run all backend and frontend tests recursively
 pnpm build                     # Compile the frontend assets
 ```
+
+Python services opt into root install by exposing an `install:python` script. Do not hardcode each service in the root `postinstall`; use the workspace-recursive hook.
 
 ## Local Prototype Commands
 
@@ -34,12 +37,14 @@ Always use `uv run` for backend Python commands so dependencies come from the pr
 
 ```bash
 cd prototypes/parsing_service
+uv sync
 uv run python -m unittest discover -s tests
-uv run fastapi dev main.py
+uv run python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
 uv run fastapi run main.py
 ```
 
 Avoid running backend tests with bare `python -m unittest ...`; it may miss project dependencies such as `pydantic-settings` and `pypdfium2`.
+Use UTF-8 mode for local FastAPI dev on Windows; the CLI emits Unicode and redirected output can fail under legacy code pages.
 
 ### Frontend Commands (React + Vite + pnpm)
 
@@ -50,3 +55,5 @@ pnpm dev
 pnpm build
 pnpm lint
 ```
+
+VS Code tasks should invoke the pnpm workspace scripts from the repository root, not duplicate `uv` or Vite command lines.
