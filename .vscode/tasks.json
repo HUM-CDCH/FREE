@@ -4,7 +4,10 @@
     {
       "label": "FREE: Backend dev (uv + FastAPI)",
       "type": "shell",
-      "command": "pnpm.cmd",
+      "command": "pnpm",
+      "windows": {
+        "command": "pnpm.cmd"
+      },
       "args": [
         "--filter",
         "parsing-service",
@@ -30,7 +33,10 @@
     {
       "label": "FREE: Frontend dev (Vite -> FastAPI)",
       "type": "shell",
-      "command": "pnpm.cmd",
+      "command": "pnpm",
+      "windows": {
+        "command": "pnpm.cmd"
+      },
       "args": [
         "--filter",
         "studio",
