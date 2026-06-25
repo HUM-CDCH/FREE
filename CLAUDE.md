@@ -30,10 +30,10 @@ docs/                   vision, architecture, user stories, evaluation notes
 examples/               sample source documents
 prototypes/
   parsing_service/      FastAPI server (Python, uv)
-  pdf-render/           React + Vite frontend (pnpm)
+  studio/               React + Vite frontend (pnpm)
 ```
 
-Each prototype is self-contained. There is no shared monorepo tooling.
+Each prototype is self-contained, but orchestrated using **pnpm workspaces**. You can run commands (`pnpm dev`, `pnpm test`, `pnpm build`) from the root directory.
 
 ## Backend (`prototypes/parsing_service`)
 
@@ -73,12 +73,12 @@ All endpoints stream **JSON Lines** (`application/jsonl`). Each line is `{"event
 
 **Reasoning support:** `ThinkSplitter` handles both llama.cpp-style `reasoning_content` deltas and inline `<think>…</think>` blocks, routing them to separate `think` / `output` channels in delta events.
 
-## Frontend (`prototypes/pdf-render`)
+## Frontend (`prototypes/studio`)
 
 **Stack:** React 19 · TypeScript · Vite · Tailwind CSS v4 · pdfjs-dist 6 · pnpm
 
 ```bash
-cd prototypes/pdf-render
+cd prototypes/studio
 pnpm install
 pnpm dev          # dev server on :5173
 pnpm build        # tsc + vite build

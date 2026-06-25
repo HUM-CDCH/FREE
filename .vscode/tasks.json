@@ -44,7 +44,7 @@
         "5173"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/prototypes/pdf-render",
+        "cwd": "${workspaceFolder}/prototypes/studio",
         "env": {
           "VITE_API_BASE": "http://127.0.0.1:8000"
         }

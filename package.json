@@ -1,0 +1,9 @@
+{
+  "name": "free-root",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --recursive --parallel dev",
+    "test": "pnpm --recursive test",
+    "build": "pnpm --filter studio build"
+  }
+}

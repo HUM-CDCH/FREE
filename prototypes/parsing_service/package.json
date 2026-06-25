@@ -1,0 +1,8 @@
+{
+  "name": "parsing-service",
+  "private": true,
+  "scripts": {
+    "dev": "uv run fastapi dev main.py",
+    "test": "uv run python -m unittest discover -s tests"
+  }
+}
