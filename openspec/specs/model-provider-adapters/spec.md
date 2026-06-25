@@ -7,7 +7,7 @@ Provider adapters isolate transport details for supported model runtimes. They s
 The provider refactor SHALL NOT change existing backend route contracts.
 
 #### Scenario: JSONL clients request streaming responses
-- **WHEN** a client requests `/chat`, `/extract`, `/markdown`, or `/generate-template` with JSONL-compatible accept headers
+- **WHEN** a client requests `/chat`, `/extract`, `/markdown`, or `/api/generate_schema` with JSONL-compatible accept headers
 - **THEN** the response remains a JSON Lines stream of `JsonLineEvent` objects
 
 #### Scenario: JSON clients request buffered responses

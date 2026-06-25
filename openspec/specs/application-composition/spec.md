@@ -16,7 +16,7 @@ The backend SHALL compose runtime dependencies and use-case pipelines from FastA
 
 #### Scenario: Route handlers use composed services
 
-- **WHEN** a request reaches `/chat`, `/extract`, `/generate-template`, or `/markdown`
+- **WHEN** a request reaches `/chat`, `/extract`, `/api/generate_schema`, or `/markdown`
 - **THEN** the route handler retrieves the relevant pipeline from `request.app.state.services`
 - **AND** the handler does not read a process-global model provider, compiler, or executor
 - **AND** the handler does not reach through application state for lower-level collaborators
@@ -92,7 +92,7 @@ The backend SHALL move use-case orchestration behind pipeline interfaces that ac
 
 - **WHEN** a route handler receives a pipeline result
 - **THEN** it maps the result to the same HTTP response shape and status code as before this change
-- **AND** `/chat`, `/extract`, `/generate-template`, and `/markdown` preserve their existing endpoint contracts
+- **AND** `/chat`, `/extract`, `/api/generate_schema`, and `/markdown` preserve their existing endpoint contracts
 
 ### Requirement: Typed internal errors preserve diagnostic detail
 

@@ -23,6 +23,13 @@ export { json, modelError, parseTemperature, RequestError } from './_http'
 const DEFAULT_MODEL = 'llama3.2'
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
 const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
+// NuExtract's recommended non-thinking setting for fast, deterministic
+// extraction / schema / markdown. We always render the non-thinking prompt
+// (an empty <think></think>), so this is the right default; without it Ollama
+// applies ~0.8, which produced noisy, instance-leaking templates.
+// ponytail: thinking mode (temp 0.6, <think> left open) isn't wired up — add an
+// enable_thinking path in renderNuExtractPrompt if difficult layouts need it.
+const NON_THINKING_TEMPERATURE = 0.2
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -141,7 +148,11 @@ export async function generateSchemaWithModel({
   const generated = await generateWithNuExtractRawPrompt({
     mode: 'template-generation',
     instructions: null,
-    documentParts: [...documentParts.parts, { type: 'text', text: schemaPrompt(annotations, annotationsMode) }],
+    // template-generation has no 【instructions】 slot (structured mode only) and
+    // Ollama ignores chat_template_kwargs, so the guidance must ride in the
+    // message. Lead with it — before the page images — so it reads as the request
+    // rather than trailing document text. (tools/provider-control-probe-results.md)
+    documentParts: [{ type: 'text', text: schemaPrompt(annotations, annotationsMode) }, ...documentParts.parts],
     temperature,
   })
   const template = await parseTemplate(generated.response)
@@ -165,7 +176,7 @@ export async function markdownWithModel({
   const documentParts = await documentFileParts(document.file)
   const result = await generateText({
     model: model(),
-    temperature,
+    temperature: temperature ?? NON_THINKING_TEMPERATURE,
     messages: [
       {
         role: 'user',
@@ -207,7 +218,7 @@ async function generateWithNuExtractRawPrompt({
       images: rendered.images.length > 0 ? rendered.images : undefined,
       raw: true,
       stream: false,
-      options: temperature === undefined ? undefined : { temperature },
+      options: { temperature: temperature ?? NON_THINKING_TEMPERATURE },
     }),
   })
 

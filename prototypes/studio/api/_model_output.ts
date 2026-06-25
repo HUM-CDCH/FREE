@@ -11,7 +11,9 @@ export async function parseExtractionResult(text: string, template: unknown): Pr
   const object = await parseJsonObject(text, message)
   const parsed = extractionResultSchema(template).safeParse(object)
   if (!parsed.success || !isRecord(parsed.data)) {
-    throw new RequestError(502, message, text)
+    // ponytail: schema mismatch is a warning, not a failure — return the raw JSON object so partial results survive
+    console.warn(message, parsed.success ? object : parsed.error.issues)
+    return object
   }
   return parsed.data
 }

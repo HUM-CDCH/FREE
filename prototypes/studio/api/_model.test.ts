@@ -36,32 +36,35 @@ describe('extractWithModel', () => {
     })
   })
 
-  it('rejects valid JSON with fields outside the extraction schema', async () => {
+  it('warns but keeps valid JSON with fields outside the extraction schema', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     stubOllamaResponse('{"grave":[{"name":"Grave 1","extra":"invented"}]}')
 
-    await expect(
-      extractWithModel({
-        document,
-        template: { grave: [{ name: 'verbatim-string' }] },
-      }),
-    ).rejects.toMatchObject({
-      status: 502,
-      message: 'Model returned output that did not match the extraction schema.',
+    const result = await extractWithModel({
+      document,
+      template: { grave: [{ name: 'verbatim-string' }] },
     })
+
+    expect(result.result).toEqual({ grave: [{ name: 'Grave 1', extra: 'invented' }] })
+    expect(warn).toHaveBeenCalledWith(
+      'Model returned output that did not match the extraction schema.',
+      expect.anything(),
+    )
+    warn.mockRestore()
   })
 
-  it('rejects valid JSON with primitive types outside the extraction schema', async () => {
+  it('warns but keeps valid JSON with primitive types outside the extraction schema', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     stubOllamaResponse('{"grave":[{"name":42}]}')
 
-    await expect(
-      extractWithModel({
-        document,
-        template: { grave: [{ name: 'verbatim-string' }] },
-      }),
-    ).rejects.toMatchObject({
-      status: 502,
-      message: 'Model returned output that did not match the extraction schema.',
+    const result = await extractWithModel({
+      document,
+      template: { grave: [{ name: 'verbatim-string' }] },
     })
+
+    expect(result.result).toEqual({ grave: [{ name: 42 }] })
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
   })
 })
 
@@ -78,5 +81,20 @@ describe('generateSchemaWithModel', () => {
     })
 
     expect(result.template).toEqual({ grave: [{ name: 'verbatim-string' }] })
+  })
+
+  it('leads the prompt with schema guidance, before the document body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ response: '{"grave":[{"name":"verbatim-string"}]}' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await generateSchemaWithModel({ document, annotations: [], annotationsMode: 'hints' })
+
+    const prompt = JSON.parse(fetchMock.mock.calls[0][1].body as string).prompt as string
+    expect(prompt.indexOf('compact JSON extraction schema')).toBeLessThan(prompt.indexOf('Grave 1'))
   })
 })

@@ -1,6 +1,6 @@
 import { isRecord } from './template'
 
-export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
+export const API_BASE = '/api'
 
 // The parsing service runs the docling/paddleocr extraction. The browser starts
 // the job on upload and polls it; the resulting Markdown becomes the document's
@@ -164,10 +164,11 @@ export async function requestExtraction(
   markdown?: string | null,
 ): Promise<{ result: unknown; evidence: unknown }> {
   const form = new FormData()
-  form.append('file', file, fileName)
   form.append('template', JSON.stringify(template ?? {}))
   if (markdown) {
     form.append('document_markdown', markdown)
+  } else {
+    form.append('file', file, fileName)
   }
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
