@@ -3,10 +3,12 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "types": "dist-lib/index.d.ts",
   "scripts": {
     "dev": "vite",
     "vercel:dev": "vercel dev",
     "build": "tsc -b && vite build",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "lint": "eslint .",
     "test": "vitest run",
     "preview": "vite preview"

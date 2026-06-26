@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import ResultValue from './ResultValue'
+import ResultValue from './ui/ResultValue'
 
 describe('ResultValue', () => {
   it('marks null and empty values as missing', () => {
