@@ -216,21 +216,24 @@ class TestService(unittest.TestCase):
                 import shutil
                 shutil.rmtree(task_dir)
 
-    def test_openapi_schema_custom_objects(self):
+    def test_openapi_tasks_multipart_form_fields(self):
         response = self.client.get("/openapi.json")
         self.assertEqual(response.status_code, 200)
         openapi = response.json()
-        
-        # Check that PipelineConfig and DeviceConfig exist in components/schemas
-        schemas = openapi["components"]["schemas"]
-        self.assertIn("PipelineConfig", schemas)
-        self.assertIn("DeviceConfig", schemas)
-        
-        # Check that /tasks POST requestBody schema properties use these schemas
-        body_schema = schemas["Body_create_task_tasks_post"]
+
+        request_body = openapi["paths"]["/tasks"]["post"]["requestBody"]
+        multipart_schema = request_body["content"]["multipart/form-data"]["schema"]
+        ref_name = multipart_schema["$ref"].rsplit("/", 1)[-1]
+        body_schema = openapi["components"]["schemas"][ref_name]
         multipart_properties = body_schema["properties"]
-        self.assertEqual(multipart_properties["pipeline"]["$ref"], "#/components/schemas/PipelineConfig")
-        self.assertEqual(multipart_properties["device"]["$ref"], "#/components/schemas/DeviceConfig")
+        for field_name in ("pipeline", "device"):
+            field_schema = multipart_properties[field_name]
+            self.assertNotIn("$ref", field_schema)
+            self.assertTrue(
+                field_schema.get("type") == "string"
+                or {"type": "string"} in field_schema.get("anyOf", []),
+                field_schema,
+            )
 
 if __name__ == "__main__":
     unittest.main()

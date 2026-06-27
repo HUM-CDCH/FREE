@@ -91,9 +91,9 @@ VS Code tasks and launches should call pnpm workspace scripts from the repositor
 
 - The PDF viewer uses `pdfjs-dist`'s `PDFViewer` component with `AnnotationEditorType.HIGHLIGHT`. Only text-selection highlights are allowed; free rectangular highlights are blocked by intercepting `pointerdown` during capture phase.
 - `pdf.js` has no public event for editor add/remove. `App.tsx` monkey-patches `uiManager.addEditor` / `removeEditor` to keep the annotation sidebar in sync.
-- `api.ts` contains browser communication with Studio model routes and the parsing service. Model routes are `/api/chat`, `/api/generate_schema`, `/api/extract`, and `/api/markdown`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
+- `api.ts` contains browser communication with Studio model routes and the parsing service. Model routes are `/api/chat`, `/api/generate_schema`, and `/api/extract`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
 - `AnnotationSidebar` shows the current annotation set (highlighted passages + page numbers). `SchemaPanel` shows the generated schema and controls annotation mode (`hints` vs `fields`).
-- The hardcoded source document is `src/assets/Beretning_Ellekilde_8_13.pdf` (a Danish archaeological site report).
+- The hardcoded source document is `examples/Beretning_Ellekilde_8_13.pdf` (a Danish archaeological site report).
 
 **Annotation modes** (sent to `/api/generate_schema`):
 - `hints` — model designs schema from the whole document, but every highlighted passage must be covered.
@@ -102,7 +102,8 @@ VS Code tasks and launches should call pnpm workspace scripts from the repositor
 ## NuExtract prompting (raw prompts to Ollama)
 
 NuExtract3 is driven with a **hand-built raw prompt**, not OpenAI-style
-`chat_template_kwargs`. The repo's probe (`tools/provider-control-probe-results.md`)
+`chat_template_kwargs`. Historical control-channel evidence archived under
+`openspec/changes/archive/2026-06-17-select-nuextract-control-channel/`
 found the **Ollama** OpenAI-compatible endpoint silently ignores
 `chat_template_kwargs` (`mode`, `template`, `enable_thinking`) — kwargs-only
 requests come back as plain text. So `prototypes/studio/api/_model.ts` posts to Ollama's

@@ -149,7 +149,7 @@ function RightRail({
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} pdfSource={pdfSource} documentMarkdown={documentMarkdown} />
+        <ResultsTab controller={extraction} schemaReady={schemaReady} documentMarkdown={documentMarkdown} />
       </div>
     </div>
   )

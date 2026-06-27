@@ -28,7 +28,6 @@ export type ExtractDone = {
   pages: number | null
 }
 export type SchemaDone = { template: unknown; raw: string; pages: number | null }
-export type MarkdownDone = { markdown: string; pages: number | null }
 
 export function decodeSchemaDone(data: unknown): SchemaDone {
   if (!isRecord(data) || !('template' in data)) {
@@ -45,13 +44,6 @@ export function decodeExtractDone(data: unknown): ExtractDone {
     throw new Error("extract: response missing 'evidence' — API contract drift?")
   }
   return data as ExtractDone
-}
-
-export function decodeMarkdownDone(data: unknown): MarkdownDone {
-  if (!isRecord(data) || typeof data.markdown !== 'string') {
-    throw new Error("markdown: response missing 'markdown' — API contract drift?")
-  }
-  return data as MarkdownDone
 }
 
 async function readErrorDetail(response: Response): Promise<string> {
@@ -173,19 +165,4 @@ export async function requestExtraction(
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
   return { result: done.result, evidence: done.evidence }
-}
-
-export async function requestMarkdown(
-  file: Blob,
-  fileName: string,
-  signal?: AbortSignal,
-  markdown?: string | null,
-): Promise<MarkdownDone> {
-  const form = new FormData()
-  form.append('file', file, fileName)
-  if (markdown) {
-    form.append('document_markdown', markdown)
-  }
-
-  return postForm('/markdown', form, decodeMarkdownDone, signal)
 }
