@@ -48,6 +48,11 @@ https://claude.ai/design/p/2e927ede-a3e4-4b85-9e9e-32b3acedd06a
 - `EmptyState` uses `cfg.overrides.EmptyState.cardMode: "column"` (presentation
   only — its 3 stories overflow a grid cell otherwise).
 - `dist-lib/` is a build artifact — always `pnpm build:lib` before re-syncing.
+  `build:lib` is **deterministic** (verified: 3 consecutive builds → byte-identical
+  `free-ui.css`), so `styleSha` should be stable. The 2026-06-27 re-sync uploaded a
+  styling-only change (`styleSha d92ca9… → bf024480…`, pixel-identical renders) that
+  reconciled a one-off CSS ordering left by the original extraction build; future
+  re-syncs of unchanged source should report `upload.any: false`.
 
 ## Known render warns
 
