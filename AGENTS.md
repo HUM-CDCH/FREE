@@ -60,8 +60,8 @@ pnpm lint
 
 The frontend's model layer drives
 NuExtract3 with **hand-built raw prompts** sent to Ollama's `/api/generate`
-(`raw: true`), not `chat_template_kwargs`. The probe in
-`tools/provider-control-probe-results.md` showed Ollama ignores those kwargs
+(`raw: true`), not `chat_template_kwargs`. Historical control-channel evidence in
+`openspec/changes/archive/2026-06-17-select-nuextract-control-channel/` showed Ollama ignores those kwargs
 (`mode`/`template`/`enable_thinking`), so the control tokens are reconstructed in
 code to match `nuextract.template.jinja`. When editing prompts:
 

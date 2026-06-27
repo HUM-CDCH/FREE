@@ -12,10 +12,9 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Response
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
-from fastapi.staticfiles import StaticFiles
 import urllib.request
 from pdf_utils import convert_pdf_to_images
 
@@ -49,9 +48,6 @@ def check_gpu_available() -> bool:
     except Exception as e:
         print(f"Error checking GPU availability: {e}")
         return False
-
-# Global lock/dict to store active tasks to avoid race conditions or double updates
-active_tasks = {}
 
 def load_metadata(task_id: str) -> dict:
     meta_path = os.path.join(DATA_DIR, task_id, "metadata.json")
@@ -205,15 +201,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Root Endpoint: Serves front-end UI
-@app.get("/", response_class=HTMLResponse)
-async def serve_index():
-    index_path = os.path.join(BASE_DIR, "static", "index.html")
-    if not os.path.exists(index_path):
-        raise HTTPException(status_code=404, detail="Index HTML not found")
-    with open(index_path, "r", encoding="utf-8") as f:
-        return f.read()
-
 # System Status Endpoint
 @app.get("/status")
 async def get_system_status():
@@ -224,13 +211,7 @@ async def get_system_status():
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()
     }
 
-from pydantic import BaseModel, ConfigDict, Field
-
-class PipelineConfig(BaseModel):
-    type: str = Field("docling_pdf", description="Pipeline to run: 'all', 'docling', 'docling_pdf', 'docling_images', or 'paddleocr'")
-
-class DeviceConfig(BaseModel):
-    type: str = Field("cpu", description="Device to use, e.g. cpu, gpu:0")
+from pydantic import BaseModel, ConfigDict
 
 class ConvertedImage(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -536,73 +517,3 @@ async def get_task_markdown(task_id: str, pipeline: Optional[str] = None):
                 return Response(content="\n\n".join(content_parts), media_type="text/markdown")
                 
     raise HTTPException(status_code=404, detail="No markdown output files found for this task.")
-
-
-# Custom OpenAPI schema overrides
-from fastapi.openapi.utils import get_openapi
-
-def custom_openapi():
-    if app.openapi_schema:
-        return app.openapi_schema
-    
-    openapi_schema = get_openapi(
-        title=app.title,
-        version=app.version,
-        description=app.description,
-        routes=app.routes,
-    )
-    
-    # Ensure components and schemas exist
-    if "components" not in openapi_schema:
-        openapi_schema["components"] = {}
-    if "schemas" not in openapi_schema["components"]:
-        openapi_schema["components"]["schemas"] = {}
-        
-    # Inject PipelineConfig and DeviceConfig schemas
-    openapi_schema["components"]["schemas"]["PipelineConfig"] = {
-        "title": "PipelineConfig",
-        "type": "object",
-        "properties": {
-            "type": {
-                "title": "Type",
-                "type": "string",
-                "enum": ["all", "docling", "docling_pdf", "docling_images", "paddleocr"],
-                "default": "docling_pdf",
-                "description": "Which pipeline step to run"
-            }
-        }
-    }
-    
-    openapi_schema["components"]["schemas"]["DeviceConfig"] = {
-        "title": "DeviceConfig",
-        "type": "object",
-        "properties": {
-            "type": {
-                "title": "Type",
-                "type": "string",
-                "default": "cpu",
-                "description": "Device to use, e.g. cpu, gpu:0"
-            }
-        }
-    }
-    
-    # Update requestBody for create_task_tasks_post (/tasks POST)
-    try:
-        body_schema = openapi_schema.get("components", {}).get("schemas", {}).get("Body_create_task_tasks_post", {})
-        properties = body_schema.get("properties", {})
-        
-        if "pipeline" in properties:
-            properties["pipeline"] = {
-                "$ref": "#/components/schemas/PipelineConfig"
-            }
-        if "device" in properties:
-            properties["device"] = {
-                "$ref": "#/components/schemas/DeviceConfig"
-            }
-    except Exception as e:
-        print(f"Error customizing OpenAPI schema: {e}")
-        
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
-
-app.openapi = custom_openapi

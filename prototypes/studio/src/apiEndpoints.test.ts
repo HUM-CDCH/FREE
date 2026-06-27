@@ -3,14 +3,12 @@ import type { UIMessage } from 'ai'
 import {
   extractWithModel,
   generateSchemaWithModel,
-  markdownWithModel,
   streamChatWithModel,
 } from '../api/_model'
 import { POST as chatPost } from '../api/chat'
 import { POST as extractPost } from '../api/extract'
 import { POST as schemaPost } from '../api/generate_schema'
 import { GET as healthGet } from '../api/healthz'
-import { POST as markdownPost } from '../api/markdown'
 
 vi.mock('../api/_model', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/_model')>()
@@ -18,7 +16,6 @@ vi.mock('../api/_model', async (importOriginal) => {
     ...actual,
     extractWithModel: vi.fn(),
     generateSchemaWithModel: vi.fn(),
-    markdownWithModel: vi.fn(),
     streamChatWithModel: vi.fn(),
   }
 })
@@ -76,15 +73,6 @@ describe('Vercel API endpoints', () => {
       raw: '{"template":{"title":"verbatim-string"}}',
       pages: null,
     })
-  })
-
-  it('POST /api/markdown returns the documented JSON shape', async () => {
-    vi.mocked(markdownWithModel).mockResolvedValue({ markdown: '# Report', pages: null })
-
-    const response = await markdownPost(formRequest('markdown'))
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ markdown: '# Report', pages: null })
   })
 
   it('POST /api/chat returns the mocked UI message stream response', async () => {

@@ -1,7 +1,6 @@
 import { createOllama, ollama } from 'ai-sdk-ollama'
 import {
   convertToModelMessages,
-  generateText,
   streamText,
 } from 'ai'
 import type { LanguageModel, UIMessage } from 'ai'
@@ -49,16 +48,8 @@ export type SchemaModelInput = {
   readonly temperature?: number
 }
 
-export type MarkdownModelInput = {
-  readonly document: DocumentInput
-  readonly temperature?: number
-}
-
-// The document's content for the model: parsed Markdown when the parsing service
-// has indexed it (the chosen "replace page-images" path), otherwise rasterised
-// page images (covers non-PDF image uploads and parse failures).
 type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
-type NuExtractMode = 'structured' | 'template-generation' | 'markdown' | 'content'
+type NuExtractMode = 'structured' | 'template-generation' | 'content'
 
 async function documentContentParts(
   document: DocumentInput,
@@ -148,51 +139,12 @@ export async function generateSchemaWithModel({
   const generated = await generateWithNuExtractRawPrompt({
     mode: 'template-generation',
     instructions: null,
-    // template-generation has no 【instructions】 slot (structured mode only) and
-    // Ollama ignores chat_template_kwargs, so the guidance must ride in the
-    // message. Lead with it — before the page images — so it reads as the request
-    // rather than trailing document text. (tools/provider-control-probe-results.md)
     documentParts: [{ type: 'text', text: schemaPrompt(annotations, annotationsMode) }, ...documentParts.parts],
     temperature,
   })
   const template = await parseTemplate(generated.response)
 
   return { template, raw: generated.response, pages: documentParts.pages ?? document.pages }
-}
-
-export async function markdownWithModel({
-  document,
-  temperature,
-}: MarkdownModelInput): Promise<{ readonly markdown: string; readonly pages: number | null }> {
-  // The parsing service already produces Markdown — serve it as-is rather than
-  // re-deriving it from page images.
-  if (document.markdown) {
-    return { markdown: document.markdown, pages: document.pages }
-  }
-  if (!document.file) {
-    throw new RequestError(400, "No document content: provide a 'file' or 'document_markdown'")
-  }
-
-  const documentParts = await documentFileParts(document.file)
-  const result = await generateText({
-    model: model(),
-    temperature: temperature ?? NON_THINKING_TEMPERATURE,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          ...documentParts.parts,
-          {
-            type: 'text',
-            text:
-              'Convert this source document to high-fidelity Markdown. Return only Markdown: no introduction, no explanation. Preserve headings, tables, reading order, math, figures/images as descriptions, and page breaks.',
-          },
-        ],
-      },
-    ],
-  })
-
-  return { markdown: result.text.trim(), pages: documentParts.pages ?? document.pages }
 }
 
 async function generateWithNuExtractRawPrompt({

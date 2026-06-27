@@ -8,17 +8,10 @@ import type { ExtractionController } from './useExtraction'
 type ResultsTabProps = {
   controller: ExtractionController
   schemaReady: boolean
-  pdfSource: { url: string; filename: string } | null
   documentMarkdown: string | null
 }
 
 type View = 'review' | 'json' | 'markdown'
-
-type MarkdownState =
-  | { status: 'idle' }
-  | { status: 'running' }
-  | { status: 'ready'; markdown: string }
-  | { status: 'error'; message: string }
 
 const preClasses =
   'scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre bg-canvas px-4 py-3.5 font-mono text-[11px] leading-relaxed text-ink'
@@ -31,10 +24,9 @@ function summaryItem(label: string, value: string | number) {
   )
 }
 
-function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, documentMarkdown }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
-  const [markdown, setMarkdown] = useState<MarkdownState>({ status: 'idle' })
   const stats = useMemo(() => (state.status === 'ready' ? resultStats(state.result) : null), [state])
 
   async function copyJson() {
@@ -73,6 +65,11 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
       })
     }
   }
+
+  const tabClasses = (active: boolean) =>
+    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${
+      active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'
+    }`
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -124,21 +121,14 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
 
           {view === 'markdown' && (
             <div className="flex min-h-0 flex-1 flex-col">
-              {markdown.status === 'ready' ? (
-                <pre className={preClasses}>{markdown.markdown}</pre>
+              {documentMarkdown ? (
+                <pre className={preClasses}>{documentMarkdown}</pre>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
-                  {markdown.status === 'error' && (
-                    <p className="mb-3 wrap-anywhere text-[12px] leading-snug text-danger">{markdown.message}</p>
-                  )}
-                  <Button
-                    variant="primary"
-                    size="md"
-                    disabled={!pdfSource || markdown.status === 'running'}
-                    onClick={() => void generateMarkdown()}
-                  >
-                    {markdown.status === 'running' ? 'Generating...' : 'Generate markdown'}
-                  </Button>
+                  <p className="text-[13px] font-semibold text-ink">Markdown unavailable</p>
+                  <p className="mt-1.5 max-w-[34ch] text-[11.5px] leading-snug text-ink-muted">
+                    Parsed Markdown has not been received for this source document.
+                  </p>
                 </div>
               )}
             </div>

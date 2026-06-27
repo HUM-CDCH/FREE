@@ -1,6 +1,5 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite'
-import react, { reactCompilerPreset } from '@vitejs/plugin-react'
-import babel from '@rolldown/plugin-babel'
+import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { Readable } from 'node:stream'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -62,7 +61,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      babel({ presets: [reactCompilerPreset()] }),
       tailwindcss(),
       apiFunctions(),
     ],
