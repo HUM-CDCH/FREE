@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { isRecord } from './template'
+
+// Local copy so the UI lib imports zero app code (mirrors template.ts#isRecord).
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 type ResultValueProps = {
   name: string
@@ -107,6 +111,7 @@ function ObjectValue({ name, value, depth }: { name: string; value: Record<strin
   )
 }
 
+/** Recursive renderer for an extraction result tree (objects, arrays, primitives). */
 function ResultValue({ name, value, depth = 0 }: ResultValueProps) {
   if (Array.isArray(value)) {
     return <ArrayValue name={name} value={value} depth={depth} />
