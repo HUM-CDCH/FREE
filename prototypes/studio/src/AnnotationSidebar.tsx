@@ -1,3 +1,5 @@
+import { EmptyState } from './ui'
+
 export type AnnotationSetItem = {
   id: string
   label: string
@@ -27,13 +29,11 @@ function AnnotationSidebar({ items, onSelectItem, onRemoveItem }: Props) {
     <aside className="scrollbar-subtle flex h-full min-h-0 flex-col overflow-y-auto" aria-label="Annotation set">
       <div className="px-3.5 py-4">
         {items.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-line px-4 py-7 text-center">
-            <p aria-hidden="true" className="text-lg leading-none text-ink-muted">✎</p>
-            <p className="mt-2 text-[13px] font-semibold text-ink">Annotate the source</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-              Select any passage in the report — it becomes a grounded annotation in the set.
-            </p>
-          </div>
+          <EmptyState
+            icon="✎"
+            title="Annotate the source"
+            description="Select any passage in the report — it becomes a grounded annotation in the set."
+          />
         ) : (
           groupByPage(items).map((group) => (
             <section key={group.pageNumber} className="mb-3.5 last:mb-0">

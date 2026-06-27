@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import PanelToggleIcon from './PanelToggleIcon'
+import { Overline } from './ui'
 
 export const ACTIVE_DOC = 'Beretning_Ellekilde_8_13.pdf'
 export const ACTIVE_PROJECT = 'Ellekilde, TAK 1355'
@@ -40,9 +41,7 @@ function ProjectNav({ open, onToggle, onToast }: ProjectNavProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-center justify-between py-3 pl-4 pr-2.5">
-        <h2 className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-muted">
-          Projects
-        </h2>
+        <Overline as="h2">Projects</Overline>
         <button
           className="cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
           type="button"

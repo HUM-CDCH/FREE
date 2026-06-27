@@ -15,6 +15,7 @@ import { requestSchema, parseDocumentToMarkdown } from './api'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
 import EvidenceHighlightLayer from './EvidenceHighlightLayer'
+import { Button } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
@@ -454,11 +455,6 @@ function App() {
     runLabel = '↻ Re-run extraction'
   }
 
-  let runButtonClasses = 'cursor-default border-line bg-line text-ink-muted'
-  if (extraction.canRun) {
-    runButtonClasses = 'cursor-pointer border-accent bg-accent text-white hover:brightness-108'
-  }
-
   const hintText =
     extraction.hasResults
       ? 'View the extracted JSON in the Results tab'
@@ -520,15 +516,15 @@ function App() {
             {loadState.status === 'ready' && `${loadState.pageCount} pages · text highlights only`}
             {loadState.status === 'error' && loadState.message}
           </p>
-          <button
-            className={`shrink-0 rounded-lg border px-3.75 py-1.75 text-[13px] font-bold outline-none transition-[filter] focus-visible:ring-2 focus-visible:ring-accent/40 ${runButtonClasses}`}
-            type="button"
+          <Button
+            variant="primary"
+            size="md"
             disabled={!extraction.canRun}
             title={schemaReady ? 'Run extraction across the whole document' : 'Generate a schema in the Schema tab first'}
             onClick={() => void extraction.runExtraction()}
           >
             {runLabel}
-          </button>
+          </Button>
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
