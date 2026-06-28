@@ -1,16 +1,15 @@
 import os
 import urllib.request
 import pypdfium2 as pdfium
-from PIL import Image
 
-def download_file(url: str, dest_path: str):
+def download_file(url: str, dest_path: str, timeout: int = 30):
     """Downloads a file from a URL to dest_path with user-agent header."""
     print(f"Downloading {url} to {dest_path}...")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
     }
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req) as response, open(dest_path, 'wb') as out_file:
+    with urllib.request.urlopen(req, timeout=timeout) as response, open(dest_path, 'wb') as out_file:
         out_file.write(response.read())
 
 def convert_pdf_to_images(pdf_path: str, output_dir: str, dpi: int = 150) -> list[str]:
