@@ -7,10 +7,8 @@ requires-python = ">=3.13"
 dependencies = [
     "docling>=2.106.0",
     "fastapi[standard]>=0.138.0",
-    "onnxruntime>=1.27.0",
     "paddleocr>=3.7.0",
     "paddlepaddle-gpu==3.3.1",
-    "paddlex[ocr]>=3.7.1",
 ]
 
 [[tool.uv.index]]

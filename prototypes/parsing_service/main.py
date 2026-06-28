@@ -9,14 +9,14 @@ import asyncio
 import base64
 import tempfile
 from contextlib import asynccontextmanager
-from typing import Optional
+from enum import StrEnum
+from typing import Optional, assert_never
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
-import urllib.request
-from pdf_utils import convert_pdf_to_images
+from pdf_utils import convert_pdf_to_images, download_file
 
 # Define paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -62,14 +62,6 @@ def save_metadata(task_id: str, data: dict):
     meta_path = os.path.join(task_dir, "metadata.json")
     with open(meta_path, "w") as f:
         json.dump(data, f, indent=4)
-
-def download_url_sync(url: str, dest_path: str):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
-    }
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=30) as response, open(dest_path, 'wb') as out_file:
-        out_file.write(response.read())
 
 async def run_extraction_task(task_id: str, source_path: str, dpi: int, pipeline: str, device: str):
     # Set status to running
@@ -201,6 +193,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/", response_class=HTMLResponse)
+async def serve_index():
+    index_path = os.path.join(BASE_DIR, "static", "index.html")
+    if not os.path.exists(index_path):
+        raise HTTPException(status_code=404, detail="Index HTML not found")
+    with open(index_path, "r", encoding="utf-8") as f:
+        return f.read()
+
 # System Status Endpoint
 @app.get("/status")
 async def get_system_status():
@@ -212,6 +212,17 @@ async def get_system_status():
     }
 
 from pydantic import BaseModel, ConfigDict
+
+class Pipeline(StrEnum):
+    ALL = "all"
+    DOCLING = "docling"
+    DOCLING_PDF = "docling_pdf"
+    DOCLING_IMAGES = "docling_images"
+    PADDLEOCR = "paddleocr"
+
+class Device(StrEnum):
+    CPU = "cpu"
+    GPU_0 = "gpu:0"
 
 class ConvertedImage(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -254,26 +265,6 @@ async def convert_images(file: UploadFile = File(...), dpi: int = Form(150)) -> 
 
     return ConvertedImagesResponse(pages=len(images), images=images)
 
-def parse_pipeline(pipeline_val: str) -> str:
-    try:
-        data = json.loads(pipeline_val)
-        if isinstance(data, dict) and "type" in data:
-            return data["type"]
-    except Exception:
-        pass
-    return pipeline_val
-
-def parse_device(device_val: Optional[str]) -> Optional[str]:
-    if not device_val:
-        return None
-    try:
-        data = json.loads(device_val)
-        if isinstance(data, dict) and "type" in data:
-            return data["type"]
-    except Exception:
-        pass
-    return device_val
-
 # Create Ingestion Task Endpoint
 @app.post("/tasks", status_code=202)
 async def create_task(
@@ -281,28 +272,30 @@ async def create_task(
     file: Optional[UploadFile] = File(None),
     url: Optional[str] = Form(None),
     dpi: int = Form(150),
-    pipeline: str = Form("docling_pdf"),
-    device: Optional[str] = Form(None)
+    pipeline: Pipeline = Form(Pipeline.DOCLING_PDF),
+    device: Device | None = Form(None)
 ):
-    # Parse potential JSON strings into values
-    pipeline = parse_pipeline(pipeline)
-    device = parse_device(device)
-
     # Validate inputs
     if not file and not url:
         raise HTTPException(status_code=400, detail="Must provide either 'file' upload or 'url' path.")
     if file and url:
         raise HTTPException(status_code=400, detail="Provide either 'file' or 'url', not both.")
-    if pipeline not in ["all", "docling", "docling_pdf", "docling_images", "paddleocr"]:
-        raise HTTPException(status_code=400, detail="Invalid pipeline. Choose 'all', 'docling', 'docling_pdf', 'docling_images', or 'paddleocr'.")
-        
+
+    pipeline_value = pipeline.value
+
     # Resolve default device
-    if not device:
-        device = "gpu:0" if GPU_AVAILABLE else "cpu"
-    else:
-        if device.startswith("gpu") and not GPU_AVAILABLE:
-            raise HTTPException(status_code=400, detail=f"GPU device '{device}' requested but CUDA is not available on this server.")
-            
+    match device:
+        case None:
+            device_value = "gpu:0" if GPU_AVAILABLE else "cpu"
+        case Device.GPU_0:
+            if not GPU_AVAILABLE:
+                raise HTTPException(status_code=400, detail=f"GPU device '{device.value}' requested but CUDA is not available on this server.")
+            device_value = device.value
+        case Device.CPU:
+            device_value = device.value
+        case unreachable:
+            assert_never(unreachable)
+
     # Generate unique Task ID
     task_id = str(uuid.uuid4())
     task_dir = os.path.join(DATA_DIR, task_id)
@@ -324,13 +317,16 @@ async def create_task(
             raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
     else:
         # Resolve filename from URL if possible
-        url_clean = url.split("?")[0]
+        if url is None:
+            raise HTTPException(status_code=400, detail="Must provide either 'file' upload or 'url' path.")
+        source_url = url
+        url_clean = source_url.split("?")[0]
         name_part = url_clean.split("/")[-1]
         if name_part.lower().endswith(".pdf"):
             source_filename = name_part
         source_path = os.path.join(task_dir, source_filename)
         try:
-            await run_in_threadpool(download_url_sync, url, source_path)
+            await run_in_threadpool(download_file, source_url, source_path)
         except Exception as e:
             shutil.rmtree(task_dir)
             raise HTTPException(status_code=400, detail=f"Failed to download remote URL: {str(e)}")
@@ -343,8 +339,8 @@ async def create_task(
         "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "params": {
             "dpi": dpi,
-            "pipeline": pipeline,
-            "device": device,
+            "pipeline": pipeline_value,
+            "device": device_value,
             "source_name": source_filename
         },
         "stats": {},
@@ -358,8 +354,8 @@ async def create_task(
         task_id=task_id,
         source_path=source_path,
         dpi=dpi,
-        pipeline=pipeline,
-        device=device
+        pipeline=pipeline_value,
+        device=device_value
     )
     
     return {

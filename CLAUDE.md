@@ -70,6 +70,10 @@ The package script `pnpm --filter parsing-service dev` is the preferred dev entr
 The parsing service does not own model extraction endpoints. Studio serves model
 routes from same-origin `/api`.
 
+`GET /` serves a small local prototype control page for nontechnical testing of
+the parsing service. It is not the researcher-facing FREE interface; Studio
+remains the product UI for humanities researchers.
+
 ## Frontend (`prototypes/studio`)
 
 **Stack:** React 19 · TypeScript · Vite · Tailwind CSS v4 · pdfjs-dist 6 · pnpm

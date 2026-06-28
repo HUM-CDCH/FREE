@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 import tempfile
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 # Add workspace folder to path if not already there
@@ -23,6 +23,12 @@ class TestService(unittest.TestCase):
         self.assertIn("status", data)
         self.assertIn("gpu_available", data)
         self.assertEqual(data["status"], "online")
+
+    def test_root_ui_defaults_to_docling_pdf(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('value="docling_pdf" selected', response.text)
+        self.assertIn('value="all"', response.text)
 
     def test_tasks_validation(self):
         # Neither file nor url
@@ -107,7 +113,7 @@ class TestService(unittest.TestCase):
 
     @patch("main.asyncio.create_subprocess_exec")
     @patch("main.run_in_threadpool")
-    def test_create_task_with_json_params(self, mock_threadpool, mock_subproc):
+    def test_create_task_with_plain_enum_params(self, mock_threadpool, mock_subproc):
         # Mock download success
         mock_threadpool.return_value = None
         
@@ -120,8 +126,8 @@ class TestService(unittest.TestCase):
             "/tasks",
             data={
                 "url": "https://example.com/test.pdf",
-                "pipeline": '{"type": "paddleocr"}',
-                "device": '{"type": "cpu"}'
+                "pipeline": "paddleocr",
+                "device": "cpu"
             }
         )
         self.assertEqual(response.status_code, 202)
@@ -138,6 +144,28 @@ class TestService(unittest.TestCase):
         if os.path.exists(task_dir):
             import shutil
             shutil.rmtree(task_dir)
+
+    def test_create_task_rejects_json_shaped_pipeline(self):
+        response = self.client.post(
+            "/tasks",
+            data={
+                "url": "https://example.com/test.pdf",
+                "pipeline": '{"type": "paddleocr"}',
+                "device": "cpu",
+            },
+        )
+        self.assertEqual(response.status_code, 422)
+
+    def test_create_task_rejects_unknown_device(self):
+        response = self.client.post(
+            "/tasks",
+            data={
+                "url": "https://example.com/test.pdf",
+                "pipeline": "docling_pdf",
+                "device": "gpu:1",
+            },
+        )
+        self.assertEqual(response.status_code, 422)
 
 
     def test_get_task_markdown_endpoint(self):
@@ -216,24 +244,28 @@ class TestService(unittest.TestCase):
                 import shutil
                 shutil.rmtree(task_dir)
 
-    def test_openapi_tasks_multipart_form_fields(self):
+    def test_openapi_schema_uses_enum_form_fields(self):
         response = self.client.get("/openapi.json")
         self.assertEqual(response.status_code, 200)
         openapi = response.json()
 
+        schemas = openapi["components"]["schemas"]
+        self.assertNotIn("PipelineConfig", schemas)
+        self.assertNotIn("DeviceConfig", schemas)
+        self.assertEqual(
+            schemas["Pipeline"]["enum"],
+            ["all", "docling", "docling_pdf", "docling_images", "paddleocr"],
+        )
+        self.assertEqual(schemas["Device"]["enum"], ["cpu", "gpu:0"])
+
         request_body = openapi["paths"]["/tasks"]["post"]["requestBody"]
         multipart_schema = request_body["content"]["multipart/form-data"]["schema"]
         ref_name = multipart_schema["$ref"].rsplit("/", 1)[-1]
-        body_schema = openapi["components"]["schemas"][ref_name]
-        multipart_properties = body_schema["properties"]
-        for field_name in ("pipeline", "device"):
-            field_schema = multipart_properties[field_name]
-            self.assertNotIn("$ref", field_schema)
-            self.assertTrue(
-                field_schema.get("type") == "string"
-                or {"type": "string"} in field_schema.get("anyOf", []),
-                field_schema,
-            )
+        fields = schemas[ref_name]["properties"]
+        self.assertEqual(fields["pipeline"]["$ref"], "#/components/schemas/Pipeline")
+        self.assertEqual(fields["pipeline"]["default"], "docling_pdf")
+        self.assertIn({"$ref": "#/components/schemas/Device"}, fields["device"]["anyOf"])
+        self.assertIn({"type": "null"}, fields["device"]["anyOf"])
 
 if __name__ == "__main__":
     unittest.main()
