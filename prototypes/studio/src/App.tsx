@@ -287,8 +287,14 @@ function App() {
     void (async () => {
       setDocIndex({ status: 'parsing' })
       try {
-        const blob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
-        const markdown = await parseDocumentToMarkdown(blob, pdfSource.filename, abortController.signal)
+        const devTaskId = import.meta.env.VITE_DEV_TASK_ID as string | undefined
+        const markdown = devTaskId
+          ? await fetch(`${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`).then(r => r.text())
+          : await parseDocumentToMarkdown(
+              await (await fetch(pdfSource.url, { signal: abortController.signal })).blob(),
+              pdfSource.filename,
+              abortController.signal,
+            )
         if (!abortController.signal.aborted) {
           setDocIndex({ status: 'ready', markdown })
         }
