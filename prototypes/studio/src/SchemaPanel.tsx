@@ -169,7 +169,8 @@ function srcIndex(nodes: SchemaNode[], drag: DragState): number {
 const INDENT_THRESHOLD = 48
 const VERTICAL_TOLERANCE = 20
 
-// Right drag: move node into the previous sibling (one level deeper)
+// Right drag: move node into the previous sibling (one level deeper).
+// Special case: root item with no previous sibling → ungroup (children rise to root, node becomes leaf).
 function indentNode(nodes: SchemaNode[], id: string, parentId: string | null): SchemaNode[] {
   const findSiblings = (arr: SchemaNode[]): SchemaNode[] | null => {
     for (const n of arr) {
@@ -180,10 +181,19 @@ function indentNode(nodes: SchemaNode[], id: string, parentId: string | null): S
   }
   const siblings = parentId === null ? nodes : (findSiblings(nodes) ?? nodes)
   const idx = siblings.findIndex(n => n.id === id)
-  if (idx <= 0) return nodes
-  const [moved, without] = extractNode(nodes, id)
-  if (!moved) return nodes
-  return insertIntoNode(without, siblings[idx - 1].id, moved)
+  if (idx > 0) {
+    const [moved, without] = extractNode(nodes, id)
+    if (!moved) return nodes
+    return insertIntoNode(without, siblings[idx - 1].id, moved)
+  }
+  // No previous sibling at root level → ungroup: children come to root, node becomes a leaf
+  if (parentId === null && idx === 0) {
+    const node = nodes[0]
+    if (!node.children || node.children.length === 0) return nodes
+    const leaf: SchemaNode = { id: node.id, name: node.name, type: 'verbatim-string' }
+    return [...node.children, leaf, ...nodes.slice(1)]
+  }
+  return nodes
 }
 
 // Left drag: move node out of its parent, insert after parent (one level shallower)
