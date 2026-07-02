@@ -53,13 +53,34 @@ function collectHighlightLeaves(resultNode: unknown, evidenceNode: unknown, colo
 export function buildHighlights(
   result: Record<string, unknown>,
   evidence: unknown,
-  colorMap?: Record<string, string>,
+  fieldColorMap?: Record<string, string>,
 ): Highlight[] {
   const out: Highlight[] = []
+
+  // Unwrap array-wrapped results: { records: [{field1, field2, ...}, ...] }
+  // Color is assigned per schema field name, consistent across all records.
+  if (Array.isArray(result.records)) {
+    const evidenceRecords = isRecord(evidence) && Array.isArray(evidence.records)
+      ? evidence.records : []
+    for (let r = 0; r < result.records.length; r++) {
+      const rec = result.records[r]
+      if (!isRecord(rec)) continue
+      const evidenceRec = isRecord(evidenceRecords[r]) ? evidenceRecords[r] : {}
+      let i = 0
+      for (const [key, value] of Object.entries(rec)) {
+        const color = fieldColorMap?.[key] ?? PALETTE[i % PALETTE.length]
+        collectHighlightLeaves(value, (evidenceRec as Record<string, unknown>)[key], color, out)
+        i++
+      }
+    }
+    return out
+  }
+
+  // Non-wrapped: assign color per top-level key
   const evidenceRecord = isRecord(evidence) ? evidence : {}
   let i = 0
   for (const [key, value] of Object.entries(result)) {
-    const color = colorMap?.[key] ?? PALETTE[i % PALETTE.length]
+    const color = fieldColorMap?.[key] ?? PALETTE[i % PALETTE.length]
     collectHighlightLeaves(value, evidenceRecord[key], color, out)
     i++
   }

@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { requestMarkdown } from './api'
 import ResultValue from './ResultValue'
+import type { ResultPath } from './ResultValue'
+import { isRecord } from './template'
 import { resultStats } from './resultStats'
 import type { ExtractionController } from './useExtraction'
 
@@ -30,24 +32,55 @@ function summaryItem(label: string, value: string | number) {
   )
 }
 
+function setAtPath(obj: unknown, path: ResultPath, value: string): unknown {
+  if (path.length === 0) return value
+  const [head, ...rest] = path
+  if (Array.isArray(obj)) {
+    const idx = parseInt(head, 10)
+    if (isNaN(idx)) return obj
+    const arr = [...obj]
+    arr[idx] = setAtPath(arr[idx], rest, value)
+    return arr
+  }
+  if (isRecord(obj)) {
+    return { ...obj, [head]: setAtPath((obj as Record<string, unknown>)[head], rest, value) }
+  }
+  return value
+}
+
 function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
   const [markdown, setMarkdown] = useState<MarkdownState>({ status: 'idle' })
+  const [editedResult, setEditedResult] = useState<Record<string, unknown> | null>(
+    state.status === 'ready' ? state.result as Record<string, unknown> : null,
+  )
   const stats = useMemo(() => (state.status === 'ready' ? resultStats(state.result) : null), [state])
 
-  async function copyJson() {
+  useEffect(() => {
     if (state.status === 'ready') {
-      await navigator.clipboard.writeText(JSON.stringify(state.result, null, 2))
+      setEditedResult(state.result as Record<string, unknown>)
+    } else {
+      setEditedResult(null)
+    }
+  }, [state])
+
+  function handleResultChange(path: ResultPath, value: string) {
+    setEditedResult(prev => prev ? setAtPath(prev, path, value) as Record<string, unknown> : prev)
+  }
+
+  const displayResult = editedResult ?? (state.status === 'ready' ? state.result as Record<string, unknown> : null)
+
+  async function copyJson() {
+    if (displayResult) {
+      await navigator.clipboard.writeText(JSON.stringify(displayResult, null, 2))
     }
   }
 
   function downloadJson() {
-    if (state.status !== 'ready') {
-      return
-    }
+    if (!displayResult) return
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify(state.result, null, 2)], { type: 'application/json' }),
+      new Blob([JSON.stringify(displayResult, null, 2)], { type: 'application/json' }),
     )
     const link = document.createElement('a')
     link.href = url
@@ -126,12 +159,20 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
           </div>
 
           {view === 'review' && (
-            <div className="scrollbar-subtle min-h-0 flex-1 overflow-auto bg-canvas p-3">
-              <ResultValue name="Extraction result" value={state.result} />
+            <div className="scrollbar-subtle min-h-0 flex-1 overflow-auto bg-canvas px-3 py-2">
+              {displayResult && Object.entries(displayResult).map(([key, val]) => (
+                <ResultValue
+                  key={key}
+                  name={key}
+                  value={val}
+                  path={[key]}
+                  onChange={handleResultChange}
+                />
+              ))}
             </div>
           )}
 
-          {view === 'json' && <pre className={preClasses}>{JSON.stringify(state.result, null, 2)}</pre>}
+          {view === 'json' && <pre className={preClasses}>{JSON.stringify(displayResult, null, 2)}</pre>}
 
           {view === 'markdown' && (
             <div className="flex min-h-0 flex-1 flex-col">

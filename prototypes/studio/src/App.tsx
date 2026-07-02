@@ -559,6 +559,7 @@ function App() {
               pdfViewer={activePdfViewer}
               result={extraction.state.status === 'ready' ? extraction.state.result : null}
               evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
+              schemaTemplate={schemaTemplate}
               containerEl={containerEl}
             />
           </div>

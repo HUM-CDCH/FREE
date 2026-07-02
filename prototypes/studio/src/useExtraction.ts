@@ -48,7 +48,7 @@ export function useExtraction({
       const { result, evidence } = await requestExtraction(
         blob,
         pdfSource.filename,
-        template,
+        { records: [template] },
         abortController.signal,
         markdown,
       )

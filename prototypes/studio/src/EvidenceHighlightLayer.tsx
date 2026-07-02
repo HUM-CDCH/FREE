@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
-import { buildHighlights } from './evidenceHighlights'
+import { buildHighlights, PALETTE } from './evidenceHighlights'
 import { isRecord } from './template'
 
 // ── text-layer helpers ────────────────────────────────────────────────────────
@@ -157,16 +157,20 @@ type Props = {
   pdfViewer: PDFViewer | null
   result: unknown
   evidence: unknown
+  schemaTemplate: unknown
   containerEl: HTMLDivElement | null
 }
 
-export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, containerEl }: Props) {
+export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, schemaTemplate, containerEl }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
-    const highlights = buildHighlights(result, evidence)
+    const schemaKeys = isRecord(schemaTemplate) ? Object.keys(schemaTemplate) : []
+    const fieldColorMap: Record<string, string> = {}
+    schemaKeys.forEach((k, i) => { fieldColorMap[k] = PALETTE[i % PALETTE.length] })
+    const highlights = buildHighlights(result, evidence, fieldColorMap)
     if (highlights.length === 0) return
 
     let cancelled = false
