@@ -167,6 +167,7 @@ function srcIndex(nodes: SchemaNode[], drag: DragState): number {
 }
 
 const INDENT_THRESHOLD = 48
+const VERTICAL_TOLERANCE = 20
 
 // Right drag: move node into the previous sibling (one level deeper)
 function indentNode(nodes: SchemaNode[], id: string, parentId: string | null): SchemaNode[] {
@@ -309,6 +310,7 @@ function SchemaPanel({
   const dragYRef = useRef(0)
   const dragXRef = useRef(0)
   const dragStartXRef = useRef(0)
+  const dragStartYRef = useRef(0)
   const rafRef = useRef<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
@@ -319,7 +321,9 @@ function SchemaPanel({
   const fieldCount = ready ? countTemplateFields(state.template) : 0
   const inputsKey = state.status === 'ready' ? state.inputsKey : null
   const dx = dragging ? dragX - dragStartXRef.current : 0
-  const dragMode = dx > INDENT_THRESHOLD ? 'indent' : dx < -INDENT_THRESHOLD ? 'outdent' : 'normal'
+  const dy = dragging ? dragY - dragStartYRef.current : 0
+  const horizontalIntent = Math.abs(dx) > INDENT_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE
+  const dragMode = horizontalIntent ? (dx > 0 ? 'indent' : 'outdent') : 'normal'
 
   // Task 1.2 / 1.3 – sync nodes when a new schema is generated
   useEffect(() => {
@@ -367,8 +371,10 @@ function SchemaPanel({
     if (!drag) return
     const cur = nodesRef.current
     const dx = dragXRef.current - dragStartXRef.current
+    const dy = dragYRef.current - dragStartYRef.current
+    const horizontalIntent = Math.abs(dx) > INDENT_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE
 
-    if (dx > INDENT_THRESHOLD) {
+    if (horizontalIntent && dx > 0) {
       const finalNodes = indentNode(cur, drag.id, drag.parentId)
       if (finalNodes !== cur) {
         nodesRef.current = finalNodes
@@ -378,7 +384,7 @@ function SchemaPanel({
       return
     }
 
-    if (dx < -INDENT_THRESHOLD && drag.parentId !== null) {
+    if (horizontalIntent && dx < 0 && drag.parentId !== null) {
       const finalNodes = outdentNode(cur, drag.id, drag.parentId)
       nodesRef.current = finalNodes
       setNodes(finalNodes)
@@ -451,6 +457,7 @@ function SchemaPanel({
     dragYRef.current = e.clientY
     dragXRef.current = e.clientX
     dragStartXRef.current = e.clientX
+    dragStartYRef.current = e.clientY
     startScroll()
   }
 
