@@ -112,9 +112,9 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
                 </button>
               </div>
               <div className="flex gap-1.5">
-                <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={() => void controller.runExtraction()}>
+                {/* <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={() => void controller.runExtraction()}>
                   Rerun
-                </button>
+                </button> */}
                 <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={() => void copyJson()}>
                   Copy JSON
                 </button>

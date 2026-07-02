@@ -166,6 +166,49 @@ function srcIndex(nodes: SchemaNode[], drag: DragState): number {
   return search(nodes)
 }
 
+const INDENT_THRESHOLD = 48
+
+// Right drag: move node into the previous sibling (one level deeper)
+function indentNode(nodes: SchemaNode[], id: string, parentId: string | null): SchemaNode[] {
+  const findSiblings = (arr: SchemaNode[]): SchemaNode[] | null => {
+    for (const n of arr) {
+      if (n.id === parentId) return n.children ?? null
+      if (n.children) { const r = findSiblings(n.children); if (r) return r }
+    }
+    return null
+  }
+  const siblings = parentId === null ? nodes : (findSiblings(nodes) ?? nodes)
+  const idx = siblings.findIndex(n => n.id === id)
+  if (idx <= 0) return nodes
+  const [moved, without] = extractNode(nodes, id)
+  if (!moved) return nodes
+  return insertIntoNode(without, siblings[idx - 1].id, moved)
+}
+
+// Left drag: move node out of its parent, insert after parent (one level shallower)
+function outdentNode(nodes: SchemaNode[], id: string, parentId: string): SchemaNode[] {
+  const [moved, without] = extractNode(nodes, id)
+  if (!moved) return nodes
+  const rootIdx = without.findIndex(n => n.id === parentId)
+  if (rootIdx !== -1) {
+    const out = [...without]; out.splice(rootIdx + 1, 0, moved); return out
+  }
+  const insertAfter = (arr: SchemaNode[]): SchemaNode[] | null => {
+    for (let i = 0; i < arr.length; i++) {
+      if (!arr[i].children) continue
+      const ci = arr[i].children!.findIndex(c => c.id === parentId)
+      if (ci !== -1) {
+        const ch = [...arr[i].children!]; ch.splice(ci + 1, 0, moved)
+        const out = [...arr]; out[i] = { ...arr[i], children: ch }; return out
+      }
+      const deeper = insertAfter(arr[i].children!)
+      if (deeper) { const out = [...arr]; out[i] = { ...arr[i], children: deeper }; return out }
+    }
+    return null
+  }
+  return insertAfter(without) ?? without
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Shared UI sub-components
 // ────────────────────────────────────────────────────────────────────────────
@@ -264,6 +307,8 @@ function SchemaPanel({
   const draggingRef = useRef<DragState | null>(null)
   const overTargetRef = useRef<DropTarget | null>(null)
   const dragYRef = useRef(0)
+  const dragXRef = useRef(0)
+  const dragStartXRef = useRef(0)
   const rafRef = useRef<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
@@ -273,6 +318,8 @@ function SchemaPanel({
   const ready = state.status === 'ready'
   const fieldCount = ready ? countTemplateFields(state.template) : 0
   const inputsKey = state.status === 'ready' ? state.inputsKey : null
+  const dx = dragging ? dragX - dragStartXRef.current : 0
+  const dragMode = dx > INDENT_THRESHOLD ? 'indent' : dx < -INDENT_THRESHOLD ? 'outdent' : 'normal'
 
   // Task 1.2 / 1.3 – sync nodes when a new schema is generated
   useEffect(() => {
@@ -317,8 +364,29 @@ function SchemaPanel({
   function commitDrop() {
     const drag = draggingRef.current
     const target = overTargetRef.current
-    if (!drag || !target) return
+    if (!drag) return
     const cur = nodesRef.current
+    const dx = dragXRef.current - dragStartXRef.current
+
+    if (dx > INDENT_THRESHOLD) {
+      const finalNodes = indentNode(cur, drag.id, drag.parentId)
+      if (finalNodes !== cur) {
+        nodesRef.current = finalNodes
+        setNodes(finalNodes)
+        onTemplateChangeRef.current(nodesToTemplate(finalNodes), '⠿ Schema reordered')
+      }
+      return
+    }
+
+    if (dx < -INDENT_THRESHOLD && drag.parentId !== null) {
+      const finalNodes = outdentNode(cur, drag.id, drag.parentId)
+      nodesRef.current = finalNodes
+      setNodes(finalNodes)
+      onTemplateChangeRef.current(nodesToTemplate(finalNodes), '⠿ Schema reordered')
+      return
+    }
+
+    if (!target) return
 
     if (target.type === 'group') {
       if (drag.isGroup) return
@@ -348,6 +416,7 @@ function SchemaPanel({
       setDragX(e.clientX)
       setDragY(e.clientY)
       dragYRef.current = e.clientY
+      dragXRef.current = e.clientX
     }
     const onUp = () => {
       if (!draggingRef.current) return
@@ -380,6 +449,8 @@ function SchemaPanel({
     setDragX(e.clientX)
     setDragY(e.clientY)
     dragYRef.current = e.clientY
+    dragXRef.current = e.clientX
+    dragStartXRef.current = e.clientX
     startScroll()
   }
 
@@ -527,6 +598,7 @@ function SchemaPanel({
   // ── style helpers ──
   function slotCls(parentId: string | null, index: number) {
     const on =
+      dragMode === 'normal' &&
       overTarget?.type === 'slot' &&
       overTarget.parentId === (parentId ?? null) &&
       overTarget.index === index
@@ -572,7 +644,7 @@ function SchemaPanel({
   function renderRootField(node: SchemaNode, i: number) {
     const isGroup = node.children !== undefined
     const isDragging = dragging?.id === node.id
-    const intoGroup = overTarget?.type === 'group' && overTarget.id === node.id
+    const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === node.id
     const isEditing = editing?.id === node.id
 
     return (
@@ -638,11 +710,11 @@ function SchemaPanel({
                   onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)}
                 />
                 {/* Task 3.5 – empty group placeholder during drag */}
-                {(node.children ?? []).length === 0 && dragging && (
+                {/* {(node.children ?? []).length === 0 && dragging && (
                   <div className="rounded-lg border-[1.5px] border-dashed border-line-strong px-3 py-2 text-center font-sans text-[11px] text-ink-faint">
                     drag a field in here
                   </div>
-                )}
+                )} */}
               </div>
             )}
           </>
@@ -655,7 +727,7 @@ function SchemaPanel({
     const isDragging = dragging?.id === child.id
     const isEditing = editing?.id === child.id
     const isGroup = child.children !== undefined
-    const intoGroup = overTarget?.type === 'group' && overTarget.id === child.id
+    const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === child.id
     const isExpanded = expandedIds.has(child.id) || intoGroup
 
     const toggleExpand = (e: React.MouseEvent) => {
@@ -725,11 +797,11 @@ function SchemaPanel({
                   className={slotCls(child.id, (child.children ?? []).length)}
                   onMouseEnter={() => setSlotTarget(child.id, (child.children ?? []).length)}
                 />
-                {(child.children ?? []).length === 0 && dragging && (
+                {/* {(child.children ?? []).length === 0 && dragging && (
                   <div className="rounded-lg border-[1.5px] border-dashed border-line-strong px-3 py-2 text-center font-sans text-[11px] text-ink-faint">
                     drag a field in here
                   </div>
-                )}
+                )} */}
               </div>
             )}
           </>
@@ -751,7 +823,7 @@ function SchemaPanel({
         {ready && (
           <div className="flex shrink-0 overflow-hidden rounded-md border border-line">
             <button className={tabCls(view === 'fields')} type="button" aria-pressed={view === 'fields'} onClick={() => setView('fields')}>Fields</button>
-            <button className={`${tabCls(view === 'json')} font-mono`} type="button" aria-pressed={view === 'json'} onClick={() => setView('json')}>{'{ }'}</button>
+            <button className={`${tabCls(view === 'json')} font-mono`} type="button" aria-pressed={view === 'json'} onClick={() => setView('json')}>{'JSON'}</button>
           </div>
         )}
       </header>
@@ -935,7 +1007,7 @@ function SchemaPanel({
           style={{ position: 'fixed', left: dragX + 18, top: dragY - 16, pointerEvents: 'none', zIndex: 9999 }}
           className="flex select-none items-center gap-1.5 rounded-lg border-[1.5px] border-accent bg-surface px-3 py-1.5 font-mono text-[12.5px] font-medium text-ink shadow-[0_4px_20px_rgba(51,48,44,.22)] whitespace-nowrap"
         >
-          <span className="text-sm">⠿</span>
+          <span className="text-sm">{dragMode === 'indent' ? '→' : dragMode === 'outdent' ? '←' : '⠿'}</span>
           {dragging.name}
         </div>
       )}
