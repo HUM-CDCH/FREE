@@ -53,12 +53,14 @@ function collectHighlightLeaves(resultNode: unknown, evidenceNode: unknown, colo
 export function buildHighlights(
   result: Record<string, unknown>,
   evidence: unknown,
+  colorMap?: Record<string, string>,
 ): Highlight[] {
   const out: Highlight[] = []
   const evidenceRecord = isRecord(evidence) ? evidence : {}
   let i = 0
   for (const [key, value] of Object.entries(result)) {
-    collectHighlightLeaves(value, evidenceRecord[key], PALETTE[i % PALETTE.length], out)
+    const color = colorMap?.[key] ?? PALETTE[i % PALETTE.length]
+    collectHighlightLeaves(value, evidenceRecord[key], color, out)
     i++
   }
   return out

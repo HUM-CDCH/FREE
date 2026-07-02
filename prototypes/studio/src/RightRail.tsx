@@ -146,6 +146,7 @@ function RightRail({
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}
+          documentMarkdown={documentMarkdown}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
