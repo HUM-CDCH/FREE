@@ -1,13 +1,15 @@
 import { isRecord } from './template'
 
+// Paul Tol's Muted palette — sky blue, olive, rose, teal
+// Distinguishable across deuteranopia, protanopia, and tritanopia.
 export const PALETTE: string[] = [
-  'rgba(255, 220, 0, 0.35)',
-  'rgba(59, 130, 246, 0.30)',
-  'rgba(34, 197, 94, 0.30)',
-  'rgba(239, 68, 68, 0.25)',
+  'rgba(148, 203, 236, 0.55)',
+  'rgba(220, 205, 125, 0.55)',
+  'rgba(194, 106, 119, 0.45)',
+  'rgba(93, 168, 153, 0.45)',
 ]
 
-type Highlight = { value: string; snippet: string | null; hintPage: number | null; color: string }
+export type Highlight = { value: string; snippet: string | null; hintPage: number | null; color: string }
 
 function collectEvidenceLeaf(node: unknown, color: string, out: Highlight[]): boolean {
   if (

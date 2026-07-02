@@ -269,7 +269,7 @@ function SchemaPanel({
   const [overTarget, setOverTarget] = useState<DropTarget | null>(null)
   const [editing, setEditing] = useState<FieldEditing | null>(null)
   const [chat, setChat] = useState<ChatMsg[]>([
-    { role: 'assistant', text: "Edit fields by hand, or describe a change — I'll show a diff to review first." },
+    { role: 'assistant', text: "Edit through drag and drop, or describe a change. I'll show a diff to review first." },
   ])
   const [pending, setPending] = useState<PendingChange | null>(null)
   const [usedSuggs, setUsedSuggs] = useState<string[]>([])

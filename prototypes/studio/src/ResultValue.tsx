@@ -11,6 +11,7 @@ export type ResultValueProps = {
   value: unknown
   path?: ResultPath
   onChange?: OnResultChange
+  onValueClick?: (value: string) => void
   depth?: number
   defaultExpanded?: boolean
 }
@@ -55,8 +56,8 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 // ── PrimitiveRow ──────────────────────────────────────────────────────────────
 
 function PrimitiveRow({
-  name, value, path, onChange,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange }) {
+  name, value, path, onChange, onValueClick,
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
@@ -104,7 +105,10 @@ function PrimitiveRow({
         {missing ? (
           <MissingBadge />
         ) : (
-          <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">
+          <span
+            className={`min-w-0 flex-1 truncate text-[13px] text-ink-muted ${onValueClick ? 'cursor-pointer hover:text-accent' : ''}`}
+            onClick={onValueClick ? () => onValueClick(text) : undefined}
+          >
             {text}
           </span>
         )}
@@ -140,8 +144,8 @@ function PrimitiveRow({
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, depth, defaultExpanded = true,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean }) {
+  name, value, path, onChange, onValueClick, depth, defaultExpanded = true,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; defaultExpanded?: boolean }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -176,6 +180,7 @@ function ObjectSection({
                 value={child}
                 path={[...path, key]}
                 onChange={onChange}
+                onValueClick={onValueClick}
                 depth={depth + 1}
               />
             ))
@@ -189,8 +194,8 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, depth,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number }) {
+  name, value, path, onChange, onValueClick, depth,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number }) {
   const [expanded, setExpanded] = useState(true)
 
   return (
@@ -217,6 +222,7 @@ function ArraySection({
                 value={item}
                 path={[...path, String(i)]}
                 onChange={onChange}
+                onValueClick={onValueClick}
                 depth={depth + 1}
                 defaultExpanded={false}
               />
@@ -230,14 +236,14 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, onValueClick, depth = 0, defaultExpanded }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} defaultExpanded={defaultExpanded} />
   }
-  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} />
+  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} />
 }
 
 export default ResultValue

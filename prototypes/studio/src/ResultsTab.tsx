@@ -11,6 +11,7 @@ type ResultsTabProps = {
   schemaReady: boolean
   pdfSource: { url: string; filename: string } | null
   documentMarkdown: string | null
+  onValueClick?: (value: string) => void
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -48,7 +49,7 @@ function setAtPath(obj: unknown, path: ResultPath, value: string): unknown {
   return value
 }
 
-function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onValueClick }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
   const [markdown, setMarkdown] = useState<MarkdownState>({ status: 'idle' })
@@ -167,6 +168,7 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
                   value={val}
                   path={[key]}
                   onChange={handleResultChange}
+                  onValueClick={onValueClick}
                 />
               ))}
             </div>

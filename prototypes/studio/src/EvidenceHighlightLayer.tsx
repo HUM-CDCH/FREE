@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import { buildHighlights, PALETTE } from './evidenceHighlights'
+import type { Highlight } from './evidenceHighlights'
 import { isRecord } from './template'
 
 // ── text-layer helpers ────────────────────────────────────────────────────────
@@ -153,18 +154,33 @@ async function findValueRects(
 
 // ── component ─────────────────────────────────────────────────────────────────
 
+type CachedEntry = {
+  highlight: Highlight
+  pageNumber: number
+  rects: DOMRect[]
+  pageTop: number
+  pageLeft: number
+}
+
 type Props = {
   pdfViewer: PDFViewer | null
   result: unknown
   evidence: unknown
   schemaTemplate: unknown
   containerEl: HTMLDivElement | null
+  focusValue: string | null
 }
 
-export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, schemaTemplate, containerEl }: Props) {
+export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, schemaTemplate, containerEl, focusValue }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const schemaTemplateRef = useRef(schemaTemplate)
+  schemaTemplateRef.current = schemaTemplate
+  const focusValueRef = useRef<string | null>(null)
+  focusValueRef.current = focusValue
+  const cachedEntriesRef = useRef<CachedEntry[]>([])
   const [scale, setScale] = useState(1)
   const [containerVersion, setContainerVersion] = useState(0)
+  const [cacheVersion, setCacheVersion] = useState(0)
 
   // Re-render highlights when PDF zoom level changes.
   useEffect(() => {
@@ -182,15 +198,17 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
     return () => { observer.disconnect() }
   }, [containerEl])
 
+  // Main effect: search PDF for each highlight, build position cache, draw progressively.
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
-    const schemaKeys = isRecord(schemaTemplate) ? Object.keys(schemaTemplate) : []
+    const schemaKeys = isRecord(schemaTemplateRef.current) ? Object.keys(schemaTemplateRef.current) : []
     const fieldColorMap: Record<string, string> = {}
     schemaKeys.forEach((k, i) => { fieldColorMap[k] = PALETTE[i % PALETTE.length] })
     const highlights = buildHighlights(result, evidence, fieldColorMap)
     if (highlights.length === 0) return
 
+    cachedEntriesRef.current = []
     let cancelled = false
 
     async function render() {
@@ -222,17 +240,75 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
         const pageTop = pageRect.top - containerRect.top + containerEl.scrollTop + pageEl.clientTop
         const pageLeft = pageRect.left - containerRect.left + containerEl.scrollLeft + pageEl.clientLeft
 
+        if (!cancelled) {
+          cachedEntriesRef.current.push({ highlight: h, pageNumber: found.pageNumber, rects: found.rects, pageTop, pageLeft })
+        }
+        if (cancelled) return
+
+        const activeFv = focusValueRef.current
+        const isActive = activeFv !== null && h.value === activeFv
+        const dimmed = activeFv !== null && !isActive
+
+        ctx.save()
+        ctx.globalAlpha = dimmed ? 0.25 : 1.0
+        ctx.fillStyle = h.color
         for (const rect of found.rects) {
-          if (cancelled) return
-          ctx.fillStyle = h.color
           ctx.fillRect(pageLeft + rect.x, pageTop + rect.y, rect.width, rect.height)
         }
+        if (isActive) {
+          ctx.globalAlpha = 0.6
+          for (const rect of found.rects) {
+            ctx.fillRect(pageLeft + rect.x, pageTop + rect.y, rect.width, rect.height)
+          }
+        }
+        ctx.restore()
       }
+
+      if (!cancelled) setCacheVersion((v: number) => v + 1)
     }
 
     void render()
     return () => { cancelled = true }
-  }, [pdfViewer, result, evidence, schemaTemplate, containerEl, scale, containerVersion])
+  }, [pdfViewer, result, evidence, containerEl, scale, containerVersion])
+
+  // Focus effect: scroll to active value and redraw from cache (no PDF search).
+  useEffect(() => {
+    if (!containerEl) return
+    const entries = cachedEntriesRef.current
+    const canvas = canvasRef.current
+    if (!canvas || entries.length === 0) return
+
+    if (focusValue) {
+      const entry = entries.find(e => e.highlight.value === focusValue)
+      if (entry?.rects[0]) {
+        containerEl.scrollTo({
+          top: Math.max(0, entry.pageTop + entry.rects[0].y - containerEl.clientHeight / 2 + entry.rects[0].height / 2),
+          behavior: 'smooth',
+        })
+      }
+    }
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    for (const entry of entries) {
+      const isActive = focusValue !== null && entry.highlight.value === focusValue
+      const dimmed = focusValue !== null && !isActive
+      ctx.save()
+      ctx.globalAlpha = dimmed ? 0.25 : 1.0
+      ctx.fillStyle = entry.highlight.color
+      for (const rect of entry.rects) {
+        ctx.fillRect(entry.pageLeft + rect.x, entry.pageTop + rect.y, rect.width, rect.height)
+      }
+      if (isActive) {
+        ctx.globalAlpha = 0.6
+        for (const rect of entry.rects) {
+          ctx.fillRect(entry.pageLeft + rect.x, entry.pageTop + rect.y, rect.width, rect.height)
+        }
+      }
+      ctx.restore()
+    }
+  }, [focusValue, cacheVersion, containerEl])
 
   if (!result) return null
 

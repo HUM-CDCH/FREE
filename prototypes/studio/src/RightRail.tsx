@@ -29,6 +29,7 @@ type RightRailProps = {
   extraction: ExtractionController
   pdfSource: { url: string; filename: string } | null
   documentMarkdown: string | null
+  onValueClick?: (value: string) => void
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
@@ -63,6 +64,7 @@ function RightRail({
   extraction,
   pdfSource,
   documentMarkdown,
+  onValueClick,
 }: RightRailProps) {
   if (!open) {
     return (
@@ -150,7 +152,7 @@ function RightRail({
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} pdfSource={pdfSource} documentMarkdown={documentMarkdown} />
+        <ResultsTab controller={extraction} schemaReady={schemaReady} pdfSource={pdfSource} documentMarkdown={documentMarkdown} onValueClick={onValueClick} />
       </div>
     </div>
   )
