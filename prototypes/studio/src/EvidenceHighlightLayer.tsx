@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import { buildHighlights, PALETTE } from './evidenceHighlights'
 import { isRecord } from './template'
@@ -163,6 +163,24 @@ type Props = {
 
 export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, schemaTemplate, containerEl }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [scale, setScale] = useState(1)
+  const [containerVersion, setContainerVersion] = useState(0)
+
+  // Re-render highlights when PDF zoom level changes.
+  useEffect(() => {
+    if (!pdfViewer) return
+    function onScaleChange() { setScale(pdfViewer!.currentScale) }
+    pdfViewer.eventBus.on('scalechanging', onScaleChange)
+    return () => { pdfViewer.eventBus.off('scalechanging', onScaleChange) }
+  }, [pdfViewer])
+
+  // Re-render highlights when the container is resized (e.g. window resize).
+  useEffect(() => {
+    if (!containerEl) return
+    const observer = new ResizeObserver(() => { setContainerVersion((v: number) => v + 1) })
+    observer.observe(containerEl)
+    return () => { observer.disconnect() }
+  }, [containerEl])
 
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
@@ -214,7 +232,7 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
 
     void render()
     return () => { cancelled = true }
-  }, [pdfViewer, result, evidence, containerEl])
+  }, [pdfViewer, result, evidence, schemaTemplate, containerEl, scale, containerVersion])
 
   if (!result) return null
 
