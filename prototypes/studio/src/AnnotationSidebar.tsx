@@ -30,14 +30,14 @@ function AnnotationSidebar({ items, onSelectItem, onRemoveItem }: Props) {
           <div className="rounded-xl border border-dashed border-line px-4 py-7 text-center">
             <p aria-hidden="true" className="text-lg leading-none text-ink-muted">✎</p>
             <p className="mt-2 text-[13px] font-semibold text-ink">Annotate the source</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
               Select any passage in the report — it becomes a grounded annotation in the set.
             </p>
           </div>
         ) : (
           groupByPage(items).map((group) => (
             <section key={group.pageNumber} className="mb-3.5 last:mb-0">
-              <h3 className="mb-1.5 px-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted">
+              <h3 className="mb-1.5 px-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted">
                 Page {group.pageNumber}
               </h3>
               <ul className="flex flex-col gap-2.5">
@@ -45,7 +45,7 @@ function AnnotationSidebar({ items, onSelectItem, onRemoveItem }: Props) {
                   <li key={item.id} className="flex max-w-full flex-col items-start gap-1.5">
                     <span className="inline-flex h-6.5 max-w-full items-center overflow-hidden rounded-full border border-accent bg-accent-soft transition-colors has-focus-visible:ring-2 has-focus-visible:ring-accent/40">
                       <button
-                        className="h-full min-w-0 max-w-52.5 cursor-pointer truncate pl-2.5 pr-1 text-left font-serif text-xs italic text-ink outline-none transition-colors hover:text-accent"
+                        className="h-full min-w-0 max-w-52.5 cursor-pointer truncate pl-2.5 pr-1 text-left font-serif text-[13px] italic text-ink outline-none transition-colors hover:text-accent"
                         type="button"
                         title={`Go to highlight on page ${item.pageNumber}: ${item.label}`}
                         onClick={() => onSelectItem(item.id)}

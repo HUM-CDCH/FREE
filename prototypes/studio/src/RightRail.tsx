@@ -103,7 +103,7 @@ function RightRail({
           return (
             <button
               key={key}
-              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-xs font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
+              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
                 active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
               }`}
               type="button"

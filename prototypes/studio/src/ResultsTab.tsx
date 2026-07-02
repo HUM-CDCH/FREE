@@ -24,7 +24,7 @@ const preClasses =
 
 function summaryItem(label: string, value: string | number) {
   return (
-    <span className="rounded-full border border-line bg-surface-muted px-2 py-1 text-[11px] font-semibold text-ink-muted">
+    <span className="rounded-full border border-line bg-surface-muted px-2 py-1 text-xs font-semibold text-ink-muted">
       {label}: <span className="font-mono text-ink">{value}</span>
     </span>
   )
@@ -74,14 +74,14 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
   }
 
   const tabClasses = (active: boolean) =>
-    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${
+    `cursor-pointer px-2.5 py-1 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${
       active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'
     }`
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex min-h-9.5 shrink-0 items-center gap-2 border-b border-line px-4">
-        <h2 className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-muted">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">
           Extraction results
         </h2>
       </header>
@@ -115,10 +115,10 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
                 {/* <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={() => void controller.runExtraction()}>
                   Rerun
                 </button> */}
-                <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={() => void copyJson()}>
+                <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={() => void copyJson()}>
                   Copy JSON
                 </button>
-                <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={downloadJson}>
+                <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={downloadJson}>
                   Download
                 </button>
               </div>
@@ -164,7 +164,7 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
             className="animate-spin-slow size-7 rounded-full border-[3px] border-line border-t-accent"
           />
           <p className="text-[13px] font-semibold text-ink">Extracting...</p>
-          <p className="max-w-[34ch] text-[11.5px] leading-snug text-ink-muted">
+          <p className="max-w-[34ch] text-[13px] leading-snug text-ink-muted">
             This can take a while on large source documents.
           </p>
         </div>
@@ -173,7 +173,7 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
       {state.status === 'error' && (
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
-          <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
+          <p className="mt-1 wrap-anywhere text-[13px] leading-snug text-ink-muted">{state.message}</p>
           <button
             className="mt-2.5 cursor-pointer rounded-lg border border-accent bg-accent px-3.25 py-1.5 text-xs font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40"
             type="button"
@@ -187,7 +187,7 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown }: Re
       {state.status === 'idle' && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
           <p className="text-[13.5px] font-semibold text-ink">No results yet</p>
-          <p className="mt-1.5 max-w-[34ch] text-[11.5px] leading-snug text-ink-muted">
+          <p className="mt-1.5 max-w-[34ch] text-[13px] leading-snug text-ink-muted">
             {schemaReady
               ? 'Run extraction to apply the schema across the source document.'
               : 'Generate a schema in the Schema tab first, then run extraction.'}

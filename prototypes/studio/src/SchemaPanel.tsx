@@ -242,7 +242,7 @@ function FieldEditForm({ editing, onChange, onSave, onCancel }: {
         onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
       />
       <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
-      <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✕</button>
+      <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✗</button>
     </div>
   )
 }
@@ -666,69 +666,53 @@ function SchemaPanel({
         {isEditing && editing ? (
           <FieldEditForm editing={editing} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} />
         ) : (
-          <>
-            {/* Task 2.3 / 3.1 – field row with drag handle and group hover */}
-            <div
-              className={rowCls(node.id, intoGroup, isDragging)}
-              onMouseEnter={() => setGroupTarget(node.id, node.name)}
-              onMouseLeave={() => clearGroupTarget(node.id)}
+          <div
+            className={rowCls(node.id, intoGroup, isDragging)}
+            onMouseEnter={() => setGroupTarget(node.id, node.name)}
+            onMouseLeave={() => clearGroupTarget(node.id)}
+          >
+            <span
+              className="shrink-0 cursor-grab select-none px-0.5 text-sm leading-none text-ink-faint"
+              onMouseDown={e => startDrag(e, node.id, null, node.name, isGroup)}
             >
-              <span
-                className="shrink-0 cursor-grab select-none px-0.5 text-sm leading-none text-ink-faint"
-                onMouseDown={e => startDrag(e, node.id, null, node.name, isGroup)}
-              >
-                ⠿
+              ⠿
+            </span>
+            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{node.name}</span>
+            {intoGroup && (
+              <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
+                into {node.name}
               </span>
-              <span className="min-w-0 truncate font-mono text-[12.5px] font-medium text-ink">{node.name}</span>
-              {/* Task 3.3 – "into [group]" badge */}
-              {intoGroup && (
-                <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
-                  into {node.name}
-                </span>
-              )}
-              <span className="min-w-0 flex-1" />
-              {/* {isGroup ? (
-                <span className="shrink-0 font-sans text-[9px] font-semibold uppercase tracking-[0.06em] text-ink-faint">{node.type}</span>
-              ) : (
-                <span className="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 font-mono text-[10px] font-medium leading-none text-ink-muted">{node.type}</span>
-              )} */}
-              <button
-                className="shrink-0 cursor-pointer px-1 text-[11px] leading-none text-ink-faint outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
-                type="button"
-                title={`Edit ${node.name}`}
-                disabled={editDisabled}
-                onClick={() => setEditing({ id: node.id, name: node.name, type: node.type })}
-              >
-                ✎
-              </button>
-              <button
-                className="shrink-0 cursor-pointer px-1 text-[10px] leading-none text-ink-faint outline-none transition-colors hover:text-accent focus-visible:text-accent"
-                type="button"
-                title={`Remove ${node.name}`}
-                onClick={() => removeNode(node.id)}
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Nested children area */}
-            {isGroup && (
-              <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-                {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j))}
-                {/* End slot for the group */}
-                <div
-                  className={slotCls(node.id, (node.children ?? []).length)}
-                  onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)}
-                />
-                {/* Task 3.5 – empty group placeholder during drag */}
-                {/* {(node.children ?? []).length === 0 && dragging && (
-                  <div className="rounded-lg border-[1.5px] border-dashed border-line-strong px-3 py-2 text-center font-sans text-[11px] text-ink-faint">
-                    drag a field in here
-                  </div>
-                )} */}
-              </div>
             )}
-          </>
+            <span className="min-w-0 flex-1" />
+            <button
+              className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
+              type="button"
+              title={`Edit ${node.name}`}
+              disabled={editDisabled}
+              onClick={() => setEditing({ id: node.id, name: node.name, type: node.type })}
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+            </button>
+            <button
+              className="shrink-0 cursor-pointer px-1 text-[12px] leading-none text-ink-muted outline-none transition-colors hover:text-danger focus-visible:text-danger"
+              type="button"
+              title={`Remove ${node.name}`}
+              onClick={() => removeNode(node.id)}
+            >
+              ✗
+            </button>
+          </div>
+        )}
+
+        {/* Nested children area — always rendered so editing doesn't collapse children */}
+        {isGroup && (
+          <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
+            {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j))}
+            <div
+              className={slotCls(node.id, (node.children ?? []).length)}
+              onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)}
+            />
+          </div>
         )}
       </div>
     )
@@ -756,66 +740,61 @@ function SchemaPanel({
         {isEditing && editing ? (
           <FieldEditForm editing={editing} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} />
         ) : (
-          <>
-            <div
-              className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''}`}
+          <div
+            className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''}`}
+          >
+            <span
+              className="shrink-0 cursor-grab select-none px-0.5 text-[13px] leading-none text-ink-faint"
+              onMouseDown={e => startDrag(e, child.id, parentId, child.name, isGroup)}
             >
+              ⠿
+            </span>
+            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{child.name}</span>
+            {isGroup && (
               <span
-                className="shrink-0 cursor-grab select-none px-0.5 text-[13px] leading-none text-ink-faint"
-                onMouseDown={e => startDrag(e, child.id, parentId, child.name, isGroup)}
+                className="shrink-0 flex items-center text-ink-faint hover:text-accent cursor-pointer transition-colors"
+                onClick={toggleExpand}
               >
-                ⠿
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 120ms' }}>
+                  <polygon points="0,0 8,4 0,8" />
+                </svg>
               </span>
-              <span className="min-w-0 truncate font-mono text-[12.5px] font-medium text-ink-muted">{child.name}</span>
-              {isGroup && (
-                <span
-                  className="shrink-0 flex items-center text-ink-faint hover:text-accent cursor-pointer transition-colors"
-                  onClick={toggleExpand}
-                >
-                  <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 120ms' }}>
-                    <polygon points="0,0 8,4 0,8" />
-                  </svg>
-                </span>
-              )}
-              {intoGroup && (
-                <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
-                  into {child.name}
-                </span>
-              )}
-              <span className="min-w-0 flex-1" />
-              <button
-                className="shrink-0 cursor-pointer px-1 text-[11px] leading-none text-ink-faint outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
-                type="button"
-                title={`Edit ${child.name}`}
-                disabled={editDisabled}
-                onClick={() => setEditing({ id: child.id, name: child.name, type: child.type })}
-              >
-                ✎
-              </button>
-              <button
-                className="shrink-0 cursor-pointer px-1 text-[10px] leading-none text-ink-faint outline-none transition-colors hover:text-accent focus-visible:text-accent"
-                type="button"
-                title={`Remove ${child.name}`}
-                onClick={() => removeNode(child.id)}
-              >
-                ✕
-              </button>
-            </div>
-            {isGroup && isExpanded && (
-              <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-                {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k))}
-                <div
-                  className={slotCls(child.id, (child.children ?? []).length)}
-                  onMouseEnter={() => setSlotTarget(child.id, (child.children ?? []).length)}
-                />
-                {/* {(child.children ?? []).length === 0 && dragging && (
-                  <div className="rounded-lg border-[1.5px] border-dashed border-line-strong px-3 py-2 text-center font-sans text-[11px] text-ink-faint">
-                    drag a field in here
-                  </div>
-                )} */}
-              </div>
             )}
-          </>
+            {intoGroup && (
+              <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
+                into {child.name}
+              </span>
+            )}
+            <span className="min-w-0 flex-1" />
+            <button
+              className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
+              type="button"
+              title={`Edit ${child.name}`}
+              disabled={editDisabled}
+              onClick={() => setEditing({ id: child.id, name: child.name, type: child.type })}
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+            </button>
+            <button
+              className="shrink-0 cursor-pointer px-1 text-[12px] leading-none text-ink-muted outline-none transition-colors hover:text-danger focus-visible:text-danger"
+              type="button"
+              title={`Remove ${child.name}`}
+              onClick={() => removeNode(child.id)}
+            >
+              ✗
+            </button>
+          </div>
+        )}
+
+        {/* Children area — always rendered when expanded so editing doesn't collapse it */}
+        {isGroup && isExpanded && (
+          <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
+            {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k))}
+            <div
+              className={slotCls(child.id, (child.children ?? []).length)}
+              onMouseEnter={() => setSlotTarget(child.id, (child.children ?? []).length)}
+            />
+          </div>
         )}
       </div>
     )
@@ -828,8 +807,8 @@ function SchemaPanel({
       {/* ── Header ── */}
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5">
         <div className="min-w-0">
-          <h2 className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-muted">Extraction Schema</h2>
-          <p className="truncate font-mono text-xs font-medium text-ink">Beretning_Ellekilde_8_13.pdf</p>
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">Extraction Schema</h2>
+          <p className="truncate font-mono text-[13px] font-medium text-ink">Beretning_Ellekilde_8_13.pdf</p>
         </div>
         {ready && (
           <div className="flex shrink-0 overflow-hidden rounded-md border border-line">
@@ -999,7 +978,7 @@ function SchemaPanel({
               Highlights changed — regenerate to update the schema
             </span>
           ) : (
-            `${fieldCount} field${fieldCount === 1 ? '' : 's'} }`
+            `${fieldCount} field${fieldCount === 1 ? '' : 's'} `
           ))}
           {state.status === 'idle' && 'Generate to produce the schema from the document'}
           {state.status === 'error' && 'Generation failed'}
