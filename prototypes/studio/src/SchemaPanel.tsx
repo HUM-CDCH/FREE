@@ -169,55 +169,31 @@ function srcIndex(nodes: SchemaNode[], drag: DragState): number {
 const INDENT_THRESHOLD = 48
 const VERTICAL_TOLERANCE = 20
 
-// Right drag: move node into the previous sibling (one level deeper).
-// Special case: root item with no previous sibling → ungroup (children rise to root, node becomes leaf).
-function indentNode(nodes: SchemaNode[], id: string, parentId: string | null): SchemaNode[] {
-  const findSiblings = (arr: SchemaNode[]): SchemaNode[] | null => {
+// Returns the children array of the node with the given id (or root nodes if id is null).
+function siblingsOf(nodes: SchemaNode[], parentId: string | null): SchemaNode[] {
+  if (parentId === null) return nodes
+  const search = (arr: SchemaNode[]): SchemaNode[] | null => {
     for (const n of arr) {
-      if (n.id === parentId) return n.children ?? null
-      if (n.children) { const r = findSiblings(n.children); if (r) return r }
+      if (n.id === parentId) return n.children ?? []
+      if (n.children) { const r = search(n.children); if (r) return r }
     }
     return null
   }
-  const siblings = parentId === null ? nodes : (findSiblings(nodes) ?? nodes)
-  const idx = siblings.findIndex(n => n.id === id)
-  if (idx > 0) {
-    const [moved, without] = extractNode(nodes, id)
-    if (!moved) return nodes
-    return insertIntoNode(without, siblings[idx - 1].id, moved)
-  }
-  // No previous sibling at root level → ungroup: children come to root, node becomes a leaf
-  if (parentId === null && idx === 0) {
-    const node = nodes[0]
-    if (!node.children || node.children.length === 0) return nodes
-    const leaf: SchemaNode = { id: node.id, name: node.name, type: 'verbatim-string' }
-    return [...node.children, leaf, ...nodes.slice(1)]
-  }
-  return nodes
+  return search(nodes) ?? nodes
 }
 
-// Left drag: move node out of its parent, insert after parent (one level shallower)
-function outdentNode(nodes: SchemaNode[], id: string, parentId: string): SchemaNode[] {
-  const [moved, without] = extractNode(nodes, id)
-  if (!moved) return nodes
-  const rootIdx = without.findIndex(n => n.id === parentId)
-  if (rootIdx !== -1) {
-    const out = [...without]; out.splice(rootIdx + 1, 0, moved); return out
-  }
-  const insertAfter = (arr: SchemaNode[]): SchemaNode[] | null => {
-    for (let i = 0; i < arr.length; i++) {
-      if (!arr[i].children) continue
-      const ci = arr[i].children!.findIndex(c => c.id === parentId)
-      if (ci !== -1) {
-        const ch = [...arr[i].children!]; ch.splice(ci + 1, 0, moved)
-        const out = [...arr]; out[i] = { ...arr[i], children: ch }; return out
-      }
-      const deeper = insertAfter(arr[i].children!)
-      if (deeper) { const out = [...arr]; out[i] = { ...arr[i], children: deeper }; return out }
+// Returns the id of the parent that directly contains childId, or null if at root.
+function parentIdOf(nodes: SchemaNode[], childId: string): string | null {
+  const search = (arr: SchemaNode[]): string | null | undefined => {
+    for (const n of arr) {
+      if (!n.children) continue
+      if (n.children.some(c => c.id === childId)) return n.id
+      const r = search(n.children)
+      if (r !== undefined) return r
     }
-    return null
+    return undefined
   }
-  return insertAfter(without) ?? without
+  return search(nodes) ?? null
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -384,21 +360,50 @@ function SchemaPanel({
     const dy = dragYRef.current - dragStartYRef.current
     const horizontalIntent = Math.abs(dx) > INDENT_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE
 
+    const apply = (nodes: SchemaNode[]) => {
+      nodesRef.current = nodes; setNodes(nodes)
+      onTemplateChangeRef.current(nodesToTemplate(nodes), '⠿ Schema reordered')
+    }
+
     if (horizontalIntent && dx > 0) {
-      const finalNodes = indentNode(cur, drag.id, drag.parentId)
-      if (finalNodes !== cur) {
-        nodesRef.current = finalNodes
-        setNodes(finalNodes)
-        onTemplateChangeRef.current(nodesToTemplate(finalNodes), '⠿ Schema reordered')
+      const siblings = siblingsOf(cur, drag.parentId)
+      const idx = siblings.findIndex(n => n.id === drag.id)
+      if (idx > 0) {
+        // Normal indent: move into previous sibling, insert near drop point
+        const prevSibling = siblings[idx - 1]
+        const [moved, without] = extractNode(cur, drag.id)
+        if (!moved) return
+        const insertIdx = (target?.type === 'slot' && target.parentId === prevSibling.id)
+          ? target.index
+          : (prevSibling.children ?? []).length
+        apply(insertAtSlot(without, prevSibling.id, insertIdx, moved))
+      } else if (drag.parentId === null && idx === 0) {
+        // Ungroup: node stays at front as leaf, children follow
+        const node = cur[0]
+        if (!node.children?.length) return
+        const leaf: SchemaNode = { id: node.id, name: node.name, type: 'verbatim-string' }
+        apply([leaf, ...node.children, ...cur.slice(1)])
       }
       return
     }
 
     if (horizontalIntent && dx < 0 && drag.parentId !== null) {
-      const finalNodes = outdentNode(cur, drag.id, drag.parentId)
-      nodesRef.current = finalNodes
-      setNodes(finalNodes)
-      onTemplateChangeRef.current(nodesToTemplate(finalNodes), '⠿ Schema reordered')
+      // Outdent: move one level up, use overTarget slot for precise placement
+      const [moved, without] = extractNode(cur, drag.id)
+      if (!moved) return
+      const grandparentId = without.some(n => n.id === drag.parentId)
+        ? null
+        : parentIdOf(without, drag.parentId)
+      let finalNodes: SchemaNode[]
+      if (target?.type === 'slot' && target.parentId === grandparentId) {
+        finalNodes = insertAtSlot(without, grandparentId, target.index, moved)
+      } else {
+        // Fallback: insert after parent in grandparent's list
+        const gpSiblings = siblingsOf(without, grandparentId)
+        const parentIdx = gpSiblings.findIndex(n => n.id === drag.parentId)
+        finalNodes = insertAtSlot(without, grandparentId, Math.max(0, parentIdx + 1), moved)
+      }
+      apply(finalNodes)
       return
     }
 
