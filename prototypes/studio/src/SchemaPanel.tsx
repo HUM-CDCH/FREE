@@ -704,8 +704,8 @@ function SchemaPanel({
           </div>
         )}
 
-        {/* Nested children area — always rendered so editing doesn't collapse children */}
-        {isGroup && (
+        {/* Nested children area — shown when there are children or dragging (for drop slot) */}
+        {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
             {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j))}
             <div
@@ -786,8 +786,8 @@ function SchemaPanel({
           </div>
         )}
 
-        {/* Children area — always rendered when expanded so editing doesn't collapse it */}
-        {isGroup && isExpanded && (
+        {/* Children area — shown when expanded and has children or dragging (for drop slot) */}
+        {isGroup && isExpanded && ((child.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
             {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k))}
             <div
