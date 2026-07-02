@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AnnotationsMode } from './api'
 import { requestSchema } from './api'
-import { FIELD_TYPES, countTemplateFields, isRecord } from './template'
+import { countTemplateFields, isRecord } from './template'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Exported types (App.tsx depends on TemplateState)
@@ -231,29 +231,18 @@ function FieldEditForm({ editing, onChange, onSave, onCancel }: {
   onSave: () => void
   onCancel: () => void
 }) {
-  const opts: string[] = [...FIELD_TYPES]
-  if (!opts.includes(editing.type)) opts.unshift(editing.type)
   return (
-    <div className="my-0.5 flex flex-col gap-1.5 rounded-lg border border-accent bg-accent-ghost px-2.5 py-2">
+    <div className="my-0.5 flex items-center gap-1.5 rounded-lg border border-accent bg-accent-ghost px-2.5 py-2">
       <input
-        className="min-w-0 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-xs font-semibold text-ink outline-none focus-visible:border-accent"
+        className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-xs font-semibold text-ink outline-none focus-visible:border-accent"
         value={editing.name}
         placeholder="field_name"
         autoFocus
         onChange={e => onChange({ ...editing, name: e.target.value })}
         onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
       />
-      <div className="flex items-center gap-1.5">
-        <select
-          className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-1.5 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
-          value={editing.type}
-          onChange={e => onChange({ ...editing, type: e.target.value })}
-        >
-          {opts.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
-        <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✕</button>
-      </div>
+      <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
+      <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✕</button>
     </div>
   )
 }
