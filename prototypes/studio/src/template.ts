@@ -91,3 +91,33 @@ export function addTemplateField(template: unknown, name: string, type: string):
   }
   return { ...template, [name]: type }
 }
+
+export function stripDescriptions(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(stripDescriptions)
+  if (isRecord(v)) {
+    const out: Record<string, unknown> = {}
+    for (const [k, val] of Object.entries(v)) {
+      if (k === '_description') continue
+      out[k] = stripDescriptions(val)
+    }
+    return out
+  }
+  return v
+}
+
+export function compileInstructions(template: unknown, prefix = ''): string {
+  if (!isRecord(template)) return ''
+  const lines: string[] = []
+  for (const [key, value] of Object.entries(template)) {
+    if (key === '_description') continue
+    const path = prefix ? `${prefix}.${key}` : key
+    const child = Array.isArray(value) ? value[0] : value
+    if (isRecord(child)) {
+      const desc = typeof child['_description'] === 'string' ? child['_description'] : null
+      if (desc) lines.push(`- ${path}: ${desc}`)
+      const nested = compileInstructions(child, path)
+      if (nested) lines.push(nested)
+    }
+  }
+  return lines.join('\n')
+}

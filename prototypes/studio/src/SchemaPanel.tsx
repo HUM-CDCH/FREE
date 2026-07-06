@@ -32,6 +32,7 @@ type SchemaNode = {
   id: string
   name: string
   type: string
+  description?: string
   children?: SchemaNode[]
 }
 
@@ -63,22 +64,32 @@ const mkId = () => `n${_uid++}`
 
 function templateToNodes(v: unknown): SchemaNode[] {
   if (!isRecord(v)) return []
-  return Object.entries(v).map(([name, child]) => {
-    if (Array.isArray(child)) {
-      const first = child[0]
-      if (isRecord(first)) return { id: mkId(), name, type: 'array', children: templateToNodes(first) }
-      return { id: mkId(), name, type: String(first ?? 'string') }
-    }
-    if (isRecord(child)) return { id: mkId(), name, type: 'object', children: templateToNodes(child) }
-    return { id: mkId(), name, type: String(child) }
-  })
+  return Object.entries(v)
+    .filter(([name]) => name !== '_description')
+    .map(([name, child]) => {
+      if (Array.isArray(child)) {
+        const first = child[0]
+        if (isRecord(first)) {
+          const desc = typeof first['_description'] === 'string' ? first['_description'] : undefined
+          return { id: mkId(), name, type: 'array', children: templateToNodes(first), ...(desc && { description: desc }) }
+        }
+        return { id: mkId(), name, type: String(first ?? 'string') }
+      }
+      if (isRecord(child)) {
+        const desc = typeof child['_description'] === 'string' ? child['_description'] : undefined
+        return { id: mkId(), name, type: 'object', children: templateToNodes(child), ...(desc && { description: desc }) }
+      }
+      return { id: mkId(), name, type: String(child) }
+    })
 }
 
 function nodesToTemplate(nodes: SchemaNode[]): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const n of nodes) {
     if (n.children !== undefined) {
-      out[n.name] = n.type === 'array' ? [nodesToTemplate(n.children)] : nodesToTemplate(n.children)
+      const children = nodesToTemplate(n.children)
+      const group = n.description ? { _description: n.description, ...children } : children
+      out[n.name] = n.type === 'array' ? [group] : group
     } else {
       out[n.name] = n.type
     }
@@ -277,6 +288,10 @@ function SchemaPanel({
   const [chatLoading, setChatLoading] = useState(false)
   const [view, setView] = useState<'fields' | 'json'>('fields')
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [openDescId, setOpenDescId] = useState<string | null>(null)
+  const [jsonEditMode, setJsonEditMode] = useState(false)
+  const [jsonDraft, setJsonDraft] = useState('')
+  const [jsonEditError, setJsonEditError] = useState<string | null>(null)
 
   // ── refs for event handlers (avoid stale closures) ──
   const nodesRef = useRef<SchemaNode[]>([])
@@ -525,6 +540,20 @@ function SchemaPanel({
     if (editing?.id === id) setEditing(null)
   }
 
+  function updateNodeDescription(id: string, description: string | undefined) {
+    function update(ns: SchemaNode[]): SchemaNode[] {
+      return ns.map(n => {
+        if (n.id === id) return { ...n, description }
+        if (n.children) return { ...n, children: update(n.children) }
+        return n
+      })
+    }
+    const newNodes = update(nodesRef.current)
+    nodesRef.current = newNodes
+    setNodes(newNodes)
+    onTemplateChangeRef.current(nodesToTemplate(newNodes), '✎ Description updated')
+  }
+
   function addField() {
     const cur = nodesRef.current
     let name = 'nyt_felt'
@@ -684,6 +713,16 @@ function SchemaPanel({
               </span>
             )}
             <span className="min-w-0 flex-1" />
+            {isGroup && (
+              <button
+                className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
+                type="button"
+                title="Add description"
+                onClick={() => setOpenDescId(prev => prev === node.id ? null : node.id)}
+              >
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
+              </button>
+            )}
             <button
               className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
               type="button"
@@ -702,6 +741,21 @@ function SchemaPanel({
               ✗
             </button>
           </div>
+        )}
+
+        {isGroup && openDescId === node.id && (
+          <input
+            key={`desc-${node.id}`}
+            type="text"
+            className="mt-0.5 mb-0.5 w-full rounded-md border border-accent/50 bg-accent-ghost px-2 py-1 font-sans text-[12px] text-ink outline-none focus:border-accent placeholder:text-ink-faint"
+            placeholder="Describe this field for the extraction model…"
+            defaultValue={node.description ?? ''}
+            autoFocus
+            onBlur={e => {
+              const val = e.target.value.trim()
+              updateNodeDescription(node.id, val || undefined)
+            }}
+          />
         )}
 
         {/* Nested children area — shown when there are children or dragging (for drop slot) */}
@@ -766,6 +820,16 @@ function SchemaPanel({
               </span>
             )}
             <span className="min-w-0 flex-1" />
+            {isGroup && (
+              <button
+                className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
+                type="button"
+                title="Add description"
+                onClick={() => setOpenDescId(prev => prev === child.id ? null : child.id)}
+              >
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
+              </button>
+            )}
             <button
               className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
               type="button"
@@ -784,6 +848,21 @@ function SchemaPanel({
               ✗
             </button>
           </div>
+        )}
+
+        {isGroup && openDescId === child.id && (
+          <input
+            key={`desc-${child.id}`}
+            type="text"
+            className="mt-0.5 mb-0.5 w-full rounded-md border border-accent/50 bg-accent-ghost px-2 py-1 font-sans text-[12px] text-ink outline-none focus:border-accent placeholder:text-ink-faint"
+            placeholder="Describe this field for the extraction model…"
+            defaultValue={child.description ?? ''}
+            autoFocus
+            onBlur={e => {
+              const val = e.target.value.trim()
+              updateNodeDescription(child.id, val || undefined)
+            }}
+          />
         )}
 
         {/* Children area — shown when expanded and has children or dragging (for drop slot) */}
@@ -846,9 +925,68 @@ function SchemaPanel({
         )}
 
         {ready && view === 'json' && (
-          <pre className="overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2.5 font-mono text-[11px] leading-relaxed text-ink">
-            {JSON.stringify(nodesToTemplate(nodes), null, 2)}
-          </pre>
+          <div className="flex flex-col gap-1.5">
+            {!jsonEditMode ? (
+              <div className="relative">
+                <pre className="overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2.5 font-mono text-[11px] leading-relaxed text-ink">
+                  {JSON.stringify(nodesToTemplate(nodes), null, 2)}
+                </pre>
+                <button
+                  className="absolute right-2 top-2 cursor-pointer rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[10px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent"
+                  type="button"
+                  onClick={() => {
+                    setJsonDraft(JSON.stringify(nodesToTemplate(nodes), null, 2))
+                    setJsonEditMode(true)
+                    setJsonEditError(null)
+                  }}
+                >
+                  Edit
+                </button>
+              </div>
+            ) : (
+              <>
+                <textarea
+                  className="w-full rounded-md border border-accent/50 bg-canvas p-2.5 font-mono text-[11px] leading-relaxed text-ink outline-none focus:border-accent"
+                  style={{ minHeight: 240, resize: 'vertical' }}
+                  value={jsonDraft}
+                  onChange={e => setJsonDraft(e.target.value)}
+                  spellCheck={false}
+                />
+                {jsonEditError && (
+                  <p className="text-[11px] text-danger">{jsonEditError}</p>
+                )}
+                <div className="flex gap-1.5">
+                  <button
+                    className="cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 font-sans text-[11px] font-bold text-white outline-none hover:brightness-108"
+                    type="button"
+                    onClick={() => {
+                      try {
+                        const parsed: unknown = JSON.parse(jsonDraft)
+                        if (!isRecord(parsed)) throw new Error('JSON must be an object')
+                        const newNodes = templateToNodes(parsed)
+                        nodesRef.current = newNodes
+                        setNodes(newNodes)
+                        onTemplateChangeRef.current(nodesToTemplate(newNodes), '✎ Schema updated via JSON editor')
+                        setJsonEditMode(false)
+                        setJsonEditError(null)
+                      } catch (e) {
+                        setJsonEditError(e instanceof Error ? e.message : 'Invalid JSON')
+                      }
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="cursor-pointer rounded-md border border-line-strong bg-surface px-2.5 py-1 font-sans text-[11px] font-semibold text-ink-muted outline-none hover:text-accent"
+                    type="button"
+                    onClick={() => { setJsonEditMode(false); setJsonEditError(null) }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {ready && view === 'fields' && (

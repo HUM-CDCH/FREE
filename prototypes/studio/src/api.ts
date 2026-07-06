@@ -162,6 +162,7 @@ export async function requestExtraction(
   template: unknown,
   signal?: AbortSignal,
   markdown?: string | null,
+  instruction?: string,
 ): Promise<{ result: unknown; evidence: unknown }> {
   const form = new FormData()
   form.append('template', JSON.stringify(template ?? {}))
@@ -170,6 +171,7 @@ export async function requestExtraction(
   } else {
     form.append('file', file, fileName)
   }
+  if (instruction) form.append('instruction', instruction)
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
   return { result: done.result, evidence: done.evidence }

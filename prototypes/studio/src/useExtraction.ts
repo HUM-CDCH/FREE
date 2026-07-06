@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { requestExtraction } from './api'
 import type { ExtractionState } from './extraction'
+import { stripDescriptions, compileInstructions } from './template'
 
 type PdfSource = { url: string; filename: string }
 
@@ -45,12 +46,16 @@ export function useExtraction({
 
     try {
       const blob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
+      const cleanTemplate = stripDescriptions(template)
+      const rawInstructions = compileInstructions(template)
+      const instruction = rawInstructions ? `Field descriptions:\n${rawInstructions}` : undefined
       const { result, evidence } = await requestExtraction(
         blob,
         pdfSource.filename,
-        { records: [template] },
+        { records: [cleanTemplate] },
         abortController.signal,
         markdown,
+        instruction,
       )
       if (abortController.signal.aborted) {
         return
