@@ -86,7 +86,7 @@ function model(): LanguageModel {
 export async function streamChatWithModel(messages: readonly UIMessage[]): Promise<Response> {
   const result = streamText({
     model: model(),
-    system:
+    instructions:
       'You help humanities researchers inspect source documents in FREE. If no source document content is attached, say that no document context is available before answering normally.',
     messages: await convertToModelMessages([...messages]),
   })
