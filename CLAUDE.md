@@ -13,7 +13,7 @@ The target workflow has five phases: Document Ingestion → Annotation → Schem
 Use the terminology in `CONTEXT.md` precisely. Key terms:
 
 | Use | Avoid |
-|-----|-------|
+| ----- | ------- |
 | Humanities Researcher | user, analyst |
 | Source Document | file, PDF, upload |
 | Annotation | highlight, passage, selection |
@@ -52,20 +52,23 @@ Python services opt into root install with an `install:python` script; the root 
 
 ```bash
 cd prototypes/parsing_service
-uv sync
-uv run python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
-uv run fastapi run main.py        # production
+uv sync --extra ocr-cpu  # use ocr-gpu instead on CUDA hosts
+uv run --no-sync python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
+uv run --no-sync fastapi run main.py        # production
 ```
 
-The package script `pnpm --filter parsing-service dev` is the preferred dev entry point. It uses Python UTF-8 mode for Windows and binds the backend to `http://127.0.0.1:8000`, which is what the studio frontend expects.
+The package script `pnpm --filter parsing-service dev` is the preferred dev entry point. Runtime scripts use `uv run --no-sync`, preserving whichever mutually exclusive CPU/GPU OCR profile was explicitly installed. The dev script uses Python UTF-8 mode for Windows and binds the backend to `http://127.0.0.1:8000`, which is what the studio frontend expects.
 
 **Endpoints:**
 
 - `GET /status` — Health and environment status for the parsing service.
 - `POST /tasks` — Start source document parsing and return a task id.
 - `GET /tasks/{task_id}` — Poll parsing status.
-- `GET /tasks/{task_id}/markdown` — Fetch parsed Markdown for a completed task.
-- `GET /tasks/{task_id}/report` and `GET /tasks/{task_id}/download` — Fetch parsing reports and generated artifacts.
+- `GET /tasks/{task_id}/markdown` — Fetch canonical LLM Markdown for a completed task.
+- `GET /tasks/{task_id}/document` / `GET /tasks/{task_id}/parsed-document` — Fetch the versioned `ParsedDocument` JSON with parser provenance, page markers, and exact offsets for extraction.
+- `GET /tasks/{task_id}/download` — Download the task-local `ParsedDocument` and referenced canonical parser artifacts.
+
+Task source PDFs are stored internally as `source.pdf`, copied into a SHA-256 content-addressed source store, and exposed with only a sanitized display filename in metadata. Task route IDs must be UUIDs.
 
 The parsing service does not own model extraction endpoints. Studio serves model
 routes from same-origin `/api`.
@@ -100,6 +103,7 @@ VS Code tasks and launches should call pnpm workspace scripts from the repositor
 - The hardcoded source document is `examples/Beretning_Ellekilde_8_13.pdf` (a Danish archaeological site report).
 
 **Annotation modes** (sent to `/api/generate_schema`):
+
 - `hints` — model designs schema from the whole document, but every highlighted passage must be covered.
 - `fields` — model derives schema primarily from the highlighted passages.
 
