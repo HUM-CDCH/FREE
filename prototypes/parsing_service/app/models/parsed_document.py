@@ -15,7 +15,13 @@ SCHEMA_VERSION = "parsed_document.v1"
 
 
 class BoundingBox(BaseModel):
-    """Page-space bounding box when a parser can provide evidence geometry."""
+    """Page-space bounding box when a parser can provide evidence geometry.
+
+    Convention: PDF points, top-left origin (y grows downward), in the
+    displayed (post-/Rotate) page space matching ParsedPage.width_pt/height_pt.
+    Producers must convert (camelot: flip y against page height; OCR: scale
+    image pixels by 72/dpi) before emitting.
+    """
 
     model_config = ConfigDict(frozen=True)
 

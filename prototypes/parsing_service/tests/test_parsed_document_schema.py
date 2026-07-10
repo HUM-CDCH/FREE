@@ -142,6 +142,53 @@ class TestParsedDocumentSchema(unittest.TestCase):
         self.assertEqual(dumped["schema_version"], "parsed_document.v1")
         self.assertEqual(ParsedDocument.model_validate(dumped), document)
 
+    def test_round_trip_with_tables_and_ocr_blocks(self):
+        payload = minimal_document(
+            tables=[
+                {
+                    "table_id": "p01_t01",
+                    "page_number": 1,
+                    "source_parser": "camelot_stream",
+                    "bbox": {"x0": 10.0, "y0": 12.0, "x1": 200.0, "y1": 192.0},
+                    "rows": 2,
+                    "cols": 2,
+                    "cells": [
+                        {"row": 0, "col": 0, "text": "Name", "role": "header"},
+                        {
+                            "row": 1,
+                            "col": 0,
+                            "text": "Ada",
+                            "role": "data",
+                            "rowspan": 1,
+                            "colspan": 2,
+                            "bbox": {"x0": 10.0, "y0": 72.0, "x1": 50.0, "y1": 92.0},
+                        },
+                    ],
+                    "markdown_view": "| Name |\n| --- |\n| Ada |",
+                }
+            ],
+            pages=[
+                {
+                    "page": 1,
+                    "text": "Body",
+                    "quality": {"char_count": 4, "ocr_confidence": 0.87},
+                    "blocks": [
+                        {
+                            "type": "ocr_line",
+                            "text": "Body",
+                            "confidence": 0.87,
+                            "bbox": [10.0, 20.0, 90.0, 30.0],
+                        }
+                    ],
+                }
+            ],
+        )
+        document = ParsedDocument.model_validate(payload)
+        self.assertEqual(document.tables[0].cells[1].colspan, 2)
+        self.assertEqual(document.pages[0].quality.ocr_confidence, 0.87)
+        dumped = document.model_dump(mode="json")
+        self.assertEqual(ParsedDocument.model_validate(dumped), document)
+
     def test_failed_parser_run_preserves_error(self):
         document = ParsedDocument.model_validate(
             minimal_document(

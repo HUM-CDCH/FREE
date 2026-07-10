@@ -195,6 +195,19 @@ def _run_ocr_fallback(
     )
 
 
+def _run_table_extraction(
+    source_path: Path,
+    content_sha256: str,
+    page_heights_pt: dict[int, float],
+) -> Any:
+    module = importlib.import_module("app.parsing.table_extraction")
+    return module.extract_tables(
+        source_pdf=source_path,
+        content_sha256=content_sha256,
+        page_heights_pt=page_heights_pt,
+    )
+
+
 def parser_run_from_docling_output(output: Any, content_sha256: str) -> ParserRun:
     metrics: dict[str, Any] = {
         "char_count": output.char_count,
@@ -254,6 +267,22 @@ def parser_run_from_ocr_output(output: Any, content_sha256: str) -> ParserRun:
     )
 
 
+def parser_run_from_table_output(output: Any, content_sha256: str) -> ParserRun:
+    status = cast(Literal["success", "failed", "skipped"], output.status)
+    return ParserRun(
+        parser=output.parser,
+        version=package_version("camelot-py"),
+        status=status,
+        started_at=output.started_at,
+        finished_at=output.finished_at,
+        duration_ms=output.duration_ms,
+        input_ref=f"data/sources/{content_sha256}.pdf",
+        metrics={**output.metrics, "input_sha256": content_sha256},
+        warnings=output.warnings,
+        error=output.error,
+    )
+
+
 def _garbled_text_score(text: str) -> float:
     if not text:
         return 1.0
@@ -275,10 +304,13 @@ def _garbled_text_score(text: str) -> float:
     )
 
 
-def _quality_for_text(text: str, warnings: list[str]) -> PageQuality:
+def _quality_for_text(
+    text: str, warnings: list[str], ocr_confidence: float | None = None
+) -> PageQuality:
     return PageQuality(
         char_count=len(text),
         word_count=len(text.split()),
+        ocr_confidence=ocr_confidence,
         garbled_text_score=_garbled_text_score(text),
         warnings=warnings,
     )
@@ -294,7 +326,9 @@ def _pages_and_views_from_llm_markdown(
     doc_tags_simplified: str | None = None,
     doc_tags_spans: list[Any] | tuple[Any, ...] = (),
     page_mapping_verified: bool = True,
+    ocr_blocks_by_page: dict[int, list[dict[str, Any]]] | None = None,
 ) -> tuple[list[ParsedPage], TextViews]:
+    ocr_blocks_by_page = ocr_blocks_by_page or {}
     if not page_mapping_verified:
         pages = [
             ParsedPage(
@@ -360,6 +394,12 @@ def _pages_and_views_from_llm_markdown(
         warnings = list(getattr(inspected, "warnings", []) if inspected else [])
         if span is None:
             warnings.append("Canonical parsing did not provide a physical page span.")
+        blocks = ocr_blocks_by_page.get(page_number, [])
+        ocr_confidence = (
+            round(sum(block["confidence"] for block in blocks) / len(blocks), 4)
+            if blocks
+            else None
+        )
         pages.append(
             ParsedPage(
                 page=page_number,
@@ -383,7 +423,10 @@ def _pages_and_views_from_llm_markdown(
                         doctag_span.llm_markdown_end if doctag_span else None
                     ),
                 ),
-                quality=_quality_for_text(text, warnings),
+                quality=_quality_for_text(
+                    text, warnings, ocr_confidence=ocr_confidence
+                ),
+                blocks=blocks,
             )
         )
 
@@ -420,11 +463,12 @@ def _merge_page_fallback_text(
     inspection: PdfInspection,
     fallback_pages: list[int],
     ocr_output: Any | None,
-) -> tuple[str, tuple[Any, ...], dict[int, str], list[int]]:
+) -> tuple[str, tuple[Any, ...], dict[int, str], list[int], dict[int, list[dict[str, Any]]]]:
     span_by_page = {span.page: span for span in docling_spans}
     parser_by_page: dict[int, str] = {}
     page_texts: list[str] = []
     unresolved_pages: list[int] = []
+    ocr_blocks_by_page: dict[int, list[dict[str, Any]]] = {}
     fallback_set = set(fallback_pages)
 
     for page_number in range(1, inspection.page_count + 1):
@@ -441,6 +485,9 @@ def _merge_page_fallback_text(
             if ocr_text:
                 text = ocr_text
                 parser = "paddleocr_fallback"
+                lines = getattr(ocr_output, "page_lines", {}).get(page_number)
+                if lines:
+                    ocr_blocks_by_page[page_number] = lines
             elif ocr_completed_page and not text:
                 # The OCR adapter processed the page and confirmed it is blank.
                 parser = "paddleocr_fallback"
@@ -455,6 +502,7 @@ def _merge_page_fallback_text(
         tuple(composed.page_spans),
         parser_by_page,
         unresolved_pages,
+        ocr_blocks_by_page,
     )
 
 
@@ -477,6 +525,7 @@ def _docling_arbitration(
     parser_by_page: dict[int, str],
     *,
     page_mapping_verified: bool = True,
+    table_pages: frozenset[int] = frozenset(),
 ) -> ArbitrationResult:
     page_decisions: list[PageDecision] = []
     for page in range(1, inspection.page_count + 1):
@@ -493,7 +542,9 @@ def _docling_arbitration(
                     "docling_doctags" if docling_run.status == "success" else None
                 ),
                 selected_table_parser=(
-                    "docling_doctags" if docling_run.status == "success" else None
+                    "camelot_stream"
+                    if page in table_pages
+                    else ("docling_doctags" if docling_run.status == "success" else None)
                 ),
                 fallback_used=fallback_used,
                 reason=(
@@ -600,6 +651,7 @@ def build_parsed_document(
             "docling_doctags",
         )
         unresolved_pages: list[int] = []
+        ocr_blocks_by_page: dict[int, list[dict[str, Any]]] = {}
     else:
         fallback_pages = _pages_requiring_fallback(docling_spans, inspection)
         if fallback_pages:
@@ -618,6 +670,7 @@ def build_parsed_document(
             llm_spans,
             parser_by_page,
             unresolved_pages,
+            ocr_blocks_by_page,
         ) = _merge_page_fallback_text(
             docling_spans=docling_spans,
             inspection=inspection,
@@ -649,6 +702,14 @@ def build_parsed_document(
             parser_runs=parser_runs,
         )
 
+    table_output = _run_table_extraction(
+        source_path,
+        content_sha256,
+        {page.page: page.height_pt for page in inspection.pages},
+    )
+    parser_runs.append(parser_run_from_table_output(table_output, content_sha256))
+    tables = list(table_output.tables)
+
     final_llm_markdown_ref = docling_output.llm_markdown_ref
     if llm_markdown != doc_tags_simplified:
         final_llm_markdown_ref = _write_final_llm_markdown(
@@ -662,6 +723,7 @@ def build_parsed_document(
         docling_run,
         parser_by_page,
         page_mapping_verified=page_mapping_verified,
+        table_pages=frozenset(table.page_number for table in tables),
     )
     pages, text_views = _pages_and_views_from_llm_markdown(
         llm_markdown=llm_markdown,
@@ -672,6 +734,7 @@ def build_parsed_document(
         doc_tags_simplified=doc_tags_simplified or None,
         doc_tags_spans=docling_spans,
         page_mapping_verified=page_mapping_verified,
+        ocr_blocks_by_page=ocr_blocks_by_page,
     )
 
     submitted_url = metadata.get("submitted_url")
@@ -744,6 +807,6 @@ def build_parsed_document(
         arbitration=arbitration,
         text_views=text_views,
         pages=pages,
-        tables=[],
+        tables=tables,
         evidence_index=EvidenceIndex(),
     )

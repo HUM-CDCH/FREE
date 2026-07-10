@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.api.deps import load_metadata, save_metadata
 from app.parsing.orchestrator import build_parsed_document
+from app.parsing.table_extraction import TableExtractionOutput
 from app.storage import paths
 from app.storage.paths import DEFAULT_DATA_DIR, DEFAULT_DOCUMENT_STORE_DIR
 from app.workers import parse_worker
@@ -90,6 +91,11 @@ class TestService(unittest.TestCase):
             side_effect=self._fake_docling_document,
         )
         self._docling_patcher.start()
+        self._table_patcher = patch(
+            "app.parsing.orchestrator._run_table_extraction",
+            return_value=TableExtractionOutput(),
+        )
+        self._table_patcher.start()
 
     def _mkdir(self, path):
         try:
@@ -137,6 +143,7 @@ class TestService(unittest.TestCase):
         return func(*args, **kwargs)
 
     def tearDown(self):
+        self._table_patcher.stop()
         self._docling_patcher.stop()
         self.client.close()
         (

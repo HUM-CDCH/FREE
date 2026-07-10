@@ -13,8 +13,10 @@ from app.parsing.adapters.pymupdf_inspect import (
     PdfPageInspection,
     inspect_pdf,
 )
+from app.models.parsed_document import ParsedTable, TableCell
 from app.parsing.docling_runner import DoclingRunnerOutput
 from app.parsing.ocr_fallback import OcrFallbackOutput
+from app.parsing.table_extraction import TableExtractionOutput
 from app.parsing.doctags_to_markdown import (
     compose_page_markdown,
     convert_doctags_to_markdown,
@@ -320,6 +322,25 @@ class TestCanonicalIngestion(unittest.TestCase):
                         return_value=conversion.markdown,
                     ),
                     patch("app.parsing.orchestrator._run_ocr_fallback") as mock_ocr,
+                    patch(
+                        "app.parsing.orchestrator._run_table_extraction",
+                        return_value=TableExtractionOutput(
+                            status="success",
+                            tables=[
+                                ParsedTable(
+                                    table_id="p01_t01",
+                                    page_number=1,
+                                    source_parser="camelot_stream",
+                                    rows=2,
+                                    cols=2,
+                                    cells=[
+                                        TableCell(row=0, col=0, text="Name", role="header")
+                                    ],
+                                )
+                            ],
+                            metrics={"tables_found": 1, "tables_kept": 1},
+                        ),
+                    ),
                 ):
                     document = build_parsed_document(task_id)
 
@@ -327,6 +348,18 @@ class TestCanonicalIngestion(unittest.TestCase):
                 self.assertEqual(len(document.pages), 2)
                 self.assertIn("Ada", document.pages[0].text)
                 self.assertIn("Bob", document.pages[1].text)
+                self.assertEqual(document.tables[0].table_id, "p01_t01")
+                self.assertIn(
+                    "camelot_stream", [run.parser for run in document.parser_runs]
+                )
+                self.assertEqual(
+                    document.arbitration.page_decisions[0].selected_table_parser,
+                    "camelot_stream",
+                )
+                self.assertEqual(
+                    document.arbitration.page_decisions[1].selected_table_parser,
+                    "docling_doctags",
+                )
             finally:
                 paths.DEFAULT_DATA_DIR = original_tasks
                 paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
@@ -376,6 +409,16 @@ class TestCanonicalIngestion(unittest.TestCase):
                     finished_at=NOW,
                     duration_ms=1,
                     pages={2: "OCR page two"},
+                    page_lines={
+                        2: [
+                            {
+                                "type": "ocr_line",
+                                "text": "OCR page two",
+                                "confidence": 0.9,
+                                "bbox": [10.0, 20.0, 90.0, 30.0],
+                            }
+                        ]
+                    },
                 )
                 with (
                     patch(
@@ -394,6 +437,10 @@ class TestCanonicalIngestion(unittest.TestCase):
                         "app.parsing.orchestrator._run_ocr_fallback",
                         return_value=ocr,
                     ) as mock_ocr,
+                    patch(
+                        "app.parsing.orchestrator._run_table_extraction",
+                        return_value=TableExtractionOutput(),
+                    ),
                 ):
                     document = build_parsed_document(task_id)
 
@@ -404,6 +451,14 @@ class TestCanonicalIngestion(unittest.TestCase):
                     document.pages[1].selected_parser, "paddleocr_fallback"
                 )
                 self.assertEqual(document.pages[1].text, "OCR page two")
+                self.assertEqual(document.tables, [])
+                self.assertEqual(document.pages[1].quality.ocr_confidence, 0.9)
+                self.assertEqual(document.pages[1].blocks[0]["type"], "ocr_line")
+                self.assertEqual(
+                    document.pages[1].blocks[0]["bbox"], [10.0, 20.0, 90.0, 30.0]
+                )
+                self.assertEqual(document.pages[0].blocks, [])
+                self.assertIsNone(document.pages[0].quality.ocr_confidence)
                 self.assertEqual(
                     document.arbitration.page_decisions[1].selected_text_parser,
                     "paddleocr_fallback",
@@ -469,7 +524,7 @@ class TestCanonicalIngestion(unittest.TestCase):
         docling = compose_page_markdown(["Body", ""])
         ocr = OcrFallbackOutput(status="success", pages={2: ""})
 
-        markdown, spans, parser_by_page, unresolved = _merge_page_fallback_text(
+        markdown, spans, parser_by_page, unresolved, _ = _merge_page_fallback_text(
             docling_spans=docling.page_spans,
             inspection=inspection,
             fallback_pages=[2],
@@ -488,7 +543,7 @@ class TestCanonicalIngestion(unittest.TestCase):
         docling = compose_page_markdown(["Short but usable"])
         ocr = OcrFallbackOutput(status="failed", error="ocr_fallback_unavailable")
 
-        markdown, spans, parser_by_page, unresolved = _merge_page_fallback_text(
+        markdown, spans, parser_by_page, unresolved, _ = _merge_page_fallback_text(
             docling_spans=docling.page_spans,
             inspection=inspection,
             fallback_pages=[1],
@@ -505,7 +560,7 @@ class TestCanonicalIngestion(unittest.TestCase):
         docling = compose_page_markdown([""])
         ocr = OcrFallbackOutput(status="failed", error="ocr_fallback_unavailable")
 
-        markdown, _, parser_by_page, unresolved = _merge_page_fallback_text(
+        markdown, _, parser_by_page, unresolved, _ = _merge_page_fallback_text(
             docling_spans=docling.page_spans,
             inspection=inspection,
             fallback_pages=[1],
@@ -521,7 +576,7 @@ class TestCanonicalIngestion(unittest.TestCase):
         docling = compose_page_markdown(["", ""])
         ocr = OcrFallbackOutput(status="success", pages={1: "Recovered"})
 
-        _, _, _, unresolved = _merge_page_fallback_text(
+        _, _, _, unresolved, _ = _merge_page_fallback_text(
             docling_spans=docling.page_spans,
             inspection=inspection,
             fallback_pages=[1, 2],

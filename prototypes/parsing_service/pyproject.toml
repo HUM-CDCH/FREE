@@ -5,6 +5,7 @@ description = "Secure canonical Docling DocTags ingestion service for FREE"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+  "camelot-py>=1.0.0",
   "docling>=2.111.0",
   "fastapi[standard]>=0.139.0",
   "filelock>=3.20.3",
