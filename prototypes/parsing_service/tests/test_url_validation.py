@@ -125,6 +125,30 @@ class TestUrlValidation(unittest.TestCase):
                 total_timeout=60,
             )
 
+    @patch("app.ingestion.url_fetch.logger")
+    @patch("app.ingestion.url_fetch._open_following_redirects")
+    @patch("socket.getaddrinfo")
+    def test_download_logs_only_the_source_host(self, mock_dns, mock_open, mock_logger):
+        mock_dns.side_effect = self._public_dns
+        body = b"%PDF-1.7\n%%EOF\n"
+        response = FakeResponse(body)
+        mock_open.return_value = (
+            Mock(),
+            response,
+            "https://example.com/private/document.pdf",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            download_file(
+                "https://example.com/private/document.pdf?token=secret",
+                os.path.join(tmp_dir, "private-task", "source.pdf"),
+            )
+
+        mock_logger.info.assert_called_once_with(
+            "Downloading source document from host %s.",
+            "example.com",
+        )
+
     @patch("app.ingestion.url_fetch._open_following_redirects")
     @patch("socket.getaddrinfo")
     def test_download_accepts_fragmented_pdf_magic(self, mock_dns, mock_open):

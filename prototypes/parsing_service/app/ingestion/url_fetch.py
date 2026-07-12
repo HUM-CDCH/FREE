@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http.client
 import ipaddress
+import logging
 import os
 import socket
 import ssl
@@ -31,6 +32,8 @@ from app.storage.paths import SOURCE_FILENAME, safe_display_filename
 
 DEFAULT_MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024
 MAX_REDIRECTS = 5
+
+logger = logging.getLogger(__name__)
 
 
 class UnsafeUrlError(ValueError):
@@ -203,8 +206,8 @@ def download_file(
     deadline = time.monotonic() + total_timeout
     validate_public_http_url(url)
     _remaining_time(deadline)
-    safe_url = public_url_ref(url) or url
-    print(f"Downloading {safe_url} to {dest_path}...")
+    source_host = urllib.parse.urlparse(url).hostname or "unknown"
+    logger.info("Downloading source document from host %s.", source_host)
 
     dest = Path(dest_path)
     dest.parent.mkdir(parents=True, exist_ok=True)
