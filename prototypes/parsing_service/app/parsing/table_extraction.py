@@ -195,7 +195,7 @@ def is_matrixlike(
     if table_rows == 0:
         return False
     if rows == 1:
-        return _is_table_data_row(matrix[0])
+        return _is_table_data_row(matrix[0]) or _is_header_like_row(matrix[0])
     if _is_identifier_list_table(matrix, min_rows=min_rows, min_cols=min_cols):
         return True
 
@@ -580,7 +580,10 @@ def _candidate_runs(matrix: list[list[str]]) -> list[tuple[int, int]]:
                 data_rows += 1
             index += 1
         segment = matrix[start:index]
-        if data_rows and is_matrixlike(segment, min_rows=1, min_cols=1):
+        single_header = len(segment) == 1 and _is_header_like_row(segment[0])
+        if (data_rows or single_header) and is_matrixlike(
+            segment, min_rows=1, min_cols=1
+        ):
             runs.append((start, index))
         if index == start:
             index += 1
@@ -606,9 +609,36 @@ def _segment_bbox(
     )
 
 
-def _table_fingerprint(table: ParsedTable) -> tuple[int, tuple[str, ...]]:
-    return table.page_number, tuple(
-        _norm_cell(cell.text).casefold() for cell in table.cells if cell.text
+def _table_fingerprint(
+    table: ParsedTable,
+) -> tuple[int, int | None, int | None, tuple[tuple[int, int, str], ...]]:
+    return (
+        table.page_number,
+        table.rows,
+        table.cols,
+        tuple(
+            (cell.row, cell.col, _norm_cell(cell.text).casefold())
+            for cell in table.cells
+            if cell.text
+        ),
+    )
+
+
+def _content_overlap(first: ParsedTable, second: ParsedTable) -> float:
+    first_cells = {
+        (cell.row, cell.col, _norm_cell(cell.text).casefold())
+        for cell in first.cells
+        if cell.text
+    }
+    second_cells = {
+        (cell.row, cell.col, _norm_cell(cell.text).casefold())
+        for cell in second.cells
+        if cell.text
+    }
+    if not first_cells or not second_cells:
+        return 0.0
+    return len(first_cells.intersection(second_cells)) / min(
+        len(first_cells), len(second_cells)
     )
 
 
@@ -625,13 +655,16 @@ def _overlap_ratio(first: BoundingBox | None, second: BoundingBox | None) -> flo
 
 def _deduplicate_tables(tables: list[ParsedTable]) -> list[ParsedTable]:
     kept: list[ParsedTable] = []
-    fingerprints: set[tuple[int, tuple[str, ...]]] = set()
+    fingerprints: set[
+        tuple[int, int | None, int | None, tuple[tuple[int, int, str], ...]]
+    ] = set()
     for table in tables:
         fingerprint = _table_fingerprint(table)
         if fingerprint in fingerprints:
             continue
         if any(
             prior.page_number == table.page_number
+            and _content_overlap(prior, table) >= 0.8
             and _overlap_ratio(prior.bbox, table.bbox) >= 0.8
             for prior in kept
         ):
