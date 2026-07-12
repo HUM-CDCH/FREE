@@ -10,6 +10,7 @@
     "dev:cpu": "pnpm install:cpu && pnpm dev",
     "dev:gpu": "pnpm install:gpu && pnpm dev",
     "test": "pnpm --recursive test",
+    "evaluate:burial-finds": "pnpm --filter studio evaluate:burial-finds",
     "test:cpu": "pnpm install:cpu && pnpm test",
     "test:gpu": "pnpm install:gpu && pnpm test",
     "build": "pnpm --filter studio build"

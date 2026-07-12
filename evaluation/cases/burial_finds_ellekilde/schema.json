@@ -1,0 +1,16 @@
+{
+  "entries": [
+    {
+      "Grav_id": "verbatim-string",
+      "Ark_no": "verbatim-string",
+      "fundliste": [
+        {
+          "Fund_no": "verbatim-string",
+          "Fund_beskrivelse": "verbatim-string",
+          "Fundplacering": "verbatim-string",
+          "Fund_bemaerkning": "verbatim-string"
+        }
+      ]
+    }
+  ]
+}

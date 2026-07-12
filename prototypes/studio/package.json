@@ -11,6 +11,7 @@
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "lint": "eslint .",
     "test": "vitest run",
+    "evaluate:burial-finds": "vitest run --config vitest.evaluation.config.ts",
     "preview": "vite preview"
   },
   "dependencies": {

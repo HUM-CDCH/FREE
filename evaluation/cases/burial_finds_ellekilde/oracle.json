@@ -1,0 +1,247 @@
+{
+  "source": {
+    "filename": "Beretning_Ellekilde_8_13.pdf",
+    "content_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+    "page_count": 6
+  },
+  "entries": [
+    {
+      "Grav_id": "8",
+      "Ark_no": "67",
+      "fundliste": [
+        {
+          "Fund_no": "8-2",
+          "Fund_beskrivelse": "Jern",
+          "Fundplacering": "ved det ene lårben, halvt under dette",
+          "Fund_bemaerkning": "jernspænde"
+        }
+      ]
+    },
+    {
+      "Grav_id": "13",
+      "Ark_no": "24",
+      "fundliste": []
+    },
+    {
+      "Grav_id": "24",
+      "Ark_no": "1, 5, 6, 7, 14",
+      "fundliste": [
+        {
+          "Fund_no": "24-1",
+          "Fund_beskrivelse": "Lerkar, ornamenteret sortbrunt",
+          "Fundplacering": "stående på gravens bundlag, 30 cm dybde",
+          "Fund_bemaerkning": "Fundet stående på gravens bundlag, 30 cm dybde."
+        },
+        {
+          "Fund_no": "24-2",
+          "Fund_beskrivelse": "Lerkarskår",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Skårene hører til x24-1, men har ikke kunnet indplaceres i karret."
+        },
+        {
+          "Fund_no": "24-3",
+          "Fund_beskrivelse": "Lerkarskår",
+          "Fundplacering": "i niveau 2",
+          "Fund_bemaerkning": "Fundet i niveau 2."
+        },
+        {
+          "Fund_no": "24-4",
+          "Fund_beskrivelse": "Lerkarskår",
+          "Fundplacering": "i niveau 3",
+          "Fund_bemaerkning": "Fundet i niveau 3."
+        },
+        {
+          "Fund_no": "24-5",
+          "Fund_beskrivelse": "2 lerkarskår",
+          "Fundplacering": "i niveau 3",
+          "Fund_bemaerkning": "Fundet i niveau 3."
+        },
+        {
+          "Fund_no": "24-6",
+          "Fund_beskrivelse": "Fragment af ravperle",
+          "Fundplacering": "i niveau 3",
+          "Fund_bemaerkning": "Fundet i niveau 3."
+        },
+        {
+          "Fund_no": "24-7",
+          "Fund_beskrivelse": "Perle af mat rødligt glas",
+          "Fundplacering": "i niveau 4, ved siden af venstre underarm",
+          "Fund_bemaerkning": "Fundet i niveau 4, ved siden af venstre underarm."
+        },
+        {
+          "Fund_no": "24-14",
+          "Fund_beskrivelse": "Miniaturelerkar",
+          "Fundplacering": "med bunden i vejret",
+          "Fund_bemaerkning": "Lå med bunden i vejret. Sortglittet gods med stregeornamentik"
+        },
+        {
+          "Fund_no": "24-15",
+          "Fund_beskrivelse": "Fragmenteret Haraldstedfibel",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Dårligt bevaret. Men nåleholderen tydelig."
+        },
+        {
+          "Fund_no": "24-16",
+          "Fund_beskrivelse": "Haraldstedfibel",
+          "Fundplacering": "mellem de to underarmsknogler (24-18)",
+          "Fund_bemaerkning": "Lå mellem de to underarmsknogler (24-18)"
+        }
+      ]
+    },
+    {
+      "Grav_id": "26",
+      "Ark_no": "8, 9, 10, 11, 69, 70",
+      "fundliste": [
+        {
+          "Fund_no": "26-1",
+          "Fund_beskrivelse": "Keramik",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Lille skår, 2x4 cm. Niv. 1"
+        },
+        {
+          "Fund_no": "26-2",
+          "Fund_beskrivelse": "Keramik",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Små fragmenter. Niv. 1"
+        },
+        {
+          "Fund_no": "26-4",
+          "Fund_beskrivelse": "Keramik",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Små skår. Niv 3"
+        },
+        {
+          "Fund_no": "26-5",
+          "Fund_beskrivelse": "-",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Udgår"
+        },
+        {
+          "Fund_no": "26-6",
+          "Fund_beskrivelse": "Jern",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Fragmenter af beslag e.l. Niv. 3"
+        },
+        {
+          "Fund_no": "26-7",
+          "Fund_beskrivelse": "Keramik",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Lille skår. Niv. 4"
+        },
+        {
+          "Fund_no": "26-8",
+          "Fund_beskrivelse": "Keramik",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Lille skår, ornamenteret. Niv. 4"
+        },
+        {
+          "Fund_no": "26-9",
+          "Fund_beskrivelse": "Keramik",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Lille skår. Niv. 4"
+        },
+        {
+          "Fund_no": "26-10",
+          "Fund_beskrivelse": "Keramik",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Hank, fragmenteret. Niv. 4."
+        },
+        {
+          "Fund_no": "26-11",
+          "Fund_beskrivelse": "Keramik",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Fragmenter af ornamenteret skår. Niv. 6"
+        },
+        {
+          "Fund_no": "26-15",
+          "Fund_beskrivelse": "Keramik",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Niv. 6"
+        },
+        {
+          "Fund_no": "26-16",
+          "Fund_beskrivelse": "Ravperle",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Niv. 6"
+        },
+        {
+          "Fund_no": "26-17",
+          "Fund_beskrivelse": "Glasperle",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Hvid. Niv. 6"
+        },
+        {
+          "Fund_no": "26-23",
+          "Fund_beskrivelse": "Glasperle",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Blå, facetteret. Niv. 6"
+        },
+        {
+          "Fund_no": "26-25",
+          "Fund_beskrivelse": "Ravperle",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Niv. 6"
+        },
+        {
+          "Fund_no": "26-26",
+          "Fund_beskrivelse": "Ravperle",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Niv. 6"
+        },
+        {
+          "Fund_no": "26-27",
+          "Fund_beskrivelse": "Lerkar",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Hankekop. Niv. 6"
+        }
+      ]
+    },
+    {
+      "Grav_id": "28",
+      "Ark_no": "36",
+      "fundliste": [
+        {
+          "Fund_no": "28-2",
+          "Fund_beskrivelse": "Lille keramikskår",
+          "Fundplacering": "Bundniveau",
+          "Fund_bemaerkning": "Bundniveau"
+        }
+      ]
+    },
+    {
+      "Grav_id": "30",
+      "Ark_no": "3,4",
+      "fundliste": [
+        {
+          "Fund_no": "30-2",
+          "Fund_beskrivelse": "Lerkarskår",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "6 stk."
+        },
+        {
+          "Fund_no": "30-5",
+          "Fund_beskrivelse": "Dyretand",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Fra hund"
+        },
+        {
+          "Fund_no": "30-7",
+          "Fund_beskrivelse": "Keramikskår",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Fundet ved afrensning"
+        },
+        {
+          "Fund_no": "30-8",
+          "Fund_beskrivelse": "Flintafslag",
+          "Fundplacering": "",
+          "Fund_bemaerkning": "Fundet ved afrensning"
+        }
+      ]
+    },
+    {
+      "Grav_id": "31",
+      "Ark_no": "13, 68",
+      "fundliste": []
+    }
+  ]
+}
