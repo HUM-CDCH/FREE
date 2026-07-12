@@ -7,27 +7,27 @@ from pathlib import Path
 from unittest.mock import patch
 
 from app.api.routes_artifacts import _write_task_archive
-from app.models.parsed_document import ParsedDocument
+from app.models.parsed_document import ParsedDocument, ParsedTable, TableCell
 from app.parsing.adapters.pymupdf_inspect import (
     PdfInspection,
     PdfPageInspection,
     inspect_pdf,
 )
-from app.models.parsed_document import ParsedTable, TableCell
 from app.parsing.docling_runner import DoclingRunnerOutput
-from app.parsing.ocr_fallback import OcrFallbackOutput
-from app.parsing.table_extraction import TableExtractionOutput
 from app.parsing.doctags_to_markdown import (
     compose_page_markdown,
     convert_doctags_to_markdown,
 )
+from app.parsing.ocr_fallback import OcrFallbackOutput
 from app.parsing.orchestrator import (
     CanonicalIngestionError,
     _merge_page_fallback_text,
     _pages_and_views_from_llm_markdown,
+    _pages_requiring_fallback,
     build_parsed_document,
     validate_inspection_for_ingestion,
 )
+from app.parsing.table_extraction import TableExtractionOutput
 from app.storage import paths
 from app.storage.manifests import (
     preprocessing_config_hash,
@@ -57,6 +57,8 @@ def _inspection(*native_texts: str) -> PdfInspection:
                 native_text=text,
                 char_count=len(text),
                 word_count=len(text.split()),
+                image_count=0,
+                drawing_count=0,
             )
             for index, text in enumerate(native_texts, start=1)
         ],
@@ -334,7 +336,9 @@ class TestCanonicalIngestion(unittest.TestCase):
                                     rows=2,
                                     cols=2,
                                     cells=[
-                                        TableCell(row=0, col=0, text="Name", role="header")
+                                        TableCell(
+                                            row=0, col=0, text="Name", role="header"
+                                        )
                                     ],
                                 )
                             ],
@@ -489,6 +493,106 @@ class TestCanonicalIngestion(unittest.TestCase):
         self.assertEqual(views.page_marked_text, "[DOCUMENT]\nOne\n\n---\n\nThree")
         self.assertTrue(all(page.char_span is None for page in pages))
         self.assertTrue(all(page.text == "" for page in pages))
+
+    def test_ocr_only_document_preserves_verified_page_mapping(self):
+        with tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT) as tmp_dir:
+            root = Path(tmp_dir)
+            original_tasks = paths.DEFAULT_DATA_DIR
+            original_documents = paths.DEFAULT_DOCUMENT_STORE_DIR
+            paths.DEFAULT_DATA_DIR = root / "tasks"
+            paths.DEFAULT_DOCUMENT_STORE_DIR = root / "documents"
+            try:
+                task_id = str(uuid.uuid4())
+                task_dir = paths.task_dir_for(task_id)
+                task_dir.mkdir(parents=True, exist_ok=True)
+                (task_dir / "source.pdf").write_bytes(b"%PDF-1.4\n")
+                save_task_metadata(
+                    task_dir,
+                    {
+                        "content_sha256": CONTENT_HASH,
+                        "source_path": "source.pdf",
+                        "source_kind": "upload",
+                        "created_at": NOW,
+                        "params": {"source_name": "source.pdf"},
+                    },
+                )
+                inspected = _inspection("")
+                inspected = inspected.model_copy(
+                    update={
+                        "pages": [
+                            inspected.pages[0].model_copy(update={"image_count": 1})
+                        ]
+                    }
+                )
+                docling = DoclingRunnerOutput(
+                    parser="docling_doctags",
+                    status="success",
+                    started_at=NOW,
+                    finished_at=NOW,
+                    duration_ms=1,
+                    llm_markdown_ref="data/documents/source.llm.md",
+                    llm_markdown="",
+                    page_spans=(),
+                    page_mapping_verified=False,
+                )
+                ocr = OcrFallbackOutput(
+                    status="success",
+                    started_at=NOW,
+                    finished_at=NOW,
+                    duration_ms=1,
+                    pages={1: "OCR only"},
+                )
+                with (
+                    patch(
+                        "app.parsing.orchestrator.inspect_pdf",
+                        return_value=inspected,
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_docling_ingestion",
+                        return_value=docling,
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_ocr_fallback",
+                        return_value=ocr,
+                    ) as mock_ocr,
+                    patch(
+                        "app.parsing.orchestrator._run_table_extraction",
+                        return_value=TableExtractionOutput(),
+                    ),
+                ):
+                    document = build_parsed_document(task_id)
+
+                mock_ocr.assert_called_once()
+                self.assertEqual(document.pages[0].text, "OCR only")
+                self.assertIsNotNone(document.pages[0].char_span)
+                self.assertEqual(
+                    document.pages[0].selected_parser,
+                    "paddleocr_fallback",
+                )
+                self.assertEqual(
+                    document.arbitration.strategy,
+                    "docling_primary_ocr_page_fallback",
+                )
+            finally:
+                paths.DEFAULT_DATA_DIR = original_tasks
+                paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
+
+    def test_verified_blank_page_does_not_require_ocr(self):
+        inspection = _inspection("Body", "")
+        docling = compose_page_markdown(["Body", ""])
+
+        self.assertEqual(
+            _pages_requiring_fallback(docling.page_spans, inspection),
+            [],
+        )
+
+        scanned_pages = list(inspection.pages)
+        scanned_pages[1] = scanned_pages[1].model_copy(update={"image_count": 1})
+        scanned = inspection.model_copy(update={"pages": scanned_pages})
+        self.assertEqual(
+            _pages_requiring_fallback(docling.page_spans, scanned),
+            [2],
+        )
 
     def test_trailing_blank_page_offsets_slice_published_doctags_view(self):
         composed = compose_page_markdown(["One", ""])

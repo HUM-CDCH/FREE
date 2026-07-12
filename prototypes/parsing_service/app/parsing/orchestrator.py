@@ -455,7 +455,19 @@ def _pages_requiring_fallback(
     for page_number in range(1, inspection.page_count + 1):
         span = span_by_page.get(page_number)
         doctag_text = span.text.strip() if span is not None else ""
-        native_text = inspection.pages[page_number - 1].native_text.strip()
+        inspected_page = inspection.pages[page_number - 1]
+        native_text = inspected_page.native_text.strip()
+        # Unknown visual inventories still require OCR; only a fully inspected
+        # empty page is safe to preserve as an intentional blank.
+        verified_blank = (
+            span is not None
+            and not doctag_text
+            and not native_text
+            and inspected_page.image_count == 0
+            and inspected_page.drawing_count == 0
+        )
+        if verified_blank:
+            continue
         garbled_score = _garbled_text_score(doctag_text)
         clearly_low_quality = (
             len(doctag_text) < 32 and len(native_text) >= 200
@@ -650,6 +662,7 @@ def build_parsed_document(
     page_mapping_verified = bool(
         getattr(docling_output, "page_mapping_verified", False)
     )
+    canonical_page_mapping_verified = page_mapping_verified
 
     ocr_output = None
     if doc_tags_simplified.strip() and not page_mapping_verified:
@@ -689,6 +702,9 @@ def build_parsed_document(
             fallback_pages=fallback_pages,
             ocr_output=ocr_output,
         )
+        canonical_page_mapping_verified = len(llm_spans) == inspection.page_count and {
+            span.page for span in llm_spans
+        } == set(range(1, inspection.page_count + 1))
 
     if unresolved_pages:
         page_list = ", ".join(str(page) for page in unresolved_pages)
@@ -704,7 +720,7 @@ def build_parsed_document(
         )
     has_usable_text = (
         any(span.text.strip() for span in llm_spans)
-        if page_mapping_verified
+        if canonical_page_mapping_verified
         else bool(llm_markdown.strip())
     )
     if not has_usable_text:
@@ -743,7 +759,7 @@ def build_parsed_document(
         inspection,
         docling_run,
         parser_by_page,
-        page_mapping_verified=page_mapping_verified,
+        page_mapping_verified=canonical_page_mapping_verified,
         table_pages=frozenset(table.page_number for table in tables),
         table_parser_by_page=table_parser_by_page,
     )
@@ -755,7 +771,7 @@ def build_parsed_document(
         parser_by_page=parser_by_page,
         doc_tags_simplified=doc_tags_simplified or None,
         doc_tags_spans=docling_spans,
-        page_mapping_verified=page_mapping_verified,
+        page_mapping_verified=canonical_page_mapping_verified,
         ocr_blocks_by_page=ocr_blocks_by_page,
     )
 

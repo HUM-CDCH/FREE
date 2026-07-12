@@ -23,6 +23,8 @@ class PdfPageInspection(BaseModel):
     native_text: str = ""
     char_count: int = Field(default=0, ge=0)
     word_count: int = Field(default=0, ge=0)
+    image_count: int | None = Field(default=None, ge=0)
+    drawing_count: int | None = Field(default=None, ge=0)
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -172,6 +174,24 @@ def inspect_pdf(
                     )
                     words = []
                     page_warnings.append(f"native_word_boxes_unavailable:{page_number}")
+                try:
+                    image_count: int | None = len(page.get_images(full=True))
+                except Exception:
+                    logger.exception(
+                        "PyMuPDF image inventory failed for page %s",
+                        page_number,
+                    )
+                    image_count = None
+                    page_warnings.append(f"image_inventory_unavailable:{page_number}")
+                try:
+                    drawing_count: int | None = len(page.get_drawings())
+                except Exception:
+                    logger.exception(
+                        "PyMuPDF drawing inventory failed for page %s",
+                        page_number,
+                    )
+                    drawing_count = None
+                    page_warnings.append(f"drawing_inventory_unavailable:{page_number}")
                 pages.append(
                     PdfPageInspection(
                         page=page_number,
@@ -181,6 +201,8 @@ def inspect_pdf(
                         native_text=native_text,
                         char_count=len(native_text),
                         word_count=len(words),
+                        image_count=image_count,
+                        drawing_count=drawing_count,
                         warnings=page_warnings,
                     )
                 )
