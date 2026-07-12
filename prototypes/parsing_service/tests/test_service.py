@@ -272,7 +272,14 @@ class TestService(unittest.TestCase):
         response = self.client.get("/tasks/not-a-uuid")
         self.assertEqual(response.status_code, 400)
 
-    def test_create_task_with_upload_sanitizes_filename_and_stores_source_pdf(self):
+    @patch("app.api.routes_tasks.run_in_threadpool")
+    def test_create_task_with_upload_sanitizes_filename_and_stores_source_pdf(
+        self, mock_threadpool
+    ):
+        mock_threadpool.side_effect = lambda func, *args, **kwargs: func(
+            *args, **kwargs
+        )
+
         response = self.client.post(
             "/tasks",
             files={
@@ -280,6 +287,11 @@ class TestService(unittest.TestCase):
             },
         )
         self.assertEqual(response.status_code, 202)
+        mock_threadpool.assert_awaited_once()
+        self.assertEqual(
+            mock_threadpool.call_args.args[0].__name__,
+            "save_uploaded_source",
+        )
         task_id = response.json()["task_id"]
         metadata = load_metadata(task_id)
         content_hash = hashlib.sha256(PDF_BYTES).hexdigest()
@@ -299,6 +311,14 @@ class TestService(unittest.TestCase):
         self.assertEqual(polled.status_code, 200)
         self.assertEqual(polled.json()["document_id"], f"sha256:{content_hash}")
         self.assertEqual(polled.json()["content_sha256"], content_hash)
+        self.assertEqual(
+            polled.json()["params"]["table_parser"],
+            metadata["params"]["table_parser"],
+        )
+        self.assertEqual(
+            polled.json()["params"]["camelot_version"],
+            metadata["params"]["camelot_version"],
+        )
         self.assertTrue(os.path.exists(os.path.join(DATA_DIR, task_id, "source.pdf")))
         self.assertTrue(
             os.path.exists(

@@ -24,6 +24,8 @@ class TaskParameters(BaseModel):
     paddleocr_model: str
     paddleocr_version: str
     source_name: str
+    table_parser: str = "unknown"
+    camelot_version: str = "unavailable"
 
 
 class TaskCreatedResponse(BaseModel):

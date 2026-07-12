@@ -7,6 +7,7 @@ import shutil
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from filelock import FileLock
 
 from app.api.deps import http_task_dir, load_metadata, save_metadata
@@ -53,8 +54,8 @@ async def create_task(
 
     try:
         if file:
-            source_path, source_name, content_sha256 = save_uploaded_source(
-                file, task_dir
+            source_path, source_name, content_sha256 = await run_in_threadpool(
+                save_uploaded_source, file, task_dir
             )
         elif url:
             source_path, source_name, content_sha256 = await download_source(
