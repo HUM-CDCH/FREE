@@ -10,9 +10,9 @@ from unittest.mock import Mock, patch
 
 from app.models.parsed_document import BoundingBox, ParsedTable
 from app.parsing.table_extraction import (
-    BBoxTuple,
     DOCLING_TABLE_PARSER_NAME,
     ROTATED_TABLE_GEOMETRY_WARNING,
+    BBoxTuple,
     extract_tables,
     is_matrixlike,
     table_matrix_to_parsed_table,
@@ -235,6 +235,55 @@ class TestExtractTables(unittest.TestCase):
             BoundingBox(x0=10, y0=100, x1=200, y1=150),
         )
         self.assertEqual(output.warnings, ["camelot_inventory_enrichment_unavailable"])
+
+    def test_docling_bottom_left_geometry_is_converted_to_top_left(self):
+        inventory = [
+            {
+                "page_number": 1,
+                "rows": 1,
+                "cols": 1,
+                "bbox": {
+                    "x0": 10,
+                    "y0": 100,
+                    "x1": 200,
+                    "y1": 150,
+                    "origin": "BOTTOMLEFT",
+                },
+                "cells": [
+                    {
+                        "row": 0,
+                        "col": 0,
+                        "text": "Value",
+                        "bbox": {
+                            "x0": 20,
+                            "y0": 20,
+                            "x1": 80,
+                            "y1": 40,
+                            "origin": "BOTTOMLEFT",
+                        },
+                    }
+                ],
+            }
+        ]
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            side_effect=ModuleNotFoundError("camelot"),
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={1: 200.0},
+                docling_tables=inventory,
+            )
+
+        self.assertEqual(
+            output.tables[0].bbox,
+            BoundingBox(x0=10, y0=50, x1=200, y1=100),
+        )
+        self.assertEqual(
+            output.tables[0].cells[0].bbox,
+            BoundingBox(x0=20, y0=160, x1=80, y1=180),
+        )
 
     def test_overlapping_inventory_tables_with_distinct_content_are_retained(self):
         def inventory(text: str) -> dict[str, object]:

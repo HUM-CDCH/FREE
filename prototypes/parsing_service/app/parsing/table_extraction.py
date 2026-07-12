@@ -461,9 +461,9 @@ def _inventory_bbox(
             return None
         values = (
             values[0],
-            page_height_pt - values[1],
-            values[2],
             page_height_pt - values[3],
+            values[2],
+            page_height_pt - values[1],
         )
     if not geometry_enabled or values[0] > values[2] or values[1] > values[3]:
         return None
