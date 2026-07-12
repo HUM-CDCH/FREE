@@ -1,15 +1,26 @@
+import hashlib
 import os
 import socket
 import tempfile
+import threading
 import unittest
-from unittest.mock import Mock, patch
+import uuid
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
 
+from fastapi import HTTPException
+from fastapi.concurrency import run_in_threadpool as real_run_in_threadpool
+
+from app.ingestion import url_fetch
 from app.ingestion.url_fetch import (
     UnsafeUrlError,
     _open_prevalidated_url,
     download_file,
     validate_public_http_url,
 )
+from app.storage import paths
+
+PDF_BYTES = b"%PDF-1.4\n% URL ingestion test\n"
 
 
 class FakeHeaders:
@@ -165,6 +176,156 @@ class TestUrlValidation(unittest.TestCase):
                     self.assertEqual(output_file.read(), body)
             except OSError as exc:
                 self.fail(f"Could not read downloaded PDF fixture: {exc}")
+
+
+class TestUrlIngestionOffload(unittest.IsolatedAsyncioTestCase):
+    async def test_complete_post_download_publication_runs_off_event_loop(self):
+        loop_thread = threading.get_ident()
+        worker_threads: dict[str, int] = {}
+        real_compute = url_fetch.compute_sha256
+        real_store = url_fetch.store_source_by_hash
+        real_deduplicate = url_fetch.deduplicate_task_source
+
+        def fake_download(_source_url, destination):
+            Path(destination).write_bytes(PDF_BYTES)
+
+        def record_compute(source_path):
+            worker_threads["hash"] = threading.get_ident()
+            return real_compute(source_path)
+
+        def record_store(*args, **kwargs):
+            worker_threads["publication"] = threading.get_ident()
+            return real_store(*args, **kwargs)
+
+        def record_deduplicate(*args, **kwargs):
+            worker_threads["deduplication"] = threading.get_ident()
+            return real_deduplicate(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            task_dir = root / str(uuid.uuid4())
+            task_dir.mkdir()
+            pool = AsyncMock(wraps=real_run_in_threadpool)
+            with (
+                patch.object(paths, "DEFAULT_SOURCE_STORE_DIR", root / "sources"),
+                patch.object(url_fetch, "download_file", side_effect=fake_download),
+                patch.object(url_fetch, "compute_sha256", side_effect=record_compute),
+                patch.object(
+                    url_fetch, "store_source_by_hash", side_effect=record_store
+                ),
+                patch.object(
+                    url_fetch,
+                    "deduplicate_task_source",
+                    side_effect=record_deduplicate,
+                ),
+                patch.object(url_fetch, "run_in_threadpool", pool),
+            ):
+                source_path, display_name, digest = await url_fetch.download_source(
+                    "https://example.com/file.pdf", task_dir
+                )
+
+            self.assertEqual(source_path, task_dir / "source.pdf")
+            self.assertEqual(display_name, "file.pdf")
+            self.assertEqual(digest, hashlib.sha256(PDF_BYTES).hexdigest())
+            self.assertEqual(pool.await_count, 2)
+            self.assertIs(
+                pool.await_args_list[1].args[0], url_fetch._publish_downloaded_source
+            )
+            self.assertEqual(
+                set(worker_threads), {"hash", "publication", "deduplication"}
+            )
+            self.assertTrue(
+                all(thread_id != loop_thread for thread_id in worker_threads.values())
+            )
+
+    async def test_publication_failure_releases_real_lease_off_event_loop(self):
+        digest = hashlib.sha256(PDF_BYTES).hexdigest()
+        loop_thread = threading.get_ident()
+        worker_threads: dict[str, int] = {}
+        lease_existed_before_failure = False
+        real_release = url_fetch.release_source_lease
+
+        def fake_download(_source_url, destination):
+            Path(destination).write_bytes(PDF_BYTES)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            source_store = root / "sources"
+            task_dir = root / str(uuid.uuid4())
+            task_dir.mkdir()
+            lease_path = source_store / ".leases" / f"{digest}.{task_dir.name}"
+
+            def fail_deduplication(_task_source, _source_blob):
+                nonlocal lease_existed_before_failure
+                worker_threads["deduplication"] = threading.get_ident()
+                lease_existed_before_failure = lease_path.is_file()
+                raise ValueError("deduplication failed")
+
+            def record_release(content_sha256, lease_id):
+                worker_threads["cleanup"] = threading.get_ident()
+                real_release(content_sha256, lease_id)
+
+            with (
+                patch.object(paths, "DEFAULT_SOURCE_STORE_DIR", source_store),
+                patch.object(url_fetch, "download_file", side_effect=fake_download),
+                patch.object(
+                    url_fetch,
+                    "deduplicate_task_source",
+                    side_effect=fail_deduplication,
+                ),
+                patch.object(
+                    url_fetch,
+                    "release_source_lease",
+                    side_effect=record_release,
+                ),
+                patch.object(
+                    url_fetch,
+                    "run_in_threadpool",
+                    AsyncMock(wraps=real_run_in_threadpool),
+                ),
+                self.assertRaises(HTTPException) as raised,
+            ):
+                await url_fetch.download_source(
+                    "https://example.com/file.pdf", task_dir
+                )
+
+            self.assertTrue(lease_existed_before_failure)
+            self.assertFalse(lease_path.exists())
+
+        self.assertEqual(raised.exception.status_code, 507)
+        self.assertEqual(raised.exception.detail, "Could not store source PDF.")
+        self.assertIsInstance(raised.exception.__cause__, ValueError)
+        self.assertEqual(set(worker_threads), {"deduplication", "cleanup"})
+        self.assertTrue(
+            all(thread_id != loop_thread for thread_id in worker_threads.values())
+        )
+
+    async def test_hash_failure_escapes_without_releasing_lease(self):
+        failure = OSError("hash read failed")
+
+        def fake_download(_source_url, destination):
+            Path(destination).write_bytes(PDF_BYTES)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            task_dir = Path(tmp_dir) / str(uuid.uuid4())
+            task_dir.mkdir()
+            with (
+                patch.object(url_fetch, "download_file", side_effect=fake_download),
+                patch.object(url_fetch, "compute_sha256", side_effect=failure),
+                patch.object(url_fetch, "release_source_lease") as release,
+                patch.object(
+                    url_fetch,
+                    "run_in_threadpool",
+                    AsyncMock(wraps=real_run_in_threadpool),
+                ),
+                self.assertRaises(OSError) as raised,
+            ):
+                await url_fetch.download_source(
+                    "https://example.com/file.pdf", task_dir
+                )
+
+        self.assertIs(raised.exception, failure)
+        release.assert_not_called()
 
 
 if __name__ == "__main__":

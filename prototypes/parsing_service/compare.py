@@ -9,12 +9,89 @@ import argparse
 import importlib
 import json
 import os
+import re
+import stat
 import subprocess
 import sys
 import time
 
 from app.ingestion.url_fetch import download_file
 from app.parsing.render import convert_pdf_to_images
+
+_SHARED_PAGE_IMAGE_RE = re.compile(r"page_([0-9]+)\.png")
+# Paddle 3.x flag names are case-sensitive and must precede PaddleOCR import.
+_PADDLE_ENV_FLAGS = {
+    "FLAGS_fraction_of_gpu_memory_to_use": "0.85",
+    "FLAGS_allocator_strategy": "auto_growth",
+    "FLAGS_eager_delete_tensor_gb": "0.0",
+    "FLAGS_use_onednn": "0",
+}
+
+
+def _discover_shared_page_images(images_dir: str) -> list[str]:
+    try:
+        names = os.listdir(images_dir)
+    except OSError as exc:
+        raise RuntimeError(
+            "Could not read the shared benchmark image directory."
+        ) from exc
+
+    pages: dict[int, str] = {}
+    for name in names:
+        match = _SHARED_PAGE_IMAGE_RE.fullmatch(name)
+        if match is None:
+            if name.startswith("page_"):
+                raise RuntimeError(f"Invalid shared page image filename: {name!r}.")
+            continue
+
+        try:
+            page_number = int(match.group(1))
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(
+                f"Invalid shared page image filename: {name!r}."
+            ) from exc
+        if page_number < 1:
+            raise RuntimeError(
+                f"Invalid shared page image filename: {name!r}; page numbers start at 1."
+            )
+        path = os.path.abspath(os.path.join(images_dir, name))
+        try:
+            file_mode = os.stat(path, follow_symlinks=False).st_mode
+        except OSError as exc:
+            raise RuntimeError(
+                f"Could not inspect shared page image {name!r}."
+            ) from exc
+        if not stat.S_ISREG(file_mode):
+            raise RuntimeError(
+                f"Invalid shared page image {name!r}: expected a regular file."
+            )
+        if page_number in pages:
+            raise RuntimeError(
+                f"Duplicate shared page image number {page_number}: "
+                f"{os.path.basename(pages[page_number])!r} and {name!r}."
+            )
+        pages[page_number] = path
+
+    if not pages:
+        raise RuntimeError(
+            "The shared benchmark image directory contains no valid page images."
+        )
+
+    page_numbers = sorted(pages)
+    first_gap = next(
+        (
+            expected
+            for expected, actual in enumerate(page_numbers, start=1)
+            if actual != expected
+        ),
+        None,
+    )
+    if first_gap is not None:
+        raise RuntimeError(
+            "Shared benchmark page images must be contiguous from page 1; "
+            f"missing page {first_gap}."
+        )
+    return [pages[page_number] for page_number in page_numbers]
 
 
 def ensure_dir(path: str):
@@ -135,19 +212,7 @@ def main():
     if args.pipeline in ["all", "docling", "docling_images", "paddleocr"]:
         reusable_images = getattr(args, "images_dir", None)
         if reusable_images:
-            try:
-                reusable_names = sorted(os.listdir(reusable_images))
-            except OSError as exc:
-                raise RuntimeError(
-                    "Could not read the shared benchmark image directory."
-                ) from exc
-            image_paths = [
-                os.path.abspath(os.path.join(reusable_images, name))
-                for name in reusable_names
-                if name.startswith("page_") and name.endswith(".png")
-            ]
-            if not image_paths:
-                raise RuntimeError("The shared benchmark image directory is empty.")
+            image_paths = _discover_shared_page_images(reusable_images)
         else:
             print(f"\n--- Converting PDF to images ({args.dpi} DPI) ---")
             start_time = time.time()
@@ -355,10 +420,7 @@ All generated comparison files are structured under: `{os.path.relpath(pdf_outpu
     if args.pipeline == "paddleocr":
         print("\n--- Running PaddleOCR page images ---")
         # Set PaddlePaddle environment flags before any paddle imports
-        os.environ["FLAGS_FRACTION_OF_GPU_MEMORY_TO_USE"] = "0.85"
-        os.environ["FLAGS_ALLOCATOR_STRATEGY"] = "auto_growth"
-        os.environ["FLAGS_EAGER_DELETE_TENSOR_GB"] = "0.0"
-        os.environ["FLAGS_USE_ONEDNN"] = "0"
+        os.environ.update(_PADDLE_ENV_FLAGS)
 
         paddle_dir = os.path.join(pdf_output_dir, "paddleocr_images")
         ensure_dir(paddle_dir)

@@ -2,6 +2,7 @@ import os
 import tempfile
 import types
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -60,6 +61,100 @@ class TestCompareBehavior(unittest.TestCase):
             args = compare.parse_args()
         self.assertEqual(args.device, "cpu")
         self.assertEqual(args.source, "fixture.pdf")
+
+    def test_shared_page_images_are_sorted_numerically_through_page_100(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            for page_number in range(100, 0, -1):
+                Path(tmp_dir, f"page_{page_number:02d}.png").touch()
+            Path(tmp_dir, ".DS_Store").touch()
+
+            discovered = compare._discover_shared_page_images(tmp_dir)
+
+        self.assertEqual(
+            [Path(path).name for path in discovered],
+            [f"page_{page_number:02d}.png" for page_number in range(1, 101)],
+        )
+        self.assertEqual(Path(discovered[-1]).name, "page_100.png")
+
+    def test_shared_page_images_reject_malformed_entries(self):
+        malformed_names = (
+            "page_.png",
+            "page_two.png",
+            "page_-1.png",
+            "page_00.png",
+            "page_1.extra.png",
+        )
+        for malformed_name in malformed_names:
+            with (
+                self.subTest(name=malformed_name),
+                tempfile.TemporaryDirectory() as tmp_dir,
+            ):
+                Path(tmp_dir, "page_01.png").touch()
+                Path(tmp_dir, malformed_name).touch()
+                with self.assertRaisesRegex(RuntimeError, "Invalid shared page image"):
+                    compare._discover_shared_page_images(tmp_dir)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            Path(tmp_dir, "page_01.png").touch()
+            Path(tmp_dir, "page_02.png").mkdir()
+            with self.assertRaisesRegex(RuntimeError, "regular file"):
+                compare._discover_shared_page_images(tmp_dir)
+
+    def test_shared_page_images_validate_unique_contiguous_pages(self):
+        invalid_sets = (
+            ("page_1.png", "page_01.png"),
+            ("page_02.png",),
+            ("page_01.png", "page_03.png"),
+        )
+        for names in invalid_sets:
+            with (
+                self.subTest(names=names),
+                tempfile.TemporaryDirectory() as tmp_dir,
+            ):
+                for name in names:
+                    Path(tmp_dir, name).touch()
+                with self.assertRaises(RuntimeError):
+                    compare._discover_shared_page_images(tmp_dir)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            Path(tmp_dir, ".DS_Store").touch()
+            Path(tmp_dir, "notes.txt").touch()
+            with self.assertRaisesRegex(RuntimeError, "no valid page images"):
+                compare._discover_shared_page_images(tmp_dir)
+
+    def test_paddle_flags_are_set_before_import(self):
+        expected_flags = {
+            "FLAGS_fraction_of_gpu_memory_to_use": "0.85",
+            "FLAGS_allocator_strategy": "auto_growth",
+            "FLAGS_eager_delete_tensor_gb": "0.0",
+            "FLAGS_use_onednn": "0",
+        }
+        observed_imports = []
+
+        def record_import(module_name):
+            observed_imports.append(
+                (module_name, {name: os.environ.get(name) for name in expected_flags})
+            )
+            return SimpleNamespace(PPStructureV3=lambda **kwargs: None)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pdf_path = os.path.join(tmp_dir, "source.pdf")
+            self._write_pdf(pdf_path)
+            with (
+                patch.dict(
+                    compare.os.environ,
+                    dict.fromkeys(expected_flags, "preexisting"),
+                ),
+                patch(
+                    "compare.parse_args",
+                    return_value=self._args(pdf_path, tmp_dir, "paddleocr"),
+                ),
+                patch("compare.convert_pdf_to_images", return_value=[]),
+                patch("compare.importlib.import_module", side_effect=record_import),
+            ):
+                compare.main()
+
+        self.assertEqual(observed_imports, [("paddleocr", expected_flags)])
 
     @patch("compare.convert_pdf_to_images")
     def test_all_mode_rasterizes_once_and_reuses_local_images(self, mock_convert):

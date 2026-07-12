@@ -18,7 +18,7 @@
       "header_rows": [0],
       "page_number": 1,
       "rows": 2,
-      "source_parser": "camelot_stream",
+      "source_parser": "docling_table",
       "table_id": "p01_t02"
     },
     {
@@ -63,7 +63,7 @@
       "header_rows": [0],
       "page_number": 4,
       "rows": 10,
-      "source_parser": "camelot_stream",
+      "source_parser": "docling_table",
       "table_id": "p04_t02"
     },
     {
@@ -72,7 +72,7 @@
       "header_rows": [],
       "page_number": 5,
       "rows": 8,
-      "source_parser": "camelot_stream",
+      "source_parser": "docling_table",
       "table_id": "p05_t01"
     },
     {
@@ -90,7 +90,7 @@
       "header_rows": [0],
       "page_number": 5,
       "rows": 2,
-      "source_parser": "camelot_stream",
+      "source_parser": "docling_table",
       "table_id": "p05_t03"
     },
     {
@@ -117,7 +117,7 @@
       "header_rows": [0],
       "page_number": 6,
       "rows": 5,
-      "source_parser": "camelot_stream",
+      "source_parser": "docling_table",
       "table_id": "p06_t02"
     },
     {

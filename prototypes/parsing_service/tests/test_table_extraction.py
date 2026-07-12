@@ -4,6 +4,7 @@ import importlib.util
 import math
 import tempfile
 import unittest
+from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -46,12 +47,78 @@ class _Values:
 
 
 class _FakeTable:
-    def __init__(self, rows: list[list[str]], page: int = 1):
+    def __init__(
+        self,
+        rows: list[list[str]],
+        page: int = 1,
+        *,
+        bbox: BBoxTuple | None = None,
+        cell_bboxes: Sequence[Sequence[BBoxTuple | None]] | None = None,
+    ):
         self.df = SimpleNamespace(values=_Values(rows))
         self.page = page
         self.cells: list[list[object]] = []
-        self._bbox: BBoxTuple | None = None
+        for row in cell_bboxes or ():
+            fake_row: list[object] = []
+            for cell_bbox in row:
+                if cell_bbox is None:
+                    fake_row.append(object())
+                    continue
+                x0, y0, x1, y1 = cell_bbox
+                fake_row.append(SimpleNamespace(x1=x0, y1=y0, x2=x1, y2=y1))
+            self.cells.append(fake_row)
+        self._bbox = bbox
         self.parsing_report = {"accuracy": 99.0, "whitespace": 1.0}
+
+
+def _inventory_for_rows(
+    rows: list[list[str]],
+    *,
+    page: int = 2,
+    bbox: BBoxTuple = (10.0, 50.0, 190.0, 100.0),
+    cell_bboxes: dict[tuple[int, int], BBoxTuple] | None = None,
+    role_overrides: dict[tuple[int, int], str] | None = None,
+) -> dict[str, object]:
+    inferred = table_matrix_to_parsed_table(
+        rows,
+        page_number=page,
+        table_index=1,
+        page_height_pt=None,
+    )
+    roles = {(cell.row, cell.col): cell.role or "data" for cell in inferred.cells}
+    roles.update(role_overrides or {})
+    raw_cells: list[dict[str, object]] = []
+    for row, values in enumerate(rows):
+        for col, text in enumerate(values):
+            cell: dict[str, object] = {
+                "row": row,
+                "col": col,
+                "text": text,
+                "role": roles[(row, col)],
+            }
+            cell_bbox = (cell_bboxes or {}).get((row, col))
+            if cell_bbox is not None:
+                cell["bbox"] = {
+                    "x0": cell_bbox[0],
+                    "y0": cell_bbox[1],
+                    "x1": cell_bbox[2],
+                    "y1": cell_bbox[3],
+                    "origin": "TOPLEFT",
+                }
+            raw_cells.append(cell)
+    return {
+        "page_number": page,
+        "rows": len(rows),
+        "cols": len(rows[0]),
+        "bbox": {
+            "x0": bbox[0],
+            "y0": bbox[1],
+            "x1": bbox[2],
+            "y1": bbox[3],
+            "origin": "TOPLEFT",
+        },
+        "cells": raw_cells,
+    }
 
 
 class TestIsMatrixlike(unittest.TestCase):
@@ -316,35 +383,12 @@ class TestExtractTables(unittest.TestCase):
             )
         self.assertEqual(len(output.tables), 2)
 
-    def test_exact_constrained_camelot_candidate_enriches_inventory_table(self):
+    def test_equivalent_camelot_candidate_without_geometry_keeps_docling(self):
         rows = [
             ["Fundnummer", "Beskrivelse", "Bemærkninger"],
             ["28-2", "Skår", "Bundniveau"],
         ]
-        inventory = [
-            {
-                "page_number": 2,
-                "rows": 2,
-                "cols": 3,
-                "bbox": {
-                    "x0": 10,
-                    "y0": 100,
-                    "x1": 200,
-                    "y1": 150,
-                    "origin": "TOPLEFT",
-                },
-                "cells": [
-                    {
-                        "row": row,
-                        "col": col,
-                        "text": text,
-                        "role": "header" if row == 0 else "data",
-                    }
-                    for row, values in enumerate(rows)
-                    for col, text in enumerate(values)
-                ],
-            }
-        ]
+        inventory = [_inventory_for_rows(rows)]
         read_pdf = Mock(return_value=[_FakeTable(rows, page=2)])
         with patch(
             "app.parsing.table_extraction.importlib.import_module",
@@ -357,10 +401,280 @@ class TestExtractTables(unittest.TestCase):
                 docling_tables=inventory,
             )
 
-        self.assertEqual(output.tables[0].source_parser, "camelot_stream")
+        self.assertEqual(output.tables[0].source_parser, DOCLING_TABLE_PARSER_NAME)
+        self.assertEqual(
+            output.tables[0].bbox,
+            BoundingBox(x0=10.0, y0=50.0, x1=190.0, y1=100.0),
+        )
         self.assertEqual(output.metrics["camelot_candidates"], 1)
         self.assertEqual(
-            read_pdf.call_args.kwargs["table_areas"], ["10.0,100.0,200.0,50.0"]
+            read_pdf.call_args.kwargs["table_areas"], ["10.0,150.0,190.0,100.0"]
+        )
+
+    def test_camelot_replaces_docling_only_with_strict_geometry_improvement(self):
+        rows = [
+            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
+            ["28-2", "Skår", "Bundniveau"],
+        ]
+        camelot_cell_bboxes = [
+            [
+                (11.0, 126.0, 69.0, 149.0),
+                (70.0, 125.0, 130.0, 150.0),
+                (130.0, 125.0, 190.0, 150.0),
+            ],
+            [
+                (10.0, 100.0, 70.0, 125.0),
+                (70.0, 100.0, 130.0, 125.0),
+                (130.0, 100.0, 190.0, 125.0),
+            ],
+        ]
+        inventory = [
+            _inventory_for_rows(
+                rows,
+                cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)},
+            )
+        ]
+        candidate = _FakeTable(
+            rows,
+            page=2,
+            bbox=(10.0, 100.0, 190.0, 150.0),
+            cell_bboxes=camelot_cell_bboxes,
+        )
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            return_value=SimpleNamespace(read_pdf=Mock(return_value=[candidate])),
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={2: 200.0},
+                docling_tables=inventory,
+            )
+
+        table = output.tables[0]
+        self.assertEqual(table.source_parser, "camelot_stream")
+        self.assertEqual(table.bbox, BoundingBox(x0=10.0, y0=50.0, x1=190.0, y1=100.0))
+        by_position = {(cell.row, cell.col): cell for cell in table.cells}
+        self.assertEqual(
+            by_position[(0, 0)].bbox,
+            BoundingBox(x0=10.0, y0=50.0, x1=70.0, y1=75.0),
+        )
+        self.assertEqual(
+            by_position[(1, 2)].bbox,
+            BoundingBox(x0=130.0, y0=75.0, x1=190.0, y1=100.0),
+        )
+
+    def test_equal_geometry_coverage_keeps_docling(self):
+        rows = [
+            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
+            ["28-2", "Skår", "Bundniveau"],
+        ]
+        camelot_cell_bboxes = [
+            [
+                (10.0, 125.0, 70.0, 150.0),
+                (70.0, 125.0, 130.0, 150.0),
+                (130.0, 125.0, 190.0, 150.0),
+            ],
+            [
+                (10.0, 100.0, 70.0, 125.0),
+                (70.0, 100.0, 130.0, 125.0),
+                (130.0, 100.0, 190.0, 125.0),
+            ],
+        ]
+        docling_cell_bboxes = {
+            (row, col): (bbox[0], 200.0 - bbox[3], bbox[2], 200.0 - bbox[1])
+            for row, values in enumerate(camelot_cell_bboxes)
+            for col, bbox in enumerate(values)
+        }
+        candidate = _FakeTable(
+            rows,
+            page=2,
+            bbox=(10.0, 100.0, 190.0, 150.0),
+            cell_bboxes=camelot_cell_bboxes,
+        )
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            return_value=SimpleNamespace(read_pdf=Mock(return_value=[candidate])),
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={2: 200.0},
+                docling_tables=[
+                    _inventory_for_rows(rows, cell_bboxes=docling_cell_bboxes)
+                ],
+            )
+
+        self.assertEqual(output.tables[0].source_parser, DOCLING_TABLE_PARSER_NAME)
+
+    def test_displaced_existing_geometry_or_role_mismatch_keeps_docling(self):
+        rows = [
+            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
+            ["28-2", "Skår", "Bundniveau"],
+        ]
+        displaced_cell_bboxes = [
+            [
+                (80.0, 125.0, 140.0, 150.0),
+                (70.0, 125.0, 130.0, 150.0),
+                (130.0, 125.0, 190.0, 150.0),
+            ],
+            [
+                (10.0, 100.0, 70.0, 125.0),
+                (70.0, 100.0, 130.0, 125.0),
+                (130.0, 100.0, 190.0, 125.0),
+            ],
+        ]
+        aligned_cell_bboxes = [row.copy() for row in displaced_cell_bboxes]
+        aligned_cell_bboxes[0][0] = (10.0, 125.0, 70.0, 150.0)
+        cases = (
+            (
+                "displaced geometry",
+                _inventory_for_rows(
+                    rows,
+                    cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)},
+                ),
+                displaced_cell_bboxes,
+            ),
+            (
+                "role mismatch",
+                _inventory_for_rows(rows, role_overrides={(0, 1): "data"}),
+                aligned_cell_bboxes,
+            ),
+        )
+        for reason, inventory, candidate_cell_bboxes in cases:
+            candidate = _FakeTable(
+                rows,
+                page=2,
+                bbox=(10.0, 100.0, 190.0, 150.0),
+                cell_bboxes=candidate_cell_bboxes,
+            )
+            with (
+                self.subTest(reason=reason),
+                patch(
+                    "app.parsing.table_extraction.importlib.import_module",
+                    return_value=SimpleNamespace(
+                        read_pdf=Mock(return_value=[candidate])
+                    ),
+                ),
+            ):
+                output = extract_tables(
+                    source_pdf=Path("source.pdf"),
+                    content_sha256="a" * 64,
+                    page_heights_pt={2: 200.0},
+                    docling_tables=[inventory],
+                )
+            self.assertEqual(output.tables[0].source_parser, DOCLING_TABLE_PARSER_NAME)
+
+    def test_smaller_candidate_geometry_cannot_replace_docling(self):
+        rows = [
+            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
+            ["28-2", "Skår", "Bundniveau"],
+        ]
+        inventory_cell_bbox = BoundingBox(x0=10.0, y0=50.0, x1=70.0, y1=75.0)
+        inventory = _inventory_for_rows(
+            rows,
+            cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)},
+        )
+        full_candidate_boxes = [
+            [
+                (10.0, 125.0, 70.0, 150.0),
+                (70.0, 125.0, 130.0, 150.0),
+                (130.0, 125.0, 190.0, 150.0),
+            ],
+            [
+                (10.0, 100.0, 70.0, 125.0),
+                (70.0, 100.0, 130.0, 125.0),
+                (130.0, 100.0, 190.0, 125.0),
+            ],
+        ]
+        nested_table_boxes = [[(10.0, 125.0, 70.0, 150.0)] * len(row) for row in rows]
+        nested_cell_boxes = [row.copy() for row in full_candidate_boxes]
+        nested_cell_boxes[0][0] = (20.0, 140.0, 30.0, 145.0)
+        cases = (
+            ("nested table", nested_table_boxes),
+            ("nested existing cell", nested_cell_boxes),
+        )
+        for reason, candidate_cell_boxes in cases:
+            candidate = _FakeTable(
+                rows,
+                page=2,
+                bbox=(10.0, 100.0, 190.0, 150.0),
+                cell_bboxes=candidate_cell_boxes,
+            )
+            with self.subTest(reason=reason):
+                with patch(
+                    "app.parsing.table_extraction.importlib.import_module",
+                    return_value=SimpleNamespace(
+                        read_pdf=Mock(return_value=[candidate])
+                    ),
+                ):
+                    output = extract_tables(
+                        source_pdf=Path("source.pdf"),
+                        content_sha256="a" * 64,
+                        page_heights_pt={2: 200.0},
+                        docling_tables=[inventory],
+                    )
+
+                table = output.tables[0]
+                by_position = {(cell.row, cell.col): cell for cell in table.cells}
+                self.assertEqual(table.source_parser, DOCLING_TABLE_PARSER_NAME)
+                self.assertEqual(by_position[(0, 0)].bbox, inventory_cell_bbox)
+                self.assertIsNone(by_position[(0, 1)].bbox)
+
+    def test_repeated_matrices_match_camelot_by_geometry(self):
+        rows = [
+            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
+            ["28-2", "Skår", "Bundniveau"],
+        ]
+        first = _inventory_for_rows(
+            rows,
+            bbox=(10.0, 20.0, 190.0, 70.0),
+            cell_bboxes={(0, 0): (10.0, 20.0, 70.0, 45.0)},
+        )
+        second = _inventory_for_rows(
+            rows,
+            bbox=(10.0, 100.0, 190.0, 150.0),
+            cell_bboxes={(0, 0): (10.0, 100.0, 70.0, 125.0)},
+        )
+        candidate = _FakeTable(
+            rows,
+            page=2,
+            bbox=(10.0, 50.0, 190.0, 100.0),
+            cell_bboxes=[
+                [
+                    (10.0, 75.0, 70.0, 100.0),
+                    (70.0, 75.0, 130.0, 100.0),
+                    (130.0, 75.0, 190.0, 100.0),
+                ],
+                [
+                    (10.0, 50.0, 70.0, 75.0),
+                    (70.0, 50.0, 130.0, 75.0),
+                    (130.0, 50.0, 190.0, 75.0),
+                ],
+            ],
+        )
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            return_value=SimpleNamespace(read_pdf=Mock(return_value=[candidate])),
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={2: 200.0},
+                docling_tables=[first, second],
+            )
+
+        self.assertEqual(
+            [table.source_parser for table in output.tables],
+            [DOCLING_TABLE_PARSER_NAME, "camelot_stream"],
+        )
+        self.assertEqual(
+            output.tables[0].bbox,
+            BoundingBox(x0=10.0, y0=20.0, x1=190.0, y1=70.0),
+        )
+        self.assertEqual(
+            output.tables[1].bbox,
+            BoundingBox(x0=10.0, y0=100.0, x1=190.0, y1=150.0),
         )
 
     def test_camelot_extracts_one_row_text_table(self):

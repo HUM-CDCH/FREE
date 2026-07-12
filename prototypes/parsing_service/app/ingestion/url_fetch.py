@@ -283,6 +283,25 @@ def source_display_name_from_url(source_url: str) -> str:
     )
 
 
+def _publish_downloaded_source(source_path: Path, lease_id: str) -> str:
+    """Hash, publish, and deduplicate a downloaded source synchronously."""
+    content_sha256 = compute_sha256(source_path)
+    try:
+        source_blob = store_source_by_hash(
+            source_path,
+            content_sha256,
+            lease_id=lease_id,
+        )
+        deduplicate_task_source(source_path, source_blob)
+    except (OSError, ValueError) as exc:
+        release_source_lease(content_sha256, lease_id)
+        raise HTTPException(
+            status_code=507,
+            detail="Could not store source PDF.",
+        ) from exc
+    return content_sha256
+
+
 async def download_source(source_url: str, task_dir: Path) -> tuple[Path, str, str]:
     """Download a remote source PDF into the task dir and the source store."""
     source_path = task_dir / SOURCE_FILENAME
@@ -293,18 +312,9 @@ async def download_source(source_url: str, task_dir: Path) -> tuple[Path, str, s
             status_code=400,
             detail="Failed to download the remote source document.",
         ) from exc
-    content_sha256 = compute_sha256(source_path)
-    try:
-        source_blob = store_source_by_hash(
-            source_path,
-            content_sha256,
-            lease_id=task_dir.name,
-        )
-        deduplicate_task_source(source_path, source_blob)
-    except (OSError, ValueError) as exc:
-        release_source_lease(content_sha256, task_dir.name)
-        raise HTTPException(
-            status_code=507,
-            detail="Could not store source PDF.",
-        ) from exc
+    content_sha256 = await run_in_threadpool(
+        _publish_downloaded_source,
+        source_path,
+        task_dir.name,
+    )
     return source_path, source_display_name_from_url(source_url), content_sha256

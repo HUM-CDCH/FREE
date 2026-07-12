@@ -609,21 +609,6 @@ def _segment_bbox(
     )
 
 
-def _table_fingerprint(
-    table: ParsedTable,
-) -> tuple[int, int | None, int | None, tuple[tuple[int, int, str], ...]]:
-    return (
-        table.page_number,
-        table.rows,
-        table.cols,
-        tuple(
-            (cell.row, cell.col, _norm_cell(cell.text).casefold())
-            for cell in table.cells
-            if cell.text
-        ),
-    )
-
-
 def _content_overlap(first: ParsedTable, second: ParsedTable) -> float:
     first_cells = {
         (cell.row, cell.col, _norm_cell(cell.text).casefold())
@@ -653,15 +638,24 @@ def _overlap_ratio(first: BoundingBox | None, second: BoundingBox | None) -> flo
     return intersection / max(1e-9, min(first_area, second_area))
 
 
+def _intersection_over_union(
+    first: BoundingBox | None,
+    second: BoundingBox | None,
+) -> float:
+    if first is None or second is None:
+        return 0.0
+    intersection = max(0.0, min(first.x1, second.x1) - max(first.x0, second.x0)) * max(
+        0.0, min(first.y1, second.y1) - max(first.y0, second.y0)
+    )
+    first_area = max(0.0, first.x1 - first.x0) * max(0.0, first.y1 - first.y0)
+    second_area = max(0.0, second.x1 - second.x0) * max(0.0, second.y1 - second.y0)
+    return intersection / max(1e-9, first_area + second_area - intersection)
+
+
 def _deduplicate_tables(tables: list[ParsedTable]) -> list[ParsedTable]:
+    # Equal content may legitimately recur in distinct physical page regions.
     kept: list[ParsedTable] = []
-    fingerprints: set[
-        tuple[int, int | None, int | None, tuple[tuple[int, int, str], ...]]
-    ] = set()
     for table in tables:
-        fingerprint = _table_fingerprint(table)
-        if fingerprint in fingerprints:
-            continue
         if any(
             prior.page_number == table.page_number
             and _content_overlap(prior, table) >= 0.8
@@ -669,7 +663,6 @@ def _deduplicate_tables(tables: list[ParsedTable]) -> list[ParsedTable]:
             for prior in kept
         ):
             continue
-        fingerprints.add(fingerprint)
         kept.append(table)
     return kept
 
@@ -766,6 +759,71 @@ def _is_safe_enrichment_target(table: ParsedTable) -> bool:
     )
 
 
+def _cell_structure_signature(
+    table: ParsedTable,
+) -> dict[tuple[int, int], tuple[str | None, int, int]]:
+    return {
+        (cell.row, cell.col): (cell.role, cell.rowspan, cell.colspan)
+        for cell in table.cells
+    }
+
+
+def _boxed_cells(table: ParsedTable) -> dict[tuple[int, int], BoundingBox]:
+    return {
+        (cell.row, cell.col): cell.bbox for cell in table.cells if cell.bbox is not None
+    }
+
+
+def _is_demonstrable_camelot_improvement(
+    inventory: ParsedTable,
+    candidate: ParsedTable,
+) -> bool:
+    """Accept only structure-preserving, monotonic geometry enrichment."""
+    if inventory.page_number != candidate.page_number:
+        return False
+    if not (
+        _is_safe_enrichment_target(inventory) and _is_safe_enrichment_target(candidate)
+    ):
+        return False
+    if _parsed_table_matrix(inventory) != _parsed_table_matrix(candidate):
+        return False
+    if _cell_structure_signature(inventory) != _cell_structure_signature(candidate):
+        return False
+    if _intersection_over_union(inventory.bbox, candidate.bbox) < 0.8:
+        return False
+
+    inventory_boxes = _boxed_cells(inventory)
+    candidate_boxes = _boxed_cells(candidate)
+    inventory_coordinates = set(inventory_boxes)
+    candidate_coordinates = set(candidate_boxes)
+    if not inventory_coordinates < candidate_coordinates:
+        return False
+    return all(
+        _intersection_over_union(inventory_bbox, candidate_boxes[coordinate]) >= 0.8
+        for coordinate, inventory_bbox in inventory_boxes.items()
+    )
+
+
+def _merge_enriched_geometry(
+    inventory: ParsedTable,
+    candidate: ParsedTable,
+) -> ParsedTable:
+    """Fill missing inventory boxes without replacing verified Docling geometry."""
+    candidate_boxes = _boxed_cells(candidate)
+    cells = [
+        cell.model_copy(update={"bbox": candidate_boxes[(cell.row, cell.col)]})
+        if cell.bbox is None and (cell.row, cell.col) in candidate_boxes
+        else cell
+        for cell in inventory.cells
+    ]
+    return inventory.model_copy(
+        update={
+            "source_parser": candidate.source_parser or inventory.source_parser,
+            "cells": cells,
+        }
+    )
+
+
 def _camelot_table_areas(
     tables: Sequence[ParsedTable], page_height_pt: float
 ) -> list[str]:
@@ -830,20 +888,18 @@ def _enrich_inventory_tables(
     available = list(candidates)
     reconciled: list[ParsedTable] = []
     for inventory in inventory_tables:
-        inventory_matrix = _parsed_table_matrix(inventory)
-        match_index = next(
-            (
-                index
-                for index, candidate in enumerate(available)
-                if candidate.page_number == inventory.page_number
-                and _parsed_table_matrix(candidate) == inventory_matrix
-            ),
-            None,
-        )
-        if match_index is None or not _is_safe_enrichment_target(inventory):
+        inventory_box_count = len(_boxed_cells(inventory))
+        eligible = [
+            (index, len(_boxed_cells(candidate)) - inventory_box_count)
+            for index, candidate in enumerate(available)
+            if _is_demonstrable_camelot_improvement(inventory, candidate)
+        ]
+        if not eligible:
             reconciled.append(inventory)
-        else:
-            reconciled.append(available.pop(match_index))
+            continue
+        match_index, _ = max(eligible, key=lambda item: (item[1], -item[0]))
+        candidate = available.pop(match_index)
+        reconciled.append(_merge_enriched_geometry(inventory, candidate))
     return reconciled, len(candidates)
 
 

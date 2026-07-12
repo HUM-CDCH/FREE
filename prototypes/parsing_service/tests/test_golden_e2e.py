@@ -107,9 +107,24 @@ def _assert_bbox_inside_page(test: unittest.TestCase, bbox: dict, page: dict) ->
     test.assertLessEqual(y1, _number(page["height_pt"]), bbox)
 
 
+def _bbox_overlap_ratio(first: dict | None, second: dict | None) -> float:
+    if first is None or second is None:
+        return 0.0
+    first_values = [_number(first[name]) for name in ("x0", "y0", "x1", "y1")]
+    second_values = [_number(second[name]) for name in ("x0", "y0", "x1", "y1")]
+    first_x0, first_y0, first_x1, first_y1 = first_values
+    second_x0, second_y0, second_x1, second_y1 = second_values
+    intersection = max(0.0, min(first_x1, second_x1) - max(first_x0, second_x0)) * max(
+        0.0, min(first_y1, second_y1) - max(first_y0, second_y0)
+    )
+    first_area = max(0.0, first_x1 - first_x0) * max(0.0, first_y1 - first_y0)
+    second_area = max(0.0, second_x1 - second_x0) * max(0.0, second_y1 - second_y0)
+    return intersection / max(1e-9, min(first_area, second_area))
+
+
 def assert_semantic_invariants(test: unittest.TestCase, parsed: dict) -> None:
     pages = {_integer(page["page"]): page for page in parsed["pages"]}
-    fingerprints: set[tuple[int, tuple[str, ...]]] = set()
+    fingerprints: dict[tuple[int, tuple[str, ...]], list[dict | None]] = {}
     forbidden_prose = (
         "Antropologisk kunne",
         "Tolkning: Jordfæstegrav",
@@ -143,8 +158,14 @@ def assert_semantic_invariants(test: unittest.TestCase, parsed: dict) -> None:
         for phrase in forbidden_prose:
             test.assertNotIn(phrase, joined, table["table_id"])
         fingerprint = (_integer(table["page_number"]), tuple(texts))
-        test.assertNotIn(fingerprint, fingerprints, table["table_id"])
-        fingerprints.add(fingerprint)
+        table_bbox = table.get("bbox")
+        for prior_bbox in fingerprints.get(fingerprint, []):
+            test.assertLess(
+                _bbox_overlap_ratio(prior_bbox, table_bbox),
+                0.8,
+                f"overlapping duplicate table content: {table['table_id']}",
+            )
+        fingerprints.setdefault(fingerprint, []).append(table_bbox)
 
         markdown_lines = (table.get("markdown_view") or "").splitlines()
         test.assertGreaterEqual(len(markdown_lines), 2, table["table_id"])
@@ -155,6 +176,44 @@ def assert_semantic_invariants(test: unittest.TestCase, parsed: dict) -> None:
             ),
             table["table_id"],
         )
+
+
+class TestSemanticInvariants(unittest.TestCase):
+    @staticmethod
+    def _document_with_repeated_tables(bboxes: list[dict]) -> dict:
+        return {
+            "pages": [{"page": 1, "width_pt": 200, "height_pt": 200}],
+            "tables": [
+                {
+                    "table_id": f"p01_t{index:02d}",
+                    "page_number": 1,
+                    "bbox": bbox,
+                    "cells": [
+                        {"row": 0, "col": 0, "text": "Name"},
+                        {"row": 0, "col": 1, "text": "Value"},
+                    ],
+                    "markdown_view": "| Name | Value |\n| --- | --- |",
+                }
+                for index, bbox in enumerate(bboxes, start=1)
+            ],
+        }
+
+    def test_repeated_content_in_distinct_regions_is_valid(self):
+        parsed = self._document_with_repeated_tables(
+            [
+                {"x0": 10, "y0": 10, "x1": 190, "y1": 60},
+                {"x0": 10, "y0": 100, "x1": 190, "y1": 150},
+            ]
+        )
+
+        assert_semantic_invariants(self, parsed)
+
+    def test_repeated_content_in_overlapping_regions_is_rejected(self):
+        bbox = {"x0": 10, "y0": 10, "x1": 190, "y1": 60}
+        parsed = self._document_with_repeated_tables([bbox, bbox.copy()])
+
+        with self.assertRaisesRegex(AssertionError, "overlapping duplicate"):
+            assert_semantic_invariants(self, parsed)
 
 
 @unittest.skipUnless(

@@ -99,7 +99,8 @@ Invariant assertions run independently of the oracle payload:
 - every published table and cell box is finite, monotonic, and inside displayed
   page dimensions;
 - no two cells claim the same logical grid coordinate through overlapping spans;
-- duplicate normalized table content cannot appear on the same page;
+- duplicate normalized table content with overlapping same-page geometry cannot
+  be published twice; repeated content in distinct physical regions remains valid;
 - known surrounding narrative prose cannot appear as table rows;
 - generated Markdown contains one valid delimiter immediately after the header
   row.
@@ -151,7 +152,7 @@ A parsing change that affects these areas is complete when:
 - changed Python files have no LSP/Pyright errors;
 - rotated fixtures retain content without leaking Camelot geometry;
 - the repository source document exposes the manually reviewed tables without
-  narrative contamination or duplicates.
+  narrative contamination or overlapping duplicates.
 
 Clean-profile CPU OCR inference and CUDA-host GPU inference are operational
 release checks when their respective profiles are being changed.
