@@ -14,6 +14,7 @@ from __future__ import annotations
 import datetime
 import importlib
 import logging
+import math
 import shutil
 import time
 from dataclasses import dataclass, field
@@ -93,15 +94,23 @@ def _extract_lines_from_result(
             warnings.append("ocr_line_geometry_unavailable")
         return []
     lines: list[dict[str, Any]] = []
-    for text, score, box in zip(texts, scores, boxes):
+    for text, score, box in zip(texts, scores, boxes, strict=True):
         try:
-            bbox = [round(float(value) * scale, 2) for value in box]
-            confidence = min(max(float(score), 0.0), 1.0)
+            values = [float(value) for value in box]
+            confidence_value = float(score)
+            if (
+                len(values) != 4
+                or not all(math.isfinite(value) and value >= 0 for value in values)
+                or not math.isfinite(confidence_value)
+                or values[0] > values[2]
+                or values[1] > values[3]
+            ):
+                raise ValueError("invalid OCR line geometry")
+            bbox = [round(value * scale, 2) for value in values]
+            confidence = min(max(confidence_value, 0.0), 1.0)
         except (TypeError, ValueError):
             if "ocr_line_geometry_unavailable" not in warnings:
                 warnings.append("ocr_line_geometry_unavailable")
-            continue
-        if len(bbox) != 4:
             continue
         lines.append(
             {

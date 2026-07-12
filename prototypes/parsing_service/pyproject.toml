@@ -22,8 +22,8 @@ module-name = "app"
 module-root = ""
 
 [project.optional-dependencies]
-ocr-cpu = ["paddleocr>=3.7.0", "paddlepaddle==3.3.1"]
-ocr-gpu = ["paddleocr>=3.7.0", "paddlepaddle-gpu==3.3.1"]
+ocr-cpu = ["paddleocr>=3.7.0", "paddlex[ocr]>=3.7.0", "paddlepaddle==3.2.2"]
+ocr-gpu = ["paddleocr>=3.7.0", "paddlex[ocr]>=3.7.0", "paddlepaddle-gpu==3.2.2"]
 
 [tool.uv]
 conflicts = [[{ extra = "ocr-cpu" }, { extra = "ocr-gpu" }]]

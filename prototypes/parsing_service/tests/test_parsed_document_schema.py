@@ -1,11 +1,13 @@
 # ruff: noqa: I001
 
+import math
 import unittest
 
 from pydantic import ValidationError
 
 from app.models.parsed_document import (
     ArbitrationResult,
+    BoundingBox,
     ArtifactManifest,
     CharSpan,
     DocumentMetadata,
@@ -13,8 +15,10 @@ from app.models.parsed_document import (
     ParsedDocument,
     ParsedPage,
     ParserRun,
+    PageQuality,
     PreprocessingMetadata,
     SourceInfo,
+    TableCell,
     TextViews,
 )
 from app.storage.hashing import (
@@ -188,6 +192,31 @@ class TestParsedDocumentSchema(unittest.TestCase):
         self.assertEqual(document.pages[0].quality.ocr_confidence, 0.87)
         dumped = document.model_dump(mode="json")
         self.assertEqual(ParsedDocument.model_validate(dumped), document)
+
+    def test_geometry_and_confidence_reject_invalid_numbers(self):
+        for payload in (
+            {"x0": 10, "y0": 20, "x1": 1, "y1": 2},
+            {"x0": math.nan, "y0": 0, "x1": 1, "y1": 1},
+        ):
+            try:
+                BoundingBox.model_validate(payload)
+            except ValidationError:
+                pass
+            else:
+                self.fail("invalid bounding box was accepted")
+        for value in (-0.1, 1.1, math.nan, math.inf):
+            try:
+                PageQuality(ocr_confidence=value)
+            except ValidationError:
+                pass
+            else:
+                self.fail("invalid page OCR confidence was accepted")
+            try:
+                TableCell(row=0, col=0, confidence=value)
+            except ValidationError:
+                pass
+            else:
+                self.fail("invalid cell confidence was accepted")
 
     def test_failed_parser_run_preserves_error(self):
         document = ParsedDocument.model_validate(

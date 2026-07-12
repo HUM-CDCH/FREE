@@ -199,12 +199,16 @@ def _run_table_extraction(
     source_path: Path,
     content_sha256: str,
     page_heights_pt: dict[int, float],
+    page_rotations: dict[int, int],
+    docling_tables: tuple[dict[str, Any], ...],
 ) -> Any:
     module = importlib.import_module("app.parsing.table_extraction")
     return module.extract_tables(
         source_pdf=source_path,
         content_sha256=content_sha256,
         page_heights_pt=page_heights_pt,
+        page_rotations=page_rotations,
+        docling_tables=docling_tables,
     )
 
 
@@ -218,6 +222,7 @@ def parser_run_from_docling_output(output: Any, content_sha256: str) -> ParserRu
     metrics["physical_page_export_complete"] = bool(
         output.physical_page_export_complete
     )
+    metrics["table_inventory_count"] = len(getattr(output, "table_inventory", ()) or ())
     for name in (
         "raw_docling_json_ref",
         "raw_doctags_ref",
@@ -269,9 +274,12 @@ def parser_run_from_ocr_output(output: Any, content_sha256: str) -> ParserRun:
 
 def parser_run_from_table_output(output: Any, content_sha256: str) -> ParserRun:
     status = cast(Literal["success", "failed", "skipped"], output.status)
+    version = (
+        package_version("camelot-py") if output.parser == "camelot_stream" else None
+    )
     return ParserRun(
         parser=output.parser,
-        version=package_version("camelot-py"),
+        version=version,
         status=status,
         started_at=output.started_at,
         finished_at=output.finished_at,
@@ -463,7 +471,9 @@ def _merge_page_fallback_text(
     inspection: PdfInspection,
     fallback_pages: list[int],
     ocr_output: Any | None,
-) -> tuple[str, tuple[Any, ...], dict[int, str], list[int], dict[int, list[dict[str, Any]]]]:
+) -> tuple[
+    str, tuple[Any, ...], dict[int, str], list[int], dict[int, list[dict[str, Any]]]
+]:
     span_by_page = {span.page: span for span in docling_spans}
     parser_by_page: dict[int, str] = {}
     page_texts: list[str] = []
@@ -526,6 +536,7 @@ def _docling_arbitration(
     *,
     page_mapping_verified: bool = True,
     table_pages: frozenset[int] = frozenset(),
+    table_parser_by_page: dict[int, str] | None = None,
 ) -> ArbitrationResult:
     page_decisions: list[PageDecision] = []
     for page in range(1, inspection.page_count + 1):
@@ -542,9 +553,9 @@ def _docling_arbitration(
                     "docling_doctags" if docling_run.status == "success" else None
                 ),
                 selected_table_parser=(
-                    "camelot_stream"
-                    if page in table_pages
-                    else ("docling_doctags" if docling_run.status == "success" else None)
+                    (table_parser_by_page or {}).get(page)
+                    or ("camelot_stream" if page in table_pages else None)
+                    or ("docling_doctags" if docling_run.status == "success" else None)
                 ),
                 fallback_used=fallback_used,
                 reason=(
@@ -635,6 +646,7 @@ def build_parsed_document(
         else _read_service_text(docling_output.llm_markdown_ref).removesuffix("\n")
     )
     docling_spans = list(getattr(docling_output, "page_spans", ()) or ())
+    docling_tables = tuple(getattr(docling_output, "table_inventory", ()) or ())
     page_mapping_verified = bool(
         getattr(docling_output, "page_mapping_verified", False)
     )
@@ -706,9 +718,18 @@ def build_parsed_document(
         source_path,
         content_sha256,
         {page.page: page.height_pt for page in inspection.pages},
+        {page.page: page.rotation for page in inspection.pages},
+        docling_tables,
     )
     parser_runs.append(parser_run_from_table_output(table_output, content_sha256))
     tables = list(table_output.tables)
+    table_parser_by_page: dict[int, str] = {}
+    for table in tables:
+        current = table_parser_by_page.get(table.page_number)
+        if current is None:
+            table_parser_by_page[table.page_number] = table.source_parser or "unknown"
+        elif current != table.source_parser:
+            table_parser_by_page[table.page_number] = "table_reconciled"
 
     final_llm_markdown_ref = docling_output.llm_markdown_ref
     if llm_markdown != doc_tags_simplified:
@@ -724,6 +745,7 @@ def build_parsed_document(
         parser_by_page,
         page_mapping_verified=page_mapping_verified,
         table_pages=frozenset(table.page_number for table in tables),
+        table_parser_by_page=table_parser_by_page,
     )
     pages, text_views = _pages_and_views_from_llm_markdown(
         llm_markdown=llm_markdown,

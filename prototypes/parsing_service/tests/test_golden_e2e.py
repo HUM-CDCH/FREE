@@ -1,20 +1,16 @@
-"""Opt-in golden-sample e2e test: real pipeline over a real source document.
+"""Opt-in semantic E2E for the real canonical ingestion pipeline.
 
-Runs examples/Beretning_Ellekilde_8_13.pdf through the unmocked pipeline
-(Docling ingestion + camelot table extraction; all pages have native text so
-the OCR fallback never triggers) and compares a normalized, deterministic
-subset of the ParsedDocument against a checked-in golden file.
+The checked-in fixture is a manually reviewed oracle of stable source-document
+facts. It is intentionally not regenerable from current output: implementation
+changes must preserve the invariants and be reviewed against the source.
 
     RUN_GOLDEN_E2E=1 uv run --no-sync python -m unittest tests.test_golden_e2e
-    RUN_GOLDEN_E2E=1 UPDATE_GOLDEN=1 uv run --no-sync python -m unittest tests.test_golden_e2e  # regenerate
-
-ponytail: Docling/camelot upgrades may legitimately change output; the
-regen command above is the upgrade path.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import tempfile
@@ -29,52 +25,141 @@ from app.storage import paths
 from app.workers import parse_worker
 from main import app
 
-SOURCE_PDF = Path(__file__).resolve().parents[3] / "examples" / "Beretning_Ellekilde_8_13.pdf"
-GOLDEN_PATH = Path(__file__).resolve().parent / "golden" / "Beretning_Ellekilde_8_13.golden.json"
+SOURCE_PDF = (
+    Path(__file__).resolve().parents[3] / "examples" / "Beretning_Ellekilde_8_13.pdf"
+)
+GOLDEN_PATH = (
+    Path(__file__).resolve().parent / "golden" / "Beretning_Ellekilde_8_13.golden.json"
+)
+
+
+def _integer(value: str | int | float) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise AssertionError(
+            f"expected integer-compatible value, got {value!r}"
+        ) from exc
+
+
+def _number(value: str | int | float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise AssertionError(f"expected numeric value, got {value!r}") from exc
+
+
+def _load_golden() -> dict:
+    try:
+        return json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AssertionError(f"invalid semantic oracle: {GOLDEN_PATH}") from exc
+
+
+def _table_matrix(table: dict) -> list[list[str]]:
+    rows = _integer(table["rows"])
+    cols = _integer(table["cols"])
+    matrix = [[""] * cols for _ in range(rows)]
+    for cell in table["cells"]:
+        matrix[_integer(cell["row"])][_integer(cell["col"])] = str(cell["text"])
+    return matrix
 
 
 def normalize(parsed: dict) -> dict:
-    """Deterministic subset of a ParsedDocument dump.
-
-    Excludes timestamps, durations, version-derived hashes, and artifact refs
-    containing task/generation UUIDs.
-    """
-    document = parsed["document"]
+    """Return the compact facts reviewed against the source document."""
+    summaries: list[dict] = []
+    for table in parsed["tables"]:
+        matrix = _table_matrix(table)
+        summaries.append(
+            {
+                "table_id": table["table_id"],
+                "page_number": table["page_number"],
+                "source_parser": table["source_parser"],
+                "rows": table["rows"],
+                "cols": table["cols"],
+                "header_rows": sorted(
+                    {
+                        _integer(cell["row"])
+                        for cell in table["cells"]
+                        if cell.get("role") == "header"
+                    }
+                ),
+                "first_column": [row[0] for row in matrix],
+            }
+        )
     return {
         "schema_version": parsed["schema_version"],
-        "document": {
-            "document_id": document["document_id"],
-            "content_sha256": document["content_sha256"],
-            "page_count": document["page_count"],
-            "is_encrypted": document["is_encrypted"],
-            "input_profile": document["input_profile"],
-            "source_byte_size": document["source"]["byte_size"],
-        },
-        "arbitration": parsed["arbitration"],
-        "text_views": parsed["text_views"],
-        "pages": [
-            {
-                "page": page["page"],
-                "width_pt": page["width_pt"],
-                "height_pt": page["height_pt"],
-                "rotation": page["rotation"],
-                "selected_parser": page["selected_parser"],
-                "text": page["text"],
-                "markdown": page["markdown"],
-                "char_span": page["char_span"],
-            }
-            for page in parsed["pages"]
-        ],
-        "tables": [
-            {key: value for key, value in table.items() if not key.endswith("_ref")}
-            for table in parsed["tables"]
-        ],
+        "content_sha256": parsed["document"]["content_sha256"],
+        "page_count": parsed["document"]["page_count"],
+        "tables": summaries,
     }
+
+
+def _assert_bbox_inside_page(test: unittest.TestCase, bbox: dict, page: dict) -> None:
+    values = [_number(bbox[name]) for name in ("x0", "y0", "x1", "y1")]
+    test.assertTrue(all(math.isfinite(value) for value in values), bbox)
+    x0, y0, x1, y1 = values
+    test.assertLessEqual(x0, x1, bbox)
+    test.assertLessEqual(y0, y1, bbox)
+    test.assertGreaterEqual(x0, 0, bbox)
+    test.assertGreaterEqual(y0, 0, bbox)
+    test.assertLessEqual(x1, _number(page["width_pt"]), bbox)
+    test.assertLessEqual(y1, _number(page["height_pt"]), bbox)
+
+
+def assert_semantic_invariants(test: unittest.TestCase, parsed: dict) -> None:
+    pages = {_integer(page["page"]): page for page in parsed["pages"]}
+    fingerprints: set[tuple[int, tuple[str, ...]]] = set()
+    forbidden_prose = (
+        "Antropologisk kunne",
+        "Tolkning: Jordfæstegrav",
+        "Skeletdelene er nummereret",
+    )
+
+    test.assertTrue(parsed["tables"], "canonical tables must not silently disappear")
+    for table in parsed["tables"]:
+        page = pages[_integer(table["page_number"])]
+        if table.get("bbox") is not None:
+            _assert_bbox_inside_page(test, table["bbox"], page)
+
+        occupied: dict[tuple[int, int], tuple[int, int]] = {}
+        texts: list[str] = []
+        for cell in table["cells"]:
+            row, col = _integer(cell["row"]), _integer(cell["col"])
+            texts.append(str(cell["text"]).strip())
+            if cell.get("bbox") is not None:
+                _assert_bbox_inside_page(test, cell["bbox"], page)
+            for covered_row in range(row, row + _integer(cell.get("rowspan", 1))):
+                for covered_col in range(col, col + _integer(cell.get("colspan", 1))):
+                    position = (covered_row, covered_col)
+                    test.assertNotIn(
+                        position,
+                        occupied,
+                        f"overlapping spans in {table['table_id']}: {position}",
+                    )
+                    occupied[position] = (row, col)
+
+        joined = "\n".join(texts)
+        for phrase in forbidden_prose:
+            test.assertNotIn(phrase, joined, table["table_id"])
+        fingerprint = (_integer(table["page_number"]), tuple(texts))
+        test.assertNotIn(fingerprint, fingerprints, table["table_id"])
+        fingerprints.add(fingerprint)
+
+        markdown_lines = (table.get("markdown_view") or "").splitlines()
+        test.assertGreaterEqual(len(markdown_lines), 2, table["table_id"])
+        test.assertTrue(
+            all(
+                part.strip() == "---"
+                for part in markdown_lines[1].strip("| ").split("|")
+            ),
+            table["table_id"],
+        )
 
 
 @unittest.skipUnless(
     os.getenv("RUN_GOLDEN_E2E") == "1",
-    "set RUN_GOLDEN_E2E=1 to run the real-pipeline golden e2e test",
+    "set RUN_GOLDEN_E2E=1 to run the real-pipeline semantic e2e test",
 )
 class TestGoldenE2E(unittest.TestCase):
     def setUp(self):
@@ -102,7 +187,7 @@ class TestGoldenE2E(unittest.TestCase):
         ) = self._original_storage_paths
         self._storage_tmp.cleanup()
 
-    def test_parsed_document_matches_golden(self):
+    def test_parsed_document_matches_semantic_oracle(self):
         response = self.client.post(
             "/tasks",
             files={
@@ -119,28 +204,17 @@ class TestGoldenE2E(unittest.TestCase):
         status = self.client.get(f"/tasks/{task_id}").json()
         self.assertEqual(status["status"], "completed", status)
 
-        parsed = self.client.get(f"/tasks/{task_id}/parsed-document").json()
-        actual = normalize(parsed)
+        parsed_response = self.client.get(f"/tasks/{task_id}/parsed-document")
+        self.assertEqual(parsed_response.status_code, 200, parsed_response.text)
+        parsed = parsed_response.json()
+        assert_semantic_invariants(self, parsed)
 
-        if os.getenv("UPDATE_GOLDEN") == "1":
-            GOLDEN_PATH.parent.mkdir(exist_ok=True)
-            GOLDEN_PATH.write_text(
-                json.dumps(actual, indent=2, ensure_ascii=False, sort_keys=True)
-                + "\n",
-                encoding="utf-8",
-            )
-            return
-
-        self.assertTrue(
-            GOLDEN_PATH.exists(),
-            f"missing {GOLDEN_PATH}; regenerate with UPDATE_GOLDEN=1",
-        )
-        golden = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
-        self.assertEqual(actual, golden)
+        golden = _load_golden()
+        self.assertEqual(normalize(parsed), golden)
 
         markdown = self.client.get(f"/tasks/{task_id}/markdown")
         self.assertEqual(markdown.status_code, 200)
-        self.assertEqual(markdown.text, golden["text_views"]["llm_markdown"])
+        self.assertEqual(markdown.text, parsed["text_views"]["llm_markdown"])
 
 
 if __name__ == "__main__":

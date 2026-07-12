@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.parsing.docling_runner import run_docling_ingestion
@@ -32,6 +33,35 @@ class PhysicalPageDoclingDocument:
 class LegacyDoclingDocument:
     def export_to_doctags(self):
         return "<text>One</text><page_break><text>Three</text>"
+
+
+class TableDoclingDocument(PhysicalPageDoclingDocument):
+    def __init__(self) -> None:
+        super().__init__()
+        bbox = SimpleNamespace(
+            l=10,
+            t=20,
+            r=100,
+            b=40,
+            coord_origin=SimpleNamespace(value="TOPLEFT"),
+        )
+        cell = SimpleNamespace(
+            start_row_offset_idx=0,
+            start_col_offset_idx=0,
+            row_span=1,
+            col_span=1,
+            text="Header",
+            column_header=True,
+            row_header=False,
+            row_section=False,
+            bbox=bbox,
+        )
+        self.tables = [
+            SimpleNamespace(
+                prov=[SimpleNamespace(page_no=1, bbox=bbox)],
+                data=SimpleNamespace(num_rows=1, num_cols=1, table_cells=[cell]),
+            )
+        ]
 
 
 class TestDoclingRunner(unittest.TestCase):
@@ -105,6 +135,28 @@ class TestDoclingRunner(unittest.TestCase):
                     ],
                     span.text,
                 )
+
+    def test_table_inventory_preserves_structure_without_docling_objects(self):
+        document = TableDoclingDocument()
+        with tempfile.TemporaryDirectory(dir=SERVICE_ROOT) as tmp_dir:
+            source = Path(tmp_dir) / "source.pdf"
+            source.write_bytes(b"%PDF-1.4\n")
+            with patch(
+                "app.parsing.docling_runner._convert_document", return_value=document
+            ):
+                output = run_docling_ingestion(
+                    source,
+                    CONTENT_HASH,
+                    physical_pages=[1],
+                    artifact_root=Path(tmp_dir) / "artifacts",
+                )
+
+        self.assertEqual(len(output.table_inventory), 1)
+        inventory = output.table_inventory[0]
+        self.assertEqual(inventory["page_number"], 1)
+        self.assertEqual((inventory["rows"], inventory["cols"]), (1, 1))
+        self.assertEqual(inventory["cells"][0]["role"], "header")
+        self.assertEqual(inventory["cells"][0]["bbox"]["origin"], "TOPLEFT")
 
     def test_legacy_export_does_not_claim_physical_page_mapping(self):
         with tempfile.TemporaryDirectory(dir=SERVICE_ROOT) as tmp_dir:

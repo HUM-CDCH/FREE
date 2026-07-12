@@ -42,6 +42,7 @@ class DoclingRunnerOutput:
     page_spans: tuple[Any, ...] = ()
     page_mapping_verified: bool = False
     physical_page_export_complete: bool = False
+    table_inventory: tuple[dict[str, Any], ...] = ()
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
 
@@ -80,6 +81,93 @@ def _export_docling_json(document: Any) -> dict[str, Any] | None:
             if isinstance(exported, dict):
                 return exported
     return None
+
+
+def _coord_origin(value: Any) -> str:
+    origin = getattr(value, "coord_origin", None)
+    return str(getattr(origin, "value", origin) or "TOPLEFT").upper()
+
+
+def _bbox_inventory(value: Any) -> dict[str, float | str] | None:
+    if value is None:
+        return None
+    try:
+        values = {
+            "x0": float(value.l),
+            "y0": float(value.t),
+            "x1": float(value.r),
+            "y1": float(value.b),
+            "origin": _coord_origin(value),
+        }
+    except (AttributeError, TypeError, ValueError):
+        return None
+    return values
+
+
+def _table_inventory(document: Any) -> tuple[dict[str, Any], ...]:
+    """Copy Docling table structure into dependency-neutral primitives."""
+    inventory: list[dict[str, Any]] = []
+    for table in getattr(document, "tables", ()) or ():
+        provenance = next(
+            (
+                item
+                for item in (getattr(table, "prov", ()) or ())
+                if getattr(item, "page_no", None) is not None
+            ),
+            None,
+        )
+        data = getattr(table, "data", None)
+        raw_cells = getattr(data, "table_cells", ()) if data is not None else ()
+        try:
+            page_number = int(getattr(provenance, "page_no", 0) or 0)
+            rows = int(getattr(data, "num_rows", 0) or 0)
+            cols = int(getattr(data, "num_cols", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        if page_number < 1 or rows < 1 or cols < 1:
+            continue
+        cells: list[dict[str, Any]] = []
+        for cell in raw_cells or ():
+            try:
+                row = int(getattr(cell, "start_row_offset_idx", -1))
+                col = int(getattr(cell, "start_col_offset_idx", -1))
+                rowspan = max(1, int(getattr(cell, "row_span", 1) or 1))
+                colspan = max(1, int(getattr(cell, "col_span", 1) or 1))
+            except (TypeError, ValueError):
+                continue
+            if not (0 <= row < rows and 0 <= col < cols):
+                continue
+            if getattr(cell, "column_header", False):
+                role = "header"
+            elif getattr(cell, "row_header", False):
+                role = "row_header"
+            elif getattr(cell, "row_section", False):
+                role = "row_section"
+            else:
+                role = "data"
+            cells.append(
+                {
+                    "row": row,
+                    "col": col,
+                    "text": str(getattr(cell, "text", "") or ""),
+                    "role": role,
+                    "rowspan": rowspan,
+                    "colspan": colspan,
+                    "bbox": _bbox_inventory(getattr(cell, "bbox", None)),
+                }
+            )
+        if not cells:
+            continue
+        inventory.append(
+            {
+                "page_number": page_number,
+                "rows": rows,
+                "cols": cols,
+                "bbox": _bbox_inventory(getattr(provenance, "bbox", None)),
+                "cells": cells,
+            }
+        )
+    return tuple(inventory)
 
 
 def _convert_document(source_pdf: Path) -> Any:
@@ -164,6 +252,7 @@ def run_docling_ingestion(
     page_spans: tuple[Any, ...] = ()
     page_mapping_verified = False
     physical_page_export_complete = False
+    table_inventory = _table_inventory(document)
 
     docling_json = _export_docling_json(document)
     if docling_json is not None:
@@ -270,6 +359,7 @@ def run_docling_ingestion(
         page_spans=page_spans,
         page_mapping_verified=page_mapping_verified,
         physical_page_export_complete=physical_page_export_complete,
+        table_inventory=table_inventory,
         warnings=warnings,
         error=None if status == "success" else "canonical_doctags_unavailable",
     )

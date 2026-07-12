@@ -7,9 +7,10 @@ compatible or bump the schema version.
 
 from __future__ import annotations
 
+import math
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SCHEMA_VERSION = "parsed_document.v1"
 
@@ -29,6 +30,15 @@ class BoundingBox(BaseModel):
     y0: float
     x1: float
     y1: float
+
+    @model_validator(mode="after")
+    def validate_geometry(self) -> BoundingBox:
+        values = (self.x0, self.y0, self.x1, self.y1)
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("BoundingBox coordinates must be finite.")
+        if self.x0 > self.x1 or self.y0 > self.y1:
+            raise ValueError("BoundingBox coordinates must be ordered.")
+        return self
 
 
 class SourceInfo(BaseModel):
@@ -162,9 +172,15 @@ class PageQuality(BaseModel):
     char_count: int = Field(default=0, ge=0)
     word_count: int = Field(default=0, ge=0)
     text_density: float | None = None
-    ocr_confidence: float | None = None
+    ocr_confidence: float | None = Field(default=None, ge=0, le=1)
     garbled_text_score: float | None = None
     warnings: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_ocr_confidence(self) -> PageQuality:
+        if self.ocr_confidence is not None and not math.isfinite(self.ocr_confidence):
+            raise ValueError("OCR confidence must be finite.")
+        return self
 
 
 class TableCell(BaseModel):
@@ -178,6 +194,12 @@ class TableCell(BaseModel):
     colspan: int = Field(default=1, ge=1)
     bbox: BoundingBox | None = None
     confidence: float | None = Field(default=None, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def validate_confidence(self) -> TableCell:
+        if self.confidence is not None and not math.isfinite(self.confidence):
+            raise ValueError("Cell confidence must be finite.")
+        return self
 
 
 class ParsedTable(BaseModel):

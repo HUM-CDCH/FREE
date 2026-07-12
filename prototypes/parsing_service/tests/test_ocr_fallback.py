@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -97,6 +98,27 @@ class TestExtractLines(unittest.TestCase):
         self.assertEqual(_extract_lines_from_result({}, self.SCALE, warnings), [])
         self.assertEqual(_extract_lines_from_result(object(), self.SCALE, warnings), [])
         self.assertEqual(warnings, ["ocr_line_geometry_unavailable"])
+
+    def test_invalid_geometry_and_confidence_are_rejected_with_warning(self):
+        cases = [
+            ([0, 0, 1], 0.5),
+            ([10, 20, 1, 2], 0.5),
+            ([0, 0, math.nan, 2], 0.5),
+            ([0, 0, 1, 2], math.nan),
+        ]
+        for box, score in cases:
+            warnings: list[str] = []
+            result = {
+                "overall_ocr_res": {
+                    "rec_texts": ["bad"],
+                    "rec_scores": [score],
+                    "rec_boxes": [box],
+                }
+            }
+            self.assertEqual(
+                _extract_lines_from_result(result, self.SCALE, warnings), []
+            )
+            self.assertEqual(warnings, ["ocr_line_geometry_unavailable"])
 
     def test_score_clamped_to_unit_interval(self):
         result = {

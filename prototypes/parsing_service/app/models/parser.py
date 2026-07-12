@@ -5,7 +5,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 CANONICAL_PIPELINE = "docling_doctags_canonical"
-CANONICAL_POLICY_REVISION = 3
+CANONICAL_POLICY_REVISION = 4
 CANONICAL_OCR_DPI = 150
 CANONICAL_OCR_DEVICE_POLICY = "auto"
 CANONICAL_OCR_MODEL = "PP-OCRv6_medium_det"
@@ -35,6 +35,6 @@ def canonical_preprocessing_config(
         "resolved_ocr_device": resolved_ocr_device,
         "paddleocr_model": CANONICAL_OCR_MODEL,
         "paddleocr_version": _package_version("paddleocr"),
-        "table_parser": "camelot_stream",
+        "table_parser": "docling_inventory_camelot_fallback",
         "camelot_version": _package_version("camelot-py"),
     }
