@@ -1,5 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { extractWithModel, generateSchemaWithModel } from './_model'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { extractWithModel, generateSchemaWithModel } from './_model.js'
+
+const { generateTextMock } = vi.hoisted(() => ({ generateTextMock: vi.fn() }))
+
+vi.mock('ai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('ai')>()
+  return { ...actual, generateText: generateTextMock }
+})
 
 const document = {
   file: null,
@@ -19,9 +26,21 @@ function stubOllamaResponse(response: string): void {
   )
 }
 
-describe('extractWithModel', () => {
-  afterEach(() => vi.unstubAllGlobals())
+function stubCodexResponse(response: string): void {
+  vi.stubEnv('AI_PROVIDER', 'codex-cli')
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Ollama must not be called')))
+  generateTextMock.mockResolvedValue({ text: response })
+}
 
+beforeEach(() => vi.stubEnv('AI_PROVIDER', 'ollama'))
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
+  generateTextMock.mockReset()
+})
+
+describe('extractWithModel', () => {
   it('returns clean extraction results with mirrored evidence', async () => {
     stubOllamaResponse('{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}')
 
@@ -66,11 +85,23 @@ describe('extractWithModel', () => {
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
   })
+
+  it('routes codex-cli extraction through the AI SDK instead of Ollama', async () => {
+    stubCodexResponse('{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}')
+
+    const result = await extractWithModel({
+      document,
+      template: { grave: [{ name: 'verbatim-string' }] },
+    })
+
+    expect(fetch).not.toHaveBeenCalled()
+    expect(generateTextMock).toHaveBeenCalledOnce()
+    expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
+    expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
+  })
 })
 
 describe('generateSchemaWithModel', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
   it('repairs malformed Ollama JSON before returning the extraction schema', async () => {
     stubOllamaResponse('{"grave":[{"name":"verbatim-string"}}]')
 
@@ -94,7 +125,21 @@ describe('generateSchemaWithModel', () => {
 
     await generateSchemaWithModel({ document, annotations: [], annotationsMode: 'hints' })
 
-    const prompt = JSON.parse(fetchMock.mock.calls[0][1].body as string).prompt as string
-    expect(prompt.indexOf('compact JSON extraction schema')).toBeLessThan(prompt.indexOf('Grave 1'))
+    const body = fetchMock.mock.calls[0][1].body as string
+    expect(body.indexOf('compact JSON extraction schema')).toBeLessThan(body.indexOf('Grave 1'))
+  })
+
+  it('routes codex-cli schema suggestions through the AI SDK', async () => {
+    stubCodexResponse('{"grave":[{"name":"verbatim-string"}]}')
+
+    const result = await generateSchemaWithModel({
+      document,
+      annotations: [],
+      annotationsMode: 'hints',
+    })
+
+    expect(fetch).not.toHaveBeenCalled()
+    expect(generateTextMock).toHaveBeenCalledOnce()
+    expect(result.template).toEqual({ grave: [{ name: 'verbatim-string' }] })
   })
 })
