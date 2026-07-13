@@ -17,12 +17,18 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
+# OCR profile: ocr-gpu (default, matches compose GPU reservation) or ocr-cpu.
+ARG OCR_EXTRA=ocr-gpu
+
 # Deps first so they cache unless the lock changes
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --no-install-project --extra "${OCR_EXTRA}"
 
 COPY . .
+# Install the project itself so importlib.metadata reports service version provenance
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --extra "${OCR_EXTRA}"
 
 EXPOSE 8000
 # Model caches (docling/HF + paddlex) land under HOME=/models — mount it as a volume to persist.
