@@ -5,6 +5,8 @@ import os
 import tempfile
 import unittest
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -22,6 +24,34 @@ from app.storage.manifests import (
 from app.workers import parse_worker
 
 NOW = "2026-07-10T00:00:00+00:00"
+
+
+@contextmanager
+def _reconciliation_storage() -> Iterator[tuple[Path, Path]]:
+    with tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT) as tmp_dir:
+        root = Path(tmp_dir)
+        tasks_dir = root / "tasks"
+        with (
+            patch.object(paths, "DEFAULT_DATA_DIR", tasks_dir),
+            patch.object(paths, "DEFAULT_DOCUMENT_STORE_DIR", root / "documents"),
+            patch.object(parse_worker, "DEFAULT_DATA_DIR", tasks_dir),
+        ):
+            yield root, tasks_dir
+
+
+def _running_task(task_id: str) -> Path:
+    task_dir = paths.task_dir_for(task_id)
+    task_dir.mkdir(parents=True)
+    save_task_metadata(
+        task_dir,
+        {
+            "task_id": task_id,
+            "content_sha256": "a" * 64,
+            "status": "running",
+            "params": {"source_name": "source.pdf"},
+        },
+    )
+    return task_dir
 
 
 def _parsed_document(
@@ -357,6 +387,128 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
                 paths.DEFAULT_DATA_DIR = original_tasks
                 paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
                 parse_worker.DEFAULT_DATA_DIR = original_worker_tasks
+
+    def test_startup_reconciliation_isolates_task_local_failures(self):
+        failure_cases = (
+            ("invalid JSON", b"{invalid", None, ValueError),
+            ("invalid status", b'{"status":"bogus"}', None, ValueError),
+            ("over quota", None, "validate_task_capacity", ValueError),
+            ("unwritable", None, "save_task_metadata", PermissionError),
+        )
+        for label, malformed_metadata, dependency, error_type in failure_cases:
+            with self.subTest(failure=label), _reconciliation_storage() as (root, _):
+                blocked_id = "00000000-0000-0000-0000-000000000001"
+                healthy_id = "00000000-0000-0000-0000-000000000002"
+                blocked_dir = _running_task(blocked_id)
+                healthy_dir = _running_task(healthy_id)
+
+                if malformed_metadata is not None:
+                    (blocked_dir / "metadata.json").write_bytes(malformed_metadata)
+                    failure = nullcontext()
+                else:
+                    assert dependency is not None
+                    original = getattr(parse_worker, dependency)
+
+                    def fail_blocked(task_dir, *args, **kwargs):
+                        if task_dir == blocked_dir:
+                            raise error_type(f"{label}: {blocked_dir}")
+                        return original(task_dir, *args, **kwargs)
+
+                    failure = patch(
+                        f"app.workers.parse_worker.{dependency}",
+                        side_effect=fail_blocked,
+                    )
+                blocked_metadata = (blocked_dir / "metadata.json").read_bytes()
+
+                with (
+                    failure,
+                    self.assertLogs(parse_worker.logger, level="WARNING") as logs,
+                ):
+                    self.assertEqual(parse_worker.reconcile_interrupted_tasks(), 1)
+
+                self.assertEqual(
+                    (blocked_dir / "metadata.json").read_bytes(),
+                    blocked_metadata,
+                )
+                self.assertEqual(load_task_metadata(healthy_dir)["status"], "failed")
+                warning = "\n".join(logs.output)
+                self.assertIn(blocked_id, warning)
+                self.assertNotIn(str(root), warning)
+
+    def test_startup_reconciliation_does_not_rewrite_terminal_metadata(self):
+        with _reconciliation_storage():
+            snapshots = []
+            for index, status in enumerate(("completed", "failed"), start=1):
+                task_id = f"00000000-0000-0000-0000-{index:012d}"
+                task_dir = paths.task_dir_for(task_id)
+                task_dir.mkdir(parents=True)
+                metadata = parse_worker._normalize_legacy_metadata(
+                    task_id,
+                    {
+                        "content_sha256": "a" * 64,
+                        "status": status,
+                        "created_at": NOW,
+                        "updated_at": NOW,
+                        "params": {"source_name": "source.pdf"},
+                    },
+                )
+                save_task_metadata(task_dir, metadata)
+                metadata_path = task_dir / "metadata.json"
+                timestamp_ns = 1_700_000_000_000_000_000 + index
+                os.utime(metadata_path, ns=(timestamp_ns, timestamp_ns))
+                snapshots.append(
+                    (
+                        metadata_path,
+                        metadata_path.read_bytes(),
+                        metadata_path.stat().st_mtime_ns,
+                    )
+                )
+
+            self.assertEqual(parse_worker.reconcile_interrupted_tasks(), 0)
+
+            for metadata_path, metadata_bytes, modified_ns in snapshots:
+                self.assertEqual(metadata_path.read_bytes(), metadata_bytes)
+                self.assertEqual(metadata_path.stat().st_mtime_ns, modified_ns)
+
+    def test_startup_reconciliation_keeps_shared_store_failure_fatal(self):
+        with _reconciliation_storage():
+            _running_task("00000000-0000-0000-0000-000000000001")
+            task_store_lock_path = parse_worker.task_store_lock_path
+            calls = 0
+
+            def fail_after_probe():
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    return task_store_lock_path()
+                raise PermissionError("shared store unavailable")
+
+            with (
+                patch(
+                    "app.workers.parse_worker.task_store_lock_path",
+                    side_effect=fail_after_probe,
+                ),
+                self.assertRaisesRegex(PermissionError, "shared store unavailable"),
+            ):
+                parse_worker.reconcile_interrupted_tasks()
+
+        with _reconciliation_storage():
+            _running_task("00000000-0000-0000-0000-000000000001")
+
+            def fail_canonical_read(*_args, **_kwargs):
+                try:
+                    raise PermissionError("shared store unavailable")
+                except PermissionError as exc:
+                    raise ValueError("canonical read failed") from exc
+
+            with (
+                patch(
+                    "app.workers.parse_worker.read_canonical_parsed_document",
+                    side_effect=fail_canonical_read,
+                ),
+                self.assertRaises(OSError),
+            ):
+                parse_worker.reconcile_interrupted_tasks()
 
     def test_cleanup_removes_crash_abandoned_generations(self):
         with tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT) as tmp_dir:

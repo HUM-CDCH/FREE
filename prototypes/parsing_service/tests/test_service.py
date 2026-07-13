@@ -435,6 +435,46 @@ class TestService(unittest.TestCase):
         self.assertIn("gpu_available", data)
         self.assertEqual(data["status"], "online")
 
+    def test_lifespan_starts_after_task_local_recovery_failure(self):
+        task_id = str(uuid.uuid4())
+        task_dir = paths.task_dir_for(task_id)
+        task_dir.mkdir(parents=True)
+        metadata = {
+            "task_id": task_id,
+            "content_sha256": "a" * 64,
+            "status": "running",
+            "params": {"source_name": "source.pdf"},
+        }
+        parse_worker.save_task_metadata(task_dir, metadata)
+        stored_metadata = (task_dir / "metadata.json").read_bytes()
+
+        with (
+            patch("app.main.check_gpu_available", return_value=False),
+            patch(
+                "app.workers.parse_worker.save_task_metadata",
+                side_effect=PermissionError(f"cannot write {task_dir}"),
+            ),
+            self.assertLogs(parse_worker.logger, level="WARNING"),
+            self.client as client,
+        ):
+            response = client.get("/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "online")
+        self.assertEqual((task_dir / "metadata.json").read_bytes(), stored_metadata)
+
+    def test_lifespan_fails_when_shared_store_is_unavailable(self):
+        with (
+            patch("app.main.check_gpu_available", return_value=False),
+            patch(
+                "app.workers.parse_worker.task_store_lock_path",
+                side_effect=PermissionError("shared store unavailable"),
+            ),
+            self.assertRaisesRegex(PermissionError, "shared store unavailable"),
+            self.client,
+        ):
+            pass
+
     def test_root_ui_describes_canonical_docling_doctags(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)

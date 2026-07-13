@@ -8,8 +8,8 @@
 - [x] 1.2 Replace the ascending-BOTTOMLEFT fixture with producer-faithful data and run focused table/Docling tests
 - [x] 1.3 Add pre-parser admission tests for exact 51 MiB request boundary, excessive `Content-Length`, absent length, chunked overflow, no handler/task creation on rejection, and an exact 50 MiB Source Document
 - [x] 1.4 Add a route-aware pure-ASGI request limiter while retaining the exact post-parse 50 MiB source check
-- [ ] 1.5 Add reconciliation regressions proving one task-local quota/filesystem failure does not block later tasks or lifespan, shared-store failure remains fatal, and unchanged terminal metadata/mtime is not rewritten
-- [ ] 1.6 Refactor reconciliation into explicit task-local and shared-store error boundaries without introducing expiry/API changes yet
+- [x] 1.5 Add reconciliation regressions proving one task-local quota/filesystem failure does not block later tasks or lifespan, shared-store failure remains fatal, and unchanged terminal metadata/mtime is not rewritten
+- [x] 1.6 Refactor reconciliation into explicit task-local and shared-store error boundaries without introducing expiry/API changes yet
 - [ ] 1.7 Add a page-header-between-OTSL-fragments regression and ignore both page headers and footers only in the cross-page merge predicate
 - [ ] 1.8 Run focused regressions, `uv run --no-sync python -m unittest discover -s tests`, `RUN_GOLDEN_E2E=1`, `RUN_DOCLING_INTEGRATION=1`, and Python diagnostics; record results on PR #21
 
