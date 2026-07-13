@@ -1,7 +1,11 @@
 import {
+  NoObjectGeneratedError,
+  Output,
   convertToModelMessages,
+  createUIMessageStreamResponse,
   generateText,
   streamText,
+  toUIMessageStream,
 } from 'ai'
 import type { UIMessage } from 'ai'
 import { z } from 'zod'
@@ -48,11 +52,15 @@ export type SchemaModelInput = {
 type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
 type NuExtractMode = 'structured' | 'template-generation' | 'content'
 
-async function documentContentParts(
-  document: DocumentInput,
-): Promise<{ readonly parts: readonly DocumentContentPart[]; readonly pages: number | null }> {
+async function documentContentParts(document: DocumentInput): Promise<{
+  readonly parts: readonly DocumentContentPart[]
+  readonly pages: number | null
+}> {
   if (document.markdown) {
-    return { parts: [{ type: 'text', text: document.markdown }], pages: document.pages }
+    return {
+      parts: [{ type: 'text', text: document.markdown }],
+      pages: document.pages,
+    }
   }
   if (!document.file) {
     throw new RequestError(400, "No document content: provide a 'file' or 'document_markdown'")
@@ -69,8 +77,11 @@ export async function streamChatWithModel(messages: readonly UIMessage[]): Promi
     messages: await convertToModelMessages([...messages]),
   })
 
-  return result.toUIMessageStreamResponse({
-    onError: () => 'Chat failed.',
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({
+      stream: result.stream,
+      onError: () => 'Chat failed.',
+    }),
   })
 }
 
@@ -128,7 +139,11 @@ export async function generateSchemaWithModel({
   annotations,
   annotationsMode,
   temperature,
-}: SchemaModelInput): Promise<{ readonly template: Record<string, unknown>; readonly raw: string; readonly pages: number | null }> {
+}: SchemaModelInput): Promise<{
+  readonly template: Record<string, unknown>
+  readonly raw: string
+  readonly pages: number | null
+}> {
   const documentParts = await documentContentParts(document)
   const guidance = schemaPrompt(annotations, annotationsMode)
   let generated: { readonly response: string }
@@ -151,7 +166,11 @@ export async function generateSchemaWithModel({
   }
   const template = await parseTemplate(generated.response)
 
-  return { template, raw: generated.response, pages: documentParts.pages ?? document.pages }
+  return {
+    template,
+    raw: generated.response,
+    pages: documentParts.pages ?? document.pages,
+  }
 }
 
 async function generateWithGenericJsonPrompt({
@@ -165,27 +184,35 @@ async function generateWithGenericJsonPrompt({
   readonly documentParts: readonly DocumentContentPart[]
   readonly temperature?: number
 }): Promise<{ readonly response: string }> {
-  const model = resolveModel()
-  const generated = await generateText({
-    model,
-    instructions,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: `${request}\n\nSOURCE DOCUMENT:\n` },
-          ...documentParts,
-          {
-            type: 'text',
-            text: '\nEND SOURCE DOCUMENT\n\nReturn the JSON object now.',
-          },
-        ],
-      },
-    ],
-    // Codex CLI does not support temperature and warns even when the caller supplies one.
-    ...(model.provider === 'codex-app-server' ? {} : { temperature: temperature ?? 0 }),
-  })
-  return { response: generated.text }
+  try {
+    const model = resolveModel()
+    const generated = await generateText({
+      model,
+      output: Output.json(),
+      instructions,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: `${request}\n\nSOURCE DOCUMENT:\n` },
+            ...documentParts,
+            {
+              type: 'text',
+              text: '\nEND SOURCE DOCUMENT\n\nReturn the JSON object now.',
+            },
+          ],
+        },
+      ],
+      // Codex CLI does not support temperature and warns even when the caller supplies one.
+      ...(model.provider === 'codex-app-server' ? {} : { temperature: temperature ?? 0 }),
+    })
+    return { response: generated.text }
+  } catch (error) {
+    if (NoObjectGeneratedError.isInstance(error) && error.text) {
+      return { response: error.text }
+    }
+    throw error
+  }
 }
 
 async function generateWithNuExtractRawPrompt({
@@ -201,7 +228,12 @@ async function generateWithNuExtractRawPrompt({
   readonly documentParts: readonly DocumentContentPart[]
   readonly temperature?: number
 }): Promise<{ readonly response: string }> {
-  const rendered = renderNuExtractPrompt({ mode, template, instructions, documentParts })
+  const rendered = renderNuExtractPrompt({
+    mode,
+    template,
+    instructions,
+    documentParts,
+  })
   const response = await fetch(ollamaGenerateUrl(), {
     method: 'POST',
     headers: ollamaHeaders(),
@@ -220,7 +252,9 @@ async function generateWithNuExtractRawPrompt({
     throw new RequestError(response.status, 'Ollama generation failed.', bodyText || null)
   }
 
-  const parsed = ollamaGenerateResponseSchema.safeParse(await parseUnknownJson(bodyText, 'Ollama returned invalid JSON.'))
+  const parsed = ollamaGenerateResponseSchema.safeParse(
+    await parseUnknownJson(bodyText, 'Ollama returned invalid JSON.'),
+  )
   if (!parsed.success) {
     throw new RequestError(502, 'Ollama returned an unexpected generation response.', bodyText)
   }
@@ -278,7 +312,9 @@ function ollamaGenerateUrl(): string {
 }
 
 function ollamaHeaders(): Record<string, string> {
-  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+  }
   if (process.env.AI_API_KEY) {
     headers.authorization = `Bearer ${process.env.AI_API_KEY}`
   }

@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createOllama, ollama } from "ai-sdk-ollama";
@@ -11,22 +11,37 @@ const PROVIDER_MESSAGE = "AI_PROVIDER must be 'ollama' or 'codex-cli'";
 
 declare const process: {
 	env: Record<string, string | undefined>;
+	pid: number;
 };
 
 type Provider = "ollama" | "codex-cli";
 
 // Reuse one app-server process across requests; the provider reaps it after the idle timeout.
 let codexAppServer: ReturnType<typeof createCodexAppServer> | null = null;
+let codexWorkingDirectory: string | null = null;
 
 function isolatedCodexWorkingDirectory(): string {
+	if (codexWorkingDirectory !== null) {
+		return codexWorkingDirectory;
+	}
+
+	const directory = join(tmpdir(), `free-codex-sandbox-${process.pid}`);
 	try {
-		return mkdtempSync(join(tmpdir(), "free-codex-sandbox-"));
+		mkdirSync(directory, { recursive: true, mode: 0o700 });
+		const stats = lstatSync(directory);
+		if (!stats.isDirectory() || stats.isSymbolicLink()) {
+			throw new Error("Codex sandbox path is not a real directory");
+		}
+		chmodSync(directory, 0o700);
 	} catch {
 		throw new RequestError(
 			500,
 			"Could not create the isolated Codex working directory",
 		);
 	}
+
+	codexWorkingDirectory = directory;
+	return directory;
 }
 
 function codexProvider(): ReturnType<typeof createCodexAppServer> {
