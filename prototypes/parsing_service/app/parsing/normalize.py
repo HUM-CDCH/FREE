@@ -36,14 +36,21 @@ def selected_page_texts(task_dir: Path, selected: ParserRun) -> tuple[list[str],
     if not markdown_path.is_relative_to(task_root):
         raise ValueError("Selected parser artifact path escaped task directory.")
 
+    def _page_suffix(path: Path) -> int:
+        try:
+            return int(path.stem.rsplit("_", 1)[-1])
+        except (TypeError, ValueError):
+            return 0
+
     if selected.parser == "docling_images":
-        page_files = sorted(markdown_path.parent.glob("page_*.md"))
+        page_files = sorted(markdown_path.parent.glob("page_*.md"), key=_page_suffix)
         if page_files:
             return [read_text(page_file) for page_file in page_files], True
 
     if selected.parser == "paddleocr":
         page_dirs = sorted(
-            path for path in markdown_path.parent.glob("page_*") if path.is_dir()
+            (path for path in markdown_path.parent.glob("page_*") if path.is_dir()),
+            key=_page_suffix,
         )
         page_texts = []
         for page_dir in page_dirs:
