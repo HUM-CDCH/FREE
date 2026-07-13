@@ -516,10 +516,19 @@ class TestService(unittest.TestCase):
                 headers={
                     "content-length": str(TASK_REQUEST_LIMIT_BYTES + 1),
                     "content-type": "multipart/form-data; boundary=request-limit",
+                    "origin": "http://localhost:5173",
                 },
             )
 
         self.assertEqual(response.status_code, 413)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"],
+            "http://localhost:5173",
+        )
+        self.assertEqual(
+            response.json(),
+            {"detail": "Request body exceeds the 51 MiB limit."},
+        )
         route_handler.assert_not_awaited()
         task_dir.assert_not_called()
         add_task.assert_not_called()
