@@ -10,7 +10,7 @@
 - [x] 1.4 Add a route-aware pure-ASGI request limiter while retaining the exact post-parse 50 MiB source check
 - [x] 1.5 Add reconciliation regressions proving one task-local quota/filesystem failure does not block later tasks or lifespan, shared-store failure remains fatal, and unchanged terminal metadata/mtime is not rewritten
 - [x] 1.6 Refactor reconciliation into explicit task-local and shared-store error boundaries without introducing expiry/API changes yet
-- [ ] 1.7 Add a page-header-between-OTSL-fragments regression and ignore both page headers and footers only in the cross-page merge predicate
+- [x] 1.7 Add a page-header-between-OTSL-fragments regression and ignore both page headers and footers only in the cross-page merge predicate
 - [ ] 1.8 Run focused regressions, `uv run --no-sync python -m unittest discover -s tests`, `RUN_GOLDEN_E2E=1`, `RUN_DOCLING_INTEGRATION=1`, and Python diagnostics; record results on PR #21
 
 ## 2. Parsing-fidelity batch

@@ -136,6 +136,7 @@ def _between_otsl_mergeable(doc: str, previous_end: int, next_start: int) -> boo
     if _PAGE_SENTINEL not in between:
         return False
     stripped = _PAGE_FOOTER.sub("", between)
+    stripped = _PAGE_HEADER.sub("", stripped)
     stripped = _DOCTAG_WRAPPER.sub("", stripped)
     stripped = stripped.replace(_PAGE_SENTINEL, "")
     stripped = strip_doctag_locations(stripped)

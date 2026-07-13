@@ -88,6 +88,30 @@ class TestDocTagsToMarkdown(unittest.TestCase):
         self.assertIn("| Name | Age |", result.page_spans[1].text)
         self.assertIn("| Bob | 41 |", result.page_spans[1].text)
 
+    def test_page_header_between_split_table_fragments_is_furniture(self):
+        result = convert_doctags_to_markdown(
+            "<otsl><ched>Name<ched>Age<nl><fcel>Ada<fcel>37</otsl>"
+            "<page_break><page_header>Research ledger</page_header>"
+            "<otsl><fcel>Bob<fcel>41<nl><fcel>Cy<fcel>29</otsl>"
+        )
+
+        self.assertEqual(
+            result.page_spans[1].text,
+            "| Name | Age |\n| --- | --- |\n| Bob | 41 |\n| Cy | 29 |",
+        )
+
+    def test_narrative_between_split_table_fragments_prevents_merge(self):
+        result = convert_doctags_to_markdown(
+            "<otsl><ched>Name<ched>Age<nl><fcel>Ada<fcel>37</otsl>"
+            "<page_break><text>Narrative context</text>"
+            "<otsl><fcel>Bob<fcel>41<nl><fcel>Cy<fcel>29</otsl>"
+        )
+
+        self.assertEqual(
+            result.page_spans[1].text,
+            "Narrative context\n\n| Bob | 41 |\n| --- | --- |\n| Cy | 29 |",
+        )
+
     def test_adjacent_same_page_tables_are_not_merged_or_truncated(self):
         out = doctags_to_markdown(
             "<otsl><ched>A<nl><fcel>1</otsl><otsl><fcel>Second<fcel>2</otsl>"
