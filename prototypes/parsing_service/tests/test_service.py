@@ -173,9 +173,7 @@ class TestTaskRequestLimitMiddleware(unittest.IsolatedAsyncioTestCase):
         sent, _pending = await run_asgi_request(
             middleware,
             headers=[(b"content-length", b"not-a-number")],
-            messages=[
-                {"type": "http.request", "body": b"12345", "more_body": False}
-            ],
+            messages=[{"type": "http.request", "body": b"12345", "more_body": False}],
         )
 
         self.assertEqual(downstream.handler_calls, 0)
