@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { requestMarkdown } from './api'
 import ResultValue from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { resultStats } from './resultStats'
@@ -48,28 +47,6 @@ function ResultsTab({ controller, schemaReady, documentMarkdown }: ResultsTabPro
     link.click()
     URL.revokeObjectURL(url)
   }
-
-  async function generateMarkdown() {
-    if (!pdfSource || markdown.status === 'running') {
-      return
-    }
-    setMarkdown({ status: 'running' })
-    try {
-      const blob = await (await fetch(pdfSource.url)).blob()
-      const done = await requestMarkdown(blob, pdfSource.filename, undefined, documentMarkdown)
-      setMarkdown({ status: 'ready', markdown: done.markdown })
-    } catch (error) {
-      setMarkdown({
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Markdown generation failed.',
-      })
-    }
-  }
-
-  const tabClasses = (active: boolean) =>
-    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${
-      active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'
-    }`
 
   return (
     <div className="flex h-full min-h-0 flex-col">
