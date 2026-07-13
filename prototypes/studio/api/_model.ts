@@ -1,23 +1,20 @@
-import { createOllama, ollama } from 'ai-sdk-ollama'
 import {
   convertToModelMessages,
+  generateText,
   streamText,
 } from 'ai'
-import type { LanguageModel, UIMessage } from 'ai'
+import type { UIMessage } from 'ai'
 import { z } from 'zod'
-import type { Annotation, AnnotationMode, DocumentInput } from './_document'
-import { documentFileParts, type DocumentFilePart } from './_pdf'
-import { schemaPrompt } from './_schema'
-import { RequestError } from './_http'
-import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template'
-import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output'
+import type { Annotation, AnnotationMode, DocumentInput } from './_document.js'
+import { documentFileParts, type DocumentFilePart } from './_pdf.js'
+import { schemaPrompt } from './_schema.js'
+import { RequestError } from './_http.js'
+import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template.js'
+import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output.js'
+import { extractionRenderer, resolveModel } from './_provider.js'
 
-export {
-  parseAnnotationMode,
-  parseAnnotations,
-  parseDocument,
-} from './_document'
-export { json, modelError, parseTemperature, RequestError } from './_http'
+export { parseAnnotationMode, parseAnnotations, parseDocument } from './_document.js'
+export { json, modelError, parseTemperature, RequestError } from './_http.js'
 
 const DEFAULT_MODEL = 'llama3.2'
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
@@ -64,28 +61,9 @@ async function documentContentParts(
   return { parts: fileParts.parts, pages: fileParts.pages }
 }
 
-function model(): LanguageModel {
-  const modelId = process.env.AI_MODEL || DEFAULT_MODEL
-  const baseURL = process.env.AI_BASE_URL
-  const apiKey = process.env.AI_API_KEY
-
-  if (baseURL) {
-    return createOllama({
-      baseURL,
-      apiKey,
-    })(modelId)
-  }
-
-  if (apiKey) {
-    return createOllama({ apiKey })(modelId)
-  }
-
-  return ollama(modelId)
-}
-
 export async function streamChatWithModel(messages: readonly UIMessage[]): Promise<Response> {
   const result = streamText({
-    model: model(),
+    model: resolveModel(),
     instructions:
       'You help humanities researchers inspect source documents in FREE. If no source document content is attached, say that no document context is available before answering normally.',
     messages: await convertToModelMessages([...messages]),
@@ -96,12 +74,7 @@ export async function streamChatWithModel(messages: readonly UIMessage[]): Promi
   })
 }
 
-export async function extractWithModel({
-  document,
-  template,
-  instruction,
-  temperature,
-}: ExtractModelInput): Promise<{
+export async function extractWithModel({ document, template, instruction, temperature }: ExtractModelInput): Promise<{
   readonly result: Record<string, unknown>
   readonly evidence: Record<string, unknown> | null
   readonly raw: string
@@ -110,13 +83,34 @@ export async function extractWithModel({
 }> {
   const documentParts = await documentContentParts(document)
   const evidenceTemplate = wrapTemplateWithEvidence(template ?? {})
-  const generated = await generateWithNuExtractRawPrompt({
-    mode: 'structured',
-    template: JSON.stringify(evidenceTemplate, null, 2),
-    instructions: instruction?.trim() || null,
-    documentParts: documentParts.parts,
-    temperature,
-  })
+  const instructions = instruction?.trim() || null
+  let generated: { readonly response: string }
+  if (extractionRenderer() === 'generic') {
+    const request = [
+      'Extract information from the Source Document using this Extraction Schema:',
+      JSON.stringify(evidenceTemplate, null, 2),
+      instructions ? `Additional extraction instruction:\n${instructions}` : null,
+    ]
+      .filter((value) => value !== null)
+      .join('\n\n')
+    generated = await generateWithGenericJsonPrompt({
+      instructions:
+        'Produce a source-grounded FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
+        'Each schema leaf is an evidence object with value, an exact source snippet, and a page number when available. ' +
+        'Return only one JSON object with no Markdown or commentary.',
+      request,
+      documentParts: documentParts.parts,
+      temperature,
+    })
+  } else {
+    generated = await generateWithNuExtractRawPrompt({
+      mode: 'structured',
+      template: JSON.stringify(evidenceTemplate, null, 2),
+      instructions,
+      documentParts: documentParts.parts,
+      temperature,
+    })
+  }
   const parsed = await parseExtractionResult(generated.response, evidenceTemplate)
   const split = splitEvidenceResult(parsed)
 
@@ -136,15 +130,62 @@ export async function generateSchemaWithModel({
   temperature,
 }: SchemaModelInput): Promise<{ readonly template: Record<string, unknown>; readonly raw: string; readonly pages: number | null }> {
   const documentParts = await documentContentParts(document)
-  const generated = await generateWithNuExtractRawPrompt({
-    mode: 'template-generation',
-    instructions: null,
-    documentParts: [{ type: 'text', text: schemaPrompt(annotations, annotationsMode) }, ...documentParts.parts],
-    temperature,
-  })
+  const guidance = schemaPrompt(annotations, annotationsMode)
+  let generated: { readonly response: string }
+  if (extractionRenderer() === 'generic') {
+    generated = await generateWithGenericJsonPrompt({
+      instructions:
+        'Propose a compact FREE Extraction Schema grounded in the supplied Source Document. ' +
+        'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
+      request: guidance,
+      documentParts: documentParts.parts,
+      temperature,
+    })
+  } else {
+    generated = await generateWithNuExtractRawPrompt({
+      mode: 'template-generation',
+      instructions: null,
+      documentParts: [{ type: 'text', text: guidance }, ...documentParts.parts],
+      temperature,
+    })
+  }
   const template = await parseTemplate(generated.response)
 
   return { template, raw: generated.response, pages: documentParts.pages ?? document.pages }
+}
+
+async function generateWithGenericJsonPrompt({
+  instructions,
+  request,
+  documentParts,
+  temperature,
+}: {
+  readonly instructions: string
+  readonly request: string
+  readonly documentParts: readonly DocumentContentPart[]
+  readonly temperature?: number
+}): Promise<{ readonly response: string }> {
+  const model = resolveModel()
+  const generated = await generateText({
+    model,
+    instructions,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: `${request}\n\nSOURCE DOCUMENT:\n` },
+          ...documentParts,
+          {
+            type: 'text',
+            text: '\nEND SOURCE DOCUMENT\n\nReturn the JSON object now.',
+          },
+        ],
+      },
+    ],
+    // Codex CLI does not support temperature and warns even when the caller supplies one.
+    ...(model.provider === 'codex-app-server' ? {} : { temperature: temperature ?? 0 }),
+  })
+  return { response: generated.text }
 }
 
 async function generateWithNuExtractRawPrompt({

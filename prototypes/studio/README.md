@@ -32,3 +32,14 @@ AI_API_KEY=...
 ```
 
 If `AI_BASE_URL` is omitted, FREE uses the local/default Ollama provider with `AI_MODEL`.
+
+To use the authenticated local Codex CLI instead, install Codex CLI 0.144 or
+newer, run `codex login`, and configure:
+
+```bash
+AI_PROVIDER=codex-cli
+AI_MODEL=gpt-5.6-terra
+```
+
+Codex CLI requests use the AI SDK's generic JSON renderer. Ollama remains the
+default and keeps the raw NuExtract prompt renderer.
