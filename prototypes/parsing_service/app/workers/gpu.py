@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 import sys
+
+logger = logging.getLogger(__name__)
 
 _gpu_available = False
 
@@ -22,8 +25,8 @@ def check_gpu_available() -> bool:
         ]
         result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=120)
         return result.stdout.strip() == "True"
-    except Exception as e:
-        print(f"Error checking GPU availability: {e}")
+    except Exception:
+        logger.exception("Error checking GPU availability")
         return False
 
 
