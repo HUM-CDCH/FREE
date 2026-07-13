@@ -14,6 +14,10 @@ export type ResultValueProps = {
   onValueClick?: (value: string) => void
   depth?: number
   defaultExpanded?: boolean
+  /** When provided, clicking an ObjectSection/ArraySection header navigates to
+   *  that node instead of toggling expand/collapse. The callback receives the
+   *  node's full path so ResultsTab can update navPath. */
+  onNavigateTo?: (path: string[]) => void
 }
 
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
@@ -144,8 +148,8 @@ function PrimitiveRow({
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, onValueClick, depth, defaultExpanded = true,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; defaultExpanded?: boolean }) {
+  name, value, path, onChange, onValueClick, depth, defaultExpanded = true, onNavigateTo,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -154,7 +158,7 @@ function ObjectSection({
     <div>
       <div
         className="-mx-2 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
-        onClick={() => setExpanded(v => !v)}
+        onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>
         <span className="shrink-0 truncate font-mono text-[13.5px] font-medium text-ink">{name}</span>
@@ -181,6 +185,8 @@ function ObjectSection({
                 path={[...path, key]}
                 onChange={onChange}
                 onValueClick={onValueClick}
+                onNavigateTo={onNavigateTo}
+                defaultExpanded={onNavigateTo ? false : undefined}
                 depth={depth + 1}
               />
             ))
@@ -194,15 +200,15 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, onValueClick, depth,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number }) {
+  name, value, path, onChange, onValueClick, depth, onNavigateTo,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; onNavigateTo?: (path: string[]) => void }) {
   const [expanded, setExpanded] = useState(true)
 
   return (
     <div>
       <div
         className="-mx-2 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
-        onClick={() => setExpanded(v => !v)}
+        onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>
         <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{name}</span>
@@ -223,6 +229,7 @@ function ArraySection({
                 path={[...path, String(i)]}
                 onChange={onChange}
                 onValueClick={onValueClick}
+                onNavigateTo={onNavigateTo}
                 depth={depth + 1}
                 defaultExpanded={false}
               />
@@ -236,12 +243,12 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, onValueClick, depth = 0, defaultExpanded }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, onValueClick, depth = 0, defaultExpanded, onNavigateTo }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} onNavigateTo={onNavigateTo} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} defaultExpanded={defaultExpanded} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} />
   }
   return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} />
 }

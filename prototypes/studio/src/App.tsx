@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
+import cachedMarkdown from './assets/document.md?raw'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import type { AnnotationSetItem } from './AnnotationSidebar'
@@ -286,6 +287,11 @@ function App() {
     const abortController = new AbortController()
 
     void (async () => {
+      if (pdfSource.filename === ACTIVE_DOC) {
+        setDocIndex({ status: 'ready', markdown: cachedMarkdown })
+        return
+      }
+
       setDocIndex({ status: 'parsing' })
       try {
         const devTaskId = import.meta.env.VITE_DEV_TASK_ID as string | undefined
