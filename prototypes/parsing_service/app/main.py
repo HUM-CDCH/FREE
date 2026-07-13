@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
@@ -17,12 +18,14 @@ from app.storage.paths import DEFAULT_DATA_DIR
 from app.workers.gpu import check_gpu_available, set_gpu_available
 from app.workers.parse_worker import cleanup_loop, reconcile_interrupted_tasks
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[Startup] Detecting GPU availability...")
+    logger.info("Detecting GPU availability...")
     set_gpu_available(await run_in_threadpool(check_gpu_available))
     await run_in_threadpool(reconcile_interrupted_tasks)
 
