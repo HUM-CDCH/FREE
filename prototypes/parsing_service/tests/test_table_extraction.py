@@ -9,7 +9,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from docling_core.types.doc.base import (
+    BoundingBox as DoclingBoundingBox,
+    CoordOrigin,
+)
+
 from app.models.parsed_document import BoundingBox, ParsedTable
+from app.parsing.docling_runner import _table_inventory
 from app.parsing.table_extraction import (
     DOCLING_TABLE_PARSER_NAME,
     ROTATED_TABLE_GEOMETRY_WARNING,
@@ -303,38 +309,42 @@ class TestExtractTables(unittest.TestCase):
         )
         self.assertEqual(output.warnings, ["camelot_inventory_enrichment_unavailable"])
 
-    def test_docling_bottom_left_geometry_is_converted_to_top_left(self):
-        inventory = [
-            {
-                "page_number": 1,
-                "rows": 1,
-                "cols": 1,
-                "bbox": {
-                    "x0": 10,
-                    "y0": 100,
-                    "x1": 200,
-                    "y1": 150,
-                    "origin": "BOTTOMLEFT",
-                },
-                "cells": [
-                    {
-                        "row": 0,
-                        "col": 0,
-                        "text": "Value",
-                        "bbox": {
-                            "x0": 20,
-                            "y0": 20,
-                            "x1": 80,
-                            "y1": 40,
-                            "origin": "BOTTOMLEFT",
-                        },
-                    }
-                ],
-            }
-        ]
+    def test_docling_bottom_left_geometry_reaches_camelot_area_and_dedup(self):
+        table_bbox = DoclingBoundingBox(
+            l=10,
+            t=150,
+            r=200,
+            b=100,
+            coord_origin=CoordOrigin.BOTTOMLEFT,
+        )
+        cell_bbox = DoclingBoundingBox(
+            l=20,
+            t=40,
+            r=80,
+            b=20,
+            coord_origin=CoordOrigin.BOTTOMLEFT,
+        )
+        cell = SimpleNamespace(
+            start_row_offset_idx=0,
+            start_col_offset_idx=0,
+            row_span=1,
+            col_span=1,
+            text="Value",
+            column_header=True,
+            row_header=False,
+            row_section=False,
+            bbox=cell_bbox,
+        )
+        table = SimpleNamespace(
+            prov=[SimpleNamespace(page_no=1, bbox=table_bbox)],
+            data=SimpleNamespace(num_rows=1, num_cols=1, table_cells=[cell]),
+        )
+        inventory = _table_inventory(SimpleNamespace(tables=[table, table]))
+        read_pdf = Mock(return_value=[])
+
         with patch(
             "app.parsing.table_extraction.importlib.import_module",
-            side_effect=ModuleNotFoundError("camelot"),
+            return_value=SimpleNamespace(read_pdf=read_pdf),
         ):
             output = extract_tables(
                 source_pdf=Path("source.pdf"),
@@ -344,12 +354,29 @@ class TestExtractTables(unittest.TestCase):
             )
 
         self.assertEqual(
+            inventory[0]["bbox"],
+            {
+                "x0": 10.0,
+                "y0": 100.0,
+                "x1": 200.0,
+                "y1": 150.0,
+                "origin": "BOTTOMLEFT",
+            },
+        )
+        self.assertEqual(output.metrics["tables_found"], 2)
+        self.assertEqual(output.metrics["tables_kept"], 1)
+        self.assertEqual(len(output.tables), 1)
+        self.assertEqual(
             output.tables[0].bbox,
             BoundingBox(x0=10, y0=50, x1=200, y1=100),
         )
         self.assertEqual(
             output.tables[0].cells[0].bbox,
             BoundingBox(x0=20, y0=160, x1=80, y1=180),
+        )
+        self.assertEqual(
+            read_pdf.call_args.kwargs["table_areas"],
+            ["10.0,150.0,200.0,100.0", "10.0,150.0,200.0,100.0"],
         )
 
     def test_overlapping_inventory_tables_with_distinct_content_are_retained(self):
