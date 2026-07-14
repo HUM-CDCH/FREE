@@ -265,7 +265,7 @@ def _coerce_bbox(raw: Any) -> BBoxTuple | None:
         return None
     if len(values) != 4 or not all(math.isfinite(value) for value in values):
         return None
-    return values  # type: ignore[return-value]
+    return values[0], values[1], values[2], values[3]
 
 
 def _bbox_topleft(
