@@ -224,29 +224,24 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onVa
                   onClick={goForward}
                 >›</button>
                 <span className="mx-1 h-3.5 w-px shrink-0 bg-line" />
-                {navPath.length > 0 ? (
-                  <button
-                    className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-ink-muted hover:text-accent"
-                    type="button"
-                    onClick={() => navTo([])}
-                  >Results</button>
-                ) : (
-                  <span className="px-1.5 py-0.5 text-[12px] font-semibold text-ink">Results</span>
-                )}
-                {navPath.map((seg, i) => (
-                  <span key={i} className="flex items-center gap-0.5">
-                    <span className="text-[11px] text-ink-faint">›</span>
-                    {i < navPath.length - 1 ? (
-                      <button
-                        className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-ink-muted hover:text-accent"
-                        type="button"
-                        onClick={() => navTo(navPath.slice(0, i + 1))}
-                      >{seg}</button>
-                    ) : (
-                      <span className="px-1.5 py-0.5 text-[12px] font-semibold text-ink">{seg}</span>
-                    )}
-                  </span>
-                ))}
+                {navPath.map((seg, i) => {
+                  const idx = parseInt(seg, 10)
+                  const label = !isNaN(idx) && String(idx) === seg ? `Item ${idx + 1}` : seg
+                  return (
+                    <span key={i} className="flex items-center gap-0.5">
+                      {i > 0 && <span className="text-[11px] text-ink-faint">›</span>}
+                      {i < navPath.length - 1 ? (
+                        <button
+                          className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-ink-muted hover:text-accent"
+                          type="button"
+                          onClick={() => navTo(navPath.slice(0, i + 1))}
+                        >{label}</button>
+                      ) : (
+                        <span className="px-1.5 py-0.5 text-[12px] font-semibold text-ink">{label}</span>
+                      )}
+                    </span>
+                  )
+                })}
               </div>
               {/* Content */}
               <div className="scrollbar-subtle min-h-0 flex-1 overflow-auto bg-canvas px-3 py-2">

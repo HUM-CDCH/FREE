@@ -283,7 +283,6 @@ function SchemaPanel({
     { role: 'assistant', text: "Edit through drag and drop, or describe a change. I'll show a diff to review first." },
   ])
   const [pending, setPending] = useState<PendingChange | null>(null)
-  const [usedSuggs, setUsedSuggs] = useState<string[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const [view, setView] = useState<'fields' | 'json'>('fields')
@@ -568,13 +567,14 @@ function SchemaPanel({
     setEditing({ id, name, type: 'verbatim-string' })
   }
 
-  // ── Tasks 6–8: chat ──
-  const SUGGESTIONS = [
-    { id: 's1', label: 'Add a field', prompt: 'Add one new relevant field to this schema.' },
-    { id: 's2', label: 'Remove a field', prompt: 'Remove the least important field from this schema.' },
-    { id: 's3', label: 'Change a field type', prompt: 'Find a field whose type seems wrong and correct it.' },
-  ]
+  // const SUGGESTIONS = [
+  //   { id: 's1', label: 'Add a field', prompt: 'Add one new relevant field to this schema.' },
+  //   { id: 's2', label: 'Remove a field', prompt: 'Remove the least important field from this schema.' },
+  //   { id: 's3', label: 'Change a field type', prompt: 'Find a field whose type seems wrong and correct it.' },
+  // ]
 
+
+  // ── Tasks 6–8: chat ──
   async function sendChatMessage(text: string) {
     if (!text.trim() || chatLoading || pending) return
     const userMsg = text.trim()
@@ -630,10 +630,10 @@ function SchemaPanel({
     setPending(null)
   }
 
-  function pickSuggestion(s: (typeof SUGGESTIONS)[number]) {
-    setUsedSuggs(u => [...u, s.id])
-    void sendChatMessage(s.prompt)
-  }
+  // function pickSuggestion(s: (typeof SUGGESTIONS)[number]) {
+  //   setUsedSuggs(u => [...u, s.id])
+  //   void sendChatMessage(s.prompt)
+  // }
 
   // ── style helpers ──
   function slotCls(parentId: string | null, index: number) {
@@ -672,7 +672,7 @@ function SchemaPanel({
   // Task 8.4 – disable chat input while pending
   const chatBlocked = !!pending || chatLoading
 
-  const activeSuggs = SUGGESTIONS.filter(s => !usedSuggs.includes(s.id))
+  // const activeSuggs = SUGGESTIONS.filter(s => !usedSuggs.includes(s.id))
 
   const tabCls = (active: boolean) =>
     `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
@@ -1062,7 +1062,7 @@ function SchemaPanel({
           </div>
 
           {/* Task 6.3 – suggestion chips (hidden while pending / loading) */}
-          {activeSuggs.length > 0 && !chatBlocked && (
+          {/* {activeSuggs.length > 0 && !chatBlocked && (
             <div className="flex shrink-0 flex-wrap gap-1.5 px-3.5 pb-1.5 pt-1">
               {activeSuggs.map(s => (
                 <button
@@ -1075,7 +1075,7 @@ function SchemaPanel({
                 </button>
               ))}
             </div>
-          )}
+          )} */}
 
           {/* Task 6.4 – text input */}
           <div className="shrink-0 px-3.5 pb-3 pt-1.5">
