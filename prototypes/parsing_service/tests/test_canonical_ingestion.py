@@ -4,7 +4,7 @@ import uuid
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from app.api.routes_artifacts import _write_task_archive
 from app.models.parsed_document import ParsedDocument, ParsedTable, TableCell
@@ -27,7 +27,7 @@ from app.parsing.orchestrator import (
     build_parsed_document,
     validate_inspection_for_ingestion,
 )
-from app.parsing.table_extraction import TableExtractionOutput
+from app.parsing.table_extraction import TableExtractionOutput, extract_tables
 from app.storage import paths
 from app.storage.manifests import (
     preprocessing_config_hash,
@@ -364,6 +364,84 @@ class TestCanonicalIngestion(unittest.TestCase):
                     document.arbitration.page_decisions[1].selected_table_parser,
                     "docling_doctags",
                 )
+            finally:
+                paths.DEFAULT_DATA_DIR = original_tasks
+                paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
+
+    def test_successful_empty_table_result_does_not_add_document_warning(self):
+        camelot = Mock()
+        camelot.read_pdf.return_value = []
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            return_value=camelot,
+        ):
+            empty_tables = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256=CONTENT_HASH,
+                page_heights_pt={1: 200.0},
+            )
+
+        body = "Canonical body text."
+        conversion = compose_page_markdown([body])
+        with tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT) as tmp_dir:
+            root = Path(tmp_dir)
+            original_tasks = paths.DEFAULT_DATA_DIR
+            original_documents = paths.DEFAULT_DOCUMENT_STORE_DIR
+            paths.DEFAULT_DATA_DIR = root / "tasks"
+            paths.DEFAULT_DOCUMENT_STORE_DIR = root / "documents"
+            try:
+                task_id = str(uuid.uuid4())
+                task_dir = paths.task_dir_for(task_id)
+                task_dir.mkdir(parents=True)
+                (task_dir / "source.pdf").write_bytes(b"%PDF-1.4\n")
+                save_task_metadata(
+                    task_dir,
+                    {
+                        "content_sha256": CONTENT_HASH,
+                        "source_kind": "upload",
+                        "created_at": NOW,
+                        "params": {"source_name": "source.pdf"},
+                    },
+                )
+                docling = DoclingRunnerOutput(
+                    parser="docling_doctags",
+                    status="success",
+                    started_at=NOW,
+                    finished_at=NOW,
+                    duration_ms=1,
+                    llm_markdown_ref="data/documents/empty-table.llm.md",
+                    llm_markdown=conversion.markdown,
+                    char_count=len(conversion.markdown),
+                    page_spans=conversion.page_spans,
+                    page_mapping_verified=True,
+                )
+                with (
+                    patch(
+                        "app.parsing.orchestrator.inspect_pdf",
+                        return_value=_inspection(body),
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_docling_ingestion",
+                        return_value=docling,
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_table_extraction",
+                        return_value=empty_tables,
+                    ),
+                ):
+                    document = build_parsed_document(task_id)
+
+                self.assertEqual(document.tables, [])
+                self.assertEqual(document.preprocessing.status, "completed")
+                self.assertEqual(document.preprocessing.warnings, [])
+                table_run = next(
+                    run
+                    for run in document.parser_runs
+                    if run.parser == "camelot_stream"
+                )
+                self.assertEqual(table_run.status, "success")
+                self.assertEqual(table_run.metrics["tables_found"], 0)
+                self.assertEqual(table_run.metrics["tables_kept"], 0)
             finally:
                 paths.DEFAULT_DATA_DIR = original_tasks
                 paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents

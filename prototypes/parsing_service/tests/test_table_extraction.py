@@ -17,9 +17,9 @@ from docling_core.types.doc.base import (
 from app.models.parsed_document import BoundingBox, ParsedTable
 from app.parsing.docling_runner import _table_inventory
 from app.parsing.table_extraction import (
+    BBoxTuple,
     DOCLING_TABLE_PARSER_NAME,
     ROTATED_TABLE_GEOMETRY_WARNING,
-    BBoxTuple,
     extract_tables,
     is_matrixlike,
     table_matrix_to_parsed_table,
@@ -264,6 +264,26 @@ class TestExtractTables(unittest.TestCase):
         self.assertEqual(output.error, "table_extraction_unavailable")
         self.assertNotIn("private", output.error or "")
         self.assertNotIn("token", output.error or "")
+
+    def test_successful_camelot_call_with_no_candidates_is_empty_success(self):
+        camelot = Mock()
+        camelot.read_pdf.return_value = []
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            return_value=camelot,
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={1: 792.0},
+            )
+
+        self.assertEqual(output.status, "success")
+        self.assertIsNone(output.error)
+        self.assertEqual(output.tables, [])
+        self.assertEqual(output.metrics["tables_found"], 0)
+        self.assertEqual(output.metrics["tables_kept"], 0)
+        self.assertEqual(output.warnings, [])
 
     def test_docling_inventory_is_complete_when_camelot_is_unavailable(self):
         inventory = [

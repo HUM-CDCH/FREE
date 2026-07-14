@@ -970,15 +970,17 @@ def extract_tables(
         )
 
     found: list[Any] = []
+    camelot_succeeded = False
     if camelot is not None:
         try:
             found = list(
                 camelot.read_pdf(str(source_pdf), pages="all", flavor="stream")
             )
+            camelot_succeeded = True
         except Exception:
             logger.exception("Camelot table extraction failed")
 
-    if found:
+    if camelot_succeeded:
         tables = _assign_table_ids(
             _camelot_tables(
                 found,

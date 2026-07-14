@@ -15,7 +15,7 @@
 
 ## 2. Parsing-fidelity batch
 
-- [ ] 2.1 Specify and test that a successful Camelot call returning zero tables is a successful empty result without `completed_with_warnings`; implement the status correction
+- [x] 2.1 Specify and test that a successful Camelot call returning zero tables is a successful empty result without `completed_with_warnings`; implement the status correction
 - [ ] 2.2 Split missing-value normalization by adapter; preserve literal Docling `NaN` and blank only non-string Camelot missing-value sentinels
 - [ ] 2.3 Add minified/nested list, ordered/unordered list, code-fence collision, formula, page-span, and source-text preservation tests
 - [ ] 2.4 Render standard Markdown list markers, adaptive fenced code, and separate-line `$$` formula blocks; bump the DocTags converter-policy revision and manually review golden changes
