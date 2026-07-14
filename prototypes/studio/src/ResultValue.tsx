@@ -18,6 +18,8 @@ export type ResultValueProps = {
    *  that node instead of toggling expand/collapse. The callback receives the
    *  node's full path so ResultsTab can update navPath. */
   onNavigateTo?: (path: string[]) => void
+  /** When true, long primitive values are shown in full without a More button. */
+  expandText?: boolean
 }
 
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
@@ -60,14 +62,14 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 // ── PrimitiveRow ──────────────────────────────────────────────────────────────
 
 function PrimitiveRow({
-  name, value, path, onChange, onValueClick,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void }) {
+  name, value, path, onChange, onValueClick, expandText,
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; expandText?: boolean }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [expanded, setExpanded] = useState(false)
-  const long = text.length > 80
+  const long = !expandText && text.length > 80
 
   function startEdit() { setDraft(text); setEditing(true) }
   function save() { onChange?.(path, draft); setEditing(false) }
@@ -95,6 +97,33 @@ function PrimitiveRow({
           type="button"
           onClick={cancel}
         >✗</button>
+      </div>
+    )
+  }
+
+  if (expandText && !missing) {
+    return (
+      <div className="-mx-2 group rounded-md px-2 pb-2 pt-1.5 transition-colors hover:bg-accent-ghost/30">
+        <div className="flex items-center gap-2">
+          <span className="w-2 shrink-0" />
+          <span className="shrink-0 font-mono text-[13.5px] font-medium text-ink">{name}</span>
+          {onChange && (
+            <button
+              className="shrink-0 cursor-pointer px-0.5 text-ink-faint opacity-0 outline-none transition-all group-hover:opacity-100 hover:text-accent"
+              type="button"
+              title={`Edit ${name}`}
+              onClick={startEdit}
+            >
+              <PencilIcon />
+            </button>
+          )}
+        </div>
+        <div
+          className={`pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap ${onValueClick ? 'cursor-pointer hover:text-accent' : ''}`}
+          onClick={onValueClick ? () => onValueClick(text) : undefined}
+        >
+          {text}
+        </div>
       </div>
     )
   }
@@ -148,8 +177,8 @@ function PrimitiveRow({
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, onValueClick, depth, defaultExpanded = true, onNavigateTo,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void }) {
+  name, value, path, onChange, onValueClick, depth, defaultExpanded = true, onNavigateTo, expandText,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -187,6 +216,7 @@ function ObjectSection({
                 onValueClick={onValueClick}
                 onNavigateTo={onNavigateTo}
                 defaultExpanded={onNavigateTo ? false : undefined}
+                expandText={expandText}
                 depth={depth + 1}
               />
             ))
@@ -200,8 +230,8 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, onValueClick, depth, onNavigateTo,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; onNavigateTo?: (path: string[]) => void }) {
+  name, value, path, onChange, onValueClick, depth, onNavigateTo, expandText,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; onNavigateTo?: (path: string[]) => void; expandText?: boolean }) {
   const [expanded, setExpanded] = useState(true)
 
   return (
@@ -232,6 +262,7 @@ function ArraySection({
                 onNavigateTo={onNavigateTo}
                 depth={depth + 1}
                 defaultExpanded={false}
+                expandText={expandText}
               />
             ))
           )}
@@ -243,14 +274,14 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, onValueClick, depth = 0, defaultExpanded, onNavigateTo }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, onValueClick, depth = 0, defaultExpanded, onNavigateTo, expandText }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} onNavigateTo={onNavigateTo} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} onNavigateTo={onNavigateTo} expandText={expandText} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} />
   }
-  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} />
+  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} expandText={expandText} />
 }
 
 export default ResultValue

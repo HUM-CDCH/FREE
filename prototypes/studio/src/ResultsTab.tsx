@@ -255,6 +255,7 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onVa
                     onValueClick={onValueClick}
                     onNavigateTo={isRecord(val) || Array.isArray(val) ? navTo : undefined}
                     defaultExpanded={navPath.length === 0}
+                    expandText={navPath.length > 0}
                   />
                 ))}
               </div>
