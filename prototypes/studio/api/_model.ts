@@ -95,9 +95,27 @@ function model(): LanguageModel {
   return ollama(modelId)
 }
 
+// Separate from model() so AI_MODEL can stay pointed at NuExtract while
+// chat and schema-edit use an instruction-following LLM.
+function chatModel(): LanguageModel {
+  const modelId = process.env.AI_CHAT_MODEL || DEFAULT_MODEL
+  const baseURL = process.env.AI_BASE_URL
+  const apiKey = process.env.AI_API_KEY
+
+  if (baseURL) {
+    return createOllama({ baseURL, apiKey })(modelId)
+  }
+
+  if (apiKey) {
+    return createOllama({ apiKey })(modelId)
+  }
+
+  return ollama(modelId)
+}
+
 export async function streamChatWithModel(messages: readonly UIMessage[]): Promise<Response> {
   const result = streamText({
-    model: model(),
+    model: chatModel(),
     system:
       'You help humanities researchers inspect source documents in FREE. If no source document content is attached, say that no document context is available before answering normally.',
     messages: await convertToModelMessages([...messages]),
@@ -295,4 +313,60 @@ function ollamaHeaders(): Record<string, string> {
     headers.authorization = `Bearer ${process.env.AI_API_KEY}`
   }
   return headers
+}
+
+export type EditSchemaOp =
+  | { op: 'add'; name: string; type: string; parentName?: string }
+  | { op: 'remove'; name: string; parentName?: string }
+  | { op: 'patch'; name: string; newName?: string; type?: string; parentName?: string }
+
+const editSchemaOpSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('add'), name: z.string(), type: z.string(), parentName: z.string().optional() }),
+  z.object({ op: z.literal('remove'), name: z.string(), parentName: z.string().optional() }),
+  z.object({ op: z.literal('patch'), name: z.string(), newName: z.string().optional(), type: z.string().optional(), parentName: z.string().optional() }),
+])
+
+export async function editSchemaWithModel(
+  currentTemplate: unknown,
+  instruction: string,
+): Promise<EditSchemaOp[]> {
+  const schemaJson = JSON.stringify(currentTemplate, null, 2)
+  const prompt = `You are a schema editing assistant for humanities researchers.
+
+Current extraction schema (JSON):
+${schemaJson}
+
+Researcher instruction: "${instruction}"
+
+Return ONLY a JSON array of operations. No explanation, no markdown fences, no extra text.
+Each operation must be one of:
+  {"op":"add","name":"fieldName","type":"string|number|boolean|object|array","parentName":"optionalParent"}
+  {"op":"remove","name":"fieldName","parentName":"optionalParent"}
+  {"op":"patch","name":"fieldName","newName":"optionalNewName","type":"optionalNewType","parentName":"optionalParent"}
+
+Rules:
+- Only change what the researcher explicitly asked for
+- Use parentName when the same field name exists at multiple nesting levels
+- Omit parentName when the field is uniquely named
+- Return [] if no changes are needed`
+
+  const result = await generateText({
+    model: chatModel(),
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const text = result.text.replace(/```(?:json)?|```/g, '').trim()
+  const parsed = await parseUnknownJson(text, 'Edit schema model returned invalid JSON.')
+  if (!Array.isArray(parsed)) {
+    return []
+  }
+
+  const ops: EditSchemaOp[] = []
+  for (const item of parsed) {
+    const validated = editSchemaOpSchema.safeParse(item)
+    if (validated.success) {
+      ops.push(validated.data)
+    }
+  }
+  return ops
 }

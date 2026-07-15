@@ -11,6 +11,8 @@ import { ACTIVE_DOC } from './ProjectNav'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
+import type { SchemaNode } from './schemaNode'
+import { templateToNodes, nodesToTemplate } from './schemaNode'
 import { countTemplateFields } from './template'
 import { requestSchema, parseDocumentToMarkdown } from './api'
 import type { AnnotationsMode } from './api'
@@ -372,7 +374,7 @@ function App() {
         markdown: documentMarkdown,
       })
       if (!abortController.signal.aborted) {
-        setTemplateState({ status: 'ready', template, inputsKey })
+        setTemplateState({ status: 'ready', nodes: templateToNodes(template), inputsKey })
       }
     } catch (error) {
       if (abortController.signal.aborted) {
@@ -389,9 +391,9 @@ function App() {
     setFocusValue(prev => (prev === value ? null : value))
   }
 
-  function changeTemplate(template: unknown, message: string) {
+  function changeNodes(nodes: SchemaNode[], message: string) {
     setTemplateState((state) =>
-      state.status === 'ready' ? { ...state, template, edited: true } : state,
+      state.status === 'ready' ? { ...state, nodes, edited: true } : state,
     )
     showToast(message)
   }
@@ -425,10 +427,10 @@ function App() {
   }
 
   const schemaReady = templateState.status === 'ready'
-  const schemaTemplate = templateState.status === 'ready' ? templateState.template : null
+  const schemaTemplate = templateState.status === 'ready' ? nodesToTemplate(templateState.nodes) : null
 
   const schemaFieldCount =
-    templateState.status === 'ready' ? countTemplateFields(templateState.template) : 0
+    templateState.status === 'ready' ? countTemplateFields(schemaTemplate) : 0
 
   const schemaStale =
     templateState.status === 'ready' &&
@@ -641,7 +643,7 @@ function App() {
             schemaReady={schemaReady}
             schemaFieldCount={schemaFieldCount}
             onGenerate={() => void generateSchema()}
-            onTemplateChange={changeTemplate}
+            onNodesChange={changeNodes}
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}

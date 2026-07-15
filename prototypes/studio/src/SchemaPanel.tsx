@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AnnotationsMode } from './api'
-import { requestSchema } from './api'
+import { requestSchemaEdit } from './api'
+import { applyOps } from './schemaOps'
 import { countTemplateFields, isRecord } from './template'
+import { type SchemaNode, mkId, templateToNodes, nodesToTemplate } from './schemaNode'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Exported types (App.tsx depends on TemplateState)
@@ -10,7 +12,7 @@ import { countTemplateFields, isRecord } from './template'
 export type TemplateState =
   | { status: 'idle' }
   | { status: 'generating' }
-  | { status: 'ready'; template: unknown; inputsKey: string; edited?: boolean }
+  | { status: 'ready'; nodes: SchemaNode[]; inputsKey: string; edited?: boolean }
   | { status: 'error'; message: string }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -21,19 +23,10 @@ type SchemaPanelProps = {
   state: TemplateState
   stale: boolean
   onGenerate: () => void
-  onTemplateChange: (template: unknown, message: string) => void
+  onNodesChange: (nodes: SchemaNode[], message: string) => void
   annotationCount: number
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
-  documentMarkdown?: string | null
-}
-
-type SchemaNode = {
-  id: string
-  name: string
-  type: string
-  description?: string
-  children?: SchemaNode[]
 }
 
 type DragState = {
@@ -53,49 +46,13 @@ type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
 type DiffLine = { sign: '+' | '−' | '~'; text: string }
 
-type PendingChange = { newTemplate: unknown; newNodes: SchemaNode[]; lines: DiffLine[] }
+type PendingChange = { newNodes: SchemaNode[]; lines: DiffLine[] }
 
 // ────────────────────────────────────────────────────────────────────────────
 // Task 1.1–1.4: Data model & converters
 // ────────────────────────────────────────────────────────────────────────────
 
-let _uid = 1
-const mkId = () => `n${_uid++}`
 
-function templateToNodes(v: unknown): SchemaNode[] {
-  if (!isRecord(v)) return []
-  return Object.entries(v)
-    .filter(([name]) => name !== '_description')
-    .map(([name, child]) => {
-      if (Array.isArray(child)) {
-        const first = child[0]
-        if (isRecord(first)) {
-          const desc = typeof first['_description'] === 'string' ? first['_description'] : undefined
-          return { id: mkId(), name, type: 'array', children: templateToNodes(first), ...(desc && { description: desc }) }
-        }
-        return { id: mkId(), name, type: String(first ?? 'string') }
-      }
-      if (isRecord(child)) {
-        const desc = typeof child['_description'] === 'string' ? child['_description'] : undefined
-        return { id: mkId(), name, type: 'object', children: templateToNodes(child), ...(desc && { description: desc }) }
-      }
-      return { id: mkId(), name, type: String(child) }
-    })
-}
-
-function nodesToTemplate(nodes: SchemaNode[]): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const n of nodes) {
-    if (n.children !== undefined) {
-      const children = nodesToTemplate(n.children)
-      const group = n.description ? { _description: n.description, ...children } : children
-      out[n.name] = n.type === 'array' ? [group] : group
-    } else {
-      out[n.name] = n.type
-    }
-  }
-  return out
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Diff computation (task 7.3)
@@ -266,11 +223,10 @@ function SchemaPanel({
   state,
   stale,
   onGenerate,
-  onTemplateChange,
+  onNodesChange,
   annotationCount,
   annotationsMode,
   onAnnotationsModeChange,
-  documentMarkdown,
 }: SchemaPanelProps) {
   // ── render state ──
   const [nodes, setNodes] = useState<SchemaNode[]>([])
@@ -303,23 +259,22 @@ function SchemaPanel({
   const rafRef = useRef<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
-  const onTemplateChangeRef = useRef(onTemplateChange)
-  onTemplateChangeRef.current = onTemplateChange
+  const onNodesChangeRef = useRef(onNodesChange)
+  onNodesChangeRef.current = onNodesChange
 
   const ready = state.status === 'ready'
-  const fieldCount = ready ? countTemplateFields(state.template) : 0
+  const fieldCount = ready ? countTemplateFields(nodesToTemplate(state.nodes)) : 0
   const inputsKey = state.status === 'ready' ? state.inputsKey : null
   const dx = dragging ? dragX - dragStartXRef.current : 0
   const dy = dragging ? dragY - dragStartYRef.current : 0
   const horizontalIntent = Math.abs(dx) > INDENT_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE
   const dragMode = horizontalIntent ? (dx > 0 ? 'indent' : 'outdent') : 'normal'
 
-  // Task 1.2 / 1.3 – sync nodes when a new schema is generated
+  // sync nodes when a new schema is generated
   useEffect(() => {
     if (state.status === 'ready') {
-      const n = templateToNodes(state.template)
-      setNodes(n)
-      nodesRef.current = n
+      setNodes(state.nodes)
+      nodesRef.current = state.nodes
       setEditing(null)
       setPending(null)
     }
@@ -365,7 +320,7 @@ function SchemaPanel({
 
     const apply = (nodes: SchemaNode[]) => {
       nodesRef.current = nodes; setNodes(nodes)
-      onTemplateChangeRef.current(nodesToTemplate(nodes), '⠿ Schema reordered')
+      onNodesChangeRef.current(nodes, '⠿ Schema reordered')
     }
 
     if (horizontalIntent && dx > 0) {
@@ -419,7 +374,7 @@ function SchemaPanel({
       const finalNodes = insertIntoNode(root, target.id, moved)
       nodesRef.current = finalNodes
       setNodes(finalNodes)
-      onTemplateChangeRef.current(nodesToTemplate(finalNodes), '⠿ Schema reordered')
+      onNodesChangeRef.current(finalNodes, '⠿ Schema reordered')
     } else {
       const { parentId, index } = target
       const si = srcIndex(cur, drag)
@@ -430,7 +385,7 @@ function SchemaPanel({
       const finalNodes = insertAtSlot(root, parentId ?? null, ii, moved)
       nodesRef.current = finalNodes
       setNodes(finalNodes)
-      onTemplateChangeRef.current(nodesToTemplate(finalNodes), '⠿ Schema reordered')
+      onNodesChangeRef.current(finalNodes, '⠿ Schema reordered')
     }
   }
 
@@ -527,7 +482,7 @@ function SchemaPanel({
     })
     nodesRef.current = newNodes
     setNodes(newNodes)
-    onTemplateChange(nodesToTemplate(newNodes), '✎ Schema updated')
+    onNodesChange(newNodes, '✎ Schema updated')
     setEditing(null)
   }
 
@@ -535,7 +490,7 @@ function SchemaPanel({
     const [, newNodes] = extractNode(nodesRef.current, id)
     nodesRef.current = newNodes
     setNodes(newNodes)
-    onTemplateChange(nodesToTemplate(newNodes), 'Field removed from schema')
+    onNodesChange(newNodes, 'Field removed from schema')
     if (editing?.id === id) setEditing(null)
   }
 
@@ -550,7 +505,7 @@ function SchemaPanel({
     const newNodes = update(nodesRef.current)
     nodesRef.current = newNodes
     setNodes(newNodes)
-    onTemplateChangeRef.current(nodesToTemplate(newNodes), '✎ Description updated')
+    onNodesChangeRef.current(newNodes, '✎ Description updated')
   }
 
   function addField() {
@@ -562,7 +517,7 @@ function SchemaPanel({
     const newNodes = [...cur, { id, name, type: 'verbatim-string' }]
     nodesRef.current = newNodes
     setNodes(newNodes)
-    onTemplateChange(nodesToTemplate(newNodes), '✎ Schema updated')
+    onNodesChange(newNodes, '✎ Schema updated')
     setView('fields')
     setEditing({ id, name, type: 'verbatim-string' })
   }
@@ -583,29 +538,14 @@ function SchemaPanel({
     setChatLoading(true)
 
     try {
-      const currentTemplate = nodesToTemplate(nodesRef.current)
-      // Task 7.2 – call /api/generate_schema with current template as context
-      const newTemplate = await requestSchema(
-        new Blob([''], { type: 'text/plain' }),
-        'schema.txt',
-        undefined,
-        {
-          markdown: documentMarkdown ?? `Existing schema:\n${JSON.stringify(currentTemplate, null, 2)}`,
-          annotations: [{
-            text: `Current schema:\n${JSON.stringify(currentTemplate, null, 2)}\n\nResearcher request: ${userMsg}`,
-            pageNumber: 1,
-          }],
-          annotationsMode: 'hints',
-        },
-      )
-      // Task 7.3 – compute diff
-      const newNodes = templateToNodes(newTemplate)
+      const ops = await requestSchemaEdit(nodesRef.current, userMsg)
+      const newNodes = applyOps(nodesRef.current, ops)
       const lines = computeDiff(nodesRef.current, newNodes)
       if (lines.length === 0) {
         setChat(c => [...c, { role: 'assistant', text: 'No changes needed — the schema already matches your request.' }])
       } else {
         // Task 7.4 – set pending
-        setPending({ newTemplate, newNodes, lines })
+        setPending({ newNodes, lines })
       }
     } catch (err) {
       setChat(c => [...c, { role: 'assistant', text: `Error: ${err instanceof Error ? err.message : 'Request failed'}` }])
@@ -619,7 +559,7 @@ function SchemaPanel({
     if (!pending) return
     nodesRef.current = pending.newNodes
     setNodes(pending.newNodes)
-    onTemplateChange(pending.newTemplate, '✦ Schema updated via chat')
+    onNodesChange(pending.newNodes, '✦ Schema updated via chat')
     setChat(c => [...c, { role: 'assistant', text: `✓ Applied ${pending.lines.length} change${pending.lines.length === 1 ? '' : 's'}.` }])
     setPending(null)
   }
@@ -966,7 +906,7 @@ function SchemaPanel({
                         const newNodes = templateToNodes(parsed)
                         nodesRef.current = newNodes
                         setNodes(newNodes)
-                        onTemplateChangeRef.current(nodesToTemplate(newNodes), '✎ Schema updated via JSON editor')
+                        onNodesChangeRef.current(newNodes, '✎ Schema updated via JSON editor')
                         setJsonEditMode(false)
                         setJsonEditError(null)
                       } catch (e) {

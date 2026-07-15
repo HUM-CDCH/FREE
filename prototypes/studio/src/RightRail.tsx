@@ -4,6 +4,7 @@ import type { AnnotationSetItem } from './AnnotationSidebar'
 import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
+import type { SchemaNode } from './schemaNode'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
@@ -23,7 +24,7 @@ type RightRailProps = {
   schemaReady: boolean
   schemaFieldCount: number
   onGenerate: () => void
-  onTemplateChange: (template: unknown, message: string) => void
+  onNodesChange: (nodes: SchemaNode[], message: string) => void
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
@@ -58,7 +59,7 @@ function RightRail({
   schemaReady,
   schemaFieldCount,
   onGenerate,
-  onTemplateChange,
+  onNodesChange,
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
@@ -144,11 +145,10 @@ function RightRail({
           state={schemaState}
           stale={schemaStale}
           onGenerate={onGenerate}
-          onTemplateChange={onTemplateChange}
+          onNodesChange={onNodesChange}
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}
-          documentMarkdown={documentMarkdown}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>

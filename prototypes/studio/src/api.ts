@@ -1,4 +1,6 @@
 import { isRecord } from './template'
+import { type SchemaNode, nodesToTemplate } from './schemaNode'
+import type { SchemaOp } from './schemaOps'
 
 export const API_BASE = '/api'
 
@@ -190,4 +192,22 @@ export async function requestMarkdown(
   }
 
   return postForm('/markdown', form, decodeMarkdownDone, signal)
+}
+
+function decodeSchemaOps(data: unknown): SchemaOp[] {
+  if (!isRecord(data) || !Array.isArray(data.ops)) {
+    throw new Error("edit_schema: response missing 'ops' — API contract drift?")
+  }
+  return data.ops as SchemaOp[]
+}
+
+export async function requestSchemaEdit(
+  nodes: SchemaNode[],
+  instruction: string,
+  signal?: AbortSignal,
+): Promise<SchemaOp[]> {
+  const form = new FormData()
+  form.append('current_template', JSON.stringify(nodesToTemplate(nodes)))
+  form.append('instruction', instruction)
+  return postForm('/edit_schema', form, decodeSchemaOps, signal)
 }
