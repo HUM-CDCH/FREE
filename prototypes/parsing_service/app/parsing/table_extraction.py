@@ -65,13 +65,27 @@ def _norm_cell(value: Any) -> str:
     if value is None:
         return ""
     text = str(value)
-    if text.lower() == "nan":
-        return ""
     return " ".join(text.replace("\u00a0", " ").split()).strip()
 
 
 def _normalise_matrix(matrix: Sequence[Sequence[Any]]) -> list[list[str]]:
     rows = [[_norm_cell(value) for value in row] for row in matrix]
+    width = max((len(row) for row in rows), default=0)
+    return [row + [""] * (width - len(row)) for row in rows]
+
+
+def _normalise_camelot_matrix(
+    matrix: Sequence[Sequence[Any]],
+    missing: Sequence[Sequence[bool]],
+) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row, missing_row in zip(matrix, missing, strict=True):
+        rows.append(
+            [
+                _norm_cell(None if is_missing and not isinstance(value, str) else value)
+                for value, is_missing in zip(row, missing_row, strict=True)
+            ]
+        )
     width = max((len(row) for row in rows), default=0)
     return [row + [""] * (width - len(row)) for row in rows]
 
@@ -701,7 +715,10 @@ def _camelot_tables(
     warned_rotations: set[int] = set()
     for table in found:
         try:
-            matrix = _normalise_matrix(table.df.values.tolist())
+            matrix = _normalise_camelot_matrix(
+                table.df.values.tolist(),
+                table.df.isna().values.tolist(),
+            )
         except Exception:
             warnings.append("camelot_table_matrix_unavailable")
             continue

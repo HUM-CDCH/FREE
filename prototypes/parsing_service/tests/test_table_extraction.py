@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import math
 import tempfile
 import unittest
@@ -13,6 +14,7 @@ from docling_core.types.doc.base import (
     BoundingBox as DoclingBoundingBox,
     CoordOrigin,
 )
+import pandas
 
 from app.models.parsed_document import BoundingBox, ParsedTable
 from app.parsing.docling_runner import _table_inventory
@@ -44,24 +46,16 @@ PROSE_MATRIX = [
 ]
 
 
-class _Values:
-    def __init__(self, rows: list[list[str]]):
-        self._rows = rows
-
-    def tolist(self) -> list[list[str]]:
-        return self._rows
-
-
 class _FakeTable:
     def __init__(
         self,
-        rows: list[list[str]],
+        rows: Sequence[Sequence[object]],
         page: int = 1,
         *,
         bbox: BBoxTuple | None = None,
         cell_bboxes: Sequence[Sequence[BBoxTuple | None]] | None = None,
     ):
-        self.df = SimpleNamespace(values=_Values(rows))
+        self.df = pandas.DataFrame(rows)
         self.page = page
         self.cells: list[list[object]] = []
         for row in cell_bboxes or ():
@@ -284,6 +278,59 @@ class TestExtractTables(unittest.TestCase):
         self.assertEqual(output.metrics["tables_found"], 0)
         self.assertEqual(output.metrics["tables_kept"], 0)
         self.assertEqual(output.warnings, [])
+
+    def test_camelot_non_string_missing_values_become_empty_json_safe_cells(self):
+        camelot = Mock()
+        camelot.read_pdf.return_value = [
+            _FakeTable(
+                [
+                    ["Label", "Count", "NaN", "Missing", "Literal"],
+                    ["K1", 12, math.nan, pandas.NA, "NaN"],
+                ]
+            )
+        ]
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            return_value=camelot,
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={1: 792.0},
+            )
+
+        table = output.tables[0]
+        self.assertFalse(
+            any(cell.row == 1 and cell.col in {2, 3} for cell in table.cells)
+        )
+        self.assertEqual(table.cells[-1].text, "NaN")
+        self.assertEqual(
+            table.markdown_view,
+            "| Label | Count | NaN | Missing | Literal |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| K1 | 12 |  |  | NaN |",
+        )
+        json.dumps(table.model_dump(mode="json"), allow_nan=False)
+
+    def test_docling_literal_nan_is_preserved_in_cells_and_markdown(self):
+        inventory = [_inventory_for_rows([["Label", "Value"], ["Missing", "NaN"]])]
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            side_effect=ModuleNotFoundError("camelot"),
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={2: 200.0},
+                docling_tables=inventory,
+            )
+
+        table = output.tables[0]
+        self.assertEqual(table.cells[-1].text, "NaN")
+        self.assertEqual(
+            table.markdown_view,
+            "| Label | Value |\n| --- | --- |\n| Missing | NaN |",
+        )
 
     def test_docling_inventory_is_complete_when_camelot_is_unavailable(self):
         inventory = [
