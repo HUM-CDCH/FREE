@@ -78,16 +78,14 @@ def _normalise_camelot_matrix(
     matrix: Sequence[Sequence[Any]],
     missing: Sequence[Sequence[bool]],
 ) -> list[list[str]]:
-    rows: list[list[str]] = []
-    for row, missing_row in zip(matrix, missing, strict=True):
-        rows.append(
-            [
-                _norm_cell(None if is_missing and not isinstance(value, str) else value)
-                for value, is_missing in zip(row, missing_row, strict=True)
-            ]
-        )
-    width = max((len(row) for row in rows), default=0)
-    return [row + [""] * (width - len(row)) for row in rows]
+    masked = [
+        [
+            None if is_missing and not isinstance(value, str) else value
+            for value, is_missing in zip(row, missing_row, strict=True)
+        ]
+        for row, missing_row in zip(matrix, missing, strict=True)
+    ]
+    return _normalise_matrix(masked)
 
 
 def _is_numbery(text: str) -> bool:
