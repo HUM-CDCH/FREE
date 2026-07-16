@@ -30,6 +30,7 @@ describe("resolveModel", () => {
 				approvalPolicy: "never",
 				cwd: expect.stringContaining("free-codex-sandbox-"),
 				sandboxPolicy: "read-only",
+				requestTimeoutMs: 120_000,
 				configOverrides: {
 					mcp_servers: {},
 					"tools.web_search": false,
