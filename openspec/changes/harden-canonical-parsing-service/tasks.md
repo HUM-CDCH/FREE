@@ -2,6 +2,13 @@
 
 # Tasks: harden-canonical-parsing-service
 
+> **Change closed 2026-07-16 after re-triage** (see proposal status note).
+> Unchecked tasks below are intentionally not completed: 2.5/2.6 premise
+> disproven, 2.7/2.8/batch 5 migrated to `parsing-docs-cleanup`, 2.9 moot,
+> 3.1–3.4 voided by URL-ingestion deletion, 3.5 covered and 3.6 done in
+> `simplify-source-ingestion`, 3.7–3.11 no deployment target / CI declined,
+> batch 4 conflicts with the simplification direction.
+
 ## 1. PR #21 merge gate — four focused commits
 
 - [x] 1.1 Add a failing producer→consumer round-trip using a real `docling_core` BOTTOMLEFT box; normalize `_bbox_inventory` to ordered coordinates; retain generic origin conversion; verify affected Camelot-area/dedup paths receive geometry

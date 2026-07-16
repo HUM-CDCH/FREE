@@ -2,11 +2,29 @@
 
 # Proposal: harden-canonical-parsing-service
 
-> **Status: parked.** Human decision on 2026-07-16 superseded the ingestion,
-> URL-hardening, quota, and concurrency direction with
-> [`simplify-source-ingestion`](../simplify-source-ingestion/proposal.md). Tasks
-> 1.1–2.4 remain completed; do not resume task 2.5+ or check additional tasks
-> until the surviving parsing and documentation work is re-triaged.
+> **Status: closed after re-triage (human decision, 2026-07-16).** Tasks
+> 1.1–2.4 are completed and shipped in PR #24 together with
+> [`simplify-source-ingestion`](../simplify-source-ingestion/proposal.md),
+> which superseded the ingestion, URL-hardening, quota, and concurrency
+> direction. Every remaining task is dispositioned in `tasks.md`:
+>
+> - **2.5/2.6 closed — premise disproven.** Two evidence rounds showed Docling
+>   never produces a multi-page `TableItem` (upstream docling issue #2976; a
+>   scan of 203 upstream ground-truth tables found zero). The merged task 1.7
+>   continuation predicate already handles the real page-local producer shape.
+>   Reopen only if a genuine multi-page fixture ever appears.
+> - **3.1–3.4 voided** — URL ingestion was deleted entirely.
+> - **3.5 covered** by simplify-source-ingestion phase 7 trust-boundary tests;
+>   **3.6 substantially done** in follow-up `c47f921` (typed upload errors).
+> - **3.7–3.11 closed — no deployment target.** Container hardening, resource
+>   profiling, and CI are deferred until FREE has a deployment beyond a
+>   researcher's own machine; CI was explicitly declined for now.
+> - **Batch 4 closed — conflicts** with the simplification direction; it would
+>   rebuild deleted machinery.
+> - **2.7, 2.8, and batch 5 migrated** to
+>   [`parsing-docs-cleanup`](../parsing-docs-cleanup/proposal.md).
+>
+> This change can be archived once PR #24 merges.
 
 ## Why
 
