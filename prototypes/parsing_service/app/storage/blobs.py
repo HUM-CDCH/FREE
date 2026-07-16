@@ -128,50 +128,26 @@ def prune_source_store(
 def store_source_by_hash(
     source_pdf: str | os.PathLike[str],
     content_sha256: str,
-    *,
-    max_total_bytes: int = DEFAULT_SOURCE_STORE_MAX_BYTES,
-    data_dir: str | os.PathLike[str] | None = None,
 ) -> Path:
-    """Authenticate and publish one source blob in a locked quota transaction."""
+    """Verify and atomically publish one content-addressed source blob."""
     source = Path(source_pdf)
     if compute_sha256(source) != content_sha256:
         raise ValueError("Source bytes do not match content_sha256.")
     destination = paths.source_store_path(content_sha256)
-    base = destination.parent
-    lock = FileLock(str(paths.source_store_lock_path(base)))
+    if destination.exists():
+        return destination
 
-    with lock:
-        if destination.exists():
-            if compute_sha256(destination) == content_sha256:
-                return destination
-            destination.unlink()
-
-        source_size = source.stat().st_size
-        if source_store_usage(base) + source_size > max_total_bytes:
-            _prune_source_store_unlocked(
-                data_dir=data_dir,
-                base=base,
-                max_total_bytes=max(0, max_total_bytes - source_size),
-            )
-        if source_store_usage(base) + source_size > max_total_bytes:
-            raise ValueError("Source store quota exceeded.")
-
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=f".{content_sha256}.", suffix=".tmp", dir=str(base)
-        )
-        try:
-            with os.fdopen(fd, "wb") as tmp_file, open(source, "rb") as src_file:
-                shutil.copyfileobj(src_file, tmp_file)
-            with suppress(FileExistsError):
-                os.link(tmp_name, destination)
-            if compute_sha256(destination) != content_sha256:
-                with suppress(FileNotFoundError):
-                    destination.unlink()
-                raise ValueError("Published source blob failed digest validation.")
-            return destination
-        finally:
-            with suppress(FileNotFoundError, PermissionError):
-                os.unlink(tmp_name)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{content_sha256}.", suffix=".tmp", dir=str(destination.parent)
+    )
+    try:
+        with os.fdopen(fd, "wb") as tmp_file, open(source, "rb") as src_file:
+            shutil.copyfileobj(src_file, tmp_file)
+        os.replace(tmp_name, destination)
+        return destination
+    finally:
+        with suppress(FileNotFoundError, PermissionError):
+            os.unlink(tmp_name)
 
 
 def deduplicate_task_source(task_source: Path, source_blob: Path) -> None:

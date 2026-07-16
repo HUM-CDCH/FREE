@@ -14,8 +14,8 @@
 
 ## 3. Simplify source publication
 
-- [ ] 3.1 Reduce `store_source_by_hash` to input digest verification, existing-blob reuse, temporary copy, and atomic rename
-- [ ] 3.2 Preserve same-digest convergence and add hash-mismatch and failed-publication cleanup coverage
+- [x] 3.1 Reduce `store_source_by_hash` to input digest verification, existing-blob reuse, temporary copy, and atomic rename
+- [x] 3.2 Preserve same-digest convergence and add hash-mismatch and failed-publication cleanup coverage
 
 ## 4. Remove quota accounting while retaining cleanup
 

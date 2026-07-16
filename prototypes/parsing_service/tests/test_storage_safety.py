@@ -6,12 +6,12 @@ import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 from app.storage import paths
 from app.storage.blobs import (
     prune_document_store,
     prune_source_store,
-    source_store_usage,
     store_source_by_hash,
     validate_document_size,
 )
@@ -83,41 +83,34 @@ class TestStorageSafety(unittest.TestCase):
             self.assertEqual(len(set(results)), 1)
             self.assertEqual(results[0].read_bytes(), content)
 
-    def test_distinct_source_publishers_cannot_race_past_quota(self):
-        contents = [b"%PDF-1.4\nfirst source\n", b"%PDF-1.4\nother source\n"]
-        self.assertEqual(len(contents[0]), len(contents[1]))
+    def test_store_source_by_hash_rejects_mismatched_input_digest(self):
+        content = b"%PDF-1.4\nsource\n"
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
-            sources = [root / "one.pdf", root / "two.pdf"]
-            for source, content in zip(sources, contents, strict=True):
-                source.write_bytes(content)
-            digests = [hashlib.sha256(content).hexdigest() for content in contents]
+            source = root / "source.pdf"
+            source.write_bytes(content)
+            with patch.object(paths, "DEFAULT_SOURCE_STORE_DIR", root / "sources"):
+                with self.assertRaisesRegex(ValueError, "content_sha256"):
+                    store_source_by_hash(source, "a" * 64)
+                self.assertEqual(list((root / "sources").glob("*")), [])
 
-            original_store_dir = paths.DEFAULT_SOURCE_STORE_DIR
-            paths.DEFAULT_SOURCE_STORE_DIR = root / "sources"
-            try:
+    def test_store_source_by_hash_failure_publishes_no_partial_blob(self):
+        content = b"%PDF-1.4\nsource\n"
+        digest = hashlib.sha256(content).hexdigest()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            source = root / "source.pdf"
+            source.write_bytes(content)
+            source_dir = root / "sources"
+            with (
+                patch.object(paths, "DEFAULT_SOURCE_STORE_DIR", source_dir),
+                patch("app.storage.blobs.os.replace", side_effect=OSError("stop")),
+                self.assertRaisesRegex(OSError, "stop"),
+            ):
+                store_source_by_hash(source, digest)
 
-                def publish(index):
-                    try:
-                        store_source_by_hash(
-                            sources[index],
-                            digests[index],
-                            max_total_bytes=len(contents[index]),
-                        )
-                    except ValueError:
-                        return False
-                    return True
-
-                with ThreadPoolExecutor(max_workers=2) as executor:
-                    results = list(executor.map(publish, range(2)))
-
-                self.assertEqual(sum(results), 1)
-                self.assertLessEqual(
-                    source_store_usage(),
-                    len(contents[0]),
-                )
-            finally:
-                paths.DEFAULT_SOURCE_STORE_DIR = original_store_dir
+            self.assertFalse((source_dir / f"{digest}.pdf").exists())
+            self.assertEqual(list(source_dir.glob("*.tmp")), [])
 
     def test_source_pruning_respects_references_and_one_hour_grace(self):
         contents = {
@@ -160,23 +153,6 @@ class TestStorageSafety(unittest.TestCase):
             self.assertTrue(source_paths["referenced"].exists())
             self.assertTrue(source_paths["young"].exists())
             self.assertFalse(source_paths["old"].exists())
-
-    def test_store_source_by_hash_enforces_quota(self):
-        content = b"%PDF-1.4\nquota source\n"
-        digest = hashlib.sha256(content).hexdigest()
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            source = Path(tmp_dir) / "source.pdf"
-            source.write_bytes(content)
-
-            original_store_dir = paths.DEFAULT_SOURCE_STORE_DIR
-            paths.DEFAULT_SOURCE_STORE_DIR = Path(tmp_dir) / "sources"
-            try:
-                with self.assertRaisesRegex(ValueError, "quota"):
-                    store_source_by_hash(
-                        source, digest, max_total_bytes=len(content) - 1
-                    )
-            finally:
-                paths.DEFAULT_SOURCE_STORE_DIR = original_store_dir
 
     def test_prune_source_store_removes_only_unreferenced_sources(self):
         referenced_content = b"%PDF-1.4\nreferenced\n"
