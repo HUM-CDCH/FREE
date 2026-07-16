@@ -2,10 +2,8 @@ import {
   NoObjectGeneratedError,
   Output,
   convertToModelMessages,
-  createUIMessageStreamResponse,
   generateText,
   streamText,
-  toUIMessageStream,
 } from 'ai'
 import type { UIMessage } from 'ai'
 import { z } from 'zod'
@@ -77,11 +75,8 @@ export async function streamChatWithModel(messages: readonly UIMessage[]): Promi
     messages: await convertToModelMessages([...messages]),
   })
 
-  return createUIMessageStreamResponse({
-    stream: toUIMessageStream({
-      stream: result.stream,
-      onError: () => 'Chat failed.',
-    }),
+  return result.toUIMessageStreamResponse({
+    onError: () => 'Chat failed.',
   })
 }
 
