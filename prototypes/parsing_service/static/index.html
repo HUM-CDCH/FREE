@@ -150,35 +150,6 @@
         margin-bottom: 28px;
       }
 
-      .input-tabs {
-        display: flex;
-        gap: 12px;
-        margin-bottom: 20px;
-        background: rgba(0, 0, 0, 0.2);
-        padding: 4px;
-        border-radius: 12px;
-      }
-
-      .tab-btn {
-        flex: 1;
-        padding: 10px;
-        background: transparent;
-        border: none;
-        color: var(--text-muted);
-        font-family: inherit;
-        font-weight: 500;
-        font-size: 0.95rem;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.3s;
-      }
-
-      .tab-btn.active {
-        background: var(--primary);
-        color: #fff;
-        box-shadow: 0 4px 12px var(--primary-glow);
-      }
-
       .drop-zone {
         border: 2px dashed var(--glass-border);
         border-radius: 14px;
@@ -218,33 +189,6 @@
       .drop-zone span {
         font-size: 0.85rem;
         color: var(--text-muted);
-      }
-
-      .url-input-container {
-        display: none;
-      }
-
-      .url-input-container.active {
-        display: block;
-        animation: fadeIn 0.4s ease;
-      }
-
-      .text-input {
-        width: 100%;
-        padding: 16px;
-        background: rgba(0, 0, 0, 0.3);
-        border: 1px solid var(--glass-border);
-        border-radius: 12px;
-        color: var(--text);
-        font-family: inherit;
-        font-size: 1rem;
-        outline: none;
-        transition: all 0.3s;
-      }
-
-      .text-input:focus {
-        border-color: var(--glass-border-focus);
-        box-shadow: 0 0 10px var(--primary-glow);
       }
 
       /* Settings Grid */
@@ -597,15 +541,6 @@
       <!-- Ingestion Form -->
       <div id="ingest-card" class="card">
         <div class="upload-section">
-          <div class="input-tabs">
-            <button class="tab-btn active" onclick="switchTab('file')">
-              Upload PDF File
-            </button>
-            <button class="tab-btn" onclick="switchTab('url')">
-              Process PDF from URL
-            </button>
-          </div>
-
           <!-- File Input Group -->
           <div
             id="file-group"
@@ -625,16 +560,6 @@
               style="display: none"
               accept=".pdf"
               onchange="handleFileSelect(event)"
-            />
-          </div>
-
-          <!-- URL Input Group -->
-          <div id="url-group" class="url-input-container">
-            <input
-              type="text"
-              id="url-input"
-              class="text-input"
-              placeholder="https://example.com/document.pdf"
             />
           </div>
         </div>
@@ -740,7 +665,6 @@
     </div>
 
     <script>
-      let currentInputType = "file";
       let selectedFile = null;
       let activeTaskId = null;
       let pollInterval = null;
@@ -802,19 +726,6 @@
         }
       }
 
-      function switchTab(type) {
-        currentInputType = type;
-        const buttons = document.querySelectorAll(".tab-btn");
-        buttons[0].classList.toggle("active", type === "file");
-        buttons[1].classList.toggle("active", type === "url");
-
-        document.getElementById("file-group").style.display =
-          type === "file" ? "block" : "none";
-        document
-          .getElementById("url-group")
-          .classList.toggle("active", type === "url");
-      }
-
       function handleFileSelect(event) {
         const files = event.target.files;
         if (files.length > 0) {
@@ -850,20 +761,11 @@
       async function submitTask() {
         // Build Form Data
         const formData = new FormData();
-        if (currentInputType === "file") {
-          if (!selectedFile) {
-            alert("Please select a PDF file to upload.");
-            return;
-          }
-          formData.append("file", selectedFile);
-        } else {
-          const url = document.getElementById("url-input").value.trim();
-          if (!url) {
-            alert("Please enter a valid PDF URL.");
-            return;
-          }
-          formData.append("url", url);
+        if (!selectedFile) {
+          alert("Please select a PDF file to upload.");
+          return;
         }
+        formData.append("file", selectedFile);
 
         // UI Transitions
         document.getElementById("ingest-card").style.display = "none";
@@ -986,7 +888,6 @@
         document.getElementById("file-input").value = "";
         document.getElementById("file-label").textContent =
           "Drag & drop your PDF here, or click to browse";
-        document.getElementById("url-input").value = "";
 
         document.getElementById("results-card").style.display = "none";
         document.getElementById("progress-card").style.display = "none";

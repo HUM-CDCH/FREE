@@ -6,14 +6,27 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import fitz  # type: ignore[import-not-found]
+from fastapi import HTTPException, UploadFile
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from starlette.datastructures import Headers
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.api.deps import load_metadata, save_metadata
+from app.api.request_admission import (  # type: ignore[import-not-found]
+    TASK_REQUEST_LIMIT_BYTES,
+    TaskRequestLimitMiddleware,
+)
+from app.api.routes_tasks import router as tasks_router
+from app.ingestion.upload import (
+    MAX_UPLOAD_BYTES,
+    copy_upload_to_path,
+    validate_upload_mime,
+)
 from app.parsing.orchestrator import build_parsed_document
 from app.parsing.table_extraction import TableExtractionOutput
 from app.storage import paths
@@ -35,6 +48,124 @@ def make_pdf_bytes(page_count=1, width=200, height=300):
 
 PDF_BYTES = make_pdf_bytes(1)
 TWO_PAGE_PDF_BYTES = make_pdf_bytes(2)
+
+
+class BodyReadingAsgiApp:
+    def __init__(self):
+        self.handler_calls = 0
+
+    async def __call__(self, _scope, receive, send):
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            if not message.get("more_body", False):
+                break
+        self.handler_calls += 1
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+
+async def run_asgi_request(
+    application, *, headers=(), messages=None, method="POST", path="/tasks"
+):
+    pending = list(
+        messages or [{"type": "http.request", "body": b"", "more_body": False}]
+    )
+    sent = []
+
+    async def receive():
+        if pending:
+            return pending.pop(0)
+        return {"type": "http.disconnect"}
+
+    async def send(message):
+        sent.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": method,
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode("ascii"),
+        "query_string": b"",
+        "root_path": "",
+        "headers": list(headers),
+        "client": ("127.0.0.1", 1234),
+        "server": ("testserver", 80),
+        "state": {},
+    }
+    await application(scope, receive, send)
+    return sent, pending
+
+
+class TestTaskRequestLimitMiddleware(unittest.IsolatedAsyncioTestCase):
+    async def test_exact_declared_request_boundary_is_admitted(self):
+        downstream = BodyReadingAsgiApp()
+        middleware = TaskRequestLimitMiddleware(downstream)
+
+        sent, _pending = await run_asgi_request(
+            middleware,
+            headers=[
+                (b"content-length", str(TASK_REQUEST_LIMIT_BYTES).encode("ascii"))
+            ],
+        )
+
+        self.assertEqual(TASK_REQUEST_LIMIT_BYTES, 51 * 1024 * 1024)
+        self.assertEqual(downstream.handler_calls, 1)
+        self.assertEqual(sent[0]["status"], 204)
+
+    async def test_declared_request_over_boundary_is_rejected_before_handler(self):
+        downstream = BodyReadingAsgiApp()
+        middleware = TaskRequestLimitMiddleware(downstream)
+
+        sent, pending = await run_asgi_request(
+            middleware,
+            headers=[
+                (
+                    b"content-length",
+                    str(TASK_REQUEST_LIMIT_BYTES + 1).encode("ascii"),
+                )
+            ],
+        )
+
+        self.assertEqual(downstream.handler_calls, 0)
+        self.assertEqual(len(pending), 1)
+        self.assertEqual(
+            [
+                message["status"]
+                for message in sent
+                if message["type"] == "http.response.start"
+            ],
+            [413],
+        )
+
+    async def test_oversized_request_to_another_route_is_not_limited(self):
+        downstream = BodyReadingAsgiApp()
+        middleware = TaskRequestLimitMiddleware(downstream, max_bytes=8)
+
+        sent, _pending = await run_asgi_request(
+            middleware,
+            headers=[(b"content-length", b"9")],
+            path="/status",
+        )
+
+        self.assertEqual(downstream.handler_calls, 1)
+        self.assertEqual(sent[0]["status"], 204)
+
+    async def test_missing_or_malformed_content_length_is_not_preempted(self):
+        for headers in ([], [(b"content-length", b"not-a-number")]):
+            with self.subTest(headers=headers):
+                downstream = BodyReadingAsgiApp()
+                middleware = TaskRequestLimitMiddleware(downstream, max_bytes=4)
+                sent, _pending = await run_asgi_request(
+                    middleware,
+                    headers=headers,
+                )
+                self.assertEqual(downstream.handler_calls, 1)
+                self.assertEqual(sent[0]["status"], 204)
 
 
 class FakeDoclingDocument:
@@ -136,12 +267,6 @@ class TestService(unittest.TestCase):
         with fitz.open(source_path) as document:
             return FakeDoclingDocument(document.page_count)
 
-    def _fake_threadpool_download(self, func, *args, **kwargs):
-        if args and len(args) >= 2 and str(args[1]).endswith("source.pdf"):
-            self._write_bytes(args[1], PDF_BYTES)
-            return None
-        return func(*args, **kwargs)
-
     def tearDown(self):
         self._table_patcher.stop()
         self._docling_patcher.stop()
@@ -162,6 +287,46 @@ class TestService(unittest.TestCase):
         self.assertIn("gpu_available", data)
         self.assertEqual(data["status"], "online")
 
+    def test_lifespan_starts_after_task_local_recovery_failure(self):
+        task_id = str(uuid.uuid4())
+        task_dir = paths.task_dir_for(task_id)
+        task_dir.mkdir(parents=True)
+        metadata = {
+            "task_id": task_id,
+            "content_sha256": "a" * 64,
+            "status": "running",
+            "params": {"source_name": "source.pdf"},
+        }
+        parse_worker.save_task_metadata(task_dir, metadata)
+        stored_metadata = (task_dir / "metadata.json").read_bytes()
+
+        with (
+            patch("app.main.check_gpu_available", return_value=False),
+            patch(
+                "app.workers.parse_worker.save_task_metadata",
+                side_effect=PermissionError(f"cannot write {task_dir}"),
+            ),
+            self.assertLogs(parse_worker.logger, level="WARNING"),
+            self.client as client,
+        ):
+            response = client.get("/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "online")
+        self.assertEqual((task_dir / "metadata.json").read_bytes(), stored_metadata)
+
+    def test_lifespan_fails_when_shared_store_is_unavailable(self):
+        with (
+            patch("app.main.check_gpu_available", return_value=False),
+            patch(
+                "app.workers.parse_worker.task_store_lock_path",
+                side_effect=PermissionError("shared store unavailable"),
+            ),
+            self.assertRaisesRegex(PermissionError, "shared store unavailable"),
+            self.client,
+        ):
+            pass
+
     def test_root_ui_describes_canonical_docling_doctags(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
@@ -169,21 +334,50 @@ class TestService(unittest.TestCase):
         self.assertNotIn('id="pipeline-select"', response.text)
         self.assertNotIn('id="device-select"', response.text)
         self.assertNotIn('id="dpi-slider"', response.text)
+        self.assertNotIn('id="url-input"', response.text)
 
-    def test_tasks_validation(self):
-        response = self.client.post("/tasks")
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("Must provide either", response.json()["detail"])
+    def test_tasks_require_an_upload(self):
+        for data in ({}, {"url": "https://example.com/report.pdf"}):
+            with self.subTest(data=data):
+                response = self.client.post("/tasks", data=data)
+                self.assertEqual(response.status_code, 422)
+        self.assertEqual(list(Path(DATA_DIR).iterdir()), [])
 
-        response = self.client.post(
-            "/tasks",
-            data={"url": "https://arxiv.org/pdf/2408.09869"},
-            files={"file": ("dummy.pdf", PDF_BYTES, "application/pdf")},
+    def test_declared_oversized_request_preempts_task_reservation(self):
+        task_route = next(
+            route
+            for route in tasks_router.routes
+            if isinstance(route, APIRoute) and route.path == "/tasks"
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(
-            "Provide either 'file' or 'url', not both", response.json()["detail"]
+        route_handler = AsyncMock()
+        with (
+            patch.object(task_route.dependant, "call", route_handler),
+            patch("app.api.routes_tasks.http_task_dir") as task_dir,
+            patch("starlette.background.BackgroundTasks.add_task") as add_task,
+        ):
+            response = self.client.post(
+                "/tasks",
+                content=b"",
+                headers={
+                    "content-length": str(TASK_REQUEST_LIMIT_BYTES + 1),
+                    "content-type": "multipart/form-data; boundary=request-limit",
+                    "origin": "http://localhost:5173",
+                },
+            )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(
+            response.headers["access-control-allow-origin"],
+            "http://localhost:5173",
         )
+        self.assertEqual(
+            response.json(),
+            {"detail": "Request body exceeds the 51 MiB limit."},
+        )
+        route_handler.assert_not_awaited()
+        task_dir.assert_not_called()
+        add_task.assert_not_called()
+        self.assertEqual(list(Path(DATA_DIR).iterdir()), [])
 
     def test_legacy_image_conversion_endpoint_is_removed(self):
         response = self.client.post(
@@ -239,31 +433,6 @@ class TestService(unittest.TestCase):
                 convert_pdf_to_images(
                     source_path, output_dir, dpi=72, max_page_pixels=10
                 )
-
-    @patch("app.ingestion.url_fetch.run_in_threadpool")
-    def test_create_task_with_url(self, mock_threadpool):
-        mock_threadpool.side_effect = self._fake_threadpool_download
-
-        response = self.client.post(
-            "/tasks",
-            data={"url": "https://example.com/test.pdf?token=secret#fragment"},
-        )
-        self.assertEqual(response.status_code, 202)
-        res_data = response.json()
-        self.assertIn("task_id", res_data)
-        self.assertEqual(res_data["status"], "pending")
-
-        task_id = res_data["task_id"]
-        metadata = load_metadata(task_id)
-        self.assertEqual(metadata["params"]["source_name"], "test.pdf")
-        self.assertEqual(metadata["source_path"], "source.pdf")
-        self.assertEqual(metadata["source_kind"], "url")
-        self.assertEqual(metadata["submitted_url"], "https://example.com/test.pdf")
-        self.assertEqual(
-            metadata["document_id"],
-            f"sha256:{hashlib.sha256(PDF_BYTES).hexdigest()}",
-        )
-        self.assertEqual(metadata["status"], "completed")
 
     def test_get_nonexistent_and_invalid_tasks(self):
         response = self.client.get(f"/tasks/{uuid.uuid4()}")
@@ -367,19 +536,11 @@ class TestService(unittest.TestCase):
         self.assertTrue(parsed_document["pages"])
         self.assertFalse(os.path.exists(os.path.join(DATA_DIR, "evil.pdf")))
 
-    @patch("app.ingestion.url_fetch.run_in_threadpool")
-    def test_deprecated_parser_fields_do_not_change_canonical_config(
-        self, mock_threadpool
-    ):
-        mock_threadpool.side_effect = self._fake_threadpool_download
-
+    def test_deprecated_parser_fields_do_not_change_canonical_config(self):
         response = self.client.post(
             "/tasks",
-            data={
-                "url": "https://example.com/test.pdf",
-                "pipeline": "paddleocr",
-                "device": "cpu",
-            },
+            data={"pipeline": "paddleocr", "device": "cpu"},
+            files={"file": ("test.pdf", PDF_BYTES, "application/pdf")},
         )
         self.assertEqual(response.status_code, 202)
         task_id = response.json()["task_id"]
@@ -389,6 +550,91 @@ class TestService(unittest.TestCase):
         self.assertEqual(metadata["params"]["ocr_fallback_device_policy"], "auto")
         self.assertNotIn("device", metadata["params"])
 
+    def test_upload_mime_accepts_current_pdf_hints(self):
+        for content_type in (
+            None,
+            "application/pdf",
+            "application/x-pdf",
+            "application/octet-stream",
+            "binary/octet-stream",
+        ):
+            with (
+                self.subTest(content_type=content_type),
+                tempfile.TemporaryFile() as source,
+            ):
+                headers = (
+                    Headers({"content-type": content_type})
+                    if content_type is not None
+                    else Headers()
+                )
+                upload = UploadFile(
+                    source,
+                    filename="report.pdf",
+                    headers=headers,
+                )
+                validate_upload_mime(upload)
+
+    def test_create_task_rejects_invalid_extension_mime_and_magic(self):
+        cases = (
+            ("report.txt", PDF_BYTES, "application/pdf"),
+            ("report.pdf", PDF_BYTES, "text/plain"),
+            ("report.pdf", b"not a PDF", "application/pdf"),
+        )
+        for filename, content, content_type in cases:
+            with self.subTest(filename=filename, content_type=content_type):
+                response = self.client.post(
+                    "/tasks",
+                    files={"file": (filename, content, content_type)},
+                )
+                self.assertEqual(response.status_code, 400)
+        self.assertEqual(list(Path(DATA_DIR).iterdir()), [])
+
+    def test_create_task_storage_failure_is_path_free(self):
+        internal_path = str(paths.DEFAULT_DATA_DIR / "private" / "metadata.json")
+        with patch(
+            "app.api.routes_tasks.save_metadata",
+            side_effect=OSError(internal_path),
+        ):
+            response = self.client.post(
+                "/tasks",
+                files={"file": ("report.pdf", PDF_BYTES, "application/pdf")},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {"detail": "Could not create parsing task."})
+        self.assertNotIn(internal_path, response.text)
+        self.assertEqual(list(Path(DATA_DIR).iterdir()), [])
+
+    def test_same_source_document_twice_uses_one_hash_addressed_blob(self):
+        responses = [
+            self.client.post(
+                "/tasks",
+                files={"file": (name, PDF_BYTES, "application/pdf")},
+            )
+            for name in ("first.pdf", "second.pdf")
+        ]
+        self.assertEqual([response.status_code for response in responses], [202, 202])
+        task_ids = [response.json()["task_id"] for response in responses]
+        metadata = [load_metadata(task_id) for task_id in task_ids]
+        self.assertEqual(
+            len({item["source_store_path"] for item in metadata}),
+            1,
+        )
+        source_blobs = list(paths.DEFAULT_SOURCE_STORE_DIR.glob("*.pdf"))
+        self.assertEqual(len(source_blobs), 1)
+        self.assertEqual(source_blobs[0].read_bytes(), PDF_BYTES)
+
+    def test_upload_mime_rejects_disallowed_hint(self):
+        with tempfile.TemporaryFile() as source:
+            upload = UploadFile(
+                source,
+                filename="report.pdf",
+                headers=Headers({"content-type": "text/plain"}),
+            )
+            with self.assertRaises(HTTPException) as raised:
+                validate_upload_mime(upload)
+        self.assertEqual(raised.exception.status_code, 400)
+
     @patch("app.ingestion.upload.MAX_UPLOAD_BYTES", 8)
     def test_create_task_rejects_oversized_upload(self):
         response = self.client.post(
@@ -397,6 +643,39 @@ class TestService(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 413)
         self.assertIn("maximum allowed size", response.json()["detail"])
+
+    def test_exact_50_mib_source_passes_post_parse_byte_check(self):
+        self.assertEqual(MAX_UPLOAD_BYTES, 50 * 1024 * 1024)
+        destination = Path(DATA_DIR) / "exact-limit.pdf"
+        with tempfile.TemporaryFile() as source:
+            source.write(b"%PDF-")
+            source.seek(MAX_UPLOAD_BYTES - 1)
+            source.write(b"\0")
+            source.seek(0)
+            upload = UploadFile(source, filename="exact-limit.pdf")
+
+            copied = copy_upload_to_path(upload, destination)
+
+        self.assertEqual(copied, MAX_UPLOAD_BYTES)
+        self.assertEqual(destination.stat().st_size, MAX_UPLOAD_BYTES)
+
+    def test_upload_staging_failure_publishes_no_partial_source(self):
+        destination = Path(DATA_DIR) / "staged.pdf"
+        with tempfile.TemporaryFile() as source:
+            source.write(PDF_BYTES)
+            source.seek(0)
+            upload = UploadFile(source, filename="staged.pdf")
+            with (
+                patch(
+                    "app.ingestion.upload.os.replace",
+                    side_effect=OSError("stop"),
+                ),
+                self.assertRaisesRegex(OSError, "stop"),
+            ):
+                copy_upload_to_path(upload, destination)
+
+        self.assertFalse(destination.exists())
+        self.assertEqual(list(destination.parent.glob(".staged.pdf.*.tmp")), [])
 
     def test_get_task_markdown_and_document_endpoints(self):
         task_id = str(uuid.uuid4())
@@ -693,10 +972,10 @@ class TestService(unittest.TestCase):
         request_body = openapi["paths"]["/tasks"]["post"]["requestBody"]
         multipart_schema = request_body["content"]["multipart/form-data"]["schema"]
         ref_name = multipart_schema["$ref"].rsplit("/", 1)[-1]
-        fields = schemas[ref_name]["properties"]
-        self.assertNotIn("pipeline", fields)
-        self.assertNotIn("dpi", fields)
-        self.assertNotIn("device", fields)
+        form_schema = schemas[ref_name]
+        fields = form_schema["properties"]
+        self.assertEqual(set(fields), {"file"})
+        self.assertEqual(form_schema["required"], ["file"])
 
         create_schema = openapi["paths"]["/tasks"]["post"]["responses"]["202"][
             "content"

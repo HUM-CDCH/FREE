@@ -21,16 +21,12 @@ from app.storage.blobs import (
     prune_document_store,
     prune_orphan_document_generations,
     prune_source_store,
-    reserve_document_capacity,
     store_source_by_hash,
-    validate_document_size,
-    validate_task_capacity,
 )
 from app.storage.hashing import compute_sha256, document_id_from_hash
 from app.storage.manifests import (
-    json_payload_size,
+    TaskNotFoundError,
     load_task_metadata,
-    parsed_document_json_size,
     preprocessing_config_hash,
     read_canonical_parsed_document,
     rebase_parsed_document_artifacts,
@@ -42,7 +38,6 @@ from app.storage.manifests import (
 )
 from app.storage.paths import (
     DEFAULT_DATA_DIR,
-    PARSED_DOCUMENT_FILENAME,
     canonical_parsed_document_path,
     document_generation_dir,
     document_lock_path,
@@ -63,6 +58,10 @@ logger = logging.getLogger(__name__)
 _PARSER_ADMISSION = asyncio.Semaphore(1)
 _CANONICAL_LOCK_TIMEOUT_SECONDS = 15 * 60
 _ACTIVE_TASK_IDS: set[str] = set()
+
+
+class _TaskStateError(Exception):
+    pass
 
 
 def _utc_now() -> str:
@@ -95,7 +94,13 @@ def _load_valid_canonical(
             expected_sha256=content_sha256,
             expected_config_hash=preprocessing_config_hash(metadata),
         )
-    except (FileNotFoundError, OSError, ValueError):
+    except FileNotFoundError:
+        return None
+    except ValueError as exc:
+        if isinstance(exc.__cause__, FileNotFoundError):
+            return None
+        if isinstance(exc.__cause__, OSError):
+            raise OSError from exc
         return None
     return parsed_document
 
@@ -126,7 +131,6 @@ def _build_or_load_canonical(
     metadata: dict[str, Any],
 ) -> ParsedDocument:
     """Authenticate, build, and atomically publish one immutable generation."""
-    canonical_path = canonical_parsed_document_path(content_sha256)
     source_blob = _authenticated_source_blob(task_id, content_sha256)
     store_lock = FileLock(str(document_store_lock_path()))
     source_lock = FileLock(str(document_lock_path(content_sha256)))
@@ -140,10 +144,6 @@ def _build_or_load_canonical(
             if cached is not None:
                 return cached
 
-            reserve_document_capacity(
-                content_sha256=content_sha256,
-                data_dir=DEFAULT_DATA_DIR,
-            )
             config_hash = preprocessing_config_hash(metadata)
             generation_id = _new_generation_id(config_hash)
             pending_dir = pending_document_generation_dir(
@@ -164,11 +164,6 @@ def _build_or_load_canonical(
                     parsed_document,
                     pending_dir,
                     final_dir,
-                )
-                validate_document_size(
-                    content_sha256,
-                    additional_bytes=parsed_document_json_size(parsed_document),
-                    replacing_path=canonical_path,
                 )
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(pending_dir, final_dir)
@@ -199,14 +194,12 @@ def _persist_task_metadata(
     task_dir: Path,
     metadata: dict[str, Any],
 ) -> None:
-    metadata_path = task_dir / "metadata.json"
-    with FileLock(str(task_store_lock_path())):
-        validate_task_capacity(
-            task_dir,
-            additional_bytes=json_payload_size(metadata),
-            replacing_paths=(metadata_path,),
-        )
-        save_task_metadata(task_dir, metadata)
+    store_lock = FileLock(str(task_store_lock_path()))
+    with store_lock:
+        try:
+            save_task_metadata(task_dir, metadata)
+        except (OSError, TypeError, ValueError) as exc:
+            raise _TaskStateError from exc
 
 
 def _completed_metadata(
@@ -214,34 +207,33 @@ def _completed_metadata(
     metadata: dict[str, Any],
     parsed_document: ParsedDocument,
 ) -> dict[str, Any]:
-    rebound = rebind_parsed_document_for_task(task_dir, metadata, parsed_document)
-    updated = dict(metadata)
-    updated["document_id"] = document_id_from_hash(rebound.document.content_sha256)
-    updated["stats"] = {run.parser: run.metrics for run in rebound.parser_runs}
-    updated["parser_runs"] = [
-        run.model_dump(mode="json") for run in rebound.parser_runs
-    ]
-    updated["selected_parser"] = rebound.arbitration.primary_document_parser
-    updated["canonical_parsed_document_ref"] = service_relative_ref(
-        canonical_parsed_document_path(rebound.document.content_sha256)
+    canonical_ref = service_relative_ref(
+        canonical_parsed_document_path(parsed_document.document.content_sha256)
     )
-    updated["status"] = "completed"
-    updated["error_code"] = None
-    updated["error"] = None
-    updated["updated_at"] = _utc_now()
+    try:
+        rebound = rebind_parsed_document_for_task(task_dir, metadata, parsed_document)
+        updated = dict(metadata)
+        updated["document_id"] = document_id_from_hash(rebound.document.content_sha256)
+        updated["stats"] = {run.parser: run.metrics for run in rebound.parser_runs}
+        updated["parser_runs"] = [
+            run.model_dump(mode="json") for run in rebound.parser_runs
+        ]
+        updated["selected_parser"] = rebound.arbitration.primary_document_parser
+        updated["canonical_parsed_document_ref"] = canonical_ref
+        updated["status"] = "completed"
+        updated["error_code"] = None
+        updated["error"] = None
+        updated["updated_at"] = _utc_now()
+    except (OSError, TypeError, ValueError) as exc:
+        raise _TaskStateError from exc
 
-    parsed_path = task_dir / PARSED_DOCUMENT_FILENAME
-    metadata_path = task_dir / "metadata.json"
-    with FileLock(str(task_store_lock_path())):
-        validate_task_capacity(
-            task_dir,
-            additional_bytes=(
-                parsed_document_json_size(rebound) + json_payload_size(updated)
-            ),
-            replacing_paths=(parsed_path, metadata_path),
-        )
-        write_parsed_document(task_dir, rebound)
-        save_task_metadata(task_dir, updated)
+    store_lock = FileLock(str(task_store_lock_path()))
+    with store_lock:
+        try:
+            write_parsed_document(task_dir, rebound)
+            save_task_metadata(task_dir, updated)
+        except (OSError, TypeError, ValueError) as exc:
+            raise _TaskStateError from exc
     return updated
 
 
@@ -366,8 +358,13 @@ def reconcile_interrupted_tasks() -> int:
     """Finish from a valid cache or mark interrupted tasks failed on startup."""
     reconciled = 0
     data_path = Path(DEFAULT_DATA_DIR)
-    if not data_path.exists():
-        return reconciled
+    # Contention proves coordination works; lock access errors must abort startup.
+    for store_lock_path in (task_store_lock_path(), document_store_lock_path()):
+        try:
+            with FileLock(str(store_lock_path)).acquire(timeout=0):
+                pass
+        except Timeout:
+            pass
     for entry in data_path.iterdir():
         if not entry.is_dir():
             continue
@@ -379,13 +376,17 @@ def reconcile_interrupted_tasks() -> int:
         try:
             with lock.acquire(timeout=0):
                 try:
-                    metadata = load_task_metadata(entry)
-                except (OSError, ValueError):
-                    logger.warning("Skipping malformed task metadata in %s", entry)
-                    continue
-                metadata = _normalize_legacy_metadata(task_id, metadata)
-                content_sha256 = metadata.get("content_sha256")
-                if metadata.get("status") in {"pending", "running"}:
+                    stored_metadata = load_task_metadata(entry)
+                    metadata = _normalize_legacy_metadata(task_id, stored_metadata)
+                    status = metadata.get("status")
+                    if status not in {"pending", "running", "completed", "failed"}:
+                        raise ValueError("Task metadata has an invalid status.")
+                    if status in {"completed", "failed"}:
+                        if metadata != stored_metadata:
+                            _persist_task_metadata(entry, metadata)
+                        continue
+
+                    content_sha256 = metadata.get("content_sha256")
                     cached = (
                         _load_valid_canonical(content_sha256, metadata)
                         if isinstance(content_sha256, str)
@@ -400,9 +401,20 @@ def reconcile_interrupted_tasks() -> int:
                     metadata["error"] = (
                         "Parsing was interrupted before a canonical result was published."
                     )
+                    metadata["updated_at"] = _utc_now()
+                    _persist_task_metadata(entry, metadata)
                     reconciled += 1
-                metadata["updated_at"] = _utc_now()
-                _persist_task_metadata(entry, metadata)
+                except (
+                    _TaskStateError,
+                    TaskNotFoundError,
+                    TypeError,
+                    ValueError,
+                ) as exc:
+                    logger.warning(
+                        "Task recovery skipped for task %s (%s)",
+                        task_id,
+                        type(exc).__name__,
+                    )
         except Timeout:
             continue
     return reconciled

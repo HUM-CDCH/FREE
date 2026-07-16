@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import math
 import tempfile
 import unittest
@@ -9,11 +10,18 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from docling_core.types.doc.base import (
+    BoundingBox as DoclingBoundingBox,
+    CoordOrigin,
+)
+import pandas
+
 from app.models.parsed_document import BoundingBox, ParsedTable
+from app.parsing.docling_runner import _table_inventory
 from app.parsing.table_extraction import (
+    BBoxTuple,
     DOCLING_TABLE_PARSER_NAME,
     ROTATED_TABLE_GEOMETRY_WARNING,
-    BBoxTuple,
     extract_tables,
     is_matrixlike,
     table_matrix_to_parsed_table,
@@ -38,24 +46,16 @@ PROSE_MATRIX = [
 ]
 
 
-class _Values:
-    def __init__(self, rows: list[list[str]]):
-        self._rows = rows
-
-    def tolist(self) -> list[list[str]]:
-        return self._rows
-
-
 class _FakeTable:
     def __init__(
         self,
-        rows: list[list[str]],
+        rows: Sequence[Sequence[object]],
         page: int = 1,
         *,
         bbox: BBoxTuple | None = None,
         cell_bboxes: Sequence[Sequence[BBoxTuple | None]] | None = None,
     ):
-        self.df = SimpleNamespace(values=_Values(rows))
+        self.df = pandas.DataFrame(rows)
         self.page = page
         self.cells: list[list[object]] = []
         for row in cell_bboxes or ():
@@ -259,6 +259,79 @@ class TestExtractTables(unittest.TestCase):
         self.assertNotIn("private", output.error or "")
         self.assertNotIn("token", output.error or "")
 
+    def test_successful_camelot_call_with_no_candidates_is_empty_success(self):
+        camelot = Mock()
+        camelot.read_pdf.return_value = []
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            return_value=camelot,
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={1: 792.0},
+            )
+
+        self.assertEqual(output.status, "success")
+        self.assertIsNone(output.error)
+        self.assertEqual(output.tables, [])
+        self.assertEqual(output.metrics["tables_found"], 0)
+        self.assertEqual(output.metrics["tables_kept"], 0)
+        self.assertEqual(output.warnings, [])
+
+    def test_camelot_non_string_missing_values_become_empty_json_safe_cells(self):
+        camelot = Mock()
+        camelot.read_pdf.return_value = [
+            _FakeTable(
+                [
+                    ["Label", "Count", "NaN", "Missing", "Literal"],
+                    ["K1", 12, math.nan, pandas.NA, "NaN"],
+                ]
+            )
+        ]
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            return_value=camelot,
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={1: 792.0},
+            )
+
+        table = output.tables[0]
+        self.assertFalse(
+            any(cell.row == 1 and cell.col in {2, 3} for cell in table.cells)
+        )
+        self.assertEqual(table.cells[-1].text, "NaN")
+        self.assertEqual(
+            table.markdown_view,
+            "| Label | Count | NaN | Missing | Literal |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| K1 | 12 |  |  | NaN |",
+        )
+        json.dumps(table.model_dump(mode="json"), allow_nan=False)
+
+    def test_docling_literal_nan_is_preserved_in_cells_and_markdown(self):
+        inventory = [_inventory_for_rows([["Label", "Value"], ["Missing", "NaN"]])]
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            side_effect=ModuleNotFoundError("camelot"),
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={2: 200.0},
+                docling_tables=inventory,
+            )
+
+        table = output.tables[0]
+        self.assertEqual(table.cells[-1].text, "NaN")
+        self.assertEqual(
+            table.markdown_view,
+            "| Label | Value |\n| --- | --- |\n| Missing | NaN |",
+        )
+
     def test_docling_inventory_is_complete_when_camelot_is_unavailable(self):
         inventory = [
             {
@@ -303,38 +376,42 @@ class TestExtractTables(unittest.TestCase):
         )
         self.assertEqual(output.warnings, ["camelot_inventory_enrichment_unavailable"])
 
-    def test_docling_bottom_left_geometry_is_converted_to_top_left(self):
-        inventory = [
-            {
-                "page_number": 1,
-                "rows": 1,
-                "cols": 1,
-                "bbox": {
-                    "x0": 10,
-                    "y0": 100,
-                    "x1": 200,
-                    "y1": 150,
-                    "origin": "BOTTOMLEFT",
-                },
-                "cells": [
-                    {
-                        "row": 0,
-                        "col": 0,
-                        "text": "Value",
-                        "bbox": {
-                            "x0": 20,
-                            "y0": 20,
-                            "x1": 80,
-                            "y1": 40,
-                            "origin": "BOTTOMLEFT",
-                        },
-                    }
-                ],
-            }
-        ]
+    def test_docling_bottom_left_geometry_reaches_camelot_area_and_dedup(self):
+        table_bbox = DoclingBoundingBox(
+            l=10,
+            t=150,
+            r=200,
+            b=100,
+            coord_origin=CoordOrigin.BOTTOMLEFT,
+        )
+        cell_bbox = DoclingBoundingBox(
+            l=20,
+            t=40,
+            r=80,
+            b=20,
+            coord_origin=CoordOrigin.BOTTOMLEFT,
+        )
+        cell = SimpleNamespace(
+            start_row_offset_idx=0,
+            start_col_offset_idx=0,
+            row_span=1,
+            col_span=1,
+            text="Value",
+            column_header=True,
+            row_header=False,
+            row_section=False,
+            bbox=cell_bbox,
+        )
+        table = SimpleNamespace(
+            prov=[SimpleNamespace(page_no=1, bbox=table_bbox)],
+            data=SimpleNamespace(num_rows=1, num_cols=1, table_cells=[cell]),
+        )
+        inventory = _table_inventory(SimpleNamespace(tables=[table, table]))
+        read_pdf = Mock(return_value=[])
+
         with patch(
             "app.parsing.table_extraction.importlib.import_module",
-            side_effect=ModuleNotFoundError("camelot"),
+            return_value=SimpleNamespace(read_pdf=read_pdf),
         ):
             output = extract_tables(
                 source_pdf=Path("source.pdf"),
@@ -344,12 +421,29 @@ class TestExtractTables(unittest.TestCase):
             )
 
         self.assertEqual(
+            inventory[0]["bbox"],
+            {
+                "x0": 10.0,
+                "y0": 100.0,
+                "x1": 200.0,
+                "y1": 150.0,
+                "origin": "BOTTOMLEFT",
+            },
+        )
+        self.assertEqual(output.metrics["tables_found"], 2)
+        self.assertEqual(output.metrics["tables_kept"], 1)
+        self.assertEqual(len(output.tables), 1)
+        self.assertEqual(
             output.tables[0].bbox,
             BoundingBox(x0=10, y0=50, x1=200, y1=100),
         )
         self.assertEqual(
             output.tables[0].cells[0].bbox,
             BoundingBox(x0=20, y0=160, x1=80, y1=180),
+        )
+        self.assertEqual(
+            read_pdf.call_args.kwargs["table_areas"],
+            ["10.0,150.0,200.0,100.0", "10.0,150.0,200.0,100.0"],
         )
 
     def test_overlapping_inventory_tables_with_distinct_content_are_retained(self):

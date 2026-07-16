@@ -10,6 +10,9 @@ from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.request_admission import (  # type: ignore[import-not-found]
+    TaskRequestLimitMiddleware,
+)
 from app.api.routes_artifacts import router as artifacts_router
 from app.api.routes_documents import router as documents_router
 from app.api.routes_system import router as system_router
@@ -43,6 +46,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(TaskRequestLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

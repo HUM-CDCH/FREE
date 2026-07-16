@@ -47,7 +47,6 @@ class TaskStatusResponse(BaseModel):
     source_path: str
     source_store_path: str
     source_kind: Literal["upload", "url"]
-    submitted_url: str | None = None
     status: Literal["pending", "running", "completed", "failed"]
     created_at: str
     updated_at: str

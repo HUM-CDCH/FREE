@@ -65,13 +65,22 @@ A run that applies an extraction schema to source context from its source docume
 _Avoid_: schema, suggestion
 
 **Extraction Result**:
-A value or set of values produced by an extraction.
+A source-grounded value or set of values produced by an extraction and linked to
+validated evidence.
 _Avoid_: extraction, output, response
 
 **Review Decision**:
-A researcher's choice to approve, edit, or reject a schema suggestion or extraction result.
+A researcher's choice to approve, edit, or reject a schema suggestion or
+extraction result.
 _Avoid_: status, vote
 
 **Evidence**:
-Source material kept to show that a schema suggestion, extraction result, or review decision is grounded in the source document rather than invented.
+Source material linked to an exact location in a source document and kept to show
+that a schema suggestion, extraction result, or review decision is grounded
+rather than invented.
 _Avoid_: citation, source, provenance, annotation text
+
+**Evidence Anchor**:
+An exact location in a source document to which evidence is linked, identifying
+source text or a table cell without requiring visual geometry.
+_Avoid_: citation anchor, model reference, highlight

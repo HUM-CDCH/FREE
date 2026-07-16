@@ -92,16 +92,20 @@ def _bbox_inventory(value: Any) -> dict[str, float | str] | None:
     if value is None:
         return None
     try:
-        values = {
-            "x0": float(value.l),
-            "y0": float(value.t),
-            "x1": float(value.r),
-            "y1": float(value.b),
-            "origin": _coord_origin(value),
-        }
+        origin = _coord_origin(value)
+        x0 = float(value.l)
+        x1 = float(value.r)
+        if "BOTTOM" in origin.upper():
+            y0 = float(value.b)
+            y1 = float(value.t)
+        else:
+            y0 = float(value.t)
+            y1 = float(value.b)
     except (AttributeError, TypeError, ValueError):
         return None
-    return values
+    if x0 > x1 or y0 > y1:
+        return None
+    return {"x0": x0, "y0": y0, "x1": x1, "y1": y1, "origin": origin}
 
 
 def _table_inventory(document: Any) -> tuple[dict[str, Any], ...]:

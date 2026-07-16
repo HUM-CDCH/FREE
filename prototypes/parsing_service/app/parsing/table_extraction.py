@@ -65,8 +65,6 @@ def _norm_cell(value: Any) -> str:
     if value is None:
         return ""
     text = str(value)
-    if text.lower() == "nan":
-        return ""
     return " ".join(text.replace("\u00a0", " ").split()).strip()
 
 
@@ -74,6 +72,20 @@ def _normalise_matrix(matrix: Sequence[Sequence[Any]]) -> list[list[str]]:
     rows = [[_norm_cell(value) for value in row] for row in matrix]
     width = max((len(row) for row in rows), default=0)
     return [row + [""] * (width - len(row)) for row in rows]
+
+
+def _normalise_camelot_matrix(
+    matrix: Sequence[Sequence[Any]],
+    missing: Sequence[Sequence[bool]],
+) -> list[list[str]]:
+    masked = [
+        [
+            None if is_missing and not isinstance(value, str) else value
+            for value, is_missing in zip(row, missing_row, strict=True)
+        ]
+        for row, missing_row in zip(matrix, missing, strict=True)
+    ]
+    return _normalise_matrix(masked)
 
 
 def _is_numbery(text: str) -> bool:
@@ -265,7 +277,7 @@ def _coerce_bbox(raw: Any) -> BBoxTuple | None:
         return None
     if len(values) != 4 or not all(math.isfinite(value) for value in values):
         return None
-    return values  # type: ignore[return-value]
+    return values[0], values[1], values[2], values[3]
 
 
 def _bbox_topleft(
@@ -701,7 +713,10 @@ def _camelot_tables(
     warned_rotations: set[int] = set()
     for table in found:
         try:
-            matrix = _normalise_matrix(table.df.values.tolist())
+            matrix = _normalise_camelot_matrix(
+                table.df.values.tolist(),
+                table.df.isna().values.tolist(),
+            )
         except Exception:
             warnings.append("camelot_table_matrix_unavailable")
             continue
@@ -970,15 +985,17 @@ def extract_tables(
         )
 
     found: list[Any] = []
+    camelot_succeeded = False
     if camelot is not None:
         try:
             found = list(
                 camelot.read_pdf(str(source_pdf), pages="all", flavor="stream")
             )
+            camelot_succeeded = True
         except Exception:
             logger.exception("Camelot table extraction failed")
 
-    if found:
+    if camelot_succeeded:
         tables = _assign_table_ids(
             _camelot_tables(
                 found,
