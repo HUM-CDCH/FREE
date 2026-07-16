@@ -26,12 +26,6 @@ function stubOllamaResponse(response: string): void {
   )
 }
 
-function stubCodexResponse(response: string): void {
-  vi.stubEnv('AI_PROVIDER', 'codex-cli')
-  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Ollama must not be called')))
-  generateTextMock.mockResolvedValue({ text: response })
-}
-
 beforeEach(() => vi.stubEnv('AI_PROVIDER', 'ollama'))
 
 afterEach(() => {
@@ -64,7 +58,9 @@ describe('extractWithModel', () => {
       template: { grave: [{ name: 'verbatim-string' }] },
     })
 
-    expect(result.result).toEqual({ grave: [{ name: 'Grave 1', extra: 'invented' }] })
+    expect(result.result).toEqual({
+      grave: [{ name: 'Grave 1', extra: 'invented' }],
+    })
     expect(warn).toHaveBeenCalledWith(
       'Model returned output that did not match the extraction schema.',
       expect.anything(),
@@ -87,14 +83,20 @@ describe('extractWithModel', () => {
   })
 
   it('routes codex-cli extraction through the AI SDK instead of Ollama', async () => {
-    stubCodexResponse('{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}')
+    vi.stubEnv('AI_PROVIDER', 'codex-cli')
+    vi.stubEnv('AI_MODEL', 'gpt-5.6-terra')
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Ollama must not be called'))
+    vi.stubGlobal('fetch', fetchMock)
+    generateTextMock.mockResolvedValue({
+      text: '{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}',
+    })
 
     const result = await extractWithModel({
       document,
       template: { grave: [{ name: 'verbatim-string' }] },
     })
 
-    expect(fetch).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
     expect(generateTextMock).toHaveBeenCalledOnce()
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
@@ -123,14 +125,24 @@ describe('generateSchemaWithModel', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await generateSchemaWithModel({ document, annotations: [], annotationsMode: 'hints' })
+    await generateSchemaWithModel({
+      document,
+      annotations: [],
+      annotationsMode: 'hints',
+    })
 
     const body = fetchMock.mock.calls[0][1].body as string
     expect(body.indexOf('compact JSON extraction schema')).toBeLessThan(body.indexOf('Grave 1'))
   })
 
   it('routes codex-cli schema suggestions through the AI SDK', async () => {
-    stubCodexResponse('{"grave":[{"name":"verbatim-string"}]}')
+    vi.stubEnv('AI_PROVIDER', 'codex-cli')
+    vi.stubEnv('AI_MODEL', 'gpt-5.6-terra')
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Ollama must not be called'))
+    vi.stubGlobal('fetch', fetchMock)
+    generateTextMock.mockResolvedValue({
+      text: '{"grave":[{"name":"verbatim-string"}]}',
+    })
 
     const result = await generateSchemaWithModel({
       document,
@@ -138,7 +150,7 @@ describe('generateSchemaWithModel', () => {
       annotationsMode: 'hints',
     })
 
-    expect(fetch).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
     expect(generateTextMock).toHaveBeenCalledOnce()
     expect(result.template).toEqual({ grave: [{ name: 'verbatim-string' }] })
   })
