@@ -1,5 +1,6 @@
 import importlib
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -192,6 +193,30 @@ class TestDocTagsToMarkdown(unittest.TestCase):
         out = doctags_to_markdown(f"<text>{source}</text><code>print(1)</code>")
 
         self.assertEqual(out, f"{source}\n\n```\nprint(1)\n```")
+
+    def test_page_placeholder_cannot_fabricate_a_physical_page(self):
+        source = "before\ue000FREE_PAGE_BREAK\ue001after"
+        result = convert_doctags_to_markdown(f"<text>{source}</text>")
+
+        self.assertEqual(result.markdown, source)
+        self.assertEqual([span.text for span in result.page_spans], [source])
+
+    def test_many_lists_and_semantic_blocks_complete_within_linear_bound(self):
+        count = 10_000
+        doctags = (
+            "<unordered_list>"
+            + "<list_item>x</list_item>" * count
+            + "</unordered_list>"
+            + "<code>x</code>" * count
+        )
+
+        started = time.perf_counter()
+        result = convert_doctags_to_markdown(doctags)
+        elapsed = time.perf_counter() - started
+
+        self.assertEqual(result.markdown.count("- x"), count)
+        self.assertEqual(result.markdown.count("```\nx\n```"), count)
+        self.assertLess(elapsed, 1.0)
 
     def test_formula_uses_separate_line_delimiters(self):
         source = r"E = mc^2 + \alpha"

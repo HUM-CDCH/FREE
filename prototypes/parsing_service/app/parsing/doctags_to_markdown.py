@@ -27,6 +27,7 @@ _CODE_BLOCK = re.compile(r"<code>(.*?)</code>", re.DOTALL)
 _CODE_LANGUAGE_TOKEN = re.compile(r"^<_[^<>\n]+_>")
 _FORMULA_BLOCK = re.compile(r"<formula>(.*?)</formula>", re.DOTALL)
 _LIST_TAG = re.compile(r"<(\/)?(ordered_list|unordered_list|list_item)>")
+_LIST_CONTAINER_START = re.compile(r"\s*<(?:ordered_list|unordered_list)>")
 _PAGE_BREAK = re.compile(r"<page_break>\s*")
 _PAGE_FOOTER = re.compile(r"<page_footer>(.*?)</page_footer>", re.DOTALL)
 _PAGE_HEADER = re.compile(r"<page_header>(.*?)</page_header>", re.DOTALL)
@@ -285,9 +286,7 @@ def _render_lists(value: str) -> str:
             else:
                 list_types.append(tag)
         elif not closing and list_types:
-            wraps_nested_list = re.match(
-                r"\s*<(?:ordered_list|unordered_list)>", value[match.end() :]
-            )
+            wraps_nested_list = _LIST_CONTAINER_START.match(value, match.end())
             if not wraps_nested_list:
                 marker = "1." if list_types[-1] == "ordered_list" else "-"
                 output.append(f"\n{'   ' * (len(list_types) - 1)}{marker} ")
@@ -334,6 +333,9 @@ def convert_doctags_to_markdown(
     semantic_sentinel = "\ue002"
     while semantic_sentinel in value:
         semantic_sentinel += "\ue002"
+    page_sentinel = _PAGE_SENTINEL
+    while page_sentinel in value:
+        page_sentinel += "\ue000"
 
     def protect_block(match: re.Match[str]) -> str:
         source = match.group(1)
@@ -352,7 +354,7 @@ def convert_doctags_to_markdown(
 
     value = _CODE_BLOCK.sub(protect_block, value)
     value = _FORMULA_BLOCK.sub(protect_block, value)
-    value = _PAGE_BREAK.sub(_PAGE_SENTINEL, value)
+    value = _PAGE_BREAK.sub(page_sentinel, value)
     value = _replace_otsl_blocks_merged(
         value,
         drop_page_footers=drop_page_footers,
@@ -389,12 +391,16 @@ def convert_doctags_to_markdown(
     value = _TRANSPARENT_WRAPPERS.sub("", value)
     value = _REMAINING_STRUCTURAL_TAGS.sub("", value)
     value = re.sub(r"\n{3,}", "\n\n", value)
-    for index, rendered in enumerate(protected_blocks):
-        value = value.replace(
-            f"{semantic_sentinel}{index}{semantic_sentinel}", rendered
+    if protected_blocks:
+        rendered_by_index = {
+            str(index): rendered for index, rendered in enumerate(protected_blocks)
+        }
+        placeholder = re.compile(
+            rf"{re.escape(semantic_sentinel)}(\d+){re.escape(semantic_sentinel)}"
         )
+        value = placeholder.sub(lambda match: rendered_by_index[match[1]], value)
 
-    return compose_page_markdown(value.split(_PAGE_SENTINEL))
+    return compose_page_markdown(value.split(page_sentinel))
 
 
 def doctags_to_markdown(doctags: str, *, drop_page_footers: bool = True) -> str:
