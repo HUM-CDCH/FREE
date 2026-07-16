@@ -28,13 +28,10 @@ type RightRailProps = {
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
   pdfSource: { url: string; filename: string } | null
-  documentMarkdown: string | null
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
-  const tone = done
-    ? 'bg-green-soft text-green'
-    : `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
+  const tone = done ? 'bg-green-soft text-green' : `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
   return (
     <span
       className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-[10px] leading-none tabular-nums ${tone}`}
@@ -62,7 +59,6 @@ function RightRail({
   onAnnotationsModeChange,
   extraction,
   pdfSource,
-  documentMarkdown,
 }: RightRailProps) {
   if (!open) {
     return (
@@ -84,14 +80,22 @@ function RightRail({
 
   const resultsBadge = extraction.hasResults ? { label: '✓', done: true } : null
 
-  const tabs: { key: RailTab; label: string; badge?: { label: string; done?: boolean } | null }[] = [
+  const tabs: {
+    key: RailTab
+    label: string
+    badge?: { label: string; done?: boolean } | null
+  }[] = [
     {
       key: 'annot',
       label: 'Annot.',
       badge: annotationItems.length ? { label: String(annotationItems.length) } : null,
     },
     { key: 'chat', label: 'Chat' },
-    { key: 'schema', label: 'Schema', badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null },
+    {
+      key: 'schema',
+      label: 'Schema',
+      badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null,
+    },
     { key: 'results', label: 'Results', badge: resultsBadge },
   ]
 
@@ -128,11 +132,7 @@ function RightRail({
 
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
       <div className="min-h-0 flex-1" hidden={tab !== 'annot'}>
-        <AnnotationSetTab
-          items={annotationItems}
-          onSelectItem={onSelectAnnotation}
-          onRemoveItem={onRemoveAnnotation}
-        />
+        <AnnotationSetTab items={annotationItems} onSelectItem={onSelectAnnotation} onRemoveItem={onRemoveAnnotation} />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'chat'}>
         <ChatTab pdfSource={pdfSource} />
@@ -149,7 +149,7 @@ function RightRail({
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} documentMarkdown={documentMarkdown} />
+        <ResultsTab controller={extraction} schemaReady={schemaReady} />
       </div>
     </div>
   )

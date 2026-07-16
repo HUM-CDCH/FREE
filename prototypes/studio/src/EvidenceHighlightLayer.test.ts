@@ -2,18 +2,49 @@ import { describe, expect, it } from 'vitest'
 import { buildHighlights } from './evidenceHighlights'
 
 describe('buildHighlights', () => {
-  it('falls back to direct result search for leaves without evidence', () => {
+  it('uses embedded Evidence and falls back to direct searches for ungrounded leaves', () => {
     const result = {
       title: 'Anchored title',
       author: 'Searchable author',
-    }
-    const evidence = {
-      title: { value: 'Anchored title', snippet: 'Anchored title appears here', page: 2 },
+      _evidence: {
+        title: { snippets: ['Anchored title appears here'], page: 2 },
+      },
     }
 
-    expect(buildHighlights(result, evidence, { title: 'yellow', author: 'blue' })).toEqual([
-      { value: 'Anchored title', snippet: 'Anchored title appears here', hintPage: 2, color: 'yellow' },
-      { value: 'Searchable author', snippet: null, hintPage: null, color: 'blue' },
+    expect(buildHighlights(result, { title: 'yellow', author: 'blue' })).toEqual([
+      {
+        value: 'Anchored title',
+        snippet: 'Anchored title appears here',
+        hintPage: 2,
+        color: 'yellow',
+      },
+      {
+        value: 'Searchable author',
+        snippet: null,
+        hintPage: null,
+        color: 'blue',
+      },
+    ])
+  })
+
+  it('skips Evidence metadata instead of treating it as extracted values', () => {
+    const result = {
+      entries: [
+        {
+          id: '8',
+          _evidence: {
+            id: {
+              snippets: ['Grav 8'],
+              source_type: 'text',
+              row_header_text: 'must not become a highlight',
+            },
+          },
+        },
+      ],
+    }
+
+    expect(buildHighlights(result, { entries: 'yellow' })).toEqual([
+      { value: '8', snippet: 'Grav 8', hintPage: null, color: 'yellow' },
     ])
   })
 })

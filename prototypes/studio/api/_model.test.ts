@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { extractWithModel, generateSchemaWithModel } from './_model.js'
+import { generateSchemaWithModel, generateStructuredWithModel } from './_model.js'
 
 const { generateTextMock } = vi.hoisted(() => ({ generateTextMock: vi.fn() }))
 
@@ -14,16 +14,25 @@ const document = {
   pages: null,
 }
 
-function stubOllamaResponse(response: string): void {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ response }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    ),
+function stubOllamaResponse(response: string): ReturnType<typeof vi.fn> {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ response }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }),
   )
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+function requestBody(fetchMock: ReturnType<typeof vi.fn>): Record<string, unknown> {
+  try {
+    return JSON.parse(fetchMock.mock.calls[0][1].body as string) as Record<string, unknown>
+  } catch (error) {
+    throw new Error('Structured model request body was not valid JSON', {
+      cause: error,
+    })
+  }
 }
 
 function stubCodexResponse(response: string): void {
@@ -40,64 +49,37 @@ afterEach(() => {
   generateTextMock.mockReset()
 })
 
-describe('extractWithModel', () => {
-  it('returns clean extraction results with mirrored evidence', async () => {
-    stubOllamaResponse('{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}')
+describe('generateStructuredWithModel', () => {
+  it('uses the raw NuExtract boundary and conforms the returned object', async () => {
+    const fetchMock = stubOllamaResponse('{"title":"Report","extra":"drop"}')
 
-    const result = await extractWithModel({
-      document,
-      template: { grave: [{ name: 'verbatim-string' }] },
+    const result = await generateStructuredWithModel({
+      document: 'Canonical report',
+      schema: { title: '', count: 0 },
+      instructions: 'Extract one report.',
     })
 
-    expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
-    expect(result.evidence).toEqual({
-      grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1 } }],
-    })
+    expect(result).toEqual({ title: 'Report', count: null })
+    const body = requestBody(fetchMock)
+    expect(body.raw).toBe(true)
+    expect(body.stream).toBe(false)
+    expect(body.prompt).toContain('Extract one report.')
+    expect(body.prompt).toContain('Canonical report')
   })
 
-  it('warns but keeps valid JSON with fields outside the extraction schema', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    stubOllamaResponse('{"grave":[{"name":"Grave 1","extra":"invented"}]}')
+  it('routes codex-cli structured extraction through the existing generic model boundary', async () => {
+    stubCodexResponse('{"title":"Report"}')
 
-    const result = await extractWithModel({
-      document,
-      template: { grave: [{ name: 'verbatim-string' }] },
-    })
-
-    expect(result.result).toEqual({ grave: [{ name: 'Grave 1', extra: 'invented' }] })
-    expect(warn).toHaveBeenCalledWith(
-      'Model returned output that did not match the extraction schema.',
-      expect.anything(),
-    )
-    warn.mockRestore()
-  })
-
-  it('warns but keeps valid JSON with primitive types outside the extraction schema', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    stubOllamaResponse('{"grave":[{"name":42}]}')
-
-    const result = await extractWithModel({
-      document,
-      template: { grave: [{ name: 'verbatim-string' }] },
-    })
-
-    expect(result.result).toEqual({ grave: [{ name: 42 }] })
-    expect(warn).toHaveBeenCalled()
-    warn.mockRestore()
-  })
-
-  it('routes codex-cli extraction through the AI SDK instead of Ollama', async () => {
-    stubCodexResponse('{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}')
-
-    const result = await extractWithModel({
-      document,
-      template: { grave: [{ name: 'verbatim-string' }] },
+    const result = await generateStructuredWithModel({
+      document: 'Canonical report',
+      schema: { title: '' },
+      instructions: 'Extract one report.',
     })
 
     expect(fetch).not.toHaveBeenCalled()
     expect(generateTextMock).toHaveBeenCalledOnce()
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
-    expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
+    expect(result).toEqual({ title: 'Report' })
   })
 })
 
@@ -115,15 +97,13 @@ describe('generateSchemaWithModel', () => {
   })
 
   it('leads the prompt with schema guidance, before the document body', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ response: '{"grave":[{"name":"verbatim-string"}]}' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    )
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = stubOllamaResponse('{"grave":[{"name":"verbatim-string"}]}')
 
-    await generateSchemaWithModel({ document, annotations: [], annotationsMode: 'hints' })
+    await generateSchemaWithModel({
+      document,
+      annotations: [],
+      annotationsMode: 'hints',
+    })
 
     const body = fetchMock.mock.calls[0][1].body as string
     expect(body.indexOf('compact JSON extraction schema')).toBeLessThan(body.indexOf('Grave 1'))

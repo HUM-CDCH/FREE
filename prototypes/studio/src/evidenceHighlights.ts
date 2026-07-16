@@ -7,58 +7,68 @@ export const PALETTE: string[] = [
   'rgba(239, 68, 68, 0.25)',
 ]
 
-type Highlight = { value: string; snippet: string | null; hintPage: number | null; color: string }
+type Highlight = {
+  value: string
+  snippet: string | null
+  hintPage: number | null
+  color: string
+}
 
-function collectEvidenceLeaf(node: unknown, color: string, out: Highlight[]): boolean {
-  if (
-    isRecord(node) &&
-    typeof node.value === 'string' &&
-    typeof node.snippet === 'string'
-  ) {
-    const v = node.value.trim()
-    const s = node.snippet.trim()
-    if (v && s) {
-      out.push({ value: v, snippet: s, hintPage: typeof node.page === 'number' ? node.page : null, color })
-      return true
+function collectHighlightNode(node: unknown, color: string, out: Highlight[]): void {
+  if (Array.isArray(node)) {
+    node.forEach((item) => collectHighlightNode(item, color, out))
+    return
+  }
+  if (isRecord(node)) {
+    const localEvidence = isRecord(node._evidence) ? node._evidence : {}
+    for (const [key, value] of Object.entries(node)) {
+      if (key === '_evidence') continue
+      if (!collectEvidence(value, localEvidence[key], color, out)) {
+        collectHighlightNode(value, color, out)
+      }
     }
+    return
   }
-  return false
+
+  const value = scalarText(node)
+  if (value) out.push({ value, snippet: null, hintPage: null, color })
 }
 
-function collectResultLeaves(node: unknown, color: string, out: Highlight[]): void {
-  if (typeof node === 'string') {
-    const v = node.trim()
-    if (v) out.push({ value: v, snippet: null, hintPage: null, color })
-  } else if (Array.isArray(node)) {
-    for (const item of node) collectResultLeaves(item, color, out)
-  } else if (isRecord(node)) {
-    for (const sub of Object.values(node)) collectResultLeaves(sub, color, out)
+function collectEvidence(resultValue: unknown, evidence: unknown, color: string, out: Highlight[]): boolean {
+  if (!isRecord(evidence) || !Array.isArray(evidence.snippets)) return false
+  const value = scalarText(resultValue)
+  if (!value) return false
+
+  const snippets = evidence.snippets.filter(
+    (snippet): snippet is string => typeof snippet === 'string' && snippet.trim().length > 0,
+  )
+  if (snippets.length === 0) return false
+  for (const snippet of snippets) {
+    out.push({
+      value,
+      snippet: snippet.trim(),
+      hintPage: typeof evidence.page === 'number' ? evidence.page : null,
+      color,
+    })
   }
+  return true
 }
 
-function collectHighlightLeaves(resultNode: unknown, evidenceNode: unknown, color: string, out: Highlight[]): void {
-  if (collectEvidenceLeaf(evidenceNode, color, out)) return
-
-  if (Array.isArray(resultNode)) {
-    const evidenceItems = Array.isArray(evidenceNode) ? evidenceNode : []
-    for (let i = 0; i < resultNode.length; i++) collectHighlightLeaves(resultNode[i], evidenceItems[i], color, out)
-  } else if (isRecord(resultNode)) {
-    const evidenceRecord = isRecord(evidenceNode) ? evidenceNode : {}
-    for (const [key, value] of Object.entries(resultNode)) collectHighlightLeaves(value, evidenceRecord[key], color, out)
-  } else {
-    collectResultLeaves(resultNode, color, out)
-  }
+function scalarText(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+    ? String(value).trim()
+    : ''
 }
 
-export function buildHighlights(
-  result: Record<string, unknown>,
-  evidence: unknown,
-  colorMap: Record<string, string>,
-): Highlight[] {
+export function buildHighlights(result: Record<string, unknown>, colorMap: Record<string, string>): Highlight[] {
   const out: Highlight[] = []
-  const evidenceRecord = isRecord(evidence) ? evidence : {}
+  const localEvidence = isRecord(result._evidence) ? result._evidence : {}
   for (const [key, value] of Object.entries(result)) {
-    collectHighlightLeaves(value, evidenceRecord[key], colorMap[key] ?? PALETTE[0], out)
+    if (key === '_evidence') continue
+    const color = colorMap[key] ?? PALETTE[0]
+    if (!collectEvidence(value, localEvidence[key], color, out)) {
+      collectHighlightNode(value, color, out)
+    }
   }
   return out
 }

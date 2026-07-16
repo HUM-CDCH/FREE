@@ -1,152 +1,193 @@
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ExtractionController } from './useExtraction'
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import ResultsTab from "./ResultsTab";
+import type { ExtractionController } from "./useExtraction";
 import {
-  decodeExtractDone,
-  decodeSchemaDone,
-  parseDocumentToMarkdown,
-  requestExtraction,
-  requestSchema,
-} from './api'
+	decodeExtractionResponse,
+	decodeSchemaDone,
+	parseDocumentToMarkdown,
+	requestExtraction,
+	requestSchema,
+} from "./api";
 
-function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  })
+function jsonResponse(body: unknown, status = 200): Response {
+	return new Response(JSON.stringify(body), {
+		status,
+		headers: { "content-type": "application/json" },
+	});
 }
 
-afterEach(() => vi.unstubAllGlobals())
-
-function readyController(): ExtractionController {
-  return {
-    state: { status: 'ready', result: { title: 'Report' }, evidence: null },
-    canRun: true,
-    hasResults: true,
-    runExtraction: async () => {},
-  }
+function parseBody(init: RequestInit): Record<string, unknown> {
+	try {
+		return JSON.parse(String(init.body)) as Record<string, unknown>;
+	} catch (error) {
+		throw new Error("Request body was not valid JSON", { cause: error });
+	}
 }
 
-describe('requestExtraction', () => {
-  it('posts a blank template object when the UI passes null', async () => {
-    let submittedTemplate: FormDataEntryValue | null = null
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
-        submittedTemplate = init.body instanceof FormData ? init.body.get('template') : null
-        return Promise.resolve(jsonResponse({ result: {}, evidence: null, reasoning: null, raw: '', pages: null }))
-      }),
-    )
+afterEach(() => vi.unstubAllGlobals());
 
-    await requestExtraction(new Blob(['pdf']), 'report.pdf', null)
+function readyController(
+	warnings: readonly string[] = [],
+): ExtractionController {
+	return {
+		state: {
+			status: "ready",
+			result: { title: "Report" },
+			warnings,
+		},
+		canRun: true,
+		hasResults: true,
+		strategy: "catalog",
+		setStrategy: () => undefined,
+		runExtraction: async () => {},
+	};
+}
 
-    expect(submittedTemplate).toBe('{}')
-  })
+describe("requestExtraction", () => {
+	it("posts task identity, an explicit strategy, and a full schema envelope without Source Document bytes", async () => {
+		let submitted: Record<string, unknown> = {};
+		let contentType = "";
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+				submitted = parseBody(init);
+				contentType = new Headers(init.headers).get("content-type") ?? "";
+				return Promise.resolve(
+					jsonResponse({ result: { title: "Report" }, warnings: [] }),
+				);
+			}),
+		);
 
-  it('throws the API detail on a non-OK response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ detail: 'Model endpoint error: boom' }), {
-          status: 502,
-          headers: { 'content-type': 'application/json' },
-        }),
-      ),
-    )
+		await requestExtraction("task-1", { title: "" }, "catalog");
 
-    await expect(requestExtraction(new Blob(['pdf']), 'report.pdf', {})).rejects.toThrow(
-      'Model endpoint error: boom',
-    )
-  })
-})
+		expect(contentType).toBe("application/json");
+		expect(submitted).toEqual({
+			taskId: "task-1",
+			schema: { record: { title: "" }, _schema_metadata: {} },
+			strategy: "catalog",
+		});
+		expect(JSON.stringify(submitted)).not.toContain("pdf");
+	});
 
-describe('requestSchema', () => {
-  it('calls the schema generation endpoint', async () => {
-    let submittedUrl = ''
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        submittedUrl = url
-        return Promise.resolve(jsonResponse({ template: {}, raw: '', pages: null }))
-      }),
-    )
+	it("throws the API detail on a non-OK response", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockResolvedValue(
+					jsonResponse({ detail: "Model endpoint error: boom" }, 502),
+				),
+		);
 
-    await requestSchema(new Blob(['pdf']), 'report.pdf')
+		await expect(requestExtraction("task-1", {}, "catalog")).rejects.toThrow(
+			"Model endpoint error: boom",
+		);
+	});
+});
 
-    expect(submittedUrl).toBe('/api/generate_schema')
-  })
-})
+describe("requestSchema", () => {
+	it("calls the existing schema generation endpoint", async () => {
+		let submittedUrl = "";
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockImplementation((url: string) => {
+				submittedUrl = url;
+				return Promise.resolve(
+					jsonResponse({ template: {}, raw: "", pages: null }),
+				);
+			}),
+		);
 
-describe('parseDocumentToMarkdown', () => {
-  it('starts a job, polls until completed, and returns the markdown', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (url.endsWith('/tasks')) {
-          return Promise.resolve(jsonResponse({ task_id: 'abc', status: 'pending' }))
-        }
-        if (url.endsWith('/tasks/abc')) {
-          return Promise.resolve(jsonResponse({ status: 'completed' }))
-        }
-        if (url.endsWith('/tasks/abc/markdown')) {
-          return Promise.resolve(new Response('# Doc', { status: 200 }))
-        }
-        return Promise.reject(new Error(`unexpected ${url}`))
-      }),
-    )
+		await requestSchema(new Blob(["pdf"]), "report.pdf");
 
-    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).resolves.toBe('# Doc')
-  })
+		expect(submittedUrl).toBe("/api/generate_schema");
+	});
+});
 
-  it('throws the job error when parsing fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (url.endsWith('/tasks')) {
-          return Promise.resolve(jsonResponse({ task_id: 'abc' }))
-        }
-        if (url.endsWith('/tasks/abc')) {
-          return Promise.resolve(jsonResponse({ status: 'failed', error: 'boom' }))
-        }
-        return Promise.reject(new Error(`unexpected ${url}`))
-      }),
-    )
+describe("parseDocumentToMarkdown", () => {
+	it("starts a job, retains its task ID, polls until completed, and returns Markdown", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockImplementation((url: string) => {
+				if (url.endsWith("/tasks"))
+					return Promise.resolve(jsonResponse({ task_id: "abc" }));
+				if (url.endsWith("/tasks/abc"))
+					return Promise.resolve(jsonResponse({ status: "completed" }));
+				if (url.endsWith("/tasks/abc/markdown"))
+					return Promise.resolve(new Response("# Doc"));
+				return Promise.reject(new Error(`unexpected ${url}`));
+			}),
+		);
 
-    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).rejects.toThrow('boom')
-  })
-})
+		await expect(
+			parseDocumentToMarkdown(new Blob(["pdf"]), "report.pdf"),
+		).resolves.toEqual({
+			taskId: "abc",
+			markdown: "# Doc",
+		});
+	});
 
-describe('decoders', () => {
-  it('fail loud when response contracts drift', () => {
-    expect(() => decodeExtractDone({ raw: '{}' })).toThrow("extract: response missing 'result'")
-    expect(() => decodeExtractDone({ result: {}, raw: '{}' })).toThrow("extract: response missing 'evidence'")
-    expect(() => decodeSchemaDone({ raw: '{}' })).toThrow("generate_schema: response missing 'template'")
-  })
-})
+	it("throws the job error when parsing fails", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockImplementation((url: string) => {
+				if (url.endsWith("/tasks"))
+					return Promise.resolve(jsonResponse({ task_id: "abc" }));
+				if (url.endsWith("/tasks/abc")) {
+					return Promise.resolve(
+						jsonResponse({ status: "failed", error: "boom" }),
+					);
+				}
+				return Promise.reject(new Error(`unexpected ${url}`));
+			}),
+		);
 
-describe('ResultsTab markdown', () => {
-  it('receives parsed document markdown directly', async () => {
-    vi.resetModules()
-    vi.doMock('react', async () => {
-      const actual = await vi.importActual<typeof import('react')>('react')
-      return {
-        ...actual,
-        useState: (initialState: unknown) =>
-          initialState === 'review' ? ['markdown', () => undefined] : actual.useState(initialState),
-      }
-    })
-    const { default: ResultsTab } = await import('./ResultsTab')
-    const html = renderToStaticMarkup(
-      createElement(ResultsTab, {
-        controller: readyController(),
-        schemaReady: true,
-        documentMarkdown: '# Parsed source',
-      }),
-    )
+		await expect(
+			parseDocumentToMarkdown(new Blob(["pdf"]), "report.pdf"),
+		).rejects.toThrow("boom");
+	});
+});
 
-    vi.doUnmock('react')
-    expect(html).toContain('Markdown')
-    expect(html).toContain('# Parsed source')
-  })
-})
+describe("decoders", () => {
+	it("fail loud when response contracts drift", () => {
+		expect(() => decodeExtractionResponse({ warnings: [] })).toThrow(
+			"invalid 'result'",
+		);
+		expect(() =>
+			decodeExtractionResponse({ result: {}, warnings: [42] }),
+		).toThrow("invalid 'warnings'");
+		expect(() => decodeSchemaDone({ raw: "{}" })).toThrow(
+			"generate_schema: response missing 'template'",
+		);
+	});
+});
+
+describe("ResultsTab", () => {
+	it("renders pretty JSON and non-empty warnings without export or format controls", () => {
+		const html = renderToStaticMarkup(
+			createElement(ResultsTab, {
+				controller: readyController(["boundary_fallback"]),
+				schemaReady: true,
+			}),
+		);
+
+		expect(html).toContain("boundary_fallback");
+		expect(html).toContain("&quot;title&quot;: &quot;Report&quot;");
+		expect(html).not.toContain("Download");
+		expect(html).not.toContain("Copy JSON");
+		expect(html).not.toContain("Markdown");
+	});
+
+	it("does not render an empty warning placeholder", () => {
+		const html = renderToStaticMarkup(
+			createElement(ResultsTab, {
+				controller: readyController(),
+				schemaReady: true,
+			}),
+		);
+
+		expect(html).not.toContain("Extraction warnings");
+	});
+});

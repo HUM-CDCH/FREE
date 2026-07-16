@@ -1,168 +1,204 @@
-import { isRecord } from './template'
+import { isRecord } from "./template";
 
-export const API_BASE = '/api'
+export const API_BASE = "/api";
 
-// The parsing service runs the docling/paddleocr extraction. The browser starts
-// the job on upload and polls it; the resulting Markdown becomes the document's
-// representation that the LLM extraction works from.
-export const PARSING_SERVICE_BASE: string =
-  (import.meta.env.VITE_PARSING_SERVICE_URL as string | undefined) ?? 'http://127.0.0.1:8000'
+const PARSING_SERVICE_BASE: string =
+	(import.meta.env.VITE_PARSING_SERVICE_URL as string | undefined) ??
+	"http://127.0.0.1:8000";
 
-const PARSE_POLL_MS = 1500
+const PARSE_POLL_MS = 1500;
 
-export type TemplateAnnotation = { text: string; pageNumber: number }
+type TemplateAnnotation = { text: string; pageNumber: number };
+export type AnnotationsMode = "hints" | "fields";
+export type ExtractionStrategy = "catalog" | "article";
 
-export type AnnotationsMode = 'hints' | 'fields'
+type ExtractionSchemaEnvelope = {
+	readonly record: Record<string, unknown>;
+	readonly _schema_metadata: Record<string, unknown>;
+};
+
+export type ExtractionResponse = {
+	readonly result: Record<string, unknown>;
+	readonly warnings: readonly string[];
+};
+
+export type ParsedTaskDocument = {
+	readonly taskId: string;
+	readonly markdown: string;
+};
 
 type TemplateOptions = {
-  annotations?: TemplateAnnotation[]
-  annotationsMode?: AnnotationsMode
-  markdown?: string | null
-}
+	annotations?: TemplateAnnotation[];
+	annotationsMode?: AnnotationsMode;
+	markdown?: string | null;
+};
 
-export type ExtractDone = {
-  result: Record<string, unknown>
-  evidence: Record<string, unknown> | null
-  reasoning: string | null
-  raw: string
-  pages: number | null
-}
-export type SchemaDone = { template: unknown; raw: string; pages: number | null }
+export type SchemaDone = {
+	template: unknown;
+	raw: string;
+	pages: number | null;
+};
+
+type TaskStatus = { status: string; error?: string | null };
 
 export function decodeSchemaDone(data: unknown): SchemaDone {
-  if (!isRecord(data) || !('template' in data)) {
-    throw new Error("generate_schema: response missing 'template' — API contract drift?")
-  }
-  return data as SchemaDone
+	if (!isRecord(data) || !("template" in data)) {
+		throw new Error(
+			"generate_schema: response missing 'template' — API contract drift?",
+		);
+	}
+	return data as SchemaDone;
 }
 
-export function decodeExtractDone(data: unknown): ExtractDone {
-  if (!isRecord(data) || !isRecord(data.result)) {
-    throw new Error("extract: response missing 'result' — API contract drift?")
-  }
-  if (!('evidence' in data)) {
-    throw new Error("extract: response missing 'evidence' — API contract drift?")
-  }
-  return data as ExtractDone
+export function decodeExtractionResponse(data: unknown): ExtractionResponse {
+	if (!isRecord(data) || !isRecord(data.result)) {
+		throw new Error(
+			"extract: response missing or invalid 'result' — API contract drift?",
+		);
+	}
+	if (
+		!Array.isArray(data.warnings) ||
+		!data.warnings.every((warning) => typeof warning === "string")
+	) {
+		throw new Error(
+			"extract: response missing or invalid 'warnings' — API contract drift?",
+		);
+	}
+	return { result: data.result, warnings: data.warnings };
 }
 
-async function readErrorDetail(response: Response): Promise<string> {
-  const body = await response.json().catch(() => null)
-  const detail = isRecord(body) ? body.detail : null
-  if (typeof detail === 'string') {
-    return detail
-  }
-  if (isRecord(detail) && typeof detail.message === 'string') {
-    return detail.message
-  }
-  return ''
-}
-
-async function postForm<T>(
-  endpoint: string,
-  form: FormData,
-  decode: (data: unknown) => T,
-  signal?: AbortSignal,
-): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method: 'POST',
-    body: form,
-    headers: { accept: 'application/json' },
-    signal,
-  })
-  if (!response.ok) {
-    const detail = await readErrorDetail(response)
-    throw new Error(detail || `Request to ${endpoint} failed (HTTP ${response.status})`)
-  }
-  return decode(await response.json())
-}
-
-// ---------- parsing service (document indexing) ----------
-
-type TaskStatus = { status: string; error?: string | null }
-
-// Starts a docling parse job on upload and resolves with its Markdown once done.
-// check-then-delay polling so a job that is already complete returns immediately.
 export async function parseDocumentToMarkdown(
-  file: Blob,
-  fileName: string,
-  signal?: AbortSignal,
-): Promise<string> {
-  const form = new FormData()
-  form.append('file', file, fileName)
-  form.append('pipeline', 'docling_pdf')
+	file: Blob,
+	fileName: string,
+	signal?: AbortSignal,
+): Promise<ParsedTaskDocument> {
+	const form = new FormData();
+	form.append("file", file, fileName);
+	form.append("pipeline", "docling_pdf");
 
-  const started = await fetch(`${PARSING_SERVICE_BASE}/tasks`, { method: 'POST', body: form, signal })
-  if (!started.ok) {
-    throw new Error(
-      (await readErrorDetail(started)) || `Parsing service rejected the document (HTTP ${started.status})`,
-    )
-  }
-  const { task_id: taskId } = (await started.json()) as { task_id: string }
+	const started = await fetch(`${PARSING_SERVICE_BASE}/tasks`, {
+		method: "POST",
+		body: form,
+		signal,
+	});
+	if (!started.ok) {
+		throw new Error(
+			(await readErrorDetail(started)) ||
+				`Parsing service rejected the document (HTTP ${started.status})`,
+		);
+	}
+	const startedBody: unknown = await started.json();
+	if (
+		!isRecord(startedBody) ||
+		typeof startedBody.task_id !== "string" ||
+		!startedBody.task_id
+	) {
+		throw new Error(
+			"Parsing service response missing 'task_id' — API contract drift?",
+		);
+	}
+	const taskId = startedBody.task_id;
 
-  for (;;) {
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError')
-    }
-    const res = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}`, { signal })
-    if (!res.ok) {
-      throw new Error(`Parsing status check failed (HTTP ${res.status})`)
-    }
-    const meta = (await res.json()) as TaskStatus
-    if (meta.status === 'completed') {
-      break
-    }
-    if (meta.status === 'failed') {
-      throw new Error(meta.error || 'Document parsing failed')
-    }
-    await new Promise((resolve) => setTimeout(resolve, PARSE_POLL_MS))
-  }
+	await waitForParsingTask(taskId, signal);
 
-  const md = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}/markdown`, { signal })
-  if (!md.ok) {
-    throw new Error(`Could not fetch parsed Markdown (HTTP ${md.status})`)
-  }
-  return md.text()
+	const markdownResponse = await fetch(
+		`${PARSING_SERVICE_BASE}/tasks/${taskId}/markdown`,
+		{ signal },
+	);
+	if (!markdownResponse.ok) {
+		throw new Error(
+			`Could not fetch parsed Markdown (HTTP ${markdownResponse.status})`,
+		);
+	}
+	return { taskId, markdown: await markdownResponse.text() };
 }
 
-// ---------- request wrappers ----------
+async function waitForParsingTask(
+	taskId: string,
+	signal?: AbortSignal,
+): Promise<void> {
+	if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+	const response = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}`, {
+		signal,
+	});
+	if (!response.ok)
+		throw new Error(`Parsing status check failed (HTTP ${response.status})`);
+	const metadata = (await response.json()) as TaskStatus;
+	if (metadata.status === "completed") return;
+	if (metadata.status === "failed")
+		throw new Error(metadata.error || "Document parsing failed");
+	await new Promise((resolve) => setTimeout(resolve, PARSE_POLL_MS));
+	return waitForParsingTask(taskId, signal);
+}
 
 export async function requestSchema(
-  file: Blob,
-  fileName: string,
-  signal?: AbortSignal,
-  options?: TemplateOptions,
+	file: Blob,
+	fileName: string,
+	signal?: AbortSignal,
+	options?: TemplateOptions,
 ): Promise<unknown> {
-  const form = new FormData()
-  if (options?.markdown) {
-    form.append('document_markdown', options.markdown)
-  } else {
-    form.append('file', file, fileName)
-  }
-  if (options?.annotations?.length) {
-    form.append('annotations', JSON.stringify(options.annotations))
-    form.append('annotations_mode', options.annotationsMode ?? 'hints')
-  }
+	const form = new FormData();
+	if (options?.markdown) {
+		form.append("document_markdown", options.markdown);
+	} else {
+		form.append("file", file, fileName);
+	}
+	if (options?.annotations?.length) {
+		form.append("annotations", JSON.stringify(options.annotations));
+		form.append("annotations_mode", options.annotationsMode ?? "hints");
+	}
 
-  const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)
-  return done.template
+	const response = await fetch(`${API_BASE}/generate_schema`, {
+		method: "POST",
+		body: form,
+		headers: { accept: "application/json" },
+		signal,
+	});
+	if (!response.ok) {
+		const detail = await readErrorDetail(response);
+		throw new Error(
+			detail || `Request to /generate_schema failed (HTTP ${response.status})`,
+		);
+	}
+	return decodeSchemaDone(await response.json()).template;
 }
 
 export async function requestExtraction(
-  file: Blob,
-  fileName: string,
-  template: unknown,
-  signal?: AbortSignal,
-  markdown?: string | null,
-): Promise<{ result: unknown; evidence: unknown }> {
-  const form = new FormData()
-  form.append('template', JSON.stringify(template ?? {}))
-  if (markdown) {
-    form.append('document_markdown', markdown)
-  } else {
-    form.append('file', file, fileName)
-  }
+	taskId: string,
+	recordTemplate: unknown,
+	strategy: ExtractionStrategy,
+	signal?: AbortSignal,
+): Promise<ExtractionResponse> {
+	if (!isRecord(recordTemplate)) {
+		throw new Error("extract: record template must be an object");
+	}
+	const schema: ExtractionSchemaEnvelope = {
+		record: recordTemplate,
+		_schema_metadata: {},
+	};
+	const response = await fetch(`${API_BASE}/extract`, {
+		method: "POST",
+		body: JSON.stringify({ taskId, schema, strategy }),
+		headers: {
+			accept: "application/json",
+			"content-type": "application/json",
+		},
+		signal,
+	});
+	if (!response.ok) {
+		const detail = await readErrorDetail(response);
+		throw new Error(
+			detail || `Request to /extract failed (HTTP ${response.status})`,
+		);
+	}
+	return decodeExtractionResponse(await response.json());
+}
 
-  const done = await postForm('/extract', form, decodeExtractDone, signal)
-  return { result: done.result, evidence: done.evidence }
+async function readErrorDetail(response: Response): Promise<string> {
+	const body = await response.json().catch(() => null);
+	const detail = isRecord(body) ? body.detail : null;
+	if (typeof detail === "string") return detail;
+	if (isRecord(detail) && typeof detail.message === "string")
+		return detail.message;
+	return "";
 }

@@ -16,7 +16,12 @@ function buildTopLevelColorMap(schema: unknown): Record<string, string> {
 
 // ── text-layer helpers ────────────────────────────────────────────────────────
 
-type HasStr = { str: string; transform: number[]; width: number; height: number }
+type HasStr = {
+  str: string
+  transform: number[]
+  width: number
+  height: number
+}
 
 type PageTextData = {
   items: HasStr[]
@@ -34,7 +39,9 @@ async function getPageTextData(pdfViewer: PDFViewer, pageNumber: number): Promis
 
   const textContent = await pdfPage.getTextContent()
   const CSS_UNITS = 96.0 / 72.0
-  const viewport = pdfPage.getViewport({ scale: pdfViewer.currentScale * CSS_UNITS })
+  const viewport = pdfPage.getViewport({
+    scale: pdfViewer.currentScale * CSS_UNITS,
+  })
 
   const items: HasStr[] = []
   const normStrs: string[] = []
@@ -42,7 +49,10 @@ async function getPageTextData(pdfViewer: PDFViewer, pageNumber: number): Promis
     if (!('str' in raw)) continue
     const item = raw as HasStr
     const norm = item.str.replace(/\s+/g, ' ').trim()
-    if (norm) { items.push(item); normStrs.push(norm) }
+    if (norm) {
+      items.push(item)
+      normStrs.push(norm)
+    }
   }
 
   return {
@@ -135,9 +145,10 @@ async function findValueRects(
   if (words.length > 2) queries.push(words.slice(0, 3).join(' '))
 
   // Page order: hint page first, then the rest
-  const pages = hintPage != null
-    ? [hintPage, ...Array.from({ length: pageCount }, (_, i) => i + 1).filter(p => p !== hintPage)]
-    : Array.from({ length: pageCount }, (_, i) => i + 1)
+  const pages =
+    hintPage != null
+      ? [hintPage, ...Array.from({ length: pageCount }, (_, i) => i + 1).filter((p) => p !== hintPage)]
+      : Array.from({ length: pageCount }, (_, i) => i + 1)
 
   if (snippet) {
     // Snippet-anchored: search for value within snippet context
@@ -167,19 +178,18 @@ async function findValueRects(
 type Props = {
   pdfViewer: PDFViewer | null
   result: unknown
-  evidence: unknown
   containerEl: HTMLDivElement | null
   schema: unknown
 }
 
-export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, containerEl, schema }: Props) {
+export default function EvidenceHighlightLayer({ pdfViewer, result, containerEl, schema }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
     const colorMap = buildTopLevelColorMap(schema)
-    const highlights = buildHighlights(result, evidence, colorMap)
+    const highlights = buildHighlights(result, colorMap)
     if (highlights.length === 0) return
 
     let cancelled = false
@@ -204,9 +214,7 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, co
         const found = await findValueRects(pdfViewer, h.value, h.snippet, h.hintPage)
         if (!found) continue
 
-        const pageEl = containerEl.querySelector(
-          `.page[data-page-number="${found.pageNumber}"]`
-        ) as HTMLElement | null
+        const pageEl = containerEl.querySelector(`.page[data-page-number="${found.pageNumber}"]`) as HTMLElement | null
         if (!pageEl) continue
 
         const pageRect = pageEl.getBoundingClientRect()
@@ -222,16 +230,12 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, co
     }
 
     void render()
-    return () => { cancelled = true }
-  }, [pdfViewer, result, evidence, containerEl, schema])
+    return () => {
+      cancelled = true
+    }
+  }, [pdfViewer, result, containerEl, schema])
 
   if (!result) return null
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="pointer-events-none absolute top-0 left-0 z-10"
-      aria-hidden="true"
-    />
-  )
+  return <canvas ref={canvasRef} className="pointer-events-none absolute top-0 left-0 z-10" aria-hidden="true" />
 }
