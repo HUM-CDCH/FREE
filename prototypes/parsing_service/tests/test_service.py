@@ -61,22 +61,6 @@ class BodyReadingAsgiApp:
         await send({"type": "http.response.body", "body": b""})
 
 
-class ReceiveFinallyRespondingAsgiApp:
-    async def __call__(self, _scope, receive, send):
-        try:
-            await receive()
-        finally:
-            await send({"type": "http.response.start", "status": 400, "headers": []})
-            await send({"type": "http.response.body", "body": b"receive failed"})
-
-
-class ResponseStartingAsgiApp:
-    async def __call__(self, _scope, receive, send):
-        await send({"type": "http.response.start", "status": 200, "headers": []})
-        await receive()
-        await send({"type": "http.response.body", "body": b"complete"})
-
-
 async def run_asgi_request(
     application, *, headers=(), messages=None, method="POST", path="/tasks"
 ):
@@ -166,148 +150,17 @@ class TestTaskRequestLimitMiddleware(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(downstream.handler_calls, 1)
         self.assertEqual(sent[0]["status"], 204)
 
-    async def test_malformed_content_length_falls_back_to_stream_limit(self):
-        downstream = BodyReadingAsgiApp()
-        middleware = TaskRequestLimitMiddleware(downstream, max_bytes=4)
-
-        sent, _pending = await run_asgi_request(
-            middleware,
-            headers=[(b"content-length", b"not-a-number")],
-            messages=[{"type": "http.request", "body": b"12345", "more_body": False}],
-        )
-
-        self.assertEqual(downstream.handler_calls, 0)
-        self.assertEqual(
-            [
-                message["status"]
-                for message in sent
-                if message["type"] == "http.response.start"
-            ],
-            [413],
-        )
-
-    async def test_absent_content_length_is_admitted_at_stream_boundary(self):
-        downstream = BodyReadingAsgiApp()
-        middleware = TaskRequestLimitMiddleware(downstream, max_bytes=8)
-
-        sent, pending = await run_asgi_request(
-            middleware,
-            messages=[
-                {"type": "http.request", "body": b"1234", "more_body": True},
-                {"type": "http.request", "body": b"5678", "more_body": False},
-            ],
-        )
-
-        self.assertEqual(downstream.handler_calls, 1)
-        self.assertEqual(pending, [])
-        self.assertEqual(sent[0]["status"], 204)
-
-    async def test_chunked_overflow_stops_receiving_and_rejects_before_handler(self):
-        downstream = BodyReadingAsgiApp()
-        middleware = TaskRequestLimitMiddleware(downstream, max_bytes=8)
-
-        sent, pending = await run_asgi_request(
-            middleware,
-            headers=[(b"transfer-encoding", b"chunked")],
-            messages=[
-                {"type": "http.request", "body": b"1234", "more_body": True},
-                {"type": "http.request", "body": b"56789", "more_body": True},
-                {"type": "http.request", "body": b"unread", "more_body": False},
-            ],
-        )
-
-        self.assertEqual(downstream.handler_calls, 0)
-        self.assertEqual(len(pending), 1)
-        self.assertEqual(
-            [
-                message["status"]
-                for message in sent
-                if message["type"] == "http.response.start"
-            ],
-            [413],
-        )
-
-    async def test_streamed_overflow_suppresses_downstream_error_response(self):
-        middleware = TaskRequestLimitMiddleware(
-            ReceiveFinallyRespondingAsgiApp(), max_bytes=4
-        )
-
-        sent, _pending = await run_asgi_request(
-            middleware,
-            messages=[{"type": "http.request", "body": b"12345", "more_body": True}],
-        )
-
-        self.assertEqual(
-            [
-                message["status"]
-                for message in sent
-                if message["type"] == "http.response.start"
-            ],
-            [413],
-        )
-        self.assertEqual(
-            len(
-                [message for message in sent if message["type"] == "http.response.body"]
-            ),
-            1,
-        )
-
-    async def test_overflow_after_response_start_aborts_instead_of_double_send(self):
-        middleware = TaskRequestLimitMiddleware(ResponseStartingAsgiApp(), max_bytes=4)
-
-        with self.assertRaisesRegex(RuntimeError, "51 MiB"):
-            await run_asgi_request(
-                middleware,
-                messages=[
-                    {"type": "http.request", "body": b"12345", "more_body": True}
-                ],
-            )
-
-    async def test_streamed_overflow_preempts_fastapi_task_route(self):
-        task_route = next(
-            route
-            for route in tasks_router.routes
-            if isinstance(route, APIRoute) and route.path == "/tasks"
-        )
-        route_handler = AsyncMock()
-        middleware = TaskRequestLimitMiddleware(app, max_bytes=8)
-
-        with (
-            patch.object(task_route.dependant, "call", route_handler),
-            patch("app.api.routes_tasks.http_task_dir") as task_dir,
-            patch("starlette.background.BackgroundTasks.add_task") as add_task,
-        ):
-            sent, pending = await run_asgi_request(
-                middleware,
-                headers=[
-                    (b"content-type", b"multipart/form-data; boundary=request-limit")
-                ],
-                messages=[
-                    {
-                        "type": "http.request",
-                        "body": b"123456789",
-                        "more_body": True,
-                    },
-                    {
-                        "type": "http.request",
-                        "body": b"unread",
-                        "more_body": False,
-                    },
-                ],
-            )
-
-        self.assertEqual(
-            [
-                message["status"]
-                for message in sent
-                if message["type"] == "http.response.start"
-            ],
-            [413],
-        )
-        self.assertEqual(len(pending), 1)
-        route_handler.assert_not_awaited()
-        task_dir.assert_not_called()
-        add_task.assert_not_called()
+    async def test_missing_or_malformed_content_length_is_not_preempted(self):
+        for headers in ([], [(b"content-length", b"not-a-number")]):
+            with self.subTest(headers=headers):
+                downstream = BodyReadingAsgiApp()
+                middleware = TaskRequestLimitMiddleware(downstream, max_bytes=4)
+                sent, _pending = await run_asgi_request(
+                    middleware,
+                    headers=headers,
+                )
+                self.assertEqual(downstream.handler_calls, 1)
+                self.assertEqual(sent[0]["status"], 204)
 
 
 class FakeDoclingDocument:

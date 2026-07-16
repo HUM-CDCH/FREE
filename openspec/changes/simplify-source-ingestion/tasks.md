@@ -25,8 +25,8 @@
 
 ## 5. Collapse request admission
 
-- [ ] 5.1 Retain only route-aware declared `Content-Length` rejection above 51 MiB
-- [ ] 5.2 Remove receive wrapping, streamed-overflow state, and mechanism-only tests while preserving exact boundary, unrelated-route, preemption, and CORS coverage
+- [x] 5.1 Retain only route-aware declared `Content-Length` rejection above 51 MiB
+- [x] 5.2 Remove receive wrapping, streamed-overflow state, and mechanism-only tests while preserving exact boundary, unrelated-route, preemption, and CORS coverage
 
 ## 6. Simplify task creation
 
