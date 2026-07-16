@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RequestError } from "./_http.js";
-import { resolveModel } from "./_provider.js";
+import { extractionRenderer, resolveModel } from "./_provider.js";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -48,5 +48,19 @@ describe("resolveModel", () => {
 		expect(() => resolveModel()).toThrow(
 			"AI_PROVIDER must be 'ollama' or 'codex-cli'",
 		);
+	});
+});
+
+describe("extractionRenderer", () => {
+	it("keeps Ollama on the NuExtract raw renderer", () => {
+		vi.stubEnv("AI_PROVIDER", "ollama");
+
+		expect(extractionRenderer()).toBe("nuextract-raw");
+	});
+
+	it("uses the generic renderer for Codex CLI", () => {
+		vi.stubEnv("AI_PROVIDER", "codex-cli");
+
+		expect(extractionRenderer()).toBe("generic");
 	});
 });

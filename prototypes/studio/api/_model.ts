@@ -1,4 +1,12 @@
-import { convertToModelMessages, generateText, streamText } from "ai";
+import {
+	NoObjectGeneratedError,
+	Output,
+	convertToModelMessages,
+	createUIMessageStreamResponse,
+	generateText,
+	streamText,
+	toUIMessageStream,
+} from "ai";
 import type { UIMessage } from "ai";
 import { z } from "zod";
 import type { Annotation, AnnotationMode, DocumentInput } from "./_document.js";
@@ -84,8 +92,11 @@ export async function streamChatWithModel(
 		messages: await convertToModelMessages([...messages]),
 	});
 
-	return result.toUIMessageStreamResponse({
-		onError: () => "Chat failed.",
+	return createUIMessageStreamResponse({
+		stream: toUIMessageStream({
+			stream: result.stream,
+			onError: () => "Chat failed.",
+		}),
 	});
 }
 
@@ -174,30 +185,38 @@ async function generateWithGenericJsonPrompt({
 	readonly temperature?: number;
 	readonly abortSignal?: AbortSignal;
 }): Promise<{ readonly response: string }> {
-	const model = resolveModel();
-	const generated = await generateText({
-		model,
-		instructions,
-		messages: [
-			{
-				role: "user",
-				content: [
-					{ type: "text", text: `${request}\n\nSOURCE DOCUMENT:\n` },
-					...documentParts,
-					{
-						type: "text",
-						text: "\nEND SOURCE DOCUMENT\n\nReturn the JSON object now.",
-					},
-				],
-			},
-		],
-		abortSignal,
-		// Codex CLI does not support temperature and warns even when the caller supplies one.
-		...(model.provider === "codex-app-server"
-			? {}
-			: { temperature: temperature ?? 0 }),
-	});
-	return { response: generated.text };
+	try {
+		const model = resolveModel();
+		const generated = await generateText({
+			model,
+			output: Output.json(),
+			instructions,
+			messages: [
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: `${request}\n\nSOURCE DOCUMENT:\n` },
+						...documentParts,
+						{
+							type: "text",
+							text: "\nEND SOURCE DOCUMENT\n\nReturn the JSON object now.",
+						},
+					],
+				},
+			],
+			abortSignal,
+			// Codex CLI does not support temperature and warns even when the caller supplies one.
+			...(model.provider === "codex-app-server"
+				? {}
+				: { temperature: temperature ?? 0 }),
+		});
+		return { response: generated.text };
+	} catch (error) {
+		if (NoObjectGeneratedError.isInstance(error) && error.text) {
+			return { response: error.text };
+		}
+		throw error;
+	}
 }
 
 async function generateWithNuExtractRawPrompt({

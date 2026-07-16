@@ -20,6 +20,8 @@ let codexAppServer: ReturnType<typeof createCodexAppServer> | null = null;
 
 function isolatedCodexWorkingDirectory(): string {
 	try {
+		// mkdtemp is atomic, unpredictable, and 0o700 by default — called once
+		// per process because codexProvider() caches the app server.
 		return mkdtempSync(join(tmpdir(), "free-codex-sandbox-"));
 	} catch {
 		throw new RequestError(
