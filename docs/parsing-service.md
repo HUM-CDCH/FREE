@@ -15,9 +15,8 @@ Table and OCR correctness rules are documented in
 Production uses one pipeline rather than a researcher-selectable set of
 competing parsers:
 
-1. `POST /tasks` accepts either an uploaded PDF or a public HTTP(S) URL.
-2. Ingestion validates the document, limits, URL redirects, resolved addresses,
-   and task identifier.
+1. `POST /tasks` accepts one uploaded PDF Source Document.
+2. Ingestion validates the document, byte limits, and task identifier.
 3. The source is stored by SHA-256 at `data/sources/{sha256}.pdf`. A task-local
    `source.pdf` refers to the same immutable content when hard links are
    supported.
@@ -100,14 +99,12 @@ by page without presenting multiple competing documents to callers.
 
 The ingestion boundary retains:
 
-- upload, download, page, rendering, task, canonical-store, and archive limits;
+- upload, page, and rendering limits;
 - PDF magic and content validation;
 - sanitized display names without exposing storage paths;
-- SSRF-safe URL validation on every redirect, with IP pinning against DNS
-  rebinding;
 - UUID-only task paths;
-- source leases, per-source locking, immutable generations, atomic commits, and
-  retention cleanup.
+- a one-hour grace before unreferenced source cleanup, per-source canonical
+  locking, immutable generations, atomic commits, and retention cleanup.
 
 A deployment exposed to untrusted traffic must also enforce request-body limits
 at the ASGI proxy or server boundary because multipart parsing precedes

@@ -10,15 +10,15 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 
 from app.ingestion.validation import ALLOWED_PDF_CONTENT_TYPES, assert_pdf_file
-from app.storage.blobs import (
-    deduplicate_task_source,
-    release_source_lease,
-    store_source_by_hash,
-)
+from app.storage.blobs import deduplicate_task_source, store_source_by_hash
 from app.storage.hashing import compute_sha256
 from app.storage.paths import SOURCE_FILENAME, safe_display_filename
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+
+class UploadTooLargeError(ValueError):
+    """Uploaded source document exceeds the maximum allowed size."""
 
 
 def copy_upload_to_path(
@@ -39,7 +39,9 @@ def copy_upload_to_path(
                     break
                 total += len(chunk)
                 if total > max_bytes:
-                    raise ValueError("Uploaded PDF exceeds the maximum allowed size.")
+                    raise UploadTooLargeError(
+                        "Uploaded PDF exceeds the maximum allowed size."
+                    )
                 buffer.write(chunk)
         os.replace(tmp_name, destination)
         return total
@@ -47,10 +49,6 @@ def copy_upload_to_path(
         with suppress(FileNotFoundError, PermissionError):
             os.unlink(tmp_name)
         raise
-
-
-def upload_error_status(exc: Exception) -> int:
-    return 413 if "exceeds the maximum allowed size" in str(exc) else 400
 
 
 def validate_upload_mime(file: UploadFile) -> None:
@@ -75,20 +73,15 @@ def save_uploaded_source(file: UploadFile, task_dir: Path) -> tuple[Path, str, s
         assert_pdf_file(source_path)
     except (OSError, ValueError) as exc:
         raise HTTPException(
-            status_code=upload_error_status(exc),
+            status_code=413 if isinstance(exc, UploadTooLargeError) else 400,
             detail=f"Uploaded file must be a PDF: {exc}",
         ) from exc
 
     content_sha256 = compute_sha256(source_path)
     try:
-        source_blob = store_source_by_hash(
-            source_path,
-            content_sha256,
-            lease_id=task_dir.name,
-        )
+        source_blob = store_source_by_hash(source_path, content_sha256)
         deduplicate_task_source(source_path, source_blob)
     except (OSError, ValueError) as exc:
-        release_source_lease(content_sha256, task_dir.name)
         raise HTTPException(
             status_code=507,
             detail="Could not store source PDF.",

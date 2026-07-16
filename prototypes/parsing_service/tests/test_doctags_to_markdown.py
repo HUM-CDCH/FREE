@@ -1,5 +1,6 @@
 import importlib
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -88,6 +89,30 @@ class TestDocTagsToMarkdown(unittest.TestCase):
         self.assertIn("| Name | Age |", result.page_spans[1].text)
         self.assertIn("| Bob | 41 |", result.page_spans[1].text)
 
+    def test_page_header_between_split_table_fragments_is_furniture(self):
+        result = convert_doctags_to_markdown(
+            "<otsl><ched>Name<ched>Age<nl><fcel>Ada<fcel>37</otsl>"
+            "<page_break><page_header>Research ledger</page_header>"
+            "<otsl><fcel>Bob<fcel>41<nl><fcel>Cy<fcel>29</otsl>"
+        )
+
+        self.assertEqual(
+            result.page_spans[1].text,
+            "| Name | Age |\n| --- | --- |\n| Bob | 41 |\n| Cy | 29 |",
+        )
+
+    def test_narrative_between_split_table_fragments_prevents_merge(self):
+        result = convert_doctags_to_markdown(
+            "<otsl><ched>Name<ched>Age<nl><fcel>Ada<fcel>37</otsl>"
+            "<page_break><text>Narrative context</text>"
+            "<otsl><fcel>Bob<fcel>41<nl><fcel>Cy<fcel>29</otsl>"
+        )
+
+        self.assertEqual(
+            result.page_spans[1].text,
+            "Narrative context\n\n| Bob | 41 |\n| --- | --- |\n| Cy | 29 |",
+        )
+
     def test_adjacent_same_page_tables_are_not_merged_or_truncated(self):
         out = doctags_to_markdown(
             "<otsl><ched>A<nl><fcel>1</otsl><otsl><fcel>Second<fcel>2</otsl>"
@@ -124,6 +149,99 @@ class TestDocTagsToMarkdown(unittest.TestCase):
         self.assertIn("Before", out)
         self.assertIn("<unknown>cell</unknown>", out)
         self.assertIn("After", out)
+
+    def test_minified_unordered_list_items_render_as_distinct_marked_lines(self):
+        out = doctags_to_markdown(
+            "<unordered_list><list_item>Alpha</list_item>"
+            "<list_item>Beta</list_item></unordered_list>"
+        )
+
+        self.assertEqual(out, "- Alpha\n- Beta")
+
+    def test_producer_shaped_nested_ordered_and_unordered_lists(self):
+        out = doctags_to_markdown(
+            "<ordered_list><list_item>First</list_item>"
+            "<list_item><unordered_list>"
+            "<list_item>Nested A</list_item><list_item>Nested B</list_item>"
+            "</unordered_list></list_item><list_item>Second</list_item>"
+            "</ordered_list>"
+        )
+
+        self.assertEqual(out, "1. First\n   - Nested A\n   - Nested B\n1. Second")
+
+    def test_list_is_separated_from_following_table(self):
+        out = doctags_to_markdown(
+            "<unordered_list><list_item>Alpha</list_item></unordered_list>"
+            "<otsl><ched>Name<nl><fcel>Ada</otsl>"
+        )
+
+        self.assertEqual(out, "- Alpha\n\n| Name |\n| --- |\n| Ada |")
+
+    def test_code_uses_a_fence_longer_than_source_backticks(self):
+        source = "print('before')\n```\nprint('after')"
+        out = doctags_to_markdown(f"<code>{source}</code>")
+
+        self.assertEqual(out, f"````\n{source}\n````")
+
+    def test_code_drops_the_producer_language_control_token(self):
+        out = doctags_to_markdown("<code><_Python_>print(1)</code>")
+
+        self.assertEqual(out, "```\nprint(1)\n```")
+
+    def test_semantic_placeholder_cannot_replace_source_text(self):
+        source = "\ue000FREE_SEMANTIC_BLOCK_0\ue001"
+        out = doctags_to_markdown(f"<text>{source}</text><code>print(1)</code>")
+
+        self.assertEqual(out, f"{source}\n\n```\nprint(1)\n```")
+
+    def test_page_placeholder_cannot_fabricate_a_physical_page(self):
+        source = "before\ue000FREE_PAGE_BREAK\ue001after"
+        result = convert_doctags_to_markdown(f"<text>{source}</text>")
+
+        self.assertEqual(result.markdown, source)
+        self.assertEqual([span.text for span in result.page_spans], [source])
+
+    def test_many_lists_and_semantic_blocks_complete_within_linear_bound(self):
+        count = 10_000
+        doctags = (
+            "<unordered_list>"
+            + "<list_item>x</list_item>" * count
+            + "</unordered_list>"
+            + "<code>x</code>" * count
+        )
+
+        started = time.perf_counter()
+        result = convert_doctags_to_markdown(doctags)
+        elapsed = time.perf_counter() - started
+
+        self.assertEqual(result.markdown.count("- x"), count)
+        self.assertEqual(result.markdown.count("```\nx\n```"), count)
+        self.assertLess(elapsed, 1.0)
+
+    def test_formula_uses_separate_line_delimiters(self):
+        source = r"E = mc^2 + \alpha"
+        out = doctags_to_markdown(f"<formula>{source}</formula>")
+
+        self.assertEqual(out, f"$$\n{source}\n$$")
+
+    def test_semantic_wrappers_preserve_source_text_and_exact_page_spans(self):
+        code = "if value:\n    return `literal`"
+        formula = r"x_1 + y^2"
+        result = convert_doctags_to_markdown(
+            "<unordered_list><list_item>Alpha & Beta</list_item></unordered_list>"
+            "<page_break>"
+            f"<code>{code}</code><formula>{formula}</formula>"
+        )
+
+        self.assertEqual(
+            [span.text for span in result.page_spans],
+            ["- Alpha & Beta", f"```\n{code}\n```\n\n$$\n{formula}\n$$"],
+        )
+        for span in result.page_spans:
+            self.assertEqual(
+                result.markdown[span.llm_markdown_start : span.llm_markdown_end],
+                span.text,
+            )
 
     def test_table_separator_is_not_a_page_break(self):
         spans = llm_markdown_page_spans("| Name | Age |\n| --- | --- |\n| Ada | 37 |")

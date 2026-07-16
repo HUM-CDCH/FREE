@@ -1,19 +1,18 @@
 import hashlib
 import json
+import os
 import tempfile
 import unittest
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 from app.storage import paths
 from app.storage.blobs import (
     prune_document_store,
     prune_source_store,
-    release_source_lease,
-    source_store_usage,
     store_source_by_hash,
-    validate_document_size,
 )
 from app.storage.paths import (
     safe_display_filename,
@@ -83,147 +82,80 @@ class TestStorageSafety(unittest.TestCase):
             self.assertEqual(len(set(results)), 1)
             self.assertEqual(results[0].read_bytes(), content)
 
-    def test_distinct_source_publishers_cannot_race_past_quota(self):
-        contents = [b"%PDF-1.4\nfirst source\n", b"%PDF-1.4\nother source\n"]
-        self.assertEqual(len(contents[0]), len(contents[1]))
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            root = Path(tmp_dir)
-            sources = [root / "one.pdf", root / "two.pdf"]
-            for source, content in zip(sources, contents, strict=True):
-                source.write_bytes(content)
-            digests = [hashlib.sha256(content).hexdigest() for content in contents]
-            lease_ids = [str(uuid.uuid4()), str(uuid.uuid4())]
-
-            original_store_dir = paths.DEFAULT_SOURCE_STORE_DIR
-            paths.DEFAULT_SOURCE_STORE_DIR = root / "sources"
-            try:
-
-                def publish(index):
-                    try:
-                        store_source_by_hash(
-                            sources[index],
-                            digests[index],
-                            max_total_bytes=len(contents[index]),
-                            lease_id=lease_ids[index],
-                        )
-                    except ValueError:
-                        return False
-                    return True
-
-                with ThreadPoolExecutor(max_workers=2) as executor:
-                    results = list(executor.map(publish, range(2)))
-
-                self.assertEqual(sum(results), 1)
-                self.assertLessEqual(
-                    source_store_usage(),
-                    len(contents[0]),
-                )
-            finally:
-                paths.DEFAULT_SOURCE_STORE_DIR = original_store_dir
-
-    def test_source_lease_prevents_pruning_until_metadata_commit(self):
-        content = b"%PDF-1.4\nleased source\n"
-        digest = hashlib.sha256(content).hexdigest()
-        lease_id = str(uuid.uuid4())
+    def test_store_source_by_hash_rejects_mismatched_input_digest(self):
+        content = b"%PDF-1.4\nsource\n"
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             source = root / "source.pdf"
             source.write_bytes(content)
-            original_store_dir = paths.DEFAULT_SOURCE_STORE_DIR
-            paths.DEFAULT_SOURCE_STORE_DIR = root / "sources"
-            try:
-                stored = store_source_by_hash(source, digest, lease_id=lease_id)
-                self.assertEqual(
-                    prune_source_store(
-                        data_dir=root / "tasks",
-                        max_total_bytes=0,
-                    ),
-                    0,
-                )
-                self.assertTrue(stored.exists())
-                release_source_lease(digest, lease_id)
-                self.assertEqual(
-                    prune_source_store(
-                        data_dir=root / "tasks",
-                        max_total_bytes=0,
-                    ),
-                    1,
-                )
-                self.assertFalse(stored.exists())
-            finally:
-                paths.DEFAULT_SOURCE_STORE_DIR = original_store_dir
+            with patch.object(paths, "DEFAULT_SOURCE_STORE_DIR", root / "sources"):
+                with self.assertRaisesRegex(ValueError, "content_sha256"):
+                    store_source_by_hash(source, "a" * 64)
+                self.assertEqual(list((root / "sources").glob("*")), [])
 
-    def test_store_source_by_hash_enforces_quota(self):
-        content = b"%PDF-1.4\nquota source\n"
+    def test_store_source_by_hash_failure_publishes_no_partial_blob(self):
+        content = b"%PDF-1.4\nsource\n"
         digest = hashlib.sha256(content).hexdigest()
         with tempfile.TemporaryDirectory() as tmp_dir:
-            source = Path(tmp_dir) / "source.pdf"
+            root = Path(tmp_dir)
+            source = root / "source.pdf"
             source.write_bytes(content)
+            source_dir = root / "sources"
+            with (
+                patch.object(paths, "DEFAULT_SOURCE_STORE_DIR", source_dir),
+                patch("app.storage.blobs.os.replace", side_effect=OSError("stop")),
+                self.assertRaisesRegex(OSError, "stop"),
+            ):
+                store_source_by_hash(source, digest)
 
-            original_store_dir = paths.DEFAULT_SOURCE_STORE_DIR
-            paths.DEFAULT_SOURCE_STORE_DIR = Path(tmp_dir) / "sources"
-            try:
-                with self.assertRaisesRegex(ValueError, "quota"):
-                    store_source_by_hash(
-                        source, digest, max_total_bytes=len(content) - 1
-                    )
-            finally:
-                paths.DEFAULT_SOURCE_STORE_DIR = original_store_dir
+            self.assertFalse((source_dir / f"{digest}.pdf").exists())
+            self.assertEqual(list(source_dir.glob("*.tmp")), [])
 
-    def test_prune_source_store_removes_only_unreferenced_sources(self):
-        referenced_content = b"%PDF-1.4\nreferenced\n"
-        unreferenced_content = b"%PDF-1.4\nunreferenced\n"
-        referenced_digest = hashlib.sha256(referenced_content).hexdigest()
-        unreferenced_digest = hashlib.sha256(unreferenced_content).hexdigest()
+    def test_source_pruning_respects_references_and_one_hour_grace(self):
+        contents = {
+            "referenced": b"%PDF-1.4\nreferenced source\n",
+            "young": b"%PDF-1.4\nyoung source\n",
+            "old": b"%PDF-1.4\nold source\n",
+        }
+        digests = {
+            name: hashlib.sha256(content).hexdigest()
+            for name, content in contents.items()
+        }
         with tempfile.TemporaryDirectory() as tmp_dir:
-            data_dir = Path(tmp_dir) / "tasks"
-            source_dir = Path(tmp_dir) / "sources"
+            root = Path(tmp_dir)
+            data_dir = root / "tasks"
+            source_dir = root / "sources"
             task_dir = task_dir_for(str(uuid.uuid4()), data_dir)
             task_dir.mkdir(parents=True)
             (task_dir / "metadata.json").write_text(
-                json.dumps({"content_sha256": referenced_digest}), encoding="utf-8"
+                json.dumps({"content_sha256": digests["referenced"]}),
+                encoding="utf-8",
             )
-            referenced_path = source_store_path(referenced_digest, source_dir)
-            unreferenced_path = source_store_path(unreferenced_digest, source_dir)
-            referenced_path.write_bytes(referenced_content)
-            unreferenced_path.write_bytes(unreferenced_content)
+            source_paths = {
+                name: source_store_path(digest, source_dir)
+                for name, digest in digests.items()
+            }
+            for name, path in source_paths.items():
+                path.write_bytes(contents[name])
+            os.utime(source_paths["referenced"], (1, 1))
+            os.utime(source_paths["old"], (1, 1))
+            os.utime(source_paths["young"], (5_400, 5_400))
 
             removed = prune_source_store(
                 data_dir=data_dir,
                 source_store_dir=source_dir,
-                max_total_bytes=len(referenced_content),
+                now=7_200,
             )
 
             self.assertEqual(removed, 1)
-            self.assertTrue(referenced_path.exists())
-            self.assertFalse(unreferenced_path.exists())
+            self.assertTrue(source_paths["referenced"].exists())
+            self.assertTrue(source_paths["young"].exists())
+            self.assertFalse(source_paths["old"].exists())
 
-    def test_final_manifest_bytes_are_included_in_document_quota(self):
-        digest = "a" * 64
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            original_documents = paths.DEFAULT_DOCUMENT_STORE_DIR
-            paths.DEFAULT_DOCUMENT_STORE_DIR = Path(tmp_dir) / "documents"
-            try:
-                document_dir = paths.document_store_dir(digest)
-                artifact = document_dir / "generations" / "fixture" / "artifact.txt"
-                artifact.parent.mkdir(parents=True)
-                artifact.write_bytes(b"artifact")
-                canonical = paths.canonical_parsed_document_path(digest)
-                canonical.write_bytes(b"old")
-
-                with self.assertRaisesRegex(ValueError, "per-document"):
-                    validate_document_size(
-                        digest,
-                        additional_bytes=100,
-                        replacing_path=canonical,
-                        max_document_bytes=50,
-                    )
-            finally:
-                paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
-
-    def test_prune_document_store_removes_only_unreferenced_documents(self):
+    def test_prune_document_store_respects_references_and_seven_day_retention(self):
         referenced_digest = "a" * 64
         unreferenced_digest = "b" * 64
+        young_digest = "c" * 64
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             data_dir = root / "tasks"
@@ -235,21 +167,30 @@ class TestStorageSafety(unittest.TestCase):
             )
             referenced = document_dir / referenced_digest
             unreferenced = document_dir / unreferenced_digest
+            young = document_dir / young_digest
             referenced.mkdir(parents=True)
             unreferenced.mkdir(parents=True)
-            (referenced / "parsed_document.json").write_bytes(b"referenced")
-            (unreferenced / "parsed_document.json").write_bytes(b"unreferenced")
+            young.mkdir(parents=True)
+            referenced_manifest = referenced / "parsed_document.json"
+            unreferenced_manifest = unreferenced / "parsed_document.json"
+            young_manifest = young / "parsed_document.json"
+            referenced_manifest.write_bytes(b"referenced")
+            unreferenced_manifest.write_bytes(b"unreferenced")
+            young_manifest.write_bytes(b"young")
+            os.utime(referenced_manifest, (1, 1))
+            os.utime(unreferenced_manifest, (1, 1))
+            os.utime(young_manifest, (7 * 24 * 3600, 7 * 24 * 3600))
 
             removed = prune_document_store(
                 data_dir=data_dir,
                 document_store_dir=document_dir,
-                max_total_bytes=len(b"referenced"),
-                retention_seconds=10_000,
+                now=8 * 24 * 3600,
             )
 
             self.assertEqual(removed, 1)
             self.assertTrue(referenced.exists())
             self.assertFalse(unreferenced.exists())
+            self.assertTrue(young.exists())
 
 
 if __name__ == "__main__":

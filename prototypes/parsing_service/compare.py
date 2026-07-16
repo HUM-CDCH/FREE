@@ -15,7 +15,6 @@ import subprocess
 import sys
 import time
 
-from app.ingestion.url_fetch import download_file
 from app.parsing.render import convert_pdf_to_images
 
 _SHARED_PAGE_IMAGE_RE = re.compile(r"page_([0-9]+)\.png")
@@ -141,7 +140,7 @@ def parse_args():
         "--source",
         type=str,
         required=True,
-        help="Path or URL to the input PDF source document.",
+        help="Path to the local PDF source document.",
     )
     parser.add_argument(
         "--output-dir",
@@ -180,22 +179,10 @@ def parse_args():
 def main():
     args = parse_args()
 
-    # 1. Resolve source and download if URL
-    source = args.source
+    # 1. Resolve the local Source Document.
     ensure_dir(args.output_dir)
-
-    if source.startswith(("http://", "https://")):
-        pdf_name = source.split("/")[-1]
-        if not pdf_name.endswith(".pdf"):
-            pdf_name = "downloaded_doc.pdf"
-        local_pdf_path = os.path.join(args.output_dir, pdf_name)
-        if not os.path.exists(local_pdf_path):
-            download_file(source, local_pdf_path)
-        else:
-            print(f"Using cached PDF at {local_pdf_path}")
-    else:
-        local_pdf_path = os.path.abspath(source)
-        pdf_name = os.path.basename(local_pdf_path)
+    local_pdf_path = os.path.abspath(args.source)
+    pdf_name = os.path.basename(local_pdf_path)
 
     if not os.path.exists(local_pdf_path):
         print(f"Error: PDF file does not exist at {local_pdf_path}")

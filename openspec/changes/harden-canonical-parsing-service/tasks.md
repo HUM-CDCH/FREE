@@ -2,23 +2,31 @@
 
 # Tasks: harden-canonical-parsing-service
 
+> **Change closed 2026-07-16 after re-triage** (see proposal status note).
+> Unchecked tasks below are intentionally not completed: 2.5/2.6 premise
+> disproven, 2.7/2.8/batch 5 migrated to `parsing-docs-cleanup`, 2.9 moot,
+> 3.1–3.4 voided by URL-ingestion deletion, 3.5 covered and 3.6 done in
+> `simplify-source-ingestion`, 3.7–3.11 no deployment target / CI declined,
+> batch 4 conflicts with the simplification direction.
+
 ## 1. PR #21 merge gate — four focused commits
 
 - [x] 1.1 Add a failing producer→consumer round-trip using a real `docling_core` BOTTOMLEFT box; normalize `_bbox_inventory` to ordered coordinates; retain generic origin conversion; verify affected Camelot-area/dedup paths receive geometry
 - [x] 1.2 Replace the ascending-BOTTOMLEFT fixture with producer-faithful data and run focused table/Docling tests
 - [x] 1.3 Add pre-parser admission tests for exact 51 MiB request boundary, excessive `Content-Length`, absent length, chunked overflow, no handler/task creation on rejection, and an exact 50 MiB Source Document
 - [x] 1.4 Add a route-aware pure-ASGI request limiter while retaining the exact post-parse 50 MiB source check
-- [ ] 1.5 Add reconciliation regressions proving one task-local quota/filesystem failure does not block later tasks or lifespan, shared-store failure remains fatal, and unchanged terminal metadata/mtime is not rewritten
-- [ ] 1.6 Refactor reconciliation into explicit task-local and shared-store error boundaries without introducing expiry/API changes yet
-- [ ] 1.7 Add a page-header-between-OTSL-fragments regression and ignore both page headers and footers only in the cross-page merge predicate
-- [ ] 1.8 Run focused regressions, `uv run --no-sync python -m unittest discover -s tests`, `RUN_GOLDEN_E2E=1`, `RUN_DOCLING_INTEGRATION=1`, and Python diagnostics; record results on PR #21
+- [x] 1.5 Add reconciliation regressions proving one task-local quota/filesystem failure does not block later tasks or lifespan, shared-store failure remains fatal, and unchanged terminal metadata/mtime is not rewritten
+- [x] 1.6 Refactor reconciliation into explicit task-local and shared-store error boundaries without introducing expiry/API changes yet
+- [x] 1.7 Add a page-header-between-OTSL-fragments regression and ignore both page headers and footers only in the cross-page merge predicate
+- [x] 1.8 Run focused regressions, `uv run --no-sync python -m unittest discover -s tests`, `RUN_GOLDEN_E2E=1`, `RUN_DOCLING_INTEGRATION=1`, and Python diagnostics; record results on PR #21
 
 ## 2. Parsing-fidelity batch
 
-- [ ] 2.1 Specify and test that a successful Camelot call returning zero tables is a successful empty result without `completed_with_warnings`; implement the status correction
-- [ ] 2.2 Split missing-value normalization by adapter; preserve literal Docling `NaN` and blank only non-string Camelot missing-value sentinels
-- [ ] 2.3 Add minified/nested list, ordered/unordered list, code-fence collision, formula, page-span, and source-text preservation tests
-- [ ] 2.4 Render standard Markdown list markers, adaptive fenced code, and separate-line `$$` formula blocks; bump the DocTags converter-policy revision and manually review golden changes
+- [x] 2.1 Specify and test that a successful Camelot call returning zero tables is a successful empty result without `completed_with_warnings`; implement the status correction
+- [x] 2.2 Split missing-value normalization by adapter; preserve literal Docling `NaN` and blank only non-string Camelot missing-value sentinels
+- [x] 2.3 Add minified/nested list, ordered/unordered list, code-fence collision, formula, page-span, and source-text preservation tests
+- [x] 2.4 Render standard Markdown list markers, adaptive fenced code, and separate-line `$$` formula blocks; bump the DocTags converter-policy revision and manually review golden changes
+  - Golden review evidence: the real golden Source Document exported zero `ordered_list`, `unordered_list`, `list_item`, `code`, and `formula` blocks, so the semantic oracle correctly had no delta; `git diff --exit-code 137c5e8^ 137c5e8 -- prototypes/parsing_service/tests/golden` and the three-test golden E2E both passed. Producer-shaped semantic regressions remain in the focused converter suite rather than inventing unsupported golden content.
 - [ ] 2.5 Produce/check in a small real Docling fixture with multi-page table Evidence; in v1 retain text/structure, suppress misleading geometry, and emit a stable warning
 - [ ] 2.6 Unblock [`publish-parsed-document-v2`](../publish-parsed-document-v2/proposal.md) by attaching the proven fixture and producer-shape findings to its schema-gate tasks, including DocTags-slot/Docling-inventory correspondence and page-scoped geometry; preserve the v2 single-table-authority, role-specific parser attribution, and explicit-disagreement requirements without implementing them in this change
 - [ ] 2.7 Write all canonical text artifacts as deterministic UTF-8/LF bytes and test byte digest stability independently of platform newline defaults
