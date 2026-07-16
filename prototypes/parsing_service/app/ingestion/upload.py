@@ -10,11 +10,7 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 
 from app.ingestion.validation import ALLOWED_PDF_CONTENT_TYPES, assert_pdf_file
-from app.storage.blobs import (
-    deduplicate_task_source,
-    release_source_lease,
-    store_source_by_hash,
-)
+from app.storage.blobs import deduplicate_task_source, store_source_by_hash
 from app.storage.hashing import compute_sha256
 from app.storage.paths import SOURCE_FILENAME, safe_display_filename
 
@@ -81,14 +77,9 @@ def save_uploaded_source(file: UploadFile, task_dir: Path) -> tuple[Path, str, s
 
     content_sha256 = compute_sha256(source_path)
     try:
-        source_blob = store_source_by_hash(
-            source_path,
-            content_sha256,
-            lease_id=task_dir.name,
-        )
+        source_blob = store_source_by_hash(source_path, content_sha256)
         deduplicate_task_source(source_path, source_blob)
     except (OSError, ValueError) as exc:
-        release_source_lease(content_sha256, task_dir.name)
         raise HTTPException(
             status_code=507,
             detail="Could not store source PDF.",

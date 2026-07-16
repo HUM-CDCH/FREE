@@ -8,9 +8,9 @@
 
 ## 2. Replace leases with mtime grace
 
-- [ ] 2.1 Remove source lease paths, functions, parameters, and upload/task-route choreography
-- [ ] 2.2 Prune only unreferenced source blobs at least one hour old and mark the single-process ponytail
-- [ ] 2.3 Cover young, old, and referenced source-pruning behavior
+- [x] 2.1 Remove source lease paths, functions, parameters, and upload/task-route choreography
+- [x] 2.2 Prune only unreferenced source blobs at least one hour old and mark the single-process ponytail
+- [x] 2.3 Cover young, old, and referenced source-pruning behavior
 
 ## 3. Simplify source publication
 

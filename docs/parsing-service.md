@@ -103,8 +103,8 @@ The ingestion boundary retains:
 - PDF magic and content validation;
 - sanitized display names without exposing storage paths;
 - UUID-only task paths;
-- source leases, per-source locking, immutable generations, atomic commits, and
-  retention cleanup.
+- a one-hour grace before unreferenced source cleanup, per-source canonical
+  locking, immutable generations, atomic commits, and retention cleanup.
 
 A deployment exposed to untrusted traffic must also enforce request-body limits
 at the ASGI proxy or server boundary because multipart parsing precedes

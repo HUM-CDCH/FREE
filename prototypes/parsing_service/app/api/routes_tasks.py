@@ -18,10 +18,7 @@ from app.models.parser import (
     CANONICAL_OCR_DPI,
     canonical_preprocessing_config,
 )
-from app.storage.blobs import (
-    release_source_lease,
-    validate_task_capacity,
-)
+from app.storage.blobs import validate_task_capacity
 from app.storage.hashing import document_id_from_hash
 from app.storage.manifests import json_payload_size
 from app.storage.paths import SOURCE_FILENAME, task_store_lock_path
@@ -86,10 +83,6 @@ async def create_task(
             status_code=507,
             detail="Could not reserve task storage.",
         ) from exc
-    finally:
-        if content_sha256 is not None:
-            release_source_lease(content_sha256, task_id)
-
     if content_sha256 is None:  # Defensive narrowing after the ingestion branches.
         raise HTTPException(
             status_code=500, detail="Source ingestion did not complete."

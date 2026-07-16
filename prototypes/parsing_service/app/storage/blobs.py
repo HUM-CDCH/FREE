@@ -1,4 +1,4 @@
-"""Content-addressed storage, leases, and bounded quota accounting."""
+"""Content-addressed storage and retention cleanup."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from app.storage.atomic_json import read_json
 from app.storage.hashing import compute_sha256
 
 DEFAULT_SOURCE_STORE_MAX_BYTES = 1024 * 1024 * 1024
-DEFAULT_SOURCE_LEASE_SECONDS = 30 * 60
+SOURCE_GRACE_SECONDS = 3600
 DEFAULT_DOCUMENT_STORE_MAX_BYTES = 4 * 1024 * 1024 * 1024
 DEFAULT_DOCUMENT_MAX_BYTES = 512 * 1024 * 1024
 DEFAULT_DOCUMENT_RETENTION_SECONDS = 7 * 24 * 3600
@@ -68,56 +68,16 @@ def referenced_source_hashes(
     return hashes
 
 
-def _lease_path(base: Path, content_sha256: str, lease_id: str) -> Path:
-    safe_lease = paths.validate_task_id(lease_id)
-    lease_dir = base / ".leases"
-    lease_dir.mkdir(parents=True, exist_ok=True)
-    return lease_dir / f"{content_sha256}.{safe_lease}"
-
-
-def _active_source_leases(
-    base: Path,
-    *,
-    now: float | None = None,
-    lease_seconds: int = DEFAULT_SOURCE_LEASE_SECONDS,
-) -> set[str]:
-    current = time.time() if now is None else now
-    active: set[str] = set()
-    lease_dir = base / ".leases"
-    if not lease_dir.exists():
-        return active
-    for lease in lease_dir.iterdir():
-        digest = lease.name.partition(".")[0]
-        try:
-            modified = lease.stat().st_mtime
-        except OSError:
-            continue
-        if not paths.is_sha256_hex(digest) or current - modified > lease_seconds:
-            with suppress(FileNotFoundError, PermissionError):
-                lease.unlink()
-            continue
-        active.add(digest)
-    return active
-
-
-def release_source_lease(
-    content_sha256: str,
-    lease_id: str,
-    *,
-    source_store_dir: str | os.PathLike[str] | None = None,
-) -> None:
-    base = _store_dir(source_store_dir)
-    with suppress(FileNotFoundError, PermissionError):
-        _lease_path(base, content_sha256, lease_id).unlink()
-
-
 def _prune_source_store_unlocked(
     *,
     data_dir: str | os.PathLike[str] | None,
     base: Path,
     max_total_bytes: int,
+    now: float | None = None,
 ) -> int:
-    referenced = referenced_source_hashes(data_dir) | _active_source_leases(base)
+    # ponytail: mtime grace instead of leases; revisit if multi-process
+    referenced = referenced_source_hashes(data_dir)
+    cutoff = (time.time() if now is None else now) - SOURCE_GRACE_SECONDS
     candidates: list[tuple[float, int, Path]] = []
     total = 0
     for path in base.glob("*.pdf"):
@@ -126,7 +86,11 @@ def _prune_source_store_unlocked(
         except OSError:
             continue
         total += stat.st_size
-        if paths.is_sha256_hex(path.stem) and path.stem not in referenced:
+        if (
+            paths.is_sha256_hex(path.stem)
+            and path.stem not in referenced
+            and stat.st_mtime <= cutoff
+        ):
             candidates.append((stat.st_mtime, stat.st_size, path))
 
     removed = 0
@@ -145,8 +109,9 @@ def prune_source_store(
     data_dir: str | os.PathLike[str] | None = None,
     source_store_dir: str | os.PathLike[str] | None = None,
     max_total_bytes: int = DEFAULT_SOURCE_STORE_MAX_BYTES,
+    now: float | None = None,
 ) -> int:
-    """Delete unreferenced and unleased source blobs under one store lock."""
+    """Delete old unreferenced source blobs under one store lock."""
     base = _store_dir(source_store_dir)
     if not base.exists():
         return 0
@@ -156,6 +121,7 @@ def prune_source_store(
             data_dir=data_dir,
             base=base,
             max_total_bytes=max_total_bytes,
+            now=now,
         )
 
 
@@ -165,7 +131,6 @@ def store_source_by_hash(
     *,
     max_total_bytes: int = DEFAULT_SOURCE_STORE_MAX_BYTES,
     data_dir: str | os.PathLike[str] | None = None,
-    lease_id: str | None = None,
 ) -> Path:
     """Authenticate and publish one source blob in a locked quota transaction."""
     source = Path(source_pdf)
@@ -176,9 +141,6 @@ def store_source_by_hash(
     lock = FileLock(str(paths.source_store_lock_path(base)))
 
     with lock:
-        if lease_id is not None:
-            lease = _lease_path(base, content_sha256, lease_id)
-            lease.touch(exist_ok=True)
         if destination.exists():
             if compute_sha256(destination) == content_sha256:
                 return destination
@@ -319,17 +281,21 @@ def prune_orphan_document_generations(
         if pending.exists():
             for generation in list(pending.iterdir()):
                 if generation.is_dir():
-                    shutil.rmtree(generation, ignore_errors=True)
-                    if not generation.exists():
-                        removed += 1
+                    try:
+                        shutil.rmtree(generation)
+                    except OSError:
+                        continue
+                    removed += 1
         generations = document_dir / "generations"
         if not generations.exists():
             continue
         for generation in list(generations.iterdir()):
             if generation.is_dir() and generation.resolve() not in referenced:
-                shutil.rmtree(generation, ignore_errors=True)
-                if not generation.exists():
-                    removed += 1
+                try:
+                    shutil.rmtree(generation)
+                except OSError:
+                    continue
+                removed += 1
     return removed
 
 
