@@ -2,7 +2,11 @@
 
 # Plan: port FREE-technical extraction
 
-**Status:** reviewed and simplified on 2026-07-16.
+**Status:** reviewed and simplified on 2026-07-16. Re-reviewed the same day
+after the source-ingestion simplification pivot: re-pointed the document
+contract from the parked `parsed_document.v2` to the shipped
+`parsed_document.v1`, and aligned agent model/effort assignments with the
+no-Sol policy adopted for the ingestion work.
 
 **Behavioral reference:** `/home/gebbaro/Progetti/FREE-technical` at commit `67ea4dc535a2ab674ed8c4b558068e13e7c2980d`.
 
@@ -42,30 +46,42 @@ Primary sources checked:
 
 These models guide implementation of this plan; they are not FREE's extraction models.
 
-Use the GPT-5.6 family by role:
+Use the GPT-5.6 family by role. **Do not use Sol in any role** — this is the
+project-wide policy adopted 2026-07-16 (see the ingestion handoff): Sol's
+failure profile is doing too much, which is the wrong bias for a port that is
+explicitly scoped by do-not-build lists, and Terra covers every role here.
 
 | Role | Model | Thinking | Use |
 |---|---|---|---|
 | Reconnaissance | `openai-codex/gpt-5.6-luna` | `medium` | Official docs, file discovery, and focused inventory. Read-only. |
-| Implementation | `openai-codex/gpt-5.6-terra` | `high` | Detailed comparison and the sole writer for an approved slice. |
-| Judgment | `openai-codex/gpt-5.6-sol` | `high` | Final synthesis and fresh-context simplification review. Read-only. |
+| Implementation | `openai-codex/gpt-5.6-terra` | `high` | Detailed reference comparison and the sole writer for an approved slice. Parity porting is judgment work; do not drop below `high`. |
+| Parity review | `openai-codex/gpt-5.6-terra` | `high` | Fresh-context, read-only review of each slice diff against the pinned `FREE-technical` behavior and this plan's "Behavior to preserve" section. |
+| Scope review | `openai-codex/gpt-5.6-luna` | `high` | Read-only, two questions only: (1) does the diff add anything on the "Do not build" list or beyond the two allowed new modules? (2) does it change behavior the plan says to preserve? |
 
-Recommended planning/review workflow:
-
-```text
-parallel: Luna reviews current docs; Terra maps current and reference code
-then:     Sol resolves disagreements and removes unnecessary architecture
-```
-
-Recommended implementation workflow:
+Recommended implementation workflow per slice:
 
 ```text
 Terra high writes one approved slice
-Sol high reviews the resulting diff
-Terra high applies accepted fixes
+parallel: Terra high parity review; Luna high scope review (both read-only)
+Terra high applies accepted fixes; rerun the slice's tests
 ```
 
-Do not run multiple writers in the same worktree. Do not use Sol for routine discovery, and do not default to `xhigh` or `max`; escalate beyond `high` only when a concrete unresolved decision remains. Pi supports model selection through `/model`, thinking selection with Shift+Tab, and CLI IDs such as `--model openai-codex/gpt-5.6-sol --thinking high`. Keep Pi's default 272K context limit for these models unless the task demonstrably requires long context.
+Review findings must stay inside this plan's scope: a reviewer proposing new
+robustness, abstractions, or contract changes is out of scope by definition —
+record the suggestion for human triage instead of applying it.
+
+Do not run multiple writers in the same worktree. Do not default to `xhigh` or
+`max`; escalate beyond `high` only when a concrete unresolved decision remains,
+and prefer stopping for human input over escalating. Pi supports model
+selection through `/model`, thinking selection with Shift+Tab, and CLI IDs such
+as `--model openai-codex/gpt-5.6-terra --thinking high`. Keep Pi's default 272K
+context limit unless the task demonstrably requires long context.
+
+Cross-worktree note: the source-ingestion simplification
+(`simplify-source-ingestion`, main worktree) may run concurrently with this
+port. That is safe — it touches only `prototypes/parsing_service`, this port
+touches only `prototypes/studio` — but neither workstream may edit the other's
+prototype directory.
 
 ## Scope
 
@@ -110,7 +126,9 @@ The first implementation supports only `strategy: "catalog"`. Article is added a
 
 The browser sends `{ taskId, schema, strategy }`, not the complete document and not a PDF. The server fetches the completed document from the parsing service.
 
-Do not invent an `ExtractionDocument` schema. At the HTTP boundary, validate only the final `parsed_document.v2` fields extraction reads. API wiring waits for the v2 contract to land; pure Catalog work can start earlier.
+Do not invent an `ExtractionDocument` schema. At the HTTP boundary, validate only the `parsed_document.v1` fields extraction reads (`SCHEMA_VERSION = "parsed_document.v1"`, served today by `GET /tasks/{task_id}/parsed-document`).
+
+**Do not wait for `parsed_document.v2`.** That change was parked on 2026-07-16 together with the remaining parsing hardening plan (its gate, task 2.5, is parked; see `/home/gebbaro/FREE-next-session-handoff.md`). Port against v1 now; if v2 ever lands, migrating extraction's narrow field reads is a small follow-up, not a reason to block this port.
 
 ### Preserve the reference Evidence contract first
 
@@ -206,7 +224,7 @@ Add an API/server TypeScript configuration referenced by the Studio build. The c
 
 - Retain the parsing `taskId` in `src/api.ts`.
 - Make `/api/extract` accept `{ taskId, schema, strategy: "catalog" }` and fetch the canonical document server-side.
-- Select canonical LLM Markdown, pages, and tables from the actual v2 contract.
+- Select canonical LLM Markdown, pages, and tables from the shipped `parsed_document.v1` contract.
 - Reuse the current raw NuExtract renderer and JSON parser through one callable model function.
 - Run Catalog with an injected model callback in tests.
 - Update the existing Results view only enough to display the embedded record and warnings.
