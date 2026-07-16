@@ -13,7 +13,6 @@ from app.storage.blobs import (
     prune_document_store,
     prune_source_store,
     store_source_by_hash,
-    validate_document_size,
 )
 from app.storage.paths import (
     safe_display_filename,
@@ -145,7 +144,6 @@ class TestStorageSafety(unittest.TestCase):
             removed = prune_source_store(
                 data_dir=data_dir,
                 source_store_dir=source_dir,
-                max_total_bytes=0,
                 now=7_200,
             )
 
@@ -154,62 +152,10 @@ class TestStorageSafety(unittest.TestCase):
             self.assertTrue(source_paths["young"].exists())
             self.assertFalse(source_paths["old"].exists())
 
-    def test_prune_source_store_removes_only_unreferenced_sources(self):
-        referenced_content = b"%PDF-1.4\nreferenced\n"
-        unreferenced_content = b"%PDF-1.4\nunreferenced\n"
-        referenced_digest = hashlib.sha256(referenced_content).hexdigest()
-        unreferenced_digest = hashlib.sha256(unreferenced_content).hexdigest()
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            data_dir = Path(tmp_dir) / "tasks"
-            source_dir = Path(tmp_dir) / "sources"
-            task_dir = task_dir_for(str(uuid.uuid4()), data_dir)
-            task_dir.mkdir(parents=True)
-            (task_dir / "metadata.json").write_text(
-                json.dumps({"content_sha256": referenced_digest}), encoding="utf-8"
-            )
-            referenced_path = source_store_path(referenced_digest, source_dir)
-            unreferenced_path = source_store_path(unreferenced_digest, source_dir)
-            referenced_path.write_bytes(referenced_content)
-            unreferenced_path.write_bytes(unreferenced_content)
-            os.utime(unreferenced_path, (1, 1))
-
-            removed = prune_source_store(
-                data_dir=data_dir,
-                source_store_dir=source_dir,
-                max_total_bytes=len(referenced_content),
-                now=7_200,
-            )
-
-            self.assertEqual(removed, 1)
-            self.assertTrue(referenced_path.exists())
-            self.assertFalse(unreferenced_path.exists())
-
-    def test_final_manifest_bytes_are_included_in_document_quota(self):
-        digest = "a" * 64
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            original_documents = paths.DEFAULT_DOCUMENT_STORE_DIR
-            paths.DEFAULT_DOCUMENT_STORE_DIR = Path(tmp_dir) / "documents"
-            try:
-                document_dir = paths.document_store_dir(digest)
-                artifact = document_dir / "generations" / "fixture" / "artifact.txt"
-                artifact.parent.mkdir(parents=True)
-                artifact.write_bytes(b"artifact")
-                canonical = paths.canonical_parsed_document_path(digest)
-                canonical.write_bytes(b"old")
-
-                with self.assertRaisesRegex(ValueError, "per-document"):
-                    validate_document_size(
-                        digest,
-                        additional_bytes=100,
-                        replacing_path=canonical,
-                        max_document_bytes=50,
-                    )
-            finally:
-                paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
-
-    def test_prune_document_store_removes_only_unreferenced_documents(self):
+    def test_prune_document_store_respects_references_and_seven_day_retention(self):
         referenced_digest = "a" * 64
         unreferenced_digest = "b" * 64
+        young_digest = "c" * 64
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             data_dir = root / "tasks"
@@ -221,21 +167,30 @@ class TestStorageSafety(unittest.TestCase):
             )
             referenced = document_dir / referenced_digest
             unreferenced = document_dir / unreferenced_digest
+            young = document_dir / young_digest
             referenced.mkdir(parents=True)
             unreferenced.mkdir(parents=True)
-            (referenced / "parsed_document.json").write_bytes(b"referenced")
-            (unreferenced / "parsed_document.json").write_bytes(b"unreferenced")
+            young.mkdir(parents=True)
+            referenced_manifest = referenced / "parsed_document.json"
+            unreferenced_manifest = unreferenced / "parsed_document.json"
+            young_manifest = young / "parsed_document.json"
+            referenced_manifest.write_bytes(b"referenced")
+            unreferenced_manifest.write_bytes(b"unreferenced")
+            young_manifest.write_bytes(b"young")
+            os.utime(referenced_manifest, (1, 1))
+            os.utime(unreferenced_manifest, (1, 1))
+            os.utime(young_manifest, (7 * 24 * 3600, 7 * 24 * 3600))
 
             removed = prune_document_store(
                 data_dir=data_dir,
                 document_store_dir=document_dir,
-                max_total_bytes=len(b"referenced"),
-                retention_seconds=10_000,
+                now=8 * 24 * 3600,
             )
 
             self.assertEqual(removed, 1)
             self.assertTrue(referenced.exists())
             self.assertFalse(unreferenced.exists())
+            self.assertTrue(young.exists())
 
 
 if __name__ == "__main__":

@@ -249,11 +249,7 @@ class TestCanonicalIngestion(unittest.TestCase):
                 write_parsed_document(task_dir, canonical)
                 archive_path = task_dir / "result.zip"
 
-                with patch(
-                    "app.api.routes_artifacts.validate_task_capacity"
-                ) as mock_capacity:
-                    _write_task_archive(task_dir, archive_path)
-                mock_capacity.assert_called_once_with(task_dir)
+                _write_task_archive(task_dir, archive_path)
 
                 with zipfile.ZipFile(archive_path) as archive:
                     names = set(archive.namelist())

@@ -21,17 +21,12 @@ from app.storage.blobs import (
     prune_document_store,
     prune_orphan_document_generations,
     prune_source_store,
-    reserve_document_capacity,
     store_source_by_hash,
-    validate_document_size,
-    validate_task_capacity,
 )
 from app.storage.hashing import compute_sha256, document_id_from_hash
 from app.storage.manifests import (
     TaskNotFoundError,
-    json_payload_size,
     load_task_metadata,
-    parsed_document_json_size,
     preprocessing_config_hash,
     read_canonical_parsed_document,
     rebase_parsed_document_artifacts,
@@ -43,7 +38,6 @@ from app.storage.manifests import (
 )
 from app.storage.paths import (
     DEFAULT_DATA_DIR,
-    PARSED_DOCUMENT_FILENAME,
     canonical_parsed_document_path,
     document_generation_dir,
     document_lock_path,
@@ -137,7 +131,6 @@ def _build_or_load_canonical(
     metadata: dict[str, Any],
 ) -> ParsedDocument:
     """Authenticate, build, and atomically publish one immutable generation."""
-    canonical_path = canonical_parsed_document_path(content_sha256)
     source_blob = _authenticated_source_blob(task_id, content_sha256)
     store_lock = FileLock(str(document_store_lock_path()))
     source_lock = FileLock(str(document_lock_path(content_sha256)))
@@ -151,10 +144,6 @@ def _build_or_load_canonical(
             if cached is not None:
                 return cached
 
-            reserve_document_capacity(
-                content_sha256=content_sha256,
-                data_dir=DEFAULT_DATA_DIR,
-            )
             config_hash = preprocessing_config_hash(metadata)
             generation_id = _new_generation_id(config_hash)
             pending_dir = pending_document_generation_dir(
@@ -175,11 +164,6 @@ def _build_or_load_canonical(
                     parsed_document,
                     pending_dir,
                     final_dir,
-                )
-                validate_document_size(
-                    content_sha256,
-                    additional_bytes=parsed_document_json_size(parsed_document),
-                    replacing_path=canonical_path,
                 )
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(pending_dir, final_dir)
@@ -210,15 +194,9 @@ def _persist_task_metadata(
     task_dir: Path,
     metadata: dict[str, Any],
 ) -> None:
-    metadata_path = task_dir / "metadata.json"
     store_lock = FileLock(str(task_store_lock_path()))
     with store_lock:
         try:
-            validate_task_capacity(
-                task_dir,
-                additional_bytes=json_payload_size(metadata),
-                replacing_paths=(metadata_path,),
-            )
             save_task_metadata(task_dir, metadata)
         except (OSError, TypeError, ValueError) as exc:
             raise _TaskStateError from exc
@@ -249,18 +227,9 @@ def _completed_metadata(
     except (OSError, TypeError, ValueError) as exc:
         raise _TaskStateError from exc
 
-    parsed_path = task_dir / PARSED_DOCUMENT_FILENAME
-    metadata_path = task_dir / "metadata.json"
     store_lock = FileLock(str(task_store_lock_path()))
     with store_lock:
         try:
-            validate_task_capacity(
-                task_dir,
-                additional_bytes=(
-                    parsed_document_json_size(rebound) + json_payload_size(updated)
-                ),
-                replacing_paths=(parsed_path, metadata_path),
-            )
             write_parsed_document(task_dir, rebound)
             save_task_metadata(task_dir, updated)
         except (OSError, TypeError, ValueError) as exc:

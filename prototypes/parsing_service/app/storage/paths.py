@@ -152,14 +152,6 @@ def document_store_lock_path(
     return lock_dir / "store.lock"
 
 
-def source_store_lock_path(
-    base_dir: str | os.PathLike[str] | None = None,
-) -> Path:
-    base = Path(base_dir) if base_dir is not None else DEFAULT_SOURCE_STORE_DIR
-    base.mkdir(parents=True, exist_ok=True)
-    return base / ".store.lock"
-
-
 def task_lock_path(
     task_id: str,
     data_dir: str | os.PathLike[str] | None = None,

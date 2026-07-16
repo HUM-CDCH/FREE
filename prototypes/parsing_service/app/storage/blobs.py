@@ -6,24 +6,15 @@ import os
 import shutil
 import tempfile
 import time
-from collections.abc import Iterable
 from contextlib import suppress
 from pathlib import Path
-
-from filelock import FileLock
 
 from app.storage import paths
 from app.storage.atomic_json import read_json
 from app.storage.hashing import compute_sha256
 
-DEFAULT_SOURCE_STORE_MAX_BYTES = 1024 * 1024 * 1024
 SOURCE_GRACE_SECONDS = 3600
-DEFAULT_DOCUMENT_STORE_MAX_BYTES = 4 * 1024 * 1024 * 1024
-DEFAULT_DOCUMENT_MAX_BYTES = 512 * 1024 * 1024
 DEFAULT_DOCUMENT_RETENTION_SECONDS = 7 * 24 * 3600
-DEFAULT_TASK_STORE_MAX_BYTES = 2 * 1024 * 1024 * 1024
-DEFAULT_TASK_MAX_BYTES = 256 * 1024 * 1024
-DEFAULT_ARCHIVE_MAX_BYTES = 256 * 1024 * 1024
 
 
 def _store_dir(source_store_dir: str | os.PathLike[str] | None) -> Path:
@@ -32,21 +23,6 @@ def _store_dir(source_store_dir: str | os.PathLike[str] | None) -> Path:
         if source_store_dir is not None
         else paths.DEFAULT_SOURCE_STORE_DIR
     )
-
-
-def source_store_usage(
-    source_store_dir: str | os.PathLike[str] | None = None,
-) -> int:
-    base = _store_dir(source_store_dir)
-    if not base.exists():
-        return 0
-    total = 0
-    for path in base.glob("*.pdf"):
-        try:
-            total += path.stat().st_size
-        except OSError:
-            continue
-    return total
 
 
 def referenced_source_hashes(
@@ -68,61 +44,35 @@ def referenced_source_hashes(
     return hashes
 
 
-def _prune_source_store_unlocked(
-    *,
-    data_dir: str | os.PathLike[str] | None,
-    base: Path,
-    max_total_bytes: int,
-    now: float | None = None,
-) -> int:
-    # ponytail: mtime grace instead of leases; revisit if multi-process
-    referenced = referenced_source_hashes(data_dir)
-    cutoff = (time.time() if now is None else now) - SOURCE_GRACE_SECONDS
-    candidates: list[tuple[float, int, Path]] = []
-    total = 0
-    for path in base.glob("*.pdf"):
-        try:
-            stat = path.stat()
-        except OSError:
-            continue
-        total += stat.st_size
-        if (
-            paths.is_sha256_hex(path.stem)
-            and path.stem not in referenced
-            and stat.st_mtime <= cutoff
-        ):
-            candidates.append((stat.st_mtime, stat.st_size, path))
-
-    removed = 0
-    for _, size, path in sorted(candidates):
-        if total <= max_total_bytes:
-            break
-        with suppress(FileNotFoundError, PermissionError):
-            path.unlink()
-            total -= size
-            removed += 1
-    return removed
-
-
 def prune_source_store(
     *,
     data_dir: str | os.PathLike[str] | None = None,
     source_store_dir: str | os.PathLike[str] | None = None,
-    max_total_bytes: int = DEFAULT_SOURCE_STORE_MAX_BYTES,
     now: float | None = None,
 ) -> int:
-    """Delete old unreferenced source blobs under one store lock."""
+    """Delete unreferenced source blobs after the publication grace."""
     base = _store_dir(source_store_dir)
     if not base.exists():
         return 0
-    lock = FileLock(str(paths.source_store_lock_path(base)))
-    with lock:
-        return _prune_source_store_unlocked(
-            data_dir=data_dir,
-            base=base,
-            max_total_bytes=max_total_bytes,
-            now=now,
-        )
+
+    # ponytail: mtime grace instead of leases; revisit if multi-process
+    referenced = referenced_source_hashes(data_dir)
+    cutoff = (time.time() if now is None else now) - SOURCE_GRACE_SECONDS
+    removed = 0
+    for path in base.glob("*.pdf"):
+        try:
+            modified = path.stat().st_mtime
+        except OSError:
+            continue
+        if (
+            paths.is_sha256_hex(path.stem)
+            and path.stem not in referenced
+            and modified <= cutoff
+        ):
+            with suppress(FileNotFoundError, PermissionError):
+                path.unlink()
+                removed += 1
+    return removed
 
 
 def store_source_by_hash(
@@ -173,28 +123,6 @@ def _document_store(
         if document_store_dir is not None
         else paths.DEFAULT_DOCUMENT_STORE_DIR
     )
-
-
-def directory_usage(path: Path, *, reject_symlinks: bool = False) -> int:
-    total = 0
-    if not path.exists():
-        return total
-    for entry in path.rglob("*"):
-        if entry.is_symlink():
-            if reject_symlinks:
-                raise ValueError("Storage generations may not contain symlinks.")
-            continue
-        if not entry.is_file():
-            continue
-        with suppress(OSError):
-            total += entry.stat().st_size
-    return total
-
-
-def document_store_usage(
-    document_store_dir: str | os.PathLike[str] | None = None,
-) -> int:
-    return directory_usage(_document_store(document_store_dir))
 
 
 def _iter_string_values(value):
@@ -288,126 +216,28 @@ def prune_document_store(
     *,
     data_dir: str | os.PathLike[str] | None = None,
     document_store_dir: str | os.PathLike[str] | None = None,
-    max_total_bytes: int = DEFAULT_DOCUMENT_STORE_MAX_BYTES,
     retention_seconds: int = DEFAULT_DOCUMENT_RETENTION_SECONDS,
     now: float | None = None,
 ) -> int:
-    """Remove expired, unreferenced canonical documents and enforce quota."""
+    """Remove unreferenced canonical documents after the retention period."""
     base = _document_store(document_store_dir)
     if not base.exists():
         return 0
 
     referenced = referenced_source_hashes(data_dir)
     cutoff = (time.time() if now is None else now) - retention_seconds
-    candidates: list[tuple[float, int, Path]] = []
-    total = 0
-    for document_dir in base.iterdir():
-        if not document_dir.is_dir() or not paths.is_sha256_hex(document_dir.name):
-            continue
-        size = directory_usage(document_dir)
-        total += size
-        if document_dir.name not in referenced:
-            candidates.append((_document_mtime(document_dir), size, document_dir))
-
     removed = 0
-    for modified_at, size, document_dir in sorted(candidates):
-        if modified_at >= cutoff and total <= max_total_bytes:
+    for document_dir in base.iterdir():
+        if (
+            not document_dir.is_dir()
+            or not paths.is_sha256_hex(document_dir.name)
+            or document_dir.name in referenced
+            or _document_mtime(document_dir) > cutoff
+        ):
             continue
         try:
             shutil.rmtree(document_dir)
-        except (FileNotFoundError, PermissionError, OSError):
-            continue
-        total -= size
-        removed += 1
-    return removed
-
-
-def reserve_document_capacity(
-    *,
-    content_sha256: str,
-    data_dir: str | os.PathLike[str] | None = None,
-    max_total_bytes: int = DEFAULT_DOCUMENT_STORE_MAX_BYTES,
-    max_document_bytes: int = DEFAULT_DOCUMENT_MAX_BYTES,
-) -> None:
-    """Perform conservative admission before starting a canonical parse."""
-    document_dir = paths.document_store_dir(content_sha256)
-    existing_size = directory_usage(document_dir)
-    required = max(0, max_document_bytes - existing_size)
-    target = max(0, max_total_bytes - required)
-    prune_document_store(data_dir=data_dir, max_total_bytes=target)
-    if document_store_usage() + required > max_total_bytes:
-        raise ValueError("Canonical document store quota exceeded.")
-
-
-def validate_document_size(
-    content_sha256: str,
-    *,
-    additional_bytes: int = 0,
-    replacing_path: Path | None = None,
-    max_document_bytes: int = DEFAULT_DOCUMENT_MAX_BYTES,
-    max_total_bytes: int = DEFAULT_DOCUMENT_STORE_MAX_BYTES,
-) -> None:
-    """Validate exact projected bytes, including a pending canonical manifest."""
-    document_dir = paths.document_store_dir(content_sha256)
-    replaced = 0
-    if replacing_path is not None and replacing_path.exists():
-        replaced = replacing_path.stat().st_size
-    projected_document = (
-        directory_usage(document_dir, reject_symlinks=True)
-        - replaced
-        + additional_bytes
-    )
-    if projected_document > max_document_bytes:
-        raise ValueError(
-            "Canonical document exceeds the per-document quota: "
-            f"{projected_document} > {max_document_bytes}."
-        )
-    projected_store = document_store_usage() - replaced + additional_bytes
-    if projected_store > max_total_bytes:
-        raise ValueError("Canonical document store quota exceeded.")
-
-
-def task_directory_usage(task_dir: Path) -> int:
-    return directory_usage(task_dir, reject_symlinks=True)
-
-
-def task_store_usage(data_dir: Path | None = None) -> int:
-    base = data_dir or paths.DEFAULT_DATA_DIR
-    total = 0
-    seen_inodes: set[tuple[int, int]] = set()
-    if not base.exists():
-        return 0
-    for entry in base.rglob("*"):
-        if entry.is_symlink() or not entry.is_file():
-            continue
-        try:
-            stat = entry.stat()
         except OSError:
             continue
-        inode = (stat.st_dev, stat.st_ino)
-        if inode in seen_inodes:
-            continue
-        seen_inodes.add(inode)
-        total += stat.st_size
-    return total
-
-
-def validate_task_capacity(
-    task_dir: Path,
-    *,
-    additional_bytes: int = 0,
-    replacing_path: Path | None = None,
-    replacing_paths: Iterable[Path] = (),
-    max_task_bytes: int = DEFAULT_TASK_MAX_BYTES,
-    max_total_bytes: int = DEFAULT_TASK_STORE_MAX_BYTES,
-) -> None:
-    candidates = [*replacing_paths]
-    if replacing_path is not None:
-        candidates.append(replacing_path)
-    replaced = sum(path.stat().st_size for path in set(candidates) if path.exists())
-    task_projected = task_directory_usage(task_dir) - replaced + additional_bytes
-    if task_projected > max_task_bytes:
-        raise ValueError("Task storage quota exceeded.")
-    total_projected = task_store_usage(task_dir.parent) - replaced + additional_bytes
-    if total_projected > max_total_bytes:
-        raise ValueError("Aggregate task storage quota exceeded.")
+        removed += 1
+    return removed

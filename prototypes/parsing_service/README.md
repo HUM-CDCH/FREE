@@ -101,7 +101,8 @@ protections:
 - UUID-only task paths;
 - page/render preflight limits before full text extraction and bounded parser
   admission;
-- a one-hour grace before unreferenced source cleanup and storage quotas;
+- a one-hour grace before unreferenced source cleanup and seven-day
+  unreferenced-document retention;
 - immutable canonical generations, atomic commit records, and retention cleanup;
 - startup reconciliation for tasks interrupted by a service restart.
 

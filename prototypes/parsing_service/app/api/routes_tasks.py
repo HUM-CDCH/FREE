@@ -18,9 +18,7 @@ from app.models.parser import (
     CANONICAL_OCR_DPI,
     canonical_preprocessing_config,
 )
-from app.storage.blobs import validate_task_capacity
 from app.storage.hashing import document_id_from_hash
-from app.storage.manifests import json_payload_size
 from app.storage.paths import SOURCE_FILENAME, task_store_lock_path
 from app.workers.gpu import gpu_available
 from app.workers.parse_worker import run_extraction_task
@@ -68,11 +66,6 @@ async def create_task(
             "error": None,
         }
         with FileLock(str(task_store_lock_path())):
-            validate_task_capacity(
-                task_dir,
-                additional_bytes=json_payload_size(metadata),
-                replacing_paths=(task_dir / "metadata.json",),
-            )
             save_metadata(task_id, metadata)
     except HTTPException:
         shutil.rmtree(task_dir, ignore_errors=True)

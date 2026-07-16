@@ -99,7 +99,7 @@ by page without presenting multiple competing documents to callers.
 
 The ingestion boundary retains:
 
-- upload, page, rendering, task, canonical-store, and archive limits;
+- upload, page, and rendering limits;
 - PDF magic and content validation;
 - sanitized display names without exposing storage paths;
 - UUID-only task paths;

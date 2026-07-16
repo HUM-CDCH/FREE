@@ -19,9 +19,9 @@
 
 ## 4. Remove quota accounting while retaining cleanup
 
-- [ ] 4.1 Remove source, document, task, and archive byte constants, accounting functions, and call sites
-- [ ] 4.2 Make unreferenced document cleanup depend only on the seven-day retention clock
-- [ ] 4.3 Preserve stale-task cleanup, active-task locks, archive atomicity, and out-of-scope canonical-generation cleanup tests
+- [x] 4.1 Remove source, document, task, and archive byte constants, accounting functions, and call sites
+- [x] 4.2 Make unreferenced document cleanup depend only on the seven-day retention clock
+- [x] 4.3 Preserve stale-task cleanup, active-task locks, archive atomicity, and out-of-scope canonical-generation cleanup tests
 
 ## 5. Collapse request admission
 

@@ -137,44 +137,6 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
                 paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
                 parse_worker.DEFAULT_DATA_DIR = original_worker_tasks
 
-    def test_completed_task_quota_accounts_for_document_and_metadata(self):
-        with tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT) as tmp_dir:
-            original_document_store = paths.DEFAULT_DOCUMENT_STORE_DIR
-            paths.DEFAULT_DOCUMENT_STORE_DIR = Path(tmp_dir) / "documents"
-            try:
-                task_id = str(uuid.uuid4())
-                task_dir = Path(tmp_dir) / task_id
-                task_dir.mkdir()
-                metadata = {
-                    "task_id": task_id,
-                    "content_sha256": "a" * 64,
-                    "status": "running",
-                    "created_at": NOW,
-                    "params": {"source_name": "source.pdf"},
-                }
-                parsed = _parsed_document(
-                    "a" * 64,
-                    preprocessing_config_hash(metadata),
-                    "data/documents/example/document.llm.md",
-                )
-                with (
-                    patch(
-                        "app.workers.parse_worker.validate_task_capacity"
-                    ) as mock_capacity,
-                    patch("app.workers.parse_worker.write_parsed_document"),
-                    patch("app.workers.parse_worker.save_task_metadata"),
-                ):
-                    parse_worker._completed_metadata(task_dir, metadata, parsed)
-
-                kwargs = mock_capacity.call_args.kwargs
-                self.assertGreater(kwargs["additional_bytes"], 0)
-                self.assertEqual(
-                    {path.name for path in kwargs["replacing_paths"]},
-                    {"parsed_document.json", "metadata.json"},
-                )
-            finally:
-                paths.DEFAULT_DOCUMENT_STORE_DIR = original_document_store
-
     def test_corrupt_cache_rebuilds_into_immutable_generation(self):
         with tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT) as tmp_dir:
             root = Path(tmp_dir)
@@ -392,7 +354,6 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
         failure_cases = (
             ("invalid JSON", b"{invalid", None, ValueError),
             ("invalid status", b'{"status":"bogus"}', None, ValueError),
-            ("over quota", None, "validate_task_capacity", ValueError),
             ("unwritable", None, "save_task_metadata", PermissionError),
         )
         for label, malformed_metadata, dependency, error_type in failure_cases:
@@ -409,7 +370,15 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
                     assert dependency is not None
                     original = getattr(parse_worker, dependency)
 
-                    def fail_blocked(task_dir, *args, **kwargs):
+                    def fail_blocked(
+                        task_dir,
+                        *args,
+                        blocked_dir=blocked_dir,
+                        error_type=error_type,
+                        label=label,
+                        original=original,
+                        **kwargs,
+                    ):
                         if task_dir == blocked_dir:
                             raise error_type(f"{label}: {blocked_dir}")
                         return original(task_dir, *args, **kwargs)
