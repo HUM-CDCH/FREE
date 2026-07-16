@@ -13,7 +13,6 @@ from app.storage import paths
 from app.storage.atomic_json import read_json
 from app.storage.hashing import compute_sha256
 
-SOURCE_GRACE_SECONDS = 3600
 DEFAULT_DOCUMENT_RETENTION_SECONDS = 7 * 24 * 3600
 
 
@@ -57,7 +56,7 @@ def prune_source_store(
 
     # ponytail: mtime grace instead of leases; revisit if multi-process
     referenced = referenced_source_hashes(data_dir)
-    cutoff = (time.time() if now is None else now) - SOURCE_GRACE_SECONDS
+    cutoff = (time.time() if now is None else now) - 3600
     removed = 0
     for path in base.glob("*.pdf"):
         try:
@@ -188,8 +187,10 @@ def prune_orphan_document_generations(
                     try:
                         shutil.rmtree(generation)
                     except OSError:
-                        continue
-                    removed += 1
+                        if generation.exists():
+                            continue
+                    if not generation.exists():
+                        removed += 1
         generations = document_dir / "generations"
         if not generations.exists():
             continue
@@ -198,8 +199,10 @@ def prune_orphan_document_generations(
                 try:
                     shutil.rmtree(generation)
                 except OSError:
-                    continue
-                removed += 1
+                    if generation.exists():
+                        continue
+                if not generation.exists():
+                    removed += 1
     return removed
 
 

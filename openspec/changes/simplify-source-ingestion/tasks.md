@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Tasks: simplify-source-ingestion
 
 ## 1. Delete URL ingestion
@@ -35,6 +37,6 @@
 
 ## 7. Complete trust-boundary coverage and verification
 
-- [ ] 7.1 Cover invalid extension, disallowed and accepted MIME hints, bad PDF magic, filename sanitization, exact/overflow upload bytes, hash deduplication, and atomic publication failure
-- [ ] 7.2 Cover one-hour source grace, seven-day document retention, stale-task locking, declared 413 CORS, archive behavior, and generation cleanup
-- [ ] 7.3 Validate OpenSpec, Ruff, diagnostics, the full backend suite, golden E2E, real Docling integration, and a live upload-to-Markdown smoke test
+- [x] 7.1 Cover invalid extension, disallowed and accepted MIME hints, bad PDF magic, filename sanitization, exact/overflow upload bytes, hash deduplication, and atomic publication failure
+- [x] 7.2 Cover one-hour source grace, seven-day document retention, stale-task locking, declared 413 CORS, archive behavior, and generation cleanup
+- [x] 7.3 Validate OpenSpec, Ruff, diagnostics, the full backend suite, golden E2E, real Docling integration, and a live upload-to-Markdown smoke test

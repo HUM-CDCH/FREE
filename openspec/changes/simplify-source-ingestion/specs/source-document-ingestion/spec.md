@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # source-document-ingestion Specification
 
 ## ADDED Requirements

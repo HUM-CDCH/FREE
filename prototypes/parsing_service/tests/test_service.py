@@ -9,9 +9,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import fitz  # type: ignore[import-not-found]
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+from starlette.datastructures import Headers
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,7 +22,11 @@ from app.api.request_admission import (  # type: ignore[import-not-found]
     TaskRequestLimitMiddleware,
 )
 from app.api.routes_tasks import router as tasks_router
-from app.ingestion.upload import MAX_UPLOAD_BYTES, copy_upload_to_path
+from app.ingestion.upload import (
+    MAX_UPLOAD_BYTES,
+    copy_upload_to_path,
+    validate_upload_mime,
+)
 from app.parsing.orchestrator import build_parsed_document
 from app.parsing.table_extraction import TableExtractionOutput
 from app.storage import paths
@@ -545,6 +550,91 @@ class TestService(unittest.TestCase):
         self.assertEqual(metadata["params"]["ocr_fallback_device_policy"], "auto")
         self.assertNotIn("device", metadata["params"])
 
+    def test_upload_mime_accepts_current_pdf_hints(self):
+        for content_type in (
+            None,
+            "application/pdf",
+            "application/x-pdf",
+            "application/octet-stream",
+            "binary/octet-stream",
+        ):
+            with (
+                self.subTest(content_type=content_type),
+                tempfile.TemporaryFile() as source,
+            ):
+                headers = (
+                    Headers({"content-type": content_type})
+                    if content_type is not None
+                    else Headers()
+                )
+                upload = UploadFile(
+                    source,
+                    filename="report.pdf",
+                    headers=headers,
+                )
+                validate_upload_mime(upload)
+
+    def test_create_task_rejects_invalid_extension_mime_and_magic(self):
+        cases = (
+            ("report.txt", PDF_BYTES, "application/pdf"),
+            ("report.pdf", PDF_BYTES, "text/plain"),
+            ("report.pdf", b"not a PDF", "application/pdf"),
+        )
+        for filename, content, content_type in cases:
+            with self.subTest(filename=filename, content_type=content_type):
+                response = self.client.post(
+                    "/tasks",
+                    files={"file": (filename, content, content_type)},
+                )
+                self.assertEqual(response.status_code, 400)
+        self.assertEqual(list(Path(DATA_DIR).iterdir()), [])
+
+    def test_create_task_storage_failure_is_path_free(self):
+        internal_path = str(paths.DEFAULT_DATA_DIR / "private" / "metadata.json")
+        with patch(
+            "app.api.routes_tasks.save_metadata",
+            side_effect=OSError(internal_path),
+        ):
+            response = self.client.post(
+                "/tasks",
+                files={"file": ("report.pdf", PDF_BYTES, "application/pdf")},
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {"detail": "Could not create parsing task."})
+        self.assertNotIn(internal_path, response.text)
+        self.assertEqual(list(Path(DATA_DIR).iterdir()), [])
+
+    def test_same_source_document_twice_uses_one_hash_addressed_blob(self):
+        responses = [
+            self.client.post(
+                "/tasks",
+                files={"file": (name, PDF_BYTES, "application/pdf")},
+            )
+            for name in ("first.pdf", "second.pdf")
+        ]
+        self.assertEqual([response.status_code for response in responses], [202, 202])
+        task_ids = [response.json()["task_id"] for response in responses]
+        metadata = [load_metadata(task_id) for task_id in task_ids]
+        self.assertEqual(
+            len({item["source_store_path"] for item in metadata}),
+            1,
+        )
+        source_blobs = list(paths.DEFAULT_SOURCE_STORE_DIR.glob("*.pdf"))
+        self.assertEqual(len(source_blobs), 1)
+        self.assertEqual(source_blobs[0].read_bytes(), PDF_BYTES)
+
+    def test_upload_mime_rejects_disallowed_hint(self):
+        with tempfile.TemporaryFile() as source:
+            upload = UploadFile(
+                source,
+                filename="report.pdf",
+                headers=Headers({"content-type": "text/plain"}),
+            )
+            with self.assertRaises(HTTPException) as raised:
+                validate_upload_mime(upload)
+        self.assertEqual(raised.exception.status_code, 400)
+
     @patch("app.ingestion.upload.MAX_UPLOAD_BYTES", 8)
     def test_create_task_rejects_oversized_upload(self):
         response = self.client.post(
@@ -568,6 +658,24 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(copied, MAX_UPLOAD_BYTES)
         self.assertEqual(destination.stat().st_size, MAX_UPLOAD_BYTES)
+
+    def test_upload_staging_failure_publishes_no_partial_source(self):
+        destination = Path(DATA_DIR) / "staged.pdf"
+        with tempfile.TemporaryFile() as source:
+            source.write(PDF_BYTES)
+            source.seek(0)
+            upload = UploadFile(source, filename="staged.pdf")
+            with (
+                patch(
+                    "app.ingestion.upload.os.replace",
+                    side_effect=OSError("stop"),
+                ),
+                self.assertRaisesRegex(OSError, "stop"),
+            ):
+                copy_upload_to_path(upload, destination)
+
+        self.assertFalse(destination.exists())
+        self.assertEqual(list(destination.parent.glob(".staged.pdf.*.tmp")), [])
 
     def test_get_task_markdown_and_document_endpoints(self):
         task_id = str(uuid.uuid4())

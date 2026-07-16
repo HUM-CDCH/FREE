@@ -1,4 +1,4 @@
-"""Download routes for bounded canonical ingestion archives."""
+"""Download routes for canonical ingestion archives."""
 
 from __future__ import annotations
 

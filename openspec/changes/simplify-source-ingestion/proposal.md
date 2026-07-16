@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Proposal: simplify-source-ingestion
 
 ## Why
