@@ -2,7 +2,7 @@
 
 ## Context
 
-The parsing service already publishes a canonical `parsed_document.v1` containing the Markdown, page mapping, tables, spans, and Evidence Anchors needed by extraction. Studio still uses an older browser-facing extraction flow and does not implement the Catalog hierarchy, recursive conformance, retry, merge, or embedded Evidence behavior proven in `FREE-technical` at commit `67ea4dc535a2ab674ed8c4b558068e13e7c2980d`.
+The parsing service already publishes a canonical `parsed_document.v1` containing Markdown, page mapping, spans, and tables. Its Evidence Anchor collection is optional and currently has no producer, so extraction must use canonical pages and spans as the baseline and consume anchors only when present. Studio still uses an older browser-facing extraction flow and does not implement the Catalog hierarchy, recursive conformance, retry, merge, or embedded Evidence behavior proven in `FREE-technical` at commit `67ea4dc535a2ab674ed8c4b558068e13e7c2980d`.
 
 The port crosses the Studio browser/API boundary but does not change parsing. Provider configuration must remain server-side, and the raw NuExtract prompt renderer in `api/_model.ts` must remain authoritative because `ai-sdk-ollama` cannot express the required raw Ollama generate control.
 
@@ -13,7 +13,6 @@ The port crosses the Studio browser/API boundary but does not change parsing. Pr
 - Reproduce the pinned Catalog behavior against a completed canonical `ParsedDocument`.
 - Preserve faithful recursive conformance and schema-shaped embedded Evidence.
 - Support explicit Catalog and Article strategies through one server endpoint.
-- Keep batch as a thin sequential browser loop over the same endpoint.
 - Add deterministic tests and server TypeScript checking before live-model verification.
 
 **Non-Goals:**
@@ -27,13 +26,13 @@ The port crosses the Studio browser/API boundary but does not change parsing. Pr
 
 ### Keep extraction in the Studio server runtime
 
-The browser sends `{ taskId, schema, strategy }` to `prototypes/studio/api/extract.ts`. The server fetches the completed canonical document, builds prompts, invokes the configured model, parses and conforms model output, executes the selected strategy, and normalizes Evidence.
+The browser sends an `application/json` body `{ taskId, schema, strategy }` to `prototypes/studio/api/extract.ts`. `schema` must be a full FREE Extraction Schema envelope with a `record` object and `_schema_metadata` object. Studio wraps its current generated record template in that envelope before sending it. The server fetches the completed canonical document, builds prompts, invokes the configured model, parses and conforms model output against `schema.record`, executes the selected strategy, and normalizes Evidence. Successful responses are exactly `{ result, warnings }`, where warnings are ordered strings and `boundary_fallback` is the only warning introduced by this change.
 
 This keeps provider configuration out of the browser and keeps parsing/OCR in Python. Moving extraction into `parsing_service` was rejected because hierarchy, conformance, retry, merge, and Evidence transformations have no Python-only dependency once a `ParsedDocument` exists.
 
 ### Consume a narrow `parsed_document.v1` boundary
 
-The extraction endpoint validates `SCHEMA_VERSION === "parsed_document.v1"` and only the fields extraction reads from `GET /tasks/{task_id}/parsed-document`. It does not introduce an `ExtractionDocument` schema or wait for the parked `parsed_document.v2` change.
+The extraction endpoint validates `schema_version === "parsed_document.v1"` and only the fields extraction reads from `GET /tasks/{task_id}/parsed-document`. Optional `evidence_index.anchors` are consumed when present but are not required. It does not introduce an `ExtractionDocument` schema or wait for the parked `parsed_document.v2` change. The server resolves the parsing service from `PARSING_SERVICE_URL`, then `VITE_PARSING_SERVICE_URL`, then `http://127.0.0.1:8000`.
 
 A narrow boundary minimizes coupling while preserving the shipped contract. If v2 is published later, only these field reads need migration.
 
@@ -53,7 +52,7 @@ The port intentionally preserves reference limitations: document-level fields ou
 
 `api/_model_output.ts` owns faithful recursive `_conform_to_schema` behavior: unknown keys are dropped, missing fields are restored, missing scalars become `null`, missing arrays become `[]`, singleton values can become one-element arrays, free-form `{}` and `[]` remain free-form, and non-scalars in scalar slots become `null`.
 
-`api/_evidence_template.ts` owns traversal and normalization of schema-local `_evidence` slots. It preserves `table_index`, including nested `fundliste` Evidence, and resolves that index against deterministic canonical table order. Text Evidence is grounded through canonical page spans and Evidence Anchors; the reference ellipsis-snippet behavior is retained.
+`api/_evidence_template.ts` owns traversal and normalization of schema-local `_evidence` slots. It preserves `table_index`, including nested `fundliste` Evidence, and resolves that 1-based index against deterministic canonical table order. Applying the pinned default-extractor table backfill to canonical `ParsedTable` cells is an intentional extension of the pinned hierarchical Catalog path, which did not receive table files. Text Evidence is grounded through canonical page text/spans, with optional anchors as an additional source. The pinned ellipsis behavior is retained by splitting `...` and `…`-glued snippets into trimmed contiguous snippets.
 
 A separate result codec or evidence service was rejected because this port has one public result shape and no persistence boundary.
 
@@ -69,10 +68,6 @@ Prefer edits to `src/api.ts`, `api/extract.ts`, `api/_model.ts`, `api/_model_out
 
 An API/server TypeScript configuration is referenced by the Studio build so `api/*.ts` cannot remain outside type checking.
 
-### Implement batch only in the browser
-
-Batch iterates completed task IDs sequentially and calls the same single-document endpoint. Each success or failure is retained independently. There is no batch endpoint or batch-specific server module.
-
 ## Risks / Trade-offs
 
 - **Reference behavior contains known lossy heuristics** → Pin characterization tests and preserve the behavior instead of redesigning it during the port.
@@ -87,8 +82,7 @@ Batch iterates completed task IDs sequentially and calls the same single-documen
 1. Characterize and port pure Catalog behavior and recursive conformance with fixtures.
 2. Replace the browser extraction contract and deliver Burial Finds through the server endpoint.
 3. Complete canonical Evidence normalization and add Article extraction.
-4. Add the sequential browser batch loop.
-5. Run Studio tests and build after every slice; keep live model smoke tests opt-in.
+4. Run Studio tests and build after every slice; keep live model smoke tests opt-in.
 
 Rollback is source-level: revert the slice before depending on its new request shape. No persisted extraction data or database migration requires rollback.
 

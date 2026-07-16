@@ -4,7 +4,7 @@
 
 ### Requirement: Extraction requests identify a completed parsing task and explicit strategy
 
-The Studio extraction endpoint SHALL accept an Extraction Schema, a parsing task ID, and an explicit `catalog` or `article` strategy. The browser SHALL NOT send Source Document bytes or a complete `ParsedDocument` in the extraction request.
+The Studio extraction endpoint SHALL accept an `application/json` body `{ taskId, schema, strategy }`, where `schema` is a full FREE Extraction Schema envelope containing an object-valued `record` and object-valued `_schema_metadata`, and `strategy` is explicitly `catalog` or `article`. The browser SHALL NOT send Source Document bytes or a complete `ParsedDocument` in the extraction request.
 
 #### Scenario: Catalog extraction is requested
 
@@ -23,9 +23,14 @@ The Studio extraction endpoint SHALL accept an Extraction Schema, a parsing task
 - **WHEN** an extraction request omits `strategy` or supplies a value other than `catalog` or `article`
 - **THEN** the endpoint rejects the request before model invocation
 
+#### Scenario: Schema is not a full envelope
+
+- **WHEN** an extraction request supplies a plain record template or omits `record` or `_schema_metadata`
+- **THEN** the endpoint rejects the request before fetching the canonical document or invoking the model
+
 ### Requirement: Extraction resolves the shipped canonical document server-side
 
-The Studio server SHALL fetch `GET /tasks/{task_id}/parsed-document` from the parsing service and validate the `parsed_document.v1` fields required by extraction. Extraction SHALL consume canonical LLM Markdown, pages, spans, Evidence Anchors, and tables from that response without opening or reparsing the Source Document.
+The Studio server SHALL fetch `GET /tasks/{task_id}/parsed-document` from the parsing service configured by `PARSING_SERVICE_URL`, falling back to `VITE_PARSING_SERVICE_URL` and then `http://127.0.0.1:8000`, and validate the `parsed_document.v1` fields required by extraction. Extraction SHALL consume canonical LLM Markdown, pages, spans, tables, and optional Evidence Anchors from that response without opening or reparsing the Source Document.
 
 #### Scenario: Completed canonical document is available
 
@@ -63,7 +68,7 @@ Catalog and Article extraction SHALL call one server-side structured-generation 
 
 ### Requirement: Article strategy performs one whole-document extraction
 
-Article extraction SHALL make one structured-generation call over the complete canonical LLM Markdown, recursively conform the model result to the Extraction Schema, and normalize embedded Evidence through the shared result path.
+Article extraction SHALL make one structured-generation call over the complete canonical LLM Markdown, recursively conform the model result to `schema.record`, and normalize embedded Evidence through the shared result path.
 
 #### Scenario: Article schema contains a repeated entries field
 
@@ -78,7 +83,7 @@ Article extraction SHALL make one structured-generation call over the complete c
 
 ### Requirement: Extraction returns a schema-shaped result and minimal warnings
 
-The extraction endpoint SHALL return the conformed Extraction Result separately from a minimal ordered collection of extraction warnings. It SHALL NOT persist or cache the Extraction Result as part of this change.
+The extraction endpoint SHALL return exactly `{ result, warnings }`, where `result` is the conformed `schema.record` shape and `warnings` is an ordered string array. `boundary_fallback` SHALL be the only warning introduced by this change. The endpoint SHALL NOT persist or cache the Extraction Result.
 
 #### Scenario: Extraction succeeds without fallback
 

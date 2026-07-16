@@ -19,10 +19,10 @@ This change ports extraction only. It does not port parsing, schema editing, hum
 ## Runtime boundary
 
 | Runtime | Responsibility |
-|---|---|
+| --- | --- |
 | Browser TypeScript | Start/poll ingestion, retain the parsing task ID, request extraction, display returned JSON and warnings. |
 | Server TypeScript in `prototypes/studio/api` | Fetch the completed `ParsedDocument`, construct prompts, call the configured model, parse/conform output, run Article or Catalog extraction, and normalize Evidence. |
-| Python `parsing_service` | PDF inspection, Docling, OCR, layout reconstruction, canonical Markdown, page mapping, canonical tables, and Evidence Anchors. |
+| Python `parsing_service` | PDF inspection, Docling, OCR, layout reconstruction, canonical Markdown, page mapping, canonical tables, and optional Evidence Anchors. |
 
 Do not run model extraction in the browser: provider configuration stays server-side. Do not move extraction into Python: once `ParsedDocument` exists, the reference hierarchy, validation, conformance, merge, and Evidence transformations have no Python-only dependency.
 
@@ -52,7 +52,7 @@ failure profile is doing too much, which is the wrong bias for a port that is
 explicitly scoped by do-not-build lists, and Terra covers every role here.
 
 | Role | Model | Thinking | Use |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Reconnaissance | `openai-codex/gpt-5.6-luna` | `medium` | Official docs, file discovery, and focused inventory. Read-only. |
 | Implementation | `openai-codex/gpt-5.6-terra` | `high` | Detailed reference comparison and the sole writer for an approved slice. Parity porting is judgment work; do not drop below `high`. |
 | Parity review | `openai-codex/gpt-5.6-terra` | `high` | Fresh-context, read-only review of each slice diff against the pinned `FREE-technical` behavior and this plan's "Behavior to preserve" section. |
@@ -93,7 +93,6 @@ prototype directory.
 - Embedded local `_evidence`, including nested `fundliste` Evidence.
 - Whole-document fallback when Catalog boundaries cannot be resolved.
 - Article extraction after Catalog works, verified with `collagen_extraction.json`.
-- Sequential batch as a thin browser loop over the same per-document API.
 
 ### Leave in Python
 
@@ -124,15 +123,15 @@ The first implementation supports only `strategy: "catalog"`. Article is added a
 
 ### Use the published ParsedDocument contract directly
 
-The browser sends `{ taskId, schema, strategy }`, not the complete document and not a PDF. The server fetches the completed document from the parsing service.
+The browser sends an `application/json` body `{ taskId, schema, strategy }`, not the complete document and not a PDF. `schema` is always a full FREE Extraction Schema envelope with an object-valued `record` and `_schema_metadata`; Studio wraps its generated record template as `{ record: template, _schema_metadata: {} }`. The endpoint returns exactly `{ result, warnings }`, where `result` conforms to `schema.record`, warnings are ordered strings, and `boundary_fallback` is the only warning introduced here. The server fetches the completed document from the parsing service using `PARSING_SERVICE_URL`, then `VITE_PARSING_SERVICE_URL`, then `http://127.0.0.1:8000`.
 
-Do not invent an `ExtractionDocument` schema. At the HTTP boundary, validate only the `parsed_document.v1` fields extraction reads (`SCHEMA_VERSION = "parsed_document.v1"`, served today by `GET /tasks/{task_id}/parsed-document`).
+Do not invent an `ExtractionDocument` schema. At the HTTP boundary, validate only the `parsed_document.v1` fields extraction reads (`schema_version = "parsed_document.v1"`, served today by `GET /tasks/{task_id}/parsed-document`). Evidence Anchors are optional in v1 and currently have no producer; canonical page text and spans are the baseline grounding source.
 
 **Do not wait for `parsed_document.v2`.** That change was parked on 2026-07-16 together with the remaining parsing hardening plan (its gate, task 2.5, is parked; see `/home/gebbaro/FREE-next-session-handoff.md`). Port against v1 now; if v2 ever lands, migrating extraction's narrow field reads is a small follow-up, not a reason to block this port.
 
 ### Preserve the reference Evidence contract first
 
-The copied schemas already contain local `_evidence`. Preserve those slots, including `table_index`, during the parity port. Resolve `table_index` against the deterministic order of canonical `ParsedTable` objects.
+The copied schemas already contain local `_evidence`. Preserve those slots, including the 1-based `table_index`, during the parity port. Resolve it against deterministic canonical `ParsedTable` order and 0-based cell row/column coordinates. Applying the pinned default-extractor table backfill algorithm to Catalog output is a deviation from strict parity (the pinned hierarchical path ignored table files); it was reviewed and **approved by human decision 2026-07-17**. Split snippets joined with `...` or `…` into the pinned trimmed contiguous entries.
 
 Do not rename it to `table_id` inside this port. A later versioned result-contract change may expose stable canonical table IDs.
 
@@ -185,17 +184,13 @@ Port `core/extract.py::_conform_to_schema` exactly:
 
 For `strategy: "article"`, make one whole-document extraction call, conform the result, and normalize embedded Evidence. Do not create a second provider or document adapter.
 
-### Batch
-
-Batch is a sequential browser loop over the same single-document request. It preserves successful results when another request fails. There is no batch extraction module or batch-specific server endpoint.
-
 ## Minimal code shape
 
 Prefer changes to existing modules and at most two new production modules:
 
 ```text
 prototypes/studio/
-  src/api.ts                    # retain taskId; request extraction/batch loop
+  src/api.ts                    # retain taskId; request extraction with a full schema envelope
   api/extract.ts                # validate request, fetch ParsedDocument, map errors
   api/_model.ts                 # expose one existing structured generation function
   api/_model_output.ts          # JSON repair + faithful recursive conformance
@@ -223,7 +218,7 @@ Add an API/server TypeScript configuration referenced by the Studio build. The c
 ### 2. Deliver Burial Finds end to end
 
 - Retain the parsing `taskId` in `src/api.ts`.
-- Make `/api/extract` accept `{ taskId, schema, strategy: "catalog" }` and fetch the canonical document server-side.
+- Make `/api/extract` accept JSON `{ taskId, schema, strategy: "catalog" }`, reject non-envelope schemas, and fetch the canonical document server-side.
 - Select canonical LLM Markdown, pages, and tables from the shipped `parsed_document.v1` contract.
 - Reuse the current raw NuExtract renderer and JSON parser through one callable model function.
 - Run Catalog with an injected model callback in tests.
@@ -233,20 +228,12 @@ Add an API/server TypeScript configuration referenced by the Studio build. The c
 
 ### 3. Complete Evidence and Article parity
 
-- Normalize text Evidence against canonical page spans/anchors.
+- Normalize text Evidence against canonical pages/spans and optional anchors, splitting ellipsis-glued snippets.
 - Backfill table Evidence from canonical `ParsedTable` cells while preserving `table_index` output.
 - Cover nested Evidence and the reference ellipsis-snippet behavior.
 - Add explicit Article strategy using `collagen_extraction.json` and the same document/model/conformance path.
 
 **Done when:** both fixture schemas produce their reference-shaped embedded Evidence, and collagen reaches Article despite also containing `record.entries`.
-
-### 4. Add sequential batch
-
-- Loop over completed task IDs in the browser.
-- Call the same per-document endpoint sequentially.
-- Return/display each success or error independently.
-
-**Done when:** per-document results equal individual extraction results and one failure does not erase prior successes.
 
 ## Verification
 
@@ -266,7 +253,6 @@ Focused tests must prove:
 - recursive conformance matches the pinned Python function;
 - merge order and deduplication match the reference;
 - embedded Evidence survives nested arrays;
-- explicit strategy routes collagen to Article;
-- batch reuses the single-document endpoint.
+- explicit strategy routes collagen to Article.
 
 Keep live model tests opt-in. Use deterministic fake responses for normal CI.

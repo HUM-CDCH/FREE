@@ -6,13 +6,12 @@ FREE can publish a canonical `ParsedDocument`, but Studio cannot yet reproduce t
 
 ## What Changes
 
-- Add a server-side extraction endpoint that accepts `{ taskId, schema, strategy }`, fetches the completed `parsed_document.v1`, and runs extraction without reopening or reparsing the Source Document.
+- Add a server-side JSON extraction endpoint that accepts `{ taskId, schema, strategy }`, where `schema` is a full FREE Extraction Schema envelope, fetches the completed `parsed_document.v1`, and runs extraction without reopening or reparsing the Source Document.
 - Port Catalog boundary detection, marker resolution, slicing, whole-document fallback, per-section extraction, one retry, source-ordered merge, and scalar-fingerprint deduplication from the pinned `FREE-technical` reference.
 - Port faithful recursive conformance and embedded local Evidence normalization, including nested `fundliste` Evidence and deterministic `table_index` resolution.
 - Add explicit Article extraction through the same canonical-document, model, conformance, and Evidence path.
-- Add sequential browser-side batch execution over the single-document endpoint, preserving prior successes when a later document fails.
 - Reuse Studio's existing raw NuExtract/Ollama boundary and display the resulting record plus minimal warnings.
-- **BREAKING** Replace the current browser extraction request/result contract; compatibility with its existing streaming shape is intentionally out of scope.
+- **BREAKING** Replace the current multipart browser extraction request and legacy result/evidence envelope with JSON `{ taskId, schema, strategy }` and `{ result, warnings }`.
 
 ## Capabilities
 
@@ -20,8 +19,7 @@ FREE can publish a canonical `ParsedDocument`, but Studio cannot yet reproduce t
 
 - `canonical-document-extraction`: Server-side Extraction orchestration over a completed `parsed_document.v1`, with explicit Catalog or Article strategy and the existing model boundary.
 - `catalog-extraction`: Reference-compatible Catalog boundary, fallback, retry, merge, ordering, and deduplication behavior.
-- `extraction-result-normalization`: Recursive schema conformance and embedded local Evidence normalization against canonical pages, spans, anchors, tables, and cells.
-- `sequential-extraction-batch`: Browser-side sequential execution over the single-document extraction endpoint with independent per-document outcomes.
+- `extraction-result-normalization`: Recursive record-schema conformance and embedded local Evidence normalization against canonical pages, optional anchors, tables, and cells.
 
 ### Modified Capabilities
 

@@ -4,7 +4,7 @@
 
 ### Requirement: Model results are recursively conformed to the Extraction Schema
 
-Extraction SHALL apply the behavior of the pinned `FREE-technical` `_conform_to_schema` function recursively before merging or returning a model result. Conformance SHALL drop unknown object keys and restore every key declared by the Extraction Schema.
+Extraction SHALL apply the behavior of the pinned `FREE-technical` `_conform_to_schema` function recursively against `schema.record` before merging or returning a model result. Conformance SHALL drop unknown object keys and restore every key declared by the record schema. Envelope metadata SHALL guide extraction but SHALL NOT appear in the returned result.
 
 #### Scenario: Model object has unknown and missing keys
 
@@ -76,21 +76,27 @@ Extraction SHALL retain and normalize local `_evidence` slots already declared b
 
 ### Requirement: Text Evidence is grounded through canonical locations
 
-Text Evidence SHALL be normalized against canonical pages, spans, and Evidence Anchors from the `ParsedDocument`, preserving the pinned ellipsis-snippet behavior.
+Text Evidence SHALL be normalized against canonical page text and spans from the `ParsedDocument`. Evidence Anchors SHALL be used as an additional grounding source when present but SHALL NOT be required. The pinned ellipsis behavior SHALL split snippets joined with `...` or `…` into trimmed non-empty contiguous snippets.
 
-#### Scenario: Text Evidence resolves to canonical source material
+#### Scenario: Text Evidence resolves without anchors
 
-- **WHEN** model-produced text Evidence can be resolved through canonical page content and anchors
-- **THEN** the returned Evidence identifies the normalized source material and canonical location
+- **WHEN** model-produced text Evidence matches canonical page text and the document has no Evidence Anchors
+- **THEN** the returned Evidence identifies the matching canonical page
 
-#### Scenario: Evidence snippet uses the reference ellipsis form
+#### Scenario: Optional Evidence Anchor resolves a snippet
 
-- **WHEN** the pinned Evidence behavior shortens source context with an ellipsis
-- **THEN** normalization preserves the same ellipsis-snippet behavior
+- **WHEN** canonical page text alone does not resolve a snippet and a compatible Evidence Anchor is present
+- **THEN** normalization uses the anchor's canonical page location
+
+#### Scenario: Evidence snippet joins non-contiguous spans with an ellipsis
+
+- **WHEN** a snippet contains `...` or `…` between non-empty text fragments
+- **THEN** normalization replaces it with separate trimmed snippet entries
+- **AND** no ellipsis-glued snippet remains
 
 ### Requirement: Table Evidence preserves table_index and resolves deterministic table order
 
-Table Evidence SHALL preserve the public `table_index` field and resolve it against the deterministic order of canonical `ParsedTable` objects and cells. This change SHALL NOT rename the field to `table_id`.
+Table Evidence SHALL preserve the public 1-based `table_index` field and resolve it against the deterministic order of canonical `ParsedTable` objects and their 0-based `row` and `col` cells. Applying the pinned default-extractor backfill algorithm to Catalog output SHALL be an intentional extension because the pinned hierarchical path ignored table files. This change SHALL NOT rename `table_index` to `table_id`.
 
 #### Scenario: Valid table index is supplied
 
