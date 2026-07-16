@@ -48,7 +48,7 @@ describe('buildHighlights', () => {
     ])
   })
 
-  it('does not highlight non-string leaves even when they have Evidence', () => {
+  it('highlights numeric and boolean leaves when they have Evidence', () => {
     const result = {
       count: 7,
       verified: true,
@@ -60,6 +60,9 @@ describe('buildHighlights', () => {
       },
     }
 
-    expect(buildHighlights(result, { count: 'yellow', verified: 'blue', missing: 'green' })).toEqual([])
+    expect(buildHighlights(result, { count: 'yellow', verified: 'blue', missing: 'green' })).toEqual([
+      { value: '7', snippet: 'seven', hintPage: null, color: 'yellow' },
+      { value: 'true', snippet: 'verified', hintPage: null, color: 'blue' },
+    ])
   })
 })

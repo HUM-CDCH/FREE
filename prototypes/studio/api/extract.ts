@@ -1,12 +1,11 @@
 import { extractArticle } from "./_article.js";
-import { extractCatalog } from "./_catalog.js";
+import { extractCatalog, type ExtractionSchemaEnvelope } from "./_catalog.js";
 import {
 	normalizeEmbeddedEvidence,
 	type CanonicalEvidenceDocument,
 	type CanonicalEvidencePage,
 	type CanonicalEvidenceTable,
 } from "./_evidence_template.js";
-import { readExtractionRequest } from "./_extraction_request.js";
 import { json, modelError, RequestError } from "./_http.js";
 import {
 	generateStructuredWithModel,
@@ -14,17 +13,12 @@ import {
 } from "./_model.js";
 
 const DEFAULT_PARSING_SERVICE_URL = "http://127.0.0.1:8000";
-const EXTRACTION_TIMEOUT_MS = 240_000;
-
-type CanonicalDocument = CanonicalEvidenceDocument & {
-	readonly markdown: string;
-};
+type CanonicalDocument = CanonicalEvidenceDocument;
 
 export async function POST(request: Request): Promise<Response> {
-	const timeoutSignal = AbortSignal.timeout(EXTRACTION_TIMEOUT_MS);
 	try {
-		const abortSignal = AbortSignal.any([request.signal, timeoutSignal]);
-		const input = await readExtractionRequest(request);
+		const abortSignal = request.signal;
+		const input = parseExtractionRequest(await requestJson(request));
 		abortSignal.throwIfAborted();
 		const document = await fetchCanonicalDocument(input.taskId, abortSignal);
 		const generate = (modelInput: StructuredModelInput) =>
@@ -39,24 +33,69 @@ export async function POST(request: Request): Promise<Response> {
 					})
 				: await extractArticle({
 						document: document.markdown,
+						tables: document.tables,
 						schema: input.schema,
 						generate,
 					});
 
 		return json({
-			result: normalizeEmbeddedEvidence(
-				extraction.result,
-				document,
-				input.strategy === "catalog" ? "section" : "document",
-			),
+			result: normalizeEmbeddedEvidence(extraction.result, document),
 			warnings: [...extraction.warnings],
 		});
 	} catch (error) {
-		if (timeoutSignal.aborted) {
-			return json({ detail: "Extraction timed out." }, { status: 504 });
-		}
 		return modelError(error);
 	}
+}
+
+async function requestJson(request: Request): Promise<unknown> {
+	if (
+		!request.headers
+			.get("content-type")
+			?.toLowerCase()
+			.includes("application/json")
+	) {
+		throw new RequestError(415, "Content-Type must be application/json.");
+	}
+	try {
+		return await request.json();
+	} catch (error) {
+		throw new RequestError(
+			400,
+			`Request body is not valid JSON: ${error instanceof Error ? error.message : "invalid JSON"}`,
+		);
+	}
+}
+
+function parseExtractionRequest(value: unknown): {
+	readonly taskId: string;
+	readonly schema: ExtractionSchemaEnvelope;
+	readonly strategy: "catalog" | "article";
+} {
+	if (!isRecord(value)) {
+		throw new RequestError(400, "Request body must be a JSON object.");
+	}
+	const taskId = typeof value.taskId === "string" ? value.taskId.trim() : "";
+	if (!taskId) {
+		throw new RequestError(400, "taskId must be a non-empty string.");
+	}
+	if (value.strategy !== "catalog" && value.strategy !== "article") {
+		throw new RequestError(400, "strategy must be 'catalog' or 'article'.");
+	}
+	if (
+		!isRecord(value.schema) ||
+		!isRecord(value.schema.record) ||
+		!isRecord(value.schema._schema_metadata)
+	) {
+		throw new RequestError(
+			400,
+			"schema must be a full Extraction Schema envelope with object fields record and _schema_metadata.",
+		);
+	}
+	return {
+		taskId,
+		schema: value.schema as ExtractionSchemaEnvelope,
+		strategy: value.strategy,
+	};
 }
 
 function parseCanonicalDocument(value: unknown): CanonicalDocument {

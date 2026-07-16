@@ -76,12 +76,17 @@ Extraction SHALL retain and normalize local `_evidence` slots already declared b
 
 ### Requirement: Text Evidence is grounded through canonical locations
 
-Text Evidence SHALL be normalized against canonical page text and spans from the `ParsedDocument`. Evidence Anchors SHALL be used as an additional grounding source when present but SHALL NOT be required. The pinned ellipsis behavior SHALL split snippets joined with `...` or `…` into trimmed non-empty contiguous snippets.
+Text Evidence SHALL be normalized first against per-page slices of canonical `text_views.llm_markdown` selected by valid `char_span` offsets, then against canonical page text. Evidence Anchors SHALL be used as an additional grounding source when present but SHALL NOT be required. The pinned ellipsis behavior SHALL split snippets joined with `...` or `…` into trimmed non-empty contiguous snippets.
 
 #### Scenario: Text Evidence resolves without anchors
 
 - **WHEN** model-produced text Evidence matches canonical page text and the document has no Evidence Anchors
 - **THEN** the returned Evidence identifies the matching canonical page
+
+#### Scenario: Canonical Markdown differs from page text
+
+- **WHEN** a snippet occurs in the canonical Markdown slice for one page but not in that page's normalized text
+- **THEN** normalization identifies the page from the canonical Markdown slice before trying page text
 
 #### Scenario: Optional Evidence Anchor resolves a snippet
 
@@ -102,7 +107,13 @@ Table Evidence SHALL preserve the public 1-based `table_index` field and resolve
 
 - **WHEN** embedded Evidence contains a `table_index` that identifies a canonical table in deterministic order
 - **THEN** normalization grounds the Evidence against that `ParsedTable` and its referenced cells
+- **AND** a conflicting page hint does not override the valid global table index
 - **AND** the returned Evidence continues to expose `table_index`
+
+#### Scenario: Page-only Evidence is supplied
+
+- **WHEN** Evidence has only a page hint and no table source type, table index, coordinates, or table-like snippet
+- **THEN** normalization does not activate table matching
 
 #### Scenario: Nested table Evidence is supplied
 

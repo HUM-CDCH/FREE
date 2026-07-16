@@ -68,13 +68,19 @@ Catalog and Article extraction SHALL call one server-side structured-generation 
 
 ### Requirement: Article strategy performs one whole-document extraction
 
-Article extraction SHALL make one structured-generation call over the complete canonical LLM Markdown, recursively conform the model result to `schema.record`, and normalize embedded Evidence through the shared result path.
+Article extraction SHALL make one structured-generation call over the complete canonical LLM Markdown plus a deterministic inventory of canonical tables when tables exist. The table inventory SHALL identify tables by document-global 1-based `table_index` and cells by 0-based `row` and `col`, then extraction SHALL recursively conform the model result to `schema.record` and normalize embedded Evidence through the shared result path.
 
 #### Scenario: Article schema contains a repeated entries field
 
 - **WHEN** Article extraction uses a schema such as `collagen_extraction.json` that also contains `record.entries`
 - **THEN** the endpoint performs one whole-document Article call
 - **AND** it does not route to Catalog behavior based on that repeated field
+
+#### Scenario: Article canonical tables are available
+
+- **WHEN** Article extraction receives a canonical document containing tables
+- **THEN** its single model call retains the complete canonical LLM Markdown
+- **AND** includes each canonical table's document-global 1-based index, page, and cell row, column, role, and text
 
 #### Scenario: Article extraction succeeds
 

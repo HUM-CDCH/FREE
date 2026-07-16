@@ -40,7 +40,7 @@ A narrow boundary minimizes coupling while preserving the shipped contract. If v
 
 The request carries `strategy: "catalog" | "article"`. Strategy is never inferred from schema shape because both reference fixtures contain `record.entries`, and the pinned implementation selects the extractor explicitly.
 
-Catalog is delivered first; Article follows through the same document, model, conformance, and Evidence path.
+Catalog is delivered first; Article follows through the same document, model, conformance, and Evidence path. Article includes one deterministic inventory of canonical tables in its single model prompt.
 
 ### Port Catalog behavior as characterized pure functions
 
@@ -52,7 +52,7 @@ The port intentionally preserves reference limitations: document-level fields ou
 
 `api/_model_output.ts` owns faithful recursive `_conform_to_schema` behavior: unknown keys are dropped, missing fields are restored, missing scalars become `null`, missing arrays become `[]`, singleton values can become one-element arrays, free-form `{}` and `[]` remain free-form, and non-scalars in scalar slots become `null`.
 
-`api/_evidence_template.ts` owns traversal and normalization of schema-local `_evidence` slots. It preserves `table_index`, including nested `fundliste` Evidence, and resolves that 1-based index against deterministic canonical table order. Applying the pinned default-extractor table backfill to canonical `ParsedTable` cells is an intentional extension of the pinned hierarchical Catalog path, which did not receive table files. Text Evidence is grounded through canonical page text/spans, with optional anchors as an additional source. The pinned ellipsis behavior is retained by splitting `...` and `…`-glued snippets into trimmed contiguous snippets.
+`api/_evidence_template.ts` owns traversal and normalization of schema-local `_evidence` slots. It preserves `table_index`, including nested `fundliste` Evidence, and resolves that 1-based index against deterministic document-global canonical table order; a valid table index takes precedence over a conflicting page hint, while page-only hints never activate table matching. Applying the pinned default-extractor table backfill to canonical `ParsedTable` cells is an intentional extension of the pinned hierarchical Catalog path, which did not receive table files. Text Evidence is grounded first through slices of canonical `text_views.llm_markdown` selected by page spans, then page text and optional anchors. The pinned ellipsis behavior is retained by splitting `...` and `…`-glued snippets into trimmed contiguous snippets.
 
 A separate result codec or evidence service was rejected because this port has one public result shape and no persistence boundary.
 

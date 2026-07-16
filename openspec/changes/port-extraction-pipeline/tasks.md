@@ -41,6 +41,7 @@
 - [x] 4.6 Add `api/_article.ts` with one whole-document model call followed by the shared conformance and Evidence path
 - [x] 4.7 Route `strategy: "article"` explicitly and prove collagen uses Article behavior despite also containing `record.entries`
 - [x] 4.8 Run a fresh parity review and scope review of the Evidence and Article slice, apply accepted in-scope fixes, and rerun Studio tests and build
+- [x] 4.9 Verify canonical Markdown page-slice grounding, document-global table-index precedence, page-only Evidence behavior, Article table inventory, and restored scalar highlighting
 
 ## 5. Verify the completed port
 
@@ -48,4 +49,4 @@
 - [x] 5.2 Confirm production code adds no modules beyond `_catalog.ts` and `_article.ts` unless an approved cohesion split is documented
 - [x] 5.3 Run `pnpm --filter studio test` and `pnpm --filter studio build`
 - [x] 5.4 Run strict OpenSpec validation and verify every capability scenario has deterministic automated coverage or an explicitly opt-in live-model check
-- [ ] 5.5 Correct the researcher-facing schema path: expose the two pinned production schemas in Studio, default Burial Finds to Catalog, and regression-test that `requestExtraction` sends metadata and local Evidence unchanged
+- [x] 5.5 Correct the researcher-facing schema path: expose the two pinned production schemas in Studio, default Burial Finds to Catalog, and regression-test that `requestExtraction` sends metadata and local Evidence unchanged

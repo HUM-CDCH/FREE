@@ -25,6 +25,7 @@ FREE can publish a canonical `ParsedDocument`, but Studio cannot yet reproduce t
 
 - `frontend-api-client`: Replace the current extraction transport contract with task-ID-based canonical-document extraction and retain the parsing task ID for later extraction.
 - `extraction-results-view`: Display the schema-shaped Extraction Result and minimal extraction warnings returned by the new endpoint.
+- `evidence-highlight-layer`: Restore PDF text-layer highlighting for finite number and boolean Extraction Result leaves through scalar stringification.
 
 ## Impact
 

@@ -19,16 +19,14 @@ export type CanonicalEvidenceTable = {
 };
 
 export type CanonicalEvidenceDocument = {
+	readonly markdown: string;
 	readonly pages: readonly CanonicalEvidencePage[];
 	readonly tables: readonly CanonicalEvidenceTable[];
 	readonly anchors: readonly Record<string, unknown>[];
 };
 
-export type EvidenceTableLocationScope = "document" | "section";
-
 type EvidenceNormalizationContext = {
 	readonly document: CanonicalEvidenceDocument;
-	readonly tableLocationScope: EvidenceTableLocationScope;
 };
 
 const TABLE_NUMBER_FIELDS = ["table_index", "row_index", "col_index"] as const;
@@ -38,10 +36,9 @@ const ELLIPSIS = /\s*(?:\.{3,}|…)\s*/;
 export function normalizeEmbeddedEvidence(
 	result: Record<string, unknown>,
 	document: CanonicalEvidenceDocument,
-	tableLocationScope: EvidenceTableLocationScope = "document",
 ): Record<string, unknown> {
 	const normalized = structuredClone(result);
-	normalizeNode(normalized, { document, tableLocationScope });
+	normalizeNode(normalized, { document });
 	return normalized;
 }
 
@@ -140,6 +137,24 @@ function resolveTextPage(
 
 	for (const snippet of snippets) {
 		for (const page of document.pages) {
+			const span = page.char_span;
+			const start = isRecord(span)
+				? nonNegativeInteger(span.llm_markdown_start)
+				: null;
+			const end = isRecord(span)
+				? nonNegativeInteger(span.llm_markdown_end)
+				: null;
+			if (
+				start !== null &&
+				end !== null &&
+				start <= end &&
+				end <= document.markdown.length &&
+				textContains(document.markdown.slice(start, end), snippet)
+			) {
+				return page.page;
+			}
+		}
+		for (const page of document.pages) {
 			if (
 				textContains(page.markdown ?? page.text, snippet) ||
 				textContains(page.text, snippet)
@@ -195,9 +210,11 @@ function findTableMatch(
 	const modelTable = positiveInteger(evidence.table_index);
 	const modelPage = positiveInteger(evidence.page);
 	const hintedTable =
-		normalizationContext.tableLocationScope === "document" ? modelTable : null;
-	const hintedPage =
-		normalizationContext.tableLocationScope === "document" ? modelPage : null;
+		modelTable !== null &&
+		modelTable <= normalizationContext.document.tables.length
+			? modelTable
+			: null;
+	const hintedPage = hintedTable === null ? modelPage : null;
 	const hintedRow = nonNegativeInteger(evidence.row_index);
 	const hintedCol = nonNegativeInteger(evidence.col_index);
 	const snippets = Array.isArray(evidence.snippets)
@@ -211,7 +228,6 @@ function findTableMatch(
 	const shouldMatch =
 		sourceType === "table" ||
 		modelTable !== null ||
-		modelPage !== null ||
 		hintedRow !== null ||
 		hintedCol !== null ||
 		tableTokens.length > 0;
@@ -236,11 +252,7 @@ function findTableMatch(
 		readonly score: number;
 	}> = [];
 
-	if (
-		hintedTable !== null &&
-		hintedRow !== null &&
-		hintedCol !== null
-	) {
+	if (hintedTable !== null && hintedRow !== null && hintedCol !== null) {
 		for (const context of selectedContexts) {
 			if (hintedTable !== null && context.tableIndex !== hintedTable) continue;
 			const cell = context.table.cells.find(
@@ -274,12 +286,6 @@ function findTableMatch(
 					let score = overlap * 5;
 					if (fieldText) score += fieldText === cellText ? 6 : 3;
 					if (cell.role === "data") score += 1;
-					if (
-						normalizationContext.tableLocationScope === "section" &&
-						hintedRow === cell.row &&
-						hintedCol === cell.col
-					)
-						score += 2;
 					if (hintedTable === context.tableIndex) score += 2;
 					if (hintedPage === context.table.page_number) score += 1;
 					candidates.push({ ...context, cell, score });
@@ -299,12 +305,6 @@ function findTableMatch(
 				let score = 9;
 				if (fieldText === cellText) score += 2;
 				if (cell.role === "data") score += 1;
-				if (
-					normalizationContext.tableLocationScope === "section" &&
-					hintedRow === cell.row &&
-					hintedCol === cell.col
-				)
-					score += 2;
 				if (hintedTable === context.tableIndex) score += 2;
 				if (hintedPage === context.table.page_number) score += 1;
 				candidates.push({ ...context, cell, score });

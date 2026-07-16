@@ -159,21 +159,6 @@ describe('Vercel API endpoints', () => {
     expect(downstreamSignal?.aborted).toBe(true)
   })
 
-  it('maps the internal extraction deadline to 504', async () => {
-    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(
-      AbortSignal.abort(new DOMException('timed out', 'TimeoutError')),
-    )
-    stubParsingService(canonicalDocument())
-
-    const response = await extractPost(
-      extractionRequest({ taskId: 'task-1', schema, strategy: 'article' }),
-    )
-
-    expect(response.status).toBe(504)
-    await expect(response.json()).resolves.toEqual({ detail: 'Extraction timed out.' })
-    expect(generateStructuredWithModel).not.toHaveBeenCalled()
-  })
-
   it('grounds Catalog table Evidence globally instead of trusting section-local table hints', async () => {
     stubParsingService(
       canonicalDocument({
@@ -208,7 +193,7 @@ describe('Vercel API endpoints', () => {
             snippets: ['| ID | target |'],
             source_type: 'table',
             page: 1,
-            table_index: 1,
+            table_index: 2,
             row_index: 1,
             col_index: 0,
           },

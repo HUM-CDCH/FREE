@@ -32,7 +32,6 @@ export type CatalogExtraction = {
 };
 
 const PAGE_BREAK = "\n\n---\n\n";
-const MAX_CATALOG_SECTIONS = 100;
 const BOUNDARY_SCHEMA = {
 	records: [
 		{
@@ -138,14 +137,7 @@ export function resolveCatalogBoundaries(
 		});
 	});
 
-	const seenStarts = new Set<number>();
-	return resolved
-		.sort((left, right) => left.startIndex - right.startIndex)
-		.filter((boundary) => {
-			if (seenStarts.has(boundary.startIndex)) return false;
-			seenStarts.add(boundary.startIndex);
-			return true;
-		});
+	return resolved.sort((left, right) => left.startIndex - right.startIndex);
 }
 
 export function sliceCatalogSections(
@@ -235,11 +227,6 @@ export async function extractCatalog({
 		instructions: boundaryInstructions(schema, selected.key),
 	});
 	const resolved = resolveCatalogBoundaries(document, boundaryResult);
-	if (resolved.length > MAX_CATALOG_SECTIONS) {
-		throw new RangeError(
-			`Catalog section count ${resolved.length} exceeds the limit; maximum is ${MAX_CATALOG_SECTIONS}`,
-		);
-	}
 	const usedFallback = resolved.length === 0;
 	const sections = usedFallback
 		? [fallbackSection(document)]

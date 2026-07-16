@@ -54,7 +54,7 @@ describe('Catalog pinned pure behavior', () => {
     expect(sections[1]?.text).toContain('# Grav 13')
   })
 
-  it('keeps the first boundary when multiple records resolve to the same start', () => {
+  it('preserves boundaries that resolve to the same start', () => {
     const duplicate = {
       records: [
         (boundaries.records as unknown[])[0],
@@ -65,7 +65,7 @@ describe('Catalog pinned pure behavior', () => {
 
     const sections = sliceCatalogSections(markdown, resolveCatalogBoundaries(markdown, duplicate))
 
-    expect(sections.map((section) => section.recordId)).toEqual(['8', '13'])
+    expect(sections.map((section) => section.recordId)).toEqual(['8', 'duplicate', '13'])
   })
 
   it('coerces scalar boundary markers like the pinned Python parser', () => {
@@ -146,18 +146,20 @@ describe('extractCatalog orchestration', () => {
     expect(generate).toHaveBeenCalledTimes(2)
   })
 
-  it('rejects more than 100 resolved sections before making record calls', async () => {
-    const generate = vi.fn().mockResolvedValueOnce({
-      records: Array.from({ length: 101 }, (_, index) => ({
-        record_id: String(index),
-        start_index: index,
-      })),
+  it('allows more than 100 resolved sections without an added cap', async () => {
+    const schema: ExtractionSchemaEnvelope = { record: { entries: [{ id: '' }] }, _schema_metadata: {} }
+    const boundaryResult = {
+      records: Array.from({ length: 101 }, (_, index) => ({ record_id: String(index), start_index: index })),
+    }
+    const generate = vi.fn().mockImplementation(async () => {
+      if (generate.mock.calls.length === 1) return boundaryResult
+      return { id: String(generate.mock.calls.length) }
     })
 
-    await expect(
-      extractCatalog({ document: 'x'.repeat(101), schema: burial, generate }),
-    ).rejects.toThrow('maximum is 100')
-    expect(generate).toHaveBeenCalledTimes(1)
+    const extraction = await extractCatalog({ document: 'x'.repeat(101), schema, generate })
+
+    expect(extraction.result.entries).toHaveLength(101)
+    expect(generate).toHaveBeenCalledTimes(102)
   })
 
   it('falls back once to the whole document when no marker resolves', async () => {

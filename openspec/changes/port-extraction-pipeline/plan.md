@@ -230,8 +230,9 @@ Add an API/server TypeScript configuration referenced by the Studio build. The c
 
 ### 3. Complete Evidence and Article parity
 
-- Normalize text Evidence against canonical pages/spans and optional anchors, splitting ellipsis-glued snippets.
-- Backfill table Evidence from canonical `ParsedTable` cells while preserving `table_index` output.
+- Normalize text Evidence first against canonical `text_views.llm_markdown` page slices from `char_span`, then page text and optional anchors, splitting ellipsis-glued snippets.
+- Backfill table Evidence from canonical `ParsedTable` cells while preserving document-global `table_index` output; page-only Evidence must not activate table matching.
+- Include one deterministic document-global table inventory in the single Article model call.
 - Cover nested Evidence and the reference ellipsis-snippet behavior.
 - Add explicit Article strategy using `collagen_extraction.json` and the same document/model/conformance path.
 
@@ -255,6 +256,9 @@ Focused tests must prove:
 - recursive conformance matches the pinned Python function;
 - merge order and deduplication match the reference;
 - embedded Evidence survives nested arrays;
-- explicit strategy routes collagen to Article.
+- canonical Markdown page slices resolve text Evidence;
+- valid global table indices override conflicting page hints and page-only Evidence stays textual;
+- explicit strategy routes collagen to Article;
+- duplicate boundary starts remain represented and no Catalog section-count cap is introduced.
 
 Keep live model tests opt-in. Use deterministic fake responses for normal CI.
