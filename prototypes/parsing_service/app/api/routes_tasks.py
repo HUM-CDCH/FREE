@@ -8,7 +8,6 @@ import uuid
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from filelock import FileLock
 
 from app.api.deps import http_task_dir, load_metadata, save_metadata
 from app.api.schemas import TaskCreatedResponse, TaskStatusResponse
@@ -19,7 +18,7 @@ from app.models.parser import (
     canonical_preprocessing_config,
 )
 from app.storage.hashing import document_id_from_hash
-from app.storage.paths import SOURCE_FILENAME, task_store_lock_path
+from app.storage.paths import SOURCE_FILENAME
 from app.workers.gpu import gpu_available
 from app.workers.parse_worker import run_extraction_task
 
@@ -33,10 +32,9 @@ async def create_task(
 ):
     task_id = str(uuid.uuid4())
     task_dir = http_task_dir(task_id)
-    task_dir.mkdir(parents=True, exist_ok=True)
-    content_sha256: str | None = None
 
     try:
+        task_dir.mkdir(parents=True, exist_ok=True)
         source_path, source_name, content_sha256 = await run_in_threadpool(
             save_uploaded_source, file, task_dir
         )
@@ -65,21 +63,16 @@ async def create_task(
             "error_code": None,
             "error": None,
         }
-        with FileLock(str(task_store_lock_path())):
-            save_metadata(task_id, metadata)
+        save_metadata(task_id, metadata)
     except HTTPException:
         shutil.rmtree(task_dir, ignore_errors=True)
         raise
     except (OSError, ValueError) as exc:
         shutil.rmtree(task_dir, ignore_errors=True)
         raise HTTPException(
-            status_code=507,
-            detail="Could not reserve task storage.",
+            status_code=500,
+            detail="Could not create parsing task.",
         ) from exc
-    if content_sha256 is None:  # Defensive narrowing after the ingestion branches.
-        raise HTTPException(
-            status_code=500, detail="Source ingestion did not complete."
-        )
 
     background_tasks.add_task(
         run_extraction_task,

@@ -30,8 +30,8 @@
 
 ## 6. Simplify task creation
 
-- [ ] 6.1 Reduce `create_task` to upload persistence, metadata persistence, worker scheduling, and path-free error cleanup
-- [ ] 6.2 Remove the route-level global task-store lock, capacity reservation, lease cleanup, and defensive optional-digest narrowing
+- [x] 6.1 Reduce `create_task` to upload persistence, metadata persistence, worker scheduling, and path-free error cleanup
+- [x] 6.2 Remove the route-level global task-store lock, capacity reservation, lease cleanup, and defensive optional-digest narrowing
 
 ## 7. Complete trust-boundary coverage and verification
 
