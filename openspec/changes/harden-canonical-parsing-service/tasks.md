@@ -17,8 +17,8 @@
 
 - [x] 2.1 Specify and test that a successful Camelot call returning zero tables is a successful empty result without `completed_with_warnings`; implement the status correction
 - [x] 2.2 Split missing-value normalization by adapter; preserve literal Docling `NaN` and blank only non-string Camelot missing-value sentinels
-- [ ] 2.3 Add minified/nested list, ordered/unordered list, code-fence collision, formula, page-span, and source-text preservation tests
-- [ ] 2.4 Render standard Markdown list markers, adaptive fenced code, and separate-line `$$` formula blocks; bump the DocTags converter-policy revision and manually review golden changes
+- [x] 2.3 Add minified/nested list, ordered/unordered list, code-fence collision, formula, page-span, and source-text preservation tests
+- [x] 2.4 Render standard Markdown list markers, adaptive fenced code, and separate-line `$$` formula blocks; bump the DocTags converter-policy revision and manually review golden changes
 - [ ] 2.5 Produce/check in a small real Docling fixture with multi-page table Evidence; in v1 retain text/structure, suppress misleading geometry, and emit a stable warning
 - [ ] 2.6 Unblock [`publish-parsed-document-v2`](../publish-parsed-document-v2/proposal.md) by attaching the proven fixture and producer-shape findings to its schema-gate tasks, including DocTags-slot/Docling-inventory correspondence and page-scoped geometry; preserve the v2 single-table-authority, role-specific parser attribution, and explicit-disagreement requirements without implementing them in this change
 - [ ] 2.7 Write all canonical text artifacts as deterministic UTF-8/LF bytes and test byte digest stability independently of platform newline defaults
