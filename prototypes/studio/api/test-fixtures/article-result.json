@@ -1,0 +1,30 @@
+{
+  "paper_title": "Collagen study",
+  "doi": "10.1234/example",
+  "year": 2024,
+  "global_notes": "",
+  "_evidence": {
+    "paper_title": {
+      "snippets": ["Collagen study"],
+      "inferred": false,
+      "source_type": "text",
+      "page": 1,
+      "table_index": null,
+      "row_index": null,
+      "col_index": null,
+      "row_header_text": "",
+      "column_header_text": ""
+    }
+  },
+  "_meta": {
+    "is_review_article": false,
+    "is_gelatin_paper": true,
+    "is_gelatin_paper_confidence": 1
+  },
+  "entries": [
+    {
+      "scientific_name": "Gadus morhua",
+      "tissue": "Skin"
+    }
+  ]
+}

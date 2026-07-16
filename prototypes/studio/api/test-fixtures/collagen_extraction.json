@@ -1,0 +1,610 @@
+{
+  "name": "Extraction / TabularRecords v1 / Updated Evidence Field",
+  "description": "General-purpose schema for extracting row-like records from documents into an Excel-compatible structure, with support for multiple measurements per record and evidence tracking.",
+  "record": {
+    "paper_title": "",
+    "doi": "",
+    "year": null,
+    "global_notes": "",
+    "_evidence": {
+      "paper_title": {
+        "snippets": [],
+        "inferred": false,
+        "source_type": "",
+        "page": null,
+        "table_index": null,
+        "row_index": null,
+        "col_index": null,
+        "row_header_text": "",
+        "column_header_text": ""
+      },
+      "doi": {
+        "snippets": [],
+        "inferred": false,
+        "source_type": "",
+        "page": null,
+        "table_index": null,
+        "row_index": null,
+        "col_index": null,
+        "row_header_text": "",
+        "column_header_text": ""
+      },
+      "year": {
+        "snippets": [],
+        "inferred": false,
+        "source_type": "",
+        "page": null,
+        "table_index": null,
+        "row_index": null,
+        "col_index": null,
+        "row_header_text": "",
+        "column_header_text": ""
+      },
+      "global_notes": {
+        "snippets": [],
+        "inferred": false,
+        "source_type": "",
+        "page": null,
+        "table_index": null,
+        "row_index": null,
+        "col_index": null,
+        "row_header_text": "",
+        "column_header_text": ""
+      }
+    },
+    "_meta": {
+      "is_review_article": false,
+      "is_gelatin_paper": false,
+      "is_gelatin_paper_confidence": 0
+    },
+    "entries": [
+      {
+        "scientific_name": "",
+        "collagen_type": [],
+        "collagen_extraction_method": "",
+        "collagen_preparation_method": "",
+        "tissue": "",
+        "thermal_data": [
+          {
+            "parameter": "",
+            "value_celsius": null,
+            "value_kelvin": null,
+            "value_fahrenheit": null,
+            "method": "",
+            "sample_state": "",
+            "sample_medium": "",
+            "experimental_conditions": "",
+            "source_location": "",
+            "_evidence": {
+              "parameter": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "value_celsius": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "value_kelvin": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "value_fahrenheit": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "method": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "sample_state": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "sample_medium": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "experimental_conditions": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "source_location": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              }
+            }
+          }
+        ],
+        "amino_acid_profile": {
+          "imino_acid": {
+            "value": null,
+            "stdev": null,
+            "unit": "",
+            "_evidence": {
+              "value": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "stdev": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "unit": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              }
+            }
+          },
+          "hydroxyproline": {
+            "value": null,
+            "stdev": null,
+            "unit": "",
+            "_evidence": {
+              "value": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "stdev": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "unit": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              }
+            }
+          },
+          "proline": {
+            "value": null,
+            "stdev": null,
+            "unit": "",
+            "_evidence": {
+              "value": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "stdev": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "unit": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              }
+            }
+          }
+        },
+        "entry_key": "",
+        "source_refs": [],
+        "_evidence": {
+          "scientific_name": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": "",
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": ""
+          },
+          "collagen_type": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": "",
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": ""
+          },
+          "collagen_extraction_method": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": "",
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": ""
+          },
+          "collagen_preparation_method": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": "",
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": ""
+          },
+          "tissue": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": "",
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": ""
+          },
+          "entry_key": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": "",
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": ""
+          },
+          "source_refs": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": "",
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": ""
+          }
+        }
+      }
+    ]
+  },
+  "_evidence": {},
+  "_schema_metadata": {
+    "record.entries": {
+      "instance_description": "Each object in record.entries represents ONE atomic record (one row / one sample / one case). Each entry must correspond to exactly one unique combination of: scientific_name + tissue + collagen_extraction_method + collagen_type (if collagen_type is reported). Do NOT merge multiple tissues, methods, or cases into a single entry. If the document only provides a general list and you cannot construct atomic records, return an empty entries array."
+    },
+    "record._evidence": {
+      "instance_description": "Local evidence for document-level fields on `record`. Key evidence by field name (paper_title, doi, year, global_notes), not JSON paths."
+    },
+    "record.entries[]._evidence": {
+      "instance_description": "Local evidence for fields in each `record.entries[]` object. Store evidence in the same entries[] object as the extracted values. Use local field names as keys (scientific_name, collagen_type, collagen_extraction_method, collagen_preparation_method, tissue, entry_key, source_refs), not global path keys."
+    },
+    "record.entries[].thermal_data[]._evidence": {
+      "instance_description": "Local evidence for fields in each thermal_data[] row. Store evidence in the same thermal_data[] object as the values. Use local field names as keys (parameter, value_celsius, value_kelvin, value_fahrenheit, method, sample_state, sample_medium, experimental_conditions, source_location)."
+    },
+    "record.entries[].amino_acid_profile.imino_acid._evidence": {
+      "instance_description": "Local evidence for imino_acid subfields. Key by value, stdev, and unit within the same imino_acid object."
+    },
+    "record.entries[].amino_acid_profile.hydroxyproline._evidence": {
+      "instance_description": "Local evidence for hydroxyproline subfields. Key by value, stdev, and unit within the same hydroxyproline object."
+    },
+    "record.entries[].amino_acid_profile.proline._evidence": {
+      "instance_description": "Local evidence for proline subfields. Key by value, stdev, and unit within the same proline object."
+    },
+    "record._meta.is_gelatin_paper": {
+      "instance_description": "Boolean flag indicating whether the paper is primarily about gelatin (gelatin extraction/production and gelatin-focused results) rather than collagen extraction. Set to true ONLY when gelatin is the main focus of the study. If the paper discusses collagen extraction (e.g., ASC/PSC) and also mentions gelatin as a downstream product or in background/discussion, keep this false and use record.global_notes to mention ambiguity.",
+      "decision_guidance": {
+        "set_true_when": [
+          "Methods and/or Results primarily describe gelatin extraction/production (e.g., 'gelatin was extracted/produced', 'gelatin yield').",
+          "The primary reported outcomes are gelatin-specific properties (e.g., Bloom strength/gel strength, gelatin viscosity, gelling/melting behavior) presented in dedicated tables/figures.",
+          "The paper title/abstract explicitly frames the work as gelatin extraction/gelatin characterization."
+        ],
+        "do_not_set_true_when": [
+          "Gelatin appears only in background/introduction/discussion or references.",
+          "The core method is collagen extraction (ASC/PSC/acid-soluble collagen/pepsin-soluble collagen) and gelatin is only a downstream or minor component.",
+          "The paper contains mixed signals—treat as ambiguous and keep is_gelatin_paper=false but note in record.global_notes."
+        ]
+      },
+      "note": "This flag is for interpretation and should be supported by evidence snippets."
+    },
+    "record._meta.is_gelatin_paper_confidence": {
+      "instance_description": "Confidence score (0.0 to 1.0) for record._meta.is_gelatin_paper. This must reflect the strength and quantity of direct textual evidence that the paper is gelatin-focused.",
+      "allowed_range": [
+        0.0,
+        1.0
+      ],
+      "calibration_guidance": {
+        "0.0-0.3": "No clear evidence of gelatin focus; gelatin absent or mentioned only weakly.",
+        "0.4-0.6": "Ambiguous/mixed signals; gelatin and collagen both appear but primary focus is unclear.",
+        "0.7-0.84": "Likely gelatin-focused but not definitive; some strong evidence but still mixed context.",
+        "0.85-1.0": "Very likely gelatin-focused with multiple strong, direct signals in methods/results and/or dedicated gelatin property tables."
+      }
+    },
+    "record.entries[].collagen_type": {
+      "allowed_values": [
+        "Type I",
+        "Type II",
+        "Type III",
+        "Type IV",
+        "Type V",
+        "Other"
+      ]
+    },
+    "record.entries[].collagen_extraction_method": {
+      "allowed_values": [
+        "ASC",
+        "PSC",
+        "SSC",
+        "HWE",
+        "UAE",
+        "MAE",
+        "HPP",
+        "DES",
+        "SFE",
+        "Other",
+        ""
+      ],
+      "note": "This is the sample preparation / extraction category, not the measurement method."
+    },
+    "record.entries[].collagen_preparation_method": {
+      "allowed_values": [
+        "ASC",
+        "AAC",
+        "HCI-C",
+        "LA-C",
+        "CA-C",
+        "PSC",
+        "PASC",
+        "TSC",
+        "ESC",
+        "PAC",
+        "SSC",
+        "NSC",
+        "ISC",
+        "UAE-C",
+        "MAE-C",
+        "HHP-C",
+        "SFE-C",
+        "AP",
+        "NaOH-P",
+        "Other",
+        ""
+      ]
+    },
+    "record.entries[].tissue": {
+      "instance_description": "The tissue or body part from which collagen was extracted. Extract this from table column headers, row headers, or text. Common tissue types include skin, bone, muscle, cartilage, tendon, scales, fins, head, etc. When extracting from tables, column headers often indicate different tissue types - create a separate entry for each column header that represents a tissue type.",
+      "allowed_values": [
+        "Skin",
+        "Bone",
+        "Muscle",
+        "Cartilage",
+        "Tendon",
+        "Scale",
+        "Scales",
+        "swim bladder",
+        "Fin",
+        "Fins",
+        "Head",
+        "Spine",
+        "Backbone",
+        "Back bone",
+        "Back-bone",
+        "Spinal column",
+        "Vertebrae",
+        "Vertebra",
+        "Tail",
+        "Abdomen",
+        "Belly",
+        "Dorsal fin",
+        "Pectoral fin",
+        "Pelvic fin",
+        "Anal fin",
+        "Caudal fin",
+        "Gill",
+        "Gills",
+        "Liver",
+        "Stomach",
+        "Intestine",
+        "Intestines",
+        "Eye",
+        "Eyes",
+        "Jaw",
+        "Jaws",
+        "Skin and scales",
+        "Skin and bone",
+        "Carcass",
+        "Skeleton",
+        "Other",
+        ""
+      ],
+      "note": "Extract tissue names exactly as reported in the document. If a tissue type is not in the allowed_values list but is clearly a tissue type, use 'Other'. When extracting from tables, each column or row header that represents a tissue type should create a separate entry with that tissue value."
+    },
+    "record.entries[].thermal_data": {
+      "instance_description": "Each object represents a single thermal measurement for the SAME entry/sample. If multiple thermal measurements are reported (different parameters, methods, sample states, media, or conditions), include multiple objects. Temperature values may be reported in Celsius, Kelvin, or Fahrenheit. Populate ONLY the temperature field(s) explicitly reported in the document (value_celsius, value_kelvin, value_fahrenheit). Do not convert between units."
+    },
+    "record.entries[].thermal_data[].parameter": {
+      "allowed_values": [
+        "Td",
+        "Tm",
+        "Ts",
+        "Tmax",
+        ""
+      ]
+    },
+    "record.entries[].thermal_data[].value_celsius": {
+      "instance_description": "Thermal measurement value in Celsius, if explicitly reported. Do not convert other units into Celsius. If not explicitly reported, leave null."
+    },
+    "record.entries[].thermal_data[].value_kelvin": {
+      "instance_description": "Thermal measurement value in Kelvin, only if explicitly reported in the document. Do not compute/convert from Celsius. Prefer leaving null unless explicitly reported."
+    },
+    "record.entries[].thermal_data[].value_fahrenheit": {
+      "instance_description": "Thermal measurement value in Fahrenheit, only if explicitly reported in the document. Do not compute/convert from Celsius. Prefer leaving null unless explicitly reported."
+    },
+    "record.entries[].thermal_data[].method": {
+      "allowed_values": [
+        "VISC",
+        "DSC",
+        "CD",
+        "DTA",
+        "TGA",
+        "FTIR",
+        "RS",
+        "DMA",
+        "Rheo",
+        "OR",
+        "Turb",
+        "AFM",
+        "SEM",
+        "ESA",
+        "SA",
+        "Other",
+        ""
+      ]
+    },
+    "record.entries[].thermal_data[].sample_state": {
+      "allowed_values": [
+        "Solution",
+        "Fiber",
+        "Solid",
+        "Rehydrated",
+        "Other",
+        ""
+      ]
+    },
+    "record.entries[].thermal_data[].sample_medium": {
+      "instance_description": "Medium/environment surrounding the sample during the thermal measurement. This is most often a solvent for solution measurements (e.g., ethanol, water, buffer), but can also be an atmosphere/environment for solid/fiber measurements if explicitly stated (e.g., air, nitrogen/N2, inert gas, vacuum). For rehydrated samples, this is the rehydration liquid (e.g., water, PBS). Extract exactly as reported. If not explicitly reported, leave empty string.",
+      "note": "Do not guess the medium based on typical practice. Only populate when explicitly stated."
+    },
+    "record.entries[].amino_acid_profile": {
+      "instance_description": "Amino acid profile data extracted from tables or text. Each amino acid field (hydroxyproline, proline, imino_acid) has three fields: 'value' (numeric), 'stdev' (numeric standard deviation, if explicitly reported), and 'unit' (string). When extracting from tables, pay close attention to column headers, footnotes, and table context which indicate data type, units, and whether any ± values represent SD or another uncertainty type. Units may appear in: (1) column headers directly, (2) table footnotes, (3) a separate header row, (4) parentheses in column names, or (5) the table caption. Extract the numeric value, the stdev (if clearly SD), and the unit exactly as reported. Common units include: 'residues/1000', 'res/1000', 'per 1000 residues', 'mg/g', 'mg per g', 'µg/mL', 'ug/mL', 'micrograms per milliliter', '%', 'percent', 'wt%', etc. If a table column is named 'hydroxyproline' (or variations like 'Hyp', 'HYP', 'Hydroxyproline', '4-Hydroxyproline', '4-Hyp'), 'proline' (or 'Pro', 'PRO'), or 'imino acid' (or 'Imino acid', 'Imino acids'), extract the value and unit from the column header, footnotes, or table context. If the value is shown as 'X ± Y' and the table/footnote explicitly states that ± is SD (standard deviation), set value=X and stdev=Y. If the table uses SE/SEM/CI or does not explicitly define what ± represents, extract value but leave stdev null. If units are not explicitly stated, leave unit as empty string but still extract the value if available. Do not compute or convert SD; only extract what is explicitly reported."
+    },
+    "record.entries[].amino_acid_profile.hydroxyproline": {
+      "instance_description": "Hydroxyproline value, stdev, and unit. Extract the numeric mean/central value in 'value' and the unit string in 'unit' exactly as reported in tables or text. Extract 'stdev' only when the document explicitly indicates that the variability reported is SD (standard deviation). Common table column names/variations: 'Hydroxyproline', 'Hyp', 'HYP', '4-Hydroxyproline', '4-Hyp', 'Hydroxyproline (residues/1000)', 'Hydroxyproline (mg/g)', 'Hydroxyproline (µg/mL)', 'Hyp (res/1000)', etc. Units may be in column headers (including in parentheses like 'Hydroxyproline (µg/mL)'), footnotes, or table context. Extract the unit exactly as written (e.g., 'µg/mL', 'residues/1000', 'mg/g', '%'). If a table cell is formatted as 'X ± Y' and the table/footnote explicitly states that ± is SD, set value=X and stdev=Y. If the table indicates SE/SEM/CI or does not define what ± represents, set value=X and leave stdev null. If value is found but unit is not specified, leave unit as empty string. If no value is found, leave value and stdev as null and unit as empty string."
+    },
+    "record.entries[].amino_acid_profile.proline": {
+      "instance_description": "Proline value, stdev, and unit. Extract the numeric mean/central value in 'value' and the unit string in 'unit' exactly as reported. Extract 'stdev' only when the document explicitly indicates SD (standard deviation). Common table column names include 'Proline', 'Pro', 'PRO', 'Proline (residues/1000)', 'Proline (mg/g)', etc. Extract the unit exactly as written. If a table cell is formatted as 'X ± Y' and the table/footnote explicitly states that ± is SD, set value=X and stdev=Y. If the table indicates SE/SEM/CI or does not define what ± represents, set value=X and leave stdev null. If value is found but unit is not specified, leave unit as empty string. If no value is found, leave value and stdev as null and unit as empty string."
+    },
+    "record.entries[].amino_acid_profile.imino_acid": {
+      "instance_description": "Imino acid value, stdev, and unit (often reported as the sum of hydroxyproline and proline, but do not compute it unless explicitly reported as a value). Extract the numeric mean/central value in 'value' and the unit string in 'unit' exactly as reported. Extract 'stdev' only when the document explicitly indicates SD (standard deviation). Common table column names include 'Imino acid', 'Imino acids', 'Imino Acid'. Extract the unit exactly as written. If a table cell is formatted as 'X ± Y' and the table/footnote explicitly states that ± is SD, set value=X and stdev=Y. If the table indicates SE/SEM/CI or does not define what ± represents, set value=X and leave stdev null. If value is found but unit is not specified, leave unit as empty string. If no value is found, leave value and stdev as null and unit as empty string."
+    },
+    "entry_key": {
+      "recommendation": "Compute in code for dedup/merge using normalized scientific_name|tissue|collagen_extraction_method|collagen_type_joined. The LLM may leave it empty."
+    }
+  }
+}
