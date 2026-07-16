@@ -16,7 +16,9 @@ const runLiveSmoke = process.env.RUN_NUEXTRACT_SMOKE === '1'
 
 describe.skipIf(!runLiveSmoke)('live NuExtract Catalog smoke', () => {
   it('extracts the two-record Burial fixture in source order', async () => {
-    const schema = fixture<ExtractionSchemaEnvelope>('Burial_Finds.json')
+    const schema = fixture<ExtractionSchemaEnvelope>(
+      '../../schemas/FieldReports/Burial_Finds.json',
+    )
     const document = readFileSync(new URL('./test-fixtures/catalog-two-records.md', import.meta.url), 'utf8')
 
     // Keep boundary detection deterministic here so this opt-in check isolates
@@ -37,5 +39,34 @@ describe.skipIf(!runLiveSmoke)('live NuExtract Catalog smoke', () => {
     const entries = extraction.result.entries as Array<Record<string, unknown>>
 
     expect(entries.map((entry) => entry.Grav_id)).toEqual(['8', '13'])
+    expect(
+      entries.every((entry) => {
+        const localEvidence = entry._evidence
+        if (
+          typeof localEvidence !== 'object' ||
+          localEvidence === null ||
+          Array.isArray(localEvidence) ||
+          !('Grav_id' in localEvidence)
+        ) {
+          return false
+        }
+        const fieldEvidence = localEvidence.Grav_id
+        if (
+          typeof fieldEvidence !== 'object' ||
+          fieldEvidence === null ||
+          Array.isArray(fieldEvidence) ||
+          !('snippets' in fieldEvidence)
+        ) {
+          return false
+        }
+        return (
+          Array.isArray(fieldEvidence.snippets) &&
+          fieldEvidence.snippets.some(
+            (snippet: unknown) =>
+              typeof snippet === 'string' && snippet.trim() !== '' && document.includes(snippet),
+          )
+        )
+      }),
+    ).toBe(true)
   }, 120_000)
 })

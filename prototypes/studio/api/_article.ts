@@ -19,7 +19,7 @@ export async function extractArticle({
     instructions: [
       'Extract one whole-document Article record matching the supplied record schema.',
       `Metadata: ${JSON.stringify(schema._schema_metadata)}`,
-      'Use only the canonical document. Preserve schema-local _evidence and fully enumerate declared arrays.',
+      'Use only the canonical document and fully enumerate declared arrays. Populate every schema-declared local _evidence slot from the supplied source text, following the Evidence shape declared in the schema. Do not create undeclared evidence slots.',
     ].join('\n\n'),
   })
   const conformed = conformToSchema(generated, schema.record)

@@ -12,7 +12,9 @@ type TemplateAnnotation = { text: string; pageNumber: number };
 export type AnnotationsMode = "hints" | "fields";
 export type ExtractionStrategy = "catalog" | "article";
 
-type ExtractionSchemaEnvelope = {
+export type ExtractionSchemaEnvelope = {
+	readonly name?: string;
+	readonly description?: string;
 	readonly record: Record<string, unknown>;
 	readonly _schema_metadata: Record<string, unknown>;
 };
@@ -136,7 +138,7 @@ export async function requestSchema(
 	fileName: string,
 	signal?: AbortSignal,
 	options?: TemplateOptions,
-): Promise<unknown> {
+): Promise<ExtractionSchemaEnvelope> {
 	const form = new FormData();
 	if (options?.markdown) {
 		form.append("document_markdown", options.markdown);
@@ -160,22 +162,31 @@ export async function requestSchema(
 			detail || `Request to /generate_schema failed (HTTP ${response.status})`,
 		);
 	}
-	return decodeSchemaDone(await response.json()).template;
+	const { template } = decodeSchemaDone(await response.json());
+	if (!isRecord(template)) {
+		throw new Error(
+			"generate_schema: response 'template' must be an object — API contract drift?",
+		);
+	}
+	return {
+		name: "Generated from source document",
+		description: "",
+		record: template,
+		_schema_metadata: {},
+	};
 }
 
 export async function requestExtraction(
 	taskId: string,
-	recordTemplate: unknown,
+	schema: ExtractionSchemaEnvelope,
 	strategy: ExtractionStrategy,
 	signal?: AbortSignal,
 ): Promise<ExtractionResponse> {
-	if (!isRecord(recordTemplate)) {
-		throw new Error("extract: record template must be an object");
+	if (!isRecord(schema.record) || !isRecord(schema._schema_metadata)) {
+		throw new Error(
+			"extract: schema must contain object fields 'record' and '_schema_metadata'",
+		);
 	}
-	const schema: ExtractionSchemaEnvelope = {
-		record: recordTemplate,
-		_schema_metadata: {},
-	};
 	const response = await fetch(`${API_BASE}/extract`, {
 		method: "POST",
 		body: JSON.stringify({ taskId, schema, strategy }),

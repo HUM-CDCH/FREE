@@ -67,6 +67,20 @@ describe('generateStructuredWithModel', () => {
     expect(body.prompt).toContain('Canonical report')
   })
 
+  it('forwards cancellation to the raw Ollama request', async () => {
+    const fetchMock = stubOllamaResponse('{"title":"Report"}')
+    const controller = new AbortController()
+
+    await generateStructuredWithModel({
+      document: 'Canonical report',
+      schema: { title: '' },
+      instructions: 'Extract one report.',
+      abortSignal: controller.signal,
+    })
+
+    expect(fetchMock.mock.calls[0]?.[1].signal).toBe(controller.signal)
+  })
+
   it('routes codex-cli structured extraction through the existing generic model boundary', async () => {
     stubCodexResponse('{"title":"Report"}')
 
@@ -80,6 +94,20 @@ describe('generateStructuredWithModel', () => {
     expect(generateTextMock).toHaveBeenCalledOnce()
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
     expect(result).toEqual({ title: 'Report' })
+  })
+
+  it('forwards cancellation to the AI SDK request', async () => {
+    stubCodexResponse('{"title":"Report"}')
+    const controller = new AbortController()
+
+    await generateStructuredWithModel({
+      document: 'Canonical report',
+      schema: { title: '' },
+      instructions: 'Extract one report.',
+      abortSignal: controller.signal,
+    })
+
+    expect(generateTextMock.mock.calls[0]?.[0].abortSignal).toBe(controller.signal)
   })
 })
 

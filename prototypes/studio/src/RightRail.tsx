@@ -4,6 +4,7 @@ import type { AnnotationSetItem } from './AnnotationSidebar'
 import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
+import type { PinnedSchema } from './pinnedSchemas'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
@@ -21,6 +22,9 @@ type RightRailProps = {
   schemaState: TemplateState
   schemaStale: boolean
   schemaReady: boolean
+  pinnedSchemas: readonly PinnedSchema[]
+  selectedPinnedSchemaId: string | null
+  onSelectPinnedSchema: (id: string) => void
   schemaFieldCount: number
   onGenerate: () => void
   onTemplateChange: (template: unknown, message: string) => void
@@ -52,6 +56,9 @@ function RightRail({
   schemaState,
   schemaStale,
   schemaReady,
+  pinnedSchemas,
+  selectedPinnedSchemaId,
+  onSelectPinnedSchema,
   schemaFieldCount,
   onGenerate,
   onTemplateChange,
@@ -141,6 +148,9 @@ function RightRail({
         <SchemaPanel
           state={schemaState}
           stale={schemaStale}
+          pinnedSchemas={pinnedSchemas}
+          selectedPinnedSchemaId={selectedPinnedSchemaId}
+          onSelectPinnedSchema={onSelectPinnedSchema}
           onGenerate={onGenerate}
           onTemplateChange={onTemplateChange}
           annotationCount={annotationItems.length}

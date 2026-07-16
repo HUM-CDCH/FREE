@@ -2,7 +2,7 @@
 
 ## 1. Establish the pinned parity harness
 
-- [x] 1.1 Copy `Burial_Finds.json` into Studio test fixtures with attribution to `FREE-technical` commit `67ea4dc535a2ab674ed8c4b558068e13e7c2980d`
+- [x] 1.1 Copy `Burial_Finds.json` verbatim into Studio's production `schemas/FieldReports/` path with attribution to `FREE-technical` commit `67ea4dc535a2ab674ed8c4b558068e13e7c2980d`; parity tests consume the same file
 - [x] 1.2 Add a minimal two-record canonical Markdown fixture and deterministic fake boundary and record model responses
 - [x] 1.3 Add API/server TypeScript configuration and reference it from the Studio build so `api/*.ts` is type-checked
 - [x] 1.4 Encode the pinned Python conformance, primary-array, boundary, retry, merge, and deduplication outcomes as failing TypeScript characterization tests
@@ -24,7 +24,7 @@
 - [x] 3.2 Add narrow runtime validation and selection for the `parsed_document.v1` Markdown, pages, spans, tables, and optional Evidence Anchors consumed by extraction
 - [x] 3.3 Implement `api/extract.ts` JSON validation for `{ taskId, schema, strategy }`, including the full envelope, `PARSING_SERVICE_URL` resolution, canonical-document fetch, Catalog routing, exact `{ result, warnings }` response shaping, and client-visible error mapping
 - [x] 3.4 Reject incomplete parsing tasks, unsupported strategies, and invalid canonical-document contracts before model invocation
-- [x] 3.5 Replace the frontend extraction wrapper with the task-ID-based JSON request, wrap Studio's generated record template in a full schema envelope, and add one result-plus-warnings boundary decoder
+- [x] 3.5 Replace the frontend extraction wrapper with the task-ID-based JSON request, preserve caller-supplied full schema envelopes, adapt generated templates at their own boundary, and add one result-plus-warnings boundary decoder
 - [x] 3.6 Retain the completed parsing task ID in frontend state and pass it with the Extraction Schema and explicit Catalog strategy
 - [x] 3.7 Update extraction state and the Results tab to show the read-only schema-shaped result plus non-empty warnings without live raw model output
 - [x] 3.8 Add API tests with fake parsing-service and model responses for successful Burial Finds extraction, contract drift, incomplete tasks, strategy rejection, error mapping, and absence of Source Document uploads
@@ -37,7 +37,7 @@
 - [x] 4.2 Normalize text Evidence through canonical pages and spans with optional Evidence Anchors, splitting pinned `...` and `…`-glued snippets into contiguous entries
 - [x] 4.3 Normalize table Evidence against deterministic canonical `ParsedTable` and cell order while preserving the public `table_index` field
 - [x] 4.4 Add deterministic tests for nested Evidence, unresolved and resolved text grounding, ellipsis snippets, table-cell grounding, and nested `table_index`
-- [x] 4.5 Copy `collagen_extraction.json` with pinned-reference attribution and deterministic Article model output fixtures
+- [x] 4.5 Copy `collagen_extraction.json` verbatim into Studio's production `schemas/JournalArticles/` path with pinned-reference attribution and add deterministic Article model output fixtures
 - [x] 4.6 Add `api/_article.ts` with one whole-document model call followed by the shared conformance and Evidence path
 - [x] 4.7 Route `strategy: "article"` explicitly and prove collagen uses Article behavior despite also containing `record.entries`
 - [x] 4.8 Run a fresh parity review and scope review of the Evidence and Article slice, apply accepted in-scope fixes, and rerun Studio tests and build
@@ -48,3 +48,4 @@
 - [x] 5.2 Confirm production code adds no modules beyond `_catalog.ts` and `_article.ts` unless an approved cohesion split is documented
 - [x] 5.3 Run `pnpm --filter studio test` and `pnpm --filter studio build`
 - [x] 5.4 Run strict OpenSpec validation and verify every capability scenario has deterministic automated coverage or an explicitly opt-in live-model check
+- [ ] 5.5 Correct the researcher-facing schema path: expose the two pinned production schemas in Studio, default Burial Finds to Catalog, and regression-test that `requestExtraction` sends metadata and local Evidence unchanged

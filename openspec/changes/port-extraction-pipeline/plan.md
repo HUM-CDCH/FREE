@@ -87,7 +87,7 @@ prototype directory.
 
 ### Port now
 
-- `Burial_Finds.json` as the first schema fixture.
+- `Burial_Finds.json` as the first production pinned Extraction Schema, consumed directly by both Studio and the parity tests.
 - Catalog boundary detection, marker resolution, slicing, per-record extraction, one retry, and merge.
 - `_conform_to_schema` behavior.
 - Embedded local `_evidence`, including nested `fundliste` Evidence.
@@ -123,7 +123,7 @@ The first implementation supports only `strategy: "catalog"`. Article is added a
 
 ### Use the published ParsedDocument contract directly
 
-The browser sends an `application/json` body `{ taskId, schema, strategy }`, not the complete document and not a PDF. `schema` is always a full FREE Extraction Schema envelope with an object-valued `record` and `_schema_metadata`; Studio wraps its generated record template as `{ record: template, _schema_metadata: {} }`. The endpoint returns exactly `{ result, warnings }`, where `result` conforms to `schema.record`, warnings are ordered strings, and `boundary_fallback` is the only warning introduced here. The server fetches the completed document from the parsing service using `PARSING_SERVICE_URL`, then `VITE_PARSING_SERVICE_URL`, then `http://127.0.0.1:8000`.
+The browser sends an `application/json` body `{ taskId, schema, strategy }`, not the complete document and not a PDF. `schema` is always a full FREE Extraction Schema envelope with an object-valued `record` and `_schema_metadata`. For pinned parity extraction, Studio loads the verbatim schema from `prototypes/studio/schemas/<DocumentType>/<Schema>.json` and sends that envelope unchanged, preserving schema-local `_evidence` and metadata. The existing document-generated template path may adapt its record as `{ record: template, _schema_metadata: {} }`, but that legacy path is not a substitute for the pinned `Burial_Finds` outcome. The endpoint returns exactly `{ result, warnings }`, where `result` conforms to `schema.record`, warnings are ordered strings, and `boundary_fallback` is the only warning introduced here. The server fetches the completed document from the parsing service using `PARSING_SERVICE_URL`, then `VITE_PARSING_SERVICE_URL`, then `http://127.0.0.1:8000`.
 
 Do not invent an `ExtractionDocument` schema. At the HTTP boundary, validate only the `parsed_document.v1` fields extraction reads (`schema_version = "parsed_document.v1"`, served today by `GET /tasks/{task_id}/parsed-document`). Evidence Anchors are optional in v1 and currently have no producer; canonical page text and spans are the baseline grounding source.
 
@@ -190,7 +190,7 @@ Prefer changes to existing modules and at most two new production modules:
 
 ```text
 prototypes/studio/
-  src/api.ts                    # retain taskId; request extraction with a full schema envelope
+  src/api.ts                    # retain taskId; preserve and request extraction with a full schema envelope
   api/extract.ts                # validate request, fetch ParsedDocument, map errors
   api/_model.ts                 # expose one existing structured generation function
   api/_model_output.ts          # JSON repair + faithful recursive conformance
@@ -207,7 +207,7 @@ Add an API/server TypeScript configuration referenced by the Studio build. The c
 
 ### 1. Characterize and port the pure Catalog behavior
 
-- Copy `Burial_Finds.json` with attribution and pin the reference commit.
+- Copy `Burial_Finds.json` verbatim into Studio's production `schemas/FieldReports/` path with attribution and pin the reference commit; parity tests consume that same file.
 - Add a tiny two-record Markdown fixture and deterministic fake model responses.
 - Add server/API TypeScript type-checking.
 - Port recursive conformance and the pure boundary, slice, suspicious-record, retry-selection, merge, and deduplication behavior.
@@ -218,6 +218,8 @@ Add an API/server TypeScript configuration referenced by the Studio build. The c
 ### 2. Deliver Burial Finds end to end
 
 - Retain the parsing `taskId` in `src/api.ts`.
+- Let the researcher select the production pinned `FieldReports / Burial_Finds` schema and default that schema to the explicit Catalog strategy.
+- Pass the selected full envelope unchanged through frontend state and `requestExtraction`; do not reconstruct it from `record`.
 - Make `/api/extract` accept JSON `{ taskId, schema, strategy: "catalog" }`, reject non-envelope schemas, and fetch the canonical document server-side.
 - Select canonical LLM Markdown, pages, and tables from the shipped `parsed_document.v1` contract.
 - Reuse the current raw NuExtract renderer and JSON parser through one callable model function.

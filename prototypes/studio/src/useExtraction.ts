@@ -1,69 +1,130 @@
-import { useEffect, useRef, useState } from "react";
-import { requestExtraction, type ExtractionStrategy } from "./api";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	requestExtraction,
+	type ExtractionSchemaEnvelope,
+	type ExtractionStrategy,
+} from "./api";
 import type { ExtractionState } from "./extraction";
 
 type UseExtractionOptions = {
 	taskId: string | null;
-	template: unknown;
+	schema: ExtractionSchemaEnvelope | null;
 	schemaReady: boolean;
 	indexing: boolean;
+	strategy: ExtractionStrategy;
+	onStrategyChange: (strategy: ExtractionStrategy) => void;
 	onComplete: (isRerun: boolean) => void;
 	onError: (message: string) => void;
 };
+
+export type ExtractionIdentity = {
+	readonly taskId: string | null;
+	readonly schema: ExtractionSchemaEnvelope | null;
+	readonly strategy: ExtractionStrategy;
+};
+
+export type ExtractionSnapshot = ExtractionIdentity & {
+	readonly state: ExtractionState;
+};
+
+export function isCurrentExtractionInvocation(
+	invocation: ExtractionIdentity,
+	current: ExtractionIdentity,
+	aborted: boolean,
+): boolean {
+	return (
+		!aborted &&
+		invocation.taskId === current.taskId &&
+		invocation.schema === current.schema &&
+		invocation.strategy === current.strategy
+	);
+}
+
+export function projectExtractionState(
+	snapshot: ExtractionSnapshot,
+	identity: ExtractionIdentity,
+): ExtractionState {
+	return isCurrentExtractionInvocation(snapshot, identity, false)
+		? snapshot.state
+		: { status: "idle" };
+}
 
 export type ExtractionController = ReturnType<typeof useExtraction>;
 
 export function useExtraction({
 	taskId,
-	template,
+	schema,
 	schemaReady,
 	indexing,
+	strategy,
+	onStrategyChange,
 	onComplete,
 	onError,
 }: UseExtractionOptions) {
-	const [snapshot, setSnapshot] = useState<{
-		readonly taskId: string | null;
-		readonly state: ExtractionState;
-	}>({ taskId, state: { status: "idle" } });
-	const [strategy, setStrategy] = useState<ExtractionStrategy>("catalog");
+	const identity: ExtractionIdentity = { taskId, schema, strategy };
+	const currentIdentityRef = useRef(identity);
+	const [snapshot, setSnapshot] = useState<ExtractionSnapshot>({
+		...identity,
+		state: { status: "idle" },
+	});
 	const abortRef = useRef<AbortController | null>(null);
 
 	useEffect(() => () => abortRef.current?.abort(), []);
-	useEffect(() => {
+	useLayoutEffect(() => {
+		currentIdentityRef.current = { taskId, schema, strategy };
 		abortRef.current?.abort();
-	}, [taskId]);
+	}, [taskId, schema, strategy]);
 
-	const state: ExtractionState =
-		snapshot.taskId === taskId ? snapshot.state : { status: "idle" };
-	const setState = (next: ExtractionState) =>
-		setSnapshot({ taskId, state: next });
+	const state = projectExtractionState(snapshot, identity);
 	const hasResults = state.status === "ready";
 	const canRun =
-		Boolean(taskId) && schemaReady && state.status !== "running" && !indexing;
+		Boolean(taskId) &&
+		Boolean(schema) &&
+		schemaReady &&
+		state.status !== "running" &&
+		!indexing;
 
 	async function runExtraction() {
-		if (state.status === "running" || !taskId || !schemaReady) return;
+		if (state.status === "running" || !taskId || !schema || !schemaReady) return;
 		abortRef.current?.abort();
 		const abortController = new AbortController();
 		abortRef.current = abortController;
 		const isRerun = state.status === "ready";
-		setState({ status: "running" });
+		const invocation: ExtractionIdentity = { taskId, schema, strategy };
+		setSnapshot({ ...invocation, state: { status: "running" } });
 
 		try {
 			const { result, warnings } = await requestExtraction(
 				taskId,
-				template,
+				schema,
 				strategy,
 				abortController.signal,
 			);
-			if (abortController.signal.aborted) return;
-			setState({ status: "ready", result, warnings });
+			if (
+				!isCurrentExtractionInvocation(
+					invocation,
+					currentIdentityRef.current,
+					abortController.signal.aborted,
+				)
+			)
+				return;
+			setSnapshot({
+				...invocation,
+				state: { status: "ready", result, warnings },
+			});
 			onComplete(isRerun);
 		} catch (error) {
-			if (abortController.signal.aborted) return;
+			if (
+				!isCurrentExtractionInvocation(
+					invocation,
+					currentIdentityRef.current,
+					abortController.signal.aborted,
+				)
+			)
+				return;
 			const message =
 				error instanceof Error ? error.message : "Extraction failed.";
-			setState({ status: "error", message });
+			setSnapshot({ ...invocation, state: { status: "error", message } });
 			onError(message);
 		}
 	}
@@ -73,7 +134,7 @@ export function useExtraction({
 		canRun,
 		hasResults,
 		strategy,
-		setStrategy,
+		setStrategy: onStrategyChange,
 		runExtraction,
 	};
 }

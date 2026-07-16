@@ -20,7 +20,7 @@ function fixture<T>(name: string): T {
   }
 }
 
-const burial = fixture<ExtractionSchemaEnvelope>('Burial_Finds.json')
+const burial = fixture<ExtractionSchemaEnvelope>('../../schemas/FieldReports/Burial_Finds.json')
 const markdown = readFileSync(new URL('./test-fixtures/catalog-two-records.md', import.meta.url), 'utf8')
 const boundaries = fixture<Record<string, unknown>>('catalog-boundaries.json')
 const records = fixture<Record<string, unknown>[]>('catalog-records.json')
@@ -52,6 +52,20 @@ describe('Catalog pinned pure behavior', () => {
     expect(sections[0]?.text).toContain('# Grav 8')
     expect(sections[0]?.text).not.toContain('# Grav 13')
     expect(sections[1]?.text).toContain('# Grav 13')
+  })
+
+  it('keeps the first boundary when multiple records resolve to the same start', () => {
+    const duplicate = {
+      records: [
+        (boundaries.records as unknown[])[0],
+        { record_id: 'duplicate', start_marker: '# Grav 8' },
+        (boundaries.records as unknown[])[1],
+      ],
+    }
+
+    const sections = sliceCatalogSections(markdown, resolveCatalogBoundaries(markdown, duplicate))
+
+    expect(sections.map((section) => section.recordId)).toEqual(['8', '13'])
   })
 
   it('coerces scalar boundary markers like the pinned Python parser', () => {
@@ -108,6 +122,44 @@ describe('Catalog pinned pure behavior', () => {
 })
 
 describe('extractCatalog orchestration', () => {
+  it('propagates cancellation without retrying a record', async () => {
+    const controller = new AbortController()
+    const cancellation = new DOMException('cancelled', 'AbortError')
+    const generate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        records: [{ record_id: '8', start_marker: '# Grav 8', end_marker: '' }],
+      })
+      .mockImplementationOnce(async () => {
+        controller.abort(cancellation)
+        throw controller.signal.reason
+      })
+
+    await expect(
+      extractCatalog({
+        document: markdown,
+        schema: burial,
+        generate,
+        abortSignal: controller.signal,
+      }),
+    ).rejects.toBe(cancellation)
+    expect(generate).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects more than 100 resolved sections before making record calls', async () => {
+    const generate = vi.fn().mockResolvedValueOnce({
+      records: Array.from({ length: 101 }, (_, index) => ({
+        record_id: String(index),
+        start_index: index,
+      })),
+    })
+
+    await expect(
+      extractCatalog({ document: 'x'.repeat(101), schema: burial, generate }),
+    ).rejects.toThrow('maximum is 100')
+    expect(generate).toHaveBeenCalledTimes(1)
+  })
+
   it('falls back once to the whole document when no marker resolves', async () => {
     const generate = vi
       .fn()
@@ -122,8 +174,6 @@ describe('extractCatalog orchestration', () => {
 
     expect(extraction.warnings).toEqual(['boundary_fallback'])
     expect(generate).toHaveBeenCalledTimes(2)
-    expect(generate.mock.calls[0]?.[0].instructions).toContain('record.entries')
-    expect(generate.mock.calls[0]?.[0].instructions).not.toContain('record.entries[].fundliste')
     expect(generate.mock.calls[1]?.[0].document).toBe(markdown)
   })
 
@@ -145,7 +195,6 @@ describe('extractCatalog orchestration', () => {
     expect(generate).toHaveBeenCalledTimes(4)
     expect(entries.map((entry) => entry.Grav_id)).toEqual(['8', '13'])
     expect(extraction.warnings).toEqual([])
-    expect(generate.mock.calls[3]?.[0].instructions).toContain('STRICT RETRY')
   })
 
   it('retries duplicate fingerprints once', async () => {
@@ -179,10 +228,13 @@ describe('extractCatalog orchestration', () => {
       .mockResolvedValueOnce(records[0])
 
     const twoRowTable = markdown.replace('| 8-2 | Jernspænde |', '| 8-2 | Jernspænde |\n| 8-3 | Kniv |')
-    await extractCatalog({ document: twoRowTable, schema: burial, generate })
+    const extraction = await extractCatalog({ document: twoRowTable, schema: burial, generate })
 
     expect(generate).toHaveBeenCalledTimes(3)
-    expect(generate.mock.calls[2]?.[0].instructions).toContain('STRICT RETRY')
+    const entries = extraction.result.entries as Array<Record<string, unknown>>
+    expect(entries[0]?.fundliste).toEqual([
+      expect.objectContaining({ Fund_no: '8-2', Fund_beskrivelse: 'Jernspænde' }),
+    ])
   })
 
   it('uses Python container truthiness when deciding whether nested objects are empty', async () => {

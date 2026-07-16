@@ -55,9 +55,7 @@ function collectEvidence(resultValue: unknown, evidence: unknown, color: string,
 }
 
 function scalarText(value: unknown): string {
-  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
-    ? String(value).trim()
-    : ''
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 export function buildHighlights(result: Record<string, unknown>, colorMap: Record<string, string>): Highlight[] {

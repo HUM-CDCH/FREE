@@ -26,7 +26,7 @@ The port crosses the Studio browser/API boundary but does not change parsing. Pr
 
 ### Keep extraction in the Studio server runtime
 
-The browser sends an `application/json` body `{ taskId, schema, strategy }` to `prototypes/studio/api/extract.ts`. `schema` must be a full FREE Extraction Schema envelope with a `record` object and `_schema_metadata` object. Studio wraps its current generated record template in that envelope before sending it. The server fetches the completed canonical document, builds prompts, invokes the configured model, parses and conforms model output against `schema.record`, executes the selected strategy, and normalizes Evidence. Successful responses are exactly `{ result, warnings }`, where warnings are ordered strings and `boundary_fallback` is the only warning introduced by this change.
+The browser sends an `application/json` body `{ taskId, schema, strategy }` to `prototypes/studio/api/extract.ts`. `schema` must be a full FREE Extraction Schema envelope with a `record` object and `_schema_metadata` object. Pinned schemas live at the same `schemas/<DocumentType>/<Schema>.json` paths as the reference repository; Studio imports the verbatim files into its schema selector and preserves the selected envelope through extraction. The existing generated-template path adapts its template to an envelope at the schema-generation boundary, rather than `requestExtraction` discarding a caller's metadata. The server fetches the completed canonical document, builds prompts, invokes the configured model, parses and conforms model output against `schema.record`, executes the selected strategy, and normalizes Evidence. Successful responses are exactly `{ result, warnings }`, where warnings are ordered strings and `boundary_fallback` is the only warning introduced by this change.
 
 This keeps provider configuration out of the browser and keeps parsing/OCR in Python. Moving extraction into `parsing_service` was rejected because hierarchy, conformance, retry, merge, and Evidence transformations have no Python-only dependency once a `ParsedDocument` exists.
 
@@ -79,7 +79,7 @@ An API/server TypeScript configuration is referenced by the Studio build so `api
 
 ## Migration Plan
 
-1. Characterize and port pure Catalog behavior and recursive conformance with fixtures.
+1. Characterize and port pure Catalog behavior and recursive conformance with tests that consume the same pinned production schemas as Studio.
 2. Replace the browser extraction contract and deliver Burial Finds through the server endpoint.
 3. Complete canonical Evidence normalization and add Article extraction.
 4. Run Studio tests and build after every slice; keep live model smoke tests opt-in.

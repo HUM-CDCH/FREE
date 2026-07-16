@@ -10,6 +10,7 @@ import {
 	requestExtraction,
 	requestSchema,
 } from "./api";
+import { burialFindsPinnedSchema } from "./pinnedSchemas";
 
 function jsonResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
@@ -60,13 +61,17 @@ describe("requestExtraction", () => {
 			}),
 		);
 
-		await requestExtraction("task-1", { title: "" }, "catalog");
+		const { schema, strategy } = burialFindsPinnedSchema;
+		expect(schema.record.entries).toBeDefined();
+		expect(schema._schema_metadata["record.entries"]).toBeDefined();
+
+		await requestExtraction("task-1", schema, strategy);
 
 		expect(contentType).toBe("application/json");
 		expect(submitted).toEqual({
 			taskId: "task-1",
-			schema: { record: { title: "" }, _schema_metadata: {} },
-			strategy: "catalog",
+			schema,
+			strategy,
 		});
 		expect(JSON.stringify(submitted)).not.toContain("pdf");
 	});
@@ -81,9 +86,13 @@ describe("requestExtraction", () => {
 				),
 		);
 
-		await expect(requestExtraction("task-1", {}, "catalog")).rejects.toThrow(
-			"Model endpoint error: boom",
-		);
+		await expect(
+			requestExtraction(
+				"task-1",
+				{ record: {}, _schema_metadata: {} },
+				"catalog",
+			),
+		).rejects.toThrow("Model endpoint error: boom");
 	});
 });
 
@@ -100,7 +109,14 @@ describe("requestSchema", () => {
 			}),
 		);
 
-		await requestSchema(new Blob(["pdf"]), "report.pdf");
+		await expect(
+			requestSchema(new Blob(["pdf"]), "report.pdf"),
+		).resolves.toEqual({
+			name: "Generated from source document",
+			description: "",
+			record: {},
+			_schema_metadata: {},
+		});
 
 		expect(submittedUrl).toBe("/api/generate_schema");
 	});

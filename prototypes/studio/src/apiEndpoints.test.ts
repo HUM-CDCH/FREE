@@ -47,11 +47,13 @@ function extractionRequest(
     schema,
     strategy: 'catalog',
   },
+  signal?: AbortSignal,
 ): Request {
   return new Request('http://local.test/api/extract', {
     method: 'POST',
     body: JSON.stringify(body),
     headers: { 'content-type': 'application/json' },
+    signal,
   })
 }
 
@@ -76,6 +78,7 @@ function stubParsingService(body: unknown, status = 200): ReturnType<typeof vi.f
 }
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.clearAllMocks()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
@@ -107,8 +110,121 @@ describe('Vercel API endpoints', () => {
     })
     expect(fetchMock).toHaveBeenCalledWith('http://parser.test/tasks/task-1/parsed-document', {
       headers: { accept: 'application/json' },
+      signal: expect.any(AbortSignal),
     })
     expect(generateStructuredWithModel).toHaveBeenCalledTimes(2)
+  })
+
+  it('propagates browser cancellation to the canonical document request', async () => {
+    const controller = new AbortController()
+    let downstreamSignal: AbortSignal | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: RequestInit) => {
+        downstreamSignal = init?.signal ?? undefined
+        if (downstreamSignal === undefined) return Promise.reject(new Error('Missing cancellation signal.'))
+        return new Promise<Response>((_resolve, reject) => {
+          downstreamSignal?.addEventListener('abort', () => reject(downstreamSignal?.reason), { once: true })
+        })
+      }),
+    )
+
+    const pending = extractPost(extractionRequest(undefined, controller.signal))
+    await vi.waitFor(() => expect(downstreamSignal).toBeDefined())
+    controller.abort(new DOMException('cancelled', 'AbortError'))
+    await pending
+
+    expect(downstreamSignal?.aborted).toBe(true)
+  })
+
+  it('propagates browser cancellation to Article generation', async () => {
+    stubParsingService(canonicalDocument())
+    const controller = new AbortController()
+    let downstreamSignal: AbortSignal | undefined
+    vi.mocked(generateStructuredWithModel).mockImplementationOnce((input) => {
+      downstreamSignal = input.abortSignal
+      if (downstreamSignal === undefined) return Promise.reject(new Error('Missing cancellation signal.'))
+      return new Promise<Record<string, unknown>>((_resolve, reject) => {
+        downstreamSignal?.addEventListener('abort', () => reject(downstreamSignal?.reason), { once: true })
+      })
+    })
+
+    const pending = extractPost(
+      extractionRequest({ taskId: 'task-1', schema, strategy: 'article' }, controller.signal),
+    )
+    await vi.waitFor(() => expect(downstreamSignal).toBeDefined())
+    controller.abort(new DOMException('cancelled', 'AbortError'))
+    await pending
+
+    expect(downstreamSignal?.aborted).toBe(true)
+  })
+
+  it('maps the internal extraction deadline to 504', async () => {
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(
+      AbortSignal.abort(new DOMException('timed out', 'TimeoutError')),
+    )
+    stubParsingService(canonicalDocument())
+
+    const response = await extractPost(
+      extractionRequest({ taskId: 'task-1', schema, strategy: 'article' }),
+    )
+
+    expect(response.status).toBe(504)
+    await expect(response.json()).resolves.toEqual({ detail: 'Extraction timed out.' })
+    expect(generateStructuredWithModel).not.toHaveBeenCalled()
+  })
+
+  it('grounds Catalog table Evidence globally instead of trusting section-local table hints', async () => {
+    stubParsingService(
+      canonicalDocument({
+        tables: [
+          {
+            table_id: 'table-1',
+            page_number: 1,
+            cells: [
+              { row: 0, col: 0, text: 'ID', role: 'column_header' },
+              { row: 1, col: 0, text: 'other', role: 'data' },
+            ],
+          },
+          {
+            table_id: 'table-2',
+            page_number: 2,
+            cells: [
+              { row: 0, col: 0, text: 'ID', role: 'column_header' },
+              { row: 1, col: 0, text: 'target', role: 'data' },
+            ],
+          },
+        ],
+      }),
+    )
+    vi.mocked(generateStructuredWithModel)
+      .mockResolvedValueOnce({
+        records: [{ record_id: '1', start_marker: '# Item 1', end_marker: '' }],
+      })
+      .mockResolvedValueOnce({
+        id: 'target',
+        _evidence: {
+          id: {
+            snippets: ['| ID | target |'],
+            source_type: 'table',
+            page: 1,
+            table_index: 1,
+            row_index: 1,
+            col_index: 0,
+          },
+        },
+      })
+
+    const response = await extractPost(extractionRequest())
+    const body = await response.json()
+    const result = body.result as Record<string, unknown>
+    const entry = (result.entries as Array<Record<string, unknown>>)[0]
+    const evidence = (entry?._evidence as Record<string, Record<string, unknown>>).id
+
+    expect(response.status).toBe(200)
+    expect(evidence).toEqual(
+      expect.objectContaining({ page: 2, table_index: 2, row_index: 1, col_index: 0 }),
+    )
   })
 
   it('maps an incomplete parsing task and does not invoke the model', async () => {
@@ -171,8 +287,14 @@ describe('Vercel API endpoints', () => {
     const response = await extractPost(extractionRequest({ taskId: 'task-1', schema, strategy: 'article' }))
 
     expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      result: {
+        notes: 'article',
+        entries: [{ id: 'article-1', _evidence: {} }],
+      },
+      warnings: [],
+    })
     expect(generateStructuredWithModel).toHaveBeenCalledOnce()
-    expect(vi.mocked(generateStructuredWithModel).mock.calls[0]?.[0].instructions).toContain('Article')
   })
 
   it('POST /api/generate_schema returns the documented JSON shape', async () => {

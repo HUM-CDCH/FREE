@@ -1,81 +1,62 @@
 import { extractArticle } from "./_article.js";
-import { extractCatalog, type ExtractionSchemaEnvelope } from "./_catalog.js";
+import { extractCatalog } from "./_catalog.js";
 import {
 	normalizeEmbeddedEvidence,
 	type CanonicalEvidenceDocument,
 	type CanonicalEvidencePage,
 	type CanonicalEvidenceTable,
 } from "./_evidence_template.js";
+import { readExtractionRequest } from "./_extraction_request.js";
 import { json, modelError, RequestError } from "./_http.js";
-import { generateStructuredWithModel } from "./_model.js";
+import {
+	generateStructuredWithModel,
+	type StructuredModelInput,
+} from "./_model.js";
 
 const DEFAULT_PARSING_SERVICE_URL = "http://127.0.0.1:8000";
-
-type ExtractionStrategy = "catalog" | "article";
-
-type ExtractionRequest = {
-	readonly taskId: string;
-	readonly schema: ExtractionSchemaEnvelope;
-	readonly strategy: ExtractionStrategy;
-};
+const EXTRACTION_TIMEOUT_MS = 240_000;
 
 type CanonicalDocument = CanonicalEvidenceDocument & {
 	readonly markdown: string;
 };
 
 export async function POST(request: Request): Promise<Response> {
+	const timeoutSignal = AbortSignal.timeout(EXTRACTION_TIMEOUT_MS);
 	try {
-		const input = parseExtractionRequest(await requestJson(request));
-		const document = await fetchCanonicalDocument(input.taskId);
+		const abortSignal = AbortSignal.any([request.signal, timeoutSignal]);
+		const input = await readExtractionRequest(request);
+		abortSignal.throwIfAborted();
+		const document = await fetchCanonicalDocument(input.taskId, abortSignal);
+		const generate = (modelInput: StructuredModelInput) =>
+			generateStructuredWithModel({ ...modelInput, abortSignal });
 		const extraction =
 			input.strategy === "catalog"
 				? await extractCatalog({
 						document: document.markdown,
 						schema: input.schema,
-						generate: generateStructuredWithModel,
+						generate,
+						abortSignal,
 					})
 				: await extractArticle({
 						document: document.markdown,
 						schema: input.schema,
-						generate: generateStructuredWithModel,
+						generate,
 					});
 
 		return json({
-			result: normalizeEmbeddedEvidence(extraction.result, document),
+			result: normalizeEmbeddedEvidence(
+				extraction.result,
+				document,
+				input.strategy === "catalog" ? "section" : "document",
+			),
 			warnings: [...extraction.warnings],
 		});
 	} catch (error) {
+		if (timeoutSignal.aborted) {
+			return json({ detail: "Extraction timed out." }, { status: 504 });
+		}
 		return modelError(error);
 	}
-}
-
-function parseExtractionRequest(value: unknown): ExtractionRequest {
-	if (!isRecord(value))
-		throw new RequestError(400, "Request body must be a JSON object.");
-	const taskId = typeof value.taskId === "string" ? value.taskId.trim() : "";
-	if (!taskId)
-		throw new RequestError(400, "taskId must be a non-empty string.");
-	if (value.strategy !== "catalog" && value.strategy !== "article") {
-		throw new RequestError(400, "strategy must be 'catalog' or 'article'.");
-	}
-	if (
-		!isRecord(value.schema) ||
-		!isRecord(value.schema.record) ||
-		!isRecord(value.schema._schema_metadata)
-	) {
-		throw new RequestError(
-			400,
-			"schema must be a full Extraction Schema envelope with object fields record and _schema_metadata.",
-		);
-	}
-	return {
-		taskId,
-		schema: {
-			record: value.schema.record,
-			_schema_metadata: value.schema._schema_metadata,
-		},
-		strategy: value.strategy,
-	};
 }
 
 function parseCanonicalDocument(value: unknown): CanonicalDocument {
@@ -133,6 +114,7 @@ function parseCanonicalDocument(value: unknown): CanonicalDocument {
 
 async function fetchCanonicalDocument(
 	taskId: string,
+	abortSignal: AbortSignal,
 ): Promise<CanonicalDocument> {
 	const baseUrl = parsingServiceUrl();
 	let response: Response;
@@ -141,9 +123,11 @@ async function fetchCanonicalDocument(
 			`${baseUrl}/tasks/${encodeURIComponent(taskId)}/parsed-document`,
 			{
 				headers: { accept: "application/json" },
+				signal: abortSignal,
 			},
 		);
 	} catch (error) {
+		abortSignal.throwIfAborted();
 		throw new RequestError(
 			502,
 			`Could not reach the parsing service: ${error instanceof Error ? error.message : "request failed"}`,
@@ -163,25 +147,6 @@ async function fetchCanonicalDocument(
 		throw new RequestError(status, detail);
 	}
 	return parseCanonicalDocument(body);
-}
-
-async function requestJson(request: Request): Promise<unknown> {
-	if (
-		!request.headers
-			.get("content-type")
-			?.toLowerCase()
-			.includes("application/json")
-	) {
-		throw new RequestError(415, "Content-Type must be application/json.");
-	}
-	try {
-		return await request.json();
-	} catch (error) {
-		throw new RequestError(
-			400,
-			`Request body is not valid JSON: ${error instanceof Error ? error.message : "parse failed"}`,
-		);
-	}
 }
 
 function parsePage(value: unknown, index: number): CanonicalEvidencePage {

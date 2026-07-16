@@ -201,6 +201,131 @@ describe('normalizeEmbeddedEvidence', () => {
     expect(evidence).toEqual(expect.objectContaining({ table_index: 1, row_index: 1, col_index: 1 }))
   })
 
+  it('ignores section-local table and page hints when grounding against canonical tables', () => {
+    const sectionDocument: CanonicalEvidenceDocument = {
+      ...document,
+      tables: [
+        ...document.tables,
+        {
+          table_id: 'table-2',
+          page_number: 3,
+          cells: [
+            { row: 0, col: 0, text: 'Parameter', role: 'column_header' },
+            { row: 0, col: 1, text: 'Value', role: 'column_header' },
+            { row: 1, col: 0, text: 'Length', role: 'row_header' },
+            { row: 1, col: 1, text: '99', role: 'data' },
+          ],
+        },
+      ],
+    }
+
+    const normalized = normalizeEmbeddedEvidence(
+      {
+        length: 99,
+        _evidence: {
+          length: {
+            snippets: ['| Length | 99 |'],
+            source_type: 'table',
+            page: 2,
+            table_index: 1,
+            row_index: 1,
+            col_index: 1,
+          },
+        },
+      },
+      sectionDocument,
+      'section',
+    )
+
+    expect((normalized._evidence as Record<string, Record<string, unknown>>).length).toEqual(
+      expect.objectContaining({ page: 3, table_index: 2, row_index: 1, col_index: 1 }),
+    )
+  })
+
+  it('uses section table semantics when coordinates and values are shared', () => {
+    const sharedValueDocument: CanonicalEvidenceDocument = {
+      ...document,
+      tables: [
+        {
+          table_id: 'table-1',
+          page_number: 2,
+          cells: [
+            { row: 1, col: 0, text: 'Width', role: 'row_header' },
+            { row: 1, col: 1, text: '42', role: 'data' },
+          ],
+        },
+        {
+          table_id: 'table-2',
+          page_number: 3,
+          cells: [
+            { row: 1, col: 0, text: 'Length', role: 'row_header' },
+            { row: 1, col: 1, text: '42', role: 'data' },
+          ],
+        },
+      ],
+    }
+
+    const normalized = normalizeEmbeddedEvidence(
+      {
+        length: 42,
+        _evidence: {
+          length: {
+            snippets: ['| Length | 42 |'],
+            source_type: 'table',
+            page: 2,
+            table_index: 1,
+            row_index: 1,
+            col_index: 1,
+          },
+        },
+      },
+      sharedValueDocument,
+      'section',
+    )
+
+    expect((normalized._evidence as Record<string, Record<string, unknown>>).length).toEqual(
+      expect.objectContaining({ page: 3, table_index: 2, row_index: 1, col_index: 1 }),
+    )
+  })
+
+  it('honors valid document-scoped table and page hints by default', () => {
+    const documentWithTwoTables: CanonicalEvidenceDocument = {
+      ...document,
+      tables: [
+        ...document.tables,
+        {
+          table_id: 'table-2',
+          page_number: 3,
+          cells: [
+            { row: 1, col: 0, text: 'Length', role: 'row_header' },
+            { row: 1, col: 1, text: '42', role: 'data' },
+          ],
+        },
+      ],
+    }
+
+    const normalized = normalizeEmbeddedEvidence(
+      {
+        length: 42,
+        _evidence: {
+          length: {
+            snippets: ['| Length | 42 |'],
+            source_type: 'table',
+            page: 3,
+            table_index: 2,
+            row_index: 1,
+            col_index: 1,
+          },
+        },
+      },
+      documentWithTwoTables,
+    )
+
+    expect((normalized._evidence as Record<string, Record<string, unknown>>).length).toEqual(
+      expect.objectContaining({ page: 3, table_index: 2, row_index: 1, col_index: 1 }),
+    )
+  })
+
   it('leaves unresolved Evidence schema-shaped without inventing a location', () => {
     const normalized = normalizeEmbeddedEvidence(
       {
@@ -218,6 +343,68 @@ describe('normalizeEmbeddedEvidence', () => {
 
     expect((normalized._evidence as Record<string, Record<string, unknown>>).note).toEqual(
       expect.objectContaining({ source_type: '', page: null }),
+    )
+  })
+
+  it('clears a stale page when text Evidence cannot be resolved', () => {
+    const normalized = normalizeEmbeddedEvidence(
+      {
+        note: 'missing',
+        _evidence: {
+          note: {
+            snippets: ['not in canonical document'],
+            inferred: false,
+            source_type: 'text',
+            page: 99,
+          },
+        },
+      },
+      document,
+    )
+
+    expect((normalized._evidence as Record<string, Record<string, unknown>>).note).toEqual(
+      expect.objectContaining({
+        snippets: ['not in canonical document'],
+        inferred: false,
+        source_type: 'text',
+        page: null,
+      }),
+    )
+  })
+
+  it('clears stale locations when table Evidence cannot be resolved', () => {
+    const normalized = normalizeEmbeddedEvidence(
+      {
+        note: 'missing',
+        _evidence: {
+          note: {
+            snippets: ['not in canonical document'],
+            inferred: true,
+            source_type: 'table',
+            page: 99,
+            table_index: 99,
+            row_index: 50,
+            col_index: 50,
+            row_header_text: 'stale row',
+            column_header_text: 'stale column',
+          },
+        },
+      },
+      document,
+    )
+
+    expect((normalized._evidence as Record<string, Record<string, unknown>>).note).toEqual(
+      expect.objectContaining({
+        snippets: ['not in canonical document'],
+        inferred: true,
+        source_type: 'table',
+        page: null,
+        table_index: null,
+        row_index: null,
+        col_index: null,
+        row_header_text: '',
+        column_header_text: '',
+      }),
     )
   })
 })

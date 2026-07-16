@@ -10,9 +10,10 @@ import { ACTIVE_DOC } from "./ProjectNav";
 import RightRail from "./RightRail";
 import type { RailTab } from "./RightRail";
 import type { TemplateState } from "./SchemaPanel";
-import { countTemplateFields } from "./template";
+import { countTemplateFields, isRecord } from "./template";
 import { requestSchema, parseDocumentToMarkdown } from "./api";
-import type { AnnotationsMode } from "./api";
+import type { AnnotationsMode, ExtractionStrategy } from "./api";
+import { defaultPinnedSchema, pinnedSchemas } from "./pinnedSchemas";
 import { useExtraction } from "./useExtraction";
 import EvidenceHighlightLayer from "./EvidenceHighlightLayer";
 import { Button } from "./ui";
@@ -115,8 +116,14 @@ function App() {
 	);
 	const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
 	const [templateState, setTemplateState] = useState<TemplateState>({
-		status: "idle",
+		status: "ready",
+		schema: defaultPinnedSchema.schema,
+		inputsKey: "",
+		source: "pinned",
+		pinnedSchemaId: defaultPinnedSchema.id,
 	});
+	const [extractionStrategy, setExtractionStrategy] =
+		useState<ExtractionStrategy>(defaultPinnedSchema.strategy);
 	const [annotationsMode, setAnnotationsMode] =
 		useState<AnnotationsMode>("hints");
 	const [navOpen, setNavOpen] = useState(true);
@@ -166,10 +173,20 @@ function App() {
 		if (pdfSource?.url.startsWith("blob:")) {
 			URL.revokeObjectURL(pdfSource.url);
 		}
+		templateAbortRef.current?.abort();
 		setPdfSource({ url: URL.createObjectURL(file), filename: file.name });
 		setDocIndex({ status: "parsing" });
 		setAnnotationItems([]);
-		setTemplateState({ status: "idle" });
+		if (templateState.status !== "ready" || templateState.source !== "pinned") {
+			setTemplateState({
+				status: "ready",
+				schema: defaultPinnedSchema.schema,
+				inputsKey: "",
+				source: "pinned",
+				pinnedSchemaId: defaultPinnedSchema.id,
+			});
+			setExtractionStrategy(defaultPinnedSchema.strategy);
+		}
 		event.target.value = "";
 	}
 
@@ -417,7 +434,7 @@ function App() {
 
 		try {
 			const pdfBlob = await localPdfBlob(pdfSource.url, abortController.signal);
-			const template = await requestSchema(
+			const schema = await requestSchema(
 				pdfBlob,
 				pdfSource.filename,
 				abortController.signal,
@@ -431,7 +448,12 @@ function App() {
 				},
 			);
 			if (!abortController.signal.aborted) {
-				setTemplateState({ status: "ready", template, inputsKey });
+				setTemplateState({
+					status: "ready",
+					schema,
+					inputsKey,
+					source: "generated",
+				});
 			}
 		} catch (error) {
 			if (abortController.signal.aborted) {
@@ -446,10 +468,32 @@ function App() {
 	}
 
 	function changeTemplate(template: unknown, message: string) {
+		if (!isRecord(template)) return;
 		setTemplateState((state) =>
-			state.status === "ready" ? { ...state, template, edited: true } : state,
+			state.status === "ready" && state.source === "generated"
+				? {
+						...state,
+						schema: { ...state.schema, record: template },
+						edited: true,
+					}
+				: state,
 		);
 		showToast(message);
+	}
+
+	function selectPinnedSchema(id: string) {
+		const selected = pinnedSchemas.find((schema) => schema.id === id);
+		if (!selected) return;
+		templateAbortRef.current?.abort();
+		setTemplateState({
+			status: "ready",
+			schema: selected.schema,
+			inputsKey: "",
+			source: "pinned",
+			pinnedSchemaId: selected.id,
+		});
+		setExtractionStrategy(selected.strategy);
+		showToast(`Using ${selected.domain} / ${selected.name}`);
 	}
 
 	function startResize(event: React.MouseEvent, side: "nav" | "rail") {
@@ -484,16 +528,21 @@ function App() {
 	};
 
 	const schemaReady = templateState.status === "ready";
-	const schemaTemplate =
-		templateState.status === "ready" ? templateState.template : null;
+	const extractionSchema =
+		templateState.status === "ready" ? templateState.schema : null;
+	const selectedPinnedSchemaId =
+		templateState.status === "ready" && templateState.source === "pinned"
+			? (templateState.pinnedSchemaId ?? null)
+			: null;
 
 	const schemaFieldCount =
 		templateState.status === "ready"
-			? countTemplateFields(templateState.template)
+			? countTemplateFields(templateState.schema.record)
 			: 0;
 
 	const schemaStale =
 		templateState.status === "ready" &&
+		templateState.source === "generated" &&
 		templateState.inputsKey !==
 			annotationInputsKey(annotationItems, annotationsMode);
 
@@ -509,9 +558,11 @@ function App() {
 
 	const extraction = useExtraction({
 		taskId: parsingTaskId,
-		template: schemaTemplate,
+		schema: extractionSchema,
 		schemaReady,
 		indexing,
+		strategy: extractionStrategy,
+		onStrategyChange: setExtractionStrategy,
 		onComplete: (isRerun) => {
 			setRailTab("results");
 			showToast(
@@ -666,7 +717,9 @@ function App() {
 							}
 							containerEl={containerEl}
 							schema={
-								templateState.status === "ready" ? templateState.template : null
+								templateState.status === "ready"
+									? templateState.schema.record
+									: null
 							}
 						/>
 					</div>
@@ -740,6 +793,9 @@ function App() {
 						schemaState={templateState}
 						schemaStale={schemaStale}
 						schemaReady={schemaReady}
+						pinnedSchemas={pinnedSchemas}
+						selectedPinnedSchemaId={selectedPinnedSchemaId}
+						onSelectPinnedSchema={selectPinnedSchema}
 						schemaFieldCount={schemaFieldCount}
 						onGenerate={() => void generateSchema()}
 						onTemplateChange={changeTemplate}

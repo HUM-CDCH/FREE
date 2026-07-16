@@ -24,6 +24,13 @@ export type CanonicalEvidenceDocument = {
 	readonly anchors: readonly Record<string, unknown>[];
 };
 
+export type EvidenceTableLocationScope = "document" | "section";
+
+type EvidenceNormalizationContext = {
+	readonly document: CanonicalEvidenceDocument;
+	readonly tableLocationScope: EvidenceTableLocationScope;
+};
+
 const TABLE_NUMBER_FIELDS = ["table_index", "row_index", "col_index"] as const;
 const TABLE_TEXT_FIELDS = ["row_header_text", "column_header_text"] as const;
 const ELLIPSIS = /\s*(?:\.{3,}|…)\s*/;
@@ -31,18 +38,19 @@ const ELLIPSIS = /\s*(?:\.{3,}|…)\s*/;
 export function normalizeEmbeddedEvidence(
 	result: Record<string, unknown>,
 	document: CanonicalEvidenceDocument,
+	tableLocationScope: EvidenceTableLocationScope = "document",
 ): Record<string, unknown> {
 	const normalized = structuredClone(result);
-	normalizeNode(normalized, document);
+	normalizeNode(normalized, { document, tableLocationScope });
 	return normalized;
 }
 
 function normalizeNode(
 	node: unknown,
-	document: CanonicalEvidenceDocument,
+	context: EvidenceNormalizationContext,
 ): void {
 	if (Array.isArray(node)) {
-		node.forEach((item) => normalizeNode(item, document));
+		node.forEach((item) => normalizeNode(item, context));
 		return;
 	}
 	if (!isRecord(node)) return;
@@ -50,57 +58,60 @@ function normalizeNode(
 	const evidence = node._evidence;
 	if (isRecord(evidence)) {
 		for (const [field, evidenceNode] of Object.entries(evidence)) {
-			normalizeEvidenceTree(evidenceNode, node[field], document);
+			normalizeEvidenceTree(evidenceNode, node[field], context);
 		}
 	}
 
 	for (const [key, value] of Object.entries(node)) {
-		if (key !== "_evidence") normalizeNode(value, document);
+		if (key !== "_evidence") normalizeNode(value, context);
 	}
 }
 
 function normalizeEvidenceTree(
 	evidence: unknown,
 	fieldValue: unknown,
-	document: CanonicalEvidenceDocument,
+	context: EvidenceNormalizationContext,
 ): void {
 	if (!isRecord(evidence)) return;
 	if (isEvidenceLeaf(evidence)) {
-		normalizeEvidenceLeaf(evidence, fieldValue, document);
+		normalizeEvidenceLeaf(evidence, fieldValue, context);
 		return;
 	}
 	for (const child of Object.values(evidence)) {
-		normalizeEvidenceTree(child, fieldValue, document);
+		normalizeEvidenceTree(child, fieldValue, context);
 	}
 }
 
 function normalizeEvidenceLeaf(
 	evidence: Record<string, unknown>,
 	fieldValue: unknown,
-	document: CanonicalEvidenceDocument,
+	context: EvidenceNormalizationContext,
 ): void {
 	evidence.snippets = splitSnippets(evidence.snippets);
 	const sourceType = stringValue(evidence.source_type).trim().toLowerCase();
 
 	if (sourceType === "text") {
 		clearTableFields(evidence);
-		const page = resolveTextPage(evidence.snippets, document);
-		if (page !== null) evidence.page = page;
+		evidence.page = resolveTextPage(evidence.snippets, context.document);
 		return;
 	}
 
-	const tableMatch = findTableMatch(evidence, fieldValue, document.tables);
+	const tableMatch = findTableMatch(evidence, fieldValue, context);
 	if (tableMatch) {
 		Object.assign(evidence, tableMatch);
 		return;
 	}
 
-	const page = resolveTextPage(evidence.snippets, document);
+	const page = resolveTextPage(evidence.snippets, context.document);
 	if (page !== null && sourceType !== "table") {
 		evidence.source_type = "text";
 		evidence.page = page;
 		clearTableFields(evidence);
+		return;
 	}
+
+	evidence.page = null;
+	clearTableFields(evidence);
 }
 
 function splitSnippets(value: unknown): string[] {
@@ -176,13 +187,17 @@ function pageFromAnchors(
 function findTableMatch(
 	evidence: Record<string, unknown>,
 	fieldValue: unknown,
-	tables: readonly CanonicalEvidenceTable[],
+	normalizationContext: EvidenceNormalizationContext,
 ): Record<string, unknown> | null {
 	const sourceType = stringValue(evidence.source_type).trim().toLowerCase();
 	if (sourceType === "text") return null;
 
-	const hintedTable = positiveInteger(evidence.table_index);
-	const hintedPage = positiveInteger(evidence.page);
+	const modelTable = positiveInteger(evidence.table_index);
+	const modelPage = positiveInteger(evidence.page);
+	const hintedTable =
+		normalizationContext.tableLocationScope === "document" ? modelTable : null;
+	const hintedPage =
+		normalizationContext.tableLocationScope === "document" ? modelPage : null;
 	const hintedRow = nonNegativeInteger(evidence.row_index);
 	const hintedCol = nonNegativeInteger(evidence.col_index);
 	const snippets = Array.isArray(evidence.snippets)
@@ -195,13 +210,14 @@ function findTableMatch(
 		.filter((tokens) => tokens.length > 0);
 	const shouldMatch =
 		sourceType === "table" ||
-		hintedTable !== null ||
+		modelTable !== null ||
+		modelPage !== null ||
 		hintedRow !== null ||
 		hintedCol !== null ||
 		tableTokens.length > 0;
 	if (!shouldMatch) return null;
 
-	const contexts = tables.map((table, index) => ({
+	const contexts = normalizationContext.document.tables.map((table, index) => ({
 		table,
 		tableIndex: index + 1,
 	}));
@@ -220,9 +236,13 @@ function findTableMatch(
 		readonly score: number;
 	}> = [];
 
-	if (hintedTable !== null && hintedRow !== null && hintedCol !== null) {
+	if (
+		hintedTable !== null &&
+		hintedRow !== null &&
+		hintedCol !== null
+	) {
 		for (const context of selectedContexts) {
-			if (context.tableIndex !== hintedTable) continue;
+			if (hintedTable !== null && context.tableIndex !== hintedTable) continue;
 			const cell = context.table.cells.find(
 				(candidate) =>
 					candidate.row === hintedRow && candidate.col === hintedCol,
@@ -254,6 +274,12 @@ function findTableMatch(
 					let score = overlap * 5;
 					if (fieldText) score += fieldText === cellText ? 6 : 3;
 					if (cell.role === "data") score += 1;
+					if (
+						normalizationContext.tableLocationScope === "section" &&
+						hintedRow === cell.row &&
+						hintedCol === cell.col
+					)
+						score += 2;
 					if (hintedTable === context.tableIndex) score += 2;
 					if (hintedPage === context.table.page_number) score += 1;
 					candidates.push({ ...context, cell, score });
@@ -264,7 +290,7 @@ function findTableMatch(
 
 	if (
 		fieldText &&
-		(sourceType === "table" || hintedTable !== null || hintedPage !== null)
+		(sourceType === "table" || modelTable !== null || modelPage !== null)
 	) {
 		for (const context of selectedContexts) {
 			for (const cell of context.table.cells) {
@@ -273,6 +299,12 @@ function findTableMatch(
 				let score = 9;
 				if (fieldText === cellText) score += 2;
 				if (cell.role === "data") score += 1;
+				if (
+					normalizationContext.tableLocationScope === "section" &&
+					hintedRow === cell.row &&
+					hintedCol === cell.col
+				)
+					score += 2;
 				if (hintedTable === context.tableIndex) score += 2;
 				if (hintedPage === context.table.page_number) score += 1;
 				candidates.push({ ...context, cell, score });

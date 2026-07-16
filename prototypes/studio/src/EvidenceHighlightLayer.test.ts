@@ -47,4 +47,19 @@ describe('buildHighlights', () => {
       { value: '8', snippet: 'Grav 8', hintPage: null, color: 'yellow' },
     ])
   })
+
+  it('does not highlight non-string leaves even when they have Evidence', () => {
+    const result = {
+      count: 7,
+      verified: true,
+      missing: null,
+      _evidence: {
+        count: { snippets: ['seven'] },
+        verified: { snippets: ['verified'] },
+        missing: { snippets: ['missing'] },
+      },
+    }
+
+    expect(buildHighlights(result, { count: 'yellow', verified: 'blue', missing: 'green' })).toEqual([])
+  })
 })

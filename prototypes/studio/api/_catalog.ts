@@ -32,6 +32,7 @@ export type CatalogExtraction = {
 };
 
 const PAGE_BREAK = "\n\n---\n\n";
+const MAX_CATALOG_SECTIONS = 100;
 const BOUNDARY_SCHEMA = {
 	records: [
 		{
@@ -137,7 +138,14 @@ export function resolveCatalogBoundaries(
 		});
 	});
 
-	return resolved.sort((left, right) => left.startIndex - right.startIndex);
+	const seenStarts = new Set<number>();
+	return resolved
+		.sort((left, right) => left.startIndex - right.startIndex)
+		.filter((boundary) => {
+			if (seenStarts.has(boundary.startIndex)) return false;
+			seenStarts.add(boundary.startIndex);
+			return true;
+		});
 }
 
 export function sliceCatalogSections(
@@ -198,10 +206,12 @@ export async function extractCatalog({
 	document,
 	schema,
 	generate,
+	abortSignal,
 }: {
 	readonly document: string;
 	readonly schema: ExtractionSchemaEnvelope;
 	readonly generate: StructuredGenerator;
+	readonly abortSignal?: AbortSignal;
 }): Promise<CatalogExtraction> {
 	const selected = inferPrimaryRepeatedArray(
 		schema.record,
@@ -225,6 +235,11 @@ export async function extractCatalog({
 		instructions: boundaryInstructions(schema, selected.key),
 	});
 	const resolved = resolveCatalogBoundaries(document, boundaryResult);
+	if (resolved.length > MAX_CATALOG_SECTIONS) {
+		throw new RangeError(
+			`Catalog section count ${resolved.length} exceeds the limit; maximum is ${MAX_CATALOG_SECTIONS}`,
+		);
+	}
 	const usedFallback = resolved.length === 0;
 	const sections = usedFallback
 		? [fallbackSection(document)]
@@ -245,6 +260,7 @@ export async function extractCatalog({
 			});
 			items.push(asRecord(conformToSchema(generated, selected.itemSchema)));
 		} catch {
+			abortSignal?.throwIfAborted();
 			items.push(asRecord(conformToSchema({}, selected.itemSchema)));
 			failed.add(index);
 		}
@@ -266,6 +282,7 @@ export async function extractCatalog({
 			});
 			items[index] = asRecord(conformToSchema(generated, selected.itemSchema));
 		} catch {
+			abortSignal?.throwIfAborted();
 			// Reference behavior keeps the first failed/conformed value after retry exhaustion.
 		}
 	}
@@ -404,7 +421,7 @@ function itemInstructions(
 		"Extract exactly one primary record from this document section. Match the supplied item schema exactly and return one JSON object only.",
 		"Use only facts in the document section. Metadata descriptions and their examples are guidance, never source values: do not copy example identifiers or values from metadata.",
 		`Metadata: ${JSON.stringify(metadata)}`,
-		"Restore every schema key, fully enumerate nested arrays, preserve schema-local _evidence, and do not add or rename keys.",
+		"Restore every schema key and fully enumerate nested arrays. Populate every schema-declared local _evidence slot from the supplied section text, following the Evidence shape declared in the schema. Do not add, rename, or create undeclared keys or evidence slots.",
 		retry
 			? "STRICT RETRY: the previous result failed or was suspicious. Re-read the section and do not return an almost-empty record."
 			: null,
@@ -417,7 +434,7 @@ function wholeRecordInstructions(metadata: Record<string, unknown>): string {
 	return [
 		"Extract one whole-document record matching the supplied record schema.",
 		`Metadata: ${JSON.stringify(metadata)}`,
-		"Use only the document and preserve schema-local _evidence.",
+		"Use only the supplied document. Populate every schema-declared local _evidence slot from the supplied source text, following the Evidence shape declared in the schema. Do not create undeclared evidence slots.",
 	].join("\n\n");
 }
 

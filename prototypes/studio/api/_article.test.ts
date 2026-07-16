@@ -14,7 +14,9 @@ function fixture<T>(name: string): T {
 
 describe('extractArticle', () => {
   it('uses one whole-document call and conforms collagen without inferring Catalog from entries', async () => {
-    const schema = fixture<ExtractionSchemaEnvelope>('collagen_extraction.json')
+    const schema = fixture<ExtractionSchemaEnvelope>(
+      '../../schemas/JournalArticles/collagen_extraction.json',
+    )
     const generated = fixture<Record<string, unknown>>('article-result.json')
     const generate = vi.fn().mockResolvedValue(generated)
 

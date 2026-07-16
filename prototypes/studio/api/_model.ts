@@ -46,6 +46,7 @@ export type StructuredModelInput = {
 	readonly schema: Record<string, unknown>;
 	readonly instructions: string;
 	readonly temperature?: number;
+	readonly abortSignal?: AbortSignal;
 };
 
 type DocumentContentPart =
@@ -93,6 +94,7 @@ export async function generateStructuredWithModel({
 	schema,
 	instructions,
 	temperature,
+	abortSignal,
 }: StructuredModelInput): Promise<Record<string, unknown>> {
 	const documentParts: readonly DocumentContentPart[] = [
 		{ type: "text", text: document },
@@ -106,6 +108,7 @@ export async function generateStructuredWithModel({
 					request: `${instructions}\n\nExtraction Schema:\n${JSON.stringify(schema, null, 2)}`,
 					documentParts,
 					temperature,
+					abortSignal,
 				})
 			: await generateWithNuExtractRawPrompt({
 					mode: "structured",
@@ -113,6 +116,7 @@ export async function generateStructuredWithModel({
 					instructions: instructions.trim() || null,
 					documentParts,
 					temperature,
+					abortSignal,
 				});
 
 	return parseExtractionResult(generated.response, schema);
@@ -162,11 +166,13 @@ async function generateWithGenericJsonPrompt({
 	request,
 	documentParts,
 	temperature,
+	abortSignal,
 }: {
 	readonly instructions: string;
 	readonly request: string;
 	readonly documentParts: readonly DocumentContentPart[];
 	readonly temperature?: number;
+	readonly abortSignal?: AbortSignal;
 }): Promise<{ readonly response: string }> {
 	const model = resolveModel();
 	const generated = await generateText({
@@ -185,6 +191,7 @@ async function generateWithGenericJsonPrompt({
 				],
 			},
 		],
+		abortSignal,
 		// Codex CLI does not support temperature and warns even when the caller supplies one.
 		...(model.provider === "codex-app-server"
 			? {}
@@ -199,12 +206,14 @@ async function generateWithNuExtractRawPrompt({
 	instructions,
 	documentParts,
 	temperature,
+	abortSignal,
 }: {
 	readonly mode: NuExtractMode;
 	readonly template?: string;
 	readonly instructions: string | null;
 	readonly documentParts: readonly DocumentContentPart[];
 	readonly temperature?: number;
+	readonly abortSignal?: AbortSignal;
 }): Promise<{ readonly response: string }> {
 	const rendered = renderNuExtractPrompt({
 		mode,
@@ -215,6 +224,7 @@ async function generateWithNuExtractRawPrompt({
 	const response = await fetch(ollamaGenerateUrl(), {
 		method: "POST",
 		headers: ollamaHeaders(),
+		signal: abortSignal,
 		body: JSON.stringify({
 			model: process.env.AI_MODEL || DEFAULT_MODEL,
 			prompt: rendered.prompt,
