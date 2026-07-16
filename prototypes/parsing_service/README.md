@@ -22,8 +22,8 @@ the stable `ocr_fallback_unavailable` diagnostic.
 
 Production ingestion uses one canonical source-document pipeline:
 
-1. Accept one PDF upload or URL.
-2. Validate PDF content, byte limits, task UUIDs, and URL SSRF constraints.
+1. Accept one uploaded PDF Source Document.
+2. Validate PDF content, byte limits, and task UUIDs.
 3. Persist the source by content hash as `data/sources/{sha256}.pdf`; the
    task-local `source.pdf` is hard-linked to that immutable blob when supported.
 4. Inspect the PDF with PyMuPDF for page count, geometry, native text quality,
@@ -57,7 +57,7 @@ app/
   main.py               FastAPI app factory
   api/                  HTTP routes (tasks, documents, artifacts, system)
   models/               Pydantic contracts and parser provenance
-  ingestion/            upload handling, SSRF-safe URL fetch, PDF validation
+  ingestion/            upload handling and PDF validation
   storage/              hashing, safe paths, blobs, atomic writes, manifests
   parsing/              Docling runner, simplifier, orchestrator, adapters
   workers/              background ingestion worker, GPU detection
@@ -91,15 +91,13 @@ app/
 
 ## Ingestion guarantees
 
-`POST /tasks` accepts either one PDF upload or a remote PDF URL. The service
-keeps these protections:
+`POST /tasks` accepts one uploaded PDF Source Document. The service keeps these
+protections:
 
-- upload and URL byte limits plus a total URL-download deadline;
+- an exact 50 MiB streaming upload limit;
 - `%PDF-` magic validation and MIME hints;
 - sanitized display filenames only;
 - content-addressed source storage;
-- public `http`/`https` URL validation, per-hop IP pinning against DNS
-  rebinding, redirect checks, timeout, and streaming size limits;
 - UUID-only task paths;
 - page/render preflight limits before full text extraction and bounded parser
   admission;

@@ -409,12 +409,6 @@ class TestService(unittest.TestCase):
         with fitz.open(source_path) as document:
             return FakeDoclingDocument(document.page_count)
 
-    def _fake_threadpool_download(self, func, *args, **kwargs):
-        if args and len(args) >= 2 and str(args[1]).endswith("source.pdf"):
-            self._write_bytes(args[1], PDF_BYTES)
-            return None
-        return func(*args, **kwargs)
-
     def tearDown(self):
         self._table_patcher.stop()
         self._docling_patcher.stop()
@@ -482,21 +476,14 @@ class TestService(unittest.TestCase):
         self.assertNotIn('id="pipeline-select"', response.text)
         self.assertNotIn('id="device-select"', response.text)
         self.assertNotIn('id="dpi-slider"', response.text)
+        self.assertNotIn('id="url-input"', response.text)
 
-    def test_tasks_validation(self):
-        response = self.client.post("/tasks")
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("Must provide either", response.json()["detail"])
-
-        response = self.client.post(
-            "/tasks",
-            data={"url": "https://arxiv.org/pdf/2408.09869"},
-            files={"file": ("dummy.pdf", PDF_BYTES, "application/pdf")},
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(
-            "Provide either 'file' or 'url', not both", response.json()["detail"]
-        )
+    def test_tasks_require_an_upload(self):
+        for data in ({}, {"url": "https://example.com/report.pdf"}):
+            with self.subTest(data=data):
+                response = self.client.post("/tasks", data=data)
+                self.assertEqual(response.status_code, 422)
+        self.assertEqual(list(Path(DATA_DIR).iterdir()), [])
 
     def test_declared_oversized_request_preempts_task_reservation(self):
         task_route = next(
@@ -588,31 +575,6 @@ class TestService(unittest.TestCase):
                 convert_pdf_to_images(
                     source_path, output_dir, dpi=72, max_page_pixels=10
                 )
-
-    @patch("app.ingestion.url_fetch.run_in_threadpool")
-    def test_create_task_with_url(self, mock_threadpool):
-        mock_threadpool.side_effect = self._fake_threadpool_download
-
-        response = self.client.post(
-            "/tasks",
-            data={"url": "https://example.com/test.pdf?token=secret#fragment"},
-        )
-        self.assertEqual(response.status_code, 202)
-        res_data = response.json()
-        self.assertIn("task_id", res_data)
-        self.assertEqual(res_data["status"], "pending")
-
-        task_id = res_data["task_id"]
-        metadata = load_metadata(task_id)
-        self.assertEqual(metadata["params"]["source_name"], "test.pdf")
-        self.assertEqual(metadata["source_path"], "source.pdf")
-        self.assertEqual(metadata["source_kind"], "url")
-        self.assertEqual(metadata["submitted_url"], "https://example.com/test.pdf")
-        self.assertEqual(
-            metadata["document_id"],
-            f"sha256:{hashlib.sha256(PDF_BYTES).hexdigest()}",
-        )
-        self.assertEqual(metadata["status"], "completed")
 
     def test_get_nonexistent_and_invalid_tasks(self):
         response = self.client.get(f"/tasks/{uuid.uuid4()}")
@@ -716,19 +678,11 @@ class TestService(unittest.TestCase):
         self.assertTrue(parsed_document["pages"])
         self.assertFalse(os.path.exists(os.path.join(DATA_DIR, "evil.pdf")))
 
-    @patch("app.ingestion.url_fetch.run_in_threadpool")
-    def test_deprecated_parser_fields_do_not_change_canonical_config(
-        self, mock_threadpool
-    ):
-        mock_threadpool.side_effect = self._fake_threadpool_download
-
+    def test_deprecated_parser_fields_do_not_change_canonical_config(self):
         response = self.client.post(
             "/tasks",
-            data={
-                "url": "https://example.com/test.pdf",
-                "pipeline": "paddleocr",
-                "device": "cpu",
-            },
+            data={"pipeline": "paddleocr", "device": "cpu"},
+            files={"file": ("test.pdf", PDF_BYTES, "application/pdf")},
         )
         self.assertEqual(response.status_code, 202)
         task_id = response.json()["task_id"]
@@ -1057,10 +1011,10 @@ class TestService(unittest.TestCase):
         request_body = openapi["paths"]["/tasks"]["post"]["requestBody"]
         multipart_schema = request_body["content"]["multipart/form-data"]["schema"]
         ref_name = multipart_schema["$ref"].rsplit("/", 1)[-1]
-        fields = schemas[ref_name]["properties"]
-        self.assertNotIn("pipeline", fields)
-        self.assertNotIn("dpi", fields)
-        self.assertNotIn("device", fields)
+        form_schema = schemas[ref_name]
+        fields = form_schema["properties"]
+        self.assertEqual(set(fields), {"file"})
+        self.assertEqual(form_schema["required"], ["file"])
 
         create_schema = openapi["paths"]["/tasks"]["post"]["responses"]["202"][
             "content"

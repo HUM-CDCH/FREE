@@ -2,6 +2,12 @@
 
 # Proposal: harden-canonical-parsing-service
 
+> **Status: parked.** Human decision on 2026-07-16 superseded the ingestion,
+> URL-hardening, quota, and concurrency direction with
+> [`simplify-source-ingestion`](../simplify-source-ingestion/proposal.md). Tasks
+> 1.1–2.4 remain completed; do not resume task 2.5+ or check additional tasks
+> until the surviving parsing and documentation work is re-triaged.
+
 ## Why
 
 PR #21 establishes canonical Source Document parsing as FREE's ingestion boundary, but independent review and focused reproductions found four defects that should be corrected before merge: real Docling BOTTOMLEFT table Evidence is discarded, the 50 MiB source limit is enforced only after multipart spooling, one task-local reconciliation failure can abort startup, and page headers break cross-page table reconstruction. The same review confirmed additional fidelity, security, storage, concurrency, deployment, and coverage gaps that are real but do not justify keeping the foundational PR open indefinitely.
