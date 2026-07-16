@@ -17,6 +17,10 @@ from app.storage.paths import SOURCE_FILENAME, safe_display_filename
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 
+class UploadTooLargeError(ValueError):
+    """Uploaded source document exceeds the maximum allowed size."""
+
+
 def copy_upload_to_path(
     upload: UploadFile, destination: Path, max_bytes: int | None = None
 ) -> int:
@@ -35,7 +39,9 @@ def copy_upload_to_path(
                     break
                 total += len(chunk)
                 if total > max_bytes:
-                    raise ValueError("Uploaded PDF exceeds the maximum allowed size.")
+                    raise UploadTooLargeError(
+                        "Uploaded PDF exceeds the maximum allowed size."
+                    )
                 buffer.write(chunk)
         os.replace(tmp_name, destination)
         return total
@@ -43,10 +49,6 @@ def copy_upload_to_path(
         with suppress(FileNotFoundError, PermissionError):
             os.unlink(tmp_name)
         raise
-
-
-def upload_error_status(exc: Exception) -> int:
-    return 413 if "exceeds the maximum allowed size" in str(exc) else 400
 
 
 def validate_upload_mime(file: UploadFile) -> None:
@@ -71,7 +73,7 @@ def save_uploaded_source(file: UploadFile, task_dir: Path) -> tuple[Path, str, s
         assert_pdf_file(source_path)
     except (OSError, ValueError) as exc:
         raise HTTPException(
-            status_code=upload_error_status(exc),
+            status_code=413 if isinstance(exc, UploadTooLargeError) else 400,
             detail=f"Uploaded file must be a PDF: {exc}",
         ) from exc
 
