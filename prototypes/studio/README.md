@@ -17,7 +17,15 @@ The full prototype expects the parsing service at `http://127.0.0.1:8000` and St
 
 ## Supported provider profiles
 
-FREE selects the provider only from `AI_PROVIDER`; it does not infer capability from model names and never silently reroutes Catalog or Article extraction.
+Extraction selects its provider only from `AI_PROVIDER`; it does not infer capability from model names and never silently reroutes Catalog or Article extraction. Conversational chat is configured independently:
+
+```bash
+AI_CHAT_PROVIDER=ollama
+AI_CHAT_MODEL=gemma4:26b-a4b-it-qat
+AI_CHAT_BASE_URL=http://spark.cdch-dgxspark.lan.ku.dk:11434
+```
+
+The default chat endpoint is VPN-only and does not require an API key. These `AI_CHAT_*` settings do not alter NuExtract schema generation or extraction.
 
 ### Local Catalog — Ollama
 

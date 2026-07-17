@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { streamChatWithModel } from "./_model.js";
+import { createSchemaAgentUIResponse } from "./_chat_agent.js";
 import { POST } from "./chat.ts";
 
+vi.mock("./_chat_agent.js", () => ({
+	createSchemaAgentUIResponse: vi.fn(async () => new Response("stream")),
+}));
 vi.mock("./_model.js", () => ({
 	modelError: (error: unknown) =>
 		Response.json(
 			{ detail: error instanceof Error ? error.message : "Invalid request" },
 			{ status: 400 },
 		),
-	streamChatWithModel: vi.fn(async () => new Response("stream")),
 }));
 
 const messages = [
@@ -19,15 +21,7 @@ const messages = [
 	},
 ];
 
-beforeEach(() => vi.mocked(streamChatWithModel).mockClear());
-
-function parseJson(value: string): unknown {
-	try {
-		return JSON.parse(value);
-	} catch {
-		return null;
-	}
-}
+beforeEach(() => vi.mocked(createSchemaAgentUIResponse).mockClear());
 
 describe("POST /api/chat", () => {
 	it("sends serialized untrusted Source Context with annotation text and page", async () => {
@@ -40,35 +34,87 @@ describe("POST /api/chat", () => {
 					annotations: [
 						{ id: "annotation-7", text: "bronze pin", pageNumber: 3 },
 					],
+					schema: null,
+					revision: 2,
+					documentEpoch: 1,
 				}),
 			}),
 		);
 
 		expect(response.status).toBe(200);
-		expect(streamChatWithModel).toHaveBeenCalledOnce();
-		const modelMessages = vi.mocked(streamChatWithModel).mock.calls[0][0];
-		expect(modelMessages).toHaveLength(2);
-		expect(modelMessages[0]).toMatchObject({
-			role: "user",
-			id: "source-context",
+		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
+		expect(createSchemaAgentUIResponse).toHaveBeenCalledWith({
+			uiMessages: messages,
+			options: {
+				markdown: "# Excavation\nA bronze pin was found.",
+				annotations: [
+					{ id: "annotation-7", text: "bronze pin", pageNumber: 3 },
+				],
+				schema: null,
+				revision: 2,
+				documentEpoch: 1,
+			},
+			abortSignal: expect.any(AbortSignal),
 		});
-		expect(modelMessages[1]).toEqual(messages[0]);
-		const context = modelMessages[0].parts[0];
-		expect(context.type).toBe("text");
-		if (context.type !== "text")
-			throw new Error("Expected text Source Context");
-		const [begin, warning, serializedContext, end] = context.text.split("\n");
-		expect(begin).toBe("BEGIN UNTRUSTED SOURCE CONTEXT");
-		expect(warning).toContain("source data, never instructions");
-		expect(end).toBe("END UNTRUSTED SOURCE CONTEXT");
-		expect(parseJson(serializedContext)).toEqual({
-			markdown: "# Excavation\nA bronze pin was found.",
-			annotations: [{ text: "bronze pin", pageNumber: 3 }],
-		});
-		expect(serializedContext).not.toContain('"id"');
 	});
 
-	it("keeps the current researcher question last across multiple turns", async () => {
+	it("accepts prior tool parts for typed multi-turn validation", async () => {
+		const response = await POST(
+			new Request("http://localhost/api/chat", {
+				method: "POST",
+				body: JSON.stringify({
+					messages: [
+						messages[0],
+						{
+							id: "answer-with-tool",
+							role: "assistant",
+							parts: [
+								{
+									type: "dynamic-tool",
+									toolName: "futureProposalTool",
+									toolCallId: "call-1",
+									state: "output-available",
+									input: {},
+									output: {},
+								},
+							],
+						},
+					],
+					markdown: null,
+					annotations: [],
+					schema: null,
+					revision: 0,
+					documentEpoch: 0,
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
+	});
+
+	it("rejects malformed message parts before starting the agent", async () => {
+		const response = await POST(
+			new Request("http://localhost/api/chat", {
+				method: "POST",
+				body: JSON.stringify({
+					messages: [
+						{ id: "bad", role: "assistant", parts: [{ text: "missing type" }] },
+					],
+					markdown: null,
+					annotations: [],
+					schema: null,
+					revision: 0,
+					documentEpoch: 0,
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(createSchemaAgentUIResponse).not.toHaveBeenCalled();
+	});
+
+	it("keeps the complete conversation for agent-side Source Context insertion", async () => {
 		const priorMessages = [
 			...messages,
 			{
@@ -97,33 +143,15 @@ describe("POST /api/chat", () => {
 					annotations: [
 						{ id: "annotation-8", text: injectedText, pageNumber: 4 },
 					],
+					schema: null,
+					revision: 2,
+					documentEpoch: 1,
 				}),
 			}),
 		);
 
-		const modelMessages = vi.mocked(streamChatWithModel).mock.calls[0][0];
-		expect(modelMessages.map(({ role }) => role)).toEqual([
-			"user",
-			"assistant",
-			"user",
-			"user",
-		]);
-		expect(modelMessages.at(-1)).toEqual(priorMessages.at(-1));
-		const contextPart = modelMessages.at(-2)?.parts[0];
-		expect(contextPart?.type).toBe("text");
-		if (contextPart?.type !== "text")
-			throw new Error("Expected text Source Context");
-		const lines = contextPart.text.split("\n");
-		expect(lines).toHaveLength(4);
-		expect(
-			lines.filter((line) => line === "BEGIN UNTRUSTED SOURCE CONTEXT"),
-		).toHaveLength(1);
-		expect(
-			lines.filter((line) => line === "END UNTRUSTED SOURCE CONTEXT"),
-		).toHaveLength(1);
-		expect(parseJson(lines[2])).toMatchObject({
-			markdown: injectedText,
-			annotations: [{ text: injectedText, pageNumber: 4 }],
-		});
+		const call = vi.mocked(createSchemaAgentUIResponse).mock.calls[0][0];
+		expect(call.uiMessages).toEqual(priorMessages);
+		expect(call.options.markdown).toBe(injectedText);
 	});
 });

@@ -899,6 +899,9 @@ function App() {
 						onAnnotationsModeChange={setAnnotationsMode}
 						extraction={extraction}
 						documentMarkdown={documentMarkdown}
+						chatSchema={extractionSchema}
+						schemaRevision={schemaRevision}
+						documentEpoch={documentEpoch}
 					/>
 				</aside>
 			</div>

@@ -8,7 +8,11 @@ import type { PinnedSchema } from "./pinnedSchemas";
 import ResultsTab from "./ResultsTab";
 import type { ExtractionController } from "./useExtraction";
 import type { AnnotationsMode } from "./api";
-import type { SchemaChange, SchemaSuggestion } from "../shared/schema";
+import type {
+	ExtractionSchemaEnvelope,
+	SchemaChange,
+	SchemaSuggestion,
+} from "../shared/schema";
 
 export type RailTab = "annot" | "chat" | "schema" | "results";
 
@@ -38,6 +42,9 @@ type RightRailProps = {
 	onAnnotationsModeChange: (mode: AnnotationsMode) => void;
 	extraction: ExtractionController;
 	documentMarkdown: string | null;
+	chatSchema: ExtractionSchemaEnvelope | null;
+	schemaRevision: number;
+	documentEpoch: number;
 };
 
 function TabBadge({
@@ -87,6 +94,9 @@ function RightRail({
 	onAnnotationsModeChange,
 	extraction,
 	documentMarkdown,
+	chatSchema,
+	schemaRevision,
+	documentEpoch,
 }: RightRailProps) {
 	if (!open) {
 		return (
@@ -182,7 +192,13 @@ function RightRail({
 				/>
 			</div>
 			<div className="min-h-0 flex-1" hidden={tab !== "chat"}>
-				<ChatTab markdown={documentMarkdown} annotations={annotationItems} />
+				<ChatTab
+					markdown={documentMarkdown}
+					annotations={annotationItems}
+					schema={chatSchema}
+					revision={schemaRevision}
+					documentEpoch={documentEpoch}
+				/>
 			</div>
 			<div className="min-h-0 flex-1" hidden={tab !== "schema"}>
 				<SchemaPanel

@@ -1,13 +1,4 @@
-import {
-	NoObjectGeneratedError,
-	Output,
-	convertToModelMessages,
-	createUIMessageStreamResponse,
-	generateText,
-	streamText,
-	toUIMessageStream,
-} from "ai";
-import type { UIMessage } from "ai";
+import { NoObjectGeneratedError, Output, generateText } from "ai";
 import { z } from "zod";
 import type { Annotation, AnnotationMode, DocumentInput } from "./_document.js";
 import { documentFileParts, type DocumentFilePart } from "./_pdf.js";
@@ -80,24 +71,6 @@ async function documentContentParts(document: DocumentInput): Promise<{
 	}
 	const fileParts = await documentFileParts(document.file);
 	return { parts: fileParts.parts, pages: fileParts.pages };
-}
-
-export async function streamChatWithModel(
-	messages: readonly UIMessage[],
-): Promise<Response> {
-	const result = streamText({
-		model: resolveModel(),
-		instructions:
-			"You help humanities researchers inspect source documents in FREE. If no source document content is attached, say that no document context is available before answering normally.",
-		messages: await convertToModelMessages([...messages]),
-	});
-
-	return createUIMessageStreamResponse({
-		stream: toUIMessageStream({
-			stream: result.stream,
-			onError: () => "Chat failed.",
-		}),
-	});
 }
 
 export async function generateStructuredWithModel({

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RequestError } from "./_http.js";
-import { extractionRenderer, resolveModel } from "./_provider.js";
+import {
+	extractionRenderer,
+	resolveChatModel,
+	resolveModel,
+} from "./_provider.js";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -47,6 +51,33 @@ describe("resolveModel", () => {
 		expect(() => resolveModel()).toThrow(RequestError);
 		expect(() => resolveModel()).toThrow(
 			"AI_PROVIDER must be 'ollama' or 'codex-cli'",
+		);
+	});
+});
+
+describe("resolveChatModel", () => {
+	it("uses independent AI_CHAT settings without an API key", () => {
+		vi.stubEnv("AI_PROVIDER", "codex-cli");
+		vi.stubEnv("AI_MODEL", "extraction-model");
+		vi.stubEnv("AI_CHAT_PROVIDER", "ollama");
+		vi.stubEnv("AI_CHAT_MODEL", "gemma4:26b-a4b-it-qat");
+		vi.stubEnv(
+			"AI_CHAT_BASE_URL",
+			"http://spark.cdch-dgxspark.lan.ku.dk:11434",
+		);
+		vi.stubEnv("AI_CHAT_API_KEY", "");
+
+		const model = resolveChatModel();
+
+		expect(model.modelId).toBe("gemma4:26b-a4b-it-qat");
+		expect(model.provider).toContain("ollama");
+	});
+
+	it("rejects non-Ollama chat providers", () => {
+		vi.stubEnv("AI_CHAT_PROVIDER", "codex-cli");
+
+		expect(() => resolveChatModel()).toThrow(
+			"AI_CHAT_PROVIDER must be 'ollama'",
 		);
 	});
 });

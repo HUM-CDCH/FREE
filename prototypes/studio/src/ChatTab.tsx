@@ -1,64 +1,59 @@
-import { DefaultChatTransport, readUIMessageStream } from "ai";
-import type { UIMessage } from "ai";
-import { useRef, useState } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { useEffect, useState } from "react";
 import type { AnnotationSetItem } from "./AnnotationSidebar";
 import { API_BASE } from "./api";
+import type { ExtractionSchemaEnvelope } from "../shared/schema";
+import type { SchemaAgentUIMessage } from "../shared/schema-agent-message";
 
 type ChatTabProps = {
 	markdown: string | null;
 	annotations: readonly AnnotationSetItem[];
+	schema: ExtractionSchemaEnvelope | null;
+	revision: number;
+	documentEpoch: number;
 };
 
-const transport = new DefaultChatTransport<UIMessage>({
+const transport = new DefaultChatTransport<SchemaAgentUIMessage>({
 	api: `${API_BASE}/chat`,
 });
 
-function messageText(message: UIMessage): string {
+function messageText(message: SchemaAgentUIMessage): string {
 	return message.parts
 		.filter((part) => part.type === "text")
 		.map((part) => part.text)
 		.join("");
 }
 
-function nextId(): string {
-	return crypto.randomUUID();
-}
-
-function ChatTab({ markdown, annotations }: ChatTabProps) {
-	const [messages, setMessages] = useState<UIMessage[]>([]);
+function ChatTab({
+	markdown,
+	annotations,
+	schema,
+	revision,
+	documentEpoch,
+}: ChatTabProps) {
 	const [draft, setDraft] = useState("");
-	const [status, setStatus] = useState<"ready" | "running" | "error">("ready");
-	const abortRef = useRef<AbortController | null>(null);
+	const { messages, sendMessage, status, stop, error } =
+		useChat<SchemaAgentUIMessage>({
+			id: `free-document-chat-${documentEpoch}`,
+			transport,
+		});
+	const running = status === "submitted" || status === "streaming";
 
-	async function send() {
+	useEffect(
+		() => () => {
+			void stop();
+		},
+		[documentEpoch, stop],
+	);
+
+	function send() {
 		const text = draft.trim();
-		if (!text || status === "running") {
-			return;
-		}
-
-		abortRef.current?.abort();
-		const abortController = new AbortController();
-		abortRef.current = abortController;
-		setStatus("running");
+		if (!text || running) return;
 		setDraft("");
-
-		const nextMessages: UIMessage[] = [
-			...messages,
+		void sendMessage(
+			{ text },
 			{
-				id: nextId(),
-				role: "user",
-				parts: [{ type: "text", text }],
-			},
-		];
-		setMessages(nextMessages);
-
-		try {
-			const stream = await transport.sendMessages({
-				chatId: "free-document-chat",
-				messages: nextMessages,
-				trigger: "submit-message",
-				messageId: undefined,
-				abortSignal: abortController.signal,
 				body: {
 					markdown,
 					annotations: annotations.map(({ id, label, pageNumber }) => ({
@@ -66,28 +61,12 @@ function ChatTab({ markdown, annotations }: ChatTabProps) {
 						text: label,
 						pageNumber,
 					})),
+					schema,
+					revision,
+					documentEpoch,
 				},
-			});
-
-			for await (const assistantMessage of readUIMessageStream({ stream })) {
-				setMessages([...nextMessages, assistantMessage]);
-			}
-			setStatus("ready");
-		} catch (error) {
-			if (abortController.signal.aborted) {
-				return;
-			}
-			const message = error instanceof Error ? error.message : "Chat failed.";
-			setMessages([
-				...nextMessages,
-				{
-					id: nextId(),
-					role: "assistant",
-					parts: [{ type: "text", text: message }],
-				},
-			]);
-			setStatus("error");
-		}
+			},
+		);
 	}
 
 	return (
@@ -117,26 +96,25 @@ function ChatTab({ markdown, annotations }: ChatTabProps) {
 						{messageText(message)}
 					</div>
 				))}
+				{error && <p className="text-xs text-red-600">{error.message}</p>}
 			</div>
 			<div className="flex shrink-0 gap-2 border-t border-line px-3 py-2.5">
 				<input
 					className="min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3 py-2 text-xs text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent"
 					value={draft}
 					placeholder="Ask about this source document..."
-					disabled={status === "running"}
+					disabled={running}
 					onChange={(event) => setDraft(event.target.value)}
 					onKeyDown={(event) => {
-						if (event.key === "Enter") {
-							void send();
-						}
+						if (event.key === "Enter") send();
 					}}
 				/>
 				<button
 					className="shrink-0 cursor-pointer rounded-lg border border-accent bg-accent px-3.5 py-2 text-[13px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60"
 					type="button"
 					title="Send"
-					disabled={status === "running"}
-					onClick={() => void send()}
+					disabled={running}
+					onClick={send}
 				>
 					↑
 				</button>

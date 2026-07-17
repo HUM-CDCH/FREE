@@ -7,6 +7,8 @@ import { RequestError } from "./_http.js";
 
 const DEFAULT_MODEL = "llama3.2";
 const DEFAULT_CODEX_MODEL = "gpt-5.5";
+const DEFAULT_CHAT_MODEL = "gemma4:26b-a4b-it-qat";
+const DEFAULT_CHAT_BASE_URL = "http://spark.cdch-dgxspark.lan.ku.dk:11434";
 const PROVIDER_MESSAGE = "AI_PROVIDER must be 'ollama' or 'codex-cli'";
 
 declare const process: {
@@ -95,6 +97,16 @@ export function resolveModel(): ReturnType<typeof ollama> {
 		return createOllama({ apiKey })(modelId);
 	}
 	return ollama(modelId);
+}
+
+export function resolveChatModel(): ReturnType<typeof ollama> {
+	const selectedProvider = process.env.AI_CHAT_PROVIDER || "ollama";
+	if (selectedProvider !== "ollama") {
+		throw new RequestError(500, "AI_CHAT_PROVIDER must be 'ollama'");
+	}
+	return createOllama({
+		baseURL: process.env.AI_CHAT_BASE_URL || DEFAULT_CHAT_BASE_URL,
+	})(process.env.AI_CHAT_MODEL || DEFAULT_CHAT_MODEL);
 }
 
 export function extractionRenderer(): "nuextract-raw" | "generic" {

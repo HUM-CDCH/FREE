@@ -1,6 +1,6 @@
 # 07 — Move conversational chat to typed AI SDK streaming
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: 01, 06
 
@@ -25,14 +25,26 @@ issues 08–09.
 
 ## Acceptance criteria
 
-- [ ] Chat replies stream through `useChat` → `/api/chat` → `createAgentUIStreamResponse`
-- [ ] `resolveChatModel()` reads `AI_CHAT_*`; extraction/NuExtract settings untouched
-- [ ] Route validates request body and UI messages, including prior tool parts
-- [ ] Aborted or stale session results are ignored
-- [ ] ADR-0001 updated; README documents `AI_CHAT_*` variables
-- [ ] Automated tests use mock models; test, lint, and build green
+- [x] Chat replies stream through `useChat` → `/api/chat` → `createAgentUIStreamResponse`
+- [x] `resolveChatModel()` reads `AI_CHAT_*`; extraction/NuExtract settings untouched
+- [x] Route validates request body and UI messages, including prior tool parts
+- [x] Aborted or stale session results are ignored
+- [x] ADR-0001 updated; README documents `AI_CHAT_*` variables
+- [x] Automated tests use mock models; test, lint, and build green
 
 ## Blocked by
 
 - 01-prove-gemma-schema-tool-support
 - 06-parsed-source-context-in-chat
+
+## Answer
+
+Implemented typed conversational streaming with a lazily composed Ollama
+`ToolLoopAgent`, independent `AI_CHAT_*` configuration, validated call data and
+UI messages, and request abort propagation. Studio now uses typed `useChat` and
+`DefaultChatTransport`, carries Source Context plus schema freshness in every
+call, and replaces the chat session on document-epoch changes. Extraction stays
+on its existing NuExtract path. ADR-0001 and the Studio README record the
+composition and configuration. Focused route/provider/agent tests use mocked
+boundaries and an injected mock model; the complete Studio test, lint, and build
+lanes pass.

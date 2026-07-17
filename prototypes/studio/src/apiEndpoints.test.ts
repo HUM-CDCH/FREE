@@ -3,8 +3,8 @@ import type { UIMessage } from "ai";
 import {
 	generateSchemaWithModel,
 	generateStructuredWithModel,
-	streamChatWithModel,
 } from "../api/_model";
+import { createSchemaAgentUIResponse } from "../api/_chat_agent";
 import { POST as chatPost } from "../api/chat";
 import { POST as extractPost } from "../api/extract";
 import { POST as schemaPost } from "../api/generate_schema";
@@ -16,9 +16,12 @@ vi.mock("../api/_model", async (importOriginal) => {
 		...actual,
 		generateSchemaWithModel: vi.fn(),
 		generateStructuredWithModel: vi.fn(),
-		streamChatWithModel: vi.fn(),
 	};
 });
+
+vi.mock("../api/_chat_agent", () => ({
+	createSchemaAgentUIResponse: vi.fn(),
+}));
 
 const schema = {
 	record: { notes: "", entries: [{ id: "", _evidence: {} }] },
@@ -453,7 +456,9 @@ describe("Vercel API endpoints", () => {
 	});
 
 	it("POST /api/chat returns the mocked UI message stream response", async () => {
-		vi.mocked(streamChatWithModel).mockResolvedValue(new Response("stream"));
+		vi.mocked(createSchemaAgentUIResponse).mockResolvedValue(
+			new Response("stream"),
+		);
 		const messages: UIMessage[] = [
 			{ id: "m1", role: "user", parts: [{ type: "text", text: "Hi" }] },
 		];
@@ -461,7 +466,14 @@ describe("Vercel API endpoints", () => {
 		const response = await chatPost(
 			new Request("http://local.test/api/chat", {
 				method: "POST",
-				body: JSON.stringify({ messages, markdown: null, annotations: [] }),
+				body: JSON.stringify({
+					messages,
+					markdown: null,
+					annotations: [],
+					schema: null,
+					revision: 0,
+					documentEpoch: 0,
+				}),
 				headers: { "content-type": "application/json" },
 			}),
 		);

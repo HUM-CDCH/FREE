@@ -1,13 +1,31 @@
-# ADR 0001 — Model-call composition: TypeScript serverless functions, buffered by default, streaming for chat
+# ADR 0001 — Model-call composition: TypeScript serverless functions, buffered extraction and streamed chat
 
 **Status**: Accepted
 
-The model-call spine for LLM features is implemented in TypeScript under `prototypes/studio/api/`.
+The model-call spine for LLM features is implemented in TypeScript under
+`prototypes/studio/api/`.
 
 ## Decided Design
 
-- **Endpoint Buffering & Streaming**: The endpoints for extraction (`/api/extract`) and schema generation (`/api/generate_schema`) return single, buffered JSON objects. The chat endpoint (`/api/chat`) is the only streaming endpoint, implemented using the Vercel AI SDK's `streamText`.
-- **Output Structure**: Extractions do not support build-up streaming, displaying a loading state in the frontend. Parsed Markdown is supplied by the parsing service task result.
-- **Model Calling**: Vercel AI SDK functions (`generateText`, `streamText`) are used directly inside separate modular functions (`extractWithModel`, `generateSchemaWithModel`, `streamChatWithModel`) located in [_model.ts](file:///c:/Users/arkan/.codex/worktrees/9bfd/FREE/prototypes/studio/api/_model.ts).
-- **Testing**: Workflows are verified via Vitest ([_model.test.ts](file:///c:/Users/arkan/.codex/worktrees/9bfd/FREE/prototypes/studio/api/_model.test.ts)), mocking Ollama fetch responses.
-
+- **Endpoint buffering and streaming**: extraction (`/api/extract`) and schema
+  generation (`/api/generate_schema`) return buffered JSON. Conversational chat
+  (`/api/chat`) streams typed AI SDK UI messages.
+- **Extraction composition**: extraction and schema generation keep their
+  existing NuExtract path and `AI_*` configuration in `_model.ts` and
+  `_provider.ts`.
+- **Chat composition**: `_chat_agent.ts` lazily composes an independently
+  configured Ollama model from `AI_CHAT_*` with a `ToolLoopAgent`. The route
+  validates call data and UI messages, then delegates to
+  `createAgentUIStreamResponse` with the request abort signal.
+- **Browser composition**: `ChatTab` uses `useChat` with a typed
+  `DefaultChatTransport`. `SchemaAgentUIMessage`, inferred from the server agent,
+  crosses the browser/server boundary through a type-only shared module.
+- **Source Context**: parsed Markdown and annotations are serialized as delimited,
+  untrusted data immediately before the current researcher question. They are
+  not interpolated into agent instructions.
+- **Freshness**: each call carries the browser-owned document epoch and schema
+  revision. Changing document epoch recreates and stops the browser chat session,
+  so late stream results cannot enter the active conversation.
+- **Testing**: agent construction accepts an injected model, allowing automated
+  tests to avoid live providers. Route tests replace the agent response boundary;
+  live provider checks remain explicit smoke tests.
