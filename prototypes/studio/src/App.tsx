@@ -898,7 +898,7 @@ function App() {
 						annotationsMode={annotationsMode}
 						onAnnotationsModeChange={setAnnotationsMode}
 						extraction={extraction}
-						pdfSource={pdfSource}
+						documentMarkdown={documentMarkdown}
 					/>
 				</aside>
 			</div>

@@ -37,7 +37,7 @@ type RightRailProps = {
 	annotationsMode: AnnotationsMode;
 	onAnnotationsModeChange: (mode: AnnotationsMode) => void;
 	extraction: ExtractionController;
-	pdfSource: { url: string; filename: string } | null;
+	documentMarkdown: string | null;
 };
 
 function TabBadge({
@@ -86,7 +86,7 @@ function RightRail({
 	annotationsMode,
 	onAnnotationsModeChange,
 	extraction,
-	pdfSource,
+	documentMarkdown,
 }: RightRailProps) {
 	if (!open) {
 		return (
@@ -182,7 +182,7 @@ function RightRail({
 				/>
 			</div>
 			<div className="min-h-0 flex-1" hidden={tab !== "chat"}>
-				<ChatTab pdfSource={pdfSource} />
+				<ChatTab markdown={documentMarkdown} annotations={annotationItems} />
 			</div>
 			<div className="min-h-0 flex-1" hidden={tab !== "schema"}>
 				<SchemaPanel

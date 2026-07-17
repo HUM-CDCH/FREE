@@ -1,6 +1,6 @@
 # 06 — Send parsed Source Context through existing chat
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: none
 
@@ -16,12 +16,24 @@ not only annotation IDs.
 
 ## Acceptance criteria
 
-- [ ] Chat sends parsed Markdown and annotations, never a PDF attachment
-- [ ] Source Context is delimited as untrusted data, outside system instructions
-- [ ] Annotations carry text and page number
-- [ ] Conversational experience unchanged for the researcher
-- [ ] Focused tests added; test, lint, and build green
+- [x] Chat sends parsed Markdown and annotations, never a PDF attachment
+- [x] Source Context is delimited as untrusted data, outside system instructions
+- [x] Annotations carry text and page number
+- [x] Conversational experience unchanged for the researcher
+- [x] Focused tests added; test, lint, and build green
 
 ## Blocked by
 
 None - can start immediately.
+
+## Answer
+
+Studio chat now sends validated parsed Source Document Markdown and annotations
+as request data instead of attaching the PDF. The route inserts a clearly delimited,
+JSON-serialized untrusted Source Context immediately before the current researcher
+question, including annotation text and page number, without changing system
+instructions or the visible conversation flow.
+
+Focused route coverage verifies multi-turn model-facing order and adversarial
+boundary content. Studio's full test suite (161 passed, 2 skipped), lint, and
+production build are green.

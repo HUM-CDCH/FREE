@@ -461,7 +461,7 @@ describe("Vercel API endpoints", () => {
 		const response = await chatPost(
 			new Request("http://local.test/api/chat", {
 				method: "POST",
-				body: JSON.stringify({ messages }),
+				body: JSON.stringify({ messages, markdown: null, annotations: [] }),
 				headers: { "content-type": "application/json" },
 			}),
 		);
