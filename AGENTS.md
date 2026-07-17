@@ -73,3 +73,20 @@ code to match `nuextract.template.jinja`. When editing prompts:
   it unset lets Ollama apply ~0.8.
 
 VS Code tasks should invoke the pnpm workspace scripts from the repository root, not duplicate `uv` or Vite command lines.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as local markdown under `.scratch/<feature>/`. See
+`docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the five canonical labels without overrides. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain documentation uses a single-context layout. See
+`docs/agents/domain.md`.

@@ -140,3 +140,20 @@ FREE has no persistence layer. There are no `/annotations`, `/validations`, or
 `/documents/prepare` endpoints. Annotations are passed inline with each
 `/api/generate_schema` request. Adding a thin in-memory store (or SQLite) with
 these three endpoints is the next backend task.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as local markdown under `.scratch/<feature>/`. See
+`docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the five canonical labels without overrides. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain documentation uses a single-context layout. See
+`docs/agents/domain.md`.
