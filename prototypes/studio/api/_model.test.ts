@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RequestError } from "./_http.js";
 import {
 	generateSchemaWithModel,
 	generateStructuredWithModel,
@@ -78,6 +79,72 @@ describe("generateStructuredWithModel", () => {
 		expect(body.prompt).toContain("Canonical report");
 	});
 
+	it("serializes optional AI_NUM_CTX and preserves custom model names", async () => {
+		vi.stubEnv("AI_NUM_CTX", "32768");
+		vi.stubEnv("AI_MODEL", "custom/operator-qualified-model");
+		const fetchMock = stubOllamaResponse('{"title":"Report"}');
+		await generateStructuredWithModel({
+			document: "Canonical report",
+			schema: { title: "" },
+			instructions: "Extract.",
+		});
+		const body = requestBody(fetchMock);
+		expect(body.model).toBe("custom/operator-qualified-model");
+		expect(body.options).toEqual(expect.objectContaining({ num_ctx: 32768 }));
+	});
+
+	it("omits num_ctx when AI_NUM_CTX is unset", async () => {
+		delete process.env.AI_NUM_CTX;
+		const fetchMock = stubOllamaResponse('{"title":"Report"}');
+		await generateStructuredWithModel({
+			document: "Canonical report",
+			schema: { title: "" },
+			instructions: "Extract.",
+		});
+		expect(requestBody(fetchMock).options).not.toHaveProperty("num_ctx");
+	});
+
+	it.each([
+		"",
+		" ",
+		"0",
+		"-1",
+		"1.5",
+		"1e3",
+		"invalid",
+		"9007199254740992",
+	])("rejects invalid AI_NUM_CTX=%j before fetch", async (value) => {
+		vi.stubEnv("AI_NUM_CTX", value);
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		await expect(
+			generateStructuredWithModel({
+				document: "Canonical report",
+				schema: { title: "" },
+				instructions: "Extract.",
+			}),
+		).rejects.toThrow(RequestError);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("keeps metadata verbatim in instructions and outside Source Context", async () => {
+		const sentinel =
+			'Example: Grav 17 has grav_id: 17; preserve "quoted" values.';
+		const fetchMock = stubOllamaResponse('{"title":"Report"}');
+		await generateStructuredWithModel({
+			document: "Canonical Source Context: Grav 8",
+			schema: { title: "" },
+			instructions: sentinel,
+		});
+		const prompt = String(requestBody(fetchMock).prompt);
+		expect(
+			prompt.match(/【instructions_start】([\s\S]*?)【instructions_end】/)?.[1],
+		).toContain(sentinel);
+		expect(
+			prompt.match(/【document_start】([\s\S]*?)【document_end】/)?.[1],
+		).not.toContain(sentinel);
+	});
+
 	it("forwards cancellation to the raw Ollama request", async () => {
 		const fetchMock = stubOllamaResponse('{"title":"Report"}');
 		const controller = new AbortController();
@@ -106,6 +173,26 @@ describe("generateStructuredWithModel", () => {
 		expect(generateTextMock.mock.calls[0][0]).toHaveProperty("output");
 		expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty("temperature");
 		expect(result).toEqual({ title: "Report" });
+	});
+
+	it("keeps Codex metadata in model instructions and outside Source Context", async () => {
+		stubCodexResponse('{"title":"Grav 8"}');
+		const sentinel = "Conflicting example: Grav 17";
+		const schema = { title: "", allowed_graves: [17] };
+
+		await generateStructuredWithModel({
+			document: "Canonical Source Context: Grav 8",
+			schema,
+			instructions: sentinel,
+		});
+
+		const request = generateTextMock.mock.calls[0]?.[0];
+		expect(request?.instructions).toContain(sentinel);
+		expect(request?.instructions).toContain(JSON.stringify(schema, null, 2));
+		const sourceMessage = JSON.stringify(request?.messages);
+		expect(sourceMessage).toContain("Canonical Source Context: Grav 8");
+		expect(sourceMessage).not.toContain(sentinel);
+		expect(sourceMessage).not.toContain("allowed_graves");
 	});
 
 	it("forwards cancellation to the AI SDK request", async () => {

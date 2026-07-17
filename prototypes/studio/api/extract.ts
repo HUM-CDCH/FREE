@@ -39,7 +39,11 @@ export async function POST(request: Request): Promise<Response> {
 					});
 
 		return json({
-			result: normalizeEmbeddedEvidence(extraction.result, document),
+			result: normalizeEmbeddedEvidence(
+				extraction.result,
+				document,
+				input.strategy,
+			),
 			warnings: [...extraction.warnings],
 		});
 	} catch (error) {

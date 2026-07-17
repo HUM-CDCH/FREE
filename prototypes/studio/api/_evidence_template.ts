@@ -1,3 +1,13 @@
+import {
+	matchCanonicalTableEvidence,
+	nonNegativeInteger,
+	normalizeText,
+	positiveInteger,
+	stringValue,
+	type CanonicalEvidenceTable,
+	type ExtractionStrategy,
+} from "./_table_evidence.js";
+
 export type CanonicalEvidencePage = {
 	readonly page: number;
 	readonly text: string;
@@ -5,18 +15,7 @@ export type CanonicalEvidencePage = {
 	readonly char_span?: Record<string, unknown> | null;
 };
 
-type CanonicalEvidenceCell = {
-	readonly row: number;
-	readonly col: number;
-	readonly text: string;
-	readonly role?: string | null;
-};
-
-export type CanonicalEvidenceTable = {
-	readonly table_id: string;
-	readonly page_number: number;
-	readonly cells: readonly CanonicalEvidenceCell[];
-};
+export type { CanonicalEvidenceTable } from "./_table_evidence.js";
 
 export type CanonicalEvidenceDocument = {
 	readonly markdown: string;
@@ -27,6 +26,7 @@ export type CanonicalEvidenceDocument = {
 
 type EvidenceNormalizationContext = {
 	readonly document: CanonicalEvidenceDocument;
+	readonly strategy: ExtractionStrategy;
 };
 
 const TABLE_NUMBER_FIELDS = ["table_index", "row_index", "col_index"] as const;
@@ -36,9 +36,10 @@ const ELLIPSIS = /\s*(?:\.{3,}|…)\s*/;
 export function normalizeEmbeddedEvidence(
 	result: Record<string, unknown>,
 	document: CanonicalEvidenceDocument,
+	strategy: ExtractionStrategy,
 ): Record<string, unknown> {
 	const normalized = structuredClone(result);
-	normalizeNode(normalized, { document });
+	normalizeNode(normalized, { document, strategy });
 	return normalized;
 }
 
@@ -86,14 +87,30 @@ function normalizeEvidenceLeaf(
 ): void {
 	evidence.snippets = splitSnippets(evidence.snippets);
 	const sourceType = stringValue(evidence.source_type).trim().toLowerCase();
+	const suppliedPage = positiveInteger(evidence.page);
+	const validSuppliedPage = context.document.pages.some(
+		(page) => page.page === suppliedPage,
+	)
+		? suppliedPage
+		: null;
+	const hasTableIntent = tableIntent(evidence, sourceType);
 
 	if (sourceType === "text") {
 		clearTableFields(evidence);
-		evidence.page = resolveTextPage(evidence.snippets, context.document);
+		evidence.page =
+			resolveTextPage(evidence.snippets, context.document) ??
+			(Array.isArray(evidence.snippets) && evidence.snippets.length === 0
+				? validSuppliedPage
+				: null);
 		return;
 	}
 
-	const tableMatch = findTableMatch(evidence, fieldValue, context);
+	const tableMatch = matchCanonicalTableEvidence({
+		evidence,
+		fieldValue,
+		tables: context.document.tables,
+		strategy: context.strategy,
+	});
 	if (tableMatch) {
 		Object.assign(evidence, tableMatch);
 		return;
@@ -107,8 +124,31 @@ function normalizeEvidenceLeaf(
 		return;
 	}
 
-	evidence.page = null;
+	evidence.page =
+		!hasTableIntent &&
+		Array.isArray(evidence.snippets) &&
+		evidence.snippets.length === 0
+			? validSuppliedPage
+			: null;
 	clearTableFields(evidence);
+}
+
+function tableIntent(
+	evidence: Record<string, unknown>,
+	sourceType: string,
+): boolean {
+	if (sourceType === "table") return true;
+	if (positiveInteger(evidence.table_index) !== null) return true;
+	if (nonNegativeInteger(evidence.row_index) !== null) return true;
+	if (nonNegativeInteger(evidence.col_index) !== null) return true;
+	return (
+		Array.isArray(evidence.snippets) &&
+		evidence.snippets.some(
+			(snippet) =>
+				typeof snippet === "string" &&
+				(snippet.includes("|") || snippet.includes("\t")),
+		)
+	);
 }
 
 function splitSnippets(value: unknown): string[] {
@@ -199,205 +239,6 @@ function pageFromAnchors(
 	return null;
 }
 
-function findTableMatch(
-	evidence: Record<string, unknown>,
-	fieldValue: unknown,
-	normalizationContext: EvidenceNormalizationContext,
-): Record<string, unknown> | null {
-	const sourceType = stringValue(evidence.source_type).trim().toLowerCase();
-	if (sourceType === "text") return null;
-
-	const modelTable = positiveInteger(evidence.table_index);
-	const modelPage = positiveInteger(evidence.page);
-	const hintedTable =
-		modelTable !== null &&
-		modelTable <= normalizationContext.document.tables.length
-			? modelTable
-			: null;
-	const hintedPage = hintedTable === null ? modelPage : null;
-	const hintedRow = nonNegativeInteger(evidence.row_index);
-	const hintedCol = nonNegativeInteger(evidence.col_index);
-	const snippets = Array.isArray(evidence.snippets)
-		? evidence.snippets.filter(
-				(item): item is string => typeof item === "string",
-			)
-		: [];
-	const tableTokens = snippets
-		.map(tableSnippetTokens)
-		.filter((tokens) => tokens.length > 0);
-	const shouldMatch =
-		sourceType === "table" ||
-		modelTable !== null ||
-		hintedRow !== null ||
-		hintedCol !== null ||
-		tableTokens.length > 0;
-	if (!shouldMatch) return null;
-
-	const contexts = normalizationContext.document.tables.map((table, index) => ({
-		table,
-		tableIndex: index + 1,
-	}));
-	const hintedContexts = contexts.filter(
-		({ table, tableIndex }) =>
-			(hintedTable === null || hintedTable === tableIndex) &&
-			(hintedPage === null || hintedPage === table.page_number),
-	);
-	const selectedContexts =
-		hintedContexts.length > 0 ? hintedContexts : contexts;
-	const fieldText = normalizeText(scalarText(fieldValue));
-	const candidates: Array<{
-		readonly tableIndex: number;
-		readonly table: CanonicalEvidenceTable;
-		readonly cell: CanonicalEvidenceCell;
-		readonly score: number;
-	}> = [];
-
-	if (hintedTable !== null && hintedRow !== null && hintedCol !== null) {
-		for (const context of selectedContexts) {
-			if (hintedTable !== null && context.tableIndex !== hintedTable) continue;
-			const cell = context.table.cells.find(
-				(candidate) =>
-					candidate.row === hintedRow && candidate.col === hintedCol,
-			);
-			if (!cell) continue;
-			const cellText = normalizeText(cell.text);
-			if (fieldText && !textsMatch(fieldText, cellText)) continue;
-			candidates.push({ ...context, cell, score: 20 });
-		}
-	}
-
-	for (const context of selectedContexts) {
-		const rows = new Map<number, CanonicalEvidenceCell[]>();
-		for (const cell of context.table.cells) {
-			const row = rows.get(cell.row) ?? [];
-			row.push(cell);
-			rows.set(cell.row, row);
-		}
-		for (const tokens of tableTokens) {
-			for (const row of rows.values()) {
-				const overlap = tokens.filter((token) =>
-					row.some((cell) => textsMatch(token, normalizeText(cell.text))),
-				).length;
-				if (overlap < 2) continue;
-				for (const cell of row) {
-					const cellText = normalizeText(cell.text);
-					if (!cellText || (fieldText && !textsMatch(fieldText, cellText)))
-						continue;
-					let score = overlap * 5;
-					if (fieldText) score += fieldText === cellText ? 6 : 3;
-					if (cell.role === "data") score += 1;
-					if (hintedTable === context.tableIndex) score += 2;
-					if (hintedPage === context.table.page_number) score += 1;
-					candidates.push({ ...context, cell, score });
-				}
-			}
-		}
-	}
-
-	if (
-		fieldText &&
-		(sourceType === "table" || modelTable !== null || modelPage !== null)
-	) {
-		for (const context of selectedContexts) {
-			for (const cell of context.table.cells) {
-				const cellText = normalizeText(cell.text);
-				if (!cellText || !textsMatch(fieldText, cellText)) continue;
-				let score = 9;
-				if (fieldText === cellText) score += 2;
-				if (cell.role === "data") score += 1;
-				if (hintedTable === context.tableIndex) score += 2;
-				if (hintedPage === context.table.page_number) score += 1;
-				candidates.push({ ...context, cell, score });
-			}
-		}
-	}
-
-	candidates.sort(
-		(left, right) =>
-			right.score - left.score ||
-			left.tableIndex - right.tableIndex ||
-			left.cell.row - right.cell.row ||
-			left.cell.col - right.cell.col,
-	);
-	const best = candidates[0];
-	const second = candidates[1];
-	if (!best || best.score < 9) return null;
-	if (
-		second &&
-		best.score - second.score < 2 &&
-		(best.tableIndex !== second.tableIndex ||
-			best.cell.row !== second.cell.row ||
-			best.cell.col !== second.cell.col)
-	) {
-		return null;
-	}
-
-	return {
-		source_type: "table",
-		page: best.table.page_number,
-		table_index: best.tableIndex,
-		row_index: best.cell.row,
-		col_index: best.cell.col,
-		row_header_text: rowHeader(best.table.cells, best.cell),
-		column_header_text: columnHeader(best.table.cells, best.cell),
-	};
-}
-
-function rowHeader(
-	cells: readonly CanonicalEvidenceCell[],
-	selected: CanonicalEvidenceCell,
-): string {
-	const prior = cells
-		.filter(
-			(cell) =>
-				cell.row === selected.row &&
-				cell.col < selected.col &&
-				cell.text.trim(),
-		)
-		.sort((left, right) => left.col - right.col);
-	const headers = prior.filter((cell) =>
-		["row_header", "row_header_hint", "header"].includes(cell.role ?? ""),
-	);
-	return uniqueText(headers.length > 0 ? headers : prior);
-}
-
-function columnHeader(
-	cells: readonly CanonicalEvidenceCell[],
-	selected: CanonicalEvidenceCell,
-): string {
-	const prior = cells
-		.filter(
-			(cell) =>
-				cell.col === selected.col &&
-				cell.row < selected.row &&
-				cell.text.trim(),
-		)
-		.sort((left, right) => left.row - right.row);
-	const headers = prior.filter((cell) =>
-		["header", "column_header"].includes(cell.role ?? ""),
-	);
-	return uniqueText(headers.length > 0 ? headers : prior);
-}
-
-function uniqueText(cells: readonly CanonicalEvidenceCell[]): string {
-	return [
-		...new Set(cells.map((cell) => cell.text.trim()).filter(Boolean)),
-	].join(" | ");
-}
-
-function tableSnippetTokens(snippet: string): string[] {
-	const separator = snippet.includes("|")
-		? "|"
-		: snippet.includes("\t")
-			? "\t"
-			: null;
-	if (!separator) return [];
-	return snippet
-		.split(separator)
-		.map(normalizeText)
-		.filter((token) => token && token !== "↳");
-}
-
 function clearTableFields(evidence: Record<string, unknown>): void {
 	for (const field of TABLE_NUMBER_FIELDS) {
 		if (field in evidence) evidence[field] = null;
@@ -411,43 +252,6 @@ function textContains(text: string, snippet: string): boolean {
 	const haystack = normalizeText(text);
 	const needle = normalizeText(snippet);
 	return needle.length > 0 && haystack.includes(needle);
-}
-
-function textsMatch(left: string, right: string): boolean {
-	if (!left || !right) return false;
-	if (left === right) return true;
-	return (
-		Math.min(left.length, right.length) >= 4 &&
-		(left.includes(right) || right.includes(left))
-	);
-}
-
-function normalizeText(value: string): string {
-	return value.toLocaleLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function scalarText(value: unknown): string {
-	return typeof value === "string" ||
-		typeof value === "number" ||
-		typeof value === "boolean"
-		? String(value)
-		: "";
-}
-
-function stringValue(value: unknown): string {
-	return typeof value === "string" ? value : "";
-}
-
-function nonNegativeInteger(value: unknown): number | null {
-	return typeof value === "number" && Number.isInteger(value) && value >= 0
-		? value
-		: null;
-}
-
-function positiveInteger(value: unknown): number | null {
-	return typeof value === "number" && Number.isInteger(value) && value >= 1
-		? value
-		: null;
 }
 
 function isEvidenceLeaf(value: Record<string, unknown>): boolean {

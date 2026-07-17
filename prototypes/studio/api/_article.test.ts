@@ -1,19 +1,7 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { extractArticle } from "./_article.js";
 import type { ExtractionSchemaEnvelope } from "./_catalog.js";
-
-function fixture<T>(name: string): T {
-	const text = readFileSync(
-		new URL(`./test-fixtures/${name}`, import.meta.url),
-		"utf8",
-	);
-	try {
-		return JSON.parse(text) as T;
-	} catch (error) {
-		throw new Error(`Invalid JSON test fixture: ${name}`, { cause: error });
-	}
-}
+import { fixture, parseJson } from "./_fixtures.js";
 
 describe("extractArticle", () => {
 	it("uses one whole-document call and conforms collagen without inferring Catalog from entries", async () => {
@@ -22,9 +10,10 @@ describe("extractArticle", () => {
 		);
 		const generated = fixture<Record<string, unknown>>("article-result.json");
 		const generate = vi.fn().mockResolvedValue(generated);
+		const sourceDocument = "# Collagen study";
 
 		const extraction = await extractArticle({
-			document: "# Collagen study",
+			document: sourceDocument,
 			tables: [
 				{
 					page_number: 2,
@@ -37,17 +26,26 @@ describe("extractArticle", () => {
 
 		expect(generate).toHaveBeenCalledOnce();
 		const modelInput = generate.mock.calls[0]?.[0];
-		expect(modelInput?.document).toContain("# Collagen study");
-		expect(modelInput?.document).toContain("CANONICAL TABLE INVENTORY");
-		expect(modelInput?.document).toContain('"table_index": 1');
-		expect(modelInput?.document).toContain('"page": 2');
-		expect(modelInput?.document).toContain('"row": 0');
-		expect(modelInput?.document).toContain('"col": 1');
-		expect(modelInput?.document).toContain('"role": "data"');
-		expect(modelInput?.document).toContain('"text": "42"');
-		expect(modelInput?.instructions).toContain("document-global and 1-based");
+		expect(modelInput?.document).toContain(sourceDocument);
+		const inventoryStart = modelInput?.document.indexOf(
+			"[",
+			sourceDocument.length,
+		);
+		expect(inventoryStart).toBeGreaterThan(-1);
+		const inventory = parseJson<unknown>(
+			modelInput?.document.slice(inventoryStart) ?? "null",
+			"Article canonical table inventory",
+		);
+		expect(inventory).toEqual([
+			{
+				table_index: 1,
+				page: 2,
+				cells: [{ row: 0, col: 1, role: "data", text: "42" }],
+			},
+		]);
+		expect(modelInput?.schema).toEqual(schema.record);
 		expect(modelInput?.instructions).toContain(
-			"row and col coordinates are 0-based",
+			JSON.stringify(schema._schema_metadata),
 		);
 		expect(extraction.warnings).toEqual([]);
 		expect(extraction.result.paper_title).toBe("Collagen study");

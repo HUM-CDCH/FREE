@@ -52,6 +52,9 @@ const document: CanonicalEvidenceDocument = {
 	anchors: [{ quote: "Anchor-only quotation", page: 3 }],
 };
 
+const normalize = (result: Record<string, unknown>, canonical = document) =>
+	normalizeEmbeddedEvidence(result, canonical, "catalog");
+
 describe("normalizeEmbeddedEvidence", () => {
 	it("retains nested local Evidence and splits ellipsis-glued snippets", () => {
 		const result = {
@@ -79,7 +82,7 @@ describe("normalizeEmbeddedEvidence", () => {
 			],
 		};
 
-		const normalized = normalizeEmbeddedEvidence(result, document);
+		const normalized = normalize(result, document);
 		const evidence = (
 			(
 				(normalized.entries as Array<Record<string, unknown>>)[0]
@@ -101,7 +104,7 @@ describe("normalizeEmbeddedEvidence", () => {
 	});
 
 	it("grounds text Evidence to canonical page text", () => {
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				length: 42,
 				_evidence: {
@@ -129,7 +132,7 @@ describe("normalizeEmbeddedEvidence", () => {
 		] as const;
 		const secondStart = canonical[0].length;
 		const thirdStart = secondStart + canonical[1].length;
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				note: "Canonical-only wording",
 				_evidence: {
@@ -175,7 +178,7 @@ describe("normalizeEmbeddedEvidence", () => {
 	});
 
 	it("uses optional anchors when page text does not contain the snippet", () => {
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				note: "Anchor-only quotation",
 				_evidence: {
@@ -196,7 +199,7 @@ describe("normalizeEmbeddedEvidence", () => {
 	});
 
 	it("backfills deterministic table provenance while preserving table_index", () => {
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				length: 42,
 				_evidence: {
@@ -231,8 +234,38 @@ describe("normalizeEmbeddedEvidence", () => {
 		);
 	});
 
+	it("grounds nested fundliste table Evidence through the same canonical matcher", () => {
+		const normalized = normalize({
+			entries: [
+				{
+					fundliste: [
+						{
+							length: 42,
+							_evidence: {
+								length: { snippets: ["| Length | 42 |"], source_type: "table" },
+							},
+						},
+					],
+				},
+			],
+		});
+		const entry = (normalized.entries as Array<Record<string, unknown>>)[0];
+		const find = (entry?.fundliste as Array<Record<string, unknown>>)[0];
+		const evidence = (
+			find?._evidence as Record<string, Record<string, unknown>>
+		).length;
+		expect(evidence).toEqual(
+			expect.objectContaining({
+				page: 2,
+				table_index: 1,
+				row_index: 1,
+				col_index: 1,
+			}),
+		);
+	});
+
 	it("falls back to canonical tables when table and page hints are stale", () => {
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				length: 42,
 				_evidence: {
@@ -263,7 +296,7 @@ describe("normalizeEmbeddedEvidence", () => {
 	});
 
 	it("searches all cells when row and column hints are stale", () => {
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				length: 42,
 				_evidence: {
@@ -288,7 +321,7 @@ describe("normalizeEmbeddedEvidence", () => {
 		);
 	});
 
-	it("honors valid document-scoped table and page hints by default", () => {
+	it("leaves content-equivalent canonical table matches ambiguous despite hints", () => {
 		const documentWithTwoTables: CanonicalEvidenceDocument = {
 			...document,
 			tables: [
@@ -304,7 +337,7 @@ describe("normalizeEmbeddedEvidence", () => {
 			],
 		};
 
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				length: 42,
 				_evidence: {
@@ -325,16 +358,55 @@ describe("normalizeEmbeddedEvidence", () => {
 			(normalized._evidence as Record<string, Record<string, unknown>>).length,
 		).toEqual(
 			expect.objectContaining({
-				page: 3,
-				table_index: 2,
-				row_index: 1,
-				col_index: 1,
+				page: null,
+				table_index: null,
+				row_index: null,
+				col_index: null,
 			}),
 		);
 	});
 
-	it("does not activate table matching from a page hint alone", () => {
-		const normalized = normalizeEmbeddedEvidence(
+	it("clears a supplied page when unresolved table Evidence has no snippets", () => {
+		const firstTable = document.tables[0];
+		if (!firstTable) throw new Error("Expected canonical table fixture");
+		const duplicateTables: CanonicalEvidenceDocument = {
+			...document,
+			tables: [
+				firstTable,
+				{ ...firstTable, table_id: "table-2", page_number: 3 },
+			],
+		};
+		const normalized = normalize(
+			{
+				length: 42,
+				_evidence: {
+					length: {
+						snippets: [],
+						source_type: "table",
+						page: 2,
+						table_index: 1,
+						row_index: 1,
+						col_index: 1,
+					},
+				},
+			},
+			duplicateTables,
+		);
+
+		expect(
+			(normalized._evidence as Record<string, Record<string, unknown>>).length,
+		).toEqual(
+			expect.objectContaining({
+				page: null,
+				table_index: null,
+				row_index: null,
+				col_index: null,
+			}),
+		);
+	});
+
+	it("preserves a valid page hint without activating table matching", () => {
+		const normalized = normalize(
 			{
 				length: 42,
 				_evidence: {
@@ -356,7 +428,7 @@ describe("normalizeEmbeddedEvidence", () => {
 		).toEqual(
 			expect.objectContaining({
 				source_type: "",
-				page: null,
+				page: 2,
 				table_index: null,
 				row_index: null,
 				col_index: null,
@@ -365,7 +437,7 @@ describe("normalizeEmbeddedEvidence", () => {
 	});
 
 	it("leaves unresolved Evidence schema-shaped without inventing a location", () => {
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				note: "missing",
 				_evidence: {
@@ -385,7 +457,7 @@ describe("normalizeEmbeddedEvidence", () => {
 	});
 
 	it("clears a stale page when text Evidence cannot be resolved", () => {
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				note: "missing",
 				_evidence: {
@@ -413,7 +485,7 @@ describe("normalizeEmbeddedEvidence", () => {
 	});
 
 	it("clears stale locations when table Evidence cannot be resolved", () => {
-		const normalized = normalizeEmbeddedEvidence(
+		const normalized = normalize(
 			{
 				note: "missing",
 				_evidence: {

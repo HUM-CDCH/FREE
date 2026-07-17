@@ -1,0 +1,100 @@
+[
+  {
+    "Grav_id": "8",
+    "Ark_no": "67",
+    "_evidence": {
+      "Grav_id": {
+        "snippets": ["# Grav 8"],
+        "inferred": false,
+        "source_type": null,
+        "page": null,
+        "table_index": null,
+        "row_index": null,
+        "col_index": null,
+        "row_header_text": "",
+        "column_header_text": ""
+      },
+      "Ark_no": {
+        "snippets": ["Ark: 67"],
+        "inferred": false,
+        "source_type": null,
+        "page": null,
+        "table_index": null,
+        "row_index": null,
+        "col_index": null,
+        "row_header_text": "",
+        "column_header_text": ""
+      }
+    },
+    "fundliste": [
+      {
+        "Fund_no": "8-2",
+        "Fund_beskrivelse": "Jernspænde",
+        "Fundplacering": null,
+        "Fund_bemaerkning": null,
+        "_evidence": {
+          "Fund_no": {
+            "snippets": ["| 8-2 |"],
+            "inferred": false,
+            "source_type": null,
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": "Fundnummer"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "Grav_id": "13",
+    "Ark_no": "24",
+    "_evidence": {
+      "Grav_id": {
+        "snippets": [],
+        "inferred": false,
+        "source_type": null,
+        "page": null,
+        "table_index": null,
+        "row_index": null,
+        "col_index": null,
+        "row_header_text": "",
+        "column_header_text": ""
+      },
+      "Ark_no": {
+        "snippets": [],
+        "inferred": false,
+        "source_type": null,
+        "page": null,
+        "table_index": null,
+        "row_index": null,
+        "col_index": null,
+        "row_header_text": "",
+        "column_header_text": ""
+      }
+    },
+    "fundliste": [
+      {
+        "Fund_no": "13-1",
+        "Fund_beskrivelse": "Lårben",
+        "Fundplacering": null,
+        "Fund_bemaerkning": null,
+        "_evidence": {
+          "Fund_no": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": null,
+            "page": null,
+            "table_index": null,
+            "row_index": 1,
+            "col_index": 0,
+            "row_header_text": "",
+            "column_header_text": "Fundnummer"
+          }
+        }
+      }
+    ]
+  }
+]

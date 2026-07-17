@@ -113,10 +113,12 @@ export async function generateStructuredWithModel({
 	const generated =
 		extractionRenderer() === "generic"
 			? await generateWithGenericJsonPrompt({
-					instructions:
-						"Produce a source-grounded FREE Extraction Result matching the supplied JSON shape exactly. " +
-						"Return only one JSON object with no Markdown or commentary.",
-					request: `${instructions}\n\nExtraction Schema:\n${JSON.stringify(schema, null, 2)}`,
+					instructions: [
+						"Produce a source-grounded FREE Extraction Result matching the supplied JSON shape exactly. Return only one JSON object with no Markdown or commentary.",
+						instructions,
+						`Extraction Schema:\n${JSON.stringify(schema, null, 2)}`,
+					].join("\n\n"),
+					request: null,
 					documentParts,
 					temperature,
 					abortSignal,
@@ -180,7 +182,7 @@ async function generateWithGenericJsonPrompt({
 	abortSignal,
 }: {
 	readonly instructions: string;
-	readonly request: string;
+	readonly request: string | null;
 	readonly documentParts: readonly DocumentContentPart[];
 	readonly temperature?: number;
 	readonly abortSignal?: AbortSignal;
@@ -195,7 +197,12 @@ async function generateWithGenericJsonPrompt({
 				{
 					role: "user",
 					content: [
-						{ type: "text", text: `${request}\n\nSOURCE DOCUMENT:\n` },
+						{
+							type: "text",
+							text: request
+								? `${request}\n\nSOURCE DOCUMENT:\n`
+								: "SOURCE DOCUMENT:\n",
+						},
 						...documentParts,
 						{
 							type: "text",
@@ -240,6 +247,7 @@ async function generateWithNuExtractRawPrompt({
 		instructions,
 		documentParts,
 	});
+	const numCtx = ollamaNumCtx();
 	const response = await fetch(ollamaGenerateUrl(), {
 		method: "POST",
 		headers: ollamaHeaders(),
@@ -250,7 +258,10 @@ async function generateWithNuExtractRawPrompt({
 			images: rendered.images.length > 0 ? rendered.images : undefined,
 			raw: true,
 			stream: false,
-			options: { temperature: temperature ?? NON_THINKING_TEMPERATURE },
+			options: {
+				temperature: temperature ?? NON_THINKING_TEMPERATURE,
+				...(numCtx === null ? {} : { num_ctx: numCtx }),
+			},
 		}),
 	});
 
@@ -320,6 +331,19 @@ function imageData(part: DocumentFilePart): string {
 		return base64 ?? part.data;
 	}
 	return Buffer.from(part.data).toString("base64");
+}
+
+function ollamaNumCtx(): number | null {
+	const value = process.env.AI_NUM_CTX;
+	if (value === undefined) return null;
+	if (!/^[0-9]+$/.test(value)) {
+		throw new RequestError(500, "AI_NUM_CTX must be a positive safe integer.");
+	}
+	const parsed = Number(value);
+	if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+		throw new RequestError(500, "AI_NUM_CTX must be a positive safe integer.");
+	}
+	return parsed;
 }
 
 function ollamaGenerateUrl(): string {

@@ -82,19 +82,6 @@ export function inferPrimaryRepeatedArray(
 		: null;
 }
 
-export function metadataForItemPrefix(
-	metadata: Record<string, unknown>,
-	arrayKey: string,
-): Record<string, unknown> {
-	const prefix = `record.${arrayKey}[].`;
-	const arrayPath = `record.${arrayKey}`;
-	return Object.fromEntries(
-		Object.entries(metadata).filter(
-			([key]) => key === arrayPath || key.startsWith(prefix),
-		),
-	);
-}
-
 export function resolveCatalogBoundaries(
 	document: string,
 	raw: Record<string, unknown>,
@@ -231,10 +218,6 @@ export async function extractCatalog({
 	const sections = usedFallback
 		? [fallbackSection(document)]
 		: sliceCatalogSections(document, resolved);
-	const itemMetadata = metadataForItemPrefix(
-		schema._schema_metadata,
-		selected.key,
-	);
 	const items: Record<string, unknown>[] = [];
 	const failed = new Set<number>();
 
@@ -243,7 +226,7 @@ export async function extractCatalog({
 			const generated = await generate({
 				document: section.text,
 				schema: selected.itemSchema,
-				instructions: itemInstructions(itemMetadata, false),
+				instructions: itemInstructions(schema._schema_metadata, false),
 			});
 			items.push(asRecord(conformToSchema(generated, selected.itemSchema)));
 		} catch {
@@ -265,7 +248,7 @@ export async function extractCatalog({
 			const generated = await generate({
 				document: section.text,
 				schema: selected.itemSchema,
-				instructions: itemInstructions(itemMetadata, true),
+				instructions: itemInstructions(schema._schema_metadata, true),
 			});
 			items[index] = asRecord(conformToSchema(generated, selected.itemSchema));
 		} catch {
@@ -274,10 +257,90 @@ export async function extractCatalog({
 		}
 	}
 
+	items.forEach((item, index) => {
+		const section = sections[index];
+		if (section) groundSectionEvidence(item, section.text);
+	});
+
 	return {
 		result: mergeCatalogOutputs(items, schema, selected.key),
 		warnings: usedFallback ? ["boundary_fallback"] : [],
 	};
+}
+
+/**
+ * Ground local text Evidence snippets against each record's own Source section.
+ *
+ * NuExtract inconsistently omits `snippets` for some records even while it
+ * extracts the value (observed: the second Burial record returns `Grav_id`
+ * "13" but empty `_evidence.Grav_id.snippets`). Following ADR 0006 — canonical
+ * text, not model hints, owns Evidence Anchors — Catalog derives a verbatim
+ * snippet from the extracted value where it occurs in that record's section.
+ * A model snippet that is already verbatim in the section is kept untouched;
+ * when nothing grounds (a hallucinated or metadata-leaked value that is absent
+ * from the section) the snippets stay empty, so grounding never fabricates
+ * Evidence for an ungrounded value. The section is a contiguous slice of the
+ * canonical document, so any snippet grounded here is verbatim document text.
+ */
+function groundSectionEvidence(node: unknown, sectionText: string): void {
+	if (Array.isArray(node)) {
+		node.forEach((item) => groundSectionEvidence(item, sectionText));
+		return;
+	}
+	if (!isRecord(node)) return;
+
+	const evidence = node._evidence;
+	if (isRecord(evidence)) {
+		for (const [field, evidenceNode] of Object.entries(evidence)) {
+			groundEvidenceLeaf(evidenceNode, node[field], sectionText);
+		}
+	}
+	for (const [key, value] of Object.entries(node)) {
+		if (key !== "_evidence") groundSectionEvidence(value, sectionText);
+	}
+}
+
+function groundEvidenceLeaf(
+	evidence: unknown,
+	fieldValue: unknown,
+	sectionText: string,
+): void {
+	if (!isRecord(evidence)) return;
+	if (!("snippets" in evidence)) {
+		for (const child of Object.values(evidence)) {
+			groundEvidenceLeaf(child, fieldValue, sectionText);
+		}
+		return;
+	}
+
+	const snippets = Array.isArray(evidence.snippets)
+		? evidence.snippets.filter(
+				(snippet): snippet is string => typeof snippet === "string",
+			)
+		: [];
+	const alreadyGrounded = snippets.some(
+		(snippet) => snippet.trim() !== "" && sectionText.includes(snippet),
+	);
+	if (alreadyGrounded) return;
+
+	const grounded = groundValueInSection(fieldValue, sectionText);
+	if (grounded !== null) evidence.snippets = [grounded];
+}
+
+function groundValueInSection(
+	value: unknown,
+	sectionText: string,
+): string | null {
+	if (typeof value !== "string" && typeof value !== "number") return null;
+	const needle = String(value).trim();
+	if (needle === "") return null;
+	const at = sectionText.indexOf(needle);
+	if (at < 0) return null;
+	const lineStart = sectionText.lastIndexOf("\n", at) + 1;
+	const newline = sectionText.indexOf("\n", at);
+	const lineEnd = newline < 0 ? sectionText.length : newline;
+	const line = sectionText.slice(lineStart, lineEnd).trim();
+	return line || needle;
 }
 
 function detectSuspiciousRecords(
@@ -370,34 +433,9 @@ function boundaryInstructions(
 		"Do not treat internal subsection headings as new top-level records unless metadata says they start a new instance. Use a visible stable record_id when available and a human-readable heading as label.",
 		`Primary repeated array: record.${arrayKey}`,
 		`Record shape: ${JSON.stringify(summarizeRecordShape(schema.record))}`,
-		`Metadata: ${JSON.stringify(boundaryMetadata(schema._schema_metadata, arrayKey))}`,
+		`Metadata: ${JSON.stringify(schema._schema_metadata)}`,
 		"Return one JSON object only. Include every detected record in source order and use null for unknown indices or pages.",
 	].join("\n\n");
-}
-
-function boundaryMetadata(
-	metadata: Record<string, unknown>,
-	arrayKey: string,
-): Record<string, unknown> {
-	const path = `record.${arrayKey}`;
-	const entries = Object.entries(metadata)
-		.filter(([key]) => key === path || key.startsWith(`${path}.`))
-		.map(([key, value]) => {
-			if (!isRecord(value) || !("instance_description" in value)) {
-				return [key, value];
-			}
-			const description = String(value.instance_description ?? "");
-			return [
-				key,
-				{
-					instance_description:
-						description.length <= 1200
-							? description
-							: `${description.slice(0, 1197)}...`,
-				},
-			];
-		});
-	return Object.fromEntries(entries);
 }
 
 function itemInstructions(
