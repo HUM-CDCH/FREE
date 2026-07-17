@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { applySchemaChanges, type SchemaChange } from "../shared/schema";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import pdfUrl from "../../../examples/Beretning_Ellekilde_8_13.pdf?url";
@@ -467,6 +468,22 @@ function App() {
 		}
 	}
 
+	function changeSchema(changes: readonly SchemaChange[], message: string) {
+		if (
+			templateState.status !== "ready" ||
+			templateState.source !== "generated"
+		)
+			return;
+		const result = applySchemaChanges(templateState.schema, changes);
+		if (result.status !== "applied") return;
+		setTemplateState({
+			...templateState,
+			schema: result.schema,
+			edited: true,
+		});
+		showToast(message);
+	}
+
 	function changeTemplate(template: unknown, message: string) {
 		if (!isRecord(template)) return;
 		setTemplateState((state) =>
@@ -798,6 +815,7 @@ function App() {
 						onSelectPinnedSchema={selectPinnedSchema}
 						schemaFieldCount={schemaFieldCount}
 						onGenerate={() => void generateSchema()}
+						onSchemaChange={changeSchema}
 						onTemplateChange={changeTemplate}
 						annotationsMode={annotationsMode}
 						onAnnotationsModeChange={setAnnotationsMode}

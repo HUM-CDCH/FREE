@@ -1,9 +1,9 @@
 import { useState } from 'react'
+import type { SchemaChange } from '../shared/schema'
 import type { AnnotationsMode, ExtractionSchemaEnvelope } from './api'
 import { Panel, Overline, SegmentedControl, Spinner, Button } from './ui'
 import {
   FIELD_TYPES,
-  addTemplateField,
   countTemplateFields,
   fieldTypeLabel,
   isRecord,
@@ -33,6 +33,7 @@ type SchemaPanelProps = {
   selectedPinnedSchemaId: string | null
   onSelectPinnedSchema: (id: string) => void
   onGenerate: () => void
+  onSchemaChange: (changes: readonly SchemaChange[], message: string) => void
   onTemplateChange: (template: unknown, message: string) => void
   annotationCount: number
   annotationsMode: AnnotationsMode
@@ -77,6 +78,12 @@ function typeOptions(current: string) {
     options.unshift(current)
   }
   return options
+}
+
+function fieldValueForType(type: string) {
+  if (type === 'object') return {}
+  if (type === 'array') return ['string']
+  return type
 }
 
 function FieldEditForm({
@@ -314,6 +321,7 @@ function SchemaPanel({
   selectedPinnedSchemaId,
   onSelectPinnedSchema,
   onGenerate,
+  onSchemaChange,
   onTemplateChange,
   annotationCount,
   annotationsMode,
@@ -343,7 +351,12 @@ function SchemaPanel({
       setEditing(null)
       return
     }
-    onTemplateChange(patchTemplateField(state.schema.record, path, name, editing.type), '✎ Schema updated')
+    const currentName = path.at(-1)
+    if (currentName === editing.name && currentName !== undefined) {
+      onSchemaChange([{ operation: 'set', path, value: fieldValueForType(editing.type) }], '✎ Schema updated')
+    } else {
+      onTemplateChange(patchTemplateField(state.schema.record, path, name, editing.type), '✎ Schema updated')
+    }
     setEditing(null)
   }
 
@@ -364,7 +377,7 @@ function SchemaPanel({
     while (name in state.schema.record) {
       name = `nyt_felt_${suffix++}`
     }
-    onTemplateChange(addTemplateField(state.schema.record, name, 'verbatim-string'), '✎ Schema updated')
+    onSchemaChange([{ operation: 'set', path: [name], value: 'verbatim-string' }], '✎ Schema updated')
     setView('fields')
     setEditing({ pathKey: pathKey([name]), name, type: 'verbatim-string' })
   }

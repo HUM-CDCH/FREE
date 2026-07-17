@@ -20,6 +20,7 @@ describe('SchemaPanel pinned schemas', () => {
         selectedPinnedSchemaId: 'FieldReports/Burial_Finds',
         onSelectPinnedSchema: () => undefined,
         onGenerate: () => undefined,
+        onSchemaChange: () => undefined,
         onTemplateChange: () => undefined,
         annotationCount: 0,
         annotationsMode: 'hints',

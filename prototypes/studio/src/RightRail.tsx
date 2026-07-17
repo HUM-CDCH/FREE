@@ -8,6 +8,7 @@ import type { PinnedSchema } from './pinnedSchemas'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
+import type { SchemaChange } from '../shared/schema'
 
 export type RailTab = 'annot' | 'chat' | 'schema' | 'results'
 
@@ -27,6 +28,7 @@ type RightRailProps = {
   onSelectPinnedSchema: (id: string) => void
   schemaFieldCount: number
   onGenerate: () => void
+  onSchemaChange: (changes: readonly SchemaChange[], message: string) => void
   onTemplateChange: (template: unknown, message: string) => void
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
@@ -61,6 +63,7 @@ function RightRail({
   onSelectPinnedSchema,
   schemaFieldCount,
   onGenerate,
+  onSchemaChange,
   onTemplateChange,
   annotationsMode,
   onAnnotationsModeChange,
@@ -152,6 +155,7 @@ function RightRail({
           selectedPinnedSchemaId={selectedPinnedSchemaId}
           onSelectPinnedSchema={onSelectPinnedSchema}
           onGenerate={onGenerate}
+          onSchemaChange={onSchemaChange}
           onTemplateChange={onTemplateChange}
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}

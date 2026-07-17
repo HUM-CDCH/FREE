@@ -1,4 +1,7 @@
 import { isRecord } from "./template";
+import type { ExtractionSchemaEnvelope } from "../shared/schema";
+
+export type { ExtractionSchemaEnvelope } from "../shared/schema";
 
 export const API_BASE = "/api";
 
@@ -11,13 +14,6 @@ const PARSE_POLL_MS = 1500;
 type TemplateAnnotation = { text: string; pageNumber: number };
 export type AnnotationsMode = "hints" | "fields";
 export type ExtractionStrategy = "catalog" | "article";
-
-export type ExtractionSchemaEnvelope = {
-	readonly name?: string;
-	readonly description?: string;
-	readonly record: Record<string, unknown>;
-	readonly _schema_metadata: Record<string, unknown>;
-};
 
 export type ExtractionResponse = {
 	readonly result: Record<string, unknown>;
