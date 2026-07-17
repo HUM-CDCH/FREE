@@ -111,7 +111,7 @@ export function createSchemaAgent(model: LanguageModel = resolveChatModel()) {
 			hasToolCall("proposeSchemaChanges"),
 			isStepCount(MAX_SCHEMA_AGENT_STEPS),
 		],
-		prepareCall: ({ messages, options, ...settings }) => {
+		prepareCall: ({ prompt, messages, options, ...settings }) => {
 			const context = options ? sourceContextPrompt(options) : null;
 			const preparedSettings = options
 				? {
@@ -119,22 +119,31 @@ export function createSchemaAgent(model: LanguageModel = resolveChatModel()) {
 						tools: { proposeSchemaChanges: createProposalTool(options) },
 					}
 				: settings;
-			if (!context || !messages)
-				return { messages, options, ...preparedSettings };
-			const questionIndex = messages.findLastIndex(
+			const conversation = messages ?? (Array.isArray(prompt) ? prompt : null);
+			if (!context || !conversation) {
+				return { prompt, messages, options, ...preparedSettings };
+			}
+			const questionIndex = conversation.findLastIndex(
 				(message) => message.role === "user",
 			);
 			const insertionIndex =
-				questionIndex < 0 ? messages.length : questionIndex;
-			return {
-				...preparedSettings,
-				options,
-				messages: [
-					...messages.slice(0, insertionIndex),
-					{ role: "user", content: context },
-					...messages.slice(insertionIndex),
-				],
-			};
+				questionIndex < 0 ? conversation.length : questionIndex;
+			const contextualMessages = [
+				...conversation.slice(0, insertionIndex),
+				{ role: "user" as const, content: context },
+				...conversation.slice(insertionIndex),
+			];
+			return messages
+				? {
+						...preparedSettings,
+						options,
+						messages: contextualMessages,
+					}
+				: {
+						...preparedSettings,
+						options,
+						prompt: contextualMessages,
+					};
 		},
 	});
 }

@@ -1,7 +1,10 @@
-import type { LanguageModel } from "ai";
+import { simulateReadableStream, type LanguageModel } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
-import { createSchemaAgent } from "./_chat_agent.js";
+import {
+	createSchemaAgent,
+	createSchemaAgentUIResponse,
+} from "./_chat_agent.js";
 import { resolveChatModel } from "./_provider.js";
 
 vi.mock("./_provider.js", () => ({
@@ -20,6 +23,62 @@ describe("createSchemaAgent", () => {
 
 		expect(agent).toBeDefined();
 		expect(resolveChatModel).not.toHaveBeenCalled();
+	});
+
+	it("streams validated UI messages with inserted Source Context", async () => {
+		const model = new MockLanguageModelV4({
+			doStream: async () => ({
+				stream: simulateReadableStream({
+					chunks: [
+						{ type: "text-start", id: "text-1" },
+						{ type: "text-delta", id: "text-1", delta: "Bronze pin." },
+						{ type: "text-end", id: "text-1" },
+						{
+							type: "finish",
+							finishReason: { unified: "stop", raw: undefined },
+							usage: {
+								inputTokens: {
+									total: 1,
+									noCache: 1,
+									cacheRead: 0,
+									cacheWrite: 0,
+								},
+								outputTokens: { total: 1, text: 1, reasoning: 0 },
+							},
+						},
+					],
+				}),
+			}),
+		});
+
+		const response = await createSchemaAgentUIResponse({
+			uiMessages: [
+				{
+					id: "question-1",
+					role: "user",
+					parts: [{ type: "text", text: "What was found?" }],
+				},
+			],
+			options: {
+				markdown: "A bronze pin was found.",
+				annotations: [{ id: "a-1", text: "bronze pin", pageNumber: 3 }],
+				schema: null,
+				revision: 0,
+				documentEpoch: 2,
+			},
+			abortSignal: new AbortController().signal,
+			model,
+		});
+
+		expect(response.headers.get("content-type")).toContain("text/event-stream");
+		await expect(response.text()).resolves.toContain("Bronze pin.");
+		expect(model.doStreamCalls).toHaveLength(1);
+		const prompt = JSON.stringify(model.doStreamCalls[0]?.prompt);
+		expect(prompt).toContain("BEGIN UNTRUSTED SOURCE CONTEXT");
+		expect(prompt).toContain("bronze pin");
+		expect(prompt.indexOf("BEGIN UNTRUSTED SOURCE CONTEXT")).toBeLessThan(
+			prompt.indexOf("What was found?"),
+		);
 	});
 
 	it("turns valid model proposal content into a server-owned root suggestion", async () => {

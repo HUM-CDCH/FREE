@@ -45,6 +45,9 @@ UI messages, and request abort propagation. Studio now uses typed `useChat` and
 `DefaultChatTransport`, carries Source Context plus schema freshness in every
 call, and replaces the chat session on document-epoch changes. Extraction stays
 on its existing NuExtract path. ADR-0001 and the Studio README record the
-composition and configuration. Focused route/provider/agent tests use mocked
-boundaries and an injected mock model; the complete Studio test, lint, and build
-lanes pass.
+composition and configuration. Request-validation failures now return HTTP 400
+while provider failures remain HTTP 502. Regression coverage streams through the
+real agent UI composition (including Source Context insertion) and verifies that
+a document-epoch change aborts and replaces the stale browser session. Focused
+route/provider/agent tests use mocked boundaries and an injected mock model; the
+complete Studio test, lint, and build lanes pass.

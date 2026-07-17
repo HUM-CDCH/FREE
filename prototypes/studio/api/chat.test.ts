@@ -5,14 +5,6 @@ import { POST } from "./chat.ts";
 vi.mock("./_chat_agent.js", () => ({
 	createSchemaAgentUIResponse: vi.fn(async () => new Response("stream")),
 }));
-vi.mock("./_model.js", () => ({
-	modelError: (error: unknown) =>
-		Response.json(
-			{ detail: error instanceof Error ? error.message : "Invalid request" },
-			{ status: 400 },
-		),
-}));
-
 const messages = [
 	{
 		id: "question-1",
@@ -212,7 +204,7 @@ describe("POST /api/chat", () => {
 				}),
 			}),
 		);
-		expect(response.status).toBe(400);
+		expect(response.status).toBe(502);
 		await expect(response.json()).resolves.toEqual({
 			detail: "provider unavailable",
 		});

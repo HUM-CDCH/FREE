@@ -101,6 +101,12 @@ export async function POST(request: Request): Promise<Response> {
 			abortSignal: request.signal,
 		});
 	} catch (error) {
+		if (error instanceof z.ZodError) {
+			return Response.json(
+				{ detail: "Invalid chat request." },
+				{ status: 400 },
+			);
+		}
 		return modelError(error);
 	}
 }
