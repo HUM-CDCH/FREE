@@ -38,7 +38,7 @@ Point the same raw Ollama-compatible boundary at a capable Spark host and use Q4
 
 ```bash
 AI_PROVIDER=ollama
-AI_BASE_URL=https://spark.example.invalid
+AI_BASE_URL=http://spark.cdch-dgxspark.lan.ku.dk:11434
 AI_API_KEY=... # optional when the host requires it
 AI_MODEL=hf.co/numind/NuExtract3-GGUF:Q4_K_M
 AI_NUM_CTX=65536 # optional positive integer sized for the host
