@@ -123,6 +123,8 @@ function App() {
 		source: "pinned",
 		pinnedSchemaId: defaultPinnedSchema.id,
 	});
+	const [schemaRevision, setSchemaRevision] = useState(0);
+	const [documentEpoch, setDocumentEpoch] = useState(0);
 	const [extractionStrategy, setExtractionStrategy] =
 		useState<ExtractionStrategy>(defaultPinnedSchema.strategy);
 	const [annotationsMode, setAnnotationsMode] =
@@ -175,6 +177,8 @@ function App() {
 			URL.revokeObjectURL(pdfSource.url);
 		}
 		templateAbortRef.current?.abort();
+		setDocumentEpoch((epoch) => epoch + 1);
+		setSchemaRevision(0);
 		setPdfSource({ url: URL.createObjectURL(file), filename: file.name });
 		setDocIndex({ status: "parsing" });
 		setAnnotationItems([]);
@@ -455,6 +459,7 @@ function App() {
 					inputsKey,
 					source: "generated",
 				});
+				setSchemaRevision((revision) => revision + 1);
 			}
 		} catch (error) {
 			if (abortController.signal.aborted) {
@@ -479,6 +484,7 @@ function App() {
 			source: "generated",
 			edited: true,
 		});
+		setSchemaRevision((revision) => revision + 1);
 		showToast(message);
 	}
 
@@ -493,6 +499,7 @@ function App() {
 			source: "pinned",
 			pinnedSchemaId: selected.id,
 		});
+		setSchemaRevision((revision) => revision + 1);
 		setExtractionStrategy(selected.strategy);
 		showToast(`Using ${selected.domain} / ${selected.name}`);
 	}
@@ -558,6 +565,8 @@ function App() {
 		: COLLAPSED_WIDTH;
 
 	const extraction = useExtraction({
+		documentEpoch,
+		schemaRevision,
 		taskId: parsingTaskId,
 		schema: extractionSchema,
 		schemaReady,

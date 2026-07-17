@@ -7,6 +7,8 @@ import {
 import type { ExtractionState } from "./extraction";
 
 type UseExtractionOptions = {
+	documentEpoch: number;
+	schemaRevision: number;
 	taskId: string | null;
 	schema: ExtractionSchemaEnvelope | null;
 	schemaReady: boolean;
@@ -18,6 +20,8 @@ type UseExtractionOptions = {
 };
 
 export type ExtractionIdentity = {
+	readonly documentEpoch: number;
+	readonly schemaRevision: number;
 	readonly taskId: string | null;
 	readonly schema: ExtractionSchemaEnvelope | null;
 	readonly strategy: ExtractionStrategy;
@@ -34,6 +38,8 @@ export function isCurrentExtractionInvocation(
 ): boolean {
 	return (
 		!aborted &&
+		invocation.documentEpoch === current.documentEpoch &&
+		invocation.schemaRevision === current.schemaRevision &&
 		invocation.taskId === current.taskId &&
 		invocation.schema === current.schema &&
 		invocation.strategy === current.strategy
@@ -52,6 +58,8 @@ export function projectExtractionState(
 export type ExtractionController = ReturnType<typeof useExtraction>;
 
 export function useExtraction({
+	documentEpoch,
+	schemaRevision,
 	taskId,
 	schema,
 	schemaReady,
@@ -61,7 +69,13 @@ export function useExtraction({
 	onComplete,
 	onError,
 }: UseExtractionOptions) {
-	const identity: ExtractionIdentity = { taskId, schema, strategy };
+	const identity: ExtractionIdentity = {
+		documentEpoch,
+		schemaRevision,
+		taskId,
+		schema,
+		strategy,
+	};
 	const currentIdentityRef = useRef(identity);
 	const [snapshot, setSnapshot] = useState<ExtractionSnapshot>({
 		...identity,
@@ -71,9 +85,15 @@ export function useExtraction({
 
 	useEffect(() => () => abortRef.current?.abort(), []);
 	useLayoutEffect(() => {
-		currentIdentityRef.current = { taskId, schema, strategy };
+		currentIdentityRef.current = {
+			documentEpoch,
+			schemaRevision,
+			taskId,
+			schema,
+			strategy,
+		};
 		abortRef.current?.abort();
-	}, [taskId, schema, strategy]);
+	}, [documentEpoch, schemaRevision, taskId, schema, strategy]);
 
 	const state = projectExtractionState(snapshot, identity);
 	const hasResults = state.status === "ready";
@@ -85,12 +105,19 @@ export function useExtraction({
 		!indexing;
 
 	async function runExtraction() {
-		if (state.status === "running" || !taskId || !schema || !schemaReady) return;
+		if (state.status === "running" || !taskId || !schema || !schemaReady)
+			return;
 		abortRef.current?.abort();
 		const abortController = new AbortController();
 		abortRef.current = abortController;
 		const isRerun = state.status === "ready";
-		const invocation: ExtractionIdentity = { taskId, schema, strategy };
+		const invocation: ExtractionIdentity = {
+			documentEpoch,
+			schemaRevision,
+			taskId,
+			schema,
+			strategy,
+		};
 		setSnapshot({ ...invocation, state: { status: "running" } });
 
 		try {

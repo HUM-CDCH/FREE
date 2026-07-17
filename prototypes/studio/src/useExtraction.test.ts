@@ -13,6 +13,8 @@ const schema: ExtractionSchemaEnvelope = {
 	_schema_metadata: {},
 };
 const identity: ExtractionIdentity = {
+	documentEpoch: 0,
+	schemaRevision: 0,
 	taskId: "task-1",
 	schema,
 	strategy: "catalog",
@@ -32,6 +34,18 @@ describe("projectExtractionState", () => {
 	it("returns idle when the task changes", () => {
 		expect(
 			projectExtractionState(snapshot, { ...identity, taskId: "task-2" }),
+		).toEqual({ status: "idle" });
+	});
+
+	it("returns idle when the schema revision changes", () => {
+		expect(
+			projectExtractionState(snapshot, { ...identity, schemaRevision: 1 }),
+		).toEqual({ status: "idle" });
+	});
+
+	it("returns idle when the document epoch changes", () => {
+		expect(
+			projectExtractionState(snapshot, { ...identity, documentEpoch: 1 }),
 		).toEqual({ status: "idle" });
 	});
 
@@ -57,6 +71,16 @@ describe("projectExtractionState", () => {
 });
 
 describe("isCurrentExtractionInvocation", () => {
+	it("rejects a completion from an older schema revision", () => {
+		expect(
+			isCurrentExtractionInvocation(
+				identity,
+				{ ...identity, schemaRevision: 1 },
+				false,
+			),
+		).toBe(false);
+	});
+
 	it("rejects a completion when identity changed before effect cancellation", () => {
 		expect(
 			isCurrentExtractionInvocation(
