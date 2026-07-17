@@ -1,0 +1,126 @@
+{
+  "name": "FieldReports / Burial_Finds",
+  "description": "",
+  "record": {
+    "global_notes": "",
+    "entries": [
+      {
+        "Grav_id": "",
+        "Ark_no": "",
+        "_evidence": {
+          "Grav_id": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": "",
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": ""
+          },
+          "Ark_no": {
+            "snippets": [],
+            "inferred": false,
+            "source_type": "",
+            "page": null,
+            "table_index": null,
+            "row_index": null,
+            "col_index": null,
+            "row_header_text": "",
+            "column_header_text": ""
+          }
+        },
+        "fundliste": [
+          {
+            "Fund_no": "",
+            "Fund_beskrivelse": "",
+            "Fundplacering": "",
+            "Fund_bemaerkning": "",
+            "_evidence": {
+              "Fund_no": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "Fund_beskrivelse": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "Fundplacering": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              },
+              "Fund_bemaerkning": {
+                "snippets": [],
+                "inferred": false,
+                "source_type": "",
+                "page": null,
+                "table_index": null,
+                "row_index": null,
+                "col_index": null,
+                "row_header_text": "",
+                "column_header_text": ""
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "_schema_metadata": {
+    "record.entries": {
+      "instance_description": "Hvert objekt i record.entries repræsenterer ÉN grav. Opret en separat entry for hver grav, der beskrives i dokumentet. Slå ikke flere grave sammen i én entry."
+    },
+    "record.entries[].Grav_id": {
+      "instance_description": "Det vises i begyndelsen af ​​hver gravregistrering, identificeret med et nummer. Udtræk kun nummeret. For eksempel: Grav 17 vil være grav_id: 17"
+    },
+    "record.entries[].Ark_no": {
+      "instance_description": "Arknummeret for den pågældende grav. Tag nummeret eller nummerlisten præcis som angivet for den konkrete grav."
+    },
+    "record.entries[].fundliste": {
+      "instance_description": "Hvert objekt i record.entries[].fundliste repræsenterer præcis ét fund, identificeret ved sit fundnummer. Opret ét objekt i fundliste for hver række i dokumentets fundliste/fundtabel for den pågældende grav: for hvert unikt nummer i kolonnen Fundnummer (eller tilsvarende) skal der være ét tilsvarende element i fundliste med Fund_no sat til det nummer. Slå ikke flere rækker sammen, selv om Fund_beskrivelse er ens (fx flere 'Lerkarskår' med forskellige Fund_no). Hvis nogle felter mangler for en række, skal objektet stadig oprettes med tomme felter. Hvis der ikke er beskrevet særskilte fund for en grav, returneres et tomt fundliste-array."
+    },
+    "record.entries[].fundliste[].Fund_no": {
+      "instance_description": "Fundnummer for ét konkret fund (fx '24-3' eller 'x24-14'), én-til-én med én række i kildens fundliste. Hvert unikt fundnummer i dokumentet skal have sit eget objekt i fundliste; du må ikke udelade objekter fordi beskrivelsen ligner en anden række."
+    },
+    "record.entries[].fundliste[].Fund_beskrivelse": {
+      "instance_description": "Tag beskrivelsen præcis som den er skrevet i dokumentet."
+    },
+    "record.entries[].fundliste[].Fundplacering": {
+      "instance_description": "Fundets placering i graven eller i forhold til skelet/anlæg. Brug kun dette felt når kilden faktisk beskriver en fysisk placering, for eksempel 'ved det ene lårben', 'i brystregionen' eller 'i gravens nordlige del'. Når en bemærkning indeholder både placering og ekstra oplysninger, skal du kun udtrække selve placeringsudtrykket og udelade øvrige detaljer. Eksempel: fra 'Fundet stående på gravens bundlag, 30 cm dybde.' skal Fundplacering være 'stående på gravens bundlag, 30 cm dybde' og ikke hele sætningen med 'Fundet'. Hvis teksten kun giver en generel bemærkning og ikke en egentlig placering, skal feltet være tomt."
+    },
+    "record.entries[].fundliste[].Fund_bemaerkning": {
+      "instance_description": "Generelle bemærkninger til fundet, typisk fra kolonnen 'Bemærkninger' eller tilsvarende tekst. Tag bemærkningen præcis som den er skrevet, for eksempel 'Fundet stående på gravens bundlag, 30 cm dybde.' eller 'Skårene hører til x24-1, men har ikke kunnet indplaceres i karret.' Hvis der ikke er en særskilt bemærkning, skal feltet være tomt."
+    },
+    "record.global_notes": {
+      "instance_description": "Valgfri noter på dokumentniveau om tvetydighed, manglende struktur eller forbehold i udtrækket, som ikke hører til én bestemt grav eller ét bestemt fund."
+    },
+    "record.entries[]._evidence": {
+      "instance_description": "Lokal evidence for felter i hvert entries[]-objekt. Læg evidence i samme entries[]-objekt som værdien. Brug lokale feltnavne som nøgler (fx Grav_id, Ark_no), ikke globale path-nøgler."
+    },
+    "record.entries[].fundliste[]._evidence": {
+      "instance_description": "Lokal evidence for felter i hvert fundliste[]-objekt. Læg evidence i samme fundliste[]-objekt som værdien. Brug lokale feltnavne som nøgler (Fund_no, Fund_beskrivelse, Fundplacering, Fund_bemaerkning)."
+    }
+  }
+}

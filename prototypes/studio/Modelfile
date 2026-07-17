@@ -1,4 +1,5 @@
-FROM hf.co/numind/NuExtract3-GGUF:Q2_K
+FROM hf.co/numind/NuExtract3-GGUF:Q4_K_M
 
-# Full-document markdown + schema prompt blows past the 4K default.
+# Local default for prompts that include canonical Markdown plus an Extraction Schema.
+# Operators may override the raw request context with optional AI_NUM_CTX.
 PARAMETER num_ctx 32768

@@ -39,6 +39,8 @@ function codexProvider(): ReturnType<typeof createCodexAppServer> {
 			cwd: isolatedCodexWorkingDirectory(),
 			effort: "none",
 			sandboxPolicy: "read-only",
+			// The first authenticated thread can exceed the provider's 30s default.
+			requestTimeoutMs: 120_000,
 			idleTimeoutMs: 60_000,
 			minCodexVersion: "0.144.0",
 			logger: false,
