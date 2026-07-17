@@ -11,7 +11,7 @@ import { ACTIVE_DOC } from "./ProjectNav";
 import RightRail from "./RightRail";
 import type { RailTab } from "./RightRail";
 import type { TemplateState } from "./SchemaPanel";
-import { countTemplateFields, isRecord } from "./template";
+import { countTemplateFields } from "./template";
 import { requestSchema, parseDocumentToMarkdown } from "./api";
 import type { AnnotationsMode, ExtractionStrategy } from "./api";
 import { defaultPinnedSchema, pinnedSchemas } from "./pinnedSchemas";
@@ -469,32 +469,16 @@ function App() {
 	}
 
 	function changeSchema(changes: readonly SchemaChange[], message: string) {
-		if (
-			templateState.status !== "ready" ||
-			templateState.source !== "generated"
-		)
-			return;
+		if (templateState.status !== "ready") return;
 		const result = applySchemaChanges(templateState.schema, changes);
 		if (result.status !== "applied") return;
 		setTemplateState({
-			...templateState,
+			status: "ready",
 			schema: result.schema,
+			inputsKey: templateState.inputsKey,
+			source: "generated",
 			edited: true,
 		});
-		showToast(message);
-	}
-
-	function changeTemplate(template: unknown, message: string) {
-		if (!isRecord(template)) return;
-		setTemplateState((state) =>
-			state.status === "ready" && state.source === "generated"
-				? {
-						...state,
-						schema: { ...state.schema, record: template },
-						edited: true,
-					}
-				: state,
-		);
 		showToast(message);
 	}
 
@@ -816,7 +800,6 @@ function App() {
 						schemaFieldCount={schemaFieldCount}
 						onGenerate={() => void generateSchema()}
 						onSchemaChange={changeSchema}
-						onTemplateChange={changeTemplate}
 						annotationsMode={annotationsMode}
 						onAnnotationsModeChange={setAnnotationsMode}
 						extraction={extraction}

@@ -19,12 +19,25 @@ export type SetSchemaChange = {
 	readonly path: SchemaPath;
 	readonly value: JsonValue;
 };
-export type SchemaChange = SetSchemaChange;
+export type RenameSchemaChange = {
+	readonly operation: "rename";
+	readonly path: SchemaPath;
+	readonly name: string;
+};
+export type RemoveSchemaChange = {
+	readonly operation: "remove";
+	readonly path: SchemaPath;
+};
+export type SchemaChange =
+	| SetSchemaChange
+	| RenameSchemaChange
+	| RemoveSchemaChange;
 export type SchemaIssueCode =
 	| "invalid_schema"
 	| "invalid_path"
 	| "protected_name"
 	| "missing_parent"
+	| "missing_field"
 	| "field_exists";
 export type SchemaIssue = {
 	readonly code: SchemaIssueCode;
@@ -120,11 +133,21 @@ export function applySchemaChanges(
 	schema: ExtractionSchemaEnvelope,
 	changes: readonly SchemaChange[],
 ): ApplyResult {
+	const initialValidation = validateExtractionSchema(schema);
+	if (!initialValidation.valid)
+		return { status: "invalid", issues: initialValidation.issues };
+
 	let working: ExtractionSchemaEnvelope = structuredClone(schema);
 	for (const change of changes) {
-		const result = applySet(working, change);
+		const result =
+			change.operation === "set"
+				? applySet(working, change)
+				: applyRenameOrRemove(working, change);
 		if (result.status === "invalid") return result;
 		working = result.schema;
+		const stepValidation = validateExtractionSchema(working);
+		if (!stepValidation.valid)
+			return { status: "invalid", issues: stepValidation.issues };
 	}
 	const validation = validateExtractionSchema(working);
 	return validation.valid
@@ -198,6 +221,133 @@ function applySet(
 		localEvidence[name] = structuredClone(EVIDENCE);
 	}
 	return { status: "applied", schema };
+}
+
+function applyRenameOrRemove(
+	schema: ExtractionSchemaEnvelope,
+	change: RenameSchemaChange | RemoveSchemaChange,
+): SetResult {
+	if (change.path.length === 0)
+		return invalid(
+			"invalid_path",
+			change.path,
+			`Root ${change.operation} is not allowed.`,
+		);
+	const pathIssue = validateResearcherPath(change.path);
+	if (pathIssue) return pathIssue;
+
+	let parent: Record<string, unknown> = schema.record;
+	for (const segment of change.path.slice(0, -1)) {
+		const child = own(parent, segment);
+		const traversed = Array.isArray(child) ? child[0] : child;
+		if (!isRecord(traversed))
+			return invalid(
+				"missing_parent",
+				change.path,
+				"The complete parent path must exist.",
+			);
+		parent = traversed;
+	}
+	const oldName = change.path.at(-1) as string;
+	if (!Object.hasOwn(parent, oldName))
+		return invalid(
+			"missing_field",
+			change.path,
+			`Field ${oldName} does not exist.`,
+		);
+
+	if (change.operation === "rename") {
+		const name = normalizeFieldName(change.name);
+		if (!name || PROTECTED_NAMES.has(name))
+			return invalid(
+				"protected_name",
+				change.path,
+				`Field name ${change.name} is protected.`,
+			);
+		if (name !== oldName && Object.hasOwn(parent, name))
+			return invalid(
+				"field_exists",
+				change.path,
+				`Field ${name} already exists.`,
+			);
+		if (name !== oldName) {
+			renameOwnKey(parent, oldName, name);
+			if (
+				isRecord(parent._evidence) &&
+				Object.hasOwn(parent._evidence, oldName)
+			)
+				renameOwnKey(parent._evidence, oldName, name);
+			migrateMetadata(schema._schema_metadata, change.path, name);
+		}
+	} else {
+		delete parent[oldName];
+		if (isRecord(parent._evidence)) delete parent._evidence[oldName];
+		pruneMetadata(schema._schema_metadata, change.path);
+	}
+	return { status: "applied", schema };
+}
+
+function validateResearcherPath(path: SchemaPath): SetResult | null {
+	for (const segment of path) {
+		if (!segment.trim())
+			return invalid(
+				"invalid_path",
+				path,
+				"Schema paths cannot contain empty names.",
+			);
+		if (PROTECTED_NAMES.has(segment))
+			return invalid(
+				"protected_name",
+				path,
+				`Field name ${segment} is protected.`,
+			);
+	}
+	return null;
+}
+
+function renameOwnKey(
+	record: Record<string, unknown>,
+	oldName: string,
+	name: string,
+): void {
+	const entries = Object.entries(record).map(
+		([key, value]) => [key === oldName ? name : key, value] as const,
+	);
+	for (const key of Object.keys(record)) delete record[key];
+	for (const [key, value] of entries) record[key] = value;
+}
+
+function metadataMatchesPath(metadataPath: string, path: SchemaPath): boolean {
+	const segments = metadataPath.split(".");
+	if (segments.shift() !== "record") return false;
+	return path.every(
+		(segment, index) => segments[index]?.replace(/\[\]$/, "") === segment,
+	);
+}
+
+function migrateMetadata(
+	metadata: Record<string, unknown>,
+	path: SchemaPath,
+	name: string,
+): void {
+	for (const [metadataPath, value] of Object.entries(metadata)) {
+		if (!metadataMatchesPath(metadataPath, path)) continue;
+		const segments = metadataPath.split(".");
+		const index = path.length;
+		const repeated = segments[index]?.endsWith("[]") ? "[]" : "";
+		segments[index] = `${name}${repeated}`;
+		delete metadata[metadataPath];
+		metadata[segments.join(".")] = value;
+	}
+}
+
+function pruneMetadata(
+	metadata: Record<string, unknown>,
+	path: SchemaPath,
+): void {
+	for (const metadataPath of Object.keys(metadata)) {
+		if (metadataMatchesPath(metadataPath, path)) delete metadata[metadataPath];
+	}
 }
 
 function normalizeFieldName(name: string): string {

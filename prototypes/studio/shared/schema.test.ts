@@ -67,6 +67,111 @@ describe("Extraction Schema validation", () => {
 	});
 });
 
+describe("rename and remove schema changes", () => {
+	const schemaWithDependencies: ExtractionSchemaEnvelope = {
+		record: {
+			entries: [
+				{
+					name: "",
+					_evidence: {
+						name: {
+							snippets: [],
+							inferred: false,
+							source_type: "",
+							page: null,
+							table_index: null,
+							row_index: null,
+							col_index: null,
+							row_header_text: "",
+							column_header_text: "",
+						},
+					},
+				},
+			],
+		},
+		_schema_metadata: {
+			"record.entries[].name": { description: "Researcher-facing name" },
+		},
+	};
+
+	it("renames a field and migrates its metadata and Evidence atomically", () => {
+		const result = applySchemaChanges(schemaWithDependencies, [
+			{
+				operation: "rename",
+				path: ["entries", "name"],
+				name: " Display Name ",
+			},
+		]);
+
+		expect(result).toMatchObject({
+			status: "applied",
+			schema: {
+				record: {
+					entries: [{ display_name: "", _evidence: { display_name: {} } }],
+				},
+				_schema_metadata: { "record.entries[].display_name": {} },
+			},
+		});
+		expect(schemaWithDependencies.record.entries).toHaveProperty("0.name");
+	});
+
+	it("removes a field and prunes its metadata and Evidence", () => {
+		const result = applySchemaChanges(schemaWithDependencies, [
+			{ operation: "remove", path: ["entries", "name"] },
+		]);
+
+		expect(result).toMatchObject({
+			status: "applied",
+			schema: {
+				record: { entries: [{ _evidence: {} }] },
+				_schema_metadata: {},
+			},
+		});
+	});
+
+	it("rolls back every change when a later change fails", () => {
+		const result = applySchemaChanges(schemaWithDependencies, [
+			{ operation: "rename", path: ["entries", "name"], name: "label" },
+			{ operation: "remove", path: ["entries", "missing"] },
+		]);
+		expect(result).toMatchObject({
+			status: "invalid",
+			issues: [{ code: "missing_field" }],
+		});
+		expect(schemaWithDependencies.record.entries).toHaveProperty("0.name");
+	});
+
+	it.each([
+		"rename",
+		"remove",
+	] as const)("rejects root %s with a typed issue", (operation) => {
+		const change =
+			operation === "rename"
+				? { operation, path: [], name: "root" }
+				: { operation, path: [] };
+		expect(applySchemaChanges(baseSchema, [change])).toMatchObject({
+			status: "invalid",
+			issues: [{ code: "invalid_path", path: [] }],
+		});
+	});
+
+	it("rejects an already orphaned system reference before making changes", () => {
+		const malformed = {
+			...baseSchema,
+			_schema_metadata: { "record.missing": {} },
+		};
+		expect(
+			applySchemaChanges(malformed, [
+				{ operation: "rename", path: ["title"], name: "heading" },
+			]),
+		).toMatchObject({
+			status: "invalid",
+			issues: [{ code: "invalid_schema" }],
+		});
+		expect(malformed.record).toHaveProperty("title");
+	});
+});
+
 describe("set schema changes", () => {
 	it("immutably adds a normalized leaf beneath an existing repeated-item record with local Evidence", () => {
 		const result = applySchemaChanges(baseSchema, [

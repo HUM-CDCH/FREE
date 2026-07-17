@@ -1,6 +1,6 @@
 # 03 — Safely rename and remove schema fields
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: 02
 
@@ -18,13 +18,17 @@ normalization applies only on rename.
 
 ## Acceptance criteria
 
-- [ ] Rename migrates dependent metadata and Evidence; remove prunes them
-- [ ] Atomic rollback: one failing change rejects the whole change set
-- [ ] Root `remove` and root `rename` are invalid with typed issues
-- [ ] Editing a pinned schema produces an editable copy; pinned source untouched
-- [ ] Old mutation seam deleted; all manual edits use the shared engine
-- [ ] Focused tests added; test, lint, and build green
+- [x] Rename migrates dependent metadata and Evidence; remove prunes them
+- [x] Atomic rollback: one failing change rejects the whole change set
+- [x] Root `remove` and root `rename` are invalid with typed issues
+- [x] Editing a pinned schema produces an editable copy; pinned source untouched
+- [x] Old mutation seam deleted; all manual edits use the shared engine
+- [x] Focused tests added; test, lint, and build green
 
 ## Blocked by
 
 - 02-add-and-retype-schema-fields
+
+## Answer
+
+Implemented validated `rename` and `remove` Schema Changes in the shared immutable engine. Rename migrates dependent `_schema_metadata` and Evidence keys; remove prunes them. Every step validates system references and rolls the complete change set back on failure, including typed root-operation and missing-field issues. Manual schema editing now emits only Schema Changes, supports editable browser-owned copies of pinned Extraction Schemas, and no longer exposes the callback-based mutation seam. Field edits emit `set` only when the selected type changes, so object and repeated-array renames preserve their complete contents and references. Added focused engine, field-transition, and pinned-schema UI tests; Studio test, lint, and build pass.
