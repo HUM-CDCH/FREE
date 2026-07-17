@@ -30,7 +30,7 @@ FREE can publish a canonical `ParsedDocument`, but Studio cannot yet reproduce t
 ## Impact
 
 - Affects `prototypes/studio/src/api.ts`, the existing Results view/state flow, and server modules under `prototypes/studio/api`.
-- Adds at most the planned `_catalog.ts` and `_article.ts` production modules while extending `_model.ts`, `_model_output.ts`, and `_evidence_template.ts`.
+- Adds the planned `_catalog.ts` and `_article.ts` production modules plus the approved `_table_evidence.ts` and `pdfTextMatching.ts` cohesion splits while extending `_model.ts`, `_model_output.ts`, and `_evidence_template.ts`.
 - Adds API/server TypeScript checking to the Studio build and deterministic pure/API tests based on the pinned `FREE-technical` commit `67ea4dc535a2ab674ed8c4b558068e13e7c2980d`.
 - Depends on the parsing service's shipped `GET /tasks/{task_id}/parsed-document` and `parsed_document.v1`; it does not change Python parsing, OCR, canonical publication, or provider configuration.
 - Does not add persistence, queues, a new provider abstraction, schema editing, review, evaluation, export, or production rollout machinery.

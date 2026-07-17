@@ -52,7 +52,7 @@ The port intentionally preserves reference limitations: document-level fields ou
 
 `api/_model_output.ts` owns faithful recursive `_conform_to_schema` behavior: unknown keys are dropped, missing fields are restored, missing scalars become `null`, missing arrays become `[]`, singleton values can become one-element arrays, free-form `{}` and `[]` remain free-form, and non-scalars in scalar slots become `null`.
 
-`api/_evidence_template.ts` owns traversal and normalization of schema-local `_evidence` slots. It preserves `table_index`, including nested `fundliste` Evidence, and resolves that 1-based index against deterministic document-global canonical table order; a valid table index takes precedence over a conflicting page hint, while page-only hints never activate table matching. Applying the pinned default-extractor table backfill to canonical `ParsedTable` cells is an intentional extension of the pinned hierarchical Catalog path, which did not receive table files. Text Evidence is grounded first through slices of canonical `text_views.llm_markdown` selected by page spans, then page text and optional anchors. The pinned ellipsis behavior is retained by splitting `...` and `…`-glued snippets into trimmed contiguous snippets.
+`api/_evidence_template.ts` owns traversal and normalization of schema-local `_evidence` slots, including nested `fundliste` Evidence. Final table Evidence Anchors come from deterministic matching against document-global canonical `ParsedTable` and cell order; model-provided page, table, row, and column coordinates are hints, not authority. Catalog discards those location hints before applying the pinned default-extractor table backfill algorithm because each hierarchical model call sees only a section and may emit section-local coordinates. It accepts only a unique match supported by Evidence snippets and the Extraction Result value, leaving the location empty when matching is ambiguous. Article may use its document-global table inventory as a verified hint, but canonical matching still owns the final Evidence Anchor. This is an intentional correction to the pinned hierarchical Catalog path, which did not receive table files or deterministically backfill table locations. Text Evidence is grounded first through slices of canonical `text_views.llm_markdown` selected by page spans, then page text and optional anchors. The pinned ellipsis behavior is retained by splitting `...` and `…`-glued snippets into trimmed contiguous snippets.
 
 A separate result codec or evidence service was rejected because this port has one public result shape and no persistence boundary.
 
@@ -62,9 +62,17 @@ A separate result codec or evidence service was rejected because this port has o
 
 The installed AI SDK remains available where useful, but `ai-sdk-ollama` is not substituted for the raw path because it cannot reproduce the required NuExtract control channel.
 
+### Document supported provider profiles instead of enforcing model names
+
+FREE documents supported execution profiles but does not parse model names to enforce a quantization level, silently route extraction strategies to different providers, or reject custom models. Local Catalog uses NuExtract Q4 or better with a context appropriate to the available machine. Article uses either authenticated Codex CLI or NuExtract Q4 or better on a capable Ollama host such as the Spark machine. Ollama accepts an optional positive `AI_NUM_CTX`, which is serialized into the raw generation request; Codex CLI owns its context configuration.
+
+Concrete examples and allowed values remain valid researcher-authored Extraction Schema metadata and are sent verbatim in the instructions channel, separate from Source Context. FREE does not sanitize arbitrary metadata because doing so would destroy legitimate extraction guidance. Provider qualification instead includes a live Catalog fixture whose Source Document values conflict with a metadata example, proving that a supported model does not copy the example as an Extraction Result.
+
+Completion requires two explicit live lanes outside ordinary CI: a NuExtract Q4-or-better Ollama Catalog smoke that rejects metadata-example leakage, and an Article smoke through at least one Article-capable provider (Codex CLI or Spark-hosted Ollama) that returns schema-shaped values with canonical table Evidence. Both lanes retain deterministic CI counterparts; when both Article providers are available, both may be exercised and the passing provider profiles are recorded.
+
 ### Keep production code shape narrow
 
-Prefer edits to `src/api.ts`, `api/extract.ts`, `api/_model.ts`, `api/_model_output.ts`, and `api/_evidence_template.ts`. Add only `api/_catalog.ts` and, when Article begins, `api/_article.ts` unless a file becomes demonstrably difficult to test or navigate.
+Prefer edits to `src/api.ts`, `api/extract.ts`, `api/_model.ts`, `api/_model_output.ts`, and `api/_evidence_template.ts`. In addition to `api/_catalog.ts` and `api/_article.ts`, review corrections authorize two cohesion modules: `api/_table_evidence.ts` for canonical table matching and `src/pdfTextMatching.ts` for the pure reference-derived PDF token matcher. These splits keep table grounding separate from Evidence traversal and text matching separate from PDF rendering; no broader Catalog split is part of this change.
 
 An API/server TypeScript configuration is referenced by the Studio build so `api/*.ts` cannot remain outside type checking.
 

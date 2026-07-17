@@ -99,16 +99,33 @@ Text Evidence SHALL be normalized first against per-page slices of canonical `te
 - **THEN** normalization replaces it with separate trimmed snippet entries
 - **AND** no ellipsis-glued snippet remains
 
-### Requirement: Table Evidence preserves table_index and resolves deterministic table order
+#### Scenario: Evidence has no snippet to ground
 
-Table Evidence SHALL preserve the public 1-based `table_index` field and resolve it against the deterministic order of canonical `ParsedTable` objects and their 0-based `row` and `col` cells. Applying the pinned default-extractor backfill algorithm to Catalog output SHALL be an intentional extension because the pinned hierarchical path ignored table files. This change SHALL NOT rename `table_index` to `table_id`.
+- **WHEN** Evidence has only a page hint and no non-empty snippet, table source type, table index, coordinates, or table-like content
+- **THEN** normalization preserves the supplied page as the returned Evidence page when it identifies an existing canonical page
+- **AND** normalization returns a null Evidence page when the supplied page does not identify an existing canonical page
 
-#### Scenario: Valid table index is supplied
+### Requirement: Table Evidence resolves through canonical matching
 
-- **WHEN** embedded Evidence contains a `table_index` that identifies a canonical table in deterministic order
-- **THEN** normalization grounds the Evidence against that `ParsedTable` and its referenced cells
-- **AND** a conflicting page hint does not override the valid global table index
-- **AND** the returned Evidence continues to expose `table_index`
+Table Evidence SHALL expose the public 1-based `table_index` field in deterministic canonical `ParsedTable` order and 0-based `row` and `col` cells. Final coordinates SHALL come from matching Evidence snippets and the corresponding Extraction Result value against canonical table cells; model-provided coordinates SHALL be hints rather than authority. Applying the pinned default-extractor backfill algorithm to Catalog output SHALL be an intentional extension because the pinned hierarchical path ignored table files. This change SHALL NOT rename `table_index` to `table_id`.
+
+#### Scenario: Catalog supplies section-local coordinates
+
+- **WHEN** Catalog Evidence contains model-provided page, table, row, or column coordinates
+- **THEN** normalization discards those location hints before canonical matching
+- **AND** a unique supported cell match is returned with document-global coordinates
+
+#### Scenario: Article supplies document-global coordinates
+
+- **WHEN** Article Evidence contains coordinates from the document-global table inventory
+- **THEN** normalization verifies those hints against canonical table cells
+- **AND** canonical matching owns the returned Evidence Anchor
+
+#### Scenario: Canonical table match is ambiguous
+
+- **WHEN** multiple canonical cells are equally supported by the Evidence snippets and Extraction Result value
+- **THEN** normalization leaves the table Evidence location empty
+- **AND** it does not select a cell using model coordinates alone
 
 #### Scenario: Page-only Evidence is supplied
 

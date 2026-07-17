@@ -66,6 +66,36 @@ Catalog and Article extraction SHALL call one server-side structured-generation 
 - **THEN** it supplies only task identity, Extraction Schema, and strategy
 - **AND** it does not receive provider credentials or execute model generation locally
 
+### Requirement: Ollama context configuration is explicit and provider-neutral
+
+FREE SHALL document supported execution profiles rather than enforce model capability from provider-specific model names. When `AI_PROVIDER=ollama`, an optional positive `AI_NUM_CTX` SHALL be serialized as Ollama's `options.num_ctx`; when it is absent, the request SHALL omit `num_ctx`. Codex CLI SHALL retain provider-owned context configuration. Extraction SHALL NOT silently switch providers based on Article or Catalog strategy.
+
+#### Scenario: Ollama context is configured
+
+- **WHEN** `AI_NUM_CTX` contains a positive integer
+- **THEN** the raw Ollama generation request includes that value as `options.num_ctx`
+
+#### Scenario: Ollama context is not configured
+
+- **WHEN** `AI_NUM_CTX` is absent
+- **THEN** the raw Ollama generation request omits `options.num_ctx`
+
+#### Scenario: A custom model is configured
+
+- **WHEN** the configured model name does not follow a NuExtract quantization naming convention
+- **THEN** extraction does not reject it based on model-name parsing
+- **AND** it does not change the selected provider
+
+### Requirement: Extraction Schema metadata remains instructional input
+
+Extraction SHALL preserve researcher-authored `_schema_metadata`, including concrete examples and allowed values, and place it in the model instructions channel separately from Source Context. Extraction SHALL NOT sanitize arbitrary metadata values as if they were Source Document content.
+
+#### Scenario: Metadata contains a concrete example absent from the Source Document
+
+- **WHEN** an Extraction Schema description contains an illustrative value that conflicts with Source Context
+- **THEN** the complete metadata remains available as extraction guidance
+- **AND** a qualified provider extracts values from Source Context rather than copying the illustrative value
+
 ### Requirement: Article strategy performs one whole-document extraction
 
 Article extraction SHALL make one structured-generation call over the complete canonical LLM Markdown plus a deterministic inventory of canonical tables when tables exist. The table inventory SHALL identify tables by document-global 1-based `table_index` and cells by 0-based `row` and `col`, then extraction SHALL recursively conform the model result to `schema.record` and normalize embedded Evidence through the shared result path.

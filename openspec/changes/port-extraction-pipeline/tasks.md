@@ -41,7 +41,7 @@
 - [x] 4.6 Add `api/_article.ts` with one whole-document model call followed by the shared conformance and Evidence path
 - [x] 4.7 Route `strategy: "article"` explicitly and prove collagen uses Article behavior despite also containing `record.entries`
 - [x] 4.8 Run a fresh parity review and scope review of the Evidence and Article slice, apply accepted in-scope fixes, and rerun Studio tests and build
-- [x] 4.9 Verify canonical Markdown page-slice grounding, document-global table-index precedence, page-only Evidence behavior, Article table inventory, and restored scalar highlighting
+- [x] 4.9 Verify canonical Markdown page-slice grounding, canonical table matching, page-only Evidence behavior, Article table inventory, and restored scalar highlighting
 
 ## 5. Verify the completed port
 
@@ -50,3 +50,14 @@
 - [x] 5.3 Run `pnpm --filter studio test` and `pnpm --filter studio build`
 - [x] 5.4 Run strict OpenSpec validation and verify every capability scenario has deterministic automated coverage or an explicitly opt-in live-model check
 - [x] 5.5 Correct the researcher-facing schema path: expose the two pinned production schemas in Studio, default Burial Finds to Catalog, and regression-test that `requestExtraction` sends metadata and local Evidence unchanged
+
+## 6. Address extraction review findings
+
+- [x] 6.1 Add failing normalization tests proving Catalog discards section-local table coordinates, resolves a unique canonical cell in document-global order, leaves ambiguous matches ungrounded, and Article verifies its document-global hints
+- [x] 6.2 Extract the reference-derived canonical table matcher into `api/_table_evidence.ts`, make normalization strategy-aware, and update the endpoint so Catalog ignores model location hints while Article treats them only as verified hints
+- [x] 6.3 Add failing highlight-projection tests proving field-level Evidence applies to every scalar-array element and a valid Evidence page remains the preferred page when snippets are empty
+- [x] 6.4 Extract pure PDF text matching into `src/pdfTextMatching.ts`, port the `FREE-technical` normalization and token-sequence behavior, and require complete-token alignment instead of the reference substring fast path
+- [x] 6.5 Replace Article prompt-prose assertions with endpoint behavior tests that prove one-call Article routing, canonical table grounding, conformance, and empty-snippet page preservation
+- [x] 6.6 Replace Q2 documentation and the Modelfile base with the official NuExtract3 `Q4_K_M` profile, document local Catalog, Spark Ollama, and Codex CLI profiles, add strict optional `AI_NUM_CTX` parsing, and prove Ollama request serialization without model-name enforcement or silent routing
+- [ ] 6.7 Split live verification into a NuExtract Q4-or-better Ollama Catalog smoke with conflicting metadata and an Article smoke through Codex CLI or Spark-hosted Ollama; require both lanes, record the passing Article provider, and keep both outside ordinary CI
+- [ ] 6.8 Run focused tests, Studio lint/test/build, strict OpenSpec validation, and manual PDF-viewer QA proving scalar arrays retain Evidence page guidance and short numeric values do not highlight larger tokens

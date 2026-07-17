@@ -71,6 +71,26 @@ Catalog extraction SHALL invoke the model once per section, recursively conform 
 - **THEN** Catalog extraction completes according to the pinned reference selection behavior
 - **AND** it does not introduce additional recovery calls
 
+### Requirement: Catalog grounds omitted text Evidence snippets from the extracted value
+
+Because each Catalog extraction call sees only one section, the model may omit or mis-copy a grounding snippet even when it extracts the value. Catalog extraction SHALL ground each local text `_evidence` snippet against the record's own canonical section. A model snippet that is already verbatim within that section SHALL be retained unchanged. When no retained snippet is verbatim, Catalog extraction SHALL derive a verbatim snippet from the corresponding extracted value where that value occurs in the section, citing the containing line. When the extracted value does not occur in the section, the snippets SHALL remain empty so grounding never fabricates Evidence for a hallucinated or metadata-leaked value. This extends ADR 0006 — canonical text, not model hints, owns Evidence Anchors — from table Evidence to text Evidence snippets.
+
+#### Scenario: Model omits a grounding snippet for an extracted value
+
+- **WHEN** a section's conformed record extracts a value but returns no verbatim snippet for it
+- **THEN** Catalog extraction grounds the snippet to the verbatim section line where that value occurs
+
+#### Scenario: Model snippet is already verbatim
+
+- **WHEN** a model-provided snippet occurs verbatim in the record's section
+- **THEN** Catalog extraction retains that snippet unchanged
+
+#### Scenario: Extracted value is absent from the section
+
+- **WHEN** an extracted value does not occur in the record's section
+- **THEN** Catalog extraction leaves the snippets empty
+- **AND** it does not fabricate a snippet from the value
+
 ### Requirement: Catalog results merge in source order with reference deduplication
 
 Catalog extraction SHALL merge section results into the selected repeated array in source order and apply the pinned scalar-fingerprint deduplication behavior. It SHALL preserve nested arrays such as `fundliste` and SHALL NOT enable phased nested extraction.
