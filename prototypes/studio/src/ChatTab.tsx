@@ -145,6 +145,10 @@ function ChatTab({
 											state: "output-available",
 											suggestion: part.output,
 										}}
+										stale={
+											part.output.documentEpoch !== documentEpoch ||
+											part.output.baseRevision !== revision
+										}
 										onApply={(suggestion) =>
 											reviewSuggestion(key, "applied", suggestion)
 										}

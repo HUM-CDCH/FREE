@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSchemaAgentUIResponse } from "./_chat_agent.js";
 import { POST } from "./chat.ts";
 
-vi.mock("./_chat_agent.js", () => ({
+vi.mock("./_chat_agent.js", async (importOriginal) => ({
+	...(await importOriginal<typeof import("./_chat_agent.js")>()),
 	createSchemaAgentUIResponse: vi.fn(async () => new Response("stream")),
 }));
 const messages = [
@@ -136,7 +137,81 @@ describe("POST /api/chat", () => {
 		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
 	});
 
+	it("accepts a validated nested-change proposal tool part", async () => {
+		const changes = [
+			{ operation: "rename", path: ["title"], name: "heading" },
+			{ operation: "remove", path: ["notes"] },
+			{ operation: "set", path: ["period"], value: "verbatim-string" },
+		];
+		const response = await postWithParts([
+			{
+				type: "tool-proposeSchemaChanges",
+				toolCallId: "call-9",
+				state: "output-available",
+				input: { summary: "Update fields", changes },
+				output: {
+					id: "123e4567-e89b-42d3-a456-426614174009",
+					documentEpoch: 0,
+					baseRevision: 0,
+					summary: "Update fields",
+					changes,
+				},
+			},
+		]);
+
+		expect(response.status).toBe(200);
+		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
+	});
+
+	it("rejects unknown request properties", async () => {
+		const response = await POST(
+			new Request("http://localhost/api/chat", {
+				method: "POST",
+				body: JSON.stringify({
+					messages,
+					markdown: null,
+					annotations: [],
+					schema: null,
+					revision: 0,
+					documentEpoch: 0,
+					unexpected: true,
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(createSchemaAgentUIResponse).not.toHaveBeenCalled();
+	});
+
 	it.each([
+		[
+			"unknown tool property",
+			{
+				type: "tool-proposeSchemaChanges",
+				toolCallId: "call-extra",
+				state: "input-streaming",
+				unexpected: true,
+			},
+		],
+		[
+			"unknown operation property",
+			{
+				type: "tool-proposeSchemaChanges",
+				toolCallId: "call-operation-extra",
+				state: "input-available",
+				input: {
+					summary: "Update title",
+					changes: [
+						{
+							operation: "set",
+							path: ["title"],
+							value: "verbatim-string",
+							unexpected: true,
+						},
+					],
+				},
+			},
+		],
 		[
 			"unknown tool",
 			{ type: "dynamic-tool", toolCallId: "call-1", state: "input-streaming" },

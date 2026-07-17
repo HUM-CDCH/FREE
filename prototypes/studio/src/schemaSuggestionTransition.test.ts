@@ -55,6 +55,7 @@ describe("schema suggestion review transitions", () => {
 
 		expect(result.state.template.status).toBe("ready");
 		if (result.state.template.status !== "ready") return;
+		const appliedSchema = result.state.template.schema;
 
 		const previousResult = {
 			documentEpoch: 2,
@@ -68,7 +69,7 @@ describe("schema suggestion review transitions", () => {
 			projectExtractionState(previousResult, {
 				...previousResult,
 				schemaRevision: result.state.revision,
-				schema: result.state.template.schema,
+				schema: appliedSchema,
 			}),
 		).toEqual({ status: "idle" });
 	});
@@ -93,6 +94,85 @@ describe("schema suggestion review transitions", () => {
 			source: "generated",
 		});
 		expect(result.state.revision).toBe(5);
+	});
+
+	it("applies nested chat changes to an editable copy of a pinned schema", () => {
+		const pinnedSchema = {
+			name: "Finds",
+			record: {
+				material: "verbatim-string",
+				obsolete: "verbatim-string",
+				_evidence: {
+					material: {
+						snippets: [],
+						inferred: false,
+						source_type: "",
+						page: null,
+						table_index: null,
+						row_index: null,
+						col_index: null,
+						row_header_text: "",
+						column_header_text: "",
+					},
+				},
+			},
+			_schema_metadata: { "record.material": { mode: "verbatim" } },
+		};
+		const nestedSuggestion: SchemaSuggestion = {
+			id: "server-suggestion-9",
+			documentEpoch: 2,
+			baseRevision: 4,
+			summary: "Update finds",
+			changes: [
+				{ operation: "rename", path: ["material"], name: "substance" },
+				{ operation: "remove", path: ["obsolete"] },
+				{ operation: "set", path: ["period"], value: "verbatim-string" },
+			],
+		};
+		const result = applyPendingSchemaSuggestionTransition(
+			{
+				...reviewState,
+				template: {
+					status: "ready",
+					schema: pinnedSchema,
+					inputsKey: "pinned",
+					source: "pinned",
+				},
+				suggestion: nestedSuggestion,
+			},
+			{ documentEpoch: 2, revision: 4 },
+		);
+
+		expect(result.status).toBe("applied");
+		if (result.status !== "applied" || result.state.template.status !== "ready")
+			return;
+		expect(result.state.template).toMatchObject({
+			source: "generated",
+			edited: true,
+		});
+		expect(result.state.template.schema.record).toHaveProperty("substance");
+		expect(result.state.template.schema.record).not.toHaveProperty("material");
+		expect(result.state.template.schema.record).not.toHaveProperty("obsolete");
+		expect(result.state.template.schema.record).toHaveProperty("period");
+		expect(result.state.template.schema._schema_metadata).toEqual({
+			"record.substance": { mode: "verbatim" },
+		});
+		expect(pinnedSchema.record).toHaveProperty("material");
+		expect(result.state.revision).toBe(5);
+	});
+
+	it("rejects an invalid complete chat change set without replacement state", () => {
+		const result = applyPendingSchemaSuggestionTransition(
+			{
+				...reviewState,
+				suggestion: {
+					...suggestion,
+					changes: [{ operation: "remove", path: ["missing"] }],
+				},
+			},
+			{ documentEpoch: 2, revision: 4 },
+		);
+		expect(result).toEqual({ status: "invalid" });
 	});
 
 	it("rejects without changing the approved schema or revision", () => {

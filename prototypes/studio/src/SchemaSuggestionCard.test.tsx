@@ -41,6 +41,39 @@ describe("SchemaSuggestionCard", () => {
 		expect(html).toContain("Reject");
 	});
 
+	it("previews nested set, rename, and remove changes", () => {
+		const html = render({
+			state: "output-available",
+			suggestion: {
+				...suggestion,
+				summary: "Update finds",
+				changes: [
+					{ operation: "rename", path: ["material"], name: "substance" },
+					{ operation: "remove", path: ["obsolete"] },
+					{ operation: "set", path: ["period"], value: "verbatim-string" },
+				],
+			},
+		});
+		expect(html).toContain("Rename material to substance");
+		expect(html).toContain("Remove obsolete");
+		expect(html).toContain("Set period");
+	});
+
+	it("renders a visible stale state without an enabled Apply action", () => {
+		const html = renderToStaticMarkup(
+			createElement(SchemaSuggestionCard, {
+				value: { state: "output-available", suggestion },
+				stale: true,
+				onApply: vi.fn(),
+				onReject: vi.fn(),
+			}),
+		);
+		expect(html).toContain(
+			"suggestion no longer matches the active document or approved schema",
+		);
+		expect(html).toContain("disabled");
+	});
+
 	it("renders input and invalid-output states without review actions", () => {
 		expect(
 			render({ state: "input-available", summary: "Extract finds" }),

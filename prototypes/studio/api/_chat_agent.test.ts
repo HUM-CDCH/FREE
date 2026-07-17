@@ -135,6 +135,162 @@ describe("createSchemaAgent", () => {
 		});
 	});
 
+	it("turns valid nested set, rename, and remove content into a server-owned suggestion", async () => {
+		vi.spyOn(crypto, "randomUUID").mockReturnValue(
+			"00000000-0000-4000-8000-000000000009",
+		);
+		const approvedSchema = {
+			name: "Finds",
+			record: {
+				material: "verbatim-string",
+				obsolete: "verbatim-string",
+			},
+			_schema_metadata: {},
+		};
+		const changes = [
+			{ operation: "rename", path: ["material"], name: "substance" },
+			{ operation: "remove", path: ["obsolete"] },
+			{
+				operation: "set",
+				path: ["period"],
+				value: "verbatim-string",
+			},
+		];
+		const model = new MockLanguageModelV4({
+			doGenerate: {
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "call-9",
+						toolName: "proposeSchemaChanges",
+						input: JSON.stringify({ summary: "Update finds", changes }),
+					},
+				],
+				finishReason: { unified: "tool-calls", raw: "tool_calls" },
+				usage: {
+					inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+					outputTokens: { total: 1, text: 1, reasoning: 0 },
+				},
+				warnings: [],
+			},
+		});
+
+		const result = await createSchemaAgent(model).generate({
+			messages: [{ role: "user", content: "Update the schema" }],
+			options: {
+				markdown: "Source",
+				annotations: [],
+				schema: approvedSchema,
+				revision: 7,
+				documentEpoch: 2,
+			},
+		});
+
+		expect(result.toolResults[0]?.output).toEqual({
+			id: "00000000-0000-4000-8000-000000000009",
+			documentEpoch: 2,
+			baseRevision: 7,
+			summary: "Update finds",
+			changes,
+		});
+	});
+
+	it("rejects a root set against an approved schema", async () => {
+		const model = new MockLanguageModelV4({
+			doGenerate: {
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "root-replacement-9",
+						toolName: "proposeSchemaChanges",
+						input: JSON.stringify({
+							summary: "Replace the approved schema",
+							changes: [
+								{
+									operation: "set",
+									path: [],
+									value: {
+										name: "Replacement",
+										record: { period: "verbatim-string" },
+										_schema_metadata: {},
+									},
+								},
+							],
+						}),
+					},
+				],
+				finishReason: { unified: "tool-calls", raw: "tool_calls" },
+				usage: {
+					inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+					outputTokens: { total: 1, text: 1, reasoning: 0 },
+				},
+				warnings: [],
+			},
+		});
+		const result = await createSchemaAgent(model).generate({
+			messages: [{ role: "user", content: "Replace the schema" }],
+			options: {
+				markdown: "Source",
+				annotations: [],
+				schema: {
+					name: "Finds",
+					record: { material: "verbatim-string" },
+					_schema_metadata: {},
+				},
+				revision: 1,
+				documentEpoch: 0,
+			},
+		});
+
+		expect(result.toolResults).toEqual([]);
+		expect(result.steps[0]?.content).toEqual(
+			expect.arrayContaining([expect.objectContaining({ type: "tool-error" })]),
+		);
+	});
+
+	it("rejects invalid nested proposal output without creating a suggestion", async () => {
+		const model = new MockLanguageModelV4({
+			doGenerate: {
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "bad-9",
+						toolName: "proposeSchemaChanges",
+						input: JSON.stringify({
+							summary: "Break schema",
+							changes: [{ operation: "remove", path: ["missing"] }],
+						}),
+					},
+				],
+				finishReason: { unified: "tool-calls", raw: "tool_calls" },
+				usage: {
+					inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+					outputTokens: { total: 1, text: 1, reasoning: 0 },
+				},
+				warnings: [],
+			},
+		});
+		const result = await createSchemaAgent(model).generate({
+			messages: [{ role: "user", content: "Remove missing" }],
+			options: {
+				markdown: "Source",
+				annotations: [],
+				schema: {
+					name: "Finds",
+					record: { title: "verbatim-string" },
+					_schema_metadata: {},
+				},
+				revision: 1,
+				documentEpoch: 0,
+			},
+		});
+
+		expect(result.toolResults).toEqual([]);
+		expect(result.steps[0]?.content).toEqual(
+			expect.arrayContaining([expect.objectContaining({ type: "tool-error" })]),
+		);
+	});
+
 	it("rejects invalid proposal output without creating a suggestion", async () => {
 		const model = new MockLanguageModelV4({
 			doGenerate: {

@@ -147,7 +147,9 @@ describe("SchemaPanel pinned schemas", () => {
 			}),
 		);
 
-		expect(html).toContain("This suggestion is stale");
+		expect(html).toContain(
+			"This suggestion no longer matches the active document or approved schema",
+		);
 		expect(html).toContain("disabled");
 	});
 });

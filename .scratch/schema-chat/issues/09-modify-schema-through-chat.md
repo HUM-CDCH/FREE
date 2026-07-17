@@ -1,6 +1,6 @@
 # 09 — Modify an approved Extraction Schema through chat
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: 08
 
@@ -16,12 +16,29 @@ creates an editable copy.
 
 ## Acceptance criteria
 
-- [ ] Chat proposes nested set/rename/remove; Apply mutates only through the shared engine
-- [ ] Stale Apply and invalid Apply never change the schema, with visible states
-- [ ] Metadata and Evidence remain valid after applied operations
-- [ ] Applying to a pinned schema creates an editable copy
-- [ ] Demoable: converse → proposal card → apply → schema updates → Extraction Results invalidated
-- [ ] Focused tests added; test, lint, and build green
+- [x] Chat proposes nested set/rename/remove; Apply mutates only through the shared engine
+- [x] Stale Apply and invalid Apply never change the schema, with visible states
+- [x] Metadata and Evidence remain valid after applied operations
+- [x] Applying to a pinned schema creates an editable copy
+- [x] Demoable: converse → proposal card → apply → schema updates → Extraction Results invalidated
+- [x] Focused tests added; test, lint, and build green
+
+## Answer
+
+Implemented validated nested `set`, `rename`, and `remove` proposal parts
+using the shared schema engine for server validation and App-owned application.
+Approved schemas reject root replacement proposals, while schema-chat request,
+message, part, annotation, proposal, and operation objects reject unknown keys.
+Nested proposal cards describe each operation, and stale proposals remain visibly
+disabled with a reason that covers both document and schema freshness. Invalid
+application remains non-mutating with the existing visible toast. Focused
+transition coverage verifies metadata/Evidence preservation, pinned-schema
+copying, revision increment, invalid atomic rejection, root-set rejection, and
+strict route boundaries.
+
+Verification: `pnpm --filter studio test`, `pnpm --filter studio lint`, and
+`pnpm --filter studio build` pass (192 tests passed, 2 smoke tests skipped;
+Vite reports only its existing chunk-size warning).
 
 ## Blocked by
 

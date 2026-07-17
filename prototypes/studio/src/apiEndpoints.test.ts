@@ -19,7 +19,8 @@ vi.mock("../api/_model", async (importOriginal) => {
 	};
 });
 
-vi.mock("../api/_chat_agent", () => ({
+vi.mock("../api/_chat_agent", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../api/_chat_agent")>()),
 	createSchemaAgentUIResponse: vi.fn(),
 }));
 

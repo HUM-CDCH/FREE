@@ -17,11 +17,22 @@ type SchemaSuggestionCardProps = {
 	readonly onReject: (suggestion: SchemaSuggestion) => void;
 };
 
-function rootPreview(suggestion: SchemaSuggestion): unknown {
+function suggestionPreview(suggestion: SchemaSuggestion): string {
 	const rootSet = suggestion.changes.find(
 		(change) => change.operation === "set" && change.path.length === 0,
 	);
-	return rootSet?.operation === "set" ? rootSet.value : null;
+	if (rootSet?.operation === "set") {
+		return JSON.stringify(rootSet.value, null, 2);
+	}
+	return suggestion.changes
+		.map((change) => {
+			const path = change.path.join(" → ");
+			if (change.operation === "rename")
+				return `Rename ${path} to ${change.name}`;
+			if (change.operation === "remove") return `Remove ${path}`;
+			return `Set ${path}\n${JSON.stringify(change.value, null, 2)}`;
+		})
+		.join("\n\n");
 }
 
 export function SchemaSuggestionCard({
@@ -71,11 +82,12 @@ export function SchemaSuggestionCard({
 			<Overline as="h3">Schema Suggestion</Overline>
 			<p className="mt-1 text-xs text-ink-muted">{suggestion.summary}</p>
 			<pre className="mt-2 overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2 font-mono text-[11px] text-ink">
-				{JSON.stringify(rootPreview(suggestion), null, 2)}
+				{suggestionPreview(suggestion)}
 			</pre>
 			{stale && (
 				<p className="mt-2 text-xs font-semibold text-danger" role="status">
-					This suggestion is stale because the approved schema changed.
+					This suggestion no longer matches the active document or approved
+					schema.
 				</p>
 			)}
 			<div className="mt-3 flex justify-end gap-2">
