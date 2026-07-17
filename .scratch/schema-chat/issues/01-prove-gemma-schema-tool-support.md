@@ -1,6 +1,6 @@
 # 01 — Prove Gemma schema-tool support
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: none
 
@@ -21,12 +21,27 @@ verified alternatives.
 
 ## Acceptance criteria
 
-- [ ] All three candidate models exercised through the actual agent + streaming route
-- [ ] Tool input, validated output, streamed UI tool parts, and final completion verified
-- [ ] Unsupported provider/model behavior maps to a clear route error
-- [ ] Selected default (`gemma4:26b-a4b-it-qat`) and repeatable manual smoke procedure recorded
-- [ ] Dependencies and lockfile updated; test, lint, and build green
+- [x] All three candidate models exercised through the actual agent + streaming route
+- [x] Tool input, validated output, streamed UI tool parts, and final completion verified
+- [x] Unsupported provider/model behavior maps to a clear route error
+- [x] Selected default (`gemma4:26b-a4b-it-qat`) and repeatable manual smoke procedure recorded
+- [x] Dependencies and lockfile updated; test, lint, and build green
 
 ## Blocked by
 
 None - can start immediately.
+
+## Answer
+
+Delivered an AI SDK 7 `ToolLoopAgent` probe using `createAgentUIStreamResponse`,
+explicit schema operations, validated tool output, the selected
+`gemma4:26b-a4b-it-qat` default, verified alternatives, and clear unsupported
+provider/model route errors. Added a repeatable VPN smoke command and recorded
+the existing live evidence in `docs/schema-chat-provider-spike.md`. Added
+`@ai-sdk/react@4.0.16`, the probe runner dependency, lockfile updates, and
+focused configuration/error regression tests.
+
+Verified with `pnpm --filter studio test`, `pnpm --filter studio lint`, and
+`pnpm --filter studio build`. Residual risk: live behavior remains
+non-deterministic and the endpoint is available only on the institutional VPN;
+the committed smoke command is therefore manual rather than part of routine CI.

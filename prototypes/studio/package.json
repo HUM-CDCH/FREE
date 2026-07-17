@@ -11,9 +11,11 @@
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "lint": "eslint .",
     "test": "vitest run",
+    "probe:schema-chat": "tsx scripts/probe-schema-chat.ts",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ai-sdk/react": "4.0.16",
     "@tailwindcss/vite": "^4.3.0",
     "ai": "^7.0.15",
     "ai-sdk-ollama": "^4.0.0",
@@ -34,6 +36,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "tsx": "^4.23.1",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vercel": "^54.15.0",
