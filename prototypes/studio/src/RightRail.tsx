@@ -3,12 +3,12 @@ import AnnotationSetTab from "./AnnotationSidebar";
 import type { AnnotationSetItem } from "./AnnotationSidebar";
 import ChatTab from "./ChatTab";
 import SchemaPanel from "./SchemaPanel";
-import type { TemplateState } from "./SchemaPanel";
+import type { SchemaGenerationState, TemplateState } from "./SchemaPanel";
 import type { PinnedSchema } from "./pinnedSchemas";
 import ResultsTab from "./ResultsTab";
 import type { ExtractionController } from "./useExtraction";
 import type { AnnotationsMode } from "./api";
-import type { SchemaChange } from "../shared/schema";
+import type { SchemaChange, SchemaSuggestion } from "../shared/schema";
 
 export type RailTab = "annot" | "chat" | "schema" | "results";
 
@@ -21,6 +21,9 @@ type RightRailProps = {
 	onSelectAnnotation: (id: string) => void;
 	onRemoveAnnotation: (id: string) => void;
 	schemaState: TemplateState;
+	schemaGeneration: SchemaGenerationState;
+	schemaSuggestion: SchemaSuggestion | null;
+	schemaSuggestionStale: boolean;
 	schemaStale: boolean;
 	schemaReady: boolean;
 	pinnedSchemas: readonly PinnedSchema[];
@@ -29,6 +32,8 @@ type RightRailProps = {
 	schemaFieldCount: number;
 	onGenerate: () => void;
 	onSchemaChange: (changes: readonly SchemaChange[], message: string) => void;
+	onApplySchemaSuggestion: () => void;
+	onRejectSchemaSuggestion: () => void;
 	annotationsMode: AnnotationsMode;
 	onAnnotationsModeChange: (mode: AnnotationsMode) => void;
 	extraction: ExtractionController;
@@ -65,6 +70,9 @@ function RightRail({
 	onSelectAnnotation,
 	onRemoveAnnotation,
 	schemaState,
+	schemaGeneration,
+	schemaSuggestion,
+	schemaSuggestionStale,
 	schemaStale,
 	schemaReady,
 	pinnedSchemas,
@@ -73,6 +81,8 @@ function RightRail({
 	schemaFieldCount,
 	onGenerate,
 	onSchemaChange,
+	onApplySchemaSuggestion,
+	onRejectSchemaSuggestion,
 	annotationsMode,
 	onAnnotationsModeChange,
 	extraction,
@@ -177,12 +187,17 @@ function RightRail({
 			<div className="min-h-0 flex-1" hidden={tab !== "schema"}>
 				<SchemaPanel
 					state={schemaState}
+					generationState={schemaGeneration}
+					suggestion={schemaSuggestion}
+					suggestionStale={schemaSuggestionStale}
 					stale={schemaStale}
 					pinnedSchemas={pinnedSchemas}
 					selectedPinnedSchemaId={selectedPinnedSchemaId}
 					onSelectPinnedSchema={onSelectPinnedSchema}
 					onGenerate={onGenerate}
 					onSchemaChange={onSchemaChange}
+					onApplySuggestion={onApplySchemaSuggestion}
+					onRejectSuggestion={onRejectSchemaSuggestion}
 					annotationCount={annotationItems.length}
 					annotationsMode={annotationsMode}
 					onAnnotationsModeChange={onAnnotationsModeChange}

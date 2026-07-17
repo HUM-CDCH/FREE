@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SchemaChange } from "../shared/schema";
+import type { SchemaChange, SchemaSuggestion } from "../shared/schema";
 import type { AnnotationsMode, ExtractionSchemaEnvelope } from "./api";
 import { Panel, Overline, SegmentedControl, Spinner, Button } from "./ui";
 import {
@@ -25,14 +25,24 @@ export type TemplateState =
 	  }
 	| { status: "error"; message: string };
 
+export type SchemaGenerationState =
+	| { status: "idle" }
+	| { status: "generating" }
+	| { status: "error"; message: string };
+
 type SchemaPanelProps = {
 	state: TemplateState;
+	generationState?: SchemaGenerationState;
+	suggestion?: SchemaSuggestion | null;
+	suggestionStale?: boolean;
 	stale: boolean;
 	pinnedSchemas: readonly PinnedSchema[];
 	selectedPinnedSchemaId: string | null;
 	onSelectPinnedSchema: (id: string) => void;
 	onGenerate: () => void;
 	onSchemaChange: (changes: readonly SchemaChange[], message: string) => void;
+	onApplySuggestion?: () => void;
+	onRejectSuggestion?: () => void;
 	annotationCount: number;
 	annotationsMode: AnnotationsMode;
 	onAnnotationsModeChange: (mode: AnnotationsMode) => void;
@@ -371,12 +381,17 @@ function AnnotationsModeToggle({
 
 function SchemaPanel({
 	state,
+	generationState = { status: "idle" },
+	suggestion = null,
+	suggestionStale = false,
 	stale,
 	pinnedSchemas,
 	selectedPinnedSchemaId,
 	onSelectPinnedSchema,
 	onGenerate,
 	onSchemaChange,
+	onApplySuggestion = () => undefined,
+	onRejectSuggestion = () => undefined,
 	annotationCount,
 	annotationsMode,
 	onAnnotationsModeChange,
@@ -386,6 +401,13 @@ function SchemaPanel({
 	const ready = state.status === "ready";
 	const template = ready ? state.schema.record : null;
 	const fieldCount = ready ? countTemplateFields(state.schema.record) : 0;
+	const suggestedSchema = suggestion?.changes[0];
+	const suggestionPreview =
+		suggestedSchema?.operation === "set" &&
+		suggestedSchema.path.length === 0 &&
+		isRecord(suggestedSchema.value)
+			? suggestedSchema.value
+			: null;
 
 	function selectPinnedSchema(id: string) {
 		setEditing(null);
@@ -480,7 +502,7 @@ function SchemaPanel({
 			footer={
 				<>
 					<p className="text-[11px] leading-snug text-ink-faint">
-						{state.status === "generating" && (
+						{generationState.status === "generating" && (
 							<span className="inline-flex items-center gap-1.5">
 								<span
 									aria-hidden="true"
@@ -507,7 +529,7 @@ function SchemaPanel({
 							))}
 						{state.status === "idle" &&
 							"Generate to produce the schema from the document"}
-						{state.status === "error" && "Generation failed"}
+						{generationState.status === "error" && "Generation failed"}
 					</p>
 					{ready && (
 						<div className="flex shrink-0 items-center gap-2">
@@ -576,12 +598,12 @@ function SchemaPanel({
 				</div>
 			)}
 
-			{state.status === "generating" && <WorkingIndicator />}
+			{generationState.status === "generating" && <WorkingIndicator />}
 
-			{state.status === "error" && (
+			{generationState.status === "error" && (
 				<div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
 					<p className="text-[13px] leading-snug text-danger">
-						{state.message}
+						{generationState.message}
 					</p>
 					<Button
 						variant="pill"
@@ -592,6 +614,37 @@ function SchemaPanel({
 						Retry
 					</Button>
 				</div>
+			)}
+
+			{suggestion && suggestionPreview && (
+				<section
+					className="mb-3 rounded-xl border border-accent/40 bg-accent-ghost p-3"
+					aria-label="Schema Suggestion"
+				>
+					<Overline as="h3">Schema Suggestion</Overline>
+					<p className="mt-1 text-xs text-ink-muted">{suggestion.summary}</p>
+					<pre className="mt-2 overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2 font-mono text-[11px] text-ink">
+						{JSON.stringify(suggestionPreview, null, 2)}
+					</pre>
+					{suggestionStale && (
+						<p className="mt-2 text-xs font-semibold text-danger" role="status">
+							This suggestion is stale because the approved schema changed.
+						</p>
+					)}
+					<div className="mt-3 flex justify-end gap-2">
+						<Button variant="pill" size="sm" onClick={onRejectSuggestion}>
+							Reject
+						</Button>
+						<Button
+							variant="primary"
+							size="sm"
+							disabled={suggestionStale}
+							onClick={onApplySuggestion}
+						>
+							Apply
+						</Button>
+					</div>
+				</section>
 			)}
 
 			{ready &&

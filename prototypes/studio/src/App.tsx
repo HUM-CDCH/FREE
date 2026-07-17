@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { applySchemaChanges, type SchemaChange } from "../shared/schema";
+import {
+	type JsonValue,
+	type SchemaChange,
+	type SchemaSuggestion,
+} from "../shared/schema";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import pdfUrl from "../../../examples/Beretning_Ellekilde_8_13.pdf?url";
@@ -10,10 +14,14 @@ import ProjectNav from "./ProjectNav";
 import { ACTIVE_DOC } from "./ProjectNav";
 import RightRail from "./RightRail";
 import type { RailTab } from "./RightRail";
-import type { TemplateState } from "./SchemaPanel";
+import type { SchemaGenerationState, TemplateState } from "./SchemaPanel";
 import { countTemplateFields } from "./template";
 import { requestSchema, parseDocumentToMarkdown } from "./api";
 import type { AnnotationsMode, ExtractionStrategy } from "./api";
+import {
+	applyPendingSchemaSuggestionTransition,
+	rejectSchemaSuggestionTransition,
+} from "./schemaSuggestionTransition";
 import { defaultPinnedSchema, pinnedSchemas } from "./pinnedSchemas";
 import { useExtraction } from "./useExtraction";
 import EvidenceHighlightLayer from "./EvidenceHighlightLayer";
@@ -125,6 +133,12 @@ function App() {
 	});
 	const [schemaRevision, setSchemaRevision] = useState(0);
 	const [documentEpoch, setDocumentEpoch] = useState(0);
+	const [schemaGeneration, setSchemaGeneration] =
+		useState<SchemaGenerationState>({ status: "idle" });
+	const [schemaSuggestion, setSchemaSuggestion] =
+		useState<SchemaSuggestion | null>(null);
+	const [schemaSuggestionInputsKey, setSchemaSuggestionInputsKey] =
+		useState("");
 	const [extractionStrategy, setExtractionStrategy] =
 		useState<ExtractionStrategy>(defaultPinnedSchema.strategy);
 	const [annotationsMode, setAnnotationsMode] =
@@ -179,6 +193,9 @@ function App() {
 		templateAbortRef.current?.abort();
 		setDocumentEpoch((epoch) => epoch + 1);
 		setSchemaRevision(0);
+		setSchemaGeneration({ status: "idle" });
+		setSchemaSuggestion(null);
+		setSchemaSuggestionInputsKey("");
 		setPdfSource({ url: URL.createObjectURL(file), filename: file.name });
 		setDocIndex({ status: "parsing" });
 		setAnnotationItems([]);
@@ -435,11 +452,14 @@ function App() {
 		const abortController = new AbortController();
 		templateAbortRef.current = abortController;
 		const inputsKey = annotationInputsKey(annotationItems, annotationsMode);
-		setTemplateState({ status: "generating" });
+		const generationFreshness = { documentEpoch, revision: schemaRevision };
+		setSchemaSuggestion(null);
+		setSchemaSuggestionInputsKey("");
+		setSchemaGeneration({ status: "generating" });
 
 		try {
 			const pdfBlob = await localPdfBlob(pdfSource.url, abortController.signal);
-			const schema = await requestSchema(
+			const generated = await requestSchema(
 				pdfBlob,
 				pdfSource.filename,
 				abortController.signal,
@@ -453,19 +473,27 @@ function App() {
 				},
 			);
 			if (!abortController.signal.aborted) {
-				setTemplateState({
-					status: "ready",
-					schema,
-					inputsKey,
-					source: "generated",
+				setSchemaSuggestion({
+					id: generated.id,
+					documentEpoch: generationFreshness.documentEpoch,
+					baseRevision: generationFreshness.revision,
+					summary: "Generated from the Source Document",
+					changes: [
+						{
+							operation: "set",
+							path: [],
+							value: generated.schema as unknown as JsonValue,
+						},
+					],
 				});
-				setSchemaRevision((revision) => revision + 1);
+				setSchemaSuggestionInputsKey(inputsKey);
+				setSchemaGeneration({ status: "idle" });
 			}
 		} catch (error) {
 			if (abortController.signal.aborted) {
 				return;
 			}
-			setTemplateState({
+			setSchemaGeneration({
 				status: "error",
 				message:
 					error instanceof Error ? error.message : "Schema generation failed.",
@@ -473,25 +501,63 @@ function App() {
 		}
 	}
 
-	function changeSchema(changes: readonly SchemaChange[], message: string) {
+	function commitSchemaSuggestion(
+		suggestion: SchemaSuggestion,
+		message: string,
+	) {
 		if (templateState.status !== "ready") return;
-		const result = applySchemaChanges(templateState.schema, changes);
-		if (result.status !== "applied") return;
-		setTemplateState({
-			status: "ready",
-			schema: result.schema,
-			inputsKey: templateState.inputsKey,
-			source: "generated",
-			edited: true,
-		});
-		setSchemaRevision((revision) => revision + 1);
+		const result = applyPendingSchemaSuggestionTransition(
+			{
+				template: templateState,
+				revision: schemaRevision,
+				suggestion,
+				suggestionInputsKey:
+					suggestion === schemaSuggestion
+						? schemaSuggestionInputsKey
+						: templateState.inputsKey,
+			},
+			{ documentEpoch, revision: schemaRevision },
+		);
+		if (result.status === "stale") {
+			showToast("Schema Suggestion is stale and was not applied");
+			return;
+		}
+		if (result.status !== "applied") {
+			showToast("Schema Suggestion is invalid and was not applied");
+			return;
+		}
+		setTemplateState(result.state.template);
+		setSchemaRevision(result.state.revision);
+		setSchemaSuggestion(result.state.suggestion);
+		setSchemaSuggestionInputsKey(result.state.suggestionInputsKey);
 		showToast(message);
+	}
+
+	function changeSchema(changes: readonly SchemaChange[], message: string) {
+		commitSchemaSuggestion(
+			{
+				id: crypto.randomUUID(),
+				documentEpoch,
+				baseRevision: schemaRevision,
+				summary: message,
+				changes,
+			},
+			message,
+		);
+	}
+
+	function applyPendingSchemaSuggestion() {
+		if (!schemaSuggestion) return;
+		commitSchemaSuggestion(schemaSuggestion, "✓ Schema Suggestion applied");
 	}
 
 	function selectPinnedSchema(id: string) {
 		const selected = pinnedSchemas.find((schema) => schema.id === id);
 		if (!selected) return;
 		templateAbortRef.current?.abort();
+		setSchemaGeneration({ status: "idle" });
+		setSchemaSuggestion(null);
+		setSchemaSuggestionInputsKey("");
 		setTemplateState({
 			status: "ready",
 			schema: selected.schema,
@@ -553,6 +619,11 @@ function App() {
 		templateState.source === "generated" &&
 		templateState.inputsKey !==
 			annotationInputsKey(annotationItems, annotationsMode);
+
+	const suggestionStale =
+		schemaSuggestion !== null &&
+		(schemaSuggestion.documentEpoch !== documentEpoch ||
+			schemaSuggestion.baseRevision !== schemaRevision);
 
 	const compactLayout = viewportWidth < 860;
 	const effectiveNavOpen = navOpen && !compactLayout;
@@ -801,6 +872,9 @@ function App() {
 						onSelectAnnotation={selectAnnotationItem}
 						onRemoveAnnotation={removeAnnotationItem}
 						schemaState={templateState}
+						schemaGeneration={schemaGeneration}
+						schemaSuggestion={schemaSuggestion}
+						schemaSuggestionStale={suggestionStale}
 						schemaStale={schemaStale}
 						schemaReady={schemaReady}
 						pinnedSchemas={pinnedSchemas}
@@ -809,6 +883,18 @@ function App() {
 						schemaFieldCount={schemaFieldCount}
 						onGenerate={() => void generateSchema()}
 						onSchemaChange={changeSchema}
+						onApplySchemaSuggestion={applyPendingSchemaSuggestion}
+						onRejectSchemaSuggestion={() => {
+							if (templateState.status !== "ready") return;
+							const rejected = rejectSchemaSuggestionTransition({
+								template: templateState,
+								revision: schemaRevision,
+								suggestion: schemaSuggestion,
+								suggestionInputsKey: schemaSuggestionInputsKey,
+							});
+							setSchemaSuggestion(rejected.suggestion);
+							setSchemaSuggestionInputsKey(rejected.suggestionInputsKey);
+						}}
 						annotationsMode={annotationsMode}
 						onAnnotationsModeChange={setAnnotationsMode}
 						extraction={extraction}

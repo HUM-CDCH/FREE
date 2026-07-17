@@ -445,6 +445,7 @@ describe("Vercel API endpoints", () => {
 
 		expect(response.status).toBe(200);
 		await expect(response.json()).resolves.toEqual({
+			suggestionId: expect.any(String),
 			template: { title: "verbatim-string" },
 			raw: '{"template":{"title":"verbatim-string"}}',
 			pages: null,

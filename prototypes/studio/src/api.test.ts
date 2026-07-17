@@ -104,7 +104,12 @@ describe("requestSchema", () => {
 			vi.fn().mockImplementation((url: string) => {
 				submittedUrl = url;
 				return Promise.resolve(
-					jsonResponse({ template: {}, raw: "", pages: null }),
+					jsonResponse({
+						suggestionId: "server-suggestion-1",
+						template: {},
+						raw: "",
+						pages: null,
+					}),
 				);
 			}),
 		);
@@ -112,10 +117,13 @@ describe("requestSchema", () => {
 		await expect(
 			requestSchema(new Blob(["pdf"]), "report.pdf"),
 		).resolves.toEqual({
-			name: "Generated from source document",
-			description: "",
-			record: {},
-			_schema_metadata: {},
+			id: "server-suggestion-1",
+			schema: {
+				name: "Generated from source document",
+				description: "",
+				record: {},
+				_schema_metadata: {},
+			},
 		});
 
 		expect(submittedUrl).toBe("/api/generate_schema");

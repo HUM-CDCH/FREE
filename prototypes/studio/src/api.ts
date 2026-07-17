@@ -32,6 +32,7 @@ type TemplateOptions = {
 };
 
 export type SchemaDone = {
+	suggestionId: string;
 	template: unknown;
 	raw: string;
 	pages: number | null;
@@ -40,9 +41,14 @@ export type SchemaDone = {
 type TaskStatus = { status: string; error?: string | null };
 
 export function decodeSchemaDone(data: unknown): SchemaDone {
-	if (!isRecord(data) || !("template" in data)) {
+	if (
+		!isRecord(data) ||
+		!("template" in data) ||
+		typeof data.suggestionId !== "string" ||
+		!data.suggestionId
+	) {
 		throw new Error(
-			"generate_schema: response missing 'template' — API contract drift?",
+			"generate_schema: response missing 'template' or 'suggestionId' — API contract drift?",
 		);
 	}
 	return data as SchemaDone;
@@ -134,7 +140,7 @@ export async function requestSchema(
 	fileName: string,
 	signal?: AbortSignal,
 	options?: TemplateOptions,
-): Promise<ExtractionSchemaEnvelope> {
+): Promise<{ readonly id: string; readonly schema: ExtractionSchemaEnvelope }> {
 	const form = new FormData();
 	if (options?.markdown) {
 		form.append("document_markdown", options.markdown);
@@ -158,17 +164,20 @@ export async function requestSchema(
 			detail || `Request to /generate_schema failed (HTTP ${response.status})`,
 		);
 	}
-	const { template } = decodeSchemaDone(await response.json());
+	const { suggestionId, template } = decodeSchemaDone(await response.json());
 	if (!isRecord(template)) {
 		throw new Error(
 			"generate_schema: response 'template' must be an object — API contract drift?",
 		);
 	}
 	return {
-		name: "Generated from source document",
-		description: "",
-		record: template,
-		_schema_metadata: {},
+		id: suggestionId,
+		schema: {
+			name: "Generated from source document",
+			description: "",
+			record: template,
+			_schema_metadata: {},
+		},
 	};
 }
 
