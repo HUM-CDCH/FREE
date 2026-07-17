@@ -11,6 +11,7 @@ import {
 import type { TemplatePath } from "./template";
 import type { PinnedSchema } from "./pinnedSchemas";
 import { fieldEditChanges } from "./schemaFieldEdits";
+import { SchemaSuggestionCard } from "./SchemaSuggestionCard";
 
 export type TemplateState =
 	| { status: "idle" }
@@ -38,7 +39,7 @@ type SchemaPanelProps = {
 	stale: boolean;
 	pinnedSchemas: readonly PinnedSchema[];
 	selectedPinnedSchemaId: string | null;
-	onSelectPinnedSchema: (id: string) => void;
+	onSelectPinnedSchema: (id: string | null) => void;
 	onGenerate: () => void;
 	onSchemaChange: (changes: readonly SchemaChange[], message: string) => void;
 	onApplySuggestion?: () => void;
@@ -401,15 +402,8 @@ function SchemaPanel({
 	const ready = state.status === "ready";
 	const template = ready ? state.schema.record : null;
 	const fieldCount = ready ? countTemplateFields(state.schema.record) : 0;
-	const suggestedSchema = suggestion?.changes[0];
-	const suggestionPreview =
-		suggestedSchema?.operation === "set" &&
-		suggestedSchema.path.length === 0 &&
-		isRecord(suggestedSchema.value)
-			? suggestedSchema.value
-			: null;
 
-	function selectPinnedSchema(id: string) {
+	function selectPinnedSchema(id: string | null) {
 		setEditing(null);
 		onSelectPinnedSchema(id);
 	}
@@ -554,13 +548,9 @@ function SchemaPanel({
 				<select
 					className="mt-1 w-full rounded-md border border-line-strong bg-surface px-2 py-1.5 font-mono text-xs text-ink outline-none focus-visible:border-accent"
 					value={selectedPinnedSchemaId ?? ""}
-					onChange={(event) => {
-						if (event.target.value) selectPinnedSchema(event.target.value);
-					}}
+					onChange={(event) => selectPinnedSchema(event.target.value || null)}
 				>
-					<option value="" disabled>
-						Generated from this document
-					</option>
+					<option value="">No approved schema (create through chat)</option>
 					{pinnedSchemas.map((schema) => (
 						<option key={schema.id} value={schema.id}>
 							{schema.domain} / {schema.name}
@@ -616,35 +606,15 @@ function SchemaPanel({
 				</div>
 			)}
 
-			{suggestion && suggestionPreview && (
-				<section
-					className="mb-3 rounded-xl border border-accent/40 bg-accent-ghost p-3"
-					aria-label="Schema Suggestion"
-				>
-					<Overline as="h3">Schema Suggestion</Overline>
-					<p className="mt-1 text-xs text-ink-muted">{suggestion.summary}</p>
-					<pre className="mt-2 overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2 font-mono text-[11px] text-ink">
-						{JSON.stringify(suggestionPreview, null, 2)}
-					</pre>
-					{suggestionStale && (
-						<p className="mt-2 text-xs font-semibold text-danger" role="status">
-							This suggestion is stale because the approved schema changed.
-						</p>
-					)}
-					<div className="mt-3 flex justify-end gap-2">
-						<Button variant="pill" size="sm" onClick={onRejectSuggestion}>
-							Reject
-						</Button>
-						<Button
-							variant="primary"
-							size="sm"
-							disabled={suggestionStale}
-							onClick={onApplySuggestion}
-						>
-							Apply
-						</Button>
-					</div>
-				</section>
+			{suggestion && (
+				<div className="mb-3">
+					<SchemaSuggestionCard
+						value={{ state: "output-available", suggestion }}
+						stale={suggestionStale}
+						onApply={() => onApplySuggestion?.()}
+						onReject={() => onRejectSuggestion?.()}
+					/>
+				</div>
 			)}
 
 			{ready &&

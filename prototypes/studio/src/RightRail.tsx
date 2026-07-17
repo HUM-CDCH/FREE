@@ -32,12 +32,12 @@ type RightRailProps = {
 	schemaReady: boolean;
 	pinnedSchemas: readonly PinnedSchema[];
 	selectedPinnedSchemaId: string | null;
-	onSelectPinnedSchema: (id: string) => void;
+	onSelectPinnedSchema: (id: string | null) => void;
 	schemaFieldCount: number;
 	onGenerate: () => void;
 	onSchemaChange: (changes: readonly SchemaChange[], message: string) => void;
-	onApplySchemaSuggestion: () => void;
-	onRejectSchemaSuggestion: () => void;
+	onApplySchemaSuggestion: (suggestion?: SchemaSuggestion) => boolean;
+	onRejectSchemaSuggestion: (suggestion?: SchemaSuggestion) => boolean;
 	annotationsMode: AnnotationsMode;
 	onAnnotationsModeChange: (mode: AnnotationsMode) => void;
 	extraction: ExtractionController;
@@ -198,6 +198,8 @@ function RightRail({
 					schema={chatSchema}
 					revision={schemaRevision}
 					documentEpoch={documentEpoch}
+					onApplySuggestion={onApplySchemaSuggestion}
+					onRejectSuggestion={onRejectSchemaSuggestion}
 				/>
 			</div>
 			<div className="min-h-0 flex-1" hidden={tab !== "schema"}>

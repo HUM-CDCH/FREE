@@ -6,12 +6,64 @@ import {
 import { createSchemaAgentUIResponse } from "./_chat_agent.js";
 import { modelError } from "./_model.js";
 
-const messagePartSchema = z
-	.record(z.string(), z.unknown())
-	.refine(
-		(part) => typeof part.type === "string",
-		"Message part type required",
-	);
+const textPartSchema = z.object({
+	type: z.literal("text"),
+	text: z.string(),
+});
+
+const proposalInputSchema = z.object({
+	summary: z.string().trim().min(1),
+	schema: z.unknown(),
+});
+
+const rootSchemaChangeSchema = z
+	.object({
+		operation: z.literal("set"),
+		path: z.tuple([]),
+		value: z.unknown(),
+	})
+	.strict()
+	.refine((change) => validateExtractionSchema(change.value).valid, {
+		message: "Invalid proposed Extraction Schema",
+		path: ["value"],
+	});
+
+const proposalOutputSchema = z
+	.object({
+		id: z.uuid(),
+		documentEpoch: z.number().int().nonnegative(),
+		baseRevision: z.number().int().nonnegative(),
+		summary: z.string().min(1),
+		changes: z.tuple([rootSchemaChangeSchema]),
+	})
+	.strict();
+
+const proposalPartBase = {
+	type: z.literal("tool-proposeSchemaChanges"),
+	toolCallId: z.string().min(1),
+};
+const proposalPartSchema = z.discriminatedUnion("state", [
+	z.object({ ...proposalPartBase, state: z.literal("input-streaming") }),
+	z.object({
+		...proposalPartBase,
+		state: z.literal("input-available"),
+		input: proposalInputSchema,
+	}),
+	z.object({
+		...proposalPartBase,
+		state: z.literal("output-available"),
+		input: proposalInputSchema,
+		output: proposalOutputSchema,
+	}),
+	z.object({
+		...proposalPartBase,
+		state: z.literal("output-error"),
+		input: proposalInputSchema,
+		errorText: z.string().min(1),
+	}),
+]);
+
+const messagePartSchema = z.union([textPartSchema, proposalPartSchema]);
 
 const messageSchema = z.object({
 	id: z.string().min(1),

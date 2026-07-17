@@ -1,7 +1,18 @@
-import { ToolLoopAgent, createAgentUIStreamResponse, isStepCount } from "ai";
+import {
+	ToolLoopAgent,
+	createAgentUIStreamResponse,
+	hasToolCall,
+	isStepCount,
+	tool,
+} from "ai";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
-import type { ExtractionSchemaEnvelope } from "../shared/schema.js";
+import {
+	validateExtractionSchema,
+	type ExtractionSchemaEnvelope,
+	type JsonValue,
+	type SchemaSuggestion,
+} from "../shared/schema.js";
 import { resolveChatModel } from "./_provider.js";
 
 const annotationSchema = z.object({
@@ -19,6 +30,59 @@ export const schemaAgentOptionsSchema = z.object({
 });
 
 export type SchemaAgentOptions = z.infer<typeof schemaAgentOptionsSchema>;
+
+export const MAX_SCHEMA_AGENT_STEPS = 4;
+
+const proposalSchema = z.object({
+	summary: z.string().trim().min(1),
+	schema: z.unknown(),
+});
+
+const suggestionSchema: z.ZodType<SchemaSuggestion> = z.object({
+	id: z.uuid(),
+	documentEpoch: z.number().int().nonnegative(),
+	baseRevision: z.number().int().nonnegative(),
+	summary: z.string().min(1),
+	changes: z.array(
+		z.object({
+			operation: z.literal("set"),
+			path: z.tuple([]),
+			value: z.custom<JsonValue>(),
+		}),
+	),
+});
+
+function createProposalTool(options?: SchemaAgentOptions) {
+	return tool({
+		description:
+			"Propose a complete root Extraction Schema when no approved schema exists. Supply only a summary and schema content.",
+		inputSchema: proposalSchema,
+		outputSchema: suggestionSchema,
+		execute: async ({ summary, schema }) => {
+			if (!options) throw new Error("Validated chat options are required.");
+			if (options.schema !== null) {
+				throw new Error("A root schema can only be proposed when none exists.");
+			}
+			const validation = validateExtractionSchema(schema);
+			if (!validation.valid) {
+				throw new Error("The proposed Extraction Schema is invalid.");
+			}
+			return {
+				id: crypto.randomUUID(),
+				documentEpoch: options.documentEpoch,
+				baseRevision: options.revision,
+				summary,
+				changes: [
+					{
+						operation: "set" as const,
+						path: [],
+						value: schema as JsonValue,
+					},
+				],
+			};
+		},
+	});
+}
 
 function sourceContextPrompt(options: SchemaAgentOptions): string | null {
 	if (!options.markdown) return null;
@@ -41,18 +105,29 @@ export function createSchemaAgent(model: LanguageModel = resolveChatModel()) {
 		model,
 		callOptionsSchema: schemaAgentOptionsSchema,
 		instructions:
-			"You help humanities researchers inspect Source Documents in FREE. If no Source Context is available, say so before answering normally.",
-		stopWhen: isStepCount(4),
+			"You help humanities researchers inspect Source Documents in FREE. When no Extraction Schema exists and the researcher asks to create one, call proposeSchemaChanges with proposal content only. Otherwise answer conversationally. If no Source Context is available, say so before answering normally.",
+		tools: { proposeSchemaChanges: createProposalTool() },
+		stopWhen: [
+			hasToolCall("proposeSchemaChanges"),
+			isStepCount(MAX_SCHEMA_AGENT_STEPS),
+		],
 		prepareCall: ({ messages, options, ...settings }) => {
 			const context = options ? sourceContextPrompt(options) : null;
-			if (!context || !messages) return { messages, options, ...settings };
+			const preparedSettings = options
+				? {
+						...settings,
+						tools: { proposeSchemaChanges: createProposalTool(options) },
+					}
+				: settings;
+			if (!context || !messages)
+				return { messages, options, ...preparedSettings };
 			const questionIndex = messages.findLastIndex(
 				(message) => message.role === "user",
 			);
 			const insertionIndex =
 				questionIndex < 0 ? messages.length : questionIndex;
 			return {
-				...settings,
+				...preparedSettings,
 				options,
 				messages: [
 					...messages.slice(0, insertionIndex),

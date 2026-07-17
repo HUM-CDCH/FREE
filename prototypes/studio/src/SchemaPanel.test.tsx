@@ -27,6 +27,7 @@ describe("SchemaPanel pinned schemas", () => {
 			}),
 		);
 
+		expect(html).toContain("No approved schema (create through chat)");
 		expect(html).toContain("FieldReports / Burial_Finds");
 		expect(html).toContain("JournalArticles / collagen_extraction");
 		expect(html).toContain("pinned from FREE-technical");

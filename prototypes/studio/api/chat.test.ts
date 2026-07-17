@@ -23,6 +23,25 @@ const messages = [
 
 beforeEach(() => vi.mocked(createSchemaAgentUIResponse).mockClear());
 
+function postWithParts(parts: unknown[]): Promise<Response> {
+	return POST(
+		new Request("http://localhost/api/chat", {
+			method: "POST",
+			body: JSON.stringify({
+				messages: [
+					messages[0],
+					{ id: "answer-with-tool", role: "assistant", parts },
+				],
+				markdown: null,
+				annotations: [],
+				schema: null,
+				revision: 0,
+				documentEpoch: 0,
+			}),
+		}),
+	);
+}
+
 describe("POST /api/chat", () => {
 	it("sends serialized untrusted Source Context with annotation text and page", async () => {
 		const response = await POST(
@@ -58,28 +77,133 @@ describe("POST /api/chat", () => {
 		});
 	});
 
-	it("accepts prior tool parts for typed multi-turn validation", async () => {
+	it("passes a root-schema proposal request to the streaming agent", async () => {
+		const proposalMessages = [
+			{
+				id: "proposal-request",
+				role: "user",
+				parts: [{ type: "text", text: "Create an Extraction Schema" }],
+			},
+		];
 		const response = await POST(
 			new Request("http://localhost/api/chat", {
 				method: "POST",
 				body: JSON.stringify({
-					messages: [
-						messages[0],
-						{
-							id: "answer-with-tool",
-							role: "assistant",
-							parts: [
-								{
-									type: "dynamic-tool",
-									toolName: "futureProposalTool",
-									toolCallId: "call-1",
-									state: "output-available",
-									input: {},
-									output: {},
-								},
-							],
+					messages: proposalMessages,
+					markdown: "A bronze pin was found.",
+					annotations: [],
+					schema: null,
+					revision: 0,
+					documentEpoch: 4,
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(createSchemaAgentUIResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ uiMessages: proposalMessages }),
+		);
+	});
+
+	it("accepts a validated streamed proposal tool part", async () => {
+		const proposalPart = {
+			type: "tool-proposeSchemaChanges",
+			toolCallId: "call-1",
+			state: "output-available",
+			input: {
+				summary: "Record burial finds",
+				schema: {
+					name: "Burial finds",
+					description: "",
+					record: { title: "verbatim-string" },
+					_schema_metadata: {},
+				},
+			},
+			output: {
+				id: "123e4567-e89b-42d3-a456-426614174000",
+				documentEpoch: 0,
+				baseRevision: 0,
+				summary: "Record burial finds",
+				changes: [
+					{
+						operation: "set",
+						path: [],
+						value: {
+							name: "Burial finds",
+							description: "",
+							record: { title: "verbatim-string" },
+							_schema_metadata: {},
 						},
-					],
+					},
+				],
+			},
+		};
+		const response = await postWithParts([proposalPart]);
+
+		expect(response.status).toBe(200);
+		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		[
+			"unknown tool",
+			{ type: "dynamic-tool", toolCallId: "call-1", state: "input-streaming" },
+		],
+		[
+			"missing call id",
+			{ type: "tool-proposeSchemaChanges", state: "input-streaming" },
+		],
+		[
+			"malformed input",
+			{
+				type: "tool-proposeSchemaChanges",
+				toolCallId: "call-1",
+				state: "input-available",
+				input: { summary: "" },
+			},
+		],
+		[
+			"malformed output",
+			{
+				type: "tool-proposeSchemaChanges",
+				toolCallId: "call-1",
+				state: "output-available",
+				input: { summary: "Create", schema: {} },
+				output: { id: "model-owned", changes: [] },
+			},
+		],
+		[
+			"invalid output schema",
+			{
+				type: "tool-proposeSchemaChanges",
+				toolCallId: "call-1",
+				state: "output-available",
+				input: { summary: "Create", schema: {} },
+				output: {
+					id: "123e4567-e89b-42d3-a456-426614174000",
+					documentEpoch: 0,
+					baseRevision: 0,
+					summary: "Create",
+					changes: [{ operation: "set", path: [], value: { record: {} } }],
+				},
+			},
+		],
+	])("rejects %s proposal parts at the route boundary", async (_label, part) => {
+		const response = await postWithParts([part]);
+
+		expect(response.status).toBe(400);
+		expect(createSchemaAgentUIResponse).not.toHaveBeenCalled();
+	});
+
+	it("maps a provider failure without creating a response stream", async () => {
+		vi.mocked(createSchemaAgentUIResponse).mockRejectedValueOnce(
+			new Error("provider unavailable"),
+		);
+		const response = await POST(
+			new Request("http://localhost/api/chat", {
+				method: "POST",
+				body: JSON.stringify({
+					messages,
 					markdown: null,
 					annotations: [],
 					schema: null,
@@ -88,9 +212,10 @@ describe("POST /api/chat", () => {
 				}),
 			}),
 		);
-
-		expect(response.status).toBe(200);
-		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toEqual({
+			detail: "provider unavailable",
+		});
 	});
 
 	it("rejects malformed message parts before starting the agent", async () => {

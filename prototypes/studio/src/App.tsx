@@ -504,8 +504,9 @@ function App() {
 	function commitSchemaSuggestion(
 		suggestion: SchemaSuggestion,
 		message: string,
-	) {
-		if (templateState.status !== "ready") return;
+	): boolean {
+		if (templateState.status !== "ready" && templateState.status !== "idle")
+			return false;
 		const result = applyPendingSchemaSuggestionTransition(
 			{
 				template: templateState,
@@ -514,23 +515,26 @@ function App() {
 				suggestionInputsKey:
 					suggestion === schemaSuggestion
 						? schemaSuggestionInputsKey
-						: templateState.inputsKey,
+						: templateState.status === "ready"
+							? templateState.inputsKey
+							: "",
 			},
 			{ documentEpoch, revision: schemaRevision },
 		);
 		if (result.status === "stale") {
 			showToast("Schema Suggestion is stale and was not applied");
-			return;
+			return false;
 		}
 		if (result.status !== "applied") {
 			showToast("Schema Suggestion is invalid and was not applied");
-			return;
+			return false;
 		}
 		setTemplateState(result.state.template);
 		setSchemaRevision(result.state.revision);
 		setSchemaSuggestion(result.state.suggestion);
 		setSchemaSuggestionInputsKey(result.state.suggestionInputsKey);
 		showToast(message);
+		return true;
 	}
 
 	function changeSchema(changes: readonly SchemaChange[], message: string) {
@@ -546,14 +550,27 @@ function App() {
 		);
 	}
 
-	function applyPendingSchemaSuggestion() {
-		if (!schemaSuggestion) return;
-		commitSchemaSuggestion(schemaSuggestion, "✓ Schema Suggestion applied");
+	function applyPendingSchemaSuggestion(
+		suggestion?: SchemaSuggestion,
+	): boolean {
+		const target = suggestion ?? schemaSuggestion;
+		if (!target) return false;
+		return commitSchemaSuggestion(target, "✓ Schema Suggestion applied");
 	}
 
-	function selectPinnedSchema(id: string) {
+	function selectPinnedSchema(id: string | null) {
 		const selected = pinnedSchemas.find((schema) => schema.id === id);
-		if (!selected) return;
+		if (id !== null && !selected) return;
+		templateAbortRef.current?.abort();
+		setSchemaGeneration({ status: "idle" });
+		setSchemaSuggestion(null);
+		setSchemaSuggestionInputsKey("");
+		if (!selected) {
+			setTemplateState({ status: "idle" });
+			setSchemaRevision((revision) => revision + 1);
+			showToast("No approved Extraction Schema");
+			return;
+		}
 		templateAbortRef.current?.abort();
 		setSchemaGeneration({ status: "idle" });
 		setSchemaSuggestion(null);
@@ -884,8 +901,14 @@ function App() {
 						onGenerate={() => void generateSchema()}
 						onSchemaChange={changeSchema}
 						onApplySchemaSuggestion={applyPendingSchemaSuggestion}
-						onRejectSchemaSuggestion={() => {
-							if (templateState.status !== "ready") return;
+						onRejectSchemaSuggestion={(suggestion?: SchemaSuggestion) => {
+							const target = suggestion ?? schemaSuggestion;
+							if (!target) return false;
+							if (target !== schemaSuggestion) {
+								showToast("Schema Suggestion rejected");
+								return true;
+							}
+							if (templateState.status !== "ready") return false;
 							const rejected = rejectSchemaSuggestionTransition({
 								template: templateState,
 								revision: schemaRevision,
@@ -894,6 +917,7 @@ function App() {
 							});
 							setSchemaSuggestion(rejected.suggestion);
 							setSchemaSuggestionInputsKey(rejected.suggestionInputsKey);
+							return true;
 						}}
 						annotationsMode={annotationsMode}
 						onAnnotationsModeChange={setAnnotationsMode}

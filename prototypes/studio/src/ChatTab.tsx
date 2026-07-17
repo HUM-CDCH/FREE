@@ -3,8 +3,16 @@ import { DefaultChatTransport } from "ai";
 import { useEffect, useState } from "react";
 import type { AnnotationSetItem } from "./AnnotationSidebar";
 import { API_BASE } from "./api";
-import type { ExtractionSchemaEnvelope } from "../shared/schema";
+import {
+	recordSuggestionReview,
+	type ReviewedToolCalls,
+} from "./chatSuggestionReview";
+import type {
+	ExtractionSchemaEnvelope,
+	SchemaSuggestion,
+} from "../shared/schema";
 import type { SchemaAgentUIMessage } from "../shared/schema-agent-message";
+import { SchemaSuggestionCard } from "./SchemaSuggestionCard";
 
 type ChatTabProps = {
 	markdown: string | null;
@@ -12,6 +20,8 @@ type ChatTabProps = {
 	schema: ExtractionSchemaEnvelope | null;
 	revision: number;
 	documentEpoch: number;
+	onApplySuggestion: (suggestion: SchemaSuggestion) => boolean;
+	onRejectSuggestion: (suggestion: SchemaSuggestion) => boolean;
 };
 
 const transport = new DefaultChatTransport<SchemaAgentUIMessage>({
@@ -31,8 +41,13 @@ function ChatTab({
 	schema,
 	revision,
 	documentEpoch,
+	onApplySuggestion,
+	onRejectSuggestion,
 }: ChatTabProps) {
 	const [draft, setDraft] = useState("");
+	const [reviewedToolCalls, setReviewedToolCalls] = useState<ReviewedToolCalls>(
+		{},
+	);
 	const { messages, sendMessage, status, stop, error } =
 		useChat<SchemaAgentUIMessage>({
 			id: `free-document-chat-${documentEpoch}`,
@@ -46,6 +61,23 @@ function ChatTab({
 		},
 		[documentEpoch, stop],
 	);
+
+	function reviewSuggestion(
+		toolCallId: string,
+		decision: "applied" | "rejected",
+		suggestion: SchemaSuggestion,
+	) {
+		if (reviewedToolCalls[toolCallId]) return;
+		const accepted =
+			decision === "applied"
+				? onApplySuggestion(suggestion)
+				: onRejectSuggestion(suggestion);
+		if (accepted) {
+			setReviewedToolCalls((current) =>
+				recordSuggestionReview(current, toolCallId, decision),
+			);
+		}
+	}
 
 	function send() {
 		const text = draft.trim();
@@ -94,6 +126,66 @@ function ChatTab({
 						}`}
 					>
 						{messageText(message)}
+						{message.parts.map((part) => {
+							if (part.type !== "tool-proposeSchemaChanges") return null;
+							const key = part.toolCallId;
+							if (part.state === "output-available") {
+								const decision = reviewedToolCalls[key];
+								if (decision) {
+									return (
+										<p key={key} className="mt-2 font-semibold text-ink-muted">
+											Schema Suggestion {decision}
+										</p>
+									);
+								}
+								return (
+									<SchemaSuggestionCard
+										key={key}
+										value={{
+											state: "output-available",
+											suggestion: part.output,
+										}}
+										onApply={(suggestion) =>
+											reviewSuggestion(key, "applied", suggestion)
+										}
+										onReject={(suggestion) =>
+											reviewSuggestion(key, "rejected", suggestion)
+										}
+									/>
+								);
+							}
+							if (part.state === "output-error") {
+								return (
+									<SchemaSuggestionCard
+										key={key}
+										value={{ state: "output-error", errorText: part.errorText }}
+										onApply={onApplySuggestion}
+										onReject={onRejectSuggestion}
+									/>
+								);
+							}
+							if (part.state === "input-available") {
+								return (
+									<SchemaSuggestionCard
+										key={key}
+										value={{
+											state: "input-available",
+											summary: part.input.summary,
+										}}
+										onApply={onApplySuggestion}
+										onReject={onRejectSuggestion}
+									/>
+								);
+							}
+							return (
+								<SchemaSuggestionCard
+									key={key}
+									value={{ state: "input-streaming" }}
+									onApply={onApplySuggestion}
+									onReject={onRejectSuggestion}
+								/>
+							);
+						})}
 					</div>
 				))}
 				{error && <p className="text-xs text-red-600">{error.message}</p>}

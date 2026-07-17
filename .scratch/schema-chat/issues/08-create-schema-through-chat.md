@@ -1,6 +1,6 @@
 # 08 — Create an Extraction Schema through chat
 
-Status: ready-for-agent
+Status: resolved
 Type: task
 Blocked by: 05, 07
 
@@ -27,15 +27,37 @@ an error state and never creates a suggestion.
 
 ## Acceptance criteria
 
-- [ ] Chat proposes a root Extraction Schema when none exists
-- [ ] Server owns suggestion ID, documentEpoch, and baseRevision — never model-supplied
-- [ ] No proposal changes the schema before Apply
-- [ ] Invalid tool output renders an error, never a suggestion
-- [ ] Ordinary replies create no suggestion; loop terminates on tool call or step cap
-- [ ] Route tests cover proposal, text reply, invalid output, provider error, streamed tool parts (mock models)
-- [ ] Test, lint, and build green
+- [x] Chat proposes a root Extraction Schema when none exists
+- [x] Server owns suggestion ID, documentEpoch, and baseRevision — never model-supplied
+- [x] No proposal changes the schema before Apply
+- [x] Invalid tool output renders an error, never a suggestion
+- [x] Ordinary replies create no suggestion; loop terminates on tool call or step cap
+- [x] Route tests cover proposal, text reply, invalid output, provider error, streamed tool parts (mock models)
+- [x] Test, lint, and build green
 
 ## Blocked by
 
 - 05-generate-schema-review
 - 07-typed-ai-sdk-chat-streaming
+
+## Answer
+
+Implemented the side-effect-free `proposeSchemaChanges` agent tool for root
+Extraction Schemas. The model supplies only summary and schema content; shared
+schema validation runs during server execution, which injects the UUID and
+validated document epoch and base revision. The finite agent loop now stops on
+the proposal call or the configured step cap.
+
+Chat renders streamed input, validated output, and tool errors through the same
+`SchemaSuggestionCard` used by Generate Schema. Apply and Reject route to the
+App-owned freshness-aware handlers, so proposals cannot mutate the approved
+schema before Apply. Rejected streamed suggestions are replaced by a terminal
+review state and cannot be acted on again.
+
+The schema selector now exposes a reachable “No approved schema” state, and the
+shared transition can validate and apply a root replacement from that state.
+The route strictly validates persisted proposal tool-part states, including the
+complete root Extraction Schema output, before invoking the agent. Mock-model,
+route, review-state, and transition tests cover valid and malformed proposals,
+ordinary text, provider failure, streamed parts, root creation, and rejection.
+Full Studio test, lint, and build lanes pass.

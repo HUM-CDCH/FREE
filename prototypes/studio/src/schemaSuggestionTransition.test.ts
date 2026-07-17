@@ -53,6 +53,9 @@ describe("schema suggestion review transitions", () => {
 			suggestionInputsKey: "",
 		});
 
+		expect(result.state.template.status).toBe("ready");
+		if (result.state.template.status !== "ready") return;
+
 		const previousResult = {
 			documentEpoch: 2,
 			schemaRevision: 4,
@@ -68,6 +71,28 @@ describe("schema suggestion review transitions", () => {
 				schema: result.state.template.schema,
 			}),
 		).toEqual({ status: "idle" });
+	});
+
+	it("applies a root schema when no approved schema exists", () => {
+		const result = applyPendingSchemaSuggestionTransition(
+			{
+				template: { status: "idle" },
+				revision: 4,
+				suggestion,
+				suggestionInputsKey: "chat-inputs",
+			},
+			{ documentEpoch: 2, revision: 4 },
+		);
+
+		expect(result.status).toBe("applied");
+		if (result.status !== "applied") return;
+		expect(result.state.template).toMatchObject({
+			status: "ready",
+			schema: generatedSchema,
+			inputsKey: "chat-inputs",
+			source: "generated",
+		});
+		expect(result.state.revision).toBe(5);
 	});
 
 	it("rejects without changing the approved schema or revision", () => {
