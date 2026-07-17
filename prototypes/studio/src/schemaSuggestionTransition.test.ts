@@ -183,6 +183,25 @@ describe("schema suggestion review transitions", () => {
 		expect(rejected.suggestionInputsKey).toBe("");
 	});
 
+	it("rejects a generated root suggestion after opening a new document", () => {
+		const idleReviewState: SchemaSuggestionReviewState = {
+			template: { status: "idle" },
+			revision: 0,
+			suggestion: { ...suggestion, documentEpoch: 3, baseRevision: 0 },
+			suggestionInputsKey: "new-document-inputs",
+		};
+
+		const rejected = rejectSchemaSuggestionTransition(idleReviewState);
+
+		expect(rejected).toEqual({
+			...idleReviewState,
+			suggestion: null,
+			suggestionInputsKey: "",
+		});
+		expect(rejected.template).toBe(idleReviewState.template);
+		expect(rejected.revision).toBe(0);
+	});
+
 	it("refuses stale apply without producing replacement state", () => {
 		expect(
 			applyPendingSchemaSuggestionTransition(reviewState, {

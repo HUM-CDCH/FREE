@@ -193,6 +193,7 @@ function RightRail({
 			</div>
 			<div className="min-h-0 flex-1" hidden={tab !== "chat"}>
 				<ChatTab
+					key={documentEpoch}
 					markdown={documentMarkdown}
 					annotations={annotationItems}
 					schema={chatSchema}
@@ -204,6 +205,7 @@ function RightRail({
 			</div>
 			<div className="min-h-0 flex-1" hidden={tab !== "schema"}>
 				<SchemaPanel
+					key={`${documentEpoch}:${schemaRevision}`}
 					state={schemaState}
 					generationState={schemaGeneration}
 					suggestion={schemaSuggestion}

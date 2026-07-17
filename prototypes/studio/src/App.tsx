@@ -26,6 +26,10 @@ import { defaultPinnedSchema, pinnedSchemas } from "./pinnedSchemas";
 import { useExtraction } from "./useExtraction";
 import EvidenceHighlightLayer from "./EvidenceHighlightLayer";
 import { Button } from "./ui";
+import {
+	createNewDocumentContext,
+	isCurrentDocumentWork,
+} from "./documentContext";
 import { AnnotationEditorType, AnnotationMode } from "pdfjs-dist";
 import type { AnnotationEditorUIManager } from "pdfjs-dist";
 import type { AnnotationEditor } from "pdfjs-dist/types/src/display/editor/editor";
@@ -133,6 +137,10 @@ function App() {
 	});
 	const [schemaRevision, setSchemaRevision] = useState(0);
 	const [documentEpoch, setDocumentEpoch] = useState(0);
+	const documentFreshnessRef = useRef({
+		documentEpoch,
+		revision: schemaRevision,
+	});
 	const [schemaGeneration, setSchemaGeneration] =
 		useState<SchemaGenerationState>({ status: "idle" });
 	const [schemaSuggestion, setSchemaSuggestion] =
@@ -164,6 +172,13 @@ function App() {
 	const [docIndex, setDocIndex] = useState<DocIndex>({ status: "parsing" });
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+	useEffect(() => {
+		documentFreshnessRef.current = {
+			documentEpoch,
+			revision: schemaRevision,
+		};
+	}, [documentEpoch, schemaRevision]);
+
 	const indexing = docIndex.status === "parsing";
 	const documentMarkdown =
 		docIndex.status === "ready" ? docIndex.markdown : null;
@@ -191,24 +206,20 @@ function App() {
 			URL.revokeObjectURL(pdfSource.url);
 		}
 		templateAbortRef.current?.abort();
-		setDocumentEpoch((epoch) => epoch + 1);
-		setSchemaRevision(0);
-		setSchemaGeneration({ status: "idle" });
-		setSchemaSuggestion(null);
-		setSchemaSuggestionInputsKey("");
+		const nextContext = createNewDocumentContext(
+			documentFreshnessRef.current.documentEpoch,
+		);
+		documentFreshnessRef.current = nextContext.freshness;
+		setDocumentEpoch(nextContext.freshness.documentEpoch);
+		setSchemaRevision(nextContext.freshness.revision);
+		setTemplateState(nextContext.template);
+		setSchemaGeneration(nextContext.schemaGeneration);
+		setSchemaSuggestion(nextContext.schemaSuggestion);
+		setSchemaSuggestionInputsKey(nextContext.schemaSuggestionInputsKey);
 		setPdfSource({ url: URL.createObjectURL(file), filename: file.name });
 		setDocIndex({ status: "parsing" });
-		setAnnotationItems([]);
-		if (templateState.status !== "ready" || templateState.source !== "pinned") {
-			setTemplateState({
-				status: "ready",
-				schema: defaultPinnedSchema.schema,
-				inputsKey: "",
-				source: "pinned",
-				pinnedSchemaId: defaultPinnedSchema.id,
-			});
-			setExtractionStrategy(defaultPinnedSchema.strategy);
-		}
+		setAnnotationItems([...nextContext.annotationItems]);
+		setExtractionStrategy(defaultPinnedSchema.strategy);
 		event.target.value = "";
 	}
 
@@ -472,7 +483,13 @@ function App() {
 					markdown: documentMarkdown,
 				},
 			);
-			if (!abortController.signal.aborted) {
+			if (
+				isCurrentDocumentWork(
+					generationFreshness,
+					documentFreshnessRef.current,
+					abortController.signal.aborted,
+				)
+			) {
 				setSchemaSuggestion({
 					id: generated.id,
 					documentEpoch: generationFreshness.documentEpoch,
@@ -490,7 +507,13 @@ function App() {
 				setSchemaGeneration({ status: "idle" });
 			}
 		} catch (error) {
-			if (abortController.signal.aborted) {
+			if (
+				!isCurrentDocumentWork(
+					generationFreshness,
+					documentFreshnessRef.current,
+					abortController.signal.aborted,
+				)
+			) {
 				return;
 			}
 			setSchemaGeneration({
@@ -529,6 +552,10 @@ function App() {
 			showToast("Schema Suggestion is invalid and was not applied");
 			return false;
 		}
+		documentFreshnessRef.current = {
+			documentEpoch,
+			revision: result.state.revision,
+		};
 		setTemplateState(result.state.template);
 		setSchemaRevision(result.state.revision);
 		setSchemaSuggestion(result.state.suggestion);
@@ -566,8 +593,13 @@ function App() {
 		setSchemaSuggestion(null);
 		setSchemaSuggestionInputsKey("");
 		if (!selected) {
+			const nextRevision = schemaRevision + 1;
+			documentFreshnessRef.current = {
+				documentEpoch,
+				revision: nextRevision,
+			};
 			setTemplateState({ status: "idle" });
-			setSchemaRevision((revision) => revision + 1);
+			setSchemaRevision(nextRevision);
 			showToast("No approved Extraction Schema");
 			return;
 		}
@@ -575,6 +607,11 @@ function App() {
 		setSchemaGeneration({ status: "idle" });
 		setSchemaSuggestion(null);
 		setSchemaSuggestionInputsKey("");
+		const nextRevision = schemaRevision + 1;
+		documentFreshnessRef.current = {
+			documentEpoch,
+			revision: nextRevision,
+		};
 		setTemplateState({
 			status: "ready",
 			schema: selected.schema,
@@ -582,7 +619,7 @@ function App() {
 			source: "pinned",
 			pinnedSchemaId: selected.id,
 		});
-		setSchemaRevision((revision) => revision + 1);
+		setSchemaRevision(nextRevision);
 		setExtractionStrategy(selected.strategy);
 		showToast(`Using ${selected.domain} / ${selected.name}`);
 	}
@@ -908,7 +945,11 @@ function App() {
 								showToast("Schema Suggestion rejected");
 								return true;
 							}
-							if (templateState.status !== "ready") return false;
+							if (
+								templateState.status !== "ready" &&
+								templateState.status !== "idle"
+							)
+								return false;
 							const rejected = rejectSchemaSuggestionTransition({
 								template: templateState,
 								revision: schemaRevision,
