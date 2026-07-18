@@ -1,5 +1,9 @@
 import { useState } from "react";
-import type { SchemaChange, SchemaSuggestion } from "../shared/schema";
+import {
+	normalizeFieldName,
+	type SchemaChange,
+	type SchemaSuggestion,
+} from "../shared/schema";
 import type { AnnotationsMode, ExtractionSchemaEnvelope } from "./api";
 import { Panel, Overline, SegmentedControl, Spinner, Button } from "./ui";
 import {
@@ -416,7 +420,7 @@ function SchemaPanel({
 		if (!editing || !ready) {
 			return;
 		}
-		const name = editing.name.trim().toLowerCase().replace(/\s+/g, "_");
+		const name = normalizeFieldName(editing.name);
 		if (!name) {
 			setEditing(null);
 			return;

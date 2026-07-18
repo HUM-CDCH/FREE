@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
 	requestExtraction,
 	type ExtractionSchemaEnvelope,
@@ -69,13 +69,10 @@ export function useExtraction({
 	onComplete,
 	onError,
 }: UseExtractionOptions) {
-	const identity: ExtractionIdentity = {
-		documentEpoch,
-		schemaRevision,
-		taskId,
-		schema,
-		strategy,
-	};
+	const identity: ExtractionIdentity = useMemo(
+		() => ({ documentEpoch, schemaRevision, taskId, schema, strategy }),
+		[documentEpoch, schemaRevision, taskId, schema, strategy],
+	);
 	const currentIdentityRef = useRef(identity);
 	const [snapshot, setSnapshot] = useState<ExtractionSnapshot>({
 		...identity,
@@ -85,15 +82,9 @@ export function useExtraction({
 
 	useEffect(() => () => abortRef.current?.abort(), []);
 	useLayoutEffect(() => {
-		currentIdentityRef.current = {
-			documentEpoch,
-			schemaRevision,
-			taskId,
-			schema,
-			strategy,
-		};
+		currentIdentityRef.current = identity;
 		abortRef.current?.abort();
-	}, [documentEpoch, schemaRevision, taskId, schema, strategy]);
+	}, [identity]);
 
 	const state = projectExtractionState(snapshot, identity);
 	const hasResults = state.status === "ready";
@@ -111,13 +102,7 @@ export function useExtraction({
 		const abortController = new AbortController();
 		abortRef.current = abortController;
 		const isRerun = state.status === "ready";
-		const invocation: ExtractionIdentity = {
-			documentEpoch,
-			schemaRevision,
-			taskId,
-			schema,
-			strategy,
-		};
+		const invocation = identity;
 		setSnapshot({ ...invocation, state: { status: "running" } });
 
 		try {

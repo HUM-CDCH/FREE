@@ -68,7 +68,7 @@ const PROTECTED_NAMES = new Set([
 	"constructor",
 	"prototype",
 ]);
-const EVIDENCE = Object.freeze({
+const EMPTY_EVIDENCE = Object.freeze({
 	snippets: [] as string[],
 	inferred: false,
 	source_type: "",
@@ -155,12 +155,12 @@ export function applySchemaChanges(
 		: { status: "invalid", issues: validation.issues };
 }
 
-type SetResult = Exclude<ApplyResult, { readonly status: "stale" }>;
+type ChangeResult = Exclude<ApplyResult, { readonly status: "stale" }>;
 
 function applySet(
 	schema: ExtractionSchemaEnvelope,
 	change: SetSchemaChange,
-): SetResult {
+): ChangeResult {
 	if (change.path.length === 0) {
 		const validation = validateExtractionSchema(change.value);
 		return validation.valid
@@ -170,33 +170,16 @@ function applySet(
 				}
 			: { status: "invalid", issues: validation.issues };
 	}
-	for (const segment of change.path) {
-		if (!segment.trim())
-			return invalid(
-				"invalid_path",
-				change.path,
-				"Schema paths cannot contain empty names.",
-			);
-		if (PROTECTED_NAMES.has(segment))
-			return invalid(
-				"protected_name",
-				change.path,
-				`Field name ${segment} is protected.`,
-			);
-	}
+	const pathIssue = validateResearcherPath(change.path);
+	if (pathIssue) return pathIssue;
 
-	let parent: Record<string, unknown> = schema.record;
-	for (const segment of change.path.slice(0, -1)) {
-		const child = own(parent, segment);
-		const traversed = Array.isArray(child) ? child[0] : child;
-		if (!isRecord(traversed))
-			return invalid(
-				"missing_parent",
-				change.path,
-				"The complete parent path must exist.",
-			);
-		parent = traversed;
-	}
+	const parent = parentOfPath(schema.record, change.path);
+	if (!parent)
+		return invalid(
+			"missing_parent",
+			change.path,
+			"The complete parent path must exist.",
+		);
 
 	const suppliedName = change.path.at(-1) as string;
 	const exists = Object.hasOwn(parent, suppliedName);
@@ -218,7 +201,7 @@ function applySet(
 	if (!exists) {
 		const localEvidence = isRecord(parent._evidence) ? parent._evidence : {};
 		parent._evidence = localEvidence;
-		localEvidence[name] = structuredClone(EVIDENCE);
+		localEvidence[name] = structuredClone(EMPTY_EVIDENCE);
 	}
 	return { status: "applied", schema };
 }
@@ -226,7 +209,7 @@ function applySet(
 function applyRenameOrRemove(
 	schema: ExtractionSchemaEnvelope,
 	change: RenameSchemaChange | RemoveSchemaChange,
-): SetResult {
+): ChangeResult {
 	if (change.path.length === 0)
 		return invalid(
 			"invalid_path",
@@ -236,18 +219,13 @@ function applyRenameOrRemove(
 	const pathIssue = validateResearcherPath(change.path);
 	if (pathIssue) return pathIssue;
 
-	let parent: Record<string, unknown> = schema.record;
-	for (const segment of change.path.slice(0, -1)) {
-		const child = own(parent, segment);
-		const traversed = Array.isArray(child) ? child[0] : child;
-		if (!isRecord(traversed))
-			return invalid(
-				"missing_parent",
-				change.path,
-				"The complete parent path must exist.",
-			);
-		parent = traversed;
-	}
+	const parent = parentOfPath(schema.record, change.path);
+	if (!parent)
+		return invalid(
+			"missing_parent",
+			change.path,
+			"The complete parent path must exist.",
+		);
 	const oldName = change.path.at(-1) as string;
 	if (!Object.hasOwn(parent, oldName))
 		return invalid(
@@ -287,7 +265,21 @@ function applyRenameOrRemove(
 	return { status: "applied", schema };
 }
 
-function validateResearcherPath(path: SchemaPath): SetResult | null {
+function parentOfPath(
+	record: Record<string, unknown>,
+	path: SchemaPath,
+): Record<string, unknown> | null {
+	let parent = record;
+	for (const segment of path.slice(0, -1)) {
+		const child = ownValue(parent, segment);
+		const traversed = Array.isArray(child) ? child[0] : child;
+		if (!isRecord(traversed)) return null;
+		parent = traversed;
+	}
+	return parent;
+}
+
+function validateResearcherPath(path: SchemaPath): ChangeResult | null {
 	for (const segment of path) {
 		if (!segment.trim())
 			return invalid(
@@ -350,17 +342,17 @@ function pruneMetadata(
 	}
 }
 
-function normalizeFieldName(name: string): string {
+export function normalizeFieldName(name: string): string {
 	return name.trim().toLowerCase().replace(/\s+/g, "_");
 }
-function own(record: Record<string, unknown>, key: string): unknown {
+function ownValue(record: Record<string, unknown>, key: string): unknown {
 	return Object.hasOwn(record, key) ? record[key] : undefined;
 }
 function invalid(
 	code: SchemaIssueCode,
 	path: SchemaPath,
 	message: string,
-): SetResult {
+): ChangeResult {
 	return { status: "invalid", issues: [issue(code, path, message)] };
 }
 function issue(
@@ -370,7 +362,7 @@ function issue(
 ): SchemaIssue {
 	return { code, path, message };
 }
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
 	if (typeof value !== "object" || value === null || Array.isArray(value))
 		return false;
 	const prototype = Object.getPrototypeOf(value);
@@ -431,7 +423,7 @@ function isContainerField(value: unknown): boolean {
 
 function validateEvidence(value: unknown): boolean {
 	if (!isRecord(value)) return false;
-	const expected = Object.keys(EVIDENCE);
+	const expected = Object.keys(EMPTY_EVIDENCE);
 	if (
 		Object.keys(value).length !== expected.length ||
 		!expected.every((key) => Object.hasOwn(value, key))
