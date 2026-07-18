@@ -73,6 +73,7 @@ describe("createSchemaAgent", () => {
 		expect(response.headers.get("content-type")).toContain("text/event-stream");
 		await expect(response.text()).resolves.toContain("Bronze pin.");
 		expect(model.doStreamCalls).toHaveLength(1);
+		expect(model.doStreamCalls[0]?.toolChoice).toEqual({ type: "auto" });
 		const prompt = JSON.stringify(model.doStreamCalls[0]?.prompt);
 		expect(prompt).toContain("BEGIN UNTRUSTED SOURCE CONTEXT");
 		expect(prompt).toContain("bronze pin");
@@ -97,7 +98,10 @@ describe("createSchemaAgent", () => {
 						type: "tool-call",
 						toolCallId: "call-8",
 						toolName: "proposeSchemaChanges",
-						input: JSON.stringify({ summary: "Extract finds", schema }),
+						input: JSON.stringify({
+							summary: "Extract finds",
+							proposal: JSON.stringify(schema),
+						}),
 					},
 				],
 				finishReason: { unified: "tool-calls", raw: "tool_calls" },
@@ -126,6 +130,10 @@ describe("createSchemaAgent", () => {
 		});
 
 		expect(model.doGenerateCalls).toHaveLength(1);
+		expect(model.doGenerateCalls[0]?.toolChoice).toEqual({
+			type: "tool",
+			toolName: "proposeSchemaChanges",
+		});
 		expect(result.toolResults[0]?.output).toEqual({
 			id: "00000000-0000-4000-8000-000000000008",
 			documentEpoch: 2,
@@ -163,7 +171,10 @@ describe("createSchemaAgent", () => {
 						type: "tool-call",
 						toolCallId: "call-9",
 						toolName: "proposeSchemaChanges",
-						input: JSON.stringify({ summary: "Update finds", changes }),
+						input: JSON.stringify({
+							summary: "Update finds",
+							proposal: JSON.stringify(changes),
+						}),
 					},
 				],
 				finishReason: { unified: "tool-calls", raw: "tool_calls" },
@@ -205,7 +216,7 @@ describe("createSchemaAgent", () => {
 						toolName: "proposeSchemaChanges",
 						input: JSON.stringify({
 							summary: "Replace the approved schema",
-							changes: [
+							proposal: JSON.stringify([
 								{
 									operation: "set",
 									path: [],
@@ -215,7 +226,7 @@ describe("createSchemaAgent", () => {
 										_schema_metadata: {},
 									},
 								},
-							],
+							]),
 						}),
 					},
 				],
@@ -258,7 +269,9 @@ describe("createSchemaAgent", () => {
 						toolName: "proposeSchemaChanges",
 						input: JSON.stringify({
 							summary: "Break schema",
-							changes: [{ operation: "remove", path: ["missing"] }],
+							proposal: JSON.stringify([
+								{ operation: "remove", path: ["missing"] },
+							]),
 						}),
 					},
 				],
@@ -301,7 +314,7 @@ describe("createSchemaAgent", () => {
 						toolName: "proposeSchemaChanges",
 						input: JSON.stringify({
 							summary: "Broken",
-							schema: { record: {} },
+							proposal: JSON.stringify({ record: {} }),
 						}),
 					},
 				],

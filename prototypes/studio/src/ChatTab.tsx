@@ -1,6 +1,6 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AnnotationSetItem } from "./AnnotationSidebar";
 import { API_BASE } from "./api";
 import {
@@ -35,6 +35,25 @@ function messageText(message: SchemaAgentUIMessage): string {
 		.join("");
 }
 
+function useClipboardBoundary() {
+	const boundaryRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const boundary = boundaryRef.current;
+		if (!boundary) return;
+		const stopPropagation = (event: ClipboardEvent) => event.stopPropagation();
+		const eventTypes = ["copy", "cut", "paste"] as const;
+		for (const eventType of eventTypes) {
+			boundary.addEventListener(eventType, stopPropagation);
+		}
+		return () => {
+			for (const eventType of eventTypes) {
+				boundary.removeEventListener(eventType, stopPropagation);
+			}
+		};
+	}, []);
+	return boundaryRef;
+}
+
 function ChatTab({
 	markdown,
 	annotations,
@@ -45,6 +64,7 @@ function ChatTab({
 	onRejectSuggestion,
 }: ChatTabProps) {
 	const [draft, setDraft] = useState("");
+	const clipboardBoundaryRef = useClipboardBoundary();
 	const [reviewedToolCalls, setReviewedToolCalls] = useState<ReviewedToolCalls>(
 		{},
 	);
@@ -102,7 +122,7 @@ function ChatTab({
 	}
 
 	return (
-		<div className="flex h-full min-h-0 flex-col">
+		<div ref={clipboardBoundaryRef} className="flex h-full min-h-0 flex-col">
 			<div className="scrollbar-subtle flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3.5 py-3.5">
 				{messages.length === 0 && (
 					<div className="mt-1.5 rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">

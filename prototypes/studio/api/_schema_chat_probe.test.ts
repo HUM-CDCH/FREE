@@ -18,7 +18,7 @@ describe("resolveSchemaChatProbeConfig", () => {
 		expect(resolveSchemaChatProbeConfig()).toEqual({
 			provider: "ollama",
 			model: SELECTED_SCHEMA_CHAT_MODEL,
-			baseURL: "http://spark.cdch-dgxspark.lan.ku.dk:11434/api",
+			baseURL: "http://spark.cdch-dgxspark.lan.ku.dk:11434",
 		});
 		expect(GEMMA_SCHEMA_TOOL_MODELS).toContain(SELECTED_SCHEMA_CHAT_MODEL);
 	});

@@ -49,7 +49,7 @@ export function resolveSchemaChatProbeConfig(): {
 	return {
 		provider,
 		model: model as SchemaChatProbeModel,
-		baseURL: `${configuredBaseURL.replace(/\/$/, "")}/api`,
+		baseURL: configuredBaseURL.replace(/\/$/, ""),
 	};
 }
 
@@ -72,19 +72,34 @@ export function createSchemaChatProbeAgent() {
 	return new ToolLoopAgent({
 		model: createOllama({ baseURL: config.baseURL })(config.model),
 		instructions:
-			"You verify Extraction Schema changes. When asked to change a field, call proposeSchemaChange with the explicit operation requested.",
+			'You verify Extraction Schema changes. Call proposeSchemaChange and encode the requested operation in its proposal string, for example {"operation":"set","path":["title"],"value":"string"}.',
 		tools: {
 			proposeSchemaChange: tool({
 				description:
-					"Propose exactly one explicit set, remove, or rename Extraction Schema operation.",
-				inputSchema: schemaChangeSchema,
+					"Propose exactly one set, remove, or rename operation as a JSON-encoded string.",
+				inputSchema: z.object({
+					proposal: z.string().describe("JSON-encoded schema change"),
+				}),
 				outputSchema: z.object({
 					validated: z.literal(true),
 					change: schemaChangeSchema,
 				}),
-				execute: async (change) => ({ validated: true as const, change }),
+				execute: async ({ proposal }) => {
+					let decoded: unknown;
+					try {
+						decoded = JSON.parse(proposal);
+					} catch {
+						throw new Error("The probe proposal must be valid JSON.");
+					}
+					const result = schemaChangeSchema.safeParse(decoded);
+					if (!result.success) {
+						throw new Error("The probe proposal must be a schema change.");
+					}
+					return { validated: true as const, change: result.data };
+				},
 			}),
 		},
+		toolChoice: { type: "tool", toolName: "proposeSchemaChange" },
 		stopWhen: [
 			hasToolCall("proposeSchemaChange"),
 			isStepCount(MAX_PROBE_STEPS),

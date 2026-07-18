@@ -105,12 +105,12 @@ describe("POST /api/chat", () => {
 			state: "output-available",
 			input: {
 				summary: "Record burial finds",
-				schema: {
+				proposal: JSON.stringify({
 					name: "Burial finds",
 					description: "",
 					record: { title: "verbatim-string" },
 					_schema_metadata: {},
-				},
+				}),
 			},
 			output: {
 				id: "123e4567-e89b-42d3-a456-426614174000",
@@ -148,7 +148,10 @@ describe("POST /api/chat", () => {
 				type: "tool-proposeSchemaChanges",
 				toolCallId: "call-9",
 				state: "output-available",
-				input: { summary: "Update fields", changes },
+				input: {
+					summary: "Update fields",
+					proposal: JSON.stringify(changes),
+				},
 				output: {
 					id: "123e4567-e89b-42d3-a456-426614174009",
 					documentEpoch: 0,
@@ -216,21 +219,18 @@ describe("POST /api/chat", () => {
 			},
 		],
 		[
-			"unknown operation property",
+			"non-string proposal",
 			{
 				type: "tool-proposeSchemaChanges",
-				toolCallId: "call-operation-extra",
+				toolCallId: "call-invalid-proposal",
 				state: "input-available",
 				input: {
 					summary: "Update title",
-					changes: [
-						{
-							operation: "set",
-							path: ["title"],
-							value: "verbatim-string",
-							unexpected: true,
-						},
-					],
+					proposal: {
+						operation: "set",
+						path: ["title"],
+						value: "verbatim-string",
+					},
 				},
 			},
 		],
@@ -257,7 +257,7 @@ describe("POST /api/chat", () => {
 				type: "tool-proposeSchemaChanges",
 				toolCallId: "call-1",
 				state: "output-available",
-				input: { summary: "Create", schema: {} },
+				input: { summary: "Create", proposal: "{}" },
 				output: { id: "model-owned", changes: [] },
 			},
 		],
@@ -267,7 +267,7 @@ describe("POST /api/chat", () => {
 				type: "tool-proposeSchemaChanges",
 				toolCallId: "call-1",
 				state: "output-available",
-				input: { summary: "Create", schema: {} },
+				input: { summary: "Create", proposal: "{}" },
 				output: {
 					id: "123e4567-e89b-42d3-a456-426614174000",
 					documentEpoch: 0,

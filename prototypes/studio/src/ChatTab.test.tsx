@@ -87,4 +87,39 @@ describe("ChatTab", () => {
 
 		await act(async () => root.unmount());
 	});
+
+	it("isolates clipboard events from the document-wide PDF editor handlers", async () => {
+		const container = document.createElement("div");
+		document.body.append(container);
+		const eventTypes = ["copy", "cut", "paste"] as const;
+		const pdfClipboardHandler = vi.fn((event: Event) => event.preventDefault());
+		for (const eventType of eventTypes) {
+			document.addEventListener(eventType, pdfClipboardHandler);
+		}
+		const root = createRoot(container);
+
+		try {
+			await act(async () => {
+				root.render(<ChatTab {...commonProps} documentEpoch={2} />);
+			});
+			const input = container.querySelector("input");
+			expect(input).not.toBeNull();
+
+			for (const eventType of eventTypes) {
+				const clipboardEvent = new Event(eventType, {
+					bubbles: true,
+					cancelable: true,
+				});
+				input!.dispatchEvent(clipboardEvent);
+				expect(clipboardEvent.defaultPrevented).toBe(false);
+			}
+			expect(pdfClipboardHandler).not.toHaveBeenCalled();
+		} finally {
+			for (const eventType of eventTypes) {
+				document.removeEventListener(eventType, pdfClipboardHandler);
+			}
+			await act(async () => root.unmount());
+			container.remove();
+		}
+	});
 });

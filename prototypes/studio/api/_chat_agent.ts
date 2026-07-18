@@ -69,16 +69,13 @@ export const schemaChangeSchema: z.ZodType<SchemaChange> = z.discriminatedUnion(
 export const schemaProposalInputSchema = z
 	.object({
 		summary: z.string().trim().min(1),
-		schema: z.unknown().optional(),
-		changes: z.array(schemaChangeSchema).min(1).optional(),
+		proposal: z
+			.string()
+			.trim()
+			.min(1)
+			.describe("JSON-encoded Extraction Schema or schema-change array"),
 	})
-	.strict()
-	.refine(
-		(value) => (value.schema === undefined) !== (value.changes === undefined),
-		{
-			message: "Supply either a complete schema or nested changes.",
-		},
-	);
+	.strict();
 
 export const schemaSuggestionSchema: z.ZodType<SchemaSuggestion> = z
 	.object({
@@ -106,37 +103,49 @@ export const schemaSuggestionSchema: z.ZodType<SchemaSuggestion> = z
 	});
 
 function createProposalTool(options?: SchemaAgentOptions) {
+	const description =
+		options?.schema === null
+			? 'Propose one complete FREE Extraction Schema. The proposal must be a JSON-encoded string with name, description, record, and _schema_metadata; do not use JSON Schema keywords. Arrays are repeating groups and must contain exactly one object template, such as [{"value":"string"}]; never use primitive arrays such as ["string"].'
+			: "Propose changes to the approved Extraction Schema. The proposal must be a JSON-encoded array of nested set, rename, or remove operations; never target the root or system-managed fields.";
 	return tool({
-		description:
-			"Propose a complete root Extraction Schema when none exists, or nested set, rename, and remove changes to the approved Extraction Schema. Supply only a summary and either schema or changes.",
+		description,
 		inputSchema: schemaProposalInputSchema,
 		outputSchema: schemaSuggestionSchema,
-		execute: async ({ summary, schema, changes }) => {
+		execute: async ({ summary, proposal }) => {
 			if (!options) throw new Error("Validated chat options are required.");
+			let parsedProposal: unknown;
+			try {
+				parsedProposal = JSON.parse(proposal);
+			} catch {
+				throw new Error("The schema proposal must be valid JSON.");
+			}
 			let proposedChanges: readonly SchemaChange[];
 			if (options.schema === null) {
-				if (schema === undefined || changes !== undefined) {
-					throw new Error("A complete root Extraction Schema is required.");
-				}
-				const validation = validateExtractionSchema(schema);
+				const validation = validateExtractionSchema(parsedProposal);
 				if (!validation.valid) {
 					throw new Error("The proposed Extraction Schema is invalid.");
 				}
 				proposedChanges = [
-					{ operation: "set", path: [], value: schema as JsonValue },
+					{ operation: "set", path: [], value: parsedProposal as JsonValue },
 				];
 			} else {
+				const parsedChanges = z
+					.array(schemaChangeSchema)
+					.min(1)
+					.safeParse(parsedProposal);
 				if (
-					changes === undefined ||
-					schema !== undefined ||
-					changes.some((change) => change.path.length === 0)
+					!parsedChanges.success ||
+					parsedChanges.data.some((change) => change.path.length === 0)
 				) {
 					throw new Error("Nested schema changes are required.");
 				}
-				if (applySchemaChanges(options.schema, changes).status !== "applied") {
+				if (
+					applySchemaChanges(options.schema, parsedChanges.data).status !==
+					"applied"
+				) {
 					throw new Error("The proposed schema changes are invalid.");
 				}
-				proposedChanges = changes;
+				proposedChanges = parsedChanges.data;
 			}
 			return {
 				id: crypto.randomUUID(),
@@ -147,6 +156,42 @@ function createProposalTool(options?: SchemaAgentOptions) {
 			};
 		},
 	});
+}
+
+function messageText(message: unknown): string {
+	if (!message || typeof message !== "object") return "";
+	const content = (message as { content?: unknown }).content;
+	if (typeof content === "string") return content;
+	if (!Array.isArray(content)) return "";
+	return content
+		.map((part) =>
+			part &&
+			typeof part === "object" &&
+			"type" in part &&
+			part.type === "text" &&
+			"text" in part &&
+			typeof part.text === "string"
+				? part.text
+				: "",
+		)
+		.join("");
+}
+
+function requestsSchemaAction(conversation: readonly unknown[]): boolean {
+	const latestResearcherMessage = conversation.findLast(
+		(message) =>
+			message !== null &&
+			typeof message === "object" &&
+			"role" in message &&
+			message.role === "user",
+	);
+	const text = messageText(latestResearcherMessage);
+	return (
+		/\b(?:extraction\s+)?schema\b/i.test(text) &&
+		/\b(?:create|generate|propose|build|make|modify|update|change|add|remove|rename|replace)\b/i.test(
+			text,
+		)
+	);
 }
 
 function sourceContextPrompt(options: SchemaAgentOptions): string | null {
@@ -170,7 +215,7 @@ export function createSchemaAgent(model: LanguageModel = resolveChatModel()) {
 		model,
 		callOptionsSchema: schemaAgentOptionsSchema,
 		instructions:
-			"You help humanities researchers inspect Source Documents in FREE. When asked to create or modify an Extraction Schema, call proposeSchemaChanges with proposal content only. With no approved schema, supply a complete schema. With an approved schema, supply nested set, rename, or remove changes; never target system-managed fields. Otherwise answer conversationally. If no Source Context is available, say so before answering normally.",
+			'You help humanities researchers inspect Source Documents in FREE. When asked to create or modify an Extraction Schema, call proposeSchemaChanges and put the proposal in its JSON-encoded string. With no approved schema, propose one complete FREE template such as {"name":"Finds","description":"","record":{"sites":[{"name":"verbatim-string","excavation_date":"date","location":"string","period":"string","finds":[{"name":"verbatim-string","material":"string","page_reference":"integer"}]}]},"_schema_metadata":{}}. Never return a JSON Schema with type/properties/items. Arrays must contain exactly one object template; never use primitive arrays such as ["string"]. With an approved schema, propose a JSON array of nested set, rename, or remove changes; never target system-managed fields. Otherwise answer conversationally. If no Source Context is available, say so before answering normally.',
 		tools: { proposeSchemaChanges: createProposalTool() },
 		stopWhen: [
 			hasToolCall("proposeSchemaChanges"),
@@ -178,13 +223,28 @@ export function createSchemaAgent(model: LanguageModel = resolveChatModel()) {
 		],
 		prepareCall: ({ prompt, messages, options, ...settings }) => {
 			const context = options ? sourceContextPrompt(options) : null;
+			const conversation = messages ?? (Array.isArray(prompt) ? prompt : null);
+			let toolChoiceSettings: {
+				toolChoice?: {
+					type: "tool";
+					toolName: "proposeSchemaChanges";
+				};
+			} = {};
+			if (conversation && requestsSchemaAction(conversation)) {
+				toolChoiceSettings = {
+					toolChoice: {
+						type: "tool",
+						toolName: "proposeSchemaChanges",
+					},
+				};
+			}
 			const preparedSettings = options
 				? {
 						...settings,
+						...toolChoiceSettings,
 						tools: { proposeSchemaChanges: createProposalTool(options) },
 					}
 				: settings;
-			const conversation = messages ?? (Array.isArray(prompt) ? prompt : null);
 			if (!context || !conversation) {
 				return { prompt, messages, options, ...preparedSettings };
 			}
