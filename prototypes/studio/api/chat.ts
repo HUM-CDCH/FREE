@@ -70,6 +70,10 @@ const annotationSchema = z
 
 const requestSchema = z
 	.object({
+		// DefaultChatTransport adds this request metadata automatically.
+		id: z.string().min(1).optional(),
+		trigger: z.enum(["submit-message", "regenerate-message"]).optional(),
+		messageId: z.string().min(1).optional(),
 		messages: z.array(messageSchema),
 		markdown: z.string().min(1).nullable(),
 		annotations: z.array(annotationSchema),
@@ -87,10 +91,16 @@ const requestSchema = z
 
 export async function POST(request: Request): Promise<Response> {
 	try {
-		const { messages, ...options } = requestSchema.parse(await request.json());
+		const parsed = requestSchema.parse(await request.json());
 		return await createSchemaAgentUIResponse({
-			uiMessages: messages,
-			options,
+			uiMessages: parsed.messages,
+			options: {
+				markdown: parsed.markdown,
+				annotations: parsed.annotations,
+				schema: parsed.schema,
+				revision: parsed.revision,
+				documentEpoch: parsed.documentEpoch,
+			},
 			abortSignal: request.signal,
 		});
 	} catch (error) {

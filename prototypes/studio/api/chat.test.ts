@@ -163,6 +163,28 @@ describe("POST /api/chat", () => {
 		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
 	});
 
+	it("accepts metadata added by DefaultChatTransport", async () => {
+		const response = await POST(
+			new Request("http://localhost/api/chat", {
+				method: "POST",
+				body: JSON.stringify({
+					id: "free-document-chat-1",
+					messages,
+					trigger: "submit-message",
+					messageId: "question-1",
+					markdown: null,
+					annotations: [],
+					schema: null,
+					revision: 0,
+					documentEpoch: 0,
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
+	});
+
 	it("rejects unknown request properties", async () => {
 		const response = await POST(
 			new Request("http://localhost/api/chat", {
