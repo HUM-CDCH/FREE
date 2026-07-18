@@ -10,11 +10,31 @@ import {
 } from "./_chat_agent.js";
 import { modelError } from "./_model.js";
 
+const providerMetadataSchema = z.record(
+	z.string(),
+	z.record(z.string(), z.unknown()),
+);
+
 const textPartSchema = z
 	.object({
 		type: z.literal("text"),
 		text: z.string(),
+		state: z.enum(["streaming", "done"]).optional(),
+		providerMetadata: providerMetadataSchema.optional(),
 	})
+	.strict();
+
+const reasoningPartSchema = z
+	.object({
+		type: z.literal("reasoning"),
+		text: z.string(),
+		state: z.enum(["streaming", "done"]).optional(),
+		providerMetadata: providerMetadataSchema.optional(),
+	})
+	.strict();
+
+const stepStartPartSchema = z
+	.object({ type: z.literal("step-start") })
 	.strict();
 
 const proposalPartBase = {
@@ -50,12 +70,18 @@ const proposalPartSchema = z.discriminatedUnion("state", [
 		.strict(),
 ]);
 
-const messagePartSchema = z.union([textPartSchema, proposalPartSchema]);
+const messagePartSchema = z.union([
+	textPartSchema,
+	reasoningPartSchema,
+	stepStartPartSchema,
+	proposalPartSchema,
+]);
 
 const messageSchema = z
 	.object({
-		id: z.string().min(1),
+		id: z.string(),
 		role: z.enum(["system", "user", "assistant"]),
+		metadata: z.unknown().optional(),
 		parts: z.array(messagePartSchema),
 	})
 	.strict();

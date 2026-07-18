@@ -166,6 +166,39 @@ describe("POST /api/chat", () => {
 		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
 	});
 
+	it("accepts completed SDK assistant text and step parts", async () => {
+		const response = await POST(
+			new Request("http://localhost/api/chat", {
+				method: "POST",
+				body: JSON.stringify({
+					messages: [
+						...messages,
+						{
+							id: "",
+							role: "assistant",
+							parts: [
+								{ type: "step-start" },
+								{
+									type: "text",
+									text: "Graves 8 and 13.",
+									state: "done",
+								},
+							],
+						},
+					],
+					markdown: null,
+					annotations: [],
+					schema: null,
+					revision: 0,
+					documentEpoch: 0,
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(createSchemaAgentUIResponse).toHaveBeenCalledOnce();
+	});
+
 	it("accepts metadata added by DefaultChatTransport", async () => {
 		const response = await POST(
 			new Request("http://localhost/api/chat", {

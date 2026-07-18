@@ -68,6 +68,9 @@ Codex CLI owns context configuration; `AI_NUM_CTX` applies only to Ollama raw re
 These commands are opt-in and are not part of ordinary `pnpm test`:
 
 ```bash
+RUN_CHAT_SMOKE=1 \
+pnpm --filter studio exec vitest run api/chat.smoke.test.ts
+
 RUN_NUEXTRACT_CATALOG_SMOKE=1 \
 AI_PROVIDER=ollama \
 AI_MODEL=hf.co/numind/NuExtract3-GGUF:Q4_K_M \
@@ -88,4 +91,14 @@ AI_NUM_CTX=<positive-int> \
 pnpm --filter studio exec vitest run api/extract.article.smoke.test.ts
 ```
 
-The Catalog lane uses Source Context containing Grav 8 and 13 while the verbatim schema metadata contains the conflicting Grav 17 example. The Article lane requires schema-shaped values and canonical table Evidence.
+The Chat lane calls the public `/api/chat` boundary with a focused Source
+Context derived from `examples/Beretning_Ellekilde_8_13.pdf`. It checks a
+three-turn conversation for broad, stable behavior: identifying Graves 8 and
+13, distinguishing their grave equipment, and producing a validated Extraction
+Schema Suggestion. It deliberately avoids snapshots and exact prose assertions.
+The default chat endpoint requires the VPN; override `AI_CHAT_BASE_URL` and
+`AI_CHAT_MODEL` for another Ollama host.
+
+The Catalog lane uses Source Context containing Grav 8 and 13 while the verbatim
+schema metadata contains the conflicting Grav 17 example. The Article lane
+requires schema-shaped values and canonical table Evidence.
