@@ -9,13 +9,37 @@ const templateEnvelopeSchema = z.object({
 export async function parseExtractionResult(text: string, template: unknown): Promise<Record<string, unknown>> {
   const message = 'Model returned output that did not match the extraction schema.'
   const object = await parseJsonObject(text, message)
-  const parsed = extractionResultSchema(template).safeParse(object)
-  if (!parsed.success || !isRecord(parsed.data)) {
-    // ponytail: schema mismatch is a warning, not a failure — return the raw JSON object so partial results survive
-    console.warn(message, parsed.success ? object : parsed.error.issues)
-    return object
+  const conformed = conformToSchema(object, template)
+  if (!isRecord(conformed)) {
+    throw new RequestError(502, message, text)
   }
-  return parsed.data
+  return conformed
+}
+
+/** Faithful port of FREE-technical's pinned `_conform_to_schema` behavior. */
+export function conformToSchema(data: unknown, schema: unknown): unknown {
+  if (isRecord(schema)) {
+    if (Object.keys(schema).length === 0) {
+      return isRecord(data) ? data : {}
+    }
+    const source = isRecord(data) ? data : {}
+    return Object.fromEntries(
+      Object.entries(schema).map(([key, childSchema]) => [key, conformToSchema(source[key], childSchema)]),
+    )
+  }
+
+  if (Array.isArray(schema)) {
+    if (data === null || data === undefined) {
+      return []
+    }
+    const source = Array.isArray(data) ? data : [data]
+    if (schema.length === 0) {
+      return source
+    }
+    return source.map((item) => conformToSchema(item, schema[0]))
+  }
+
+  return data === null || data === undefined || isScalar(data) ? (data ?? null) : null
 }
 
 export async function parseTemplate(text: string): Promise<Record<string, unknown>> {
@@ -52,9 +76,7 @@ async function parseJsonObject(text: string, message: string): Promise<Record<st
   return parsed
 }
 
-type JsonParseResult =
-  | { readonly ok: true; readonly value: unknown }
-  | { readonly ok: false; readonly error: Error }
+type JsonParseResult = { readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly error: Error }
 
 function tryParseJson(text: string): JsonParseResult {
   try {
@@ -86,48 +108,8 @@ function looksLikeJsonContainer(text: string): boolean {
   return (text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']'))
 }
 
-function extractionResultSchema(template: unknown): z.ZodType<unknown> {
-  if (!isRecord(template)) {
-    return z.record(z.string(), z.unknown())
-  }
-  return objectSchemaFromTemplate(template)
-}
-
-function objectSchemaFromTemplate(template: Record<string, unknown>): z.ZodType<unknown> {
-  const shape: Record<string, z.ZodType<unknown>> = {}
-  for (const [key, value] of Object.entries(template)) {
-    shape[key] = valueSchemaFromTemplate(value)
-  }
-  return z.object(shape).strict()
-}
-
-function valueSchemaFromTemplate(value: unknown): z.ZodType<unknown> {
-  if (Array.isArray(value)) {
-    return z.array(valueSchemaFromTemplate(value[0] ?? 'string')).nullable()
-  }
-
-  if (isRecord(value)) {
-    return objectSchemaFromTemplate(value).nullable()
-  }
-
-  return primitiveSchemaFromLabel(String(value)).nullable()
-}
-
-function primitiveSchemaFromLabel(label: string): z.ZodType<unknown> {
-  switch (label) {
-    case 'number':
-      return z.number()
-    case 'integer':
-      return z.number().int()
-    case 'boolean':
-      return z.boolean()
-    case 'object':
-      return z.record(z.string(), z.unknown())
-    case 'array':
-      return z.array(z.unknown())
-    default:
-      return z.string()
-  }
+function isScalar(value: unknown): value is string | number | boolean {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

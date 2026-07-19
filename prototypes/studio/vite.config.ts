@@ -1,6 +1,5 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite'
-import react, { reactCompilerPreset } from '@vitejs/plugin-react'
-import babel from '@rolldown/plugin-babel'
+import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { Readable } from 'node:stream'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -14,6 +13,11 @@ function apiFunctions(): Plugin {
       server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
         const match = /^\/api\/([a-z_]+)(?:[/?]|$)/.exec(req.url ?? '')
         if (!match) return next()
+        const controller = new AbortController()
+        const abortOnClose = () => {
+          if (!res.writableEnded) controller.abort()
+        }
+        res.on('close', abortOnClose)
         try {
           const mod = await server.ssrLoadModule(`/api/${match[1]}.ts`)
           const handler = mod[req.method ?? 'GET']
@@ -28,6 +32,7 @@ function apiFunctions(): Plugin {
             method: req.method,
             headers,
             body: hasBody ? await readBody(req) : undefined,
+            signal: controller.signal,
           })
           const response: Response = await handler(request)
 
@@ -39,6 +44,8 @@ function apiFunctions(): Plugin {
           res.statusCode = 500
           res.setHeader('content-type', 'application/json')
           res.end(JSON.stringify({ detail: String(error) }))
+        } finally {
+          res.off('close', abortOnClose)
         }
       })
     },
@@ -62,7 +69,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      babel({ presets: [reactCompilerPreset()] }),
       tailwindcss(),
       apiFunctions(),
     ],

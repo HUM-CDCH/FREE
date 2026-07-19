@@ -37,13 +37,13 @@ Always use `uv run` for backend Python commands so dependencies come from the pr
 
 ```bash
 cd prototypes/parsing_service
-uv sync
-uv run python -m unittest discover -s tests
-uv run python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
-uv run fastapi run main.py
+uv sync --extra ocr-cpu  # use ocr-gpu instead on CUDA hosts
+uv run --no-sync python -m unittest discover -s tests
+uv run --no-sync python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
+uv run --no-sync fastapi run main.py
 ```
 
-Avoid running backend tests with bare `python -m unittest ...`; it may miss project dependencies such as `pydantic-settings` and `pypdfium2`.
+Use `uv run --no-sync` after selecting an OCR profile so normal dev/test commands do not replace a GPU environment with the CPU extra. Avoid running backend tests with bare `python -m unittest ...`; it may miss project dependencies such as `pydantic-settings` and `pypdfium2`.
 Use UTF-8 mode for local FastAPI dev on Windows; the CLI emits Unicode and redirected output can fail under legacy code pages.
 
 ### Frontend Commands (React + Vite + pnpm)
@@ -60,8 +60,8 @@ pnpm lint
 
 The frontend's model layer drives
 NuExtract3 with **hand-built raw prompts** sent to Ollama's `/api/generate`
-(`raw: true`), not `chat_template_kwargs`. The probe in
-`tools/provider-control-probe-results.md` showed Ollama ignores those kwargs
+(`raw: true`), not `chat_template_kwargs`. Historical control-channel evidence in
+`openspec/changes/archive/2026-06-17-select-nuextract-control-channel/` showed Ollama ignores those kwargs
 (`mode`/`template`/`enable_thinking`), so the control tokens are reconstructed in
 code to match `nuextract.template.jinja`. When editing prompts:
 
@@ -73,3 +73,20 @@ code to match `nuextract.template.jinja`. When editing prompts:
   it unset lets Ollama apply ~0.8.
 
 VS Code tasks should invoke the pnpm workspace scripts from the repository root, not duplicate `uv` or Vite command lines.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as local markdown under `.scratch/<feature>/`. See
+`docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the five canonical labels without overrides. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain documentation uses a single-context layout. See
+`docs/agents/domain.md`.

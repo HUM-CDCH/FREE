@@ -1,90 +1,117 @@
-import { isRecord } from './template'
+import { isRecord } from "./template";
 
-// Paul Tol's Muted palette — sky blue, olive, rose, teal
-// Distinguishable across deuteranopia, protanopia, and tritanopia.
+// Paul Tol's Muted palette: distinguishable across common forms of color blindness.
 export const PALETTE: string[] = [
-  'rgba(148, 203, 236, 0.55)',
-  'rgba(220, 205, 125, 0.55)',
-  'rgba(194, 106, 119, 0.45)',
-  'rgba(93, 168, 153, 0.45)',
-]
+	"rgba(148, 203, 236, 0.55)",
+	"rgba(220, 205, 125, 0.55)",
+	"rgba(194, 106, 119, 0.45)",
+	"rgba(93, 168, 153, 0.45)",
+];
 
-export type Highlight = { value: string; snippet: string | null; hintPage: number | null; color: string; path: string[] }
+export type Highlight = {
+	value: string;
+	snippet: string | null;
+	hintPage: number | null;
+	color: string;
+	path: string[];
+};
 
-function collectEvidenceLeaf(node: unknown, color: string, path: string[], out: Highlight[]): boolean {
-  if (
-    isRecord(node) &&
-    typeof node.value === 'string' &&
-    typeof node.snippet === 'string'
-  ) {
-    const v = node.value.trim()
-    const s = node.snippet.trim()
-    if (v && s) {
-      out.push({ value: v, snippet: s, hintPage: typeof node.page === 'number' ? node.page : null, color, path })
-      return true
-    }
-  }
-  return false
+function scalarText(value: unknown): string {
+	if (typeof value === "string") return value.trim();
+	if (typeof value === "number" && Number.isFinite(value)) return String(value);
+	if (typeof value === "boolean") return String(value);
+	return "";
 }
 
-function collectResultLeaves(node: unknown, color: string, path: string[], out: Highlight[]): void {
-  if (typeof node === 'string' || typeof node === 'number') {
-    const v = String(node).trim()
-    if (v) out.push({ value: v, snippet: null, hintPage: null, color, path })
-  } else if (Array.isArray(node)) {
-    for (let i = 0; i < node.length; i++) collectResultLeaves(node[i], color, [...path, String(i)], out)
-  } else if (isRecord(node)) {
-    for (const [k, sub] of Object.entries(node)) collectResultLeaves(sub, color, [...path, k], out)
-  }
+function collectScalarEvidence(
+	value: string,
+	evidence: Record<string, unknown>,
+	color: string,
+	path: string[],
+	out: Highlight[],
+): void {
+	const snippets = (evidence.snippets as unknown[]).filter(
+		(snippet): snippet is string =>
+			typeof snippet === "string" && snippet.trim().length > 0,
+	);
+	const hintPage = typeof evidence.page === "number" ? evidence.page : null;
+	if (snippets.length === 0) {
+		out.push({ value, snippet: null, hintPage, color, path });
+		return;
+	}
+	for (const snippet of snippets) {
+		out.push({ value, snippet: snippet.trim(), hintPage, color, path });
+	}
 }
 
-function collectHighlightLeaves(resultNode: unknown, evidenceNode: unknown, color: string, path: string[], out: Highlight[]): void {
-  if (collectEvidenceLeaf(evidenceNode, color, path, out)) return
+function collectEvidence(
+	resultValue: unknown,
+	evidence: unknown,
+	color: string,
+	path: string[],
+	out: Highlight[],
+): boolean {
+	if (!isRecord(evidence) || !Array.isArray(evidence.snippets)) return false;
 
-  if (Array.isArray(resultNode)) {
-    const evidenceItems = Array.isArray(evidenceNode) ? evidenceNode : []
-    for (let i = 0; i < resultNode.length; i++) collectHighlightLeaves(resultNode[i], evidenceItems[i], color, [...path, String(i)], out)
-  } else if (isRecord(resultNode)) {
-    const evidenceRecord = isRecord(evidenceNode) ? evidenceNode : {}
-    for (const [key, value] of Object.entries(resultNode)) collectHighlightLeaves(value, evidenceRecord[key], color, [...path, key], out)
-  } else {
-    collectResultLeaves(resultNode, color, path, out)
-  }
+	if (Array.isArray(resultValue)) {
+		let collected = false;
+		resultValue.forEach((item, index) => {
+			const value = scalarText(item);
+			if (!value) return;
+			collectScalarEvidence(value, evidence, color, [...path, String(index)], out);
+			collected = true;
+		});
+		return collected;
+	}
+
+	const value = scalarText(resultValue);
+	if (!value) return false;
+	collectScalarEvidence(value, evidence, color, path, out);
+	return true;
+}
+
+function collectHighlightNode(
+	node: unknown,
+	color: string,
+	path: string[],
+	out: Highlight[],
+): void {
+	if (Array.isArray(node)) {
+		node.forEach((item, index) =>
+			collectHighlightNode(item, color, [...path, String(index)], out),
+		);
+		return;
+	}
+	if (isRecord(node)) {
+		const localEvidence = isRecord(node._evidence) ? node._evidence : {};
+		for (const [key, value] of Object.entries(node)) {
+			if (key === "_evidence") continue;
+			const childPath = [...path, key];
+			if (!collectEvidence(value, localEvidence[key], color, childPath, out)) {
+				collectHighlightNode(value, color, childPath, out);
+			}
+		}
+		return;
+	}
+
+	const value = scalarText(node);
+	if (value) out.push({ value, snippet: null, hintPage: null, color, path });
 }
 
 export function buildHighlights(
-  result: Record<string, unknown>,
-  evidence: unknown,
-  fieldColorMap?: Record<string, string>,
+	result: Record<string, unknown>,
+	fieldColorMap: Record<string, string>,
 ): Highlight[] {
-  const out: Highlight[] = []
-
-  // Unwrap array-wrapped results: { records: [{field1, field2, ...}, ...] }
-  // Color is assigned per schema field name, consistent across all records.
-  if (Array.isArray(result.records)) {
-    const evidenceRecords = isRecord(evidence) && Array.isArray(evidence.records)
-      ? evidence.records : []
-    for (let r = 0; r < result.records.length; r++) {
-      const rec = result.records[r]
-      if (!isRecord(rec)) continue
-      const evidenceRec = isRecord(evidenceRecords[r]) ? evidenceRecords[r] : {}
-      let i = 0
-      for (const [key, value] of Object.entries(rec)) {
-        const color = fieldColorMap?.[key] ?? PALETTE[i % PALETTE.length]
-        collectHighlightLeaves(value, (evidenceRec as Record<string, unknown>)[key], color, ['records', String(r), key], out)
-        i++
-      }
-    }
-    return out
-  }
-
-  // Non-wrapped: assign color per top-level key
-  const evidenceRecord = isRecord(evidence) ? evidence : {}
-  let i = 0
-  for (const [key, value] of Object.entries(result)) {
-    const color = fieldColorMap?.[key] ?? PALETTE[i % PALETTE.length]
-    collectHighlightLeaves(value, evidenceRecord[key], color, [key], out)
-    i++
-  }
-  return out
+	const out: Highlight[] = [];
+	const localEvidence = isRecord(result._evidence) ? result._evidence : {};
+	let index = 0;
+	for (const [key, value] of Object.entries(result)) {
+		if (key === "_evidence") continue;
+		const color = fieldColorMap[key] ?? PALETTE[index % PALETTE.length];
+		if (!collectEvidence(value, localEvidence[key], color, [key], out)) {
+			collectHighlightNode(value, color, [key], out);
+		}
+		index += 1;
+	}
+	return out;
 }

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AnnotationsMode } from './api'
+import type { AnnotationsMode, ExtractionSchemaEnvelope } from './api'
 import { requestSchemaEdit } from './api'
 import { applyOps } from './schemaOps'
 import { countTemplateFields, isRecord } from './template'
 import { type SchemaNode, mkId, templateToNodes, nodesToTemplate } from './schemaNode'
+import type { PinnedSchema } from './pinnedSchemas'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Exported types (App.tsx depends on TemplateState)
@@ -12,7 +13,15 @@ import { type SchemaNode, mkId, templateToNodes, nodesToTemplate } from './schem
 export type TemplateState =
   | { status: 'idle' }
   | { status: 'generating' }
-  | { status: 'ready'; nodes: SchemaNode[]; inputsKey: string; edited?: boolean }
+  | {
+      status: 'ready'
+      schema: ExtractionSchemaEnvelope
+      nodes?: SchemaNode[]
+      inputsKey: string
+      source: 'generated' | 'pinned'
+      pinnedSchemaId?: string
+      edited?: boolean
+    }
   | { status: 'error'; message: string }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -22,6 +31,9 @@ export type TemplateState =
 type SchemaPanelProps = {
   state: TemplateState
   stale: boolean
+  pinnedSchemas: readonly PinnedSchema[]
+  selectedPinnedSchemaId: string | null
+  onSelectPinnedSchema: (id: string) => void
   onGenerate: () => void
   onNodesChange: (nodes: SchemaNode[], message: string) => void
   annotationCount: number
@@ -268,6 +280,9 @@ function FieldEditForm({ editing, onChange, onSave, onCancel }: {
 function SchemaPanel({
   state,
   stale,
+  pinnedSchemas,
+  selectedPinnedSchemaId,
+  onSelectPinnedSchema,
   onGenerate,
   onNodesChange,
   annotationCount,
@@ -311,8 +326,13 @@ function SchemaPanel({
   onNodesChangeRef.current = onNodesChange
 
   const ready = state.status === 'ready'
-  const fieldCount = ready ? countTemplateFields(nodesToTemplate(state.nodes)) : 0
+  const editable = ready && state.source === 'generated'
+  const stateNodes = ready ? (state.nodes ?? templateToNodes(state.schema.record)) : []
+  const fieldCount = ready ? countTemplateFields(nodesToTemplate(stateNodes)) : 0
   const inputsKey = state.status === 'ready' ? state.inputsKey : null
+  const schemaSourceKey = state.status === 'ready'
+    ? `${state.source}:${state.pinnedSchemaId ?? state.inputsKey}`
+    : state.status
   const dx = dragging ? dragX - dragStartXRef.current : 0
   const dy = dragging ? dragY - dragStartYRef.current : 0
   const horizontalIntent = Math.abs(dx) > INDENT_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE
@@ -321,13 +341,14 @@ function SchemaPanel({
   // sync nodes when a new schema is generated
   useEffect(() => {
     if (state.status === 'ready') {
-      setNodes(state.nodes)
-      nodesRef.current = state.nodes
+      const nextNodes = state.nodes ?? templateToNodes(state.schema.record)
+      setNodes(nextNodes)
+      nodesRef.current = nextNodes
       setEditing(null)
       setPending(null)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputsKey])
+  }, [inputsKey, schemaSourceKey])
 
   // Task 7.5 – scroll chat to bottom on new messages / pending change
   useEffect(() => {
@@ -462,7 +483,6 @@ function SchemaPanel({
       window.removeEventListener('mouseup', onUp)
       stopScroll()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Task 2.3 – drag start ──
@@ -550,7 +570,8 @@ function SchemaPanel({
   function toggleSelected(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -672,7 +693,7 @@ function SchemaPanel({
       : 'self-start max-w-[92%] rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-1.5 text-xs leading-relaxed text-ink'
 
   // Task 5.3 – disable edit buttons while dragging
-  const editDisabled = !!dragging
+  const editDisabled = !!dragging || !editable
 
   // Task 8.4 – disable chat input while pending
   const chatBlocked = !!pending || chatLoading
@@ -709,7 +730,7 @@ function SchemaPanel({
             onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name)}
             onMouseLeave={() => !isDiff && clearGroupTarget(node.id)}
           >
-            {!isDiff && (
+            {editable && !isDiff && (
               <span
                 className="shrink-0 cursor-grab select-none px-0.5 text-sm leading-none text-ink-faint"
                 onMouseDown={e => startDrag(e, node.id, null, node.name, isGroup)}
@@ -724,7 +745,7 @@ function SchemaPanel({
               </span>
             )}
             <span className="min-w-0 flex-1" />
-            {!isDiff && isGroup && (
+            {editable && !isDiff && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
@@ -734,7 +755,7 @@ function SchemaPanel({
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
               </button>
             )}
-            {!isDiff && (
+            {editable && !isDiff && (
               <button
                 className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
                 type="button"
@@ -745,7 +766,7 @@ function SchemaPanel({
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
               </button>
             )}
-            {!isDiff && (
+            {editable && !isDiff && (
               <input
                 type="checkbox"
                 className="shrink-0 cursor-pointer accent-accent"
@@ -799,7 +820,12 @@ function SchemaPanel({
 
     const toggleExpand = (e: React.MouseEvent) => {
       e.stopPropagation()
-      setExpandedIds(s => { const ns = new Set(s); ns.has(child.id) ? ns.delete(child.id) : ns.add(child.id); return ns })
+      setExpandedIds(s => {
+        const ns = new Set(s)
+        if (ns.has(child.id)) ns.delete(child.id)
+        else ns.add(child.id)
+        return ns
+      })
     }
 
     return (
@@ -815,7 +841,7 @@ function SchemaPanel({
           <div
             className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup && !isDiff ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''} ${diffBg}`}
           >
-            {!isDiff && (
+            {editable && !isDiff && (
               <span
                 className="shrink-0 cursor-grab select-none px-0.5 text-[13px] leading-none text-ink-faint"
                 onMouseDown={e => startDrag(e, child.id, parentId, child.name, isGroup)}
@@ -840,7 +866,7 @@ function SchemaPanel({
               </span>
             )}
             <span className="min-w-0 flex-1" />
-            {!isDiff && isGroup && (
+            {editable && !isDiff && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
@@ -850,7 +876,7 @@ function SchemaPanel({
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
               </button>
             )}
-            {!isDiff && (
+            {editable && !isDiff && (
               <button
                 className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
                 type="button"
@@ -861,7 +887,7 @@ function SchemaPanel({
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
               </button>
             )}
-            {!isDiff && (
+            {editable && !isDiff && (
               <input
                 type="checkbox"
                 className="shrink-0 cursor-pointer accent-accent"
@@ -922,6 +948,24 @@ function SchemaPanel({
 
       {/* ── Schema list / states ── */}
       <div ref={scrollRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <label className="mb-3 block text-[11px] font-semibold text-ink-muted">
+          Pinned extraction schema
+          <select
+            className="mt-1 w-full rounded-md border border-line-strong bg-surface px-2 py-1.5 font-mono text-xs text-ink outline-none focus-visible:border-accent"
+            value={selectedPinnedSchemaId ?? ''}
+            onChange={event => {
+              if (event.target.value) onSelectPinnedSchema(event.target.value)
+            }}
+          >
+            <option value="" disabled>Generated from this document</option>
+            {pinnedSchemas.map(schema => (
+              <option key={schema.id} value={schema.id}>
+                {schema.domain} / {schema.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
         {state.status === 'idle' && (
           <div className="rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
             <p className="text-[13px] font-semibold text-ink">No schema yet</p>
@@ -954,7 +998,7 @@ function SchemaPanel({
                 <pre className="overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2.5 font-mono text-[11px] leading-relaxed text-ink">
                   {JSON.stringify(nodesToTemplate(nodes), null, 2)}
                 </pre>
-                <button
+                {editable && <button
                   className="absolute right-2 top-2 cursor-pointer rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[10px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent"
                   type="button"
                   onClick={() => {
@@ -964,7 +1008,7 @@ function SchemaPanel({
                   }}
                 >
                   Edit
-                </button>
+                </button>}
               </div>
             ) : (
               <>
@@ -1014,7 +1058,7 @@ function SchemaPanel({
 
         {ready && view === 'fields' && (
           <>
-            {selectedIds.size > 0 && (
+            {editable && selectedIds.size > 0 && (
               <div className="mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5">
                 <span className="text-[12px] font-semibold text-danger">
                   {selectedIds.size} field{selectedIds.size !== 1 ? 's' : ''} selected
@@ -1042,19 +1086,19 @@ function SchemaPanel({
               {/* final root slot */}
               <div className={slotCls(null, nodes.length)} onMouseEnter={() => setSlotTarget(null, nodes.length)} />
             </div>
-            <button
+            {editable && <button
               className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
               type="button"
               onClick={addField}
             >
               + Add field
-            </button>
+            </button>}
           </>
         )}
       </div>
 
-      {/* ── Task 6: Chat panel (visible when schema is ready) ── */}
-      {ready && (
+      {/* ── Task 6: Chat panel (visible for editable generated schemas) ── */}
+      {editable && (
         <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
           {/* Task 6.2 – message list */}
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
@@ -1154,7 +1198,9 @@ function SchemaPanel({
               Producing schema from the document…
             </span>
           )}
-          {ready && (stale ? (
+          {ready && (state.source === 'pinned' ? (
+            `${fieldCount} field${fieldCount === 1 ? '' : 's'} · pinned from FREE-technical`
+          ) : stale ? (
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-amber-500" />
               Highlights changed — regenerate to update the schema
@@ -1168,7 +1214,9 @@ function SchemaPanel({
         {ready && (
           <div className="flex shrink-0 items-center gap-2">
             {annotationCount > 0 && <AnnotationsModeToggle mode={annotationsMode} onChange={onAnnotationsModeChange} />}
-            <button className={genBtnCls} type="button" onClick={onGenerate}>Regenerate</button>
+            <button className={genBtnCls} type="button" onClick={onGenerate}>
+              {state.source === 'generated' ? 'Regenerate' : 'Generate from document'}
+            </button>
           </div>
         )}
       </footer>

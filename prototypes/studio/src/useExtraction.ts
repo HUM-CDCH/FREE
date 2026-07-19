@@ -1,81 +1,140 @@
-import { useEffect, useRef, useState } from 'react'
-import { requestExtraction } from './api'
-import type { ExtractionState } from './extraction'
-import { stripDescriptions, compileInstructions } from './template'
-
-type PdfSource = { url: string; filename: string }
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	requestExtraction,
+	type ExtractionSchemaEnvelope,
+	type ExtractionStrategy,
+} from "./api";
+import type { ExtractionState } from "./extraction";
 
 type UseExtractionOptions = {
-  pdfSource: PdfSource | null
-  template: unknown
-  schemaReady: boolean
-  markdown: string | null
-  indexing: boolean
-  onComplete: (isRerun: boolean) => void
-  onError: (message: string) => void
+	taskId: string | null;
+	schema: ExtractionSchemaEnvelope | null;
+	schemaReady: boolean;
+	indexing: boolean;
+	strategy: ExtractionStrategy;
+	onStrategyChange: (strategy: ExtractionStrategy) => void;
+	onComplete: (isRerun: boolean) => void;
+	onError: (message: string) => void;
+};
+
+export type ExtractionIdentity = {
+	readonly taskId: string | null;
+	readonly schema: ExtractionSchemaEnvelope | null;
+	readonly strategy: ExtractionStrategy;
+};
+
+export type ExtractionSnapshot = ExtractionIdentity & {
+	readonly state: ExtractionState;
+};
+
+export function isCurrentExtractionInvocation(
+	invocation: ExtractionIdentity,
+	current: ExtractionIdentity,
+	aborted: boolean,
+): boolean {
+	return (
+		!aborted &&
+		invocation.taskId === current.taskId &&
+		invocation.schema === current.schema &&
+		invocation.strategy === current.strategy
+	);
 }
 
-export type ExtractionController = ReturnType<typeof useExtraction>
+export function projectExtractionState(
+	snapshot: ExtractionSnapshot,
+	identity: ExtractionIdentity,
+): ExtractionState {
+	return isCurrentExtractionInvocation(snapshot, identity, false)
+		? snapshot.state
+		: { status: "idle" };
+}
+
+export type ExtractionController = ReturnType<typeof useExtraction>;
 
 export function useExtraction({
-  pdfSource,
-  template,
-  schemaReady,
-  markdown,
-  indexing,
-  onComplete,
-  onError,
+	taskId,
+	schema,
+	schemaReady,
+	indexing,
+	strategy,
+	onStrategyChange,
+	onComplete,
+	onError,
 }: UseExtractionOptions) {
-  const [state, setState] = useState<ExtractionState>({ status: 'idle' })
-  const abortRef = useRef<AbortController | null>(null)
+	const identity: ExtractionIdentity = { taskId, schema, strategy };
+	const currentIdentityRef = useRef(identity);
+	const [snapshot, setSnapshot] = useState<ExtractionSnapshot>({
+		...identity,
+		state: { status: "idle" },
+	});
+	const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => () => abortRef.current?.abort(), [])
+	useEffect(() => () => abortRef.current?.abort(), []);
+	useLayoutEffect(() => {
+		currentIdentityRef.current = { taskId, schema, strategy };
+		abortRef.current?.abort();
+	}, [taskId, schema, strategy]);
 
-  const hasResults = state.status === 'ready'
-  const canRun = Boolean(pdfSource) && schemaReady && state.status !== 'running' && !indexing
+	const state = projectExtractionState(snapshot, identity);
+	const hasResults = state.status === "ready";
+	const canRun =
+		Boolean(taskId) &&
+		Boolean(schema) &&
+		schemaReady &&
+		state.status !== "running" &&
+		!indexing;
 
-  async function runExtraction() {
-    if (state.status === 'running' || !pdfSource) {
-      return
-    }
-    abortRef.current?.abort()
-    const abortController = new AbortController()
-    abortRef.current = abortController
-    const isRerun = state.status === 'ready'
-    setState({ status: 'running' })
+	async function runExtraction() {
+		if (state.status === "running" || !taskId || !schema || !schemaReady) return;
+		abortRef.current?.abort();
+		const abortController = new AbortController();
+		abortRef.current = abortController;
+		const isRerun = state.status === "ready";
+		const invocation: ExtractionIdentity = { taskId, schema, strategy };
+		setSnapshot({ ...invocation, state: { status: "running" } });
 
-    try {
-      const blob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
-      const cleanTemplate = stripDescriptions(template)
-      const rawInstructions = compileInstructions(template)
-      const instruction = rawInstructions ? `Field descriptions:\n${rawInstructions}` : undefined
-      const { result, evidence } = await requestExtraction(
-        blob,
-        pdfSource.filename,
-        { records: [cleanTemplate] },
-        abortController.signal,
-        markdown,
-        instruction,
-      )
-      if (abortController.signal.aborted) {
-        return
-      }
-      setState({ status: 'ready', result, evidence })
-      onComplete(isRerun)
-    } catch (error) {
-      if (abortController.signal.aborted) {
-        return
-      }
-      const message = error instanceof Error ? error.message : 'Extraction failed.'
-      setState({ status: 'error', message })
-      onError(message)
-    }
-  }
+		try {
+			const { result, warnings } = await requestExtraction(
+				taskId,
+				schema,
+				strategy,
+				abortController.signal,
+			);
+			if (
+				!isCurrentExtractionInvocation(
+					invocation,
+					currentIdentityRef.current,
+					abortController.signal.aborted,
+				)
+			)
+				return;
+			setSnapshot({
+				...invocation,
+				state: { status: "ready", result, warnings },
+			});
+			onComplete(isRerun);
+		} catch (error) {
+			if (
+				!isCurrentExtractionInvocation(
+					invocation,
+					currentIdentityRef.current,
+					abortController.signal.aborted,
+				)
+			)
+				return;
+			const message =
+				error instanceof Error ? error.message : "Extraction failed.";
+			setSnapshot({ ...invocation, state: { status: "error", message } });
+			onError(message);
+		}
+	}
 
-  return {
-    state,
-    canRun,
-    hasResults,
-    runExtraction,
-  }
+	return {
+		state,
+		canRun,
+		hasResults,
+		strategy,
+		setStrategy: onStrategyChange,
+		runExtraction,
+	};
 }

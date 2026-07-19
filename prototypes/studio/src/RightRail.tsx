@@ -5,6 +5,7 @@ import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
 import type { SchemaNode } from './schemaNode'
+import type { PinnedSchema } from './pinnedSchemas'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
@@ -22,6 +23,9 @@ type RightRailProps = {
   schemaState: TemplateState
   schemaStale: boolean
   schemaReady: boolean
+  pinnedSchemas: readonly PinnedSchema[]
+  selectedPinnedSchemaId: string | null
+  onSelectPinnedSchema: (id: string) => void
   schemaFieldCount: number
   onGenerate: () => void
   onNodesChange: (nodes: SchemaNode[], message: string) => void
@@ -29,16 +33,13 @@ type RightRailProps = {
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
   pdfSource: { url: string; filename: string } | null
-  documentMarkdown: string | null
   onValueClick?: (path: string[], value: string) => void
   focusPath?: string[] | null
   onClearFocus?: () => void
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
-  const tone = done
-    ? 'bg-green-soft text-green'
-    : `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
+  const tone = done ? 'bg-green-soft text-green' : `text-accent ${active ? 'bg-accent-soft' : 'bg-accent-ghost'}`
   return (
     <span
       className={`inline-grid h-4 min-w-4.5 place-items-center rounded-full px-1.5 font-mono text-[10px] leading-none tabular-nums ${tone}`}
@@ -59,6 +60,9 @@ function RightRail({
   schemaState,
   schemaStale,
   schemaReady,
+  pinnedSchemas,
+  selectedPinnedSchemaId,
+  onSelectPinnedSchema,
   schemaFieldCount,
   onGenerate,
   onNodesChange,
@@ -66,7 +70,6 @@ function RightRail({
   onAnnotationsModeChange,
   extraction,
   pdfSource,
-  documentMarkdown,
   onValueClick,
   focusPath,
   onClearFocus,
@@ -91,14 +94,22 @@ function RightRail({
 
   const resultsBadge = extraction.hasResults ? { label: '✓', done: true } : null
 
-  const tabs: { key: RailTab; label: string; badge?: { label: string; done?: boolean } | null }[] = [
+  const tabs: {
+    key: RailTab
+    label: string
+    badge?: { label: string; done?: boolean } | null
+  }[] = [
     {
       key: 'annot',
       label: 'Annot.',
       badge: annotationItems.length ? { label: String(annotationItems.length) } : null,
     },
     { key: 'chat', label: 'Chat' },
-    { key: 'schema', label: 'Schema', badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null },
+    {
+      key: 'schema',
+      label: 'Schema',
+      badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null,
+    },
     { key: 'results', label: 'Results', badge: resultsBadge },
   ]
 
@@ -135,11 +146,7 @@ function RightRail({
 
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
       <div className="min-h-0 flex-1" hidden={tab !== 'annot'}>
-        <AnnotationSetTab
-          items={annotationItems}
-          onSelectItem={onSelectAnnotation}
-          onRemoveItem={onRemoveAnnotation}
-        />
+        <AnnotationSetTab items={annotationItems} onSelectItem={onSelectAnnotation} onRemoveItem={onRemoveAnnotation} />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'chat'}>
         <ChatTab pdfSource={pdfSource} />
@@ -148,6 +155,9 @@ function RightRail({
         <SchemaPanel
           state={schemaState}
           stale={schemaStale}
+          pinnedSchemas={pinnedSchemas}
+          selectedPinnedSchemaId={selectedPinnedSchemaId}
+          onSelectPinnedSchema={onSelectPinnedSchema}
           onGenerate={onGenerate}
           onNodesChange={onNodesChange}
           annotationCount={annotationItems.length}
@@ -156,7 +166,13 @@ function RightRail({
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} pdfSource={pdfSource} documentMarkdown={documentMarkdown} onValueClick={onValueClick} focusPath={focusPath} onClearFocus={onClearFocus} />
+        <ResultsTab
+          controller={extraction}
+          schemaReady={schemaReady}
+          onValueClick={onValueClick}
+          focusPath={focusPath}
+          onClearFocus={onClearFocus}
+        />
       </div>
     </div>
   )
