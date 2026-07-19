@@ -181,7 +181,7 @@ describe("decoders", () => {
 });
 
 describe("ResultsTab", () => {
-	it("renders pretty JSON and non-empty warnings without export or format controls", () => {
+	it("renders warnings, review navigation, and export controls", () => {
 		const html = renderToStaticMarkup(
 			createElement(ResultsTab, {
 				controller: readyController(["boundary_fallback"]),
@@ -190,9 +190,10 @@ describe("ResultsTab", () => {
 		);
 
 		expect(html).toContain("boundary_fallback");
-		expect(html).toContain("&quot;title&quot;: &quot;Report&quot;");
-		expect(html).not.toContain("Download");
-		expect(html).not.toContain("Copy JSON");
+		expect(html).toContain("title");
+		expect(html).toContain("Report");
+		expect(html).toContain("Download");
+		expect(html).toContain("Copy JSON");
 		expect(html).not.toContain("Markdown");
 	});
 

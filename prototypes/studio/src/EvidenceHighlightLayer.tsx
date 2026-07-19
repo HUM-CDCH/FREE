@@ -1,21 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
-import { buildHighlights, PALETTE } from "./evidenceHighlights";
+import { buildHighlights, PALETTE, type Highlight } from "./evidenceHighlights";
 import { matchPdfTextItems } from "./pdfTextMatching";
 import { isRecord } from "./template";
 
 function buildTopLevelColorMap(schema: unknown): Record<string, string> {
 	if (!isRecord(schema)) return {};
-	const map: Record<string, string> = {};
-	let i = 0;
-	for (const key of Object.keys(schema)) {
-		map[key] = PALETTE[i % PALETTE.length];
-		i++;
-	}
-	return map;
+	return Object.fromEntries(
+		Object.keys(schema).map((key, index) => [key, PALETTE[index % PALETTE.length]]),
+	);
 }
-
-// ── text-layer helpers ────────────────────────────────────────────────────────
 
 type HasStr = {
 	str: string;
@@ -41,21 +35,19 @@ async function getPageTextData(
 	if (!pdfPage) return null;
 
 	const textContent = await pdfPage.getTextContent();
-	const CSS_UNITS = 96.0 / 72.0;
+	const cssUnits = 96 / 72;
 	const viewport = pdfPage.getViewport({
-		scale: pdfViewer.currentScale * CSS_UNITS,
+		scale: pdfViewer.currentScale * cssUnits,
 	});
-
 	const items: HasStr[] = [];
 	const normStrs: string[] = [];
 	for (const raw of textContent.items) {
 		if (!("str" in raw)) continue;
 		const item = raw as HasStr;
-		const norm = item.str.replace(/\s+/g, " ").trim();
-		if (norm) {
-			items.push(item);
-			normStrs.push(norm);
-		}
+		const normalized = item.str.replace(/\s+/g, " ").trim();
+		if (!normalized) continue;
+		items.push(item);
+		normStrs.push(normalized);
 	}
 
 	return {
@@ -67,24 +59,19 @@ async function getPageTextData(
 }
 
 function rectsForQuery(data: PageTextData, query: string): DOMRect[] {
-	const indexes = matchPdfTextItems(data.normStrs, query);
-	return indexes.map((index) => {
+	return matchPdfTextItems(data.normStrs, query).map((index) => {
 		const item = data.items[index];
 		if (!item) return new DOMRect();
 		const [, , , , tx, ty] = item.transform;
-		const x = tx * data.viewportScale;
-		const y = data.viewportHeight - (ty + item.height) * data.viewportScale;
 		return new DOMRect(
-			x,
-			y,
+			tx * data.viewportScale,
+			data.viewportHeight - (ty + item.height) * data.viewportScale,
 			item.width * data.viewportScale,
 			item.height * data.viewportScale,
 		);
 	});
 }
 
-// Find `value` within the region where `snippet` appears on a page.
-// Falls back to searching value across the whole page if snippet isn't found.
 function searchValueAnchoredBySnippet(
 	data: PageTextData,
 	snippet: string,
@@ -94,20 +81,19 @@ function searchValueAnchoredBySnippet(
 	if (snippetItems.length > 0) {
 		const first = snippetItems[0] ?? 0;
 		const last = snippetItems.at(-1) ?? first;
-		const subData: PageTextData = {
-			items: data.items.slice(first, last + 1),
-			normStrs: data.normStrs.slice(first, last + 1),
-			viewportScale: data.viewportScale,
-			viewportHeight: data.viewportHeight,
-		};
-		const rects = rectsForQuery(subData, value);
+		const rects = rectsForQuery(
+			{
+				items: data.items.slice(first, last + 1),
+				normStrs: data.normStrs.slice(first, last + 1),
+				viewportScale: data.viewportScale,
+				viewportHeight: data.viewportHeight,
+			},
+			value,
+		);
 		if (rects.length > 0) return rects;
 	}
-
 	return rectsForQuery(data, value);
 }
-
-// ── main search ───────────────────────────────────────────────────────────────
 
 type PageRects = { pageNumber: number; rects: DOMRect[] };
 
@@ -120,136 +106,201 @@ async function findValueRects(
 	const pageCount = pdfViewer.pdfDocument?.numPages ?? 0;
 	const valueNorm = value.replace(/\s+/g, " ").trim();
 	if (!valueNorm) return null;
-
-	// Build query list with progressive shortening for direct fallback
 	const words = valueNorm.split(" ");
-	const queries: string[] = [valueNorm];
+	const queries = [valueNorm];
 	if (words.length > 4) queries.push(words.slice(0, 5).join(" "));
 	if (words.length > 2) queries.push(words.slice(0, 3).join(" "));
-
-	// Page order: hint page first, then the rest
+	const allPages = Array.from({ length: pageCount }, (_, index) => index + 1);
 	const pages =
-		hintPage != null
-			? [
-					hintPage,
-					...Array.from({ length: pageCount }, (_, i) => i + 1).filter(
-						(p) => p !== hintPage,
-					),
-				]
-			: Array.from({ length: pageCount }, (_, i) => i + 1);
+		hintPage === null
+			? allPages
+			: [hintPage, ...allPages.filter((page) => page !== hintPage)];
 
 	if (snippet) {
-		// Snippet-anchored: search for value within snippet context
-		for (const p of pages) {
-			const data = await getPageTextData(pdfViewer, p);
+		for (const pageNumber of pages) {
+			const data = await getPageTextData(pdfViewer, pageNumber);
 			if (!data) continue;
 			const rects = searchValueAnchoredBySnippet(data, snippet, valueNorm);
-			if (rects.length > 0) return { pageNumber: p, rects };
+			if (rects.length > 0) return { pageNumber, rects };
 		}
 	}
-
-	// Direct search with progressive shortening (no snippet, or snippet search failed)
 	for (const query of queries) {
-		for (const p of pages) {
-			const data = await getPageTextData(pdfViewer, p);
+		for (const pageNumber of pages) {
+			const data = await getPageTextData(pdfViewer, pageNumber);
 			if (!data) continue;
 			const rects = rectsForQuery(data, query);
-			if (rects.length > 0) return { pageNumber: p, rects };
+			if (rects.length > 0) return { pageNumber, rects };
 		}
 	}
-
 	return null;
 }
 
-// ── component ─────────────────────────────────────────────────────────────────
+type CachedEntry = {
+	highlight: Highlight;
+	rects: DOMRect[];
+	pageTop: number;
+	pageLeft: number;
+};
+
+function pathsEqual(left: string[], right: string[]): boolean {
+	return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function drawEntry(
+	context: CanvasRenderingContext2D,
+	entry: CachedEntry,
+	focusPath: string[] | null,
+): void {
+	const active = focusPath !== null && pathsEqual(entry.highlight.path, focusPath);
+	const dimmed = focusPath !== null && !active;
+	context.save();
+	context.globalAlpha = active ? 0.75 : dimmed ? 0.15 : 0.4;
+	context.fillStyle = entry.highlight.color;
+	for (const rect of entry.rects) {
+		context.fillRect(
+			entry.pageLeft + rect.x - 1,
+			entry.pageTop + rect.y - 2,
+			rect.width + 2,
+			rect.height + 2,
+		);
+	}
+	context.restore();
+}
 
 type Props = {
 	pdfViewer: PDFViewer | null;
 	result: unknown;
 	containerEl: HTMLDivElement | null;
-	schema: unknown;
+	schemaTemplate: unknown;
+	focusPath: string[] | null;
 };
 
 export default function EvidenceHighlightLayer({
 	pdfViewer,
 	result,
 	containerEl,
-	schema,
+	schemaTemplate,
+	focusPath,
 }: Props) {
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
+	const schemaTemplateRef = useRef(schemaTemplate);
+	const focusPathRef = useRef(focusPath);
+	const cachedEntriesRef = useRef<CachedEntry[]>([]);
+	const [scale, setScale] = useState(1);
+	const [containerVersion, setContainerVersion] = useState(0);
+	const [cacheVersion, setCacheVersion] = useState(0);
 
 	useEffect(() => {
-		if (!pdfViewer || !result || !containerEl || !isRecord(result)) return;
+		schemaTemplateRef.current = schemaTemplate;
+	}, [schemaTemplate]);
 
-		const colorMap = buildTopLevelColorMap(schema);
-		const highlights = buildHighlights(result, colorMap);
+	useEffect(() => {
+		focusPathRef.current = focusPath;
+	}, [focusPath]);
+
+	useEffect(() => {
+		if (!pdfViewer) return;
+		const onScaleChange = () => setScale(pdfViewer.currentScale);
+		pdfViewer.eventBus.on("scalechanging", onScaleChange);
+		return () => pdfViewer.eventBus.off("scalechanging", onScaleChange);
+	}, [pdfViewer]);
+
+	useEffect(() => {
+		if (!containerEl || typeof ResizeObserver === "undefined") return;
+		const observer = new ResizeObserver(() =>
+			setContainerVersion((version) => version + 1),
+		);
+		observer.observe(containerEl);
+		return () => observer.disconnect();
+	}, [containerEl]);
+
+	useEffect(() => {
+		if (!pdfViewer || !containerEl || !isRecord(result)) return;
+		const highlights = buildHighlights(
+			result,
+			buildTopLevelColorMap(schemaTemplateRef.current),
+		);
+		cachedEntriesRef.current = [];
 		if (highlights.length === 0) return;
-
 		let cancelled = false;
 
 		async function render() {
 			const canvas = canvasRef.current;
 			if (!canvas || !pdfViewer || !containerEl) return;
-
-			const { scrollWidth, scrollHeight } = containerEl;
-			canvas.width = scrollWidth;
-			canvas.height = scrollHeight;
-
-			const ctx = canvas.getContext("2d");
-			if (!ctx) return;
-			ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+			canvas.width = containerEl.scrollWidth;
+			canvas.height = containerEl.scrollHeight;
+			const context = canvas.getContext("2d");
+			if (!context) return;
+			context.clearRect(0, 0, canvas.width, canvas.height);
 			const containerRect = containerEl.getBoundingClientRect();
 
-			for (const h of highlights) {
+			for (const highlight of highlights) {
 				if (cancelled) return;
-
 				const found = await findValueRects(
 					pdfViewer,
-					h.value,
-					h.snippet,
-					h.hintPage,
+					highlight.value,
+					highlight.snippet,
+					highlight.hintPage,
 				);
-				if (!found) continue;
-
+				if (!found || cancelled) continue;
 				const pageEl = containerEl.querySelector(
 					`.page[data-page-number="${found.pageNumber}"]`,
 				) as HTMLElement | null;
 				if (!pageEl) continue;
-
 				const pageRect = pageEl.getBoundingClientRect();
-				const pageTop =
-					pageRect.top -
-					containerRect.top +
-					containerEl.scrollTop +
-					pageEl.clientTop;
-				const pageLeft =
-					pageRect.left -
-					containerRect.left +
-					containerEl.scrollLeft +
-					pageEl.clientLeft;
-
-				for (const rect of found.rects) {
-					if (cancelled) return;
-					ctx.fillStyle = h.color;
-					ctx.fillRect(
-						pageLeft + rect.x,
-						pageTop + rect.y,
-						rect.width,
-						rect.height,
-					);
-				}
+				const entry: CachedEntry = {
+					highlight,
+					rects: found.rects,
+					pageTop:
+						pageRect.top -
+						containerRect.top +
+						containerEl.scrollTop +
+						pageEl.clientTop,
+					pageLeft:
+						pageRect.left -
+						containerRect.left +
+						containerEl.scrollLeft +
+						pageEl.clientLeft,
+				};
+				cachedEntriesRef.current.push(entry);
+				drawEntry(context, entry, focusPathRef.current);
 			}
+			if (!cancelled) setCacheVersion((version) => version + 1);
 		}
 
 		void render();
 		return () => {
 			cancelled = true;
 		};
-	}, [pdfViewer, result, containerEl, schema]);
+	}, [pdfViewer, result, containerEl, scale, containerVersion]);
+
+	useEffect(() => {
+		if (!containerEl) return;
+		const canvas = canvasRef.current;
+		const entries = cachedEntriesRef.current;
+		if (!canvas || entries.length === 0) return;
+		if (focusPath) {
+			const entry = entries.find((candidate) =>
+				pathsEqual(candidate.highlight.path, focusPath),
+			);
+			const rect = entry?.rects[0];
+			if (entry && rect) {
+				containerEl.scrollTo({
+					top: Math.max(
+						0,
+						entry.pageTop + rect.y - containerEl.clientHeight / 2 + rect.height / 2,
+					),
+					behavior: "smooth",
+				});
+			}
+		}
+		const context = canvas.getContext("2d");
+		if (!context) return;
+		context.clearRect(0, 0, canvas.width, canvas.height);
+		entries.forEach((entry) => drawEntry(context, entry, focusPath));
+	}, [focusPath, cacheVersion, containerEl]);
 
 	if (!result) return null;
-
 	return (
 		<canvas
 			ref={canvasRef}

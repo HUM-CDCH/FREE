@@ -111,7 +111,7 @@ function ChatTab({ pdfSource }: ChatTabProps) {
         {messages.length === 0 && (
           <div className="mt-1.5 rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
             <p className="text-[13.5px] font-semibold text-ink">Ask about this source document</p>
-            <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
               {pdfSource
                 ? 'The current source document is attached to each question.'
                 : 'No source document context is available yet.'}
@@ -121,7 +121,7 @@ function ChatTab({ pdfSource }: ChatTabProps) {
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`animate-fadeup max-w-[90%] rounded-xl border px-3 py-2 text-xs leading-relaxed text-ink ${
+            className={`animate-fadeup max-w-[90%] rounded-xl border px-3 py-2 text-[13px] leading-relaxed text-ink ${
               message.role === 'user'
                 ? 'self-end border-accent-soft bg-accent-ghost'
                 : 'self-start border-line bg-canvas'
@@ -133,7 +133,7 @@ function ChatTab({ pdfSource }: ChatTabProps) {
       </div>
       <div className="flex shrink-0 gap-2 border-t border-line px-3 py-2.5">
         <input
-          className="min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3 py-2 text-xs text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent"
+          className="min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3 py-2 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent"
           value={draft}
           placeholder="Ask about this source document..."
           disabled={status === 'running'}

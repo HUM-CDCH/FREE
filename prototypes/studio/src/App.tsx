@@ -10,7 +10,9 @@ import { ACTIVE_DOC } from "./ProjectNav";
 import RightRail from "./RightRail";
 import type { RailTab } from "./RightRail";
 import type { TemplateState } from "./SchemaPanel";
-import { countTemplateFields, isRecord } from "./template";
+import type { SchemaNode } from "./schemaNode";
+import { nodesToTemplate, templateToNodes } from "./schemaNode";
+import { countTemplateFields } from "./template";
 import { requestSchema, parseDocumentToMarkdown } from "./api";
 import type { AnnotationsMode, ExtractionStrategy } from "./api";
 import { defaultPinnedSchema, pinnedSchemas } from "./pinnedSchemas";
@@ -118,6 +120,7 @@ function App() {
 	const [templateState, setTemplateState] = useState<TemplateState>({
 		status: "ready",
 		schema: defaultPinnedSchema.schema,
+		nodes: templateToNodes(defaultPinnedSchema.schema.record),
 		inputsKey: "",
 		source: "pinned",
 		pinnedSchemaId: defaultPinnedSchema.id,
@@ -137,6 +140,7 @@ function App() {
 	const [activePdfViewer, setActivePdfViewer] = useState<PDFViewer | null>(
 		null,
 	);
+	const [focusPath, setFocusPath] = useState<string[] | null>(null);
 	const [pdfSource, setPdfSource] = useState<{
 		url: string;
 		filename: string;
@@ -181,6 +185,7 @@ function App() {
 			setTemplateState({
 				status: "ready",
 				schema: defaultPinnedSchema.schema,
+				nodes: templateToNodes(defaultPinnedSchema.schema.record),
 				inputsKey: "",
 				source: "pinned",
 				pinnedSchemaId: defaultPinnedSchema.id,
@@ -347,7 +352,7 @@ function App() {
 	// PDF or clears annotations.
 	useEffect(() => {
 		if (!pdfSource) return;
-		const abortController = new AbortController();
+	const abortController = new AbortController();
 
 		void (async () => {
 			try {
@@ -451,6 +456,7 @@ function App() {
 				setTemplateState({
 					status: "ready",
 					schema,
+					nodes: templateToNodes(schema.record),
 					inputsKey,
 					source: "generated",
 				});
@@ -467,13 +473,17 @@ function App() {
 		}
 	}
 
-	function changeTemplate(template: unknown, message: string) {
-		if (!isRecord(template)) return;
+	function handleValueClick(path: string[]) {
+		setFocusPath(path);
+	}
+
+	function changeNodes(nodes: SchemaNode[], message: string) {
 		setTemplateState((state) =>
-			state.status === "ready" && state.source === "generated"
+			state.status === "ready"
 				? {
 						...state,
-						schema: { ...state.schema, record: template },
+						nodes,
+						schema: { ...state.schema, record: nodesToTemplate(nodes) },
 						edited: true,
 					}
 				: state,
@@ -488,6 +498,7 @@ function App() {
 		setTemplateState({
 			status: "ready",
 			schema: selected.schema,
+			nodes: templateToNodes(selected.schema.record),
 			inputsKey: "",
 			source: "pinned",
 			pinnedSchemaId: selected.id,
@@ -528,6 +539,8 @@ function App() {
 	};
 
 	const schemaReady = templateState.status === "ready";
+	const schemaTemplate =
+		templateState.status === "ready" ? templateState.schema.record : null;
 	const extractionSchema =
 		templateState.status === "ready" ? templateState.schema : null;
 	const selectedPinnedSchemaId =
@@ -537,7 +550,7 @@ function App() {
 
 	const schemaFieldCount =
 		templateState.status === "ready"
-			? countTemplateFields(templateState.schema.record)
+			? countTemplateFields(schemaTemplate)
 			: 0;
 
 	const schemaStale =
@@ -565,6 +578,7 @@ function App() {
 		onStrategyChange: setExtractionStrategy,
 		onComplete: (isRerun) => {
 			setRailTab("results");
+			setFocusPath(null);
 			showToast(
 				isRerun
 					? "↻ Re-run complete — view the JSON in the Results tab"
@@ -716,11 +730,8 @@ function App() {
 									: null
 							}
 							containerEl={containerEl}
-							schema={
-								templateState.status === "ready"
-									? templateState.schema.record
-									: null
-							}
+							schemaTemplate={schemaTemplate}
+							focusPath={focusPath}
 						/>
 					</div>
 					{extraction.state.status === "running" && (
@@ -798,11 +809,14 @@ function App() {
 						onSelectPinnedSchema={selectPinnedSchema}
 						schemaFieldCount={schemaFieldCount}
 						onGenerate={() => void generateSchema()}
-						onTemplateChange={changeTemplate}
+						onNodesChange={changeNodes}
 						annotationsMode={annotationsMode}
 						onAnnotationsModeChange={setAnnotationsMode}
 						extraction={extraction}
 						pdfSource={pdfSource}
+						onValueClick={handleValueClick}
+						focusPath={focusPath}
+						onClearFocus={() => setFocusPath(null)}
 					/>
 				</aside>
 			</div>

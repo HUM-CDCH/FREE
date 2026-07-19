@@ -4,6 +4,7 @@ import type { AnnotationSetItem } from './AnnotationSidebar'
 import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
+import type { SchemaNode } from './schemaNode'
 import type { PinnedSchema } from './pinnedSchemas'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
@@ -27,11 +28,14 @@ type RightRailProps = {
   onSelectPinnedSchema: (id: string) => void
   schemaFieldCount: number
   onGenerate: () => void
-  onTemplateChange: (template: unknown, message: string) => void
+  onNodesChange: (nodes: SchemaNode[], message: string) => void
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
   pdfSource: { url: string; filename: string } | null
+  onValueClick?: (path: string[], value: string) => void
+  focusPath?: string[] | null
+  onClearFocus?: () => void
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
@@ -61,11 +65,14 @@ function RightRail({
   onSelectPinnedSchema,
   schemaFieldCount,
   onGenerate,
-  onTemplateChange,
+  onNodesChange,
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
   pdfSource,
+  onValueClick,
+  focusPath,
+  onClearFocus,
 }: RightRailProps) {
   if (!open) {
     return (
@@ -114,7 +121,7 @@ function RightRail({
           return (
             <button
               key={key}
-              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-xs font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
+              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
                 active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
               }`}
               type="button"
@@ -152,14 +159,20 @@ function RightRail({
           selectedPinnedSchemaId={selectedPinnedSchemaId}
           onSelectPinnedSchema={onSelectPinnedSchema}
           onGenerate={onGenerate}
-          onTemplateChange={onTemplateChange}
+          onNodesChange={onNodesChange}
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} />
+        <ResultsTab
+          controller={extraction}
+          schemaReady={schemaReady}
+          onValueClick={onValueClick}
+          focusPath={focusPath}
+          onClearFocus={onClearFocus}
+        />
       </div>
     </div>
   )

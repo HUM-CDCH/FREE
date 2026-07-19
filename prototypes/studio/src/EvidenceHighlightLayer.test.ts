@@ -19,12 +19,14 @@ describe("buildHighlights", () => {
 				snippet: "Anchored title appears here",
 				hintPage: 2,
 				color: "yellow",
+				path: ["title"],
 			},
 			{
 				value: "Searchable author",
 				snippet: null,
 				hintPage: null,
 				color: "blue",
+				path: ["author"],
 			},
 		]);
 	});
@@ -46,7 +48,7 @@ describe("buildHighlights", () => {
 		};
 
 		expect(buildHighlights(result, { entries: "yellow" })).toEqual([
-			{ value: "8", snippet: "Grav 8", hintPage: null, color: "yellow" },
+			{ value: "8", snippet: "Grav 8", hintPage: null, color: "yellow", path: ["entries", "0", "id"] },
 		]);
 	});
 
@@ -59,10 +61,10 @@ describe("buildHighlights", () => {
 		};
 
 		expect(buildHighlights(result, { identifiers: "yellow" })).toEqual([
-			{ value: "7", snippet: "row one", hintPage: 3, color: "yellow" },
-			{ value: "7", snippet: "row two", hintPage: 3, color: "yellow" },
-			{ value: "8-2", snippet: "row one", hintPage: 3, color: "yellow" },
-			{ value: "8-2", snippet: "row two", hintPage: 3, color: "yellow" },
+			{ value: "7", snippet: "row one", hintPage: 3, color: "yellow", path: ["identifiers", "0"] },
+			{ value: "7", snippet: "row two", hintPage: 3, color: "yellow", path: ["identifiers", "0"] },
+			{ value: "8-2", snippet: "row one", hintPage: 3, color: "yellow", path: ["identifiers", "1"] },
+			{ value: "8-2", snippet: "row two", hintPage: 3, color: "yellow", path: ["identifiers", "1"] },
 		]);
 	});
 
@@ -75,8 +77,8 @@ describe("buildHighlights", () => {
 		};
 
 		expect(buildHighlights(result, { identifiers: "yellow" })).toEqual([
-			{ value: "7", snippet: "shared row", hintPage: 3, color: "yellow" },
-			{ value: "8-2", snippet: "shared row", hintPage: 3, color: "yellow" },
+			{ value: "7", snippet: "shared row", hintPage: 3, color: "yellow", path: ["identifiers", "0"] },
+			{ value: "8-2", snippet: "shared row", hintPage: 3, color: "yellow", path: ["identifiers", "2"] },
 		]);
 	});
 
@@ -87,8 +89,8 @@ describe("buildHighlights", () => {
 		};
 
 		expect(buildHighlights(result, { identifiers: "yellow" })).toEqual([
-			{ value: "7", snippet: null, hintPage: 3, color: "yellow" },
-			{ value: "8-2", snippet: null, hintPage: 3, color: "yellow" },
+			{ value: "7", snippet: null, hintPage: 3, color: "yellow", path: ["identifiers", "0"] },
+			{ value: "8-2", snippet: null, hintPage: 3, color: "yellow", path: ["identifiers", "1"] },
 		]);
 	});
 
@@ -111,8 +113,8 @@ describe("buildHighlights", () => {
 				missing: "green",
 			}),
 		).toEqual([
-			{ value: "7", snippet: "seven", hintPage: null, color: "yellow" },
-			{ value: "true", snippet: "verified", hintPage: null, color: "blue" },
+			{ value: "7", snippet: "seven", hintPage: null, color: "yellow", path: ["count"] },
+			{ value: "true", snippet: "verified", hintPage: null, color: "blue", path: ["verified"] },
 		]);
 	});
 });

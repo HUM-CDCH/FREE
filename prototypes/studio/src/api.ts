@@ -1,4 +1,6 @@
 import { isRecord } from "./template";
+import { type SchemaNode, nodesToTemplate } from "./schemaNode";
+import type { SchemaOp } from "./schemaOps";
 
 export const API_BASE = "/api";
 
@@ -212,4 +214,43 @@ async function readErrorDetail(response: Response): Promise<string> {
 	if (isRecord(detail) && typeof detail.message === "string")
 		return detail.message;
 	return "";
+}
+
+async function postForm<T>(
+	endpoint: string,
+	form: FormData,
+	decode: (data: unknown) => T,
+	signal?: AbortSignal,
+): Promise<T> {
+	const response = await fetch(`${API_BASE}${endpoint}`, {
+		method: "POST",
+		body: form,
+		headers: { accept: "application/json" },
+		signal,
+	});
+	if (!response.ok) {
+		const detail = await readErrorDetail(response);
+		throw new Error(
+			detail || `Request to ${endpoint} failed (HTTP ${response.status})`,
+		);
+	}
+	return decode(await response.json());
+}
+
+function decodeSchemaOps(data: unknown): SchemaOp[] {
+  if (!isRecord(data) || !Array.isArray(data.ops)) {
+    throw new Error("edit_schema: response missing 'ops' — API contract drift?")
+  }
+  return data.ops as SchemaOp[]
+}
+
+export async function requestSchemaEdit(
+  nodes: SchemaNode[],
+  instruction: string,
+  signal?: AbortSignal,
+): Promise<SchemaOp[]> {
+  const form = new FormData()
+  form.append('current_template', JSON.stringify(nodesToTemplate(nodes)))
+  form.append('instruction', instruction)
+  return postForm('/edit_schema', form, decodeSchemaOps, signal)
 }

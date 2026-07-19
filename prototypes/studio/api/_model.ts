@@ -365,3 +365,59 @@ function ollamaHeaders(): Record<string, string> {
 	}
 	return headers;
 }
+
+export type EditSchemaOp =
+  | { op: 'add'; name: string; type: string; parentName?: string }
+  | { op: 'remove'; name: string; parentName?: string }
+  | { op: 'patch'; name: string; newName?: string; type?: string; parentName?: string }
+
+const editSchemaOpSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('add'), name: z.string(), type: z.string(), parentName: z.string().optional() }),
+  z.object({ op: z.literal('remove'), name: z.string(), parentName: z.string().optional() }),
+  z.object({ op: z.literal('patch'), name: z.string(), newName: z.string().optional(), type: z.string().optional(), parentName: z.string().optional() }),
+])
+
+export async function editSchemaWithModel(
+  currentTemplate: unknown,
+  instruction: string,
+): Promise<EditSchemaOp[]> {
+  const schemaJson = JSON.stringify(currentTemplate, null, 2)
+  const prompt = `You are a schema editing assistant for humanities researchers.
+
+Current extraction schema (JSON):
+${schemaJson}
+
+Researcher instruction: "${instruction}"
+
+Return ONLY a JSON array of operations. No explanation, no markdown fences, no extra text.
+Each operation must be one of:
+  {"op":"add","name":"fieldName","type":"string|number|boolean|object|array","parentName":"optionalParent"}
+  {"op":"remove","name":"fieldName","parentName":"optionalParent"}
+  {"op":"patch","name":"fieldName","newName":"optionalNewName","type":"optionalNewType","parentName":"optionalParent"}
+
+Rules:
+- Only change what the researcher explicitly asked for
+- Use parentName when the same field name exists at multiple nesting levels
+- Omit parentName when the field is uniquely named
+- Return [] if no changes are needed`
+
+  const result = await generateText({
+    model: resolveModel(),
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const text = result.text.replace(/```(?:json)?|```/g, '').trim()
+  const parsed = await parseUnknownJson(text, 'Edit schema model returned invalid JSON.')
+  if (!Array.isArray(parsed)) {
+    return []
+  }
+
+  const ops: EditSchemaOp[] = []
+  for (const item of parsed) {
+    const validated = editSchemaOpSchema.safeParse(item)
+    if (validated.success) {
+      ops.push(validated.data)
+    }
+  }
+  return ops
+}
