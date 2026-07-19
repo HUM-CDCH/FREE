@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { requestMarkdown } from './api'
 import ResultValue from './ResultValue'
-import type { ResultPath } from './ResultValue'
 import { isRecord } from './template'
 import { resultStats } from './resultStats'
 import type { ExtractionController } from './useExtraction'
@@ -11,7 +10,9 @@ type ResultsTabProps = {
   schemaReady: boolean
   pdfSource: { url: string; filename: string } | null
   documentMarkdown: string | null
-  onValueClick?: (value: string) => void
+  onValueClick?: (path: string[], value: string) => void
+  focusPath?: string[] | null
+  onClearFocus?: () => void
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -33,22 +34,6 @@ function summaryItem(label: string, value: string | number) {
   )
 }
 
-function setAtPath(obj: unknown, path: ResultPath, value: string): unknown {
-  if (path.length === 0) return value
-  const [head, ...rest] = path
-  if (Array.isArray(obj)) {
-    const idx = parseInt(head, 10)
-    if (isNaN(idx)) return obj
-    const arr = [...obj]
-    arr[idx] = setAtPath(arr[idx], rest, value)
-    return arr
-  }
-  if (isRecord(obj)) {
-    return { ...obj, [head]: setAtPath((obj as Record<string, unknown>)[head], rest, value) }
-  }
-  return value
-}
-
 function getAtPath(obj: unknown, path: string[]): unknown {
   return path.reduce(
     (cur, key) =>
@@ -59,13 +44,10 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onValueClick }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onValueClick, focusPath, onClearFocus }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
   const [markdown, setMarkdown] = useState<MarkdownState>({ status: 'idle' })
-  const [editedResult, setEditedResult] = useState<Record<string, unknown> | null>(
-    state.status === 'ready' ? state.result as Record<string, unknown> : null,
-  )
   const stats = useMemo(() => (state.status === 'ready' ? resultStats(state.result) : null), [state])
 
   const [navPath, setNavPath] = useState<string[]>([])
@@ -73,21 +55,12 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onVa
   const [forwardStack, setForwardStack] = useState<string[][]>([])
 
   useEffect(() => {
-    if (state.status === 'ready') {
-      setEditedResult(state.result as Record<string, unknown>)
-    } else {
-      setEditedResult(null)
-    }
     setNavPath([])
     setBackStack([])
     setForwardStack([])
   }, [state])
 
-  function handleResultChange(path: ResultPath, value: string) {
-    setEditedResult(prev => prev ? setAtPath(prev, path, value) as Record<string, unknown> : prev)
-  }
-
-  const displayResult = editedResult ?? (state.status === 'ready' ? state.result as Record<string, unknown> : null)
+  const displayResult = state.status === 'ready' ? state.result as Record<string, unknown> : null
 
   function navTo(newPath: string[]) {
     setBackStack(prev => [...prev, navPath])
@@ -192,9 +165,15 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onVa
                 </button>
               </div>
               <div className="flex gap-1.5">
-                {/* <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={() => void controller.runExtraction()}>
-                  Rerun
-                </button> */}
+                {focusPath && onClearFocus && (
+                  <button
+                    className="cursor-pointer rounded-md border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink-muted hover:border-accent/50 hover:text-accent"
+                    type="button"
+                    onClick={onClearFocus}
+                  >
+                    × Clear
+                  </button>
+                )}
                 <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={() => void copyJson()}>
                   Copy JSON
                 </button>
@@ -251,7 +230,6 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onVa
                     name={displayName}
                     value={val}
                     path={[...navPath, pathKey]}
-                    onChange={handleResultChange}
                     onValueClick={onValueClick}
                     onNavigateTo={isRecord(val) || Array.isArray(val) ? navTo : undefined}
                     defaultExpanded={navPath.length === 0}

@@ -9,9 +9,9 @@ export const PALETTE: string[] = [
   'rgba(93, 168, 153, 0.45)',
 ]
 
-export type Highlight = { value: string; snippet: string | null; hintPage: number | null; color: string }
+export type Highlight = { value: string; snippet: string | null; hintPage: number | null; color: string; path: string[] }
 
-function collectEvidenceLeaf(node: unknown, color: string, out: Highlight[]): boolean {
+function collectEvidenceLeaf(node: unknown, color: string, path: string[], out: Highlight[]): boolean {
   if (
     isRecord(node) &&
     typeof node.value === 'string' &&
@@ -20,35 +20,35 @@ function collectEvidenceLeaf(node: unknown, color: string, out: Highlight[]): bo
     const v = node.value.trim()
     const s = node.snippet.trim()
     if (v && s) {
-      out.push({ value: v, snippet: s, hintPage: typeof node.page === 'number' ? node.page : null, color })
+      out.push({ value: v, snippet: s, hintPage: typeof node.page === 'number' ? node.page : null, color, path })
       return true
     }
   }
   return false
 }
 
-function collectResultLeaves(node: unknown, color: string, out: Highlight[]): void {
-  if (typeof node === 'string') {
-    const v = node.trim()
-    if (v) out.push({ value: v, snippet: null, hintPage: null, color })
+function collectResultLeaves(node: unknown, color: string, path: string[], out: Highlight[]): void {
+  if (typeof node === 'string' || typeof node === 'number') {
+    const v = String(node).trim()
+    if (v) out.push({ value: v, snippet: null, hintPage: null, color, path })
   } else if (Array.isArray(node)) {
-    for (const item of node) collectResultLeaves(item, color, out)
+    for (let i = 0; i < node.length; i++) collectResultLeaves(node[i], color, [...path, String(i)], out)
   } else if (isRecord(node)) {
-    for (const sub of Object.values(node)) collectResultLeaves(sub, color, out)
+    for (const [k, sub] of Object.entries(node)) collectResultLeaves(sub, color, [...path, k], out)
   }
 }
 
-function collectHighlightLeaves(resultNode: unknown, evidenceNode: unknown, color: string, out: Highlight[]): void {
-  if (collectEvidenceLeaf(evidenceNode, color, out)) return
+function collectHighlightLeaves(resultNode: unknown, evidenceNode: unknown, color: string, path: string[], out: Highlight[]): void {
+  if (collectEvidenceLeaf(evidenceNode, color, path, out)) return
 
   if (Array.isArray(resultNode)) {
     const evidenceItems = Array.isArray(evidenceNode) ? evidenceNode : []
-    for (let i = 0; i < resultNode.length; i++) collectHighlightLeaves(resultNode[i], evidenceItems[i], color, out)
+    for (let i = 0; i < resultNode.length; i++) collectHighlightLeaves(resultNode[i], evidenceItems[i], color, [...path, String(i)], out)
   } else if (isRecord(resultNode)) {
     const evidenceRecord = isRecord(evidenceNode) ? evidenceNode : {}
-    for (const [key, value] of Object.entries(resultNode)) collectHighlightLeaves(value, evidenceRecord[key], color, out)
+    for (const [key, value] of Object.entries(resultNode)) collectHighlightLeaves(value, evidenceRecord[key], color, [...path, key], out)
   } else {
-    collectResultLeaves(resultNode, color, out)
+    collectResultLeaves(resultNode, color, path, out)
   }
 }
 
@@ -71,7 +71,7 @@ export function buildHighlights(
       let i = 0
       for (const [key, value] of Object.entries(rec)) {
         const color = fieldColorMap?.[key] ?? PALETTE[i % PALETTE.length]
-        collectHighlightLeaves(value, (evidenceRec as Record<string, unknown>)[key], color, out)
+        collectHighlightLeaves(value, (evidenceRec as Record<string, unknown>)[key], color, ['records', String(r), key], out)
         i++
       }
     }
@@ -83,7 +83,7 @@ export function buildHighlights(
   let i = 0
   for (const [key, value] of Object.entries(result)) {
     const color = fieldColorMap?.[key] ?? PALETTE[i % PALETTE.length]
-    collectHighlightLeaves(value, evidenceRecord[key], color, out)
+    collectHighlightLeaves(value, evidenceRecord[key], color, [key], out)
     i++
   }
   return out

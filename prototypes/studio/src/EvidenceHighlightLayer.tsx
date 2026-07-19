@@ -162,21 +162,25 @@ type CachedEntry = {
   pageLeft: number
 }
 
+function pathsEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i])
+}
+
 type Props = {
   pdfViewer: PDFViewer | null
   result: unknown
   evidence: unknown
   schemaTemplate: unknown
   containerEl: HTMLDivElement | null
-  focusValue: string | null
+  focusPath: string[] | null
 }
 
-export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, schemaTemplate, containerEl, focusValue }: Props) {
+export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, schemaTemplate, containerEl, focusPath }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const schemaTemplateRef = useRef(schemaTemplate)
   schemaTemplateRef.current = schemaTemplate
-  const focusValueRef = useRef<string | null>(null)
-  focusValueRef.current = focusValue
+  const focusPathRef = useRef<string[] | null>(null)
+  focusPathRef.current = focusPath
   const cachedEntriesRef = useRef<CachedEntry[]>([])
   const [scale, setScale] = useState(1)
   const [containerVersion, setContainerVersion] = useState(0)
@@ -245,21 +249,15 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
         }
         if (cancelled) return
 
-        const activeFv = focusValueRef.current
-        const isActive = activeFv !== null && h.value === activeFv
+        const activeFv = focusPathRef.current
+        const isActive = activeFv !== null && pathsEqual(h.path, activeFv)
         const dimmed = activeFv !== null && !isActive
 
         ctx.save()
-        ctx.globalAlpha = dimmed ? 0.25 : 1.0
+        ctx.globalAlpha = isActive ? 0.75 : dimmed ? 0.15 : 0.4
         ctx.fillStyle = h.color
         for (const rect of found.rects) {
-          ctx.fillRect(pageLeft + rect.x, pageTop + rect.y, rect.width, rect.height)
-        }
-        if (isActive) {
-          ctx.globalAlpha = 0.6
-          for (const rect of found.rects) {
-            ctx.fillRect(pageLeft + rect.x, pageTop + rect.y, rect.width, rect.height)
-          }
+          ctx.fillRect(pageLeft + rect.x - 1, pageTop + rect.y - 2, rect.width + 2, rect.height + 2)
         }
         ctx.restore()
       }
@@ -278,8 +276,8 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
     const canvas = canvasRef.current
     if (!canvas || entries.length === 0) return
 
-    if (focusValue) {
-      const entry = entries.find(e => e.highlight.value === focusValue)
+    if (focusPath) {
+      const entry = entries.find(e => pathsEqual(e.highlight.path, focusPath))
       if (entry?.rects[0]) {
         containerEl.scrollTo({
           top: Math.max(0, entry.pageTop + entry.rects[0].y - containerEl.clientHeight / 2 + entry.rects[0].height / 2),
@@ -292,23 +290,17 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
     if (!ctx) return
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     for (const entry of entries) {
-      const isActive = focusValue !== null && entry.highlight.value === focusValue
-      const dimmed = focusValue !== null && !isActive
+      const isActive = focusPath !== null && pathsEqual(entry.highlight.path, focusPath)
+      const dimmed = focusPath !== null && !isActive
       ctx.save()
-      ctx.globalAlpha = dimmed ? 0.25 : 1.0
+      ctx.globalAlpha = isActive ? 0.75 : dimmed ? 0.15 : 0.4
       ctx.fillStyle = entry.highlight.color
       for (const rect of entry.rects) {
-        ctx.fillRect(entry.pageLeft + rect.x, entry.pageTop + rect.y, rect.width, rect.height)
-      }
-      if (isActive) {
-        ctx.globalAlpha = 0.6
-        for (const rect of entry.rects) {
-          ctx.fillRect(entry.pageLeft + rect.x, entry.pageTop + rect.y, rect.width, rect.height)
-        }
+        ctx.fillRect(entry.pageLeft + rect.x - 1, entry.pageTop + rect.y - 2, rect.width + 2, rect.height + 2)
       }
       ctx.restore()
     }
-  }, [focusValue, cacheVersion, containerEl])
+  }, [focusPath, cacheVersion, containerEl])
 
   if (!result) return null
 

@@ -11,7 +11,7 @@ export type ResultValueProps = {
   value: unknown
   path?: ResultPath
   onChange?: OnResultChange
-  onValueClick?: (value: string) => void
+  onValueClick?: (path: string[], value: string) => void
   depth?: number
   defaultExpanded?: boolean
   /** When provided, clicking an ObjectSection/ArraySection header navigates to
@@ -63,7 +63,7 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 
 function PrimitiveRow({
   name, value, path, onChange, onValueClick, expandText,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; expandText?: boolean }) {
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; onValueClick?: (path: string[], value: string) => void; expandText?: boolean }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
@@ -120,7 +120,7 @@ function PrimitiveRow({
         </div>
         <div
           className={`pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap ${onValueClick ? 'cursor-pointer hover:text-accent' : ''}`}
-          onClick={onValueClick ? () => onValueClick(text) : undefined}
+          onClick={onValueClick ? () => onValueClick(path, text) : undefined}
         >
           {text}
         </div>
@@ -140,7 +140,7 @@ function PrimitiveRow({
         ) : (
           <span
             className={`min-w-0 flex-1 truncate text-[13px] text-ink-muted ${onValueClick ? 'cursor-pointer hover:text-accent' : ''}`}
-            onClick={onValueClick ? () => onValueClick(text) : undefined}
+            onClick={onValueClick ? () => onValueClick(path, text) : undefined}
           >
             {text}
           </span>
@@ -178,7 +178,7 @@ function PrimitiveRow({
 
 function ObjectSection({
   name, value, path, onChange, onValueClick, depth, defaultExpanded = true, onNavigateTo, expandText,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean }) {
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; onValueClick?: (path: string[], value: string) => void; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -231,7 +231,7 @@ function ObjectSection({
 
 function ArraySection({
   name, value, path, onChange, onValueClick, depth, onNavigateTo, expandText,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; onValueClick?: (value: string) => void; depth: number; onNavigateTo?: (path: string[]) => void; expandText?: boolean }) {
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; onValueClick?: (path: string[], value: string) => void; depth: number; onNavigateTo?: (path: string[]) => void; expandText?: boolean }) {
   const [expanded, setExpanded] = useState(true)
 
   return (

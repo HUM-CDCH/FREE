@@ -44,9 +44,13 @@ type FieldEditing = { id: string; name: string; type: string }
 
 type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
-type DiffLine = { sign: '+' | '−' | '~'; text: string }
+type NodeDiffStatus = 'added' | 'removed'
 
-type PendingChange = { newNodes: SchemaNode[]; lines: DiffLine[] }
+type PendingChange = {
+  newNodes: SchemaNode[]
+  displayNodes: SchemaNode[]
+  diffMap: Map<string, NodeDiffStatus>
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Task 1.1–1.4: Data model & converters
@@ -58,26 +62,68 @@ type PendingChange = { newNodes: SchemaNode[]; lines: DiffLine[] }
 // Diff computation (task 7.3)
 // ────────────────────────────────────────────────────────────────────────────
 
-function flattenNodes(nodes: SchemaNode[], prefix = ''): Map<string, string> {
-  const m = new Map<string, string>()
+function collectIds(nodes: SchemaNode[], out = new Map<string, SchemaNode>()): Map<string, SchemaNode> {
   for (const n of nodes) {
-    const k = prefix ? `${prefix} › ${n.name}` : n.name
-    m.set(k, n.type)
-    if (n.children) for (const [ck, cv] of flattenNodes(n.children, k)) m.set(ck, cv)
+    out.set(n.id, n)
+    if (n.children) collectIds(n.children, out)
   }
-  return m
+  return out
 }
 
-function computeDiff(oldNodes: SchemaNode[], newNodes: SchemaNode[]): DiffLine[] {
-  const a = flattenNodes(oldNodes)
-  const b = flattenNodes(newNodes)
-  const lines: DiffLine[] = []
-  for (const [k, t] of b) {
-    if (!a.has(k)) lines.push({ sign: '+', text: `${k} : ${t}` })
-    else if (a.get(k) !== t) lines.push({ sign: '~', text: `${k} : ${a.get(k)} → ${t}` })
+function buildDiffPreview(
+  oldNodes: SchemaNode[],
+  newNodes: SchemaNode[],
+): { displayNodes: SchemaNode[]; diffMap: Map<string, NodeDiffStatus> } {
+  const oldById = collectIds(oldNodes)
+  const newById = collectIds(newNodes)
+  const diffMap = new Map<string, NodeDiffStatus>()
+  // ghost nodes: old versions of modified nodes, shown in red above the new version
+  const ghostMap = new Map<string, SchemaNode>()
+
+  for (const [id, newNode] of newById) {
+    const oldNode = oldById.get(id)
+    if (!oldNode) {
+      diffMap.set(id, 'added')
+    } else if (oldNode.name !== newNode.name || oldNode.type !== newNode.type) {
+      // split into ghost (old, red) + actual (new, green)
+      const ghostId = `${id}-ghost`
+      ghostMap.set(ghostId, { id: ghostId, name: oldNode.name, type: oldNode.type })
+      diffMap.set(ghostId, 'removed')
+      diffMap.set(id, 'added')
+    }
   }
-  for (const k of a.keys()) if (!b.has(k)) lines.push({ sign: '−', text: k })
-  return lines
+  for (const id of oldById.keys()) {
+    if (!newById.has(id)) diffMap.set(id, 'removed')
+  }
+
+  function mergeLevel(newLevel: SchemaNode[], oldLevel: SchemaNode[]): SchemaNode[] {
+    const result: SchemaNode[] = []
+    let newIdx = 0
+    for (let oi = 0; oi < oldLevel.length; oi++) {
+      const oldNode = oldLevel[oi]
+      if (diffMap.get(oldNode.id) === 'removed') {
+        // truly removed — inject at original position
+        result.push(oldNode)
+      } else {
+        // node present in newLevel (unmodified or modified/added)
+        while (newIdx < newLevel.length && newLevel[newIdx].id !== oldNode.id) {
+          result.push(newLevel[newIdx++])
+        }
+        if (newIdx < newLevel.length && newLevel[newIdx].id === oldNode.id) {
+          const n = newLevel[newIdx++]
+          // for modified nodes, inject old ghost immediately before the new version
+          const ghostId = `${n.id}-ghost`
+          if (ghostMap.has(ghostId)) result.push(ghostMap.get(ghostId)!)
+          result.push(n.children ? { ...n, children: mergeLevel(n.children, oldNode.children ?? []) } : n)
+        }
+      }
+    }
+    while (newIdx < newLevel.length) result.push(newLevel[newIdx++])
+    return result
+  }
+
+  const displayNodes = diffMap.size === 0 ? newNodes : mergeLevel(newNodes, oldNodes)
+  return { displayNodes, diffMap }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -241,7 +287,9 @@ function SchemaPanel({
   const [pending, setPending] = useState<PendingChange | null>(null)
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
+  const chatAbortRef = useRef<AbortController | null>(null)
   const [view, setView] = useState<'fields' | 'json'>('fields')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [openDescId, setOpenDescId] = useState<string | null>(null)
   const [jsonEditMode, setJsonEditMode] = useState(false)
@@ -486,12 +534,25 @@ function SchemaPanel({
     setEditing(null)
   }
 
-  function removeNode(id: string) {
-    const [, newNodes] = extractNode(nodesRef.current, id)
+  function bulkRemoveNodes() {
+    let newNodes = nodesRef.current
+    for (const id of selectedIds) {
+      const [, after] = extractNode(newNodes, id)
+      newNodes = after
+    }
     nodesRef.current = newNodes
     setNodes(newNodes)
-    onNodesChange(newNodes, 'Field removed from schema')
-    if (editing?.id === id) setEditing(null)
+    onNodesChange(newNodes, `${selectedIds.size} field${selectedIds.size !== 1 ? 's' : ''} removed`)
+    if (editing && selectedIds.has(editing.id)) setEditing(null)
+    setSelectedIds(new Set())
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
   }
 
   function updateNodeDescription(id: string, description: string | undefined) {
@@ -536,22 +597,32 @@ function SchemaPanel({
     setChat(c => [...c, { role: 'user', text: userMsg }])
     setChatInput('')
     setChatLoading(true)
+    const controller = new AbortController()
+    chatAbortRef.current = controller
 
     try {
-      const ops = await requestSchemaEdit(nodesRef.current, userMsg)
+      const ops = await requestSchemaEdit(nodesRef.current, userMsg, controller.signal)
       const newNodes = applyOps(nodesRef.current, ops)
-      const lines = computeDiff(nodesRef.current, newNodes)
-      if (lines.length === 0) {
+      const { displayNodes, diffMap } = buildDiffPreview(nodesRef.current, newNodes)
+      if (diffMap.size === 0) {
         setChat(c => [...c, { role: 'assistant', text: 'No changes needed — the schema already matches your request.' }])
       } else {
-        // Task 7.4 – set pending
-        setPending({ newNodes, lines })
+        setPending({ newNodes, displayNodes, diffMap })
       }
     } catch (err) {
-      setChat(c => [...c, { role: 'assistant', text: `Error: ${err instanceof Error ? err.message : 'Request failed'}` }])
+      if (err instanceof Error && err.name === 'AbortError') {
+        setChat(c => [...c, { role: 'assistant', text: 'Cancelled.' }])
+      } else {
+        setChat(c => [...c, { role: 'assistant', text: `Error: ${err instanceof Error ? err.message : 'Request failed'}` }])
+      }
     } finally {
+      chatAbortRef.current = null
       setChatLoading(false)
     }
+  }
+
+  function cancelChat() {
+    chatAbortRef.current?.abort()
   }
 
   // Task 8.2 – apply pending
@@ -560,7 +631,7 @@ function SchemaPanel({
     nodesRef.current = pending.newNodes
     setNodes(pending.newNodes)
     onNodesChange(pending.newNodes, '✦ Schema updated via chat')
-    setChat(c => [...c, { role: 'assistant', text: `✓ Applied ${pending.lines.length} change${pending.lines.length === 1 ? '' : 's'}.` }])
+    setChat(c => [...c, { role: 'assistant', text: '✓ Schema changes applied.' }])
     setPending(null)
   }
 
@@ -600,12 +671,6 @@ function SchemaPanel({
       ? 'self-end max-w-[88%] rounded-[11px_11px_3px_11px] bg-accent px-3 py-1.5 text-xs leading-relaxed text-white'
       : 'self-start max-w-[92%] rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-1.5 text-xs leading-relaxed text-ink'
 
-  const signCls = (sign: '+' | '−' | '~') => ({
-    '+': 'w-3.5 text-center font-mono font-bold text-[13px] text-green shrink-0',
-    '−': 'w-3.5 text-center font-mono font-bold text-[13px] text-danger shrink-0',
-    '~': 'w-3.5 text-center font-mono font-bold text-[13px] text-stale shrink-0',
-  }[sign])
-
   // Task 5.3 – disable edit buttons while dragging
   const editDisabled = !!dragging
 
@@ -626,34 +691,40 @@ function SchemaPanel({
     const isDragging = dragging?.id === node.id
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === node.id
     const isEditing = editing?.id === node.id
+    const diffStatus = pending?.diffMap.get(node.id) ?? null
+    const isDiff = diffStatus !== null
+    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : ''
+    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : 'text-ink'
 
     return (
       <div key={node.id}>
-        {/* Task 2.4 – drop slot before this field */}
+        {/* drop slot before this field */}
         <div className={slotCls(null, i)} onMouseEnter={() => setSlotTarget(null, i)} />
 
-        {isEditing && editing ? (
+        {isEditing && editing && !isDiff ? (
           <FieldEditForm editing={editing} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} />
         ) : (
           <div
-            className={rowCls(node.id, intoGroup, isDragging)}
-            onMouseEnter={() => setGroupTarget(node.id, node.name)}
-            onMouseLeave={() => clearGroupTarget(node.id)}
+            className={`${rowCls(node.id, intoGroup, isDragging)} ${diffBg}`}
+            onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name)}
+            onMouseLeave={() => !isDiff && clearGroupTarget(node.id)}
           >
-            <span
-              className="shrink-0 cursor-grab select-none px-0.5 text-sm leading-none text-ink-faint"
-              onMouseDown={e => startDrag(e, node.id, null, node.name, isGroup)}
-            >
-              ⠿
-            </span>
-            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{node.name}</span>
-            {intoGroup && (
+            {!isDiff && (
+              <span
+                className="shrink-0 cursor-grab select-none px-0.5 text-sm leading-none text-ink-faint"
+                onMouseDown={e => startDrag(e, node.id, null, node.name, isGroup)}
+              >
+                ⠿
+              </span>
+            )}
+            <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${diffText}`}>{node.name}</span>
+            {intoGroup && !isDiff && (
               <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
                 into {node.name}
               </span>
             )}
             <span className="min-w-0 flex-1" />
-            {isGroup && (
+            {!isDiff && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
@@ -663,23 +734,26 @@ function SchemaPanel({
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
               </button>
             )}
-            <button
-              className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
-              type="button"
-              title={`Edit ${node.name}`}
-              disabled={editDisabled}
-              onClick={() => setEditing({ id: node.id, name: node.name, type: node.type })}
-            >
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
-            </button>
-            <button
-              className="shrink-0 cursor-pointer px-1 text-[12px] leading-none text-ink-muted outline-none transition-colors hover:text-danger focus-visible:text-danger"
-              type="button"
-              title={`Remove ${node.name}`}
-              onClick={() => removeNode(node.id)}
-            >
-              ✗
-            </button>
+            {!isDiff && (
+              <button
+                className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
+                type="button"
+                title={`Edit ${node.name}`}
+                disabled={editDisabled}
+                onClick={() => setEditing({ id: node.id, name: node.name, type: node.type })}
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+              </button>
+            )}
+            {!isDiff && (
+              <input
+                type="checkbox"
+                className="shrink-0 cursor-pointer accent-accent"
+                checked={selectedIds.has(node.id)}
+                onChange={() => toggleSelected(node.id)}
+                onClick={e => e.stopPropagation()}
+              />
+            )}
           </div>
         )}
 
@@ -718,6 +792,10 @@ function SchemaPanel({
     const isGroup = child.children !== undefined
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === child.id
     const isExpanded = expandedIds.has(child.id) || intoGroup
+    const diffStatus = pending?.diffMap.get(child.id) ?? null
+    const isDiff = diffStatus !== null
+    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : ''
+    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : 'text-ink'
 
     const toggleExpand = (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -727,24 +805,26 @@ function SchemaPanel({
     return (
       <div
         key={child.id}
-        onMouseEnter={() => setGroupTarget(child.id, child.name)}
-        onMouseLeave={() => clearGroupTarget(child.id)}
+        onMouseEnter={() => !isDiff && setGroupTarget(child.id, child.name)}
+        onMouseLeave={() => !isDiff && clearGroupTarget(child.id)}
       >
         <div className={slotCls(parentId, j)} onMouseEnter={e => { e.stopPropagation(); setSlotTarget(parentId, j) }} />
-        {isEditing && editing ? (
+        {isEditing && editing && !isDiff ? (
           <FieldEditForm editing={editing} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} />
         ) : (
           <div
-            className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''}`}
+            className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup && !isDiff ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''} ${diffBg}`}
           >
-            <span
-              className="shrink-0 cursor-grab select-none px-0.5 text-[13px] leading-none text-ink-faint"
-              onMouseDown={e => startDrag(e, child.id, parentId, child.name, isGroup)}
-            >
-              ⠿
-            </span>
-            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{child.name}</span>
-            {isGroup && (
+            {!isDiff && (
+              <span
+                className="shrink-0 cursor-grab select-none px-0.5 text-[13px] leading-none text-ink-faint"
+                onMouseDown={e => startDrag(e, child.id, parentId, child.name, isGroup)}
+              >
+                ⠿
+              </span>
+            )}
+            <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${diffText}`}>{child.name}</span>
+            {isGroup && !isDiff && (
               <span
                 className="shrink-0 flex items-center text-ink-faint hover:text-accent cursor-pointer transition-colors"
                 onClick={toggleExpand}
@@ -754,13 +834,13 @@ function SchemaPanel({
                 </svg>
               </span>
             )}
-            {intoGroup && (
+            {intoGroup && !isDiff && (
               <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
                 into {child.name}
               </span>
             )}
             <span className="min-w-0 flex-1" />
-            {isGroup && (
+            {!isDiff && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
@@ -770,23 +850,26 @@ function SchemaPanel({
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
               </button>
             )}
-            <button
-              className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
-              type="button"
-              title={`Edit ${child.name}`}
-              disabled={editDisabled}
-              onClick={() => setEditing({ id: child.id, name: child.name, type: child.type })}
-            >
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
-            </button>
-            <button
-              className="shrink-0 cursor-pointer px-1 text-[12px] leading-none text-ink-muted outline-none transition-colors hover:text-danger focus-visible:text-danger"
-              type="button"
-              title={`Remove ${child.name}`}
-              onClick={() => removeNode(child.id)}
-            >
-              ✗
-            </button>
+            {!isDiff && (
+              <button
+                className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
+                type="button"
+                title={`Edit ${child.name}`}
+                disabled={editDisabled}
+                onClick={() => setEditing({ id: child.id, name: child.name, type: child.type })}
+              >
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+              </button>
+            )}
+            {!isDiff && (
+              <input
+                type="checkbox"
+                className="shrink-0 cursor-pointer accent-accent"
+                checked={selectedIds.has(child.id)}
+                onChange={() => toggleSelected(child.id)}
+                onClick={e => e.stopPropagation()}
+              />
+            )}
           </div>
         )}
 
@@ -931,8 +1014,31 @@ function SchemaPanel({
 
         {ready && view === 'fields' && (
           <>
+            {selectedIds.size > 0 && (
+              <div className="mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5">
+                <span className="text-[12px] font-semibold text-danger">
+                  {selectedIds.size} field{selectedIds.size !== 1 ? 's' : ''} selected
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    className="cursor-pointer rounded-md px-2 py-1 text-[11.5px] font-semibold text-ink-muted hover:text-ink outline-none"
+                    type="button"
+                    onClick={() => setSelectedIds(new Set())}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="cursor-pointer rounded-md bg-danger px-2.5 py-1 text-[11.5px] font-semibold text-white outline-none hover:brightness-110"
+                    type="button"
+                    onClick={bulkRemoveNodes}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex flex-col">
-              {nodes.map((node, i) => renderRootField(node, i))}
+              {(pending ? pending.displayNodes : nodes).map((node, i) => renderRootField(node, i))}
               {/* final root slot */}
               <div className={slotCls(null, nodes.length)} onMouseEnter={() => setSlotTarget(null, nodes.length)} />
             </div>
@@ -965,41 +1071,28 @@ function SchemaPanel({
                   </span>
                 </div>
               )}
-              {/* Task 8.1 – pending diff card */}
-              {pending && (
-                <div className="self-stretch overflow-hidden rounded-[11px_11px_11px_3px] border border-accent-soft bg-surface">
-                  <div className="flex items-center gap-1.5 border-b border-line px-3 py-2">
-                    <span className="font-sans text-[9.5px] font-bold uppercase tracking-[0.1em] text-ink-muted">Proposed changes</span>
-                    <span className="font-sans text-[10px] text-ink-faint">— review before applying</span>
-                  </div>
-                  <ul className="flex flex-col gap-1.5 px-3 py-2">
-                    {pending.lines.map((line, i) => (
-                      <li key={i} className="flex items-baseline gap-2">
-                        <span className={signCls(line.sign)}>{line.sign}</span>
-                        <span className="font-mono text-[11px] font-medium leading-snug text-ink">{line.text}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="flex gap-2 px-3 pb-2.5">
-                    <button
-                      className="cursor-pointer rounded-md border border-accent bg-accent px-3.5 py-1.5 font-sans text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108"
-                      type="button"
-                      onClick={applyPending}
-                    >
-                      Apply changes
-                    </button>
-                    <button
-                      className="cursor-pointer rounded-md border border-line-strong bg-surface px-3 py-1.5 font-sans text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
-                      type="button"
-                      onClick={discardPending}
-                    >
-                      Discard
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
+
+          {/* Apply / Discard action bar — sticky, outside scroll area */}
+          {pending && (
+            <div className="shrink-0 flex items-center gap-2 border-t border-line px-3.5 py-2.5">
+              <button
+                className="cursor-pointer rounded-md border border-accent bg-accent px-3.5 py-1.5 font-sans text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108"
+                type="button"
+                onClick={applyPending}
+              >
+                Apply changes
+              </button>
+              <button
+                className="cursor-pointer rounded-md border border-line-strong bg-surface px-3 py-1.5 font-sans text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
+                type="button"
+                onClick={discardPending}
+              >
+                Discard
+              </button>
+            </div>
+          )}
 
           {/* Task 6.3 – suggestion chips (hidden while pending / loading) */}
           {/* {activeSuggs.length > 0 && !chatBlocked && (
@@ -1028,14 +1121,25 @@ function SchemaPanel({
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') void sendChatMessage(chatInput) }}
               />
-              <button
-                type="button"
-                className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
-                disabled={!chatInput.trim() || chatBlocked}
-                onClick={() => void sendChatMessage(chatInput)}
-              >
-                ↑
-              </button>
+              {chatLoading ? (
+                <button
+                  type="button"
+                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108"
+                  onClick={cancelChat}
+                  title="Stop generation"
+                >
+                  ■
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
+                  disabled={!chatInput.trim() || chatBlocked}
+                  onClick={() => void sendChatMessage(chatInput)}
+                >
+                  ↑
+                </button>
+              )}
             </div>
           </div>
         </div>

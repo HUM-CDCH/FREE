@@ -101,7 +101,7 @@ function App() {
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
   const [activePdfViewer, setActivePdfViewer] = useState<PDFViewer | null>(null)
-  const [focusValue, setFocusValue] = useState<string | null>(null)
+  const [focusPath, setFocusPath] = useState<string[] | null>(null)
   const [pdfSource, setPdfSource] = useState<{ url: string; filename: string } | null>({
     url: pdfUrl,
     filename: ACTIVE_DOC,
@@ -387,8 +387,8 @@ function App() {
     }
   }
 
-  function handleValueClick(value: string) {
-    setFocusValue(prev => (prev === value ? null : value))
+  function handleValueClick(path: string[], _value: string) {
+    setFocusPath(path)
   }
 
   function changeNodes(nodes: SchemaNode[], message: string) {
@@ -454,7 +454,7 @@ function App() {
     indexing,
     onComplete: (isRerun) => {
       setRailTab('results')
-      setFocusValue(null)
+      setFocusPath(null)
       showToast(
         isRerun
           ? '↻ Re-run complete — view the JSON in the Results tab'
@@ -575,7 +575,7 @@ function App() {
               evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
               schemaTemplate={schemaTemplate}
               containerEl={containerEl}
-              focusValue={focusValue}
+              focusPath={focusPath}
             />
           </div>
           {extraction.state.status === 'running' && (
@@ -650,6 +650,8 @@ function App() {
             pdfSource={pdfSource}
             documentMarkdown={documentMarkdown}
             onValueClick={handleValueClick}
+            focusPath={focusPath}
+            onClearFocus={() => setFocusPath(null)}
           />
         </aside>
       </div>
