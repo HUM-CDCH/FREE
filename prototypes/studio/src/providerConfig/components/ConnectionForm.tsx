@@ -1,6 +1,7 @@
 import { Button } from "../../ui";
 import { API_PROVIDERS, CONNECTION_KINDS } from "../providerConfig.data";
 import type { ApiProviderKey, Draft } from "../providerConfig.data";
+import { connectionFormState } from "../providerConfig.logic";
 import { inputClass, selectClass } from "../providerConfig.styles";
 import FormField from "./FormField";
 
@@ -29,20 +30,10 @@ function ConnectionForm({
 }: ConnectionFormProps) {
 	const config = CONNECTION_KINDS[draft.kind];
 	const isApi = draft.kind === "api";
-	const isServer = config.shape === "server";
-	const showUrl = isServer || (isApi && showAdvanced);
-	const showKey = isApi || (isServer && config.keyOptional);
-	const canSave =
-		config.shape === "cli" ||
-		(isServer
-			? Boolean(draft.baseUrl)
-			: Boolean(draft.apiProvider && draft.apiKey));
-	const note =
-		config.shape === "cli"
-			? `Uses your local ${config.name} sign-in — no URL or key needed.`
-			: isServer
-				? "Point at localhost or a remote machine. Any OpenAI-compatible server works."
-				: "The base URL is set from the provider — open Advanced to change it for a proxy or gateway.";
+	const { showUrl, showKey, canSave, note } = connectionFormState(
+		draft,
+		showAdvanced,
+	);
 	const connectionName =
 		isApi && draft.apiProvider
 			? API_PROVIDERS[draft.apiProvider].name

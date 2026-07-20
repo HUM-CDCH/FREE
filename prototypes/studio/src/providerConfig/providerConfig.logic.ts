@@ -72,13 +72,37 @@ export function connectionStatus(connection: Connection): StatusInfo {
 		: { kind: "warn", text: "Key required" };
 }
 
+export function connectionFormState(draft: Draft, showAdvanced: boolean) {
+	const config = CONNECTION_KINDS[draft.kind];
+	const isApi = config.shape === "apikey";
+	const isServer = config.shape === "server";
+
+	return {
+		showUrl: isServer || (isApi && showAdvanced),
+		showKey: isApi || (isServer && config.keyOptional),
+		canSave:
+			config.shape === "cli" ||
+			(isServer
+				? Boolean(draft.baseUrl)
+				: Boolean(draft.apiProvider && draft.apiKey)),
+		note:
+			config.shape === "cli"
+				? `Uses your local ${config.name} sign-in — no URL or key needed.`
+				: isServer
+					? "Point at localhost or a remote machine. Any OpenAI-compatible server works."
+					: "The base URL is set from the provider — open Advanced to change it for a proxy or gateway.",
+	};
+}
+
 export function routeStatus(
 	route: RouteState,
 	connections: Connection[],
 ): StatusInfo {
-	const connection = route.connectionId
-		? (connections.find((item) => item.id === route.connectionId) ?? null)
-		: null;
+	if (!route.connectionId) {
+		return { kind: "err", text: "Select a connection" };
+	}
+	const connection =
+		connections.find((item) => item.id === route.connectionId) ?? null;
 	if (!connection) {
 		return {
 			kind: "err",
@@ -97,6 +121,35 @@ export function routeStatus(
 		kind: status.kind,
 		text: status.kind === "ok" ? "Ready" : status.text,
 	};
+}
+
+export function routingSummary(routeEntries: RouteEntry[]) {
+	const allValid = routeEntries.every((entry) => entry.status.kind === "ok");
+	const anyError = routeEntries.some((entry) => entry.status.kind === "err");
+	const connectedIds = new Set(
+		routeEntries
+			.map((entry) => entry.route.connectionId)
+			.filter((id): id is string => Boolean(id)),
+	);
+	const singleConnection = connectedIds.size === 1;
+	let overallStatus: StatusKind = "warn";
+	if (allValid) {
+		overallStatus = "ok";
+	} else if (anyError) {
+		overallStatus = "err";
+	}
+	let chipText = "Needs attention";
+	if (allValid) {
+		chipText = singleConnection ? "Single provider · ready" : "Mixed · ready";
+	}
+	let mixText = "Mixed setup — each task uses a different connection.";
+	if (singleConnection) {
+		mixText = "All tasks use the same connection.";
+	} else if (connectedIds.size === 0) {
+		mixText = "Mixed setup — no connections assigned.";
+	}
+
+	return { overallStatus, chipText, mixText };
 }
 
 export function defaultDraftFor(kind: ConnectionKind): Draft {

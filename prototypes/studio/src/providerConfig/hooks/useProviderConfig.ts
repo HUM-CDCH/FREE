@@ -7,7 +7,6 @@ function useProviderConfig() {
 
 	function deleteConnection(id: string) {
 		connectionState.deleteConnection(id);
-		routingState.removeConnection(id);
 	}
 
 	return {
