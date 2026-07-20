@@ -12,8 +12,8 @@ describe('buildHighlights', () => {
     }
 
     expect(buildHighlights(result, evidence, { title: 'yellow', author: 'blue' })).toEqual([
-      { value: 'Anchored title', snippet: 'Anchored title appears here', hintPage: 2, color: 'yellow' },
-      { value: 'Searchable author', snippet: null, hintPage: null, color: 'blue' },
+      { value: 'Anchored title', snippet: 'Anchored title appears here', hintPage: 2, color: 'yellow', path: ['title'] },
+      { value: 'Searchable author', snippet: null, hintPage: null, color: 'blue', path: ['author'] },
     ])
   })
 })

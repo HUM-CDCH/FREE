@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
-import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
+import pdfUrl from '../../../examples/Beretning_Ellekilde_8_13.pdf?url'
 import cachedMarkdown from './assets/document.md?raw'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'

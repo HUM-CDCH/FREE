@@ -111,7 +111,10 @@ export async function extractWithModel({ document, template, instruction, temper
 }> {
   const documentParts = await documentContentParts(document)
   const evidenceTemplate = wrapTemplateWithEvidence(template ?? {})
-  const instructions = instruction?.trim() || null
+  const callerInstruction = instruction?.trim()
+  const instructions = callerInstruction
+    ? `${EVIDENCE_FIELD_INSTRUCTION}\n\n${callerInstruction}`
+    : EVIDENCE_FIELD_INSTRUCTION
   let generated: { readonly response: string }
   if (extractionRenderer() === 'generic') {
     const request = [
