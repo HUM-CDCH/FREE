@@ -44,15 +44,15 @@
 
 ## 7. Chat Panel — Model Integration
 
-- [x] 7.1 On user sends message (or clicks chip), append user turn to `chat`, set loading state
-- [x] 7.2 Call `/api/generate_schema` (POST) with current template serialized as `document_markdown` context and user message as the annotation hint; receive new template
-- [x] 7.3 Compute diff: walk old nodes and new nodes to produce `DiffLine[]` with `sign (+/−/~)`, field path, and new type
-- [x] 7.4 Set `pending` state with the diff lines and the proposed template; append loading-complete assistant turn to chat
+- [x] 7.1 When the researcher sends a message (or clicks a chip), append the researcher turn to `chat` and set loading state
+- [x] 7.2 Call `/api/edit_schema` (POST) with the current derived Extraction Schema and researcher instruction; receive validated operations
+- [x] 7.3 Apply operations to a copy and compute added/removed/modified node status
+- [x] 7.4 Set `pending` with clean and merged preview nodes; append the assistant turn
 - [x] 7.5 Scroll the chat container to the bottom after each new message or pending change appears
 
 ## 8. Chat Panel — Apply and Discard
 
-- [x] 8.1 Render the pending diff card in the chat area: "Proposed changes — review before applying" header, diff lines with colored signs, "Apply changes" + "Discard" buttons
+- [x] 8.1 Render the pending diff inline in the tree with a sticky "Apply changes" / "Discard" action bar
 - [x] 8.2 On "Apply changes": update node list from pending template, call `onTemplateChange`, clear `pending`, append confirmation message to chat
 - [x] 8.3 On "Discard": clear `pending`, append "Discarded, no changes made" message to chat
 - [x] 8.4 Disable text input, send button, and hide suggestion chips while `pending !== null`
@@ -62,5 +62,12 @@
 - [x] 9.1 Verify TypeScript compiles without errors (`pnpm --filter studio build`)
 - [ ] 9.2 Manually test drag reorder at root level; drag into group; drag child out to root
 - [ ] 9.3 Manually test inline edit (rename + retype)
-- [ ] 9.4 Manually test chat suggestion chips → diff card → apply and discard
+- [ ] 9.4 Manually test chat suggestion chips → inline diff → apply and discard
 - [ ] 9.5 Test auto-scroll by dragging a field with the schema list taller than the panel
+
+## 10. Canonical state and regression coverage
+
+- [x] 10.1 Make ready-state nodes canonical and add immutable pinned-to-custom provenance flow
+- [x] 10.2 Support recursive rename, retype, delete, reorder targets, and folding with all field types
+- [x] 10.3 Confirm before converting a populated group to a scalar
+- [x] 10.4 Cover recursive pure operations, operation validation, Customize, inline edit, and chat Apply/Discard with automated tests

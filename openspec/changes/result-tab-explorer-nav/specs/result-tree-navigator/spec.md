@@ -2,13 +2,13 @@
 
 ### Requirement: Root breadcrumb bar
 
-When the Review sub-view is active and the researcher is at the root level, the Results tab SHALL display a breadcrumb bar showing only the label "Results". No back or forward button SHALL be shown at the root level.
+When the Review sub-view is active and the researcher is at the root level, the Results tab SHALL display a breadcrumb bar showing the label "Results". History controls SHALL be hidden at a fresh root, but Forward SHALL remain available after Back returns to root with forward history.
 
 #### Scenario: Root breadcrumb at initial state
 
 - **WHEN** the Review view is active and no navigation has occurred
 - **THEN** a breadcrumb bar is visible above the result list showing "Results"
-- **AND** no back or forward button is present
+- **AND** no back or forward button is present before navigation history exists
 
 ### Requirement: Navigate into a node
 
@@ -34,7 +34,7 @@ When the researcher clicks the header row of an ObjectSection or ArraySection, t
 
 ### Requirement: Breadcrumb ancestor navigation
 
-Each segment in the breadcrumb except the last (current node) SHALL be a clickable control that navigates directly to that ancestor. Clicking an ancestor records the current path in the back stack and clears the forward stack.
+Each segment in the breadcrumb except the last (current node) SHALL be a clickable control that navigates directly to that ancestor. Clicking an ancestor records the abandoned deeper path in the forward stack.
 
 #### Scenario: Click ancestor breadcrumb segment
 
@@ -47,11 +47,11 @@ Each segment in the breadcrumb except the last (current node) SHALL be a clickab
 
 - **WHEN** the breadcrumb shows any path deeper than root and the researcher clicks "Results"
 - **THEN** the full root view is restored (identical to the initial state)
-- **AND** back/forward buttons are hidden
+- **AND** Forward remains available when the deeper path is in forward history
 
 ### Requirement: Back and forward navigation
 
-The Results tab SHALL maintain a navigation history. A back button SHALL step to the previous path; a forward button SHALL step to the next path if available. Both buttons are hidden at root.
+The Results tab SHALL maintain a navigation history. A back button SHALL step to the previous path; a forward button SHALL step to the next path if available. Controls are hidden only when neither direction has history at root.
 
 #### Scenario: Back button returns to previous node
 

@@ -3,6 +3,7 @@ import { RequestError } from "./_http.js";
 import {
 	generateSchemaWithModel,
 	generateStructuredWithModel,
+	editSchemaWithModel,
 } from "./_model.js";
 
 const { generateTextMock } = vi.hoisted(() => ({ generateTextMock: vi.fn() }));
@@ -59,6 +60,45 @@ afterEach(() => {
 	vi.unstubAllEnvs();
 	vi.unstubAllGlobals();
 	generateTextMock.mockReset();
+});
+
+describe("editSchemaWithModel", () => {
+	it("uses raw NuExtract transport for Ollama schema edits", async () => {
+		const fetchMock = stubOllamaResponse('{"ops":[{"op":"add","name":"year","type":"date"}]}');
+		await expect(editSchemaWithModel({ title: "string" }, "add year")).resolves.toEqual([{ op: "add", name: "year", type: "date" }]);
+		const body = requestBody(fetchMock);
+		expect(body.raw).toBe(true);
+		expect(body.prompt).toContain("add year");
+		expect(body.prompt).toContain('"newName":""');
+	});
+
+	it("normalizes empty NuExtract template fields for remove and patch operations", async () => {
+		stubOllamaResponse('{"ops":[{"op":"remove","name":"obsolete","type":"","newName":null,"parentName":""},{"op":"patch","name":"published","type":"date","newName":"","parentName":null}]}');
+		await expect(editSchemaWithModel({ obsolete: "string", published: "string" }, "remove obsolete and make published a date")).resolves.toEqual([
+			{ op: "remove", name: "obsolete" },
+			{ op: "patch", name: "published", type: "date" },
+		]);
+	});
+
+	it("uses AI SDK array output for generic providers", async () => {
+		stubCodexResponse("unused");
+		generateTextMock.mockResolvedValue({ output: [{ op: "remove", name: "obsolete", parentName: "" }] });
+		await expect(editSchemaWithModel({ obsolete: "string" }, "remove obsolete")).resolves.toEqual([{ op: "remove", name: "obsolete" }]);
+		expect(generateTextMock.mock.calls[0]?.[0].output).toBeDefined();
+		expect(generateTextMock.mock.calls[0]?.[0].prompt).toContain("operation array");
+	});
+
+	it("rejects malformed operation output", async () => {
+		stubOllamaResponse('[{"op":"add","name":"year","type":"made-up"}]');
+		await expect(editSchemaWithModel({}, "add year")).rejects.toThrow(/malformed operations/);
+	});
+
+	it("forwards cancellation to Ollama", async () => {
+		const fetchMock = stubOllamaResponse('[]');
+		const controller = new AbortController();
+		await editSchemaWithModel({}, "no change", controller.signal);
+		expect(fetchMock.mock.calls[0]?.[1].signal).toBe(controller.signal);
+	});
 });
 
 describe("generateStructuredWithModel", () => {

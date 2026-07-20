@@ -5,6 +5,7 @@ import {
 	type ExtractionStrategy,
 } from "./api";
 import type { ExtractionState } from "./extraction";
+import { compileInstructions, stripDescriptions } from "./template";
 
 type UseExtractionOptions = {
 	taskId: string | null;
@@ -94,11 +95,14 @@ export function useExtraction({
 		setSnapshot({ ...invocation, state: { status: "running" } });
 
 		try {
+			const descriptionLines = compileInstructions(schema.record);
+			const extractionSchema = { ...schema, record: stripDescriptions(schema.record) as Record<string, unknown> };
 			const { result, warnings } = await requestExtraction(
 				taskId,
-				schema,
+				extractionSchema,
 				strategy,
 				abortController.signal,
+				descriptionLines ? `Field descriptions:\n${descriptionLines}` : undefined,
 			);
 			if (
 				!isCurrentExtractionInvocation(

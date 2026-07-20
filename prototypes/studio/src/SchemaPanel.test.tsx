@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import SchemaPanel from './SchemaPanel'
 import { burialFindsPinnedSchema, pinnedSchemas } from './pinnedSchemas'
+import { templateToNodes } from './schemaNode'
+import { schemaMetadata } from './schemaState'
 
 describe('SchemaPanel pinned schemas', () => {
   it('exposes Burial Finds as the selected read-only production schema', () => {
@@ -10,7 +12,8 @@ describe('SchemaPanel pinned schemas', () => {
       createElement(SchemaPanel, {
         state: {
           status: 'ready',
-			schema: burialFindsPinnedSchema.schema,
+			schema: schemaMetadata(burialFindsPinnedSchema.schema),
+          nodes: templateToNodes(burialFindsPinnedSchema.schema.record),
           inputsKey: '',
           source: 'pinned',
           pinnedSchemaId: 'FieldReports/Burial_Finds',
@@ -20,6 +23,7 @@ describe('SchemaPanel pinned schemas', () => {
         selectedPinnedSchemaId: 'FieldReports/Burial_Finds',
         onSelectPinnedSchema: () => undefined,
         onGenerate: () => undefined,
+        onCustomize: () => undefined,
         onNodesChange: () => undefined,
         annotationCount: 0,
         annotationsMode: 'hints',

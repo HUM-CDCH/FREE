@@ -1,6 +1,6 @@
 import { isRecord } from "./template";
 import { type SchemaNode, nodesToTemplate } from "./schemaNode";
-import type { SchemaOp } from "./schemaOps";
+import { parseSchemaOps, type SchemaOp } from "./schemaOps";
 
 export const API_BASE = "/api";
 
@@ -183,6 +183,7 @@ export async function requestExtraction(
 	schema: ExtractionSchemaEnvelope,
 	strategy: ExtractionStrategy,
 	signal?: AbortSignal,
+	instructions?: string,
 ): Promise<ExtractionResponse> {
 	if (!isRecord(schema.record) || !isRecord(schema._schema_metadata)) {
 		throw new Error(
@@ -191,7 +192,7 @@ export async function requestExtraction(
 	}
 	const response = await fetch(`${API_BASE}/extract`, {
 		method: "POST",
-		body: JSON.stringify({ taskId, schema, strategy }),
+		body: JSON.stringify({ taskId, schema, strategy, ...(instructions ? { instructions } : {}) }),
 		headers: {
 			accept: "application/json",
 			"content-type": "application/json",
@@ -241,7 +242,7 @@ function decodeSchemaOps(data: unknown): SchemaOp[] {
   if (!isRecord(data) || !Array.isArray(data.ops)) {
     throw new Error("edit_schema: response missing 'ops' — API contract drift?")
   }
-  return data.ops as SchemaOp[]
+  return parseSchemaOps(data.ops)
 }
 
 export async function requestSchemaEdit(

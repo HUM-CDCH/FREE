@@ -15,7 +15,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const currentTemplate = await parseUnknownJson(currentTemplateRaw, 'current_template is not valid JSON.')
-    const ops = await editSchemaWithModel(currentTemplate, instruction.trim())
+    const ops = await editSchemaWithModel(currentTemplate, instruction.trim(), request.signal)
     return json({ ops })
   } catch (error) {
     return modelError(error)

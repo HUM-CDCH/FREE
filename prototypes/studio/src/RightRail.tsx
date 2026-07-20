@@ -3,7 +3,7 @@ import AnnotationSetTab from './AnnotationSidebar'
 import type { AnnotationSetItem } from './AnnotationSidebar'
 import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
-import type { TemplateState } from './SchemaPanel'
+import type { TemplateState } from './schemaState'
 import type { SchemaNode } from './schemaNode'
 import type { PinnedSchema } from './pinnedSchemas'
 import ResultsTab from './ResultsTab'
@@ -28,6 +28,7 @@ type RightRailProps = {
   onSelectPinnedSchema: (id: string) => void
   schemaFieldCount: number
   onGenerate: () => void
+  onCustomize: () => void
   onNodesChange: (nodes: SchemaNode[], message: string) => void
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
@@ -36,6 +37,7 @@ type RightRailProps = {
   onValueClick?: (path: string[], value: string) => void
   focusPath?: string[] | null
   onClearFocus?: () => void
+  documentMarkdown: string | null
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
@@ -65,6 +67,7 @@ function RightRail({
   onSelectPinnedSchema,
   schemaFieldCount,
   onGenerate,
+  onCustomize,
   onNodesChange,
   annotationsMode,
   onAnnotationsModeChange,
@@ -73,6 +76,7 @@ function RightRail({
   onValueClick,
   focusPath,
   onClearFocus,
+  documentMarkdown,
 }: RightRailProps) {
   if (!open) {
     return (
@@ -159,6 +163,7 @@ function RightRail({
           selectedPinnedSchemaId={selectedPinnedSchemaId}
           onSelectPinnedSchema={onSelectPinnedSchema}
           onGenerate={onGenerate}
+          onCustomize={onCustomize}
           onNodesChange={onNodesChange}
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
@@ -172,6 +177,7 @@ function RightRail({
           onValueClick={onValueClick}
           focusPath={focusPath}
           onClearFocus={onClearFocus}
+          documentMarkdown={documentMarkdown}
         />
       </div>
     </div>

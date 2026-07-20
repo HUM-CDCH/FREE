@@ -9,7 +9,7 @@ The existing template utilities (`patchTemplateField`, `addTemplateField`, `remo
 **Goals:**
 - Drag-and-drop reorder within the same nesting level; drag to nest a leaf into a group; drag a child out to root
 - Inline edit form for renaming and retyping any field
-- Chat panel that accepts a free-form change description, calls `/api/chat` (or `/api/generate_schema` with the current template as context), shows a structured diff card, lets the researcher apply or discard
+- Chat panel that accepts a free-form change description, calls `/api/edit_schema`, shows an inline structured diff, and lets the researcher apply or discard
 - Auto-scroll while dragging near the container's top/bottom edge
 - Visual drop slots (blue line between items) and "into [group]" badge
 - Empty-group placeholder
@@ -22,8 +22,8 @@ The existing template utilities (`patchTemplateField`, `addTemplateField`, `remo
 
 ## Decisions
 
-**D1: Internal node list, not path-based mutation during drag**
-Path-based helpers work well for point edits (rename, delete) but are awkward for drag-and-drop where items move across parent boundaries. The component keeps `SchemaNode[]` as local state, converts to/from the template object. Conversion is cheap (the tree is never large).
+**D1: Canonical node tree, not duplicated template state**
+The ready state owns a required `SchemaNode[]`. Recursive id-based helpers perform edits and drag moves at arbitrary depth. Display JSON and extraction records are derived from nodes only at their boundaries, while envelope metadata is stored separately so `schema.record` cannot drift from the editor tree.
 
 *Alternative:* Keep the template as source of truth and derive rendering order from it. Rejected: would require Object.keys ordering guarantees and complex insertion logic.
 
@@ -31,32 +31,28 @@ Path-based helpers work well for point edits (rename, delete) but are awkward fo
 The design prototype uses plain `mousedown / mousemove / mouseup` with a floating drag overlay. This keeps zero new dependencies. For the schema panel (typically 6–15 fields), the complexity is manageable. 
 *Alternative:* `@dnd-kit`. More robust for keyboard accessibility and touch, but adds ~40 kB and API surface. Deferred to a later iteration.
 
-**D3: Chat uses `/api/generate_schema` with existing template as a forced starting point, not a new endpoint**
-The model already understands schema generation. Sending the current template as a "seed" with instruction "modify this template according to the following request" reuses existing infrastructure. The response is a new template; the component diffs old vs. new to produce the diff card lines.
+**D3: Chat uses the dedicated `/api/edit_schema` operation endpoint**
+The browser sends the current derived template and the researcher instruction. Ollama receives a hand-rendered NuExtract structured prompt over `/api/generate` with `raw: true`; generic providers use AI SDK structured array output. Both paths return the same runtime-validated operation contract and propagate cancellation.
 
-*Alternative:* A dedicated `/api/chat` endpoint that outputs a JSON patch. Cleaner semantically but requires new backend work. Deferred.
-
-**D4: Diff card is computed on the frontend**
-After the model returns a new template, the frontend walks both old and new node lists to produce `{sign, text}` diff lines: `+` for added, `−` for removed, `~` for renamed/retyped. The researcher sees this before committing.
+**D4: Operations produce an inline tree diff**
+The frontend applies proposed operations to a copy of the node tree. Added and removed nodes are merged into a preview; patches appear as one amber `modified` node. Apply commits the copy and Discard leaves canonical nodes unchanged.
 
 **D5: Suggestion chips are static in v1**
 Three pre-defined chips ("Add a field", "Remove a field", "Change a field type") populate the chat panel and fire real model calls. Free-text input is also wired to the model. This matches the design prototype's UX without requiring NLP intent parsing.
 
 ## Risks / Trade-offs
 
-- **Schema drift**: The model's "modified template" response may add or remove unexpected fields. The diff card mitigates this by making all changes visible before apply. → Researcher always reviews before committing.
+- **Schema drift**: Model operations may add or remove unexpected fields. The inline tree preview mitigates this by showing all changes before Apply.
 - **Drag jank on slow machines**: Pure mouse events with `requestAnimationFrame` for auto-scroll could stutter on slow hardware. → Acceptable for the research prototype. Add passive event listeners and `will-change: transform` on the drag overlay.
 - **Template conversion round-trip loss**: Converting `template → nodes → template` may reorder keys if `Object.entries` order differs across engines. → Modern JS engines preserve insertion order; this is a non-issue in V8/Safari.
 - **Chat call latency**: NuExtract3 is slow (5–15 s). Researcher sees a spinner while waiting. → Show typing indicator; disable input during pending call.
 
 ## Migration Plan
 
-SchemaPanel is a self-contained component. The change is:
-1. Replace the file in-place; `SchemaPanelProps` interface stays the same.
-2. No backend changes; no API migrations.
-3. If the existing `template.ts` helpers are no longer used after the rewrite, remove them in a follow-up cleanup. They are not breaking to leave in place.
+The change adds `source: custom` and `basePinnedSchemaId` to ready-state provenance, an explicit Customize callback in `SchemaPanelProps`, and the `/api/edit_schema` model route. Pinned definitions stay immutable; Customize makes a detached ephemeral node copy while preserving the pinned extraction strategy. Document or pinned-schema selection resets that copy.
 
-## Open Questions
+## Resolved Questions
 
-- Should the chat suggestions trigger a real model call, or should they apply changes locally without AI (like the design prototype)? → Start with real model call; fall back to local for "Remove a field" (deterministic).
+- Suggestion chips trigger the real `/api/edit_schema` model call and disappear after use.
 - Should drag-to-re-nest allow nesting a group inside another group? → No for v1 (groups cannot be nested into groups; the design shows this constraint).
+- The editor exposes `verbatim-string`, `string`, `date`, `number`, `integer`, `boolean`, `object`, and `array`. Scalar-to-group creates an empty group. Manual group-to-scalar conversion confirms before dropping children; chat Apply/Discard is the operation confirmation boundary.

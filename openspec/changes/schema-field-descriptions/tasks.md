@@ -26,11 +26,16 @@
 
 ## 5. Wire descriptions into extraction
 
-- [x] 5.1 Add `instruction?: string` parameter to `requestExtraction` in `api.ts`; append it as `form.append('instruction', instruction)` when non-empty
+- [x] 5.1 Add optional `instructions` to `requestExtraction` in `api.ts`; include it in the JSON request body when non-empty
 - [x] 5.2 Strip descriptions and compile instructions internally in `useExtraction.ts` using `stripDescriptions` and `compileInstructions` from `template.ts`
 - [x] 5.3 Before passing `template` to `requestExtraction` in `useExtraction`, call `stripDescriptions(template)` to remove `_description` keys from the extraction template
-- [x] 5.4 Compile instructions in `useExtraction` with header "Field descriptions:\n..." and pass as `instruction` to `requestExtraction` (no App.tsx changes needed — handled internally)
+- [x] 5.4 Compile instructions in `useExtraction` with header "Field descriptions:\n..." and pass as `instructions` to `requestExtraction` (no App.tsx changes needed — handled internally)
 
 ## 6. Verify
 
 - [x] 6.1 Run `pnpm build` in `prototypes/studio` and confirm zero TypeScript errors
+
+## 7. Extraction-boundary verification
+
+- [x] 7.1 Derive the clean extraction record and description instructions at dispatch
+- [x] 7.2 Thread field instructions through Article and Catalog record/item/retry calls, excluding boundary detection

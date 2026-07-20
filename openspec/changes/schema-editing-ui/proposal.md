@@ -16,7 +16,7 @@ The schema panel currently supports only read-plus-delete operations. Researcher
 ### New Capabilities
 
 - `schema-drag-drop`: Drag-and-drop reorder and re-nest of schema fields within SchemaPanel, including auto-scroll and visual drop-slot indicators
-- `schema-chat-edit`: Chat panel in SchemaPanel that accepts free-form schema change requests, returns a diff card, and lets the researcher apply or discard changes
+- `schema-chat-edit`: Chat panel in SchemaPanel that accepts free-form schema change requests, returns validated operations, and lets the researcher review an inline diff before applying or discarding
 
 ### Modified Capabilities
 
@@ -25,6 +25,6 @@ The schema panel currently supports only read-plus-delete operations. Researcher
 ## Impact
 
 - `prototypes/studio/src/SchemaPanel.tsx` — substantial rewrite; adds drag state, chat state, inline edit, and a bottom chat panel
-- `prototypes/studio/src/api.ts` — may use existing `/api/chat` endpoint for schema chat; no new endpoints needed
+- `prototypes/studio/src/api.ts` and `prototypes/studio/api/edit_schema.ts` — dedicated runtime-validated schema-operation request
 - `prototypes/studio/src/template.ts` — `patchTemplateField`, `addTemplateField`, `removeTemplateField` helpers remain; may add a field-reorder helper
-- No backend changes required
+- Model-route changes are limited to the Studio serverless API; no parsing-service changes are required

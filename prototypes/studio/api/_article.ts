@@ -9,11 +9,13 @@ export async function extractArticle({
 	schema,
 	tables = [],
 	generate,
+	instructions = "",
 }: {
 	readonly document: string;
 	readonly schema: ExtractionSchemaEnvelope;
 	readonly tables?: readonly CanonicalArticleTable[];
 	readonly generate: StructuredGenerator;
+	readonly instructions?: string;
 }): Promise<{
 	readonly result: Record<string, unknown>;
 	readonly warnings: readonly string[];
@@ -22,11 +24,12 @@ export async function extractArticle({
 		document: articleDocument(document, tables),
 		schema: schema.record,
 		instructions: [
+			instructions || null,
 			"Extract one whole-document Article record matching the supplied record schema.",
 			`Metadata: ${JSON.stringify(schema._schema_metadata)}`,
 			"Canonical table_index values are document-global and 1-based; table cell row and col coordinates are 0-based. Use these locations when populating table Evidence.",
 			"Use only the canonical document and fully enumerate declared arrays. Populate every schema-declared local _evidence slot from the supplied source text, following the Evidence shape declared in the schema. Do not create undeclared evidence slots.",
-		].join("\n\n"),
+		].filter((part): part is string => part !== null).join("\n\n"),
 	});
 	const conformed = conformToSchema(generated, schema.record);
 	return {

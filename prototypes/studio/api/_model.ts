@@ -19,6 +19,7 @@ import {
 	parseUnknownJson,
 } from "./_model_output.js";
 import { extractionRenderer, resolveModel } from "./_provider.js";
+import { parseSchemaOps, SCHEMA_FIELD_TYPES, type SchemaOp } from "../src/schemaOps.js";
 
 export {
 	parseAnnotationMode,
@@ -366,21 +367,11 @@ function ollamaHeaders(): Record<string, string> {
 	return headers;
 }
 
-export type EditSchemaOp =
-  | { op: 'add'; name: string; type: string; parentName?: string }
-  | { op: 'remove'; name: string; parentName?: string }
-  | { op: 'patch'; name: string; newName?: string; type?: string; parentName?: string }
-
-const editSchemaOpSchema = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('add'), name: z.string(), type: z.string(), parentName: z.string().optional() }),
-  z.object({ op: z.literal('remove'), name: z.string(), parentName: z.string().optional() }),
-  z.object({ op: z.literal('patch'), name: z.string(), newName: z.string().optional(), type: z.string().optional(), parentName: z.string().optional() }),
-])
-
 export async function editSchemaWithModel(
   currentTemplate: unknown,
   instruction: string,
-): Promise<EditSchemaOp[]> {
+  abortSignal?: AbortSignal,
+): Promise<SchemaOp[]> {
   const schemaJson = JSON.stringify(currentTemplate, null, 2)
   const prompt = `You are a schema editing assistant for humanities researchers.
 
@@ -389,9 +380,9 @@ ${schemaJson}
 
 Researcher instruction: "${instruction}"
 
-Return ONLY a JSON array of operations. No explanation, no markdown fences, no extra text.
+Return operations matching the requested structured output. No explanation, no markdown fences, no extra text.
 Each operation must be one of:
-  {"op":"add","name":"fieldName","type":"string|number|boolean|object|array","parentName":"optionalParent"}
+  {"op":"add","name":"fieldName","type":"${SCHEMA_FIELD_TYPES.join('|')}","parentName":"optionalParent"}
   {"op":"remove","name":"fieldName","parentName":"optionalParent"}
   {"op":"patch","name":"fieldName","newName":"optionalNewName","type":"optionalNewType","parentName":"optionalParent"}
 
@@ -399,25 +390,59 @@ Rules:
 - Only change what the researcher explicitly asked for
 - Use parentName when the same field name exists at multiple nesting levels
 - Omit parentName when the field is uniquely named
-- Return [] if no changes are needed`
+- Return an empty ops collection if no changes are needed`
 
-  const result = await generateText({
-    model: resolveModel(),
-    messages: [{ role: 'user', content: prompt }],
+  if (extractionRenderer() === 'generic') {
+    const generated = await generateText({
+      model: resolveModel(),
+      output: Output.array({ element: editSchemaOpSchema, name: 'schema_operations' }),
+      instructions: prompt,
+      prompt: 'Return the schema operation array now.',
+      abortSignal,
+    })
+    return parseSchemaOps(normalizeSchemaOps(generated.output))
+  }
+  const generated = await generateWithNuExtractRawPrompt({
+    mode: 'structured',
+    template: JSON.stringify(EDIT_SCHEMA_TEMPLATE),
+    instructions: prompt,
+    documentParts: [],
+    abortSignal,
   })
-
-  const text = result.text.replace(/```(?:json)?|```/g, '').trim()
+  const text = generated.response.replace(/```(?:json)?|```/g, '').trim()
   const parsed = await parseUnknownJson(text, 'Edit schema model returned invalid JSON.')
-  if (!Array.isArray(parsed)) {
-    return []
-  }
+  return parseSchemaOps(normalizeSchemaOps(isRecordWithOps(parsed) ? parsed.ops : parsed))
+}
 
-  const ops: EditSchemaOp[] = []
-  for (const item of parsed) {
-    const validated = editSchemaOpSchema.safeParse(item)
-    if (validated.success) {
-      ops.push(validated.data)
+const editSchemaOpSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('add'), name: z.string().min(1), type: z.enum(SCHEMA_FIELD_TYPES), parentName: z.string().optional() }),
+  z.object({ op: z.literal('remove'), name: z.string().min(1), parentName: z.string().optional() }),
+  z.object({ op: z.literal('patch'), name: z.string().min(1), newName: z.string().optional(), type: z.enum(SCHEMA_FIELD_TYPES).optional(), parentName: z.string().optional() }).refine(value => value.newName !== undefined || value.type !== undefined),
+])
+
+const EDIT_SCHEMA_TEMPLATE = {
+  ops: [{ op: '', name: '', type: '', newName: '', parentName: '' }],
+}
+
+function normalizeSchemaOps(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+  return value.map((candidate) => {
+    if (typeof candidate !== 'object' || candidate === null) return candidate
+    const raw = candidate as Record<string, unknown>
+    const optional = (key: 'parentName' | 'newName') =>
+      typeof raw[key] === 'string' && raw[key].trim() ? raw[key] : undefined
+    const parentName = optional('parentName')
+    if (raw.op === 'remove') return { op: raw.op, name: raw.name, ...(parentName ? { parentName } : {}) }
+    if (raw.op === 'add') return { op: raw.op, name: raw.name, type: raw.type, ...(parentName ? { parentName } : {}) }
+    if (raw.op === 'patch') {
+      const newName = optional('newName')
+      const type = typeof raw.type === 'string' && raw.type.trim() ? raw.type : undefined
+      return { op: raw.op, name: raw.name, ...(newName ? { newName } : {}), ...(type ? { type } : {}), ...(parentName ? { parentName } : {}) }
     }
-  }
-  return ops
+    return candidate
+  })
+}
+
+function isRecordWithOps(value: unknown): value is { ops: unknown } {
+  return typeof value === 'object' && value !== null && 'ops' in value
 }

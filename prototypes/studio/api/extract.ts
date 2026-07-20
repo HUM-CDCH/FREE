@@ -28,6 +28,7 @@ export async function POST(request: Request): Promise<Response> {
 				? await extractCatalog({
 						document: document.markdown,
 						schema: input.schema,
+						instructions: input.instructions,
 						generate,
 						abortSignal,
 					})
@@ -35,6 +36,7 @@ export async function POST(request: Request): Promise<Response> {
 						document: document.markdown,
 						tables: document.tables,
 						schema: input.schema,
+						instructions: input.instructions,
 						generate,
 					});
 
@@ -74,6 +76,7 @@ function parseExtractionRequest(value: unknown): {
 	readonly taskId: string;
 	readonly schema: ExtractionSchemaEnvelope;
 	readonly strategy: "catalog" | "article";
+	readonly instructions: string;
 } {
 	if (!isRecord(value)) {
 		throw new RequestError(400, "Request body must be a JSON object.");
@@ -99,6 +102,7 @@ function parseExtractionRequest(value: unknown): {
 		taskId,
 		schema: value.schema as ExtractionSchemaEnvelope,
 		strategy: value.strategy,
+		instructions: typeof value.instructions === "string" ? value.instructions.trim() : "",
 	};
 }
 

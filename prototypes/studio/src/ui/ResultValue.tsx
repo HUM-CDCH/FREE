@@ -205,7 +205,7 @@ function ObjectSection({
             : <MissingBadge />
         )}
       </div>
-      {expanded && (
+      {expanded && !onNavigateTo && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
           {entries.length === 0 ? (
             <p className="py-1.5 text-[13px] text-ink-muted">No fields returned.</p>
@@ -250,7 +250,7 @@ function ArraySection({
           {value.length} item{value.length !== 1 ? 's' : ''}
         </span>
       </div>
-      {expanded && (
+      {expanded && !onNavigateTo && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
           {value.length === 0 ? (
             <div className="py-1"><MissingBadge /></div>

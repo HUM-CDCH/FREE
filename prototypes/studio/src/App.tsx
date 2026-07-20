@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 import pdfUrl from "../../../examples/Beretning_Ellekilde_8_13.pdf?url";
@@ -9,7 +9,7 @@ import ProjectNav from "./ProjectNav";
 import { ACTIVE_DOC } from "./ProjectNav";
 import RightRail from "./RightRail";
 import type { RailTab } from "./RightRail";
-import type { TemplateState } from "./SchemaPanel";
+import { customizePinnedSchemaState, schemaMetadata, type TemplateState } from "./schemaState";
 import type { SchemaNode } from "./schemaNode";
 import { nodesToTemplate, templateToNodes } from "./schemaNode";
 import { countTemplateFields } from "./template";
@@ -119,7 +119,7 @@ function App() {
 	const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
 	const [templateState, setTemplateState] = useState<TemplateState>({
 		status: "ready",
-		schema: defaultPinnedSchema.schema,
+		schema: schemaMetadata(defaultPinnedSchema.schema),
 		nodes: templateToNodes(defaultPinnedSchema.schema.record),
 		inputsKey: "",
 		source: "pinned",
@@ -184,7 +184,7 @@ function App() {
 		if (templateState.status !== "ready" || templateState.source !== "pinned") {
 			setTemplateState({
 				status: "ready",
-				schema: defaultPinnedSchema.schema,
+				schema: schemaMetadata(defaultPinnedSchema.schema),
 				nodes: templateToNodes(defaultPinnedSchema.schema.record),
 				inputsKey: "",
 				source: "pinned",
@@ -455,7 +455,7 @@ function App() {
 			if (!abortController.signal.aborted) {
 				setTemplateState({
 					status: "ready",
-					schema,
+					schema: schemaMetadata(schema),
 					nodes: templateToNodes(schema.record),
 					inputsKey,
 					source: "generated",
@@ -483,7 +483,6 @@ function App() {
 				? {
 						...state,
 						nodes,
-						schema: { ...state.schema, record: nodesToTemplate(nodes) },
 						edited: true,
 					}
 				: state,
@@ -497,7 +496,7 @@ function App() {
 		templateAbortRef.current?.abort();
 		setTemplateState({
 			status: "ready",
-			schema: selected.schema,
+			schema: schemaMetadata(selected.schema),
 			nodes: templateToNodes(selected.schema.record),
 			inputsKey: "",
 			source: "pinned",
@@ -505,6 +504,11 @@ function App() {
 		});
 		setExtractionStrategy(selected.strategy);
 		showToast(`Using ${selected.domain} / ${selected.name}`);
+	}
+
+	function customizePinnedSchema() {
+		setTemplateState(customizePinnedSchemaState);
+		showToast("Editable schema copy created");
 	}
 
 	function startResize(event: React.MouseEvent, side: "nav" | "rail") {
@@ -539,10 +543,14 @@ function App() {
 	};
 
 	const schemaReady = templateState.status === "ready";
-	const schemaTemplate =
-		templateState.status === "ready" ? templateState.schema.record : null;
-	const extractionSchema =
-		templateState.status === "ready" ? templateState.schema : null;
+	const schemaTemplate = useMemo(
+		() => templateState.status === "ready" ? nodesToTemplate(templateState.nodes) : null,
+		[templateState],
+	);
+	const extractionSchema = useMemo(
+		() => templateState.status === "ready" ? { ...templateState.schema, record: nodesToTemplate(templateState.nodes) } : null,
+		[templateState],
+	);
 	const selectedPinnedSchemaId =
 		templateState.status === "ready" && templateState.source === "pinned"
 			? (templateState.pinnedSchemaId ?? null)
@@ -809,6 +817,7 @@ function App() {
 						onSelectPinnedSchema={selectPinnedSchema}
 						schemaFieldCount={schemaFieldCount}
 						onGenerate={() => void generateSchema()}
+						onCustomize={customizePinnedSchema}
 						onNodesChange={changeNodes}
 						annotationsMode={annotationsMode}
 						onAnnotationsModeChange={setAnnotationsMode}
@@ -817,6 +826,7 @@ function App() {
 						onValueClick={handleValueClick}
 						focusPath={focusPath}
 						onClearFocus={() => setFocusPath(null)}
+						documentMarkdown={documentMarkdown}
 					/>
 				</aside>
 			</div>

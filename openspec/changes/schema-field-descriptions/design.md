@@ -30,7 +30,7 @@ Descriptions live in the `SchemaNode` tree (UI state only). They are not part of
 The JSON tab renders a "display template" that includes `_description` keys for group nodes that have a description. This gives researchers a single, familiar surface (JSON) to read and edit descriptions alongside the schema structure.
 
 - `nodesToTemplate(nodes)` → display version, includes `_description`
-- `nodesToTemplateForExtraction(nodes)` → extraction version, strips `_description` recursively; this is what gets passed to `/api/extract`
+- `stripDescriptions(nodesToTemplate(nodes))` → clean extraction record derived in `useExtraction`
 
 *Alternative considered*: separate UI-only editor for descriptions, JSON view stays pure. Rejected because researchers may want to bulk-edit schema + descriptions in one JSON paste.
 
@@ -44,7 +44,7 @@ Field descriptions:
 - <parent.child>: <description>
 ```
 
-This is injected into the existing `instructions` parameter of the extraction model call. No changes to the NuExtract prompt template or the backend are needed — the instructions slot already exists.
+This is sent as the optional `instructions` property of `/api/extract`. The route threads it to Article and to Catalog whole-record/item/retry generation, but deliberately excludes Catalog boundary detection. NuExtract's existing structured instructions slot renders it without changing the prompt grammar.
 
 *Alternative considered*: embedding `_description` in the template JSON sent to the model. Rejected because NuExtract would attempt to extract a `_description` field in the result.
 
@@ -67,5 +67,5 @@ Parse errors surface inline; the textarea stays open until resolved or cancelled
 ## Risks / Trade-offs
 
 - **Instructions slot length**: Very large schemas with many descriptions could produce a long instructions string. Not a concern for the current prototype scale.
-- **`nodesToTemplateForExtraction` divergence**: Two template functions must be kept in sync. Mitigated by keeping the extraction variant a thin wrapper that calls the display variant then strips `_description` keys recursively.
+- **Boundary derivation**: The display record is canonical at the UI boundary; extraction uses one recursive stripping function, avoiding a second serializer that could diverge.
 - **JSON round-trip fidelity**: Editing JSON and saving re-runs `templateToNodes`, which re-generates `id`s (uses `mkId()`). Drag state referencing old ids is reset. Acceptable trade-off for an editable JSON surface.

@@ -77,6 +77,10 @@ Drag handles, edit buttons, and remove buttons are hidden for any node with a st
 
 While `pending !== null`, a sticky action bar renders at the bottom of the chat column (outside the scroll area). The existing diff card inside the chat scroll area is removed.
 
+### 5. Shared schema-operation boundary
+
+Browser and server share the field-type enum and runtime operation validator. Ollama uses a concrete `{ "ops": [...] }` NuExtract structured template over raw `/api/generate`; generic providers use `Output.array` with the equivalent Zod schema. Invalid output fails the request rather than being filtered to an empty operation list, and abort signals flow through both providers.
+
 ## Risks / Trade-offs
 
 - **Ghost node positioning**: Reinjecting removed nodes at their original sibling index may feel off if earlier siblings were also added/removed in the same op batch. Fallback: append removed nodes at the end of their parent.

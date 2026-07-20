@@ -22,35 +22,35 @@ The chat area SHALL show up to three suggestion chips when the researcher has no
 - **WHEN** the researcher clicks a suggestion chip
 - **THEN** that chip disappears from the list for the remainder of the session
 
-### Requirement: Schema change request produces a reviewable diff card
-After the researcher sends a schema change request (typed or via chip), the system SHALL call the model, receive a modified template, diff it against the current template, and display a diff card in the chat. The diff card SHALL list each changed field with a sign (`+` added, `−` removed, `~` renamed or retyped) and the field name and new type. The card SHALL include "Apply changes" and "Discard" buttons.
+### Requirement: Schema change request produces a reviewable inline diff
+After the researcher sends an Extraction Schema change request (typed or via chip), FREE SHALL call `/api/edit_schema`, validate the returned operations, apply them to a copy, and display added, removed, and modified status inline in the schema tree. A sticky action bar SHALL include "Apply changes" and "Discard" buttons.
 
-#### Scenario: Diff card appears after model responds
-- **WHEN** the model returns a modified template in response to a schema change request
-- **THEN** a diff card appears in the chat area showing the set of changes (added, removed, or modified fields) before any changes are applied to the schema
+#### Scenario: Inline diff appears after model responds
+- **WHEN** the model returns operations that modify the Extraction Schema
+- **THEN** the schema tree shows the set of changes before any changes are applied to canonical nodes
 
-#### Scenario: Diff card lists correct change signs
-- **WHEN** the model adds a field that was not in the original template
-- **THEN** the diff card shows `+` next to that field name and type
-- **WHEN** the model removes a field that was in the original template
-- **THEN** the diff card shows `−` next to that field name
+#### Scenario: Inline diff uses correct statuses
+- **WHEN** the model adds a field that was not in the original Extraction Schema
+- **THEN** the field is shown as added in green
+- **WHEN** the model removes a field that was in the original Extraction Schema
+- **THEN** the field remains as a removed red ghost
 - **WHEN** the model renames or retypes a field
-- **THEN** the diff card shows `~` next to the old path with an arrow to the new name/type
+- **THEN** the updated field is shown as modified in amber
 
 ### Requirement: Researcher can apply or discard a proposed schema change
-The diff card SHALL include two actions: "Apply changes" and "Discard". Applying SHALL update the schema to the model's proposed template. Discarding SHALL leave the schema unchanged.
+The sticky action bar SHALL include two actions: "Apply changes" and "Discard". Applying SHALL update canonical nodes. Discarding SHALL leave them unchanged.
 
 #### Scenario: Researcher applies the proposed changes
-- **WHEN** the researcher clicks "Apply changes" on the diff card
-- **THEN** the schema panel field list updates to reflect the model's proposed template, the diff card is replaced by a confirmation message in the chat, and `onTemplateChange` is called with the new template
+- **WHEN** the researcher clicks "Apply changes" in the action bar
+- **THEN** the schema panel commits the proposed nodes, clears the inline diff, appends a confirmation message, and calls `onNodesChange`
 
 #### Scenario: Researcher discards the proposed changes
-- **WHEN** the researcher clicks "Discard" on the diff card
-- **THEN** the schema field list remains unchanged and the diff card is replaced by a "Discarded, no changes made" message in the chat
+- **WHEN** the researcher clicks "Discard" in the action bar
+- **THEN** the schema field list remains unchanged, the inline diff clears, and chat reports "Discarded, no changes made"
 
-### Requirement: Only one pending change diff card is shown at a time
-The system SHALL NOT allow the researcher to send a new chat message while a diff card is awaiting a decision.
+### Requirement: Only one pending change is shown at a time
+FREE SHALL NOT allow a new chat request while an inline diff awaits a decision.
 
-#### Scenario: Input is disabled while a diff card is pending
-- **WHEN** a diff card is visible and awaiting apply/discard
+#### Scenario: Input is disabled while an inline diff is pending
+- **WHEN** an inline diff is visible and awaiting apply/discard
 - **THEN** the text input and send button are disabled and suggestion chips are hidden

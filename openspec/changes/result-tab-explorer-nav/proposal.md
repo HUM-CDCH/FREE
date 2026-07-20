@@ -26,4 +26,4 @@ The current Review view renders the entire extraction result tree at once, causi
 
 - **`prototypes/studio/src/ResultsTab.tsx`** — `view === 'review'` section refactored to use new navigator state.
 - **`prototypes/studio/src/ResultValue.tsx`** — ObjectSection and ArraySection receive an optional `onNavigate` callback; clicking their headers fires navigation instead of local expand/collapse. PrimitiveRow is untouched.
-- No new dependencies. No backend changes. No API changes.
+- No new runtime dependencies, backend changes, or API changes; interaction coverage uses the Studio test stack.

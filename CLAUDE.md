@@ -98,9 +98,20 @@ VS Code tasks and launches should call pnpm workspace scripts from the repositor
 
 - The PDF viewer uses `pdfjs-dist`'s `PDFViewer` component with `AnnotationEditorType.HIGHLIGHT`. Only text-selection highlights are allowed; free rectangular highlights are blocked by intercepting `pointerdown` during capture phase.
 - `pdf.js` has no public event for editor add/remove. `App.tsx` monkey-patches `uiManager.addEditor` / `removeEditor` to keep the annotation sidebar in sync.
-- `api.ts` contains browser communication with Studio model routes and the parsing service. Model routes are `/api/chat`, `/api/generate_schema`, and `/api/extract`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
+- `api.ts` contains browser communication with Studio model routes and the parsing service. Model routes are `/api/chat`, `/api/generate_schema`, `/api/edit_schema`, and `/api/extract`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
 - `AnnotationSidebar` shows the current annotation set (highlighted passages + page numbers). `SchemaPanel` shows the generated schema and controls annotation mode (`hints` vs `fields`).
 - The hardcoded source document is `examples/Beretning_Ellekilde_8_13.pdf` (a Danish archaeological site report).
+
+`POST /api/edit_schema` accepts multipart fields `current_template` (the serialized
+Extraction Schema record) and `instruction` (the humanities researcher's requested
+change). It returns `{ ops: SchemaOp[] }`, where each operation is a validated
+`add`, `remove`, or `patch` using the shared field-type union. Request cancellation
+is propagated to the selected model provider.
+
+`POST /api/extract` accepts JSON `{ taskId, schema, strategy, instructions? }`.
+`instructions` is optional extraction guidance compiled from group descriptions;
+it is passed to Article and Catalog record extraction, but never to Catalog boundary
+detection.
 
 **Annotation modes** (sent to `/api/generate_schema`):
 

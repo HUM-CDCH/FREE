@@ -10,9 +10,10 @@ type ResultsTabProps = {
 	onValueClick?: (path: string[], value: string) => void;
 	focusPath?: string[] | null;
 	onClearFocus?: () => void;
+	documentMarkdown: string | null;
 };
 
-type View = "review" | "json";
+type View = "review" | "json" | "markdown";
 
 function getAtPath(value: unknown, path: string[]): unknown {
 	return path.reduce<unknown>((current, key) => {
@@ -20,6 +21,21 @@ function getAtPath(value: unknown, path: string[]): unknown {
 		if (isRecord(current)) return current[key];
 		return undefined;
 	}, value);
+}
+
+function pathsEqual(left: string[], right: string[]): boolean {
+	return left.length === right.length && left.every((segment, index) => segment === right[index]);
+}
+
+function updateAtPath(value: unknown, path: string[], replacement: string): unknown {
+	if (path.length === 0) return replacement;
+	const [head, ...rest] = path;
+	if (Array.isArray(value)) {
+		const index = Number.parseInt(head, 10);
+		return value.map((child, childIndex) => childIndex === index ? updateAtPath(child, rest, replacement) : child);
+	}
+	if (isRecord(value)) return { ...value, [head]: updateAtPath(value[head], rest, replacement) };
+	return value;
 }
 
 function summaryItem(label: string, value: string | number) {
@@ -36,13 +52,16 @@ function ResultsTab({
 	onValueClick,
 	focusPath,
 	onClearFocus,
+	documentMarkdown,
 }: ResultsTabProps) {
 	const { state } = controller;
 	const [view, setView] = useState<View>("review");
 	const [navPath, setNavPath] = useState<string[]>([]);
 	const [backStack, setBackStack] = useState<string[][]>([]);
 	const [forwardStack, setForwardStack] = useState<string[][]>([]);
-	const displayResult = state.status === "ready" ? state.result : null;
+	const rawResult = state.status === "ready" ? state.result : null;
+	const [editedResult, setEditedResult] = useState<unknown>(null);
+	const displayResult = editedResult ?? rawResult;
 	const stats = useMemo(
 		() => (displayResult ? resultStats(displayResult) : null),
 		[displayResult],
@@ -53,14 +72,28 @@ function ResultsTab({
 			setNavPath([]);
 			setBackStack([]);
 			setForwardStack([]);
+			setEditedResult(rawResult);
 		}, 0);
 		return () => window.clearTimeout(timeout);
-	}, [state]);
+	}, [state, rawResult]);
 
-	function navigateTo(path: string[]) {
+	function drillInto(path: string[]) {
 		setBackStack((previous) => [...previous, navPath]);
 		setForwardStack([]);
 		setNavPath(path);
+	}
+
+	function jumpToAncestor(path: string[]) {
+		setForwardStack((previous) => [...previous, navPath]);
+		setBackStack((previous) => {
+			const ancestorIndex = previous.findLastIndex((candidate) => pathsEqual(candidate, path));
+			return ancestorIndex >= 0 ? previous.slice(0, ancestorIndex) : previous;
+		});
+		setNavPath(path);
+	}
+
+	function changeValue(path: string[], value: string) {
+		setEditedResult((current: unknown) => updateAtPath(current, path, value));
 	}
 
 	function goBack() {
@@ -160,6 +193,7 @@ function ResultsTab({
 								options={[
 									{ value: "review", label: "Review" },
 									{ value: "json", label: "Raw JSON" },
+									{ value: "markdown", label: "Markdown" },
 								]}
 							/>
 							<div className="flex flex-wrap gap-1.5">
@@ -184,17 +218,18 @@ function ResultsTab({
 					{view === "review" ? (
 						<div className="flex min-h-0 flex-1 flex-col">
 							<div className="flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-2 py-1">
-								<button type="button" title="Back" disabled={backStack.length === 0} onClick={goBack} className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30">‹</button>
-								<button type="button" title="Forward" disabled={forwardStack.length === 0} onClick={goForward} className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30">›</button>
+								{(navPath.length > 0 || backStack.length > 0 || forwardStack.length > 0) && <button type="button" title="Back" disabled={backStack.length === 0} onClick={goBack} className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30">‹</button>}
+								{(navPath.length > 0 || backStack.length > 0 || forwardStack.length > 0) && <button type="button" title="Forward" disabled={forwardStack.length === 0} onClick={goForward} className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30">›</button>}
 								<span className="mx-1 h-3.5 w-px shrink-0 bg-line" />
+								{navPath.length === 0 ? <span className="px-1.5 py-0.5 text-[12px] font-semibold text-ink">Results</span> : <button type="button" className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-ink-muted hover:text-accent" onClick={() => jumpToAncestor([])}>Results</button>}
 								{navPath.map((segment, index) => {
 									const number = Number.parseInt(segment, 10);
 									const label = Number.isNaN(number) || String(number) !== segment ? segment : `Item ${number + 1}`;
 									return (
 										<span key={`${segment}-${index}`} className="flex items-center gap-0.5">
-											{index > 0 && <span className="text-[11px] text-ink-faint">›</span>}
+											<span className="text-[11px] text-ink-faint">›</span>
 											{index < navPath.length - 1 ? (
-												<button type="button" className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-ink-muted hover:text-accent" onClick={() => navigateTo(navPath.slice(0, index + 1))}>{label}</button>
+												<button type="button" className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-ink-muted hover:text-accent" onClick={() => jumpToAncestor(navPath.slice(0, index + 1))}>{label}</button>
 											) : (
 												<span className="px-1.5 py-0.5 text-[12px] font-semibold text-ink">{label}</span>
 											)}
@@ -210,17 +245,24 @@ function ResultsTab({
 										value={value}
 										path={[...navPath, pathKey]}
 										onValueClick={onValueClick}
-										onNavigateTo={isRecord(value) || Array.isArray(value) ? navigateTo : undefined}
+										onChange={changeValue}
+										onNavigateTo={isRecord(value) || Array.isArray(value) ? drillInto : undefined}
 										defaultExpanded={navPath.length === 0}
 										expandText={navPath.length > 0}
 									/>
 								))}
 							</div>
 						</div>
-					) : (
+					) : view === "json" ? (
 						<pre className="scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre bg-canvas px-4 py-3.5 font-mono text-[11px] leading-relaxed text-ink">
 							{JSON.stringify(displayResult, null, 2)}
 						</pre>
+					) : documentMarkdown === null ? (
+						<div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-[13px] text-ink-muted" role="status">
+							Source Markdown is unavailable for this document.
+						</div>
+					) : (
+						<pre className="scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre-wrap bg-canvas px-4 py-3.5 font-mono text-[11px] leading-relaxed text-ink">{documentMarkdown}</pre>
 					)}
 				</>
 			)}

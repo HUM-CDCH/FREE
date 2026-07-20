@@ -4,7 +4,7 @@
 
 Defines how humanities researchers attach free-text descriptions to group-level schema nodes (objects and arrays) in the Schema Panel. Descriptions are stored in the UI state, displayed and edited via an ℹ icon in the fields view and via `_description` keys in the editable JSON view, and compiled into the extraction instructions slot when running extraction — keeping the template JSON clean.
 
-## Requirements
+## ADDED Requirements
 
 ### Requirement: Group nodes carry an optional description
 

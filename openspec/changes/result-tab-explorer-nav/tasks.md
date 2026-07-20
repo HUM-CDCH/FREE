@@ -25,3 +25,10 @@
 ## 5. Styling
 
 - [x] 5.1 Use existing design tokens (`text-ink-muted`, `text-ink`, `text-accent`, `border-line`, etc.) for the breadcrumb bar; use the same Tailwind classes as the existing toolbar buttons for back/forward controls
+
+## 6. Navigator regression coverage
+
+- [x] 6.1 Render only direct descendants and always show the Results breadcrumb
+- [x] 6.2 Preserve Forward when Back returns to root
+- [x] 6.3 Restore the canonical read-only Markdown result view
+- [x] 6.4 Preserve Copy JSON and Download exports

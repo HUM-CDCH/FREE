@@ -18,3 +18,10 @@
 - [x] 3.1 Remove the pending diff card `<div>` (the "Proposed changes" block with the `ul` of lines) from the chat scroll area
 - [x] 3.2 Add a sticky action bar at the bottom of the chat column, rendered outside the scroll container, visible only when `pending !== null`; it contains the existing "Apply changes" and "Discard" buttons
 - [x] 3.3 Update `applyPending` to use `pending.newNodes` (unchanged) and update the confirmation chat message to not reference `pending.lines.length` (use a generic "changes applied" message instead)
+
+## 4. Model-boundary regression coverage
+
+- [x] 4.1 Share and runtime-validate the operation and field-type contract
+- [x] 4.2 Use raw NuExtract structured prompting for Ollama and propagate abort signals
+- [x] 4.3 Treat malformed operation output as an API error
+- [x] 4.4 Render patch operations as amber modified nodes

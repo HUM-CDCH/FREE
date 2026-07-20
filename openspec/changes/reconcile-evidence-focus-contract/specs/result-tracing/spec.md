@@ -1,10 +1,4 @@
-# Spec: Result Tracing
-
-## Purpose
-
-Defines the path-based interaction that links primitive extraction-result values to their corresponding evidence highlights in the PDF viewer without aliasing duplicate values.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Primitive result values are clickable for tracing
 
@@ -38,12 +32,3 @@ The active result path (`focusPath: string[] | null`) SHALL be owned as React st
 - **THEN** `App` stores `path` as `focusPath`
 - **AND** that path propagates to `EvidenceHighlightLayer`
 - **AND** equal values at different paths do not alias one another
-
-### Requirement: Clickable values show pointer cursor on hover
-
-Primitive value text in Review SHALL display a pointer cursor on hover to signal interactivity.
-
-#### Scenario: Hover on a primitive value
-
-- **WHEN** the researcher hovers over a non-missing primitive value in Review
-- **THEN** the cursor changes to a pointer

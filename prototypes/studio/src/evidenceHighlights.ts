@@ -16,6 +16,16 @@ export type Highlight = {
 	path: string[];
 };
 
+export function sameResultPath(left: string[], right: string[]): boolean {
+	return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+export function highlightAlpha(path: string[], focusPath: string[] | null): number {
+	if (focusPath === null) return 0.4;
+	const active = sameResultPath(path, focusPath);
+	return active ? 0.75 : 0.15;
+}
+
 function scalarText(value: unknown): string {
 	if (typeof value === "string") return value.trim();
 	if (typeof value === "number" && Number.isFinite(value)) return String(value);

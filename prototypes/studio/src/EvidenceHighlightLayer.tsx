@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
-import { buildHighlights, PALETTE, type Highlight } from "./evidenceHighlights";
+import { buildHighlights, PALETTE, sameResultPath, type Highlight } from "./evidenceHighlights";
+import { paintEvidenceEntries } from './evidencePaint'
 import { matchPdfTextItems } from "./pdfTextMatching";
 import { isRecord } from "./template";
 
@@ -142,31 +143,6 @@ type CachedEntry = {
 	pageLeft: number;
 };
 
-function pathsEqual(left: string[], right: string[]): boolean {
-	return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function drawEntry(
-	context: CanvasRenderingContext2D,
-	entry: CachedEntry,
-	focusPath: string[] | null,
-): void {
-	const active = focusPath !== null && pathsEqual(entry.highlight.path, focusPath);
-	const dimmed = focusPath !== null && !active;
-	context.save();
-	context.globalAlpha = active ? 0.75 : dimmed ? 0.15 : 0.4;
-	context.fillStyle = entry.highlight.color;
-	for (const rect of entry.rects) {
-		context.fillRect(
-			entry.pageLeft + rect.x - 1,
-			entry.pageTop + rect.y - 2,
-			rect.width + 2,
-			rect.height + 2,
-		);
-	}
-	context.restore();
-}
-
 type Props = {
 	pdfViewer: PDFViewer | null;
 	result: unknown;
@@ -263,7 +239,7 @@ export default function EvidenceHighlightLayer({
 						pageEl.clientLeft,
 				};
 				cachedEntriesRef.current.push(entry);
-				drawEntry(context, entry, focusPathRef.current);
+				paintEvidenceEntries(context, [entry], focusPathRef.current);
 			}
 			if (!cancelled) setCacheVersion((version) => version + 1);
 		}
@@ -281,7 +257,7 @@ export default function EvidenceHighlightLayer({
 		if (!canvas || entries.length === 0) return;
 		if (focusPath) {
 			const entry = entries.find((candidate) =>
-				pathsEqual(candidate.highlight.path, focusPath),
+				sameResultPath(candidate.highlight.path, focusPath),
 			);
 			const rect = entry?.rects[0];
 			if (entry && rect) {
@@ -297,7 +273,7 @@ export default function EvidenceHighlightLayer({
 		const context = canvas.getContext("2d");
 		if (!context) return;
 		context.clearRect(0, 0, canvas.width, canvas.height);
-		entries.forEach((entry) => drawEntry(context, entry, focusPath));
+		paintEvidenceEntries(context, entries, focusPath);
 	}, [focusPath, cacheVersion, containerEl]);
 
 	if (!result) return null;

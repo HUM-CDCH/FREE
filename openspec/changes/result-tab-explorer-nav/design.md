@@ -11,12 +11,12 @@ The existing `ResultValue` component already tracks every node's location via `p
 - Clicking an ObjectSection or ArraySection header navigates into that node: only its children are shown, and the rest of the tree is hidden.
 - Breadcrumb segments are clickable to jump to any ancestor.
 - Back/forward buttons traverse the navigation history.
-- At root level, the bar shows "Results" only; back/forward are hidden.
+- At a fresh root, the bar shows "Results" only and history controls are hidden; Forward remains available after history returns to root.
 
 **Non-Goals:**
 - Changing the initial (root) view appearance — it stays identical to today.
-- Changing PrimitiveRow behaviour (expand-long, inline edit, onValueClick).
-- Changing JSON or Markdown views.
+- Changing primitive display or edit semantics; the navigator passes the existing edit callback through.
+- Changing Raw JSON export semantics.
 - Any backend or API changes.
 
 ## Decisions
@@ -61,12 +61,16 @@ The review section renders `getAtPath(displayResult, navPath)` as the root objec
 A thin bar sits between the stats/tab toolbar and the content list:
 
 - Segments: `Results` (always) followed by each key in `navPath`, separated by `›`.
-- Each segment except the last is a clickable button that navigates to that ancestor (push current to `backStack`, clear `forwardStack`).
-- Back `‹` and forward `›` icon buttons flank the breadcrumb; both hidden at root (`navPath.length === 0`).
+- Each segment except the last is a clickable button that navigates to that ancestor and places the abandoned deeper path in forward history.
+- Back `‹` and forward `›` icon buttons flank the breadcrumb. They are hidden at a fresh root, while Forward remains visible after returning to root through history or a direct ancestor click.
 
 ### 5. History resets on new extraction result
 
 The existing `useEffect` that resets `editedResult` on `state` change is extended to also reset `navPath`, `backStack`, and `forwardStack` to empty arrays.
+
+### 6. Canonical Markdown view
+
+App passes the parsed document Markdown through RightRail. Markdown is a read-only local view with no model or API call. Copy JSON and Download continue to export the live edited result.
 
 ## Risks / Trade-offs
 

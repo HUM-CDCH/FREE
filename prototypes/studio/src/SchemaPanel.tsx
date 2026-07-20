@@ -1,28 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AnnotationsMode, ExtractionSchemaEnvelope } from './api'
+import type { AnnotationsMode } from './api'
 import { requestSchemaEdit } from './api'
-import { applyOps } from './schemaOps'
+import { applyOps, SCHEMA_FIELD_TYPES } from './schemaOps'
 import { countTemplateFields, isRecord } from './template'
 import { type SchemaNode, mkId, templateToNodes, nodesToTemplate } from './schemaNode'
 import type { PinnedSchema } from './pinnedSchemas'
 
-// ────────────────────────────────────────────────────────────────────────────
-// Exported types (App.tsx depends on TemplateState)
-// ────────────────────────────────────────────────────────────────────────────
-
-export type TemplateState =
-  | { status: 'idle' }
-  | { status: 'generating' }
-  | {
-      status: 'ready'
-      schema: ExtractionSchemaEnvelope
-      nodes?: SchemaNode[]
-      inputsKey: string
-      source: 'generated' | 'pinned'
-      pinnedSchemaId?: string
-      edited?: boolean
-    }
-  | { status: 'error'; message: string }
+import type { TemplateState } from './schemaState'
+export type { TemplateState } from './schemaState'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Internal types
@@ -35,6 +20,7 @@ type SchemaPanelProps = {
   selectedPinnedSchemaId: string | null
   onSelectPinnedSchema: (id: string) => void
   onGenerate: () => void
+  onCustomize: () => void
   onNodesChange: (nodes: SchemaNode[], message: string) => void
   annotationCount: number
   annotationsMode: AnnotationsMode
@@ -56,7 +42,7 @@ type FieldEditing = { id: string; name: string; type: string }
 
 type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
-type NodeDiffStatus = 'added' | 'removed'
+type NodeDiffStatus = 'added' | 'removed' | 'modified'
 
 type PendingChange = {
   newNodes: SchemaNode[]
@@ -89,19 +75,12 @@ function buildDiffPreview(
   const oldById = collectIds(oldNodes)
   const newById = collectIds(newNodes)
   const diffMap = new Map<string, NodeDiffStatus>()
-  // ghost nodes: old versions of modified nodes, shown in red above the new version
-  const ghostMap = new Map<string, SchemaNode>()
-
   for (const [id, newNode] of newById) {
     const oldNode = oldById.get(id)
     if (!oldNode) {
       diffMap.set(id, 'added')
     } else if (oldNode.name !== newNode.name || oldNode.type !== newNode.type) {
-      // split into ghost (old, red) + actual (new, green)
-      const ghostId = `${id}-ghost`
-      ghostMap.set(ghostId, { id: ghostId, name: oldNode.name, type: oldNode.type })
-      diffMap.set(ghostId, 'removed')
-      diffMap.set(id, 'added')
+      diffMap.set(id, 'modified')
     }
   }
   for (const id of oldById.keys()) {
@@ -123,9 +102,6 @@ function buildDiffPreview(
         }
         if (newIdx < newLevel.length && newLevel[newIdx].id === oldNode.id) {
           const n = newLevel[newIdx++]
-          // for modified nodes, inject old ghost immediately before the new version
-          const ghostId = `${n.id}-ghost`
-          if (ghostMap.has(ghostId)) result.push(ghostMap.get(ghostId)!)
           result.push(n.children ? { ...n, children: mergeLevel(n.children, oldNode.children ?? []) } : n)
         }
       }
@@ -160,11 +136,24 @@ function extractNode(nodes: SchemaNode[], id: string): [SchemaNode | null, Schem
 
 function insertIntoNode(nodes: SchemaNode[], targetId: string, moved: SchemaNode): SchemaNode[] {
   return nodes.map(n => {
-    if (n.id === targetId)
-      return { ...n, type: n.children !== undefined ? n.type : 'object', children: [...(n.children ?? []), moved] }
+    if (n.id === targetId) {
+      if (n.children === undefined) return n
+      return { ...n, children: [...n.children, moved] }
+    }
     if (n.children) return { ...n, children: insertIntoNode(n.children, targetId, moved) }
     return n
   })
+}
+
+function findNode(nodes: SchemaNode[], id: string): SchemaNode | undefined {
+  for (const node of nodes) {
+    if (node.id === id) return node
+    if (node.children) {
+      const found = findNode(node.children, id)
+      if (found) return found
+    }
+  }
+  return undefined
 }
 
 function insertAtSlot(nodes: SchemaNode[], parentId: string | null, index: number, moved: SchemaNode): SchemaNode[] {
@@ -267,6 +256,9 @@ function FieldEditForm({ editing, onChange, onSave, onCancel }: {
         onChange={e => onChange({ ...editing, name: e.target.value })}
         onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
       />
+      <select aria-label="Field type" className="rounded-md border border-line-strong bg-surface px-2 py-1 text-xs text-ink" value={editing.type} onChange={e => onChange({ ...editing, type: e.target.value })}>
+        {SCHEMA_FIELD_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+      </select>
       <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
       <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✗</button>
     </div>
@@ -284,6 +276,7 @@ function SchemaPanel({
   selectedPinnedSchemaId,
   onSelectPinnedSchema,
   onGenerate,
+  onCustomize,
   onNodesChange,
   annotationCount,
   annotationsMode,
@@ -302,6 +295,7 @@ function SchemaPanel({
   const [pending, setPending] = useState<PendingChange | null>(null)
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
+  const [usedSuggestionIds, setUsedSuggestionIds] = useState<string[]>([])
   const chatAbortRef = useRef<AbortController | null>(null)
   const [view, setView] = useState<'fields' | 'json'>('fields')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -326,8 +320,8 @@ function SchemaPanel({
   onNodesChangeRef.current = onNodesChange
 
   const ready = state.status === 'ready'
-  const editable = ready && state.source === 'generated'
-  const stateNodes = ready ? (state.nodes ?? templateToNodes(state.schema.record)) : []
+  const editable = ready && state.source !== 'pinned'
+  const stateNodes = ready ? state.nodes : []
   const fieldCount = ready ? countTemplateFields(nodesToTemplate(stateNodes)) : 0
   const inputsKey = state.status === 'ready' ? state.inputsKey : null
   const schemaSourceKey = state.status === 'ready'
@@ -340,10 +334,17 @@ function SchemaPanel({
 
   // sync nodes when a new schema is generated
   useEffect(() => {
+    chatAbortRef.current?.abort()
+    chatAbortRef.current = null
+    setChatLoading(false)
     if (state.status === 'ready') {
-      const nextNodes = state.nodes ?? templateToNodes(state.schema.record)
+      const nextNodes = state.nodes
       setNodes(nextNodes)
       nodesRef.current = nextNodes
+      const groupIds = new Set<string>()
+      const collectGroups = (items: SchemaNode[]) => items.forEach(node => { if (node.children) { groupIds.add(node.id); collectGroups(node.children) } })
+      collectGroups(nextNodes)
+      setExpandedIds(groupIds)
       setEditing(null)
       setPending(null)
     }
@@ -393,23 +394,19 @@ function SchemaPanel({
     }
 
     if (horizontalIntent && dx > 0) {
+      if (drag.isGroup) return
       const siblings = siblingsOf(cur, drag.parentId)
       const idx = siblings.findIndex(n => n.id === drag.id)
       if (idx > 0) {
         // Normal indent: move into previous sibling, insert near drop point
         const prevSibling = siblings[idx - 1]
+        if (prevSibling.children === undefined) return
         const [moved, without] = extractNode(cur, drag.id)
         if (!moved) return
         const insertIdx = (target?.type === 'slot' && target.parentId === prevSibling.id)
           ? target.index
-          : (prevSibling.children ?? []).length
+          : prevSibling.children.length
         apply(insertAtSlot(without, prevSibling.id, insertIdx, moved))
-      } else if (drag.parentId === null && idx === 0) {
-        // Ungroup: node stays at front as leaf, children follow
-        const node = cur[0]
-        if (!node.children?.length) return
-        const leaf: SchemaNode = { id: node.id, name: node.name, type: 'verbatim-string' }
-        apply([leaf, ...node.children, ...cur.slice(1)])
       }
       return
     }
@@ -438,6 +435,7 @@ function SchemaPanel({
 
     if (target.type === 'group') {
       if (drag.isGroup) return
+      if (findNode(cur, target.id)?.children === undefined) return
       const [moved, root] = extractNode(cur, drag.id)
       if (!moved) return
       const finalNodes = insertIntoNode(root, target.id, moved)
@@ -511,9 +509,9 @@ function SchemaPanel({
   }
 
   // Task 3.1 – group hover targets
-  function setGroupTarget(id: string, name: string) {
+  function setGroupTarget(id: string, name: string, isGroup: boolean) {
     const drag = draggingRef.current
-    if (!drag || drag.isGroup || drag.id === id || drag.parentId === id) return
+    if (!isGroup || !drag || drag.isGroup || drag.id === id || drag.parentId === id) return
     const t: DropTarget = { type: 'group', id, name }
     overTargetRef.current = t
     setOverTarget(t)
@@ -532,22 +530,24 @@ function SchemaPanel({
   function saveEdit() {
     if (!editing) return
     const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_') || 'field'
-    const newNodes = nodesRef.current.map(n => {
+    const update = (items: SchemaNode[]): SchemaNode[] => items.map(n => {
       if (n.id === editing.id) {
         // Task 5.2 – convert type/children
         const out: SchemaNode = { ...n, name, type: editing.type }
         if (editing.type === 'object' || editing.type === 'array') {
           if (!out.children) out.children = []
+        } else if (out.children?.length && !window.confirm(`Changing ${n.name} to ${editing.type} removes ${out.children.length} nested field(s). Continue?`)) {
+          return n
         } else {
           delete out.children
+          delete out.description
         }
         return out
       }
-      if (n.children) {
-        return { ...n, children: n.children.map(c => (c.id === editing.id ? { ...c, name, type: editing.type } : c)) }
-      }
+      if (n.children) return { ...n, children: update(n.children) }
       return n
     })
+    const newNodes = update(nodesRef.current)
     nodesRef.current = newNodes
     setNodes(newNodes)
     onNodesChange(newNodes, '✎ Schema updated')
@@ -604,11 +604,11 @@ function SchemaPanel({
     setEditing({ id, name, type: 'verbatim-string' })
   }
 
-  // const SUGGESTIONS = [
-  //   { id: 's1', label: 'Add a field', prompt: 'Add one new relevant field to this schema.' },
-  //   { id: 's2', label: 'Remove a field', prompt: 'Remove the least important field from this schema.' },
-  //   { id: 's3', label: 'Change a field type', prompt: 'Find a field whose type seems wrong and correct it.' },
-  // ]
+  const SUGGESTIONS = [
+    { id: 's1', label: 'Add a field', prompt: 'Add one new relevant field to this schema.' },
+    { id: 's2', label: 'Remove a field', prompt: 'Remove the least important field from this schema.' },
+    { id: 's3', label: 'Change a field type', prompt: 'Find a field whose type seems wrong and correct it.' },
+  ] as const
 
 
   // ── Tasks 6–8: chat ──
@@ -620,25 +620,30 @@ function SchemaPanel({
     setChatLoading(true)
     const controller = new AbortController()
     chatAbortRef.current = controller
+    const requestNodes = nodesRef.current
 
     try {
-      const ops = await requestSchemaEdit(nodesRef.current, userMsg, controller.signal)
-      const newNodes = applyOps(nodesRef.current, ops)
-      const { displayNodes, diffMap } = buildDiffPreview(nodesRef.current, newNodes)
+      const ops = await requestSchemaEdit(requestNodes, userMsg, controller.signal)
+      if (controller.signal.aborted || chatAbortRef.current !== controller || nodesRef.current !== requestNodes) return
+      const newNodes = applyOps(requestNodes, ops)
+      const { displayNodes, diffMap } = buildDiffPreview(requestNodes, newNodes)
       if (diffMap.size === 0) {
         setChat(c => [...c, { role: 'assistant', text: 'No changes needed — the schema already matches your request.' }])
       } else {
         setPending({ newNodes, displayNodes, diffMap })
       }
     } catch (err) {
+      if (chatAbortRef.current !== controller) return
       if (err instanceof Error && err.name === 'AbortError') {
         setChat(c => [...c, { role: 'assistant', text: 'Cancelled.' }])
       } else {
         setChat(c => [...c, { role: 'assistant', text: `Error: ${err instanceof Error ? err.message : 'Request failed'}` }])
       }
     } finally {
-      chatAbortRef.current = null
-      setChatLoading(false)
+      if (chatAbortRef.current === controller) {
+        chatAbortRef.current = null
+        setChatLoading(false)
+      }
     }
   }
 
@@ -662,10 +667,10 @@ function SchemaPanel({
     setPending(null)
   }
 
-  // function pickSuggestion(s: (typeof SUGGESTIONS)[number]) {
-  //   setUsedSuggs(u => [...u, s.id])
-  //   void sendChatMessage(s.prompt)
-  // }
+  function pickSuggestion(s: (typeof SUGGESTIONS)[number]) {
+    setUsedSuggestionIds(ids => [...ids, s.id])
+    void sendChatMessage(s.prompt)
+  }
 
   // ── style helpers ──
   function slotCls(parentId: string | null, index: number) {
@@ -698,7 +703,7 @@ function SchemaPanel({
   // Task 8.4 – disable chat input while pending
   const chatBlocked = !!pending || chatLoading
 
-  // const activeSuggs = SUGGESTIONS.filter(s => !usedSuggs.includes(s.id))
+  const activeSuggs = SUGGESTIONS.filter(s => !usedSuggestionIds.includes(s.id))
 
   const tabCls = (active: boolean) =>
     `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
@@ -712,10 +717,11 @@ function SchemaPanel({
     const isDragging = dragging?.id === node.id
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === node.id
     const isEditing = editing?.id === node.id
+    const isExpanded = expandedIds.has(node.id) || intoGroup
     const diffStatus = pending?.diffMap.get(node.id) ?? null
     const isDiff = diffStatus !== null
-    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : ''
-    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : 'text-ink'
+    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-stale-soft' : ''
+    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : diffStatus === 'modified' ? 'text-stale-ink' : 'text-ink'
 
     return (
       <div key={node.id}>
@@ -727,7 +733,7 @@ function SchemaPanel({
         ) : (
           <div
             className={`${rowCls(node.id, intoGroup, isDragging)} ${diffBg}`}
-            onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name)}
+            onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name, isGroup)}
             onMouseLeave={() => !isDiff && clearGroupTarget(node.id)}
           >
             {editable && !isDiff && (
@@ -739,6 +745,7 @@ function SchemaPanel({
               </span>
             )}
             <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${diffText}`}>{node.name}</span>
+            {isGroup && !isDiff && <button type="button" aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${node.name}`} className="shrink-0 text-ink-faint hover:text-accent" onClick={() => setExpandedIds(ids => { const next = new Set(ids); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next })}>▸</button>}
             {intoGroup && !isDiff && (
               <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
                 into {node.name}
@@ -794,9 +801,10 @@ function SchemaPanel({
         )}
 
         {/* Nested children area — shown when there are children or dragging (for drop slot) */}
-        {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (
+        {isGroup && isExpanded && ((node.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
             {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j))}
+            {(node.children ?? []).length === 0 && dragging && <p className="rounded border border-dashed border-line-strong px-2 py-1 text-center text-[11px] text-ink-faint">drag a field in here</p>}
             <div
               className={slotCls(node.id, (node.children ?? []).length)}
               onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)}
@@ -815,8 +823,8 @@ function SchemaPanel({
     const isExpanded = expandedIds.has(child.id) || intoGroup
     const diffStatus = pending?.diffMap.get(child.id) ?? null
     const isDiff = diffStatus !== null
-    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : ''
-    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : 'text-ink'
+    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-stale-soft' : ''
+    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : diffStatus === 'modified' ? 'text-stale-ink' : 'text-ink'
 
     const toggleExpand = (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -831,7 +839,7 @@ function SchemaPanel({
     return (
       <div
         key={child.id}
-        onMouseEnter={() => !isDiff && setGroupTarget(child.id, child.name)}
+        onMouseEnter={() => !isDiff && setGroupTarget(child.id, child.name, isGroup)}
         onMouseLeave={() => !isDiff && clearGroupTarget(child.id)}
       >
         <div className={slotCls(parentId, j)} onMouseEnter={e => { e.stopPropagation(); setSlotTarget(parentId, j) }} />
@@ -918,6 +926,7 @@ function SchemaPanel({
         {isGroup && isExpanded && ((child.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
             {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k))}
+            {(child.children ?? []).length === 0 && dragging && <p className="rounded border border-dashed border-line-strong px-2 py-1 text-center text-[11px] text-ink-faint">drag a field in here</p>}
             <div
               className={slotCls(child.id, (child.children ?? []).length)}
               onMouseEnter={() => setSlotTarget(child.id, (child.children ?? []).length)}
@@ -1058,6 +1067,7 @@ function SchemaPanel({
 
         {ready && view === 'fields' && (
           <>
+            {state.source === 'pinned' && <button className="mb-3 w-full rounded-md border border-accent bg-accent-soft px-3 py-2 text-xs font-semibold text-accent" type="button" onClick={onCustomize}>Customize this schema</button>}
             {editable && selectedIds.size > 0 && (
               <div className="mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5">
                 <span className="text-[12px] font-semibold text-danger">
@@ -1139,7 +1149,7 @@ function SchemaPanel({
           )}
 
           {/* Task 6.3 – suggestion chips (hidden while pending / loading) */}
-          {/* {activeSuggs.length > 0 && !chatBlocked && (
+          {activeSuggs.length > 0 && !chatBlocked && (
             <div className="flex shrink-0 flex-wrap gap-1.5 px-3.5 pb-1.5 pt-1">
               {activeSuggs.map(s => (
                 <button
@@ -1152,7 +1162,7 @@ function SchemaPanel({
                 </button>
               ))}
             </div>
-          )} */}
+          )}
 
           {/* Task 6.4 – text input */}
           <div className="shrink-0 px-3.5 pb-3 pt-1.5">

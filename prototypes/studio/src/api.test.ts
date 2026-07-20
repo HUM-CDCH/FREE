@@ -186,6 +186,7 @@ describe("ResultsTab", () => {
 			createElement(ResultsTab, {
 				controller: readyController(["boundary_fallback"]),
 				schemaReady: true,
+				documentMarkdown: null,
 			}),
 		);
 
@@ -194,7 +195,7 @@ describe("ResultsTab", () => {
 		expect(html).toContain("Report");
 		expect(html).toContain("Download");
 		expect(html).toContain("Copy JSON");
-		expect(html).not.toContain("Markdown");
+		expect(html).toContain("Markdown");
 	});
 
 	it("does not render an empty warning placeholder", () => {
@@ -202,6 +203,7 @@ describe("ResultsTab", () => {
 			createElement(ResultsTab, {
 				controller: readyController(),
 				schemaReady: true,
+				documentMarkdown: null,
 			}),
 		);
 

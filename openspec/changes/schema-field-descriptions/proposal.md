@@ -25,4 +25,4 @@ Humanities researchers need to annotate group-level schema fields with descripti
 
 - `prototypes/studio/src/SchemaPanel.tsx`: `SchemaNode` type, `templateToNodes`, `nodesToTemplate`, `renderRootField`, JSON tab render
 - `prototypes/studio/src/api.ts` or wherever `nodesToTemplate` output is passed to `/api/extract`: strip `_description` keys before dispatch
-- No backend changes required
+- `/api/extract` accepts an optional instruction block and threads it through extraction generation; the parsing service is unchanged

@@ -186,11 +186,13 @@ export async function extractCatalog({
 	schema,
 	generate,
 	abortSignal,
+	instructions = "",
 }: {
 	readonly document: string;
 	readonly schema: ExtractionSchemaEnvelope;
 	readonly generate: StructuredGenerator;
 	readonly abortSignal?: AbortSignal;
+	readonly instructions?: string;
 }): Promise<CatalogExtraction> {
 	const selected = inferPrimaryRepeatedArray(
 		schema.record,
@@ -200,7 +202,7 @@ export async function extractCatalog({
 		const generated = await generate({
 			document,
 			schema: schema.record,
-			instructions: wholeRecordInstructions(schema._schema_metadata),
+			instructions: joinInstructions(instructions, wholeRecordInstructions(schema._schema_metadata)),
 		});
 		return {
 			result: asRecord(conformToSchema(generated, schema.record)),
@@ -226,7 +228,7 @@ export async function extractCatalog({
 			const generated = await generate({
 				document: section.text,
 				schema: selected.itemSchema,
-				instructions: itemInstructions(schema._schema_metadata, false),
+				instructions: joinInstructions(instructions, itemInstructions(schema._schema_metadata, false)),
 			});
 			items.push(asRecord(conformToSchema(generated, selected.itemSchema)));
 		} catch {
@@ -248,7 +250,7 @@ export async function extractCatalog({
 			const generated = await generate({
 				document: section.text,
 				schema: selected.itemSchema,
-				instructions: itemInstructions(schema._schema_metadata, true),
+				instructions: joinInstructions(instructions, itemInstructions(schema._schema_metadata, true)),
 			});
 			items[index] = asRecord(conformToSchema(generated, selected.itemSchema));
 		} catch {
@@ -266,6 +268,10 @@ export async function extractCatalog({
 		result: mergeCatalogOutputs(items, schema, selected.key),
 		warnings: usedFallback ? ["boundary_fallback"] : [],
 	};
+}
+
+function joinInstructions(extra: string, base: string): string {
+	return [extra, base].filter(Boolean).join("\n\n");
 }
 
 /**

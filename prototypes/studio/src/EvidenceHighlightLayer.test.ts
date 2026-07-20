@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildHighlights } from "./evidenceHighlights";
+import { buildHighlights, highlightAlpha } from "./evidenceHighlights";
+import { paintEvidenceEntries } from './evidencePaint'
 
 describe("buildHighlights", () => {
 	it("uses embedded Evidence and falls back to direct searches for ungrounded leaves", () => {
@@ -116,5 +117,22 @@ describe("buildHighlights", () => {
 			{ value: "7", snippet: "seven", hintPage: null, color: "yellow", path: ["count"] },
 			{ value: "true", snippet: "verified", hintPage: null, color: "blue", path: ["verified"] },
 		]);
+	});
+});
+
+describe("evidence focus", () => {
+	it("selects duplicate values by path, clears focus, and marks one path active", () => {
+		const paths = [["records", "0", "id"], ["records", "1", "id"]];
+		expect(paths.map((path) => highlightAlpha(path, paths[1]))).toEqual([0.15, 0.75]);
+		expect(paths.map((path) => highlightAlpha(path, null))).toEqual([0.4, 0.4]);
+		expect(paths.filter((path) => highlightAlpha(path, paths[1]) === 0.75)).toHaveLength(1);
+	});
+
+	it('paints each cached rectangle once per repaint with one active fill', () => {
+		const fills: number[] = []
+		const context = { globalAlpha: 0, fillStyle: '', save: () => undefined, restore: () => undefined, fillRect: () => fills.push(context.globalAlpha) }
+		const entry = (path: string[]) => ({ highlight: { value: 'duplicate', snippet: null, hintPage: null, color: 'yellow', path }, rects: [{ x: 0, y: 0, width: 10, height: 4 }], pageTop: 0, pageLeft: 0 })
+		paintEvidenceEntries(context, [entry(['records', '0']), entry(['records', '1'])], ['records', '1'])
+		expect(fills).toEqual([0.15, 0.75])
 	});
 });
