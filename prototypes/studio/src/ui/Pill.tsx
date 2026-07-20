@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from 'react'
 
-type Tone = 'neutral' | 'accent' | 'evidence' | 'success' | 'stale'
+type Tone = 'neutral' | 'accent' | 'evidence' | 'success' | 'stale' | 'danger'
 
 export type PillProps = HTMLAttributes<HTMLSpanElement> & {
   tone?: Tone
@@ -14,6 +14,7 @@ const tones: Record<Tone, string> = {
   evidence: 'bg-ev-soft text-ev',
   success: 'bg-green-soft text-green',
   stale: 'bg-stale-soft text-stale-ink',
+  danger: 'bg-danger/10 text-danger',
 }
 
 const outlines: Record<Tone, string> = {
@@ -22,6 +23,7 @@ const outlines: Record<Tone, string> = {
   evidence: 'border border-ev',
   success: 'border border-green',
   stale: 'border border-stale',
+  danger: 'border border-danger/40',
 }
 
 function Pill({ tone = 'neutral', outline = false, className = '', ...props }: PillProps) {
