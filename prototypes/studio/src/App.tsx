@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
-import pdfUrl from '../../../examples/Beretning_Ellekilde_8_13.pdf?url'
+import pdfUrl from './assets/Beretning_Ellekilde_8_13.pdf?url'
+import cachedMarkdown from './assets/document.md?raw'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import type { AnnotationSetItem } from './AnnotationSidebar'
@@ -10,6 +11,8 @@ import { ACTIVE_DOC } from './ProjectNav'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
+import type { SchemaNode } from './schemaNode'
+import { templateToNodes, nodesToTemplate } from './schemaNode'
 import { countTemplateFields } from './template'
 import { requestSchema, parseDocumentToMarkdown } from './api'
 import type { AnnotationsMode } from './api'
@@ -102,6 +105,7 @@ function App() {
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
   const [activePdfViewer, setActivePdfViewer] = useState<PDFViewer | null>(null)
+  const [focusPath, setFocusPath] = useState<string[] | null>(null)
   const [pdfSource, setPdfSource] = useState<{ url: string; filename: string } | null>({
     url: pdfUrl,
     filename: ACTIVE_DOC,
@@ -298,10 +302,21 @@ function App() {
     const abortController = new AbortController()
 
     void (async () => {
+      if (pdfSource.filename === ACTIVE_DOC) {
+        setDocIndex({ status: 'ready', markdown: cachedMarkdown })
+        return
+      }
+
       setDocIndex({ status: 'parsing' })
       try {
-        const blob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
-        const markdown = await parseDocumentToMarkdown(blob, pdfSource.filename, abortController.signal)
+        const devTaskId = import.meta.env.VITE_DEV_TASK_ID as string | undefined
+        const markdown = devTaskId
+          ? await fetch(`${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`).then(r => r.text())
+          : await parseDocumentToMarkdown(
+              await (await fetch(pdfSource.url, { signal: abortController.signal })).blob(),
+              pdfSource.filename,
+              abortController.signal,
+            )
         if (!abortController.signal.aborted) {
           setDocIndex({ status: 'ready', markdown })
         }
@@ -372,7 +387,7 @@ function App() {
         markdown: documentMarkdown,
       })
       if (!abortController.signal.aborted) {
-        setTemplateState({ status: 'ready', template, inputsKey })
+        setTemplateState({ status: 'ready', nodes: templateToNodes(template), inputsKey })
       }
     } catch (error) {
       if (abortController.signal.aborted) {
@@ -385,9 +400,13 @@ function App() {
     }
   }
 
-  function changeTemplate(template: unknown, message: string) {
+  function handleValueClick(path: string[], _value: string) {
+    setFocusPath(path)
+  }
+
+  function changeNodes(nodes: SchemaNode[], message: string) {
     setTemplateState((state) =>
-      state.status === 'ready' ? { ...state, template, edited: true } : state,
+      state.status === 'ready' ? { ...state, nodes, edited: true } : state,
     )
     showToast(message)
   }
@@ -421,10 +440,10 @@ function App() {
   }
 
   const schemaReady = templateState.status === 'ready'
-  const schemaTemplate = templateState.status === 'ready' ? templateState.template : null
+  const schemaTemplate = templateState.status === 'ready' ? nodesToTemplate(templateState.nodes) : null
 
   const schemaFieldCount =
-    templateState.status === 'ready' ? countTemplateFields(templateState.template) : 0
+    templateState.status === 'ready' ? countTemplateFields(schemaTemplate) : 0
 
   const schemaStale =
     templateState.status === 'ready' &&
@@ -448,6 +467,7 @@ function App() {
     indexing,
     onComplete: (isRerun) => {
       setRailTab('results')
+      setFocusPath(null)
       showToast(
         isRerun
           ? '↻ Re-run complete — view the JSON in the Results tab'
@@ -572,8 +592,9 @@ function App() {
               pdfViewer={activePdfViewer}
               result={extraction.state.status === 'ready' ? extraction.state.result : null}
               evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
+              schemaTemplate={schemaTemplate}
               containerEl={containerEl}
-              schema={templateState.status === 'ready' ? templateState.template : null}
+              focusPath={focusPath}
             />
           </div>
           {extraction.state.status === 'running' && (
@@ -641,12 +662,15 @@ function App() {
             schemaReady={schemaReady}
             schemaFieldCount={schemaFieldCount}
             onGenerate={() => void generateSchema()}
-            onTemplateChange={changeTemplate}
+            onNodesChange={changeNodes}
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
             pdfSource={pdfSource}
             documentMarkdown={documentMarkdown}
+            onValueClick={handleValueClick}
+            focusPath={focusPath}
+            onClearFocus={() => setFocusPath(null)}
           />
         </aside>
       </div>

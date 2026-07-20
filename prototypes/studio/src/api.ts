@@ -1,4 +1,6 @@
 import { isRecord } from './template'
+import { type SchemaNode, nodesToTemplate } from './schemaNode'
+import type { SchemaOp } from './schemaOps'
 
 export const API_BASE = '/api'
 
@@ -154,6 +156,7 @@ export async function requestExtraction(
   template: unknown,
   signal?: AbortSignal,
   markdown?: string | null,
+  instruction?: string,
 ): Promise<{ result: unknown; evidence: unknown }> {
   const form = new FormData()
   form.append('template', JSON.stringify(template ?? {}))
@@ -162,7 +165,41 @@ export async function requestExtraction(
   } else {
     form.append('file', file, fileName)
   }
+  if (instruction) form.append('instruction', instruction)
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
   return { result: done.result, evidence: done.evidence }
+}
+
+// export async function requestMarkdown(
+//   file: Blob,
+//   fileName: string,
+//   signal?: AbortSignal,
+//   markdown?: string | null,
+// ): Promise<MarkdownDone> {
+//   const form = new FormData()
+//   form.append('file', file, fileName)
+//   if (markdown) {
+//     form.append('document_markdown', markdown)
+//   }
+
+//   return postForm('/markdown', form, decodeMarkdownDone, signal)
+// }
+
+function decodeSchemaOps(data: unknown): SchemaOp[] {
+  if (!isRecord(data) || !Array.isArray(data.ops)) {
+    throw new Error("edit_schema: response missing 'ops' — API contract drift?")
+  }
+  return data.ops as SchemaOp[]
+}
+
+export async function requestSchemaEdit(
+  nodes: SchemaNode[],
+  instruction: string,
+  signal?: AbortSignal,
+): Promise<SchemaOp[]> {
+  const form = new FormData()
+  form.append('current_template', JSON.stringify(nodesToTemplate(nodes)))
+  form.append('instruction', instruction)
+  return postForm('/edit_schema', form, decodeSchemaOps, signal)
 }

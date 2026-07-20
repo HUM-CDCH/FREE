@@ -1,18 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import { buildHighlights, PALETTE } from './evidenceHighlights'
+import type { Highlight } from './evidenceHighlights'
 import { isRecord } from './template'
-
-function buildTopLevelColorMap(schema: unknown): Record<string, string> {
-  if (!isRecord(schema)) return {}
-  const map: Record<string, string> = {}
-  let i = 0
-  for (const key of Object.keys(schema)) {
-    map[key] = PALETTE[i % PALETTE.length]
-    i++
-  }
-  return map
-}
 
 // ── text-layer helpers ────────────────────────────────────────────────────────
 
@@ -164,24 +154,65 @@ async function findValueRects(
 
 // ── component ─────────────────────────────────────────────────────────────────
 
+type CachedEntry = {
+  highlight: Highlight
+  pageNumber: number
+  rects: DOMRect[]
+  pageTop: number
+  pageLeft: number
+}
+
+function pathsEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i])
+}
+
 type Props = {
   pdfViewer: PDFViewer | null
   result: unknown
   evidence: unknown
+  schemaTemplate: unknown
   containerEl: HTMLDivElement | null
-  schema: unknown
+  focusPath: string[] | null
 }
 
-export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, containerEl, schema }: Props) {
+export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, schemaTemplate, containerEl, focusPath }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const schemaTemplateRef = useRef(schemaTemplate)
+  schemaTemplateRef.current = schemaTemplate
+  const focusPathRef = useRef<string[] | null>(null)
+  focusPathRef.current = focusPath
+  const cachedEntriesRef = useRef<CachedEntry[]>([])
+  const [scale, setScale] = useState(1)
+  const [containerVersion, setContainerVersion] = useState(0)
+  const [cacheVersion, setCacheVersion] = useState(0)
 
+  // Re-render highlights when PDF zoom level changes.
+  useEffect(() => {
+    if (!pdfViewer) return
+    function onScaleChange() { setScale(pdfViewer!.currentScale) }
+    pdfViewer.eventBus.on('scalechanging', onScaleChange)
+    return () => { pdfViewer.eventBus.off('scalechanging', onScaleChange) }
+  }, [pdfViewer])
+
+  // Re-render highlights when the container is resized (e.g. window resize).
+  useEffect(() => {
+    if (!containerEl) return
+    const observer = new ResizeObserver(() => { setContainerVersion((v: number) => v + 1) })
+    observer.observe(containerEl)
+    return () => { observer.disconnect() }
+  }, [containerEl])
+
+  // Main effect: search PDF for each highlight, build position cache, draw progressively.
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
-    const colorMap = buildTopLevelColorMap(schema)
-    const highlights = buildHighlights(result, evidence, colorMap)
+    const schemaKeys = isRecord(schemaTemplateRef.current) ? Object.keys(schemaTemplateRef.current) : []
+    const fieldColorMap: Record<string, string> = {}
+    schemaKeys.forEach((k, i) => { fieldColorMap[k] = PALETTE[i % PALETTE.length] })
+    const highlights = buildHighlights(result, evidence, fieldColorMap)
     if (highlights.length === 0) return
 
+    cachedEntriesRef.current = []
     let cancelled = false
 
     async function render() {
@@ -213,17 +244,63 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, co
         const pageTop = pageRect.top - containerRect.top + containerEl.scrollTop + pageEl.clientTop
         const pageLeft = pageRect.left - containerRect.left + containerEl.scrollLeft + pageEl.clientLeft
 
-        for (const rect of found.rects) {
-          if (cancelled) return
-          ctx.fillStyle = h.color
-          ctx.fillRect(pageLeft + rect.x, pageTop + rect.y, rect.width, rect.height)
+        if (!cancelled) {
+          cachedEntriesRef.current.push({ highlight: h, pageNumber: found.pageNumber, rects: found.rects, pageTop, pageLeft })
         }
+        if (cancelled) return
+
+        const activeFv = focusPathRef.current
+        const isActive = activeFv !== null && pathsEqual(h.path, activeFv)
+        const dimmed = activeFv !== null && !isActive
+
+        ctx.save()
+        ctx.globalAlpha = isActive ? 0.75 : dimmed ? 0.15 : 0.4
+        ctx.fillStyle = h.color
+        for (const rect of found.rects) {
+          ctx.fillRect(pageLeft + rect.x - 1, pageTop + rect.y - 2, rect.width + 2, rect.height + 2)
+        }
+        ctx.restore()
       }
+
+      if (!cancelled) setCacheVersion((v: number) => v + 1)
     }
 
     void render()
     return () => { cancelled = true }
-  }, [pdfViewer, result, evidence, containerEl, schema])
+  }, [pdfViewer, result, evidence, containerEl, scale, containerVersion])
+
+  // Focus effect: scroll to active value and redraw from cache (no PDF search).
+  useEffect(() => {
+    if (!containerEl) return
+    const entries = cachedEntriesRef.current
+    const canvas = canvasRef.current
+    if (!canvas || entries.length === 0) return
+
+    if (focusPath) {
+      const entry = entries.find(e => pathsEqual(e.highlight.path, focusPath))
+      if (entry?.rects[0]) {
+        containerEl.scrollTo({
+          top: Math.max(0, entry.pageTop + entry.rects[0].y - containerEl.clientHeight / 2 + entry.rects[0].height / 2),
+          behavior: 'smooth',
+        })
+      }
+    }
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    for (const entry of entries) {
+      const isActive = focusPath !== null && pathsEqual(entry.highlight.path, focusPath)
+      const dimmed = focusPath !== null && !isActive
+      ctx.save()
+      ctx.globalAlpha = isActive ? 0.75 : dimmed ? 0.15 : 0.4
+      ctx.fillStyle = entry.highlight.color
+      for (const rect of entry.rects) {
+        ctx.fillRect(entry.pageLeft + rect.x - 1, entry.pageTop + rect.y - 2, rect.width + 2, rect.height + 2)
+      }
+      ctx.restore()
+    }
+  }, [focusPath, cacheVersion, containerEl])
 
   if (!result) return null
 

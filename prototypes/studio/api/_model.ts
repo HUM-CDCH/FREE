@@ -5,7 +5,8 @@ import {
   generateText,
   streamText,
 } from 'ai'
-import type { UIMessage } from 'ai'
+import type { LanguageModel, UIMessage } from 'ai'
+import { createOllama, ollama } from 'ai-sdk-ollama'
 import { z } from 'zod'
 import type { Annotation, AnnotationMode, DocumentInput } from './_document.js'
 import { documentFileParts, type DocumentFilePart } from './_pdf.js'
@@ -28,6 +29,9 @@ const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 // ponytail: thinking mode (temp 0.6, <think> left open) isn't wired up — add an
 // enable_thinking path in renderNuExtractPrompt if difficult layouts need it.
 const NON_THINKING_TEMPERATURE = 0.2
+
+const EVIDENCE_FIELD_INSTRUCTION =
+  'For every evidence field in the template, set "snippet" to a short verbatim excerpt from the document that contains the value, and set "page" to the 1-based index of the page or image where the value appears. Never leave "snippet" or "page" as null.'
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -67,10 +71,28 @@ async function documentContentParts(document: DocumentInput): Promise<{
   return { parts: fileParts.parts, pages: fileParts.pages }
 }
 
+// Separate from resolveModel() (in _provider.ts) so AI_MODEL can stay pointed at NuExtract while
+// chat and schema-edit use an instruction-following LLM.
+function chatModel(): LanguageModel {
+  const modelId = process.env.AI_CHAT_MODEL || DEFAULT_MODEL
+  const baseURL = process.env.AI_BASE_URL
+  const apiKey = process.env.AI_API_KEY
+
+  if (baseURL) {
+    return createOllama({ baseURL, apiKey })(modelId)
+  }
+
+  if (apiKey) {
+    return createOllama({ apiKey })(modelId)
+  }
+
+  return ollama(modelId)
+}
+
 export async function streamChatWithModel(messages: readonly UIMessage[]): Promise<Response> {
   const result = streamText({
-    model: resolveModel(),
-    instructions:
+    model: chatModel(),
+    system:
       'You help humanities researchers inspect source documents in FREE. If no source document content is attached, say that no document context is available before answering normally.',
     messages: await convertToModelMessages([...messages]),
   })
@@ -314,4 +336,60 @@ function ollamaHeaders(): Record<string, string> {
     headers.authorization = `Bearer ${process.env.AI_API_KEY}`
   }
   return headers
+}
+
+export type EditSchemaOp =
+  | { op: 'add'; name: string; type: string; parentName?: string }
+  | { op: 'remove'; name: string; parentName?: string }
+  | { op: 'patch'; name: string; newName?: string; type?: string; parentName?: string }
+
+const editSchemaOpSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('add'), name: z.string(), type: z.string(), parentName: z.string().optional() }),
+  z.object({ op: z.literal('remove'), name: z.string(), parentName: z.string().optional() }),
+  z.object({ op: z.literal('patch'), name: z.string(), newName: z.string().optional(), type: z.string().optional(), parentName: z.string().optional() }),
+])
+
+export async function editSchemaWithModel(
+  currentTemplate: unknown,
+  instruction: string,
+): Promise<EditSchemaOp[]> {
+  const schemaJson = JSON.stringify(currentTemplate, null, 2)
+  const prompt = `You are a schema editing assistant for humanities researchers.
+
+Current extraction schema (JSON):
+${schemaJson}
+
+Researcher instruction: "${instruction}"
+
+Return ONLY a JSON array of operations. No explanation, no markdown fences, no extra text.
+Each operation must be one of:
+  {"op":"add","name":"fieldName","type":"string|number|boolean|object|array","parentName":"optionalParent"}
+  {"op":"remove","name":"fieldName","parentName":"optionalParent"}
+  {"op":"patch","name":"fieldName","newName":"optionalNewName","type":"optionalNewType","parentName":"optionalParent"}
+
+Rules:
+- Only change what the researcher explicitly asked for
+- Use parentName when the same field name exists at multiple nesting levels
+- Omit parentName when the field is uniquely named
+- Return [] if no changes are needed`
+
+  const result = await generateText({
+    model: chatModel(),
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const text = result.text.replace(/```(?:json)?|```/g, '').trim()
+  const parsed = await parseUnknownJson(text, 'Edit schema model returned invalid JSON.')
+  if (!Array.isArray(parsed)) {
+    return []
+  }
+
+  const ops: EditSchemaOp[] = []
+  for (const item of parsed) {
+    const validated = editSchemaOpSchema.safeParse(item)
+    if (validated.success) {
+      ops.push(validated.data)
+    }
+  }
+  return ops
 }
