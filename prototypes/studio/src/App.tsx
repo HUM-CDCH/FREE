@@ -97,7 +97,7 @@ function App() {
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
-  const [activeView, setActiveView] = useState<'workspace' | 'providers'>('workspace')
+  const [providersOpen, setProvidersOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
@@ -128,13 +128,13 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (activeView !== 'providers') return
+    if (!providersOpen) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setActiveView('workspace')
+      if (event.key === 'Escape') setProvidersOpen(false)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [activeView])
+  }, [providersOpen])
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -541,7 +541,7 @@ function App() {
             variant="pill"
             size="sm"
             type="button"
-            onClick={() => setActiveView('providers')}
+            onClick={() => setProvidersOpen(true)}
             aria-label="Configure providers"
             title="Configure providers"
             className="ml-1 size-8 p-0 text-ink-muted"
@@ -650,19 +650,17 @@ function App() {
           />
         </aside>
       </div>
-      {activeView === 'providers' && (
-        // position:fixed escapes this <main>'s overflow-hidden, so the modal
-        // can live here without wrapping the return in a fragment.
+      {providersOpen && (
         <div
           className="fixed inset-0 z-50 overflow-y-auto bg-ink/55 px-4 py-10 backdrop-blur-[2px]"
           role="dialog"
           aria-modal="true"
           aria-label="Provider configuration"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setActiveView('workspace')
+            if (event.target === event.currentTarget) setProvidersOpen(false)
           }}
         >
-          <ProviderConfigPage onClose={() => setActiveView('workspace')} />
+          <ProviderConfigPage onClose={() => setProvidersOpen(false)} />
         </div>
       )}
     </main>
