@@ -15,6 +15,8 @@ import { requestSchema, parseDocumentToMarkdown } from './api'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
 import EvidenceHighlightLayer from './EvidenceHighlightLayer'
+import ProviderConfigPage from './providerConfig/ProviderConfigPage'
+import GearIcon from './GearIcon'
 import { Button } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
@@ -95,6 +97,7 @@ function App() {
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
+  const [activeView, setActiveView] = useState<'workspace' | 'providers'>('workspace')
   const [toast, setToast] = useState<string | null>(null)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
@@ -123,6 +126,15 @@ function App() {
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  useEffect(() => {
+    if (activeView !== 'providers') return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveView('workspace')
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [activeView])
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -525,6 +537,17 @@ function App() {
           >
             {runLabel}
           </Button>
+          <Button
+            variant="pill"
+            size="sm"
+            type="button"
+            onClick={() => setActiveView('providers')}
+            aria-label="Configure providers"
+            title="Configure providers"
+            className="ml-1 size-8 p-0 text-ink-muted"
+          >
+            <GearIcon />
+          </Button>
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
@@ -627,6 +650,21 @@ function App() {
           />
         </aside>
       </div>
+      {activeView === 'providers' && (
+        // position:fixed escapes this <main>'s overflow-hidden, so the modal
+        // can live here without wrapping the return in a fragment.
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-ink/55 px-4 py-10 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Provider configuration"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setActiveView('workspace')
+          }}
+        >
+          <ProviderConfigPage onClose={() => setActiveView('workspace')} />
+        </div>
+      )}
     </main>
   )
 }

@@ -4,7 +4,7 @@ import ProviderConfigPage from "./ProviderConfigPage";
 
 describe("ProviderConfigPage", () => {
 	it("renders the seeded connections with their status", () => {
-		const html = renderToStaticMarkup(<ProviderConfigPage />);
+		const html = renderToStaticMarkup(<ProviderConfigPage onClose={() => {}} />);
 
 		expect(html).toContain("Local Ollama");
 		expect(html).toContain("OpenAI (lab key)");
@@ -12,7 +12,7 @@ describe("ProviderConfigPage", () => {
 	});
 
 	it("routes each task to its seeded connection and offers that connection's models", () => {
-		const html = renderToStaticMarkup(<ProviderConfigPage />);
+		const html = renderToStaticMarkup(<ProviderConfigPage onClose={() => {}} />);
 
 		expect(html).toContain("Extraction &amp; Schema Suggestion");
 		expect(html).toContain("Runs over every Source Document");

@@ -5,9 +5,10 @@ import StatusDot from "./StatusDot";
 type ProviderConfigHeaderProps = {
 	status: StatusKind;
 	text: string;
+	onClose: () => void;
 };
 
-function ProviderConfigHeader({ status, text }: ProviderConfigHeaderProps) {
+function ProviderConfigHeader({ status, text, onClose }: ProviderConfigHeaderProps) {
 	const tone = STATUS_TONE[status];
 	return (
 		<header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.75">
@@ -19,10 +20,21 @@ function ProviderConfigHeader({ status, text }: ProviderConfigHeaderProps) {
 					/ Providers
 				</span>
 			</div>
-			<Pill tone={tone.pill} outline className="gap-1.5">
-				<StatusDot kind={status} />
-				{text}
-			</Pill>
+			<div className="flex items-center gap-3">
+				<Pill tone={tone.pill} outline className="gap-1.5">
+					<StatusDot kind={status} />
+					{text}
+				</Pill>
+				<button
+					type="button"
+					onClick={onClose}
+					aria-label="Close provider configuration"
+					title="Close"
+					className="text-ink-muted transition-colors hover:text-accent"
+				>
+					✕
+				</button>
+			</div>
 		</header>
 	);
 }
