@@ -8,7 +8,7 @@
 
 - [x] 2.1 Add `getAtPath(obj, path)` pure function: traverses a nested object/array along a `string[]` path and returns the node value
 - [x] 2.2 Add three navigator state variables: `navPath: string[]`, `backStack: string[][]`, `forwardStack: string[][]`, all initialised to empty arrays
-- [x] 2.3 In the existing `useEffect` that resets `editedResult` on `state` changes, also reset `navPath`, `backStack`, and `forwardStack` to empty
+- [x] 2.3 Reset `navPath`, `backStack`, and `forwardStack` when extraction state changes
 
 ## 3. ResultsTab — breadcrumb and navigation UI
 

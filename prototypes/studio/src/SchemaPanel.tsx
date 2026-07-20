@@ -145,17 +145,6 @@ function insertIntoNode(nodes: SchemaNode[], targetId: string, moved: SchemaNode
   })
 }
 
-function findNode(nodes: SchemaNode[], id: string): SchemaNode | undefined {
-  for (const node of nodes) {
-    if (node.id === id) return node
-    if (node.children) {
-      const found = findNode(node.children, id)
-      if (found) return found
-    }
-  }
-  return undefined
-}
-
 function insertAtSlot(nodes: SchemaNode[], parentId: string | null, index: number, moved: SchemaNode): SchemaNode[] {
   if (parentId === null) {
     const out = [...nodes]; out.splice(Math.max(0, Math.min(index, out.length)), 0, moved); return out
@@ -295,7 +284,6 @@ function SchemaPanel({
   const [pending, setPending] = useState<PendingChange | null>(null)
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
-  const [usedSuggestionIds, setUsedSuggestionIds] = useState<string[]>([])
   const chatAbortRef = useRef<AbortController | null>(null)
   const [view, setView] = useState<'fields' | 'json'>('fields')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -435,7 +423,6 @@ function SchemaPanel({
 
     if (target.type === 'group') {
       if (drag.isGroup) return
-      if (findNode(cur, target.id)?.children === undefined) return
       const [moved, root] = extractNode(cur, drag.id)
       if (!moved) return
       const finalNodes = insertIntoNode(root, target.id, moved)
@@ -604,13 +591,6 @@ function SchemaPanel({
     setEditing({ id, name, type: 'verbatim-string' })
   }
 
-  const SUGGESTIONS = [
-    { id: 's1', label: 'Add a field', prompt: 'Add one new relevant field to this schema.' },
-    { id: 's2', label: 'Remove a field', prompt: 'Remove the least important field from this schema.' },
-    { id: 's3', label: 'Change a field type', prompt: 'Find a field whose type seems wrong and correct it.' },
-  ] as const
-
-
   // ── Tasks 6–8: chat ──
   async function sendChatMessage(text: string) {
     if (!text.trim() || chatLoading || pending) return
@@ -667,11 +647,6 @@ function SchemaPanel({
     setPending(null)
   }
 
-  function pickSuggestion(s: (typeof SUGGESTIONS)[number]) {
-    setUsedSuggestionIds(ids => [...ids, s.id])
-    void sendChatMessage(s.prompt)
-  }
-
   // ── style helpers ──
   function slotCls(parentId: string | null, index: number) {
     const on =
@@ -702,8 +677,6 @@ function SchemaPanel({
 
   // Task 8.4 – disable chat input while pending
   const chatBlocked = !!pending || chatLoading
-
-  const activeSuggs = SUGGESTIONS.filter(s => !usedSuggestionIds.includes(s.id))
 
   const tabCls = (active: boolean) =>
     `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
@@ -1145,22 +1118,6 @@ function SchemaPanel({
               >
                 Discard
               </button>
-            </div>
-          )}
-
-          {/* Task 6.3 – suggestion chips (hidden while pending / loading) */}
-          {activeSuggs.length > 0 && !chatBlocked && (
-            <div className="flex shrink-0 flex-wrap gap-1.5 px-3.5 pb-1.5 pt-1">
-              {activeSuggs.map(s => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className="cursor-pointer rounded-full border border-line-strong bg-surface px-3 py-1 font-sans text-[11px] font-medium text-ink outline-none hover:border-accent/50 hover:text-accent"
-                  onClick={() => pickSuggestion(s)}
-                >
-                  {s.label}
-                </button>
-              ))}
             </div>
           )}
 

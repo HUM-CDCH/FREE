@@ -70,19 +70,6 @@ describe('post-merge interactions', () => {
     expect(screen.queryByText('subgroup')).toBeNull()
   })
 
-  it('remembers an edited value across direct ancestor and Forward navigation', async () => {
-    const controller = { state: { status: 'ready' as const, result: { group: { title: 'before' } }, warnings: [] }, canRun: true, hasResults: true, strategy: 'article' as const, setStrategy: vi.fn(), runExtraction: vi.fn() }
-    render(<ResultsTab controller={controller} schemaReady documentMarkdown={null} />)
-    await userEvent.click(screen.getByText('group'))
-    await userEvent.click(screen.getByTitle('Edit title'))
-    const input = screen.getByDisplayValue('before')
-    await userEvent.clear(input)
-    await userEvent.type(input, 'after{Enter}')
-    await userEvent.click(screen.getByRole('button', { name: 'Results' }))
-    await userEvent.click(screen.getByTitle('Forward'))
-    expect(screen.getByText('after')).toBeTruthy()
-  })
-
   it('shows an unavailable state when canonical Markdown is missing', async () => {
     const controller = { state: { status: 'ready' as const, result: { title: 'result' }, warnings: [] }, canRun: true, hasResults: true, strategy: 'article' as const, setStrategy: vi.fn(), runExtraction: vi.fn() }
     render(<ResultsTab controller={controller} schemaReady documentMarkdown={null} />)
@@ -90,16 +77,15 @@ describe('post-merge interactions', () => {
     expect(screen.getByRole('status').textContent).toBe('Source Markdown is unavailable for this document.')
   })
 
-  it('uses and removes suggestion chips, then applies and discards previews', async () => {
+  it('applies and discards chat previews', async () => {
     requestSchemaEditMock.mockResolvedValueOnce([{ op: 'add', name: 'year', type: 'date' }]).mockResolvedValueOnce([{ op: 'remove', name: 'title' }])
     const onNodesChange = vi.fn()
     render(<SchemaPanel state={{ status: 'ready', schema: schemaMetadata(burialFindsPinnedSchema.schema), nodes: [{ id: 'title', name: 'title', type: 'string' }], inputsKey: 'generated', source: 'generated' }} stale={false} pinnedSchemas={pinnedSchemas} selectedPinnedSchemaId={null} onSelectPinnedSchema={vi.fn()} onGenerate={vi.fn()} onCustomize={vi.fn()} onNodesChange={onNodesChange} annotationCount={0} annotationsMode="hints" onAnnotationsModeChange={vi.fn()} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Add a field' }))
+    await userEvent.type(screen.getByPlaceholderText('Describe a change to the schema…'), 'Add a year field{Enter}')
     await waitFor(() => expect(screen.getByRole('button', { name: 'Apply changes' })).toBeTruthy())
-    expect(screen.queryByRole('button', { name: 'Add a field' })).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
     expect(onNodesChange).toHaveBeenCalledOnce()
-    await userEvent.click(screen.getByRole('button', { name: 'Remove a field' }))
+    await userEvent.type(screen.getByPlaceholderText('Describe a change to the schema…'), 'Remove title{Enter}')
     await waitFor(() => expect(screen.getByRole('button', { name: 'Discard' })).toBeTruthy())
     await userEvent.click(screen.getByRole('button', { name: 'Discard' }))
     expect(onNodesChange).toHaveBeenCalledOnce()
@@ -127,7 +113,7 @@ describe('post-merge interactions', () => {
     const props = { stale: false, pinnedSchemas, selectedPinnedSchemaId: null, onSelectPinnedSchema: vi.fn(), onGenerate: vi.fn(), onCustomize: vi.fn(), onNodesChange: vi.fn(), annotationCount: 0, annotationsMode: 'hints' as const, onAnnotationsModeChange: vi.fn() }
     const view = render(<SchemaPanel {...props} state={{ status: 'ready', schema: schemaMetadata(burialFindsPinnedSchema.schema), nodes: [{ id: 'old', name: 'old_field', type: 'string' }], inputsKey: 'old-schema', source: 'generated' }} />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Add a field' }))
+    await userEvent.type(screen.getByPlaceholderText('Describe a change to the schema…'), 'Add a field{Enter}')
     await waitFor(() => expect(requestSignal).toBeDefined())
     view.rerender(<SchemaPanel {...props} state={{ status: 'ready', schema: schemaMetadata(burialFindsPinnedSchema.schema), nodes: [{ id: 'new', name: 'replacement_field', type: 'string' }], inputsKey: 'new-schema', source: 'generated' }} />)
     await waitFor(() => expect(requestSignal.aborted).toBe(true))

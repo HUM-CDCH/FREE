@@ -9,8 +9,8 @@ The current Review view renders the entire extraction result tree at once, causi
 - Clicking an ObjectSection or ArraySection header **navigates into** that node instead of expanding it in place.
 - **Back / Forward buttons** let researchers retrace their path through the result tree.
 - At the root level the breadcrumb shows "Results"; back/forward buttons are hidden.
-- PrimitiveRow rendering (display, expand-long, edit) is unchanged.
-- JSON and Markdown views, Copy JSON, Download, and all edit/onChange/onValueClick callbacks are unaffected.
+- PrimitiveRow display and expand-long rendering is unchanged.
+- JSON and Markdown views, Copy JSON, Download, and path-based evidence callbacks are unaffected.
 
 ## Capabilities
 

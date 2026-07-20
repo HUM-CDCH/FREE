@@ -192,7 +192,7 @@ export async function requestExtraction(
 	}
 	const response = await fetch(`${API_BASE}/extract`, {
 		method: "POST",
-		body: JSON.stringify({ taskId, schema, strategy, ...(instructions ? { instructions } : {}) }),
+		body: JSON.stringify({ taskId, schema, strategy, instructions }),
 		headers: {
 			accept: "application/json",
 			"content-type": "application/json",

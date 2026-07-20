@@ -38,13 +38,12 @@
 
 - [x] 6.1 Add a bottom chat panel section below the field list scroll area (inside the SchemaPanel flex column), with a max-height and internal scroll
 - [x] 6.2 Render chat messages list: user messages right-aligned with accent background; assistant messages left-aligned with surface border style
-- [x] 6.3 Render suggestion chips row above the text input when unused suggestions remain
-- [x] 6.4 Render text input with send button (↑); placeholder "Describe a change to the schema…"
-- [x] 6.5 Add `chat: ChatMessage[]`, `pending: PendingChange | null`, `usedSuggestions: string[]` to state
+- [x] 6.3 Render text input with send button (↑); placeholder "Describe a change to the schema…"
+- [x] 6.4 Add `chat: ChatMessage[]` and `pending: PendingChange | null` to state
 
 ## 7. Chat Panel — Model Integration
 
-- [x] 7.1 When the researcher sends a message (or clicks a chip), append the researcher turn to `chat` and set loading state
+- [x] 7.1 When the researcher sends a message, append the researcher turn to `chat` and set loading state
 - [x] 7.2 Call `/api/edit_schema` (POST) with the current derived Extraction Schema and researcher instruction; receive validated operations
 - [x] 7.3 Apply operations to a copy and compute added/removed/modified node status
 - [x] 7.4 Set `pending` with clean and merged preview nodes; append the assistant turn
@@ -55,14 +54,14 @@
 - [x] 8.1 Render the pending diff inline in the tree with a sticky "Apply changes" / "Discard" action bar
 - [x] 8.2 On "Apply changes": update node list from pending template, call `onTemplateChange`, clear `pending`, append confirmation message to chat
 - [x] 8.3 On "Discard": clear `pending`, append "Discarded, no changes made" message to chat
-- [x] 8.4 Disable text input, send button, and hide suggestion chips while `pending !== null`
+- [x] 8.4 Disable text input and send button while `pending !== null`
 
 ## 9. Cleanup and Verification
 
 - [x] 9.1 Verify TypeScript compiles without errors (`pnpm --filter studio build`)
 - [ ] 9.2 Manually test drag reorder at root level; drag into group; drag child out to root
 - [ ] 9.3 Manually test inline edit (rename + retype)
-- [ ] 9.4 Manually test chat suggestion chips → inline diff → apply and discard
+- [ ] 9.4 Manually test chat request → inline diff → apply and discard
 - [ ] 9.5 Test auto-scroll by dragging a field with the schema list taller than the panel
 
 ## 10. Canonical state and regression coverage

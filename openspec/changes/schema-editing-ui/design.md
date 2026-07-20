@@ -37,9 +37,6 @@ The browser sends the current derived template and the researcher instruction. O
 **D4: Operations produce an inline tree diff**
 The frontend applies proposed operations to a copy of the node tree. Added and removed nodes are merged into a preview; patches appear as one amber `modified` node. Apply commits the copy and Discard leaves canonical nodes unchanged.
 
-**D5: Suggestion chips are static in v1**
-Three pre-defined chips ("Add a field", "Remove a field", "Change a field type") populate the chat panel and fire real model calls. Free-text input is also wired to the model. This matches the design prototype's UX without requiring NLP intent parsing.
-
 ## Risks / Trade-offs
 
 - **Schema drift**: Model operations may add or remove unexpected fields. The inline tree preview mitigates this by showing all changes before Apply.
@@ -53,6 +50,5 @@ The change adds `source: custom` and `basePinnedSchemaId` to ready-state provena
 
 ## Resolved Questions
 
-- Suggestion chips trigger the real `/api/edit_schema` model call and disappear after use.
 - Should drag-to-re-nest allow nesting a group inside another group? → No for v1 (groups cannot be nested into groups; the design shows this constraint).
 - The editor exposes `verbatim-string`, `string`, `date`, `number`, `integer`, `boolean`, `object`, and `array`. Scalar-to-group creates an empty group. Manual group-to-scalar conversion confirms before dropping children; chat Apply/Discard is the operation confirmation boundary.

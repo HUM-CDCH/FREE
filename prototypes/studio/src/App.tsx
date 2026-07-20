@@ -543,14 +543,11 @@ function App() {
 	};
 
 	const schemaReady = templateState.status === "ready";
-	const schemaTemplate = useMemo(
-		() => templateState.status === "ready" ? nodesToTemplate(templateState.nodes) : null,
-		[templateState],
-	);
-	const extractionSchema = useMemo(
-		() => templateState.status === "ready" ? { ...templateState.schema, record: nodesToTemplate(templateState.nodes) } : null,
-		[templateState],
-	);
+	const [schemaTemplate, extractionSchema] = useMemo(() => {
+		if (templateState.status !== "ready") return [null, null] as const;
+		const record = nodesToTemplate(templateState.nodes);
+		return [record, { ...templateState.schema, record }] as const;
+	}, [templateState]);
 	const selectedPinnedSchemaId =
 		templateState.status === "ready" && templateState.source === "pinned"
 			? (templateState.pinnedSchemaId ?? null)

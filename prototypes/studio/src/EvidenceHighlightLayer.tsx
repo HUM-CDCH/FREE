@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 import { buildHighlights, PALETTE, sameResultPath, type Highlight } from "./evidenceHighlights";
-import { paintEvidenceEntries } from './evidencePaint'
+import { drawEntry } from "./evidencePaint";
 import { matchPdfTextItems } from "./pdfTextMatching";
 import { isRecord } from "./template";
 
@@ -138,7 +138,7 @@ async function findValueRects(
 
 type CachedEntry = {
 	highlight: Highlight;
-	rects: DOMRect[];
+	rects: Array<Pick<DOMRect, "x" | "y" | "width" | "height">>;
 	pageTop: number;
 	pageLeft: number;
 };
@@ -239,7 +239,7 @@ export default function EvidenceHighlightLayer({
 						pageEl.clientLeft,
 				};
 				cachedEntriesRef.current.push(entry);
-				paintEvidenceEntries(context, [entry], focusPathRef.current);
+				drawEntry(context, entry, focusPathRef.current);
 			}
 			if (!cancelled) setCacheVersion((version) => version + 1);
 		}
@@ -273,7 +273,7 @@ export default function EvidenceHighlightLayer({
 		const context = canvas.getContext("2d");
 		if (!context) return;
 		context.clearRect(0, 0, canvas.width, canvas.height);
-		paintEvidenceEntries(context, entries, focusPath);
+		entries.forEach((entry) => drawEntry(context, entry, focusPath));
 	}, [focusPath, cacheVersion, containerEl]);
 
 	if (!result) return null;

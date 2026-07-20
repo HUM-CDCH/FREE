@@ -27,17 +27,6 @@ function pathsEqual(left: string[], right: string[]): boolean {
 	return left.length === right.length && left.every((segment, index) => segment === right[index]);
 }
 
-function updateAtPath(value: unknown, path: string[], replacement: string): unknown {
-	if (path.length === 0) return replacement;
-	const [head, ...rest] = path;
-	if (Array.isArray(value)) {
-		const index = Number.parseInt(head, 10);
-		return value.map((child, childIndex) => childIndex === index ? updateAtPath(child, rest, replacement) : child);
-	}
-	if (isRecord(value)) return { ...value, [head]: updateAtPath(value[head], rest, replacement) };
-	return value;
-}
-
 function summaryItem(label: string, value: string | number) {
 	return (
 		<span className="rounded-full border border-line bg-surface-muted px-2 py-1 text-xs font-semibold text-ink-muted">
@@ -59,9 +48,7 @@ function ResultsTab({
 	const [navPath, setNavPath] = useState<string[]>([]);
 	const [backStack, setBackStack] = useState<string[][]>([]);
 	const [forwardStack, setForwardStack] = useState<string[][]>([]);
-	const rawResult = state.status === "ready" ? state.result : null;
-	const [editedResult, setEditedResult] = useState<unknown>(null);
-	const displayResult = editedResult ?? rawResult;
+	const displayResult = state.status === "ready" ? state.result : null;
 	const stats = useMemo(
 		() => (displayResult ? resultStats(displayResult) : null),
 		[displayResult],
@@ -72,10 +59,9 @@ function ResultsTab({
 			setNavPath([]);
 			setBackStack([]);
 			setForwardStack([]);
-			setEditedResult(rawResult);
 		}, 0);
 		return () => window.clearTimeout(timeout);
-	}, [state, rawResult]);
+	}, [state]);
 
 	function drillInto(path: string[]) {
 		setBackStack((previous) => [...previous, navPath]);
@@ -90,10 +76,6 @@ function ResultsTab({
 			return ancestorIndex >= 0 ? previous.slice(0, ancestorIndex) : previous;
 		});
 		setNavPath(path);
-	}
-
-	function changeValue(path: string[], value: string) {
-		setEditedResult((current: unknown) => updateAtPath(current, path, value));
 	}
 
 	function goBack() {
@@ -245,7 +227,6 @@ function ResultsTab({
 										value={value}
 										path={[...navPath, pathKey]}
 										onValueClick={onValueClick}
-										onChange={changeValue}
 										onNavigateTo={isRecord(value) || Array.isArray(value) ? drillInto : undefined}
 										defaultExpanded={navPath.length === 0}
 										expandText={navPath.length > 0}

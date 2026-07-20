@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildHighlights, highlightAlpha } from "./evidenceHighlights";
-import { paintEvidenceEntries } from './evidencePaint'
+import { drawEntry } from "./evidencePaint";
 
 describe("buildHighlights", () => {
 	it("uses embedded Evidence and falls back to direct searches for ungrounded leaves", () => {
@@ -132,7 +132,9 @@ describe("evidence focus", () => {
 		const fills: number[] = []
 		const context = { globalAlpha: 0, fillStyle: '', save: () => undefined, restore: () => undefined, fillRect: () => fills.push(context.globalAlpha) }
 		const entry = (path: string[]) => ({ highlight: { value: 'duplicate', snippet: null, hintPage: null, color: 'yellow', path }, rects: [{ x: 0, y: 0, width: 10, height: 4 }], pageTop: 0, pageLeft: 0 })
-		paintEvidenceEntries(context, [entry(['records', '0']), entry(['records', '1'])], ['records', '1'])
+		for (const path of [['records', '0'], ['records', '1']]) {
+			drawEntry(context, entry(path), ['records', '1'])
+		}
 		expect(fills).toEqual([0.15, 0.75])
 	});
 });

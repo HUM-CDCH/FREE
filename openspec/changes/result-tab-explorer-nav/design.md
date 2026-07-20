@@ -15,7 +15,7 @@ The existing `ResultValue` component already tracks every node's location via `p
 
 **Non-Goals:**
 - Changing the initial (root) view appearance — it stays identical to today.
-- Changing primitive display or edit semantics; the navigator passes the existing edit callback through.
+- Changing primitive display semantics; Review remains read-only.
 - Changing Raw JSON export semantics.
 - Any backend or API changes.
 
@@ -23,7 +23,7 @@ The existing `ResultValue` component already tracks every node's location via `p
 
 ### 1. Navigation state lives in `ResultsTab`
 
-Three new state variables alongside the existing `view` / `editedResult`:
+Three new state variables alongside the existing `view`:
 
 ```ts
 const [navPath, setNavPath] = useState<string[]>([])   // current node path
@@ -54,7 +54,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
 }
 ```
 
-The review section renders `getAtPath(displayResult, navPath)` as the root object, passing `onNavigate` callbacks that append one key to the path. Zero data duplication — always reads the live (possibly edited) result.
+The review section renders `getAtPath(displayResult, navPath)` as the root object, passing `onNavigate` callbacks that append one key to the path. Navigation state does not duplicate result data.
 
 ### 4. Breadcrumb bar layout
 
@@ -66,14 +66,13 @@ A thin bar sits between the stats/tab toolbar and the content list:
 
 ### 5. History resets on new extraction result
 
-The existing `useEffect` that resets `editedResult` on `state` change is extended to also reset `navPath`, `backStack`, and `forwardStack` to empty arrays.
+An effect resets `navPath`, `backStack`, and `forwardStack` when the extraction state changes.
 
 ### 6. Canonical Markdown view
 
-App passes the parsed document Markdown through RightRail. Markdown is a read-only local view with no model or API call. Copy JSON and Download continue to export the live edited result.
+App passes the parsed document Markdown through RightRail. Markdown is a read-only local view with no model or API call. Copy JSON and Download continue to export the extraction result.
 
 ## Risks / Trade-offs
 
-- **Inline edits survive navigation** — `editedResult` is owned by `ResultsTab` and `getAtPath` always reads from it, so edits made while drilled in are visible when navigating back. No special handling needed.
 - **Array items** — `ArraySection` items also get `onNavigate`; navigating into an array item shows only that item's fields. Array index appears as `[0]`, `[1]`, etc. in the breadcrumb.
 - **Shallow change** — the feature adds state and one prop to two components. Rollback is trivial.

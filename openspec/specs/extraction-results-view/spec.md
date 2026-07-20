@@ -2,26 +2,20 @@
 
 ## Purpose
 
-Defines how researchers run extraction, inspect and correct completed results, view source Markdown, and copy or download the live result.
+Defines how researchers run extraction, inspect completed results, view source Markdown, and copy or download the result.
 
 ## Requirements
 
 ### Requirement: Completed extraction supports review, JSON, and Markdown views
 
-When an extraction completes, the Results tab SHALL offer Review, Raw JSON, and Markdown views. Review SHALL show only the current node's direct children, allow primitive values to be edited, and keep those edits in the live displayed result. Raw JSON SHALL pretty-print that live result. Markdown SHALL display the canonical source-document Markdown passed into the results panel.
+When an extraction completes, the Results tab SHALL offer read-only Review, Raw JSON, and Markdown views. Review SHALL show only the current node's direct children. Raw JSON SHALL pretty-print the extraction result. Markdown SHALL display the canonical source-document Markdown passed into the results panel.
 
 #### Scenario: Researcher inspects all result views
 
 - **WHEN** an extraction is ready
-- **THEN** Review displays the extraction tree and permits primitive edits
-- **AND** Raw JSON displays the live edited result with two-space indentation
+- **THEN** Review displays the extraction tree without edit controls
+- **AND** Raw JSON displays the extraction result with two-space indentation
 - **AND** Markdown displays the canonical document Markdown without another model or API call
-
-#### Scenario: Primitive edit updates the live result
-
-- **WHEN** the researcher saves an inline primitive edit in Review
-- **THEN** the edited value remains visible after navigation
-- **AND** Raw JSON, Copy JSON, and Download use the edited result
 
 ### Requirement: Empty state before any extraction
 
@@ -60,22 +54,21 @@ When a result is already displayed and the schema is ready, the researcher SHALL
 
 - **WHEN** a result is shown and the researcher triggers a re-run
 - **THEN** a new extraction runs and replaces the previous result
-- **AND** prior inline edits are discarded
 - **AND** current path, back stack, and forward stack reset to the root view
 
 ### Requirement: Result export actions
 
-When a result is ready, the Results tab SHALL provide Copy JSON and Download actions for the live displayed result.
+When a result is ready, the Results tab SHALL provide Copy JSON and Download actions for the extraction result.
 
 #### Scenario: Researcher copies JSON
 
 - **WHEN** the researcher chooses Copy JSON
-- **THEN** the live result is serialized with two-space indentation and written to the clipboard
+- **THEN** the extraction result is serialized with two-space indentation and written to the clipboard
 
 #### Scenario: Researcher downloads JSON
 
 - **WHEN** the researcher chooses Download
-- **THEN** the live result is downloaded as `free-extraction-result.json` with JSON media type
+- **THEN** the extraction result is downloaded as `free-extraction-result.json` with JSON media type
 
 ### Requirement: Primitive result values trigger path-based tracing
 
