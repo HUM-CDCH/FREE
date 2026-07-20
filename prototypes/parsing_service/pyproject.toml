@@ -1,7 +1,7 @@
 [project]
 name = "parsing_service"
 version = "0.1.0"
-description = "Add your description here"
+description = "Secure canonical Docling DocTags ingestion service for FREE"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -12,7 +12,28 @@ dependencies = [
     "paddlepaddle-gpu==3.3.1; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "paddlepaddle==3.0.0; sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine != 'x86_64')",
     "paddlex[ocr]>=3.7.1",
+  "camelot-py>=1.0.0",
+  "docling>=2.111.0",
+  "fastapi[standard]>=0.139.0",
+  "filelock>=3.20.3",
+  "pymupdf>=1.24.0",
+  "pypdfium2>=4.30.0",
 ]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = ""
+
+[project.optional-dependencies]
+ocr-cpu = ["paddleocr>=3.7.0", "paddlex[ocr]>=3.7.0", "paddlepaddle==3.2.2"]
+ocr-gpu = ["paddleocr>=3.7.0", "paddlex[ocr]>=3.7.0", "paddlepaddle-gpu==3.2.2"]
+
+[tool.uv]
+conflicts = [[{ extra = "ocr-cpu" }, { extra = "ocr-gpu" }]]
 
 [[tool.uv.index]]
 name = "paddlepaddle-cuda"

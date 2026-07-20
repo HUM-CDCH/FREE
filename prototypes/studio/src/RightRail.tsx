@@ -156,7 +156,7 @@ function RightRail({
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} pdfSource={pdfSource} documentMarkdown={documentMarkdown} onValueClick={onValueClick} focusPath={focusPath} onClearFocus={onClearFocus} />
+        <ResultsTab controller={extraction} schemaReady={schemaReady} documentMarkdown={documentMarkdown} onValueClick={onValueClick} focusPath={focusPath} onClearFocus={onClearFocus} />
       </div>
     </div>
   )

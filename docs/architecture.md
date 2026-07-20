@@ -1,3 +1,11 @@
+# FREE architecture
+
+The sequence below describes the wider researcher workflow. For the implemented
+source-document ingestion boundary, see
+[Canonical source document parsing](parsing-service.md). Its table, OCR,
+geometry, and evaluation rules are recorded in
+[Parsing quality policy](parsing-quality.md).
+
 ```mermaid
 sequenceDiagram
     participant U as User
@@ -37,7 +45,7 @@ sequenceDiagram
     opt User highlights text spans
         U->>FE: Highlight text span and optionally add label or note
         FE->>API: POST /annotations
-        API->>A: Save annotation with document hash, text span, page, quote, and label
+        API->>A: Save annotation with hash, span, page, quote, and label
         A-->>API: Annotation ID
         API-->>FE: Annotation saved
         FE-->>U: Show highlight in document viewer

@@ -13,7 +13,7 @@ The target workflow has five phases: Document Ingestion → Annotation → Schem
 Use the terminology in `CONTEXT.md` precisely. Key terms:
 
 | Use | Avoid |
-|-----|-------|
+| ----- | ------- |
 | Humanities Researcher | user, analyst |
 | Source Document | file, PDF, upload |
 | Annotation | highlight, passage, selection |
@@ -52,23 +52,30 @@ Python services opt into root install with an `install:python` script; the root 
 
 ```bash
 cd prototypes/parsing_service
-uv sync
-uv run python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
-uv run fastapi run main.py        # production
+uv sync --extra ocr-cpu  # use ocr-gpu instead on CUDA hosts
+uv run --no-sync python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
+uv run --no-sync fastapi run main.py        # production
 ```
 
-The package script `pnpm --filter parsing-service dev` is the preferred dev entry point. It uses Python UTF-8 mode for Windows and binds the backend to `http://127.0.0.1:8000`, which is what the studio frontend expects.
+The package script `pnpm --filter parsing-service dev` is the preferred dev entry point. Runtime scripts use `uv run --no-sync`, preserving whichever mutually exclusive CPU/GPU OCR profile was explicitly installed. The dev script uses Python UTF-8 mode for Windows and binds the backend to `http://127.0.0.1:8000`, which is what the studio frontend expects.
 
 **Endpoints:**
 
 - `GET /status` — Health and environment status for the parsing service.
 - `POST /tasks` — Start source document parsing and return a task id.
 - `GET /tasks/{task_id}` — Poll parsing status.
-- `GET /tasks/{task_id}/markdown` — Fetch parsed Markdown for a completed task.
-- `GET /tasks/{task_id}/report` and `GET /tasks/{task_id}/download` — Fetch parsing reports and generated artifacts.
+- `GET /tasks/{task_id}/markdown` — Fetch canonical LLM Markdown for a completed task.
+- `GET /tasks/{task_id}/document` / `GET /tasks/{task_id}/parsed-document` — Fetch the versioned `ParsedDocument` JSON with parser provenance, page markers, and exact offsets for extraction.
+- `GET /tasks/{task_id}/download` — Download the task-local `ParsedDocument` and referenced canonical parser artifacts.
+
+Task source PDFs are stored internally as `source.pdf`, copied into a SHA-256 content-addressed source store, and exposed with only a sanitized display filename in metadata. Task route IDs must be UUIDs.
 
 The parsing service does not own model extraction endpoints. Studio serves model
 routes from same-origin `/api`.
+
+`GET /` serves a small local prototype control page for nontechnical testing of
+the parsing service. It is not the researcher-facing FREE interface; Studio
+remains the product UI for humanities researchers.
 
 ## Frontend (`prototypes/studio`)
 
@@ -91,18 +98,20 @@ VS Code tasks and launches should call pnpm workspace scripts from the repositor
 
 - The PDF viewer uses `pdfjs-dist`'s `PDFViewer` component with `AnnotationEditorType.HIGHLIGHT`. Only text-selection highlights are allowed; free rectangular highlights are blocked by intercepting `pointerdown` during capture phase.
 - `pdf.js` has no public event for editor add/remove. `App.tsx` monkey-patches `uiManager.addEditor` / `removeEditor` to keep the annotation sidebar in sync.
-- `api.ts` contains browser communication with Studio model routes and the parsing service. Model routes are `/api/chat`, `/api/generate_schema`, `/api/extract`, and `/api/markdown`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
+- `api.ts` contains browser communication with Studio model routes and the parsing service. Model routes are `/api/chat`, `/api/generate_schema`, and `/api/extract`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
 - `AnnotationSidebar` shows the current annotation set (highlighted passages + page numbers). `SchemaPanel` shows the generated schema and controls annotation mode (`hints` vs `fields`).
-- The hardcoded source document is `src/assets/Beretning_Ellekilde_8_13.pdf` (a Danish archaeological site report).
+- The hardcoded source document is `examples/Beretning_Ellekilde_8_13.pdf` (a Danish archaeological site report).
 
 **Annotation modes** (sent to `/api/generate_schema`):
+
 - `hints` — model designs schema from the whole document, but every highlighted passage must be covered.
 - `fields` — model derives schema primarily from the highlighted passages.
 
 ## NuExtract prompting (raw prompts to Ollama)
 
 NuExtract3 is driven with a **hand-built raw prompt**, not OpenAI-style
-`chat_template_kwargs`. The repo's probe (`tools/provider-control-probe-results.md`)
+`chat_template_kwargs`. Historical control-channel evidence archived under
+`openspec/changes/archive/2026-06-17-select-nuextract-control-channel/`
 found the **Ollama** OpenAI-compatible endpoint silently ignores
 `chat_template_kwargs` (`mode`, `template`, `enable_thinking`) — kwargs-only
 requests come back as plain text. So `prototypes/studio/api/_model.ts` posts to Ollama's

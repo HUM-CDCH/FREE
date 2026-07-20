@@ -126,18 +126,18 @@ The backend SHALL place NuExtract task controls according to the configured auth
 - **THEN** the builder may include thinking configuration in provider-neutral template kwargs
 - **AND** that thinking configuration does not count as duplicated NuExtract task control
 
-### Requirement: Provider-control probe covers supported NuExtract workflows
-The backend SHALL maintain local provider-control probe evidence for each NuExtract workflow FREE depends on.
+### Requirement: Historical control-channel evidence remains discoverable
+FREE SHALL keep historical NuExtract control-channel evidence discoverable in `openspec/changes/archive/2026-06-17-select-nuextract-control-channel/` rather than maintaining live throwaway probe files.
 
-#### Scenario: Probe exercises all workflow modes
-- **WHEN** the provider-control probe is run against a supported NuExtract runtime
-- **THEN** it checks structured extraction, content extraction, schema suggestion, and markdown control placement
-- **AND** it records whether message text, template kwargs, or both single-channel formats work for each workflow
+#### Scenario: Archived evidence explains workflow mode coverage
+- **WHEN** maintainers need the rationale for NuExtract control-channel placement
+- **THEN** the archived evidence identifies the structured extraction, content extraction, schema suggestion, and markdown workflow checks
+- **AND** it records whether message text, template kwargs, or both single-channel formats worked for each workflow
 
-#### Scenario: Probe records conflict precedence
-- **WHEN** a probed workflow can be expressed through both message text and template kwargs
-- **THEN** the probe includes a conflict case where the two channels disagree
-- **AND** the probe results identify which channel the runtime followed
+#### Scenario: Archived evidence explains conflict precedence
+- **WHEN** a workflow could be expressed through both message text and template kwargs
+- **THEN** the archived evidence includes the conflict case where the two channels disagreed
+- **AND** it identifies which channel the runtime followed
 
 ### Requirement: NuExtract use cases construct typed model commands
 NuExtract use-case pipelines SHALL construct `ModelCommand` values with typed task variants instead of prepared `ModelRequest` values or raw NuExtract control dictionaries.
@@ -198,4 +198,3 @@ Schema-suggestion request construction SHALL receive annotation-backed source ma
 - **WHEN** schema suggestion is requested with an annotation mode such as hints or fields
 - **THEN** the pipeline represents the mode as schema-suggestion task guidance
 - **AND** the source-context builder does not decide how schema suggestion should interpret annotations
-

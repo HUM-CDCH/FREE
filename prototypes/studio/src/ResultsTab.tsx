@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { requestMarkdown } from './api'
-import ResultValue from './ResultValue'
+import ResultValue from './ui/ResultValue'
+import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from './template'
 import { resultStats } from './resultStats'
 import type { ExtractionController } from './useExtraction'
@@ -8,7 +8,6 @@ import type { ExtractionController } from './useExtraction'
 type ResultsTabProps = {
   controller: ExtractionController
   schemaReady: boolean
-  pdfSource: { url: string; filename: string } | null
   documentMarkdown: string | null
   onValueClick?: (path: string[], value: string) => void
   focusPath?: string[] | null
@@ -17,18 +16,12 @@ type ResultsTabProps = {
 
 type View = 'review' | 'json' | 'markdown'
 
-type MarkdownState =
-  | { status: 'idle' }
-  | { status: 'running' }
-  | { status: 'ready'; markdown: string }
-  | { status: 'error'; message: string }
-
 const preClasses =
   'scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre bg-canvas px-4 py-3.5 font-mono text-[11px] leading-relaxed text-ink'
 
 function summaryItem(label: string, value: string | number) {
   return (
-    <span className="rounded-full border border-line bg-surface-muted px-2 py-1 text-xs font-semibold text-ink-muted">
+    <span className="rounded-full border border-line bg-surface-muted px-2 py-1 text-[11px] font-semibold text-ink-muted">
       {label}: <span className="font-mono text-ink">{value}</span>
     </span>
   )
@@ -44,10 +37,9 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onValueClick, focusPath, onClearFocus }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, documentMarkdown, onValueClick, focusPath, onClearFocus }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
-  const [markdown, setMarkdown] = useState<MarkdownState>({ status: 'idle' })
   const stats = useMemo(() => (state.status === 'ready' ? resultStats(state.result) : null), [state])
 
   const [navPath, setNavPath] = useState<string[]>([])
@@ -109,34 +101,10 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onVa
     URL.revokeObjectURL(url)
   }
 
-  async function generateMarkdown() {
-    if (!pdfSource || markdown.status === 'running') {
-      return
-    }
-    setMarkdown({ status: 'running' })
-    try {
-      const blob = await (await fetch(pdfSource.url)).blob()
-      const done = await requestMarkdown(blob, pdfSource.filename, undefined, documentMarkdown)
-      setMarkdown({ status: 'ready', markdown: done.markdown })
-    } catch (error) {
-      setMarkdown({
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Markdown generation failed.',
-      })
-    }
-  }
-
-  const tabClasses = (active: boolean) =>
-    `cursor-pointer px-2.5 py-1 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${
-      active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'
-    }`
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex min-h-9.5 shrink-0 items-center gap-2 border-b border-line px-4">
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">
-          Extraction results
-        </h2>
+        <Overline as="h2">Extraction results</Overline>
       </header>
 
       {state.status === 'ready' && stats && (
@@ -149,37 +117,31 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onVa
               {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)}
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex overflow-hidden rounded-md border border-line">
-                <button className={tabClasses(view === 'review')} type="button" onClick={() => setView('review')}>
-                  Review
-                </button>
-                <button className={tabClasses(view === 'json')} type="button" onClick={() => setView('json')}>
-                  Raw JSON
-                </button>
-                <button
-                  className={tabClasses(view === 'markdown')}
-                  type="button"
-                  onClick={() => setView('markdown')}
-                >
-                  Markdown
-                </button>
-              </div>
+              <SegmentedControl
+                aria-label="Result view"
+                value={view}
+                onChange={setView}
+                options={[
+                  { value: 'review', label: 'Review' },
+                  { value: 'json', label: 'Raw JSON' },
+                  { value: 'markdown', label: 'Markdown' },
+                ]}
+              />
               <div className="flex gap-1.5">
                 {focusPath && onClearFocus && (
-                  <button
-                    className="cursor-pointer rounded-md border border-line-strong bg-surface px-2.5 py-1 text-xs font-semibold text-ink-muted hover:border-accent/50 hover:text-accent"
-                    type="button"
-                    onClick={onClearFocus}
-                  >
+                  <Button variant="secondary" size="sm" onClick={onClearFocus}>
                     × Clear
-                  </button>
+                  </Button>
                 )}
-                <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={() => void copyJson()}>
+                <Button variant="secondary" size="sm" onClick={() => void controller.runExtraction()}>
+                  Rerun
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => void copyJson()}>
                   Copy JSON
-                </button>
-                <button className="cursor-pointer rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-ink-muted hover:border-accent/50 hover:text-accent" type="button" onClick={downloadJson}>
+                </Button>
+                <Button variant="secondary" size="sm" onClick={downloadJson}>
                   Download
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -244,21 +206,14 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onVa
 
           {view === 'markdown' && (
             <div className="flex min-h-0 flex-1 flex-col">
-              {markdown.status === 'ready' ? (
-                <pre className={preClasses}>{markdown.markdown}</pre>
+              {documentMarkdown ? (
+                <pre className={preClasses}>{documentMarkdown}</pre>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
-                  {markdown.status === 'error' && (
-                    <p className="mb-3 wrap-anywhere text-[12px] leading-snug text-danger">{markdown.message}</p>
-                  )}
-                  <button
-                    className="cursor-pointer rounded-lg border border-accent bg-accent px-4 py-2 text-[12.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60"
-                    type="button"
-                    disabled={!pdfSource || markdown.status === 'running'}
-                    onClick={() => void generateMarkdown()}
-                  >
-                    {markdown.status === 'running' ? 'Generating...' : 'Generate markdown'}
-                  </button>
+                  <p className="text-[13px] font-semibold text-ink">Markdown unavailable</p>
+                  <p className="mt-1.5 max-w-[34ch] text-[11.5px] leading-snug text-ink-muted">
+                    Parsed Markdown has not been received for this source document.
+                  </p>
                 </div>
               )}
             </div>
@@ -267,48 +222,38 @@ function ResultsTab({ controller, schemaReady, pdfSource, documentMarkdown, onVa
       )}
 
       {state.status === 'running' && (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <span
-            aria-hidden="true"
-            className="animate-spin-slow size-7 rounded-full border-[3px] border-line border-t-accent"
-          />
-          <p className="text-[13px] font-semibold text-ink">Extracting...</p>
-          <p className="max-w-[34ch] text-[13px] leading-snug text-ink-muted">
-            This can take a while on large source documents.
-          </p>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
+          <Spinner label="Extracting..." hint="This can take a while on large source documents." />
         </div>
       )}
 
       {state.status === 'error' && (
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
-          <p className="mt-1 wrap-anywhere text-[13px] leading-snug text-ink-muted">{state.message}</p>
-          <button
-            className="mt-2.5 cursor-pointer rounded-lg border border-accent bg-accent px-3.25 py-1.5 text-xs font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40"
-            type="button"
-            onClick={() => void controller.runExtraction()}
-          >
+          <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
+          <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction()}>
             Retry extraction
-          </button>
+          </Button>
         </div>
       )}
 
       {state.status === 'idle' && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
           <p className="text-[13.5px] font-semibold text-ink">No results yet</p>
-          <p className="mt-1.5 max-w-[34ch] text-[13px] leading-snug text-ink-muted">
+          <p className="mt-1.5 max-w-[34ch] text-[11.5px] leading-snug text-ink-muted">
             {schemaReady
               ? 'Run extraction to apply the schema across the source document.'
               : 'Generate a schema in the Schema tab first, then run extraction.'}
           </p>
-          <button
-            className="mt-4 cursor-pointer rounded-lg border border-accent bg-accent px-4 py-2 text-[12.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:border-line disabled:bg-line disabled:text-ink-muted"
-            type="button"
+          <Button
+            variant="primary"
+            size="md"
+            className="mt-4"
             disabled={!controller.canRun}
             onClick={() => void controller.runExtraction()}
           >
             {schemaReady ? 'Run extraction' : 'Generate a schema first'}
-          </button>
+          </Button>
         </div>
       )}
     </div>

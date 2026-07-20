@@ -3,9 +3,15 @@
   "private": true,
   "scripts": {
     "postinstall": "pnpm --recursive --if-present install:python",
+    "install:cpu": "pnpm --filter parsing-service install:python:cpu",
+    "install:gpu": "pnpm --filter parsing-service install:python:gpu",
     "start": "pnpm dev",
     "dev": "pnpm --recursive --parallel dev",
+    "dev:cpu": "pnpm install:cpu && pnpm dev",
+    "dev:gpu": "pnpm install:gpu && pnpm dev",
     "test": "pnpm --recursive test",
+    "test:cpu": "pnpm install:cpu && pnpm test",
+    "test:gpu": "pnpm install:gpu && pnpm test",
     "build": "pnpm --filter studio build"
   }
 }
