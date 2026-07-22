@@ -3,16 +3,13 @@ import { describe, expect, it } from "vitest";
 import ProviderConfigPage from "./ProviderConfigPage";
 
 describe("ProviderConfigPage", () => {
-	it("renders seeded connections and task routes", () => {
+	it("renders the default single-model configuration", () => {
 		const html = renderToStaticMarkup(<ProviderConfigPage onClose={() => {}} />);
 
-		expect(html).toContain("Local Ollama");
-		expect(html).toContain("OpenAI (lab key)");
-		expect(html).toContain("Connected");
-		expect(html).toContain("Mixed · ready");
-		expect(html).toContain("Extraction &amp; Schema Suggestion");
-		expect(html).toContain("Chat &amp; Extraction Schema editing");
-		expect(html).toContain("NuExtract 2.0");
-		expect(html).toContain("GPT-4o");
+		expect(html).toContain("Tasks currently use different models");
+		expect(html).toContain('aria-label="Configuration mode"');
+		expect(html).toContain('type="password"');
+		expect(html).toContain('disabled="">Apply');
+		expect(html).toContain("Paste your OpenAI API key to finish.");
 	});
 });

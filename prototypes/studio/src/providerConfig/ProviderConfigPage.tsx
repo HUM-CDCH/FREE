@@ -52,6 +52,8 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 	const [routes, setRoutes] = useState(INITIAL_ROUTES);
 	const [draft, setDraft] = useState<Draft | "pick" | null>(null);
 	const [showAdvanced, setShowAdvanced] = useState(false);
+	const [mode, setMode] = useState<"simple" | "advanced">("simple");
+	const [simple, setSimple] = useState({ provider: "openai" as ApiProviderKey, apiKey: "", model: API_PROVIDERS.openai.models[0].id as string, showKey: false });
 
 	function pickKind(kind: ConnectionKind) {
 		const provider = kind === "api" ? API_PROVIDERS.openai : null;
@@ -84,6 +86,18 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 		}));
 	}
 
+	const simpleConnection = connections.find((item) => item.kind === "api" && item.apiProvider === simple.provider);
+	const simpleApplied = simpleConnection?.apiKey === simple.apiKey && ROUTABLE_TASKS.every((task) => routes[task.id].connectionId === simpleConnection.id && routes[task.id].model === simple.model);
+
+	function applySimple() {
+		if (!simple.apiKey.trim()) return;
+		const connection: Connection = simpleConnection
+			? { ...simpleConnection, apiKey: simple.apiKey, reachable: true }
+			: { id: crypto.randomUUID(), kind: "api", apiProvider: simple.provider, name: API_PROVIDERS[simple.provider].name, baseUrl: API_PROVIDERS[simple.provider].defaultUrl, apiKey: simple.apiKey, reachable: true };
+		setConnections((current) => (simpleConnection ? current.map((item) => (item.id === connection.id ? connection : item)) : [...current, connection]));
+		setRoutes({ ext: { connectionId: connection.id, model: simple.model }, chat: { connectionId: connection.id, model: simple.model } });
+	}
+
 	const routeStatuses = ROUTABLE_TASKS.map((task) => {
 		const route = routes[task.id];
 		const connection = connections.find((item) => item.id === route.connectionId);
@@ -94,19 +108,33 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 			? ({ kind: "ok", text: "Ready" } as const)
 			: ({ kind: "warn", text: "Model unavailable" } as const);
 	});
-	const allReady = routeStatuses.every((status) => status.kind === "ok");
-	const anyError = routeStatuses.some((status) => status.kind === "err");
-	const connectedIds = new Set(Object.values(routes).map((route) => route.connectionId).filter(Boolean));
-	const singleConnection = connectedIds.size === 1;
-	const overall = allReady ? "ok" : anyError ? "err" : "warn";
+	const singleConnection = new Set(Object.values(routes).map((route) => route.connectionId).filter(Boolean)).size === 1;
+	const routesUniform = !!routes.ext.connectionId && ROUTABLE_TASKS.every((task) => routes[task.id].connectionId === routes.ext.connectionId && routes[task.id].model === routes.ext.model);
+	const simpleStatusText = !simple.apiKey.trim()
+		? `Paste your ${API_PROVIDERS[simple.provider].name} API key to finish.`
+		: simpleApplied
+			? `${API_PROVIDERS[simple.provider].name} · ${API_PROVIDERS[simple.provider].models.find((model) => model.id === simple.model)?.label} runs both tasks.`
+			: "Not saved yet · Apply to use it for both tasks.";
 
 	return (
 		<div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
 			<header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.75">
-				<div className="flex items-center gap-2"><b className="text-[13px] tracking-[0.08em] text-accent">FREE</b><span className="text-[11px] font-medium text-ink-faint">/ Providers</span></div>
-				<div className="flex items-center gap-3"><Pill tone={tones[overall].pill} outline className="gap-1.5"><Dot kind={overall} />{allReady ? singleConnection ? "Single provider · ready" : "Mixed · ready" : "Needs attention"}</Pill><button type="button" onClick={onClose} aria-label="Close provider configuration" title="Close" className="text-ink-muted transition-colors hover:text-accent">✕</button></div>
+				<b className="text-[13px] text-ink">Providers</b>
+				<div className="flex shrink-0 items-center gap-3"><div role="group" aria-label="Configuration mode" className="flex shrink-0 gap-0.5 rounded-lg border border-line bg-surface-muted p-0.5">{(["simple", "advanced"] as const).map((value) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)} className={`cursor-pointer rounded-md px-3 py-[5px] text-[10.5px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${mode === value ? "bg-canvas text-accent shadow-[0_1px_2px_rgba(60,50,40,0.12)]" : "bg-transparent text-ink-faint hover:text-ink"}`}>{value === "simple" ? "Single model" : "Task routing"}</button>)}</div><button type="button" onClick={onClose} aria-label="Close provider configuration" title="Close" className="text-ink-muted transition-colors hover:text-accent">✕</button></div>
 			</header>
-			<div className="grid grid-cols-1 md:grid-cols-[1.08fr_1fr]">
+			{mode === "simple" && <div className="flex flex-col gap-4 p-4.5">
+				{!routesUniform && <div className="flex items-center gap-2 rounded-[9px] border border-stale bg-stale-soft px-3 py-2.25 text-[11px] font-medium leading-[1.35] text-stale-ink"><span aria-hidden="true" className="size-1.25 shrink-0 rounded-full bg-current" />Tasks currently use different models — pick one below and Apply to use it everywhere.</div>}
+				<div className="grid grid-cols-2 gap-3.5">
+					<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Provider</span><select value={simple.provider} onChange={(event) => { const provider = event.target.value as ApiProviderKey; setSimple((current) => ({ ...current, provider, model: API_PROVIDERS[provider].models[0].id })); }} className={`${fieldClass} cursor-pointer`}>{Object.entries(API_PROVIDERS).map(([key, provider]) => <option key={key} value={key}>{provider.name}</option>)}</select></label>
+					<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Model</span><select value={simple.model} onChange={(event) => setSimple((current) => ({ ...current, model: event.target.value }))} className={`cursor-pointer font-mono ${fieldClass}`}>{API_PROVIDERS[simple.provider].models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select></label>
+				</div>
+				<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">API key</span><div className="flex gap-2"><input type={simple.showKey ? "text" : "password"} value={simple.apiKey} onChange={(event) => setSimple((current) => ({ ...current, apiKey: event.target.value }))} placeholder="Paste your API key" className={`flex-1 font-mono ${fieldClass}`} /><Button variant="secondary" size="md" onClick={() => setSimple((current) => ({ ...current, showKey: !current.showKey }))}>{simple.showKey ? "Hide" : "Show"}</Button></div></label>
+				<div className="flex items-center justify-between gap-3">
+					<div className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.04em]"><Dot kind={simpleApplied ? "ok" : "warn"} /><span className={tones[simpleApplied ? "ok" : "warn"].text}>{simpleStatusText}</span></div>
+					<Button variant="primary" size="md" disabled={!simple.apiKey.trim()} onClick={applySimple}>Apply</Button>
+				</div>
+			</div>}
+			{mode === "advanced" && <div className="grid grid-cols-1 md:grid-cols-[1.08fr_1fr]">
 				<section className="min-h-90 border-b border-line p-4.5 md:border-r md:border-b-0">
 					<div className="mb-3.25 flex items-center justify-between"><Overline>Your connections</Overline>{draft === null && <Button variant="primary" size="sm" onClick={() => setDraft("pick")}>+ New connection</Button>}</div>
 					{draft === null && <div className="flex flex-col gap-2.25">
@@ -146,13 +174,13 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 						const status = routeStatuses[index];
 						return <div key={task.id} className="rounded-xl border border-line bg-surface p-3.5">
 							<b className="text-[12.5px] text-ink">{task.label}</b><p className="mb-2.75 text-[10.5px] text-ink-faint">{task.sub}</p>
-							<div className="flex flex-col gap-2"><select value={connection?.id ?? ""} onChange={(event) => updateRoute(task.id, event.target.value)} className={`${fieldClass} cursor-pointer`}><option value="" disabled>Select a connection…</option>{connections.map((item) => <option key={item.id} value={item.id}>{item.name} · {kindNameFor(item)}</option>)}</select>
-							{connection && <select value={route.model ?? ""} onChange={(event) => setRoutes((current) => ({ ...current, [task.id]: { ...route, model: event.target.value } }))} className={`cursor-pointer font-mono ${fieldClass}`}>{modelsFor(connection).map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select>}</div>
+							<div className="flex flex-col gap-2.25"><label className="flex flex-col gap-1.25"><span className="font-mono text-[9px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Connection</span><select value={connection?.id ?? ""} onChange={(event) => updateRoute(task.id, event.target.value)} className={`${fieldClass} cursor-pointer`}><option value="" disabled>Select a connection…</option>{connections.map((item) => <option key={item.id} value={item.id}>{item.name} · {kindNameFor(item)}</option>)}</select></label>
+							{connection && <label className="flex flex-col gap-1.25"><span className="font-mono text-[9px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Model</span><select value={route.model ?? ""} onChange={(event) => setRoutes((current) => ({ ...current, [task.id]: { ...route, model: event.target.value } }))} className={`cursor-pointer font-mono ${fieldClass}`}>{modelsFor(connection).map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select></label>}</div>
 							<div className="mt-2.25 flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.04em]"><Dot kind={status.kind} /><span className={tones[status.kind].text}>{status.text}</span></div>
 						</div>;
 					})}<p className="px-0.5 text-[11px] font-medium text-ink-muted">{singleConnection ? "All tasks use the same connection." : "Mixed setup · each task uses a different connection."}</p></div>
 				</section>
-			</div>
+			</div>}
 		</div>
 	);
 }
