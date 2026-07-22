@@ -4,6 +4,7 @@ import { requestSchemaEdit } from './api'
 import { applyOps } from './schemaOps'
 import { countTemplateFields, isRecord } from './template'
 import { type SchemaNode, mkId, templateToNodes, nodesToTemplate } from './schemaNode'
+import type { SchemaHistoryEntry } from './schemaHistory'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Exported types (App.tsx depends on TemplateState)
@@ -24,6 +25,9 @@ type SchemaPanelProps = {
   stale: boolean
   onGenerate: () => void
   onNodesChange: (nodes: SchemaNode[], message: string) => void
+  onChatSchemaChange: (nodes: SchemaNode[], message: string) => void
+  history: SchemaHistoryEntry[]
+  onRestoreVersion: (entryId: string) => void
   annotationCount: number
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
@@ -313,12 +317,16 @@ function SchemaPanel({
   stale,
   onGenerate,
   onNodesChange,
+  onChatSchemaChange,
+  history,
+  onRestoreVersion,
   annotationCount,
   annotationsMode,
   onAnnotationsModeChange,
 }: SchemaPanelProps) {
   // ── render state ──
   const [nodes, setNodes] = useState<SchemaNode[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [dragging, setDragging] = useState<DragState | null>(null)
   const [dragX, setDragX] = useState(0)
   const [dragY, setDragY] = useState(0)
@@ -674,7 +682,7 @@ function SchemaPanel({
     if (!pending) return
     nodesRef.current = pending.newNodes
     setNodes(pending.newNodes)
-    onNodesChange(pending.newNodes, '✦ Schema updated via chat')
+    onChatSchemaChange(pending.newNodes, '✦ Schema updated via chat')
     setChat(c => [...c, { role: 'assistant', text: '✓ Schema changes applied.' }])
     setPending(null)
   }
@@ -1098,6 +1106,42 @@ function SchemaPanel({
       {/* ── Task 6: Chat panel (visible when schema is ready) ── */}
       {ready && (
         <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
+          <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
+            <div className="relative">
+              <button
+                className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent disabled:cursor-default disabled:opacity-40"
+                type="button"
+                title="Chat edit history"
+                disabled={history.length === 0}
+                onClick={() => setHistoryOpen((open) => !open)}
+              >
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v5a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V5z" clipRule="evenodd"/></svg>
+              </button>
+              {historyOpen && (
+                <div className="scrollbar-subtle absolute right-0 bottom-full z-20 mb-1.5 max-h-80 w-72 overflow-y-auto rounded-lg border border-line bg-surface shadow-[0_4px_20px_rgba(51,48,44,.16)]">
+                  {history.length === 0 ? (
+                    <p className="px-3 py-3 text-[12px] text-ink-muted">No chat edits yet.</p>
+                  ) : (
+                    <ul className="flex flex-col divide-y divide-line">
+                      {[...history].reverse().map((entry) => (
+                        <li key={entry.id}>
+                          <button
+                            className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left outline-none transition-colors hover:bg-accent-ghost/40 focus-visible:bg-accent-ghost/40"
+                            type="button"
+                            onClick={() => { onRestoreVersion(entry.id); setHistoryOpen(false) }}
+                          >
+                            <span className="text-[12px] font-medium text-ink">{entry.message}</span>
+                            <span className="text-[10.5px] text-ink-faint">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
           {/* Task 6.2 – message list */}
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">

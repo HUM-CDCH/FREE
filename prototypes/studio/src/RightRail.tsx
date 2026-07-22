@@ -5,6 +5,7 @@ import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
 import type { SchemaNode } from './schemaNode'
+import type { SchemaHistoryEntry } from './schemaHistory'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
@@ -25,6 +26,9 @@ type RightRailProps = {
   schemaFieldCount: number
   onGenerate: () => void
   onNodesChange: (nodes: SchemaNode[], message: string) => void
+  onChatSchemaChange: (nodes: SchemaNode[], message: string) => void
+  schemaHistory: SchemaHistoryEntry[]
+  onRestoreSchemaVersion: (entryId: string) => void
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
@@ -62,6 +66,9 @@ function RightRail({
   schemaFieldCount,
   onGenerate,
   onNodesChange,
+  onChatSchemaChange,
+  schemaHistory,
+  onRestoreSchemaVersion,
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
@@ -150,6 +157,9 @@ function RightRail({
           stale={schemaStale}
           onGenerate={onGenerate}
           onNodesChange={onNodesChange}
+          onChatSchemaChange={onChatSchemaChange}
+          history={schemaHistory}
+          onRestoreVersion={onRestoreSchemaVersion}
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}

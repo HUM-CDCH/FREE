@@ -14,6 +14,8 @@ import type { TemplateState } from './SchemaPanel'
 import type { SchemaNode } from './schemaNode'
 import { templateToNodes, nodesToTemplate } from './schemaNode'
 import { countTemplateFields } from './template'
+import type { SchemaHistoryEntry } from './schemaHistory'
+import { appendSchemaHistoryEntry, clearSchemaHistory, loadSchemaHistory } from './schemaHistory'
 import { requestSchema, parseDocumentToMarkdown } from './api'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
@@ -94,6 +96,7 @@ function App() {
   const [annotationItems, setAnnotationItems] = useState<AnnotationSetItem[]>([])
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [templateState, setTemplateState] = useState<TemplateState>({ status: 'idle' })
+  const [schemaHistory, setSchemaHistory] = useState<SchemaHistoryEntry[]>(() => loadSchemaHistory())
   const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
   const [navOpen, setNavOpen] = useState(true)
   const [navWidth, setNavWidth] = useState(212)
@@ -149,6 +152,7 @@ function App() {
     setPdfSource({ url: URL.createObjectURL(file), filename: file.name })
     setAnnotationItems([])
     setTemplateState({ status: 'idle' })
+    setSchemaHistory(clearSchemaHistory())
     event.target.value = ''
   }
 
@@ -411,6 +415,18 @@ function App() {
     showToast(message)
   }
 
+  // Only chat-driven schema edits are recorded to history (not drag/inline/JSON/description edits).
+  function changeNodesFromChat(nodes: SchemaNode[], message: string) {
+    changeNodes(nodes, message)
+    setSchemaHistory((history) => appendSchemaHistoryEntry(history, nodes, message))
+  }
+
+  function restoreSchemaVersion(entryId: string) {
+    const entry = schemaHistory.find((e) => e.id === entryId)
+    if (!entry) return
+    changeNodes(entry.nodes, `Restored: ${entry.message}`)
+  }
+
   function startResize(event: React.MouseEvent, side: 'nav' | 'rail') {
     event.preventDefault()
     const startX = event.clientX
@@ -663,6 +679,9 @@ function App() {
             schemaFieldCount={schemaFieldCount}
             onGenerate={() => void generateSchema()}
             onNodesChange={changeNodes}
+            onChatSchemaChange={changeNodesFromChat}
+            schemaHistory={schemaHistory}
+            onRestoreSchemaVersion={restoreSchemaVersion}
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
