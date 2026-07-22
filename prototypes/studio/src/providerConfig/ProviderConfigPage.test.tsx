@@ -8,8 +8,10 @@ describe("ProviderConfigPage", () => {
 
 		expect(html).toContain("Tasks currently use different models");
 		expect(html).toContain('aria-label="Configuration mode"');
-		expect(html).toContain('type="password"');
-		expect(html).toContain('disabled="">Apply');
-		expect(html).toContain("Paste your OpenAI API key to finish.");
+		expect(html).not.toContain('type="password"');
+		expect(html).not.toContain('disabled="">Apply');
+		expect(html).toMatch(/<input placeholder="sk-\.\.\."[^>]* value=""\/>/);
+		expect(html).not.toContain("sk-live");
+		expect(html).toContain("Configuration changed");
 	});
 });

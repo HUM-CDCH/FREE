@@ -47,13 +47,20 @@ function Dot({ kind }: { kind: keyof typeof tones }) {
 	return <span aria-hidden="true" className={`size-1.25 shrink-0 rounded-full ${tones[kind].dot}`} />;
 }
 
+const providerOptions = Object.entries(API_PROVIDERS).map(([key, provider]) => <option key={key} value={key}>{provider.name}</option>);
+const keyPlaceholder: Record<ApiProviderKey, string> = { openai: "sk-...", anthropic: "sk-ant-...", google: "AIza..." };
+
+function ApiKeyField({ label = "API key", value, onChange, placeholder, className = "gap-1.5" }: { label?: string; value: string; onChange: (value: string) => void; placeholder: string; className?: string }) {
+	return <label className={`flex flex-col ${className}`}><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={`font-mono ${fieldClass}`} /></label>;
+}
+
 function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 	const [connections, setConnections] = useState(INITIAL_CONNECTIONS);
 	const [routes, setRoutes] = useState(INITIAL_ROUTES);
 	const [draft, setDraft] = useState<Draft | "pick" | null>(null);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [mode, setMode] = useState<"simple" | "advanced">("simple");
-	const [simple, setSimple] = useState({ provider: "openai" as ApiProviderKey, apiKey: "", model: API_PROVIDERS.openai.models[0].id as string, showKey: false });
+	const [simple, setSimple] = useState({ provider: "openai" as ApiProviderKey, apiKey: "", model: API_PROVIDERS.openai.models[0].id as string });
 
 	function pickKind(kind: ConnectionKind) {
 		const provider = kind === "api" ? API_PROVIDERS.openai : null;
@@ -73,7 +80,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 		if (!draft || draft === "pick") return;
 		setConnections((current) => [
 			...current,
-			{ ...draft, name: draft.name || CONNECTION_KINDS[draft.kind].name, id: crypto.randomUUID(), reachable: true },
+			{ ...draft, apiKey: draft.apiKey.trim(), name: draft.name || CONNECTION_KINDS[draft.kind].name, id: crypto.randomUUID(), reachable: true },
 		]);
 		setDraft(null);
 	}
@@ -87,15 +94,20 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 	}
 
 	const simpleConnection = connections.find((item) => item.kind === "api" && item.apiProvider === simple.provider);
-	const simpleApplied = simpleConnection?.apiKey === simple.apiKey && ROUTABLE_TASKS.every((task) => routes[task.id].connectionId === simpleConnection.id && routes[task.id].model === simple.model);
+	const simpleProvider = API_PROVIDERS[simple.provider];
+	const hasDraft = !!simple.apiKey.trim();
+	const hasStoredKey = !!simpleConnection?.apiKey;
+	const simpleApplied = !hasDraft && hasStoredKey && ROUTABLE_TASKS.every((task) => routes[task.id].connectionId === simpleConnection.id && routes[task.id].model === simple.model);
 
 	function applySimple() {
-		if (!simple.apiKey.trim()) return;
+		const apiKey = simple.apiKey.trim() || simpleConnection?.apiKey;
+		if (!apiKey) return;
 		const connection: Connection = simpleConnection
-			? { ...simpleConnection, apiKey: simple.apiKey, reachable: true }
-			: { id: crypto.randomUUID(), kind: "api", apiProvider: simple.provider, name: API_PROVIDERS[simple.provider].name, baseUrl: API_PROVIDERS[simple.provider].defaultUrl, apiKey: simple.apiKey, reachable: true };
+			? { ...simpleConnection, apiKey, reachable: true }
+			: { id: crypto.randomUUID(), kind: "api", apiProvider: simple.provider, name: simpleProvider.name, baseUrl: simpleProvider.defaultUrl, apiKey, reachable: true };
 		setConnections((current) => (simpleConnection ? current.map((item) => (item.id === connection.id ? connection : item)) : [...current, connection]));
 		setRoutes({ ext: { connectionId: connection.id, model: simple.model }, chat: { connectionId: connection.id, model: simple.model } });
+		setSimple((current) => ({ ...current, apiKey: "" }));
 	}
 
 	const routeStatuses = ROUTABLE_TASKS.map((task) => {
@@ -110,11 +122,13 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 	});
 	const singleConnection = new Set(Object.values(routes).map((route) => route.connectionId).filter(Boolean)).size === 1;
 	const routesUniform = !!routes.ext.connectionId && ROUTABLE_TASKS.every((task) => routes[task.id].connectionId === routes.ext.connectionId && routes[task.id].model === routes.ext.model);
-	const simpleStatusText = !simple.apiKey.trim()
-		? `Paste your ${API_PROVIDERS[simple.provider].name} API key to finish.`
+	const simpleStatusText = hasDraft
+		? "Not saved yet · Apply to use it for both tasks."
 		: simpleApplied
-			? `${API_PROVIDERS[simple.provider].name} · ${API_PROVIDERS[simple.provider].models.find((model) => model.id === simple.model)?.label} runs both tasks.`
-			: "Not saved yet · Apply to use it for both tasks.";
+			? `${simpleProvider.name} · ${simpleProvider.models.find((model) => model.id === simple.model)?.label} runs both tasks.`
+			: !hasStoredKey
+				? `Paste your ${simpleProvider.name} API key to finish.`
+				: "Configuration changed · Apply to use it for both tasks.";
 
 	return (
 		<div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
@@ -125,13 +139,13 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 			{mode === "simple" && <div className="flex flex-col gap-4 p-4.5">
 				{!routesUniform && <div className="flex items-center gap-2 rounded-[9px] border border-stale bg-stale-soft px-3 py-2.25 text-[11px] font-medium leading-[1.35] text-stale-ink"><span aria-hidden="true" className="size-1.25 shrink-0 rounded-full bg-current" />Tasks currently use different models — pick one below and Apply to use it everywhere.</div>}
 				<div className="grid grid-cols-2 gap-3.5">
-					<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Provider</span><select value={simple.provider} onChange={(event) => { const provider = event.target.value as ApiProviderKey; setSimple((current) => ({ ...current, provider, model: API_PROVIDERS[provider].models[0].id })); }} className={`${fieldClass} cursor-pointer`}>{Object.entries(API_PROVIDERS).map(([key, provider]) => <option key={key} value={key}>{provider.name}</option>)}</select></label>
-					<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Model</span><select value={simple.model} onChange={(event) => setSimple((current) => ({ ...current, model: event.target.value }))} className={`cursor-pointer font-mono ${fieldClass}`}>{API_PROVIDERS[simple.provider].models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select></label>
+					<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Provider</span><select value={simple.provider} onChange={(event) => { const provider = event.target.value as ApiProviderKey; setSimple({ provider, apiKey: "", model: API_PROVIDERS[provider].models[0].id }); }} className={`${fieldClass} cursor-pointer`}>{providerOptions}</select></label>
+					<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Model</span><select value={simple.model} onChange={(event) => setSimple((current) => ({ ...current, model: event.target.value }))} className={`cursor-pointer font-mono ${fieldClass}`}>{simpleProvider.models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select></label>
 				</div>
-				<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">API key</span><div className="flex gap-2"><input type={simple.showKey ? "text" : "password"} value={simple.apiKey} onChange={(event) => setSimple((current) => ({ ...current, apiKey: event.target.value }))} placeholder="Paste your API key" className={`flex-1 font-mono ${fieldClass}`} /><Button variant="secondary" size="md" onClick={() => setSimple((current) => ({ ...current, showKey: !current.showKey }))}>{simple.showKey ? "Hide" : "Show"}</Button></div></label>
+				<ApiKeyField value={simple.apiKey} onChange={(apiKey) => setSimple((current) => ({ ...current, apiKey }))} placeholder={hasStoredKey ? keyPlaceholder[simple.provider] : "Paste your API key"} className="gap-1.75" />
 				<div className="flex items-center justify-between gap-3">
 					<div className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.04em]"><Dot kind={simpleApplied ? "ok" : "warn"} /><span className={tones[simpleApplied ? "ok" : "warn"].text}>{simpleStatusText}</span></div>
-					<Button variant="primary" size="md" disabled={!simple.apiKey.trim()} onClick={applySimple}>Apply</Button>
+					<Button variant="primary" size="md" disabled={!hasDraft && !hasStoredKey} onClick={applySimple}>Apply</Button>
 				</div>
 			</div>}
 			{mode === "advanced" && <div className="grid grid-cols-1 md:grid-cols-[1.08fr_1fr]">
@@ -156,14 +170,14 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 						{draft.kind === "api" && <label className="flex flex-col gap-1.5"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Provider</span><select value={draft.apiProvider} onChange={(event) => {
 							const key = event.target.value as ApiProviderKey;
 							const provider = API_PROVIDERS[key];
-							setDraft({ ...draft, apiProvider: key, name: provider.name, baseUrl: provider.defaultUrl });
-						}} className={`${fieldClass} cursor-pointer`}>{Object.entries(API_PROVIDERS).map(([key, provider]) => <option key={key} value={key}>{provider.name}</option>)}</select></label>}
+							setDraft({ ...draft, apiProvider: key, name: provider.name, baseUrl: provider.defaultUrl, apiKey: "" });
+						}} className={`${fieldClass} cursor-pointer`}>{providerOptions}</select></label>}
 						<label className="flex flex-col gap-1.5"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Display name</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="e.g. Lab GPU box" className={fieldClass} /></label>
-						{(draft.kind === "api" || draft.kind === "ollama") && <label className="flex flex-col gap-1.5"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">{draft.kind === "api" ? "API key" : "API key (only if your server requires one)"}</span><input type="password" value={draft.apiKey} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })} placeholder="sk-…" className={`font-mono ${fieldClass}`} /></label>}
+						{(draft.kind === "api" || draft.kind === "ollama") && <ApiKeyField label={draft.kind === "api" ? "API key" : "API key (only if your server requires one)"} value={draft.apiKey} onChange={(apiKey) => setDraft({ ...draft, apiKey })} placeholder={draft.kind === "api" && draft.apiProvider ? keyPlaceholder[draft.apiProvider] : "Optional API key"} />}
 						{(draft.kind === "ollama" || (draft.kind === "api" && showAdvanced)) && <label className="flex flex-col gap-1.5"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">{draft.kind === "api" ? "API base URL" : "Server URL"}</span><input value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })} placeholder="http://localhost:11434" className={`font-mono ${fieldClass}`} /></label>}
 						{draft.kind === "api" && <button type="button" onClick={() => setShowAdvanced((current) => !current)} className="self-start font-mono text-[10.5px] font-semibold text-accent">{showAdvanced ? "Hide advanced" : "Advanced · custom base URL"}</button>}
 						<p className="text-[11px] leading-relaxed text-ink-faint">{draft.kind === "api" ? "The base URL is set from the provider · open Advanced to change it for a proxy or gateway." : draft.kind === "ollama" ? "Point at localhost or a remote machine. Any OpenAI-compatible server works." : `Uses your local ${CONNECTION_KINDS[draft.kind].name} sign-in · no URL or key needed.`}</p>
-						<div className="mt-0.5 flex gap-2"><Button variant="primary" size="md" disabled={(draft.kind === "ollama" && !draft.baseUrl) || (draft.kind === "api" && !draft.apiKey)} onClick={save}>Save connection</Button><Button variant="secondary" size="md" onClick={() => setDraft(null)}>Cancel</Button></div>
+						<div className="mt-0.5 flex gap-2"><Button variant="primary" size="md" disabled={(draft.kind === "ollama" && !draft.baseUrl) || (draft.kind === "api" && !draft.apiKey.trim())} onClick={save}>Save connection</Button><Button variant="secondary" size="md" onClick={() => setDraft(null)}>Cancel</Button></div>
 					</div>}
 				</section>
 				<section className="p-4.5">
