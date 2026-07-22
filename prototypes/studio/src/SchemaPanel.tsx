@@ -261,6 +261,49 @@ function FieldEditForm({ editing, onChange, onSave, onCancel }: {
   )
 }
 
+function DescriptionEditForm({ value, onChange, onSave, onDelete, onCancel }: {
+  value: string
+  onChange: (value: string) => void
+  onSave: () => void
+  onDelete: () => void
+  onCancel: () => void
+}) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
+  if (confirmingDelete) {
+    return (
+      <div className="mt-0.5 mb-0.5 flex items-center justify-between gap-1.5 rounded-md border border-danger/30 bg-danger-soft px-2 py-1">
+        <span className="text-[12px] font-semibold text-danger">Delete this description?</span>
+        <div className="flex shrink-0 gap-1.5">
+          <button className="cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-ink" type="button" onClick={() => setConfirmingDelete(false)}>Cancel</button>
+          <button className="cursor-pointer rounded-md bg-danger px-2 py-0.5 text-[11px] font-semibold text-white outline-none hover:brightness-110" type="button" onClick={onDelete}>Delete</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-0.5 mb-0.5 flex items-center gap-1.5 rounded-md border border-accent/50 bg-accent-ghost px-2 py-1">
+      <input
+        className="min-w-0 flex-1 bg-transparent font-sans text-[12px] text-ink outline-none placeholder:text-ink-faint"
+        placeholder="Describe this field for the extraction model…"
+        value={value}
+        autoFocus
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
+      />
+      <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2 py-0.5 text-[11px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
+      <button
+        className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-danger"
+        type="button"
+        title="Delete description"
+        onClick={() => setConfirmingDelete(true)}
+      >🗑</button>
+      <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" title="Cancel" onClick={onCancel}>✗</button>
+    </div>
+  )
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Main component
 // ────────────────────────────────────────────────────────────────────────────
@@ -292,6 +335,7 @@ function SchemaPanel({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [openDescId, setOpenDescId] = useState<string | null>(null)
+  const [descDraft, setDescDraft] = useState('')
   const [jsonEditMode, setJsonEditMode] = useState(false)
   const [jsonDraft, setJsonDraft] = useState('')
   const [jsonEditError, setJsonEditError] = useState<string | null>(null)
@@ -729,7 +773,11 @@ function SchemaPanel({
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
                 title="Add description"
-                onClick={() => setOpenDescId(prev => prev === node.id ? null : node.id)}
+                onClick={() => {
+                  const next = openDescId === node.id ? null : node.id
+                  if (next) setDescDraft(node.description ?? '')
+                  setOpenDescId(next)
+                }}
               >
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
               </button>
@@ -758,17 +806,12 @@ function SchemaPanel({
         )}
 
         {isGroup && openDescId === node.id && (
-          <input
-            key={`desc-${node.id}`}
-            type="text"
-            className="mt-0.5 mb-0.5 w-full rounded-md border border-accent/50 bg-accent-ghost px-2 py-1 font-sans text-[12px] text-ink outline-none focus:border-accent placeholder:text-ink-faint"
-            placeholder="Describe this field for the extraction model…"
-            defaultValue={node.description ?? ''}
-            autoFocus
-            onBlur={e => {
-              const val = e.target.value.trim()
-              updateNodeDescription(node.id, val || undefined)
-            }}
+          <DescriptionEditForm
+            value={descDraft}
+            onChange={setDescDraft}
+            onSave={() => { updateNodeDescription(node.id, descDraft.trim() || undefined); setOpenDescId(null) }}
+            onDelete={() => { updateNodeDescription(node.id, undefined); setOpenDescId(null) }}
+            onCancel={() => setOpenDescId(null)}
           />
         )}
 
@@ -845,7 +888,11 @@ function SchemaPanel({
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
                 title="Add description"
-                onClick={() => setOpenDescId(prev => prev === child.id ? null : child.id)}
+                onClick={() => {
+                  const next = openDescId === child.id ? null : child.id
+                  if (next) setDescDraft(child.description ?? '')
+                  setOpenDescId(next)
+                }}
               >
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
               </button>
@@ -874,17 +921,12 @@ function SchemaPanel({
         )}
 
         {isGroup && openDescId === child.id && (
-          <input
-            key={`desc-${child.id}`}
-            type="text"
-            className="mt-0.5 mb-0.5 w-full rounded-md border border-accent/50 bg-accent-ghost px-2 py-1 font-sans text-[12px] text-ink outline-none focus:border-accent placeholder:text-ink-faint"
-            placeholder="Describe this field for the extraction model…"
-            defaultValue={child.description ?? ''}
-            autoFocus
-            onBlur={e => {
-              const val = e.target.value.trim()
-              updateNodeDescription(child.id, val || undefined)
-            }}
+          <DescriptionEditForm
+            value={descDraft}
+            onChange={setDescDraft}
+            onSave={() => { updateNodeDescription(child.id, descDraft.trim() || undefined); setOpenDescId(null) }}
+            onDelete={() => { updateNodeDescription(child.id, undefined); setOpenDescId(null) }}
+            onCancel={() => setOpenDescId(null)}
           />
         )}
 
