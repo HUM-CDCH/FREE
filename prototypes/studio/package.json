@@ -17,6 +17,7 @@
     "@tailwindcss/vite": "^4.3.0",
     "ai": "^7.0.15",
     "ai-sdk-ollama": "^4.0.0",
+    "ai-sdk-provider-claude-code": "^4.0.1",
     "ai-sdk-provider-codex-cli": "^2.1.1",
     "pdfjs-dist": "^6.0.227",
     "react": "^19.2.6",
