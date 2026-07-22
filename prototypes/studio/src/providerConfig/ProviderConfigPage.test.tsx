@@ -12,6 +12,6 @@ describe("ProviderConfigPage", () => {
 		expect(html).not.toContain('disabled="">Apply');
 		expect(html).toMatch(/<input placeholder="sk-\.\.\."[^>]* value=""\/>/);
 		expect(html).not.toContain("sk-live");
-		expect(html).toContain("Configuration changed");
+		expect(html).toContain("Not saved · Apply.");
 	});
 });
