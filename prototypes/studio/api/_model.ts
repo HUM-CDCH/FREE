@@ -359,10 +359,124 @@ const editSchemaOpSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('patch'), name: z.string(), newName: z.string().optional(), type: z.string().optional(), parentName: z.string().optional() }),
 ])
 
-export async function editSchemaWithModel(
-  currentTemplate: unknown,
-  instruction: string,
-): Promise<EditSchemaOp[]> {
+type FlatField = { readonly path: string; readonly type: string }
+
+// Flattens a schema template into { path, type } entries, in traversal order —
+// including group (object/array) fields themselves, not just their leaves, so
+// a group's own name can be renamed/retyped too, matching schemaNode.ts's
+// nodesToTemplate(): a plain nested record is an "object" field, an array
+// represents a repeating group of its first element and is an "array" field.
+// The template root itself has no name, so it never gets an entry.
+function flattenTemplateFields(value: unknown, path: readonly string[] = []): FlatField[] {
+  if (path.length === 0) {
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) =>
+        flattenTemplateFields(child, [key]),
+      )
+    }
+    return []
+  }
+
+  if (Array.isArray(value)) {
+    const first = value[0]
+    const children =
+      first !== null && typeof first === 'object' && !Array.isArray(first)
+        ? Object.entries(first as Record<string, unknown>).flatMap(([key, child]) =>
+            flattenTemplateFields(child, [...path, key]),
+          )
+        : []
+    return [{ path: path.join('.'), type: 'array' }, ...children]
+  }
+
+  if (value !== null && typeof value === 'object') {
+    return [
+      { path: path.join('.'), type: 'object' },
+      ...Object.entries(value as Record<string, unknown>).flatMap(([key, child]) =>
+        flattenTemplateFields(child, [...path, key]),
+      ),
+    ]
+  }
+
+  return [{ path: path.join('.'), type: String(value) }]
+}
+
+// Runs `tasks` with at most `limit` in flight at once, preserving result order.
+async function runWithConcurrencyLimit<T>(tasks: readonly (() => Promise<T>)[], limit: number): Promise<T[]> {
+  const results: T[] = new Array(tasks.length)
+  let next = 0
+  async function worker() {
+    for (;;) {
+      const i = next++
+      if (i >= tasks.length) return
+      results[i] = await tasks[i]()
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker))
+  return results
+}
+
+const MAX_CONCURRENT_FIELD_CALLS = 6
+const FIELD_EDIT_ATTEMPTS = 2
+
+type FieldEditResult = { name: string; type: string; removed: boolean }
+
+const fieldEditResultSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  removed: z.boolean(),
+})
+
+function fieldName(path: string): string {
+  return path.split('.').at(-1) ?? path
+}
+
+// Immediate-parent name, matching schemaOps.ts's single-level parentName disambiguation.
+function fieldParentName(path: string): string | undefined {
+  const segments = path.split('.')
+  return segments.length > 1 ? segments.at(-2) : undefined
+}
+
+// Requests a result for exactly one field. Completeness across the whole
+// schema is guaranteed by the caller's array iteration (one call per element
+// of `fields`), not by this call's output shape — each call only ever has to
+// get a single field right, and a failure here only costs a retry of that one
+// field, never a whole batch.
+async function editOneField(field: FlatField, instruction: string): Promise<FieldEditResult> {
+  const prompt = `You are a schema editing assistant for humanities researchers.
+
+Researcher instruction: "${instruction}"
+
+Field: "${field.path}" — current name "${fieldName(field.path)}", current type "${field.type}".
+
+Decide this field's result after applying the instruction. If the instruction does not affect this field, echo its current name and current type unchanged and set "removed" to false. If the instruction says to delete this field, set "removed" to true.`
+
+  let lastError: unknown
+  for (let attempt = 0; attempt < FIELD_EDIT_ATTEMPTS; attempt++) {
+    try {
+      const result = await generateText({
+        model: chatModel(),
+        output: Output.object({ schema: fieldEditResultSchema }),
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const validated = fieldEditResultSchema.safeParse(result.output)
+      if (validated.success) {
+        return validated.data
+      }
+      lastError = validated.error
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw new RequestError(
+    502,
+    `Schema edit model returned an invalid result for field "${field.path}".`,
+    lastError instanceof Error ? lastError.message : String(lastError),
+  )
+}
+
+// Requests only brand-new fields the instruction asks for; these can't be
+// enumerated against the existing schema, so they stay a free-form op list.
+async function editNewFields(currentTemplate: unknown, instruction: string): Promise<EditSchemaOp[]> {
   const schemaJson = JSON.stringify(currentTemplate, null, 2)
   const prompt = `You are a schema editing assistant for humanities researchers.
 
@@ -371,17 +485,14 @@ ${schemaJson}
 
 Researcher instruction: "${instruction}"
 
-Return ONLY a JSON array of operations. No explanation, no markdown fences, no extra text.
-Each operation must be one of:
+Return ONLY a JSON array of "add" operations for any entirely new field the instruction requests. Existing fields are handled separately — do not include operations for them. No explanation, no markdown fences, no extra text.
+Each operation must look like:
   {"op":"add","name":"fieldName","type":"string|number|boolean|object|array","parentName":"optionalParent"}
-  {"op":"remove","name":"fieldName","parentName":"optionalParent"}
-  {"op":"patch","name":"fieldName","newName":"optionalNewName","type":"optionalNewType","parentName":"optionalParent"}
 
 Rules:
-- Only change what the researcher explicitly asked for
-- Use parentName when the same field name exists at multiple nesting levels
-- Omit parentName when the field is uniquely named
-- Return [] if no changes are needed`
+- Only add fields the researcher explicitly asked for
+- Omit parentName to add at the top level
+- Return [] if no new fields are needed`
 
   const result = await generateText({
     model: chatModel(),
@@ -397,9 +508,64 @@ Rules:
   const ops: EditSchemaOp[] = []
   for (const item of parsed) {
     const validated = editSchemaOpSchema.safeParse(item)
-    if (validated.success) {
+    if (validated.success && validated.data.op === 'add') {
       ops.push(validated.data)
     }
   }
+  return ops
+}
+
+export async function editSchemaWithModel(
+  currentTemplate: unknown,
+  instruction: string,
+): Promise<EditSchemaOp[]> {
+  const fields = flattenTemplateFields(currentTemplate)
+
+  const [fieldResults, additionOps] = await Promise.all([
+    runWithConcurrencyLimit(
+      fields.map((field) => () => editOneField(field, instruction)),
+      MAX_CONCURRENT_FIELD_CALLS,
+    ),
+    editNewFields(currentTemplate, instruction),
+  ])
+
+  const fieldOps: Array<{ readonly depth: number; readonly op: EditSchemaOp }> = []
+  fields.forEach((field, i) => {
+    const edited = fieldResults[i]
+
+    const name = fieldName(field.path)
+    const parentName = fieldParentName(field.path)
+    const depth = field.path.split('.').length
+
+    if (edited.removed) {
+      fieldOps.push({ depth, op: { op: 'remove', name, parentName } })
+      return
+    }
+
+    const nameChanged = edited.name !== name
+    const typeChanged = edited.type !== field.type
+    if (nameChanged || typeChanged) {
+      fieldOps.push({
+        depth,
+        op: {
+          op: 'patch',
+          name,
+          parentName,
+          ...(nameChanged ? { newName: edited.name } : {}),
+          ...(typeChanged ? { type: edited.type } : {}),
+        },
+      })
+    }
+  })
+
+  // schemaOps.ts applies ops sequentially against a mutating tree, matching
+  // each op's parentName against the tree's *current* state. A child's op
+  // still carries its parent's original name, so children must be applied
+  // before any ancestor group is itself renamed/removed — otherwise the
+  // child's op silently fails to match once its parent's name has changed.
+  fieldOps.sort((a, b) => b.depth - a.depth)
+
+  const ops: EditSchemaOp[] = fieldOps.map((f) => f.op)
+  ops.push(...additionOps)
   return ops
 }
