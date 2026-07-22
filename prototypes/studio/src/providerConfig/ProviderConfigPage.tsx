@@ -50,8 +50,13 @@ function Dot({ kind }: { kind: keyof typeof tones }) {
 const providerOptions = Object.entries(API_PROVIDERS).map(([key, provider]) => <option key={key} value={key}>{provider.name}</option>);
 const keyPlaceholder: Record<ApiProviderKey, string> = { openai: "sk-...", anthropic: "sk-ant-...", google: "AIza..." };
 
+const EyeIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
+const EyeOffIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true"><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2M9.4 5.2A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.3 4.1M6.1 6.1A17.6 17.6 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 3.9-.8" /><path d="m2 2 20 20" /></svg>;
+
 function ApiKeyField({ label = "API key", value, onChange, placeholder, className = "gap-1.5" }: { label?: string; value: string; onChange: (value: string) => void; placeholder: string; className?: string }) {
-	return <label className={`flex flex-col ${className}`}><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">{label}</span><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={`font-mono ${fieldClass}`} /></label>;
+	const [reveal, setReveal] = useState(false);
+	// ponytail: type=text + CSS masking (not type=password) so browser/password managers don't offer "strong password" suggestions on a secret that isn't a login password.
+	return <label className={`flex flex-col ${className}`}><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">{label}</span><div className="relative"><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} autoComplete="off" data-1p-ignore data-lpignore="true" className={`pr-9 font-mono ${reveal ? "" : "[-webkit-text-security:disc]"} ${fieldClass}`} />{value && <button type="button" onClick={() => setReveal((current) => !current)} aria-label={reveal ? "Hide API key" : "Show API key"} className="absolute inset-y-0 right-2.5 flex items-center text-ink-faint transition-colors hover:text-ink">{reveal ? EyeOffIcon : EyeIcon}</button>}</div></label>;
 }
 
 function ProviderConfigPage({ onClose }: { onClose: () => void }) {
@@ -122,13 +127,11 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
 	});
 	const singleConnection = new Set(Object.values(routes).map((route) => route.connectionId).filter(Boolean)).size === 1;
 	const routesUniform = !!routes.ext.connectionId && ROUTABLE_TASKS.every((task) => routes[task.id].connectionId === routes.ext.connectionId && routes[task.id].model === routes.ext.model);
-	const simpleStatusText = hasDraft
-		? "Not saved yet · Apply to use it for both tasks."
-		: simpleApplied
-			? `${simpleProvider.name} · ${simpleProvider.models.find((model) => model.id === simple.model)?.label} runs both tasks.`
-			: !hasStoredKey
-				? `Paste your ${simpleProvider.name} API key to finish.`
-				: "Configuration changed · Apply to use it for both tasks.";
+	const simpleStatusText = simpleApplied
+		? `${simpleProvider.name} · ${simpleProvider.models.find((model) => model.id === simple.model)?.label}`
+		: !hasStoredKey && !hasDraft
+			? `Paste your ${simpleProvider.name} API key.`
+			: "Not saved · Apply.";
 
 	return (
 		<div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
