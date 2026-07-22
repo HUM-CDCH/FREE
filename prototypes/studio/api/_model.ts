@@ -7,6 +7,7 @@ import {
 } from 'ai'
 import type { LanguageModel, UIMessage } from 'ai'
 import { createOllama, ollama } from 'ai-sdk-ollama'
+import { claudeCode } from 'ai-sdk-provider-claude-code'
 import { z } from 'zod'
 import type { Annotation, AnnotationMode, DocumentInput } from './_document.js'
 import { documentFileParts, type DocumentFilePart } from './_pdf.js'
@@ -77,6 +78,12 @@ function chatModel(): LanguageModel {
   const modelId = process.env.AI_CHAT_MODEL || DEFAULT_MODEL
   const baseURL = process.env.AI_BASE_URL
   const apiKey = process.env.AI_API_KEY
+
+  if (process.env.AI_PROVIDER === 'claude-code') {
+    // Source Documents and extraction instructions are untrusted. Claude Code
+    // is used only as a model boundary here, never as a coding/tool agent.
+    return claudeCode(modelId, { tools: [], settingSources: [] })
+  }
 
   if (baseURL) {
     return createOllama({ baseURL, apiKey })(modelId)
@@ -223,8 +230,8 @@ async function generateWithGenericJsonPrompt({
           ],
         },
       ],
-      // Codex CLI does not support temperature and warns even when the caller supplies one.
-      ...(model.provider === 'codex-app-server' ? {} : { temperature: temperature ?? 0 }),
+      // Codex CLI and Claude Code both ignore temperature and warn when the caller supplies one.
+      ...(model.provider === 'codex-app-server' || model.provider === 'claude-code' ? {} : { temperature: temperature ?? 0 }),
     })
     return { response: generated.text }
   } catch (error) {

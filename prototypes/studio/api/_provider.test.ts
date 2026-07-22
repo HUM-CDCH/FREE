@@ -45,7 +45,7 @@ describe("resolveModel", () => {
 
 		expect(() => resolveModel()).toThrow(RequestError);
 		expect(() => resolveModel()).toThrow(
-			"AI_PROVIDER must be 'ollama' or 'codex-cli'",
+			"AI_PROVIDER must be 'ollama', 'codex-cli', or 'claude-code'",
 		);
 	});
 });

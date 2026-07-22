@@ -3,17 +3,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createOllama, ollama } from "ai-sdk-ollama";
 import { createCodexAppServer } from "ai-sdk-provider-codex-cli";
+import { claudeCode } from 'ai-sdk-provider-claude-code';
 import { RequestError } from "./_http.js";
 
 const DEFAULT_MODEL = "llama3.2";
 const DEFAULT_CODEX_MODEL = "gpt-5.5";
-const PROVIDER_MESSAGE = "AI_PROVIDER must be 'ollama' or 'codex-cli'";
+const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5-20250514"
+const PROVIDER_MESSAGE = "AI_PROVIDER must be 'ollama', 'codex-cli', or 'claude-code'";
 
 declare const process: {
 	env: Record<string, string | undefined>;
 };
 
-type Provider = "ollama" | "codex-cli";
+type Provider = "ollama" | "codex-cli" | "claude-code";
 
 // Reuse one app-server process across requests; the provider reaps it after the idle timeout.
 let codexAppServer: ReturnType<typeof createCodexAppServer> | null = null;
@@ -68,7 +70,7 @@ function provider(): Provider {
 	if (!value || value === "ollama") {
 		return "ollama";
 	}
-	if (value === "codex-cli") {
+	if (value === "codex-cli" || value === "claude-code") {
 		return value;
 	}
 	throw new RequestError(500, PROVIDER_MESSAGE);
@@ -78,10 +80,20 @@ export function resolveModel(): ReturnType<typeof ollama> {
 	const selectedProvider = provider();
 	const modelId =
 		process.env.AI_MODEL ||
-		(selectedProvider === "codex-cli" ? DEFAULT_CODEX_MODEL : DEFAULT_MODEL);
+		(selectedProvider === "codex-cli"
+			? DEFAULT_CODEX_MODEL
+			: selectedProvider === "claude-code"
+				? DEFAULT_CLAUDE_MODEL
+				: DEFAULT_MODEL);
 
 	if (selectedProvider === "codex-cli") {
 		return codexProvider()(modelId);
+	}
+
+	if (selectedProvider === "claude-code") {
+		// Source Documents and extraction instructions are untrusted. Claude Code
+		// is used only as a model boundary here, never as a coding/tool agent.
+		return claudeCode(modelId, { tools: [], settingSources: [] });
 	}
 
 	const baseURL = process.env.AI_BASE_URL;
