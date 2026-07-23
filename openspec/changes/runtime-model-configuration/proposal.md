@@ -31,15 +31,12 @@ without silent substitution or duplicated provider rules.
   never performs paid test generation. Saving changed connections commits the
   configuration first, then automatically refreshes their observations; probe
   failure is advisory and never rolls back the saved configuration.
-- Give Model Connections client-created stable UUIDs, keep discovery observations
-  server-owned during PUT, and serialize configuration saves as last-write-wins
-  operations with atomic JSON replacement. Reject Capability Routes that
-  reference missing Model Connections. JSON and credential-store changes do not
-  claim cross-store transactional atomicity.
-- Treat managed credentials as write-only tri-state mutations: omission preserves
-  the stored credential, a string replaces it, and `null` deletes it. Removing a
-  Model Connection with a managed credential requires successful keyring deletion
-  before committing the configuration change.
+- Give Model Connections stable identities, preserve server-owned discovery
+  observations during updates, serialize concurrent saves, and reject Capability
+  Routes that reference missing Model Connections.
+- Make managed credential updates explicit and recoverable. Configuration and
+  credential-store changes fail visibly rather than claiming cross-store
+  transactional atomicity or silently leaving an indeterminate result.
 - Fail closed when the saved configuration is malformed or uses an unsupported
   version, preserving the document unchanged for manual recovery.
 - Offer newly selectable models only from discovery, except for Claude Code’s
@@ -49,15 +46,12 @@ without silent substitution or duplicated provider rules.
   Extraction and Schema Suggestion use the Extraction Route; document chat and
   conversational Extraction Schema editing use the Interaction Route. Missing
   routes and provider failures fail explicitly without fallback.
-- Resolve general execution directly to AI SDK v7 `LanguageModel` instances,
-  using registry-declared concrete capabilities to select native schema-less
-  JSON output or JSON-only prompting. Retain raw Ollama NuExtract as an explicit
-  Extraction Route profile, and use canonical Source Document Markdown as
-  Interaction Route context.
-- Parse client-supplied JSON strictly and confine repair to generated model
-  output. Standardize request and provider failures behind one stable FREE error
-  envelope, with bounded raw upstream detail only in immediate responses and
-  summary-only persisted probe errors.
+- Resolve general execution through registry-declared provider capabilities,
+  retain raw Ollama NuExtract as an explicit Extraction Route profile, and use
+  canonical Source Document Markdown as Interaction Route context.
+- Parse client-supplied JSON strictly, confine repair to generated model output,
+  and replace endpoint-specific request and provider failure bodies with one
+  stable FREE error envelope.
 - Keep runtime configuration and paid model operations within the supported
   local-loopback Vite/Studio source-prototype deployment. This change adds no
   explicit host binding or socket-level guard.
@@ -80,8 +74,9 @@ without silent substitution or duplicated provider rules.
 
 ### Modified Capabilities
 
-None. Studio’s new configuration and model-operation error contracts belong to
-the two new capabilities above.
+- `model-call-composition`: Replace the existing buffered model-failure
+  `{ detail }` response requirement with the stable FREE error envelope used by
+  model operations.
 
 ## Non-goals
 
