@@ -8,7 +8,7 @@ without silent substitution or duplicated provider rules.
 
 ## What Changes
 
-- Preserve the Model Connection page’s visual structure and its single-model and
+- Preserve the Model Connection page’s visual structure and its Single model and
   Capability Route configuration concepts while replacing its local catalogs,
   credential workflow, and fabricated status with backend-owned state and APIs.
 - Persist non-secret Model Connections, advisory discovery observations, and
@@ -21,11 +21,14 @@ without silent substitution or duplicated provider rules.
 - Support Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and generic
   OpenAI-compatible Model Connections through one backend provider registry
   that owns provider metadata, defaults, credential modes, discovery, model
-  construction, and concrete execution capabilities. Generic connections
-  guarantee `/v1/models` and `/v1/chat/completions`. Custom Model Connections
-  accept any researcher-supplied HTTP or HTTPS URL; custom URLs for native
-  providers retain that provider’s native contract, and the configured URL is
-  displayed without special remote-egress warnings or confirmation.
+  construction, and concrete execution capabilities. Every stored HTTP URL is
+  an unversioned service root: adapters append Ollama `/api`,
+  OpenAI/Anthropic/generic `/v1`, or Google `/v1beta` resources exactly once for
+  both discovery and generation. Generic connections thereby guarantee
+  `/v1/models` and `/v1/chat/completions` beneath the stored root. Custom Model
+  Connections accept any valid researcher-supplied HTTP or HTTPS service root;
+  native providers retain that provider’s native contract, and the configured
+  root is displayed without special remote-egress warnings or confirmation.
 - Add whole-document `GET/PUT /api/model_config` and `POST /api/model_probe`.
   Discovery remains advisory, persists observations for offline display, and
   never performs paid test generation. Saving changed connections commits the
@@ -46,15 +49,24 @@ without silent substitution or duplicated provider rules.
   Extraction and Schema Suggestion use the Extraction Route; document chat and
   conversational Extraction Schema editing use the Interaction Route. Missing
   routes and provider failures fail explicitly without fallback.
-- Resolve general execution through registry-declared provider capabilities,
-  retain raw Ollama NuExtract as an explicit Extraction Route profile, and use
-  canonical Source Document Markdown as Interaction Route context.
-- Parse client-supplied JSON strictly, confine repair to generated model output,
-  and replace endpoint-specific request and provider failure bodies with one
-  stable FREE error envelope.
+- Resolve general execution through registry-declared provider capabilities and
+  retain raw Ollama NuExtract as an explicit Extraction Route profile. Both
+  Interaction-routed operations use canonical Source Document Markdown when it
+  is present; conversational Extraction Schema editing preserves its nullable
+  document source and proceeds without Source Document Markdown when it is
+  absent.
+- Parse client-supplied JSON strictly and confine repair to generated model
+  output. Buffered failures and failures detected before a model stream begins
+  use one stable FREE error envelope; failures after document-chat stream headers
+  are sent use the standard AI SDK UI-message error event with sanitized public
+  text.
 - Keep runtime configuration and paid model operations within the supported
   local-loopback Vite/Studio source-prototype deployment. This change adds no
   explicit host binding or socket-level guard.
+- **BREAKING**: Reject an explicitly supplied temperature with HTTP 400
+  `unsupported_temperature` when the selected provider does not support it.
+  Codex CLI and Claude Code previously accepted the value and silently omitted
+  it.
 - **BREAKING**: Remove `AI_PROVIDER`, `AI_MODEL`, `AI_CHAT_MODEL`, `AI_BASE_URL`,
   and `AI_API_KEY` as runtime model-configuration inputs; saved configuration
   becomes the sole source.
@@ -68,22 +80,21 @@ without silent substitution or duplicated provider rules.
   boundaries, advisory discovery, configuration/probe APIs, configuration
   request/error behavior, and the Studio configuration workflow.
 - `capability-route-resolution`: Explicit Extraction and Interaction Capability
-  Routes, per-operation resolution, execution profiles, Interaction context,
-  strict model-operation request parsing, stable runtime errors, and no-fallback
-  behavior.
-
-### Modified Capabilities
-
-- `model-call-composition`: Replace the existing buffered model-failure
-  `{ detail }` response requirement with the stable FREE error envelope used by
-  model operations.
+  Routes, per-operation resolution, execution profiles, nullable Interaction
+  context, unsupported-temperature validation, pre-stream versus in-stream error
+  contracts, and no-fallback behavior.
+- `studio-model-operation-contract`: Request, success-response, and failure
+  contracts for Studio’s TypeScript `/api/extract`, `/api/generate_schema`,
+  `/api/edit_schema`, and `/api/chat` handlers, including the boundary between
+  pre-stream HTTP errors and committed AI SDK stream errors.
 
 ## Non-goals
 
 - Exposing or retaining public Model Attribution in model-operation responses.
 - Changing successful Extraction, Schema Suggestion, document-chat, or
-  Extraction Schema-edit response payloads; error responses intentionally move
-  to the stable FREE error envelope.
+  Extraction Schema-edit response payloads. Buffered and pre-stream error
+  responses intentionally move to the stable FREE envelope; committed streams
+  retain their standard error event.
 - Introducing the future `ParsedDocument.v2` Source Context projection.
 - Supporting hosted/Vercel runtime-model configuration or adding a distributable
   local production host.
