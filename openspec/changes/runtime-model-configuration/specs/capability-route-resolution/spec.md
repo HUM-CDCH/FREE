@@ -38,6 +38,12 @@ For each model operation, FREE SHALL read one validated immutable saved configur
 - **THEN** FREE does not read it as model configuration or credentials
 - **AND** the saved route remains the sole target source
 
+#### Scenario: Resolution begins during a configuration save
+
+- **WHEN** a model operation begins while a PUT is between credential mutation and JSON commit
+- **THEN** route resolution does not wait for the PUT and reads one validated saved configuration snapshot immediately
+- **AND** any credential/configuration mismatch fails through the normal error contract without target substitution
+
 #### Scenario: A local and a remote route are both configured
 
 - **WHEN** Extraction is configured for a local Ollama connection and Interaction for a remote OpenAI connection
@@ -111,7 +117,7 @@ When a model-operation request supplies an explicit temperature and the selected
 
 ### Requirement: Model-operation request and error boundaries are stable
 
-FREE SHALL parse client-supplied model-operation JSON strictly and SHALL reserve repair for generated model output. Buffered model operations and document-chat failures detected before stream creation SHALL return `{ "error": { "code": string, "message": string, "details"?: unknown } }`. Statuses SHALL be 400 for invalid requests or unsupported options, 409 for invalid saved model state, 502 for provider or generated-output failure, 503 for required keyring failure, and 500 for unexpected failure. The envelope and its details MUST NOT expose credentials, request headers, full request bodies, stack traces, or arbitrary thrown objects.
+FREE SHALL parse client-supplied model-operation JSON strictly and SHALL reserve repair for generated model output. Buffered model operations and document-chat failures detected before stream creation SHALL return `{ "error": { "code": string, "message": string, "details"?: unknown } }`. Statuses SHALL be 400 for invalid requests or unsupported options, 409 for invalid saved model state, 502 for provider or generated-output failure, 503 for required keyring failure, and 500 for unexpected failure. The envelope and its details MUST NOT add FREE-managed credentials, request headers, full request bodies, stack traces, or arbitrary thrown objects; immediate provider response detail MAY be raw but SHALL obey the bounded design contract.
 
 #### Scenario: Client JSON is malformed
 
@@ -129,7 +135,7 @@ FREE SHALL parse client-supplied model-operation JSON strictly and SHALL reserve
 
 - **WHEN** Extraction, Schema Suggestion, or conversational Extraction Schema editing reaches its selected provider and the provider or generated output fails
 - **THEN** FREE returns HTTP 502 with a stable error envelope
-- **AND** any immediate upstream detail is bounded and redacted of credentials and request data
+- **AND** any immediate upstream detail is the bounded raw provider detail allowed by the design, while the envelope does not add FREE-managed credentials, request headers, full request bodies, stack traces, or arbitrary thrown objects
 
 ### Requirement: Document chat preserves the committed stream error protocol
 

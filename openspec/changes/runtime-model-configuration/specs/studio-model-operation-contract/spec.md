@@ -24,7 +24,7 @@ Studio's TypeScript `POST /api/extract`, `POST /api/generate_schema`, and `POST 
 
 ### Requirement: Studio model-operation HTTP failures use one stable envelope
 
-Studio's TypeScript model-operation handlers SHALL parse client-supplied inputs strictly and SHALL reserve repair for generated model output. The three buffered handlers and failures detected by `POST /api/chat` before its stream response begins SHALL return `{ "error": { "code": string, "message": string, "details"?: unknown } }`. The envelope and its details MUST NOT expose credentials, request headers, full request bodies, stack traces, upstream response bodies, or arbitrary thrown objects.
+Studio's TypeScript model-operation handlers SHALL parse client-supplied inputs strictly and SHALL reserve repair for generated model output. The three buffered handlers and failures detected by `POST /api/chat` before its stream response begins SHALL return `{ "error": { "code": string, "message": string, "details"?: unknown } }`. For an immediate provider failure, the envelope MAY include the numeric upstream status and raw verbatim provider response body bounded as defined by the design; this detail is immediate-only. The envelope and its details MUST NOT add FREE-managed credentials, request headers, full request bodies, stack traces, unbounded upstream response bodies, or arbitrary thrown objects.
 
 #### Scenario: A buffered request is invalid
 
@@ -36,6 +36,7 @@ Studio's TypeScript model-operation handlers SHALL parse client-supplied inputs 
 
 - **WHEN** a buffered Studio model operation reaches its selected provider and the provider or generated output fails
 - **THEN** the handler returns HTTP 502 with a stable error envelope
+- **AND** any included upstream status and raw provider body are bounded, immediate-only, and do not add FREE-managed credentials or request data
 - **AND** the response is not a `200` success object
 
 #### Scenario: Chat fails before stream creation
@@ -51,7 +52,7 @@ Once the TypeScript `POST /api/chat` handler has committed its stream response, 
 #### Scenario: Chat fails after stream commitment
 
 - **WHEN** provider or generation failure occurs after `/api/chat` stream headers are committed
-- **THEN** the stream emits the standard AI SDK error part with bounded, sanitized `errorText`
+- **THEN** the stream emits the standard AI SDK error part with sanitized `errorText` of at most 512 Unicode code points
 - **AND** the committed HTTP status remains unchanged
 - **AND** the error part excludes internal causes, credentials, request data, upstream bodies, and stack traces
 
@@ -60,3 +61,22 @@ Once the TypeScript `POST /api/chat` handler has committed its stream response, 
 - **WHEN** the Studio frontend receives the AI SDK UI-message error part
 - **THEN** it terminates stream consumption on that error, including through `readUIMessageStream` with `terminateOnError: true` or equivalent behavior
 - **AND** it reports a failed operation rather than a completed assistant message
+
+### Requirement: Runtime configuration does not change deferred model-output tolerance
+
+This change SHALL limit model-operation behavior changes to saved-route
+resolution, strict client-request parsing, and error transport. It SHALL retain
+the existing tolerant handling outside those boundaries: parseable Extraction
+output that does not match its declared schema remains on the current tolerant
+path, individual invalid conversational Extraction Schema operations remain
+filtered, a non-array schema-edit result remains the existing no-op, and
+fractional Evidence pages retain their current handling. This change MUST NOT
+add partial Extraction validation issues, reject all schema-edit operations,
+turn a wrong top-level edit shape into a provider error, or introduce integer
+Evidence-page validation.
+
+#### Scenario: Deferred output-tolerance behavior remains stable
+
+- **WHEN** a selected provider returns parseable but schema-mismatched Extraction output, invalid individual schema-edit operations, a non-array schema-edit result, or a fractional Evidence page
+- **THEN** runtime-model configuration does not convert that existing tolerant behavior into a new HTTP 502 or validation contract
+- **AND** strict parsing still applies to client-supplied request JSON, while repair remains limited to generated model output

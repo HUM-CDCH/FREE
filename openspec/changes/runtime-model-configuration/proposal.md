@@ -26,7 +26,8 @@ without silent substitution or duplicated provider rules.
   OpenAI/Anthropic/generic `/v1`, or Google `/v1beta` resources exactly once for
   both discovery and generation. Generic connections thereby guarantee
   `/v1/models` and `/v1/chat/completions` beneath the stored root. Custom Model
-  Connections accept any valid researcher-supplied HTTP or HTTPS service root;
+  Connections accept any valid researcher-supplied HTTP or HTTPS service root
+  without query, fragment, or embedded userinfo;
   native providers retain that provider’s native contract, and the configured
   root is displayed without special remote-egress warnings or confirmation.
 - Add whole-document `GET/PUT /api/model_config` and `POST /api/model_probe`.
@@ -43,8 +44,11 @@ without silent substitution or duplicated provider rules.
 - Fail closed when the saved configuration is malformed or uses an unsupported
   version, preserving the document unchanged for manual recovery.
 - Offer newly selectable models only from discovery, except for Claude Code’s
-  documented static aliases. A selected model that disappears remains selected,
-  is marked unavailable, and is still attempted.
+  documented static aliases. Retain stale catalogs for offline display, but
+  allow them to gate new selections only when their non-secret connection
+  fingerprint matches the current provider, root, and credential revision. A
+  selected model that disappears remains selected, is marked unavailable, and is
+  still attempted.
 - Resolve each model operation once from an immutable configuration snapshot.
   Extraction and Schema Suggestion use the Extraction Route; document chat and
   conversational Extraction Schema editing use the Interaction Route. Missing
@@ -61,8 +65,9 @@ without silent substitution or duplicated provider rules.
   are sent use the standard AI SDK UI-message error event with sanitized public
   text.
 - Keep runtime configuration and paid model operations within the supported
-  local-loopback Vite/Studio source-prototype deployment. This change adds no
-  explicit host binding or socket-level guard.
+  Vite/Studio source-prototype deployment using Vite's implicit localhost
+  default. Non-loopback exposure is unsupported, not prevented: this change adds
+  no explicit host binding or socket-level guard.
 - **BREAKING**: Reject an explicitly supplied temperature with HTTP 400
   `unsupported_temperature` when the selected provider does not support it.
   Codex CLI and Claude Code previously accepted the value and silently omitted
@@ -102,7 +107,8 @@ without silent substitution or duplicated provider rules.
   compatibility with `AI_*` model settings.
 - A wholesale visual redesign of the Model Connection page; replacing its state
   model and workflows is in scope.
-- Changing schema-edit tolerance or the nullable document-source contract.
+- Changing schema-edit tolerance, parseable extraction-mismatch handling, or the
+  nullable document-source contract.
 - Cancellation propagation, centralized schema-type vocabulary,
   partial-extraction validation issues, and integer-only Evidence pages; these CQ
   follow-ups remain deferred.
@@ -119,7 +125,8 @@ without silent substitution or duplicated provider rules.
 - Provider construction for all four model workflows and removal of model
   selection from the environment.
 - Vitest coverage for storage, handlers, providers, and route resolution, plus
-  Playwright UI workflows with mocked configuration HTTP APIs.
+  Playwright UI workflows with mocked configuration HTTP APIs. Browser tests do
+  not exercise real provider servers or model operations.
 - Studio README and local setup documentation for saved model configuration;
   unrelated `VITE_*` settings remain supported.
 - Local source-prototype operation only; hosted deployment remains outside this

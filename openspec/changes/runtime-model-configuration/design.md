@@ -61,6 +61,17 @@ NuExtract control-token prompt and sending it to `/api/generate` with
 - Redesigning unrelated model-output tolerance, Source Document input, Evidence,
   or successful operation response contracts.
 
+The broader CQ follow-ups remain deliberately outside this change. Runtime
+configuration changes the client-request boundary and error transport, but does
+not add cancellation propagation, centralize the schema-type vocabulary, expose
+partial Extraction validation issues, change evidence unwrapping, or require
+integer-only Evidence pages. Existing generated-output tolerance also remains
+unchanged: parseable Extraction output that does not match its schema stays on
+the current tolerant path, individual invalid conversational Extraction Schema
+edit operations remain filtered, and a non-array edit result remains the
+existing no-op. These behaviors are regression-tested rather than tightened
+under the new `502` provider/generated-output error mapping.
+
 ## Decisions
 
 ### Persist one versioned JSON document in the OS user config directory
@@ -84,11 +95,20 @@ type StoredConnection = {
   name: string
   provider: ProviderKind
   baseUrl: string | null     // HTTP service root; null for CLI providers
+  credentialRevision: number // server-owned, never accepted from PUT
   catalog: ModelDescriptor[] // last successful catalog; server-owned
+  catalogFingerprint: ConnectionFingerprint | null // server-owned source
   probe: ProbeObservation | null
+  probeFingerprint: ConnectionFingerprint | null // server-owned source
 }
 
 type ModelDescriptor = { id: string; label: string }
+
+type ConnectionFingerprint = {
+  provider: ProviderKind
+  normalizedBaseUrl: string | null
+  credentialRevision: number // non-secret, server-owned monotonic revision
+}
 
 type ProbeStatus =
   | 'connected'
@@ -112,6 +132,15 @@ type ProbeObservation = {
 // unreachable is reserved for transport failures before an HTTP response.
 ```
 
+Probe adapters map observations consistently: `connected` means the discovery
+response or CLI catalog was valid; `authentication_failed` means an HTTP 401/403
+or an equivalent authenticated-harness failure; `unreachable` means transport
+failure before an HTTP response; `not_installed` means a required CLI harness is
+absent; `invalid_response` means a response violates the bounded discovery
+shape; `timed_out` means the 15-second FREE deadline elapsed; and
+`discovery_failed` covers other provider or CLI listing failures, including
+non-authentication HTTP failures.
+
 An absent file means the valid empty v1 configuration: no connections, both
 routes `null`, and no implicit environment-derived defaults. Reads parse JSON
 strictly and validate the complete versioned shape. A malformed document,
@@ -122,10 +151,12 @@ unchanged and does not auto-reset, migrate, back up, or replace it.
 
 Writes create a sibling temporary file, flush and close it, then rename it over
 `model-config.json`; the JSON document is atomic at the replacement boundary.
-There is no revision field or optimistic conflict protocol. An in-process FIFO
-queue serializes complete PUT workflows so last-arriving Save wins coherently
-within one Studio process. External file editing and coordination across Studio
-processes are unsupported.
+There is no document revision field or optimistic conflict protocol. The
+per-connection credential revision is only a non-secret source fingerprint
+component, not a client conflict token. An in-process FIFO queue serializes
+complete PUT workflows so last-arriving Save wins coherently within one Studio
+process. External file editing and coordination across Studio processes are
+unsupported.
 
 Alternatives considered:
 
@@ -170,30 +201,43 @@ type InteractionRoute = {
 
 Connection IDs are stable UUIDs. An existing ID cannot be reused with a
 different provider kind; changing provider kind requires deleting the old Model
-Connection and creating a new one. Names and HTTP-provider URLs are editable. HTTP providers require an absolute
-`http:` or `https:` service-root URL with no query or fragment and may point to
-any researcher-selected local or remote destination. A trailing slash is
-semantically irrelevant. Provider-specific validation rejects a root that
+Connection and creating a new one. At most one `codex-cli` connection and one
+`claude-code` connection may exist because each kind resolves the same local
+executable and external authentication; HTTP provider kinds may have multiple
+connections. Names and HTTP-provider URLs are editable. HTTP providers require
+an absolute `http:` or `https:` service-root URL with no username, password,
+query, or fragment and may point to any researcher-selected local or remote
+destination. A trailing slash is semantically irrelevant. Provider-specific
+validation rejects a root that
 already ends in the protocol suffix FREE appends (`/api` for Ollama, `/v1` for
 OpenAI, Anthropic, and OpenAI-compatible, or `/v1beta` for Google), preventing a
 stored `/v1` from becoming `/v1/v1`. CLI providers require `baseUrl: null`.
 
-Catalogs, probe observations, managed-credential presence, provider metadata,
-and route readiness are server-owned and are never accepted from PUT. The
-server carries the last successful catalog forward by connection ID. A failed
-probe replaces the latest probe observation but does not erase that catalog.
+Catalogs, catalog/probe fingerprints, probe observations, managed-credential
+presence, provider metadata, and route readiness are server-owned and are never
+accepted from PUT. The server carries the last successful catalog forward by
+connection ID. A failed probe replaces the latest probe observation but does not
+erase that catalog. `catalogFingerprint` identifies the provider, normalized
+service root, and credential revision that produced the retained catalog;
+`probeFingerprint` identifies the source of the latest observation. The current
+credential revision is incremented by managed-credential mutations and is never
+exposed as a secret or editable field.
 Changing a name does not trigger a probe; creating a connection, changing its
 URL, or replacing/deleting its credential does.
 
 A non-null route must reference a connection in the submitted document. A new
 route selection is valid only when its exact model ID is in that connection's
-server-owned catalog. Claude Code's static aliases are its catalog after a
-successful authentication probe. Therefore a new offline connection can be
-saved but cannot receive a route until discovery has produced a catalog. If an
-already selected model disappears from a later successful catalog, the route is
+server-owned catalog and the catalog fingerprint matches the current
+server-computed provider, normalized root, and credential revision. Claude
+Code's static aliases are its catalog after a successful authentication probe.
+Therefore a new offline
+connection can be saved but cannot receive a route until discovery has produced
+a current catalog. A retained catalog from an old URL or credential remains
+available for offline display but cannot gate a new selection. If an already
+selected model disappears from a later successful catalog, the route is
 preserved, returned as `model_unavailable`, and still executed. The client may
 also preserve that route in later PUTs, but cannot create a new selection of an
-absent model.
+absent or stale-catalog model.
 
 Only Ollama on the Extraction Route may use `nuextract-raw`; all other route
 targets use `general`. The server rejects invalid connection/profile/provider
@@ -375,14 +419,16 @@ type RouteView<T> = T & {
 Readiness is an informational calculation over the same persisted snapshot used
 to build the response; GET performs no fresh probe. Calculate it in this order:
 
-1. `connection_unavailable` when the latest probe is absent or is not
-   `connected`, when a `managed` credential is anything other than `present`, or
-   when an `optional` credential is `unavailable`. An absent optional credential
-   remains usable. CLI installation and authentication failures therefore enter
-   this state through `not_installed` or `authentication_failed`; keyring query
-   failure enters it through credential state.
+1. `connection_unavailable` when the latest probe is absent, its fingerprint
+   does not match the current connection, or it is not `connected`, when a
+   `managed` credential is anything other than `present`, or when an `optional`
+   credential is `unavailable`. An absent optional credential remains usable.
+   CLI installation and authentication failures therefore enter this state
+   through `not_installed` or `authentication_failed`; keyring query failure
+   enters it through credential state.
 2. `model_unavailable` when the connection is otherwise available but the
-   selected model ID is absent from its latest catalog.
+   selected model ID is absent from its latest catalog whose fingerprint matches
+   the current connection.
 3. `ready` otherwise.
 
 `connection_unavailable` takes precedence when both conditions apply. Readiness
@@ -489,21 +535,25 @@ labels are each at most 512 Unicode code points; an invalid item makes the whole
 response `invalid_response` rather than producing a partial catalog.
 
 For an immediate provider failure, `details.upstream` may contain its numeric
-status and verbatim text body truncated to 8,192 UTF-8 bytes, with `truncated`
-true exactly when bytes were omitted. `body` is decoded as UTF-8 with replacement.
-Never include request headers, credentials, full request bodies, stack traces,
-or arbitrary error objects. Persisted `ProbeObservation` keeps only timestamp,
-status, upstream status, and a sanitized message truncated to 512 Unicode code
-points; it never stores the raw body. Unknown thrown values become a generic `500 unexpected_failure` and are
-logged with their internal cause.
+status and raw verbatim provider response body truncated to 8,192 UTF-8 bytes,
+with `truncated` true exactly when bytes were omitted. `body` is decoded as
+UTF-8 with replacement. This raw detail is immediate-only and is not described
+as sanitized. FREE MUST NOT add request headers, FREE-managed credentials, full
+request bodies, stack traces, or arbitrary error objects to the envelope.
+Persisted `ProbeObservation` keeps only timestamp, status, upstream status, and a
+sanitized message truncated to 512 Unicode code points; it never stores the raw
+body. Unknown thrown values become a generic `500 unexpected_failure` and their
+internal cause is retained only for safe server-side diagnostics, never
+serialized into an API response or persisted configuration.
 
 Document chat has two error phases. Request parsing, route resolution, credential
 lookup, and any other failure caught before the UI-message stream response is
 created return the mapped HTTP status and `ApiErrorBody`. Once stream headers are
 sent, the status and content type cannot change: a provider or generation
 failure emits the standard AI SDK UI-message stream error part
-`{ type: 'error', errorText: string }`. `errorText` is a bounded, sanitized
-public message; it carries no cause, upstream body, or `details`. Protocol finish
+`{ type: 'error', errorText: string }`. `errorText` is a sanitized public
+message of at most 512 Unicode code points; it carries no cause, upstream body,
+or `details`. Protocol finish
 chunks and the SSE completion marker may follow that error part, so the frontend
 must call `readUIMessageStream({ stream, terminateOnError: true })` (or provide
 equivalent error termination) and treat it as a failed operation rather than a
@@ -696,24 +746,34 @@ Vitest covers real module behavior with isolated adapters:
 
 - Use a temporary config root to test absent, valid, corrupt, unsupported,
   atomic-replacement-failure, observation-preservation, and concurrent-save
-  behavior without touching the researcher's config directory.
+  behavior without touching the researcher's config directory. Also test that
+  embedded URL userinfo is rejected and that catalogs/observations from an old
+  URL or credential revision remain displayable but cannot gate new selections
+  or readiness.
 - Use a fake keyring to test credential tri-state, service/account naming,
   required deletion, unavailable-keyring degradation, mutation ordering,
   idempotent retries, and every documented cross-store partial state.
 - Use fake HTTP/CLI provider adapters to table-test all seven metadata entries,
   auth modes, discovery mappings, static Claude aliases, retained catalogs,
-  bounded upstream detail, and no generation during probes. Assert separately
-  that native OpenAI constructs a Responses model targeting `/v1/responses`,
+  CLI singleton validation, bounded upstream detail, and no generation during
+  probes. Assert separately that native OpenAI constructs a Responses model
+  targeting `/v1/responses`,
   while OpenAI-compatible constructs a Chat Completions model targeting
   `/v1/chat/completions`, so the two adapters cannot collapse onto one protocol.
 - Test GET, PUT, and POST handlers against the exact wire schemas, readiness
-  precedence, and status mapping, including advisory PUT probe failures.
+  precedence, current-fingerprint catalog gating, and status mapping, including
+  advisory PUT probe failures.
 - Test document chat failures before stream creation as HTTP `ApiErrorBody`
-  responses and failures after stream commitment as AI SDK error parts.
+  responses and failures after stream commitment as AI SDK error parts with the
+  512-code-point public error bound.
 - Table-test all four operation-to-route mappings, exact selected IDs,
   disappeared selected models, missing routes, profile restrictions,
   unsupported temperature, both Interaction context cases (including nullable
-  schema-edit source), no `AI_*` reads, and no fallback.
+  schema-edit source), no `AI_*` reads, no fallback, and resolution during the
+  accepted keyring/JSON save window.
+- Retain regression tests for the deferred output behavior: tolerant
+  parseable Extraction mismatches, filtered invalid schema-edit operations,
+  non-array schema-edit no-ops, and existing fractional Evidence-page handling.
 - Retain focused golden tests for every raw NuExtract mode and request field so
   provider refactoring cannot change its hand-built prompt or `raw: true` call.
 - Test the React page with mocked fetch for load, explicit Save, post-commit
@@ -724,10 +784,11 @@ Vitest covers real module behavior with isolated adapters:
 Add Playwright only for browser UI workflows, intercepting
 `/api/model_config` and `/api/model_probe` with mocked HTTP. Cover Single model
 and mixed Capability Routes, Save/reload, probe refresh, offline save, route
-gating, credential-state display, and stable error rendering. Playwright must
-not access the real config directory, keyring, provider network, or CLI processes;
-Vitest
-owns those integration boundaries.
+gating, credential-state display, and stable error rendering. The earlier idea
+of browser tests against fake provider servers is superseded: Playwright does
+not exercise real model operations or provider servers. It must not access the
+real config directory, keyring, provider network, or CLI processes; Vitest owns
+those integration boundaries.
 
 ## Risks / Trade-offs
 
@@ -746,8 +807,10 @@ owns those integration boundaries.
 - **A second observation write can fail after configuration commit** -> Return
   `configCommitted: true`, leave the committed editable document active, and
   allow a manual probe or retry to refresh observations.
-- **Discovery catalogs can be incomplete or stale** -> Use them only to gate new
-  selections and inform UI readiness; preserve and attempt existing selections.
+- **Discovery catalogs can be incomplete or stale** -> Retain them for offline
+  display, bind each catalog and probe observation to a non-secret connection
+  fingerprint, use only current fingerprints to gate new selections/readiness,
+  and preserve and attempt existing selections.
 - **Provider-wide capabilities can overstate a particular model** -> Treat them
   as protocol-path declarations only; return provider/model failures without
   fallback and add a capability field only when orchestration needs it.
