@@ -11,8 +11,8 @@ without silent substitution or duplicated provider rules.
 - Preserve the Model Connection page’s visual structure and its Single model and
   Capability Route configuration concepts while replacing its local catalogs,
   credential workflow, and fabricated status with backend-owned state and APIs.
-- Persist non-secret Model Connections, advisory discovery observations, and
-  exactly two Capability Routes in one versioned document in the operating
+- Persist non-secret Model Connections and exactly two Capability Routes in one
+  versioned document in the operating
   system’s user application-config directory.
 - Store FREE-managed credentials only in the operating system credential store,
   with no plaintext or memory-only fallback. Report managed credential presence
@@ -31,24 +31,24 @@ without silent substitution or duplicated provider rules.
   native providers retain that provider’s native contract, and the configured
   root is displayed without special remote-egress warnings or confirmation.
 - Add whole-document `GET/PUT /api/model_config` and `POST /api/model_probe`.
-  Discovery remains advisory, persists observations for offline display, and
-  never performs paid test generation. Saving changed connections commits the
-  configuration first, then automatically refreshes their observations; probe
-  failure is advisory and never rolls back the saved configuration.
-- Give Model Connections stable identities, preserve server-owned discovery
-  observations during updates, serialize concurrent saves, and reject Capability
-  Routes that reference missing Model Connections.
-- Make managed credential updates explicit and recoverable. Configuration and
-  credential-store changes fail visibly rather than claiming cross-store
-  transactional atomicity or silently leaving an indeterminate result.
+  GET and PUT use the same round-trippable editable `config` shape, with
+  credential states in a UUID-keyed sibling map; GET alone also returns the
+  static provider descriptors.
+  Discovery is a side-effect-free draft connectivity check that runs after valid
+  connection input settles, reports inline status, returns a bounded catalog for
+  the current page session, and never performs paid test generation. Apply never
+  probes.
+- Give Model Connections stable identities and reject Capability Routes that
+  reference missing Model Connections.
+- Keep the credential workflow proportional to the single-user prototype: one
+  React draft and one Apply request carry configuration and write-only credential
+  changes. Apply failures remain visible and retryable without transaction
+  journals or rollback machinery.
 - Fail closed when the saved configuration is malformed or uses an unsupported
   version, preserving the document unchanged for manual recovery.
-- Offer newly selectable models only from discovery, except for Claude Code’s
-  documented static aliases. Retain stale catalogs for offline display, but
-  allow them to gate new selections only when their non-secret connection
-  fingerprint matches the current provider, root, and credential revision. A
-  selected model that disappears remains selected, is marked unavailable, and is
-  still attempted.
+- Accept explicit model IDs without prior discovery. Automatic draft checks and
+  Refresh models offer the returned catalog as selection help and report whether
+  the connection is currently usable; they never gate or change configuration.
 - Resolve each model operation once from an immutable configuration snapshot.
   Extraction and Schema Suggestion use the Extraction Route; document chat and
   conversational Extraction Schema editing use the Interaction Route. Missing
@@ -82,7 +82,7 @@ without silent substitution or duplicated provider rules.
 
 - `model-connection-configuration`: Machine-wide Model Connection persistence,
   managed-credential and external-auth state, provider metadata and protocol
-  boundaries, advisory discovery, configuration/probe APIs, configuration
+  boundaries, ephemeral discovery, configuration/probe APIs, configuration
   request/error behavior, and the Studio configuration workflow.
 - `capability-route-resolution`: Explicit Extraction and Interaction Capability
   Routes, per-operation resolution, execution profiles, nullable Interaction
@@ -119,7 +119,7 @@ without silent substitution or duplicated provider rules.
   `prototypes/studio/src/`.
 - Studio’s local TypeScript/Vite API handlers and model orchestration under
   `prototypes/studio/api/`.
-- New local configuration, OS-keyring, provider-registry, discovery, and
+- New local configuration, OS-keyring, provider-registry, stateless discovery, and
   route-resolution boundaries, with platform config-path, keyring, and AI SDK
   provider-adapter dependencies.
 - Provider construction for all four model workflows and removal of model

@@ -12,11 +12,11 @@ Each numbered group is one fresh implementation session. Groups are dependency o
 
 **Explicit non-goals:** Keyring mutation, provider discovery, non-null route creation, model execution cutover, and Model Connection UI exposure.
 
-- [ ] 1.1 Add the required Studio dependencies and implement the shared strict wire schemas, `ApiError`/error mapper, bounded validation details, provider kinds, editable/stored/view types, and empty v1 document in cohesive `_http.ts` and `_model_config.ts` seams
+- [ ] 1.1 Add the required Studio dependencies and implement the shared strict wire schemas, `ApiError`/error mapper, bounded validation details, provider kinds, one round-trippable editable/stored configuration shape, response metadata, and empty v1 document in cohesive `_http.ts` and `_model_config.ts` seams
 - [ ] 1.2 Implement `env-paths('FREE Studio')` config-path resolution, absent-file behavior, complete stored-document validation, byte-preserving fail-closed reads, and flushed sibling-temp atomic replacement with injectable config root/filesystem seams
 - [ ] 1.3 Define the ordered seven-provider descriptor table sufficiently for GET metadata and validate provider-specific unversioned HTTP roots without username/password/query/fragment components, retained path prefixes, null CLI roots, at most one connection per CLI kind, UUID identity, duplicate IDs, profile combinations, and dangling routes without consulting `AI_*`
-- [ ] 1.4 Add `GET /api/model_config` and strict local Vite routing/error handling; compute route readiness from one snapshot without provider/CLI traffic and degrade keyring-status reads to `credentialState: unavailable`
-- [ ] 1.5 Add focused tests for absent, valid, corrupt, unsupported, duplicate-ID, invalid-root, embedded-userinfo, version-suffix, dangling-route, atomic-replacement-failure, descriptor order, readiness precedence, no-probe GET, and ignored `AI_*` environment values
+- [ ] 1.4 Add `GET /api/model_config` and strict local Vite routing/error handling; return static provider descriptors and a UUID-keyed credential-state map, degrading keyring-status reads to `unavailable`
+- [ ] 1.5 Add focused tests for absent, valid, corrupt, unsupported, duplicate-ID, invalid-root, embedded-userinfo, version-suffix, dangling-route, atomic-replacement-failure, descriptor order, no-probe GET, and ignored `AI_*` environment values
 - [ ] 1.6 Run `pnpm --filter studio test -- api/_model_config.test.ts api/_provider.test.ts src/apiEndpoints.test.ts` and `pnpm --filter studio build`
 
 **Stopping boundary:** Stop with GET available only as a read-only, unconfigured/configured contract; do not expose editable UI or runtime routing until saves and credential behavior are durable.
@@ -25,52 +25,50 @@ Each numbered group is one fresh implementation session. Groups are dependency o
 
 **Blocking task groups:** 1.
 
-**Expected outcome:** `PUT /api/model_config` serializes complete save workflows, accepts only researcher-editable state plus explicit credential actions, preserves server-owned observations, and reports every cross-store partial outcome without storing or returning a secret.
+**Expected outcome:** `PUT /api/model_config` accepts one complete editable draft plus write-only credential changes, atomically replaces JSON, and never stores or returns a plaintext secret.
 
 **Explicit non-goals:** Provider probing, model construction, operation routing, and browser Model Connection workflows.
 
 - [ ] 2.1 Add the narrow `@napi-rs/keyring` adapter using service `FREE Studio` and account `model-connection/<UUID>`, with injectable fakes and no plaintext, environment, process-memory, or file fallback
-- [ ] 2.2 Implement strict PUT parsing and semantic validation for unknown/server-owned fields, immutable provider kind per UUID, current-fingerprint route/catalog gating, preserved disappeared selections, credential preserve/replace/delete, automatic credential deletion for removed connections, and managed/optional/none/external auth rules
-- [ ] 2.3 Implement the in-process FIFO save queue, sequential idempotent credential mutations before atomic JSON commit, carried-forward catalogs/observations, last-write-wins ordering, and stable failure details containing completed action IDs and `configCommitted`
-- [ ] 2.4 Return the exact `PutModelConfigResponse` view while leaving changed-connection `probes` empty behind a temporary internal test seam that cannot contact providers; this is not the final wire behavior and must not be consumed by the UI until group 3 completes automatic probing
-- [ ] 2.5 Test credential service/account naming, tri-state actions, redaction, required deletion, unavailable-keyring GET degradation, required-keyring PUT failure, mutation order, retries, old/new provider identity, server-owned-field rejection, stale catalog/fingerprint handling after URL or credential changes, concurrent saves, first-JSON-commit failure without credential rollback, and each pre/post-JSON partial state
-- [ ] 2.6 Run `pnpm --filter studio test -- api/_model_config.test.ts src/apiEndpoints.test.ts` and `pnpm --filter studio build`
+- [ ] 2.2 Implement strict PUT parsing and semantic validation for unknown fields, immutable provider kind per UUID, explicit model IDs, credential preserve/replace/delete, best-effort credential cleanup for removed connections, and managed/optional/none/external auth rules
+- [ ] 2.3 Apply explicit credential changes, atomically commit JSON state, best-effort clean credentials for removed connections, and return normalized `config` plus UUID-keyed credential states without provider descriptors, rollback, or action-journal machinery
+- [ ] 2.4 Test configuration round-tripping without transforms, credential service/account naming, tri-state actions, redaction, unavailable-keyring GET degradation, required-keyring PUT failure, old/new provider identity, arbitrary model IDs, URL normalization, atomic JSON failure, and inert orphan cleanup
+- [ ] 2.5 Run `pnpm --filter studio test -- api/_model_config.test.ts src/apiEndpoints.test.ts` and `pnpm --filter studio build`
 
-**Stopping boundary:** Stop once durable edits and credentials are independently recoverable and fully tested; do not claim transactional rollback and do not wire a researcher-facing Save before post-commit probing exists.
+**Stopping boundary:** Stop once durable edits and write-only credentials are tested; do not claim transactional rollback or expose a researcher-facing Apply before probing is available.
 
-## 3. Advisory discovery across all seven provider contracts
+## 3. Explicit ephemeral discovery across all seven provider contracts
 
 **Blocking task groups:** 2.
 
-**Expected outcome:** Changed saves commit then probe, explicit saved-connection probes are available, catalogs and bounded observations survive offline failures, and stale results cannot overwrite newer connection state.
+**Expected outcome:** A side-effect-free probe of valid draft connection details reports current usability and a bounded catalog without changing configuration or credentials.
 
 **Explicit non-goals:** Paid/test generation, model suitability inference, execution-time catalog gating, UI workflows, and operation routing.
 
 - [ ] 3.1 Complete the single typed provider table with auth metadata, capability declarations, default roots, path-prefix-preserving resource joins, discovery adapters, CLI installation/auth checks, and credential-aware probe inputs for Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and OpenAI-compatible
 - [ ] 3.2 Implement provider-specific model-list parsing, Claude Code’s exact static aliases, 15-second wall-clock deadlines, 1 MiB response and 10,000-model limits, 512-code-point field/observation bounds, exact probe statuses, 8 KiB immediate upstream detail, and explicit proof that discovery never generates content
-- [ ] 3.3 Add server-owned per-connection catalog/probe fingerprints with credential revisions and monotonically allocated probe generations; apply completion only when the captured fingerprint/revision/generation remains current and report `applied`, `superseded`, `connection_changed`, or `connection_deleted`
-- [ ] 3.4 Finish PUT’s post-commit concurrent probing of changed connections in submitted order, preserving failed connections’ last successful catalogs and returning advisory failures as HTTP 200; report an observation-write failure with `configCommitted: true`
-- [ ] 3.5 Add strict `POST /api/model_probe` for saved connections only, persist applied success/failure observations, and map connectivity/auth/CLI/timeout/shape/discovery failures to `502 provider_failure` with the exact safe `ProbeResult`
-- [ ] 3.6 Table-test all seven providers, exact native/versioned discovery URLs, retained URL prefixes, auth headers without leakage, OpenAI versus OpenAI-compatible discovery boundaries, static aliases, catalog retention and fingerprint gating after URL/credential changes, size/count/time limits, stale overlap cases, changed-save probe ordering, and no-generation behavior
-- [ ] 3.7 Run `pnpm --filter studio test -- api/_model_config.test.ts api/_provider.test.ts api/model_config.test.ts api/model_probe.test.ts` and `pnpm --filter studio build`
+- [ ] 3.3 Add strict, side-effect-free `POST /api/model_probe` for draft connection details with write-only credential preserve/override/none semantics, and map connectivity/auth/CLI/timeout/shape/discovery failures to `502 provider_failure` with the exact safe `ProbeResult`
+- [ ] 3.4 Table-test all seven providers, exact native/versioned discovery URLs, retained URL prefixes, auth headers without leakage, OpenAI versus OpenAI-compatible discovery boundaries, static aliases, size/count/time limits, concurrent probes, no configuration writes, and no-generation behavior
+- [ ] 3.5 Run `pnpm --filter studio test -- api/_model_config.test.ts api/_provider.test.ts api/model_config.test.ts api/model_probe.test.ts` and `pnpm --filter studio build`
 
-**Stopping boundary:** Stop with GET/PUT/probe wire contracts complete and deterministic through fake HTTP/CLI/keyring/config seams; no test may touch the researcher’s real config directory, keyring, provider network, or CLI process.
+**Stopping boundary:** Stop with GET/PUT/probe wire contracts complete and deterministic through fake HTTP/CLI/keyring/config seams; probes are ephemeral and side-effect-free, and no test may touch the researcher’s real config directory, keyring, provider network, or CLI process.
 
 ## 4. Backend-owned Model Connection and Capability Route workflow
 
 **Blocking task groups:** 3.
 
-**Expected outcome:** The existing Model Connection page preserves Single model and Capability Routes views while loading, editing, saving, probing, and rendering only backend-owned configuration, credential state, catalogs, observations, and readiness.
+**Expected outcome:** The existing Model Connection page preserves Single model and Capability Routes views while loading, editing, saving, accepting manual model IDs, and seamlessly showing current-session connection checks beside valid drafts.
 
-**Explicit non-goals:** A visual redesign, frontend provider registry, free-form undiscovered model selection, runtime model-operation cutover, remote-egress warnings, and browser access to real credentials/providers/config files.
+**Explicit non-goals:** A visual redesign, frontend provider registry, runtime model-operation cutover, remote-egress warnings, and browser access to real credentials/providers/config files.
 
-- [ ] 4.1 Replace `providerConfig.data.ts`’s fabricated catalogs/connections/routes with exact API types, strict response/error decoding, and small view helpers; add frontend clients for GET, whole-document PUT, and saved-connection POST probe
-- [ ] 4.2 Refactor `ProviderConfigPage` to load backend state, preserve the current page structure, create stable UUIDs, show all provider descriptors and configured service roots, and render loading, corrupt-config, keyring-unavailable, offline, and unavailable-selected-model states without substitution
-- [ ] 4.3 Implement explicit Save for connection edits and credential preserve/replace/delete actions, consume post-commit probe results, support manual refresh, retain offline connections/catalogs, and never repopulate or display a credential value
-- [ ] 4.4 Implement Single model mode as one discovered general target assigned to both routes and Capability Routes mode as independent Extraction/Interaction targets, including Ollama-only `nuextract-raw`, catalog-gated new selections, preserved unavailable selections, and server-returned readiness
-- [ ] 4.5 Add React tests with mocked fetch for load, Save/reload, post-commit and manual probe results, credential tri-state, keyring failure, corrupt configuration, offline save, route/profile gating, dangling-route deletion errors, mixed routes, stable errors, and unavailable-model display
-- [ ] 4.6 Add Playwright setup and mocked-HTTP workflows for Single model and mixed routes, Save/reload, refresh, offline save, route gating, credential-state display, and errors, proving no browser test reaches real config, keyring, provider, CLI boundaries, or model-operation endpoints
-- [ ] 4.7 Run `pnpm --filter studio test -- src/providerConfig/ProviderConfigPage.test.tsx src/api.test.ts` plus the targeted mocked Playwright project and `pnpm --filter studio build`
+- [ ] 4.1 Replace `providerConfig.data.ts`’s fabricated catalogs/connections/routes with exact round-trippable configuration and response metadata types, strict response/error decoding, and small view helpers; add frontend clients for GET, whole-document PUT, and draft-connection POST probe
+- [ ] 4.2 Refactor `ProviderConfigPage` to load backend state, preserve the current page structure, create stable UUIDs, show all provider descriptors and configured service roots, and render loading, corrupt-config, keyring-unavailable, and inline draft probe states without substitution
+- [ ] 4.3 Keep one editable draft in `ProviderConfigPage`, disable Apply while pending, send that configuration unchanged with write-only credential changes once, replace the draft directly with the normalized response `config`, retain it on error, ensure Apply itself starts no probe, and never repopulate or display a credential value
+- [ ] 4.4 Probe a structurally valid connection after 500 ms of settled provider/root/credential input, abort and ignore superseded attempts, show checking/connected/failure inline, retain Refresh models, and never probe merely because the panel opened or a name/model ID changed
+- [ ] 4.5 Implement Single model mode as one explicit general target assigned to both routes and Capability Routes mode as independent Extraction/Interaction targets, including Ollama-only `nuextract-raw`, manual model IDs, and optional selection from the latest probe result
+- [ ] 4.6 Add React tests with mocked fetch for load, Apply/reload, pending Apply, retained draft on failure, debounce, cancellation, stale response suppression, transient credential redaction, inline probe states, manual retry, no panel-open or Apply probe, manual IDs, credential tri-state, keyring failure, corrupt configuration, offline save, route/profile gating, mixed routes, and stable errors
+- [ ] 4.7 Add Playwright setup and mocked-HTTP workflows for Single model and mixed routes, Apply/reload, seamless draft checking, manual refresh, manual IDs, offline save, credential-state display, and errors, proving no browser test reaches real config, keyring, provider, CLI boundaries, or model-operation endpoints
+- [ ] 4.8 Run `pnpm --filter studio test -- src/providerConfig/ProviderConfigPage.test.tsx src/api.test.ts` plus the targeted mocked Playwright project and `pnpm --filter studio build`
 
 **Stopping boundary:** Stop with configuration UX fully verifiable but model operations still on their pre-cutover path; do not partially route only some operations through saved state.
 
@@ -83,9 +81,9 @@ Each numbered group is one fresh implementation session. Groups are dependency o
 **Explicit non-goals:** Changing handler success payloads, changing raw NuExtract prompt/transport, adding a universal generation wrapper, caching models, per-project routes, fallback targets, or public Model Attribution.
 
 - [ ] 5.1 Complete credential-aware general model factories in the provider table for all seven kinds, retaining isolated tool-disabled Codex and Claude Code settings and asserting native OpenAI Responses versus OpenAI-compatible Chat Completions construction and exact resource roots
-- [ ] 5.2 Implement `resolveCapabilityRoute()` over one validated immutable snapshot with the fixed extraction/schema-suggestion and interaction/chat/schema-edit mappings, exact selected IDs, only the selected credential, profile validation, advisory-only catalogs/probes, and no provider/model/default/environment substitution
+- [ ] 5.2 Implement `resolveCapabilityRoute()` over one validated immutable snapshot with the fixed extraction/schema-suggestion and interaction/chat/schema-edit mappings, exact selected IDs, only the selected credential, profile validation, no discovery dependency, and no provider/model/default/environment substitution
 - [ ] 5.3 Return direct `LanguageModel` capability metadata for general targets and the exact Ollama root/model/authorization/temperature support for `nuextract-raw`; reject explicit temperature before invocation for Codex CLI and Claude Code with `400 unsupported_temperature`
-- [ ] 5.4 Add table tests for all operation mappings, seven factories, missing/null/dangling routes, disappeared selected models still attempted, invalid profiles, managed/optional/external credentials, resolution during an in-progress Save without waiting, mixed local/remote routes, unsupported/supported temperature, exact IDs/URLs, one resolver call, ignored `AI_*`, and no fallback
+- [ ] 5.4 Add table tests for all operation mappings, seven factories, missing/null/dangling routes, arbitrary selected model IDs, invalid profiles, managed/optional/external credentials, mixed local/remote routes, unsupported/supported temperature, exact IDs/URLs, one resolver call, ignored `AI_*`, and no fallback
 - [ ] 5.5 Run `pnpm --filter studio test -- api/_provider.test.ts api/_model_config.test.ts` and `pnpm --filter studio build`
 
 **Stopping boundary:** Stop at a tested resolver/factory seam; do not alter the four public operation handlers until all can cut over together while preserving their success contracts.
@@ -118,7 +116,7 @@ Each numbered group is one fresh implementation session. Groups are dependency o
 
 - [ ] 7.1 Delete obsolete static provider/model catalogs, fabricated initial connections/statuses, plaintext browser `apiKey` state/fields/placeholders, and any compatibility adapters retained only for the prototype configuration path
 - [ ] 7.2 Delete duplicated environment/provider/model/base-URL/API-key routing and its tests from `_model.ts`, `_provider.ts`, Vite environment loading where no longer needed, and all model-operation code; add a repository assertion that production Studio code contains no reads of `AI_PROVIDER`, `AI_MODEL`, `AI_CHAT_MODEL`, `AI_BASE_URL`, or `AI_API_KEY`
-- [ ] 7.3 Remove stale `AI_*` setup documentation and update the Studio README plus relevant runtime-model ADR/documentation to describe fresh unconfigured startup, saved Model Connections/Capability Routes, OS-keyring behavior and safe retry, advisory discovery, implicit-localhost-only support, and no hosted/remote guarantee
+- [ ] 7.3 Remove stale `AI_*` setup documentation and update the Studio README plus relevant runtime-model ADR/documentation to describe fresh unconfigured startup, saved Model Connections/Capability Routes, the one-draft Apply workflow, OS-keyring behavior, explicit ephemeral discovery, implicit-localhost-only support, and no hosted/remote guarantee
 - [ ] 7.4 Run focused Studio tests, the mocked browser workflows, `pnpm --filter studio lint`, `pnpm --filter studio test`, `pnpm --filter studio build`, `git diff --check`, and diagnostics for every edited source file
 - [ ] 7.5 Confirm repository searches find no obsolete static catalogs, plaintext browser credential state, duplicated environment routing, or stale instructional `AI_*` documentation outside historical interview/change artifacts
 

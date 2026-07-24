@@ -18,8 +18,8 @@ assumptions and remain out of scope.
 
 The implementation must preserve Studio's current page structure and its
 Single model and Capability Routes views, but the backend becomes authoritative
-for provider metadata, configuration, credentials, discovery observations, and
-runtime route resolution. The existing hand-built NuExtract prompt is also an
+for provider metadata, configuration, credentials, and runtime route resolution.
+Explicit probe results remain ephemeral UI assistance. The existing hand-built NuExtract prompt is also an
 architectural constraint: Ollama ignores the control kwargs used by other
 NuExtract runtimes, so raw Ollama requests must continue reconstructing the
 NuExtract control-token prompt and sending it to `/api/generate` with
@@ -31,7 +31,7 @@ NuExtract control-token prompt and sending it to `/api/generate` with
 
 - Persist one machine-wide, versioned model-configuration document and keep all
   FREE-managed secrets exclusively in the OS credential store.
-- Define exact whole-document configuration and saved-connection probe APIs.
+- Define exact whole-document configuration and draft-connection probe APIs.
 - Make one typed seven-provider table authoritative for UI metadata,
   authentication mode, discovery, model construction, and concrete execution
   capabilities.
@@ -39,8 +39,9 @@ NuExtract control-token prompt and sending it to `/api/generate` with
   the explicit raw NuExtract target.
 - Expose exactly the Extraction Route and Interaction Route, with no provider,
   connection, model, route, or environment substitution.
-- Preserve offline observations and selected models without treating discovery
-  as a paid capability test or an execution-time allowlist.
+- Report current connection usability while valid connection input settles or on
+  explicit retry, and accept manual model IDs without treating discovery as a
+  paid capability test or allowlist.
 - Use one stable error envelope and test narrow storage, keyring, provider, HTTP,
   resolver, and UI seams.
 
@@ -84,10 +85,7 @@ first configuration is committed. The complete persisted v1 document is:
 type StoredModelConfigV1 = {
   version: 1
   connections: StoredConnection[]
-  routes: {
-    extraction: ExtractionRoute | null
-    interaction: InteractionRoute | null
-  }
+  routes: Routes
 }
 
 type StoredConnection = {
@@ -95,20 +93,9 @@ type StoredConnection = {
   name: string
   provider: ProviderKind
   baseUrl: string | null     // HTTP service root; null for CLI providers
-  credentialRevision: number // server-owned, never accepted from PUT
-  catalog: ModelDescriptor[] // last successful catalog; server-owned
-  catalogFingerprint: ConnectionFingerprint | null // server-owned source
-  probe: ProbeObservation | null
-  probeFingerprint: ConnectionFingerprint | null // server-owned source
 }
 
 type ModelDescriptor = { id: string; label: string }
-
-type ConnectionFingerprint = {
-  provider: ProviderKind
-  normalizedBaseUrl: string | null
-  credentialRevision: number // non-secret, server-owned monotonic revision
-}
 
 type ProbeStatus =
   | 'connected'
@@ -145,17 +132,15 @@ An absent file means the valid empty v1 configuration: no connections, both
 routes `null`, and no implicit environment-derived defaults. Reads parse JSON
 strictly and validate the complete versioned shape. A malformed document,
 unsupported version, duplicate connection ID, invalid URL, invalid provider
-kind, invalid observation, or dangling route produces `409 invalid_model_config`
+kind, or dangling route produces `409 invalid_model_config`
 with the path and bounded validation detail. FREE leaves the file byte-for-byte
 unchanged and does not auto-reset, migrate, back up, or replace it.
 
 Writes create a sibling temporary file, flush and close it, then rename it over
 `model-config.json`; the JSON document is atomic at the replacement boundary.
-There is no document revision field or optimistic conflict protocol. The
-per-connection credential revision is only a non-secret source fingerprint
-component, not a client conflict token. An in-process FIFO queue serializes
-complete PUT workflows so last-arriving Save wins coherently within one Studio
-process. External file editing and coordination across Studio processes are
+There is no document revision field, optimistic conflict protocol, or save
+queue. The Apply button is disabled while its request is active. External file
+editing, overlapping PUT requests, and coordination across Studio processes are
 unsupported.
 
 Alternatives considered:
@@ -180,22 +165,21 @@ type EditableModelConfig = {
     provider: ProviderKind
     baseUrl: string | null
   }>
-  routes: {
-    extraction: ExtractionRoute | null
-    interaction: InteractionRoute | null
-  }
+  routes: Routes
 }
 
-type ExtractionRoute = {
+type Route = {
   connectionId: string
   modelId: string
-  profile: 'general' | 'nuextract-raw'
 }
 
-type InteractionRoute = {
-  connectionId: string
-  modelId: string
-  profile: 'general'
+// The Extraction Route may opt into the raw NuExtract transport; the flag is
+// valid only when its connection is Ollama and is absent for the general path.
+// The Interaction Route is always general and carries no such flag, so raw
+// NuExtract on Interaction is not representable.
+type Routes = {
+  extraction: (Route & { nuextractRaw?: boolean }) | null
+  interaction: Route | null
 }
 ```
 
@@ -213,35 +197,16 @@ already ends in the protocol suffix FREE appends (`/api` for Ollama, `/v1` for
 OpenAI, Anthropic, and OpenAI-compatible, or `/v1beta` for Google), preventing a
 stored `/v1` from becoming `/v1/v1`. CLI providers require `baseUrl: null`.
 
-Catalogs, catalog/probe fingerprints, probe observations, managed-credential
-presence, provider metadata, and route readiness are server-owned and are never
-accepted from PUT. The server carries the last successful catalog forward by
-connection ID. A failed probe replaces the latest probe observation but does not
-erase that catalog. `catalogFingerprint` identifies the provider, normalized
-service root, and credential revision that produced the retained catalog;
-`probeFingerprint` identifies the source of the latest observation. The current
-credential revision is incremented by managed-credential mutations and is never
-exposed as a secret or editable field.
-Changing a name does not trigger a probe; creating a connection, changing its
-URL, or replacing/deleting its credential does.
-
 A non-null route must reference a connection in the submitted document. A new
-route selection is valid only when its exact model ID is in that connection's
-server-owned catalog and the catalog fingerprint matches the current
-server-computed provider, normalized root, and credential revision. Claude
-Code's static aliases are its catalog after a successful authentication probe.
-Therefore a new offline
-connection can be saved but cannot receive a route until discovery has produced
-a current catalog. A retained catalog from an old URL or credential remains
-available for offline display but cannot gate a new selection. If an already
-selected model disappears from a later successful catalog, the route is
-preserved, returned as `model_unavailable`, and still executed. The client may
-also preserve that route in later PUTs, but cannot create a new selection of an
-absent or stale-catalog model.
+route selection accepts its exact non-empty model ID without prior discovery.
+Model IDs are opaque provider identifiers and are never substituted or rejected
+because an explicit probe omitted them.
 
-Only Ollama on the Extraction Route may use `nuextract-raw`; all other route
-targets use `general`. The server rejects invalid connection/profile/provider
-combinations with `409 invalid_model_config` rather than changing them.
+`nuextractRaw` on the Extraction Route is valid only when its connection is
+Ollama; every other route target runs the general path, and the Interaction
+Route cannot request raw NuExtract at all. The server rejects a `nuextractRaw`
+Extraction Route whose connection is not Ollama with `409 invalid_model_config`
+rather than coercing it.
 
 ### Use explicit credential actions and expose no secret values
 
@@ -249,7 +214,7 @@ Use `@napi-rs/keyring` behind a narrow adapter. Every FREE-managed credential
 uses service name `FREE Studio` and account name
 `model-connection/<connection UUID>`. The UUID, not the display name or URL,
 makes rename and URL edits stable. No credential value or masked placeholder is
-written to JSON, logged, persisted in probe observations, or returned over HTTP.
+written to JSON, logged, included in probe results, or returned over HTTP.
 
 PUT carries an optional credential-action map with an explicit tri-state:
 
@@ -269,7 +234,8 @@ if present, without requiring a redundant `null` action. That deletion must
 succeed before the JSON commit. External CLI authentication is never represented
 as a FREE-managed credential and is neither created nor deleted by this API.
 
-The configuration view reports:
+Configuration responses report credential state in a sibling map keyed by
+connection UUID:
 
 ```ts
 type CredentialState = 'present' | 'absent' | 'unavailable' | 'not_applicable'
@@ -285,52 +251,54 @@ If the keyring is unavailable, reading configuration and using `none` or
 requires a FREE-managed credential fails with `503 keyring_unavailable`. There
 is no plaintext, environment, or process-memory fallback.
 
-### Make save ordering and cross-store partial states explicit
+### Keep Apply a simple single-user workflow
 
-Each queued PUT performs these steps:
+The page owns one editable React draft and sends it through one Apply request.
+Existing credential values are never loaded into that draft: an omitted action
+preserves a credential, a non-empty value replaces it, and `null` removes it.
+While Apply is pending the page disables Apply; success replaces the draft with
+the returned normalized `config`, while failure keeps the draft and displays the
+error so the researcher can retry.
+
+Connection checking is separate from Apply. Once a draft connection has a valid
+provider, service root where applicable, and required credential source, the
+page waits 500 ms after the latest provider/root/credential edit and probes that
+draft. It shows checking, connected, or the bounded failure beside the edited
+connection. Changing only its name or a route model ID does not probe. Opening
+the panel does not probe every saved connection. Refresh models provides an
+immediate retry.
+
+The browser aborts an in-flight request when probe inputs change and ignores any
+response except the latest request for that connection. Probe failure never
+disables Apply: the check is useful evidence, not a generation capability test.
+The status and catalog live only in page state and disappear on reload.
+
+Each PUT performs these steps:
 
 1. Strictly parse and structurally validate the request.
 2. Read and validate the current JSON document and query only credential states
    needed to validate the requested change.
-3. Merge server-owned catalogs and observations into the submitted editable
-   document, validate routes against those catalogs, and calculate changed and
-   deleted connections.
-4. Apply credential creates/replacements/deletions sequentially and
-   idempotently, recording each completed action.
+3. Validate routes and calculate deleted connections.
+4. Apply explicit credential creates, replacements, and deletions.
 5. Atomically replace the JSON document. At this point the configuration is
    committed and usable.
-6. Probe changed non-deleted connections concurrently with bounded per-provider
-   timeouts. Probe failures are advisory and do not fail or roll back the Save.
-7. Atomically replace the document again with updated probe observations and
-   successful catalogs, then return the final configuration view and immediate
-   probe outcomes.
+6. Best-effort delete credentials belonging to removed connections and return
+   the normalized configuration and credential states. A leftover credential is inert because its UUID is
+   absent from the authoritative JSON document.
 
 Keyring and filesystem writes cannot form a transaction and no compensating
-rollback is attempted. If a keyring operation fails, earlier completed keyring
-operations remain. If the first JSON replacement fails, a newly created or
-replaced credential can remain while the old JSON stays active, or a deleted
-credential can be absent while the old JSON still references that connection.
-If the second replacement fails, the committed editable configuration remains
-active, probes may already have contacted providers, and the prior observations
-remain on disk. Error details include the completed credential action IDs and a
-`configCommitted` boolean so the result is determinate and the same PUT can be
-retried safely.
-
-Route resolution deliberately does not wait for an active Save. It reads one
-validated JSON snapshot and then resolves the credential needed by that
-snapshot. During the short keyring-before-JSON window it may combine the old
-document with a newly replaced credential, or find that a credential was
-deleted before the old document was replaced. This accepted partial state is
-reported normally if it causes failure; adding read/save coordination was
-rejected as disproportionate for the single-researcher prototype.
+rollback is attempted. A rare failure after a credential replacement but before
+the JSON replacement can leave that credential paired with the old
+configuration. The API returns the ordinary storage error, keeps no action
+journal, and permits Apply to be retried. JSON remains authoritative; orphaned
+credentials are harmless and may be cleaned up by a later successful Apply.
 
 Alternatives considered:
 
 - Writing JSON first can activate a route whose requested credential was never
   stored.
-- Secret rollback requires reading and retaining old secret values and itself
-  has failure states, creating a misleading transaction facade.
-- Unqueued PUTs can let different requests win the keyring and JSON stores.
+- Secret rollback and action journals add failure states and retained secret
+  handling disproportionate to a single-user local prototype.
 
 ### Define exact configuration HTTP contracts
 
@@ -359,8 +327,7 @@ type ProviderDescriptor = {
   capabilities: {
     jsonOutput: 'native' | 'prompt'
     temperature: boolean
-    extractionProfiles: Array<'general' | 'nuextract-raw'>
-    interactionProfiles: Array<'general'>
+    nuextractRaw: boolean   // Extraction Route may opt into raw NuExtract (Ollama only)
   }
 }
 
@@ -370,15 +337,8 @@ type ImmediateUpstreamDetail = {
   truncated: boolean
 }
 
-type ProbeApplication =
-  | 'applied'
-  | 'superseded'
-  | 'connection_changed'
-  | 'connection_deleted'
-
 type ProbeResult = {
   connectionId: string
-  application: ProbeApplication
   observation: ProbeObservation
   catalog: ModelDescriptor[]
   upstream?: ImmediateUpstreamDetail
@@ -386,60 +346,24 @@ type ProbeResult = {
 
 type ModelProbeResponse = ProbeResult
 
-// For application:'applied', observation and catalog are the values now stored.
-// For a discarded stale result, observation describes this completed attempt and
-// catalog is the currently retained catalog (or [] after connection_deleted).
+type ModelConfigState = {
+  config: EditableModelConfig
+  // Exactly one entry for every connection in config; no other entries.
+  credentialStates: Record<string, CredentialState>
+}
 
-
-type ModelConfigView = {
-  config: {
-    version: 1
-    connections: Array<{
-      id: string
-      name: string
-      provider: ProviderKind
-      baseUrl: string | null
-      credentialState: CredentialState
-      catalog: ModelDescriptor[]
-      probe: ProbeObservation | null
-    }>
-    routes: {
-      extraction: RouteView<ExtractionRoute> | null
-      interaction: RouteView<InteractionRoute> | null
-    }
-  }
+type GetModelConfigResponse = ModelConfigState & {
   providers: ProviderDescriptor[]
 }
 
-type RouteView<T> = T & {
-  readiness: 'ready' | 'connection_unavailable' | 'model_unavailable'
-}
+type PutModelConfigResponse = ModelConfigState
+
 ```
 
-Readiness is an informational calculation over the same persisted snapshot used
-to build the response; GET performs no fresh probe. Calculate it in this order:
-
-1. `connection_unavailable` when the latest probe is absent, its fingerprint
-   does not match the current connection, or it is not `connected`, when a
-   `managed` credential is anything other than `present`, or when an `optional`
-   credential is `unavailable`. An absent optional credential remains usable.
-   CLI installation and authentication failures therefore enter this state
-   through `not_installed` or `authentication_failed`; keyring query failure
-   enters it through credential state.
-2. `model_unavailable` when the connection is otherwise available but the
-   selected model ID is absent from its latest catalog whose fingerprint matches
-   the current connection.
-3. `ready` otherwise.
-
-`connection_unavailable` takes precedence when both conditions apply. Readiness
-does not gate execution: the resolver still attempts the exact selected route
-and does not consult probe status or catalog membership, while a missing
-required credential fails through the normal execution error contract.
-
 `GET /api/model_config` has no request body, performs no provider network or CLI
-probe, and returns `200 ModelConfigView`. It reads only the JSON document,
+probe, and returns `200 GetModelConfigResponse`. It reads only the JSON document,
 provider table, and credential presence required for the view. A keyring query
-failure does not fail GET; affected entries use `credentialState: 'unavailable'`.
+failure does not fail GET; affected map entries use `unavailable`.
 
 `PUT /api/model_config` accepts exactly:
 
@@ -450,55 +374,39 @@ type PutModelConfigRequest = {
 }
 ```
 
-On a successful commit it returns:
-
-```ts
-type PutModelConfigResponse = ModelConfigView & {
-  probes: ProbeResult[] // changed connections only, request order
-}
-```
-
-Each changed, non-deleted connection has exactly one `ProbeResult`, in submitted
-connection order. `application` reports whether that attempt was persisted.
-An ordinary connectivity, authentication, installation, timeout, invalid-response,
-or discovery failure is represented in this array while PUT remains `200`, because
-probing occurs after commit and is advisory. `upstream` is present only for an
-immediate HTTP failure with response detail. Structural invalidity is `400`; a
-semantically invalid submitted or saved configuration is `409`; required keyring
-failure is `503`; and an unexpected storage failure is `500` with the
-completed-action information described above.
+On a successful commit it returns `PutModelConfigResponse`, including the
+normalized configuration but not the static provider descriptors. It never
+probes. Structural invalidity is `400`; a semantically
+invalid submitted or saved configuration is `409`; required keyring failure is
+`503`; and an unexpected storage failure is `500`.
 
 `POST /api/model_probe` accepts exactly:
 
 ```ts
-type ModelProbeRequest = { connectionId: string }
+type ModelProbeRequest = {
+  connection: {
+    id: string
+    provider: ProviderKind
+    baseUrl: string | null
+  }
+  credential?: string | null
+}
 ```
 
-It probes only a saved Model Connection, never a draft and never a transient
-credential. Probes for the same or different connections may overlap with one
-another, but persisting their server-owned observation is queued through the
-same atomic document-update boundary as saves so a probe cannot restore an old
-editable snapshot. It returns `ModelProbeResponse`. A successful discovery normally has
-`application: 'applied'`, `status: 'connected'`, and the newly persisted catalog.
+It probes the supplied structurally valid draft. An omitted credential reuses
+the keyring entry only when the UUID and provider identify an existing saved
+connection; a non-empty string is a request-local override, and `null` explicitly
+tests without a managed credential. Empty strings are invalid. The request-local
+credential is never logged, returned, or stored. Probes may overlap and
+independently return `ModelProbeResponse`; they never mutate configuration or the
+keyring. A successful discovery has `status: 'connected'` and a catalog that the
+current page session may offer as selection help.
 
-A missing saved connection at request start or corrupt saved document is `409`.
+An omitted required credential with no matching saved keyring entry is `409`.
 Unavailable required keyring access is `503`. Provider connectivity,
 authentication, installation, timeout, response-shape, or discovery failure
 returns `502 provider_failure`; its error `details` is exactly the corresponding
-`ProbeResult`. The failure observation is persisted only when `application` is
-`applied`; otherwise it was discarded by the stale-result rule below. No probe
-performs model generation.
-
-Every probe captures `(connectionId, provider, normalized baseUrl, credential
-revision, probe generation)` before I/O. Probe generations are monotonically
-allocated per connection in the document-update queue. At completion, its result
-is applied only if the connection still has the same provider, normalized URL,
-and credential revision and no newer generation has been allocated. Otherwise
-it cannot mutate the document: `application` is respectively
-`connection_deleted`, `connection_changed`, or `superseded`. This check and the
-observation write occur in one queued atomic update. A discarded explicit POST
-still reports its own provider success (`200`) or failure (`502`) with that
-application value; it never masquerades as the current persisted observation.
+`ProbeResult`. No probe performs model generation or writes configuration.
 
 ### Use one ApiError envelope and bounded provider detail
 
@@ -676,11 +584,11 @@ The existing orchestrator uses `generateText`, `streamText`, `Output`, and
 data for the one specialized NuExtract transport already owned by `_model.ts`;
 it is not a universal transport interface.
 
-Missing routes, missing connections, unsupported profiles, and required
-credential absence fail explicitly. The resolver does not consult the other
-route, another connection, another model, the latest catalog, model-name
+Missing routes, missing connections, a `nuextractRaw` Extraction Route on a
+non-Ollama connection, and required credential absence fail explicitly. The resolver does not consult the other
+route, another connection, another model, an explicit probe result, model-name
 heuristics, environment variables, or provider defaults. A selected model
-missing from the latest catalog is still passed unchanged to the selected
+missing from an explicit probe result is still passed unchanged to the selected
 factory because discovery is advisory. Provider or model failure is returned
 unchanged in routing terms and never triggers substitution.
 
@@ -696,7 +604,7 @@ unchanged.
 
 ### Preserve the raw NuExtract prompt as a specialized path
 
-For an Ollama Extraction Route with `profile: 'nuextract-raw'`, preserve the
+For an Ollama Extraction Route with `nuextractRaw: true`, preserve the
 current `renderNuExtractPrompt` and `/api/generate` behavior:
 
 - Build the hand-authored `<|im_start|>` prompt with `【task】`, optional
@@ -721,7 +629,7 @@ the same AI SDK path as other providers.
 Make the minimum cohesive changes under `prototypes/studio`:
 
 - Add `_model_config.ts` for schemas, OS-path persistence, atomic replacement,
-  the save queue, and the narrow keyring adapter.
+  and the narrow keyring adapter.
 - Evolve `_provider.ts` into the single provider table plus discovery,
   serializable metadata, credential-aware construction, and route resolution.
 - Keep `_model.ts` as the one orchestrator for the four operations and the raw
@@ -744,47 +652,40 @@ needed.
 
 Vitest covers real module behavior with isolated adapters:
 
-- Use a temporary config root to test absent, valid, corrupt, unsupported,
-  atomic-replacement-failure, observation-preservation, and concurrent-save
-  behavior without touching the researcher's config directory. Also test that
-  embedded URL userinfo is rejected and that catalogs/observations from an old
-  URL or credential revision remain displayable but cannot gate new selections
-  or readiness.
+- Use a temporary config root to test absent, valid, corrupt, unsupported, and
+  atomic-replacement-failure without touching the researcher's config directory.
+  Also test that embedded URL userinfo is rejected.
 - Use a fake keyring to test credential tri-state, service/account naming,
-  required deletion, unavailable-keyring degradation, mutation ordering,
-  idempotent retries, and every documented cross-store partial state.
+  unavailable-keyring degradation, and best-effort orphan cleanup.
 - Use fake HTTP/CLI provider adapters to table-test all seven metadata entries,
-  auth modes, discovery mappings, static Claude aliases, retained catalogs,
-  CLI singleton validation, bounded upstream detail, and no generation during
+  auth modes, discovery mappings, static Claude aliases, CLI singleton
+  validation, bounded upstream detail, and no generation during
   probes. Assert separately that native OpenAI constructs a Responses model
   targeting `/v1/responses`,
   while OpenAI-compatible constructs a Chat Completions model targeting
   `/v1/chat/completions`, so the two adapters cannot collapse onto one protocol.
-- Test GET, PUT, and POST handlers against the exact wire schemas, readiness
-  precedence, current-fingerprint catalog gating, and status mapping, including
-  advisory PUT probe failures.
+- Test GET, PUT, and POST handlers against the exact wire schemas and status
+  mapping, including no probes during GET/PUT and no writes during POST.
 - Test document chat failures before stream creation as HTTP `ApiErrorBody`
   responses and failures after stream commitment as AI SDK error parts with the
   512-code-point public error bound.
 - Table-test all four operation-to-route mappings, exact selected IDs,
-  disappeared selected models, missing routes, profile restrictions,
+  arbitrary selected model IDs, missing routes, profile restrictions,
   unsupported temperature, both Interaction context cases (including nullable
-  schema-edit source), no `AI_*` reads, no fallback, and resolution during the
-  accepted keyring/JSON save window.
+  schema-edit source), no `AI_*` reads, and no fallback.
 - Retain regression tests for the deferred output behavior: tolerant
   parseable Extraction mismatches, filtered invalid schema-edit operations,
   non-array schema-edit no-ops, and existing fractional Evidence-page handling.
 - Retain focused golden tests for every raw NuExtract mode and request field so
   provider refactoring cannot change its hand-built prompt or `raw: true` call.
-- Test the React page with mocked fetch for load, explicit Save, post-commit
-  probe results, credential preserve/replace/delete, keyring unavailability,
-  corrupt configuration, offline connection save, catalog-gated route selection,
-  and unavailable selected-model display.
+- Test the React page with mocked fetch for load, Apply, debounced draft probes,
+  stale response suppression, no panel-open or Apply probe, manual model IDs, credential preserve/replace/delete,
+  keyring unavailability, corrupt configuration, and offline connection save.
 
 Add Playwright only for browser UI workflows, intercepting
 `/api/model_config` and `/api/model_probe` with mocked HTTP. Cover Single model
-and mixed Capability Routes, Save/reload, probe refresh, offline save, route
-gating, credential-state display, and stable error rendering. The earlier idea
+and mixed Capability Routes, Save/reload, seamless draft checking, manual probe
+refresh, manual model IDs, offline save, credential-state display, and stable error rendering. The earlier idea
 of browser tests against fake provider servers is superseded: Playwright does
 not exercise real model operations or provider servers. It must not access the
 real config directory, keyring, provider network, or CLI processes; Vitest owns
@@ -796,21 +697,12 @@ those integration boundaries.
   Document `pnpm dev` with Vite's implicit localhost as the only supported
   deployment and require a new authenticated-host design before supporting any
   non-loopback binding.
-- **Keyring and JSON cannot commit atomically** -> Apply idempotent credential
-  actions first, report completed actions and `configCommitted`, serialize saves,
-  and document safe retry instead of claiming rollback.
-- **Resolution can observe a Save's cross-store intermediate state** -> Keep the
-  accepted behavior explicit; failures are visible and no unintended provider,
-  route, or model is substituted.
-- **Post-commit probing makes PUT slower** -> Probe only changed connections,
-  run probes concurrently with timeouts, and avoid background job state.
-- **A second observation write can fail after configuration commit** -> Return
-  `configCommitted: true`, leave the committed editable document active, and
-  allow a manual probe or retry to refresh observations.
-- **Discovery catalogs can be incomplete or stale** -> Retain them for offline
-  display, bind each catalog and probe observation to a non-secret connection
-  fingerprint, use only current fingerprints to gate new selections/readiness,
-  and preserve and attempt existing selections.
+- **Keyring and JSON cannot commit atomically** -> Keep JSON authoritative, show
+  an ordinary Apply error, permit retry, and tolerate inert orphaned credentials
+  instead of adding rollback, transaction journals, or save coordination.
+- **Discovery catalogs can be incomplete or immediately stale** -> Keep them
+  ephemeral, label Refresh models as a current connectivity check, permit manual
+  model IDs, and never use a result to gate saved configuration or execution.
 - **Provider-wide capabilities can overstate a particular model** -> Treat them
   as protocol-path declarations only; return provider/model failures without
   fallback and add a capability field only when orchestration needs it.
@@ -818,9 +710,9 @@ those integration boundaries.
   insecure or remote connection** -> Display the configured URL and rely on the
   researcher's explicit route selection, as accepted; add no hidden URL rewrite
   or special egress confirmation.
-- **Persisted provider summaries can contain sensitive text** -> Bound and
-  normalize the summary, persist no raw body, and expose at most 8 KiB of raw
-  upstream response only in the immediate error.
+- **Provider summaries can contain sensitive text** -> Bound and normalize the
+  ephemeral summary, and expose at most 8 KiB of raw upstream response only in
+  the immediate error.
 - **Native keyring availability varies, especially on headless Linux** -> Degrade
   only managed-credential operations and keep credentialless and external-auth
   connections usable without a fallback secret store.
@@ -844,6 +736,6 @@ must not silently translate them back into environment variables.
 
 ## Open Questions
 
-None. The loopback, cross-store partial-state, URL-root, readiness, Interaction
+None. The loopback, credential workflow, URL-root, discovery, Interaction
 context, streaming-error, temperature, and offline-route contracts are resolved
 above.

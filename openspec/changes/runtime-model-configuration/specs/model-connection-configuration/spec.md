@@ -14,7 +14,7 @@ FREE SHALL persist non-secret Model Connections and the v1 Capability Route map 
 
 - **WHEN** a saved configuration and one or more `AI_*` process settings are present
 - **THEN** `GET /api/model_config` and subsequent saves expose only the saved configuration
-- **AND** the `AI_*` settings do not alter a Model Connection, credential state, catalog, or route
+- **AND** the `AI_*` settings do not alter a Model Connection, credential state, or route
 
 #### Scenario: Saved configuration is corrupt or unsupported
 
@@ -25,11 +25,11 @@ FREE SHALL persist non-secret Model Connections and the v1 Capability Route map 
 
 ### Requirement: Configuration writes accept only researcher-editable state
 
-`PUT /api/model_config` SHALL accept a complete editable v1 configuration and optional explicit credential actions. A Model Connection SHALL have a stable UUID, name, provider kind, and service root where applicable. Catalogs, their non-secret source fingerprints, probe observations, their source fingerprints, credential state, provider descriptors, and route readiness are server-owned and MUST NOT be accepted from the client. A non-null submitted route SHALL reference a submitted Model Connection.
+`PUT /api/model_config` SHALL accept a complete editable v1 configuration and optional explicit credential actions. The editable configuration SHALL have exactly the same wire schema as the `config` object returned by GET and PUT, so it can be submitted without field stripping or reconstruction. A Model Connection SHALL have a stable UUID, name, provider kind, and service root where applicable. Credential states and provider descriptors are server-owned sibling data and MUST NOT be accepted inside the editable configuration. A non-null submitted route SHALL reference a submitted Model Connection and MAY use any non-empty model ID without prior discovery.
 
 #### Scenario: Server-owned data is submitted
 
-- **WHEN** a PUT includes a catalog, probe observation, credential state, provider descriptor, or route readiness value as editable state
+- **WHEN** a PUT includes credential state or a provider descriptor as editable state
 - **THEN** FREE returns HTTP 400 with `error.code` `invalid_request`
 - **AND** it does not commit the submitted configuration
 
@@ -47,12 +47,12 @@ FREE SHALL persist non-secret Model Connections and the v1 Capability Route map 
 
 ### Requirement: Credential values are exclusive to the OS credential store
 
-FREE SHALL store FREE-managed credentials only in the operating system credential store under `FREE Studio` and `model-connection/<connection UUID>`. Credential values MUST NOT appear in the JSON document, configuration views, probe observations, logs, or error responses. In a PUT credential-action map, an omitted ID SHALL preserve the credential, a non-empty string SHALL replace it, and `null` SHALL delete it; an empty string SHALL be invalid.
+FREE SHALL store FREE-managed credentials only in the operating system credential store under `FREE Studio` and `model-connection/<connection UUID>`. Credential values MUST NOT appear in the JSON document, configuration views, probe results, logs, or error responses. In a PUT credential-action map, an omitted ID SHALL preserve the credential, a non-empty string SHALL replace it, and `null` SHALL delete it; an empty string SHALL be invalid.
 
 #### Scenario: A configuration response redacts secrets
 
 - **WHEN** a connection has a stored managed credential
-- **THEN** GET and PUT responses report only its credential state
+- **THEN** GET and PUT responses report only its credential state in a UUID-keyed sibling map containing exactly the returned connections
 - **AND** neither response nor its persisted configuration contains the credential value or a reversible masked value
 
 #### Scenario: Researcher preserves, replaces, and deletes a credential
@@ -64,8 +64,8 @@ FREE SHALL store FREE-managed credentials only in the operating system credentia
 #### Scenario: A connection with a credential is deleted
 
 - **WHEN** a PUT deletes a Model Connection with a FREE-managed credential
-- **THEN** FREE deletes the credential before committing the connection deletion
-- **AND** a credential-deletion failure prevents the JSON configuration from being committed
+- **THEN** FREE commits the connection deletion and attempts to delete its credential
+- **AND** a credential-deletion failure may leave only an inert UUID-keyed entry that no saved connection can use
 
 #### Scenario: Required keyring access fails
 
@@ -79,33 +79,27 @@ FREE SHALL store FREE-managed credentials only in the operating system credentia
 - **THEN** GET succeeds and affected managed or optional connections report credential state `unavailable`
 - **AND** credentialless and externally authenticated connections remain visible and usable
 
-### Requirement: Saves have determinate last-write-wins outcomes
+### Requirement: Apply uses one editable draft
 
-FREE SHALL serialize overlapping complete PUT workflows in one Studio process and apply them in arrival order so the last queued save owns the resulting editable configuration and credential actions. FREE SHALL make cross-store partial outcomes observable rather than claiming a transaction or compensating with retained secret values.
+The Model Connection page SHALL own one editable React draft and submit it through one Apply request. Apply SHALL be disabled while that request is pending. Success SHALL replace the draft with the returned normalized `config` object in one assignment; failure SHALL retain the draft, display the error, and allow retry. FREE SHALL atomically replace the JSON document but SHALL NOT claim transactional coordination with the credential store, retain old secret values for rollback, or expose a credential-action journal. Overlapping PUT requests and multiple Studio processes are unsupported.
 
-#### Scenario: Two saves overlap
+#### Scenario: Apply succeeds
 
-- **WHEN** two valid PUT requests with conflicting connection or credential edits arrive before the first completes
-- **THEN** FREE completes the first workflow before beginning the second
-- **AND** the final configuration and credential state reflect the second request
+- **WHEN** the researcher applies valid configuration and credential changes
+- **THEN** FREE returns the committed normalized `config` and credential-state map and the page replaces its draft with `config`
+- **AND** no discovery probe is started automatically
 
-#### Scenario: Credential mutation fails before configuration commit
+#### Scenario: Apply fails
 
-- **WHEN** a credential action fails after one or more prior credential actions completed
-- **THEN** FREE returns a stable error containing the completed connection IDs and `configCommitted: false`
-- **AND** the prior JSON configuration remains active
+- **WHEN** credential-store or configuration persistence fails
+- **THEN** the page retains the editable draft, displays the stable error, and enables Apply for retry
+- **AND** FREE does not return old credential values or claim that the two stores changed atomically
 
-#### Scenario: JSON commit fails after credential mutations
+#### Scenario: A removed connection leaves a credential
 
-- **WHEN** requested credential actions complete but the first atomic JSON replacement fails
-- **THEN** FREE returns a stable error containing the completed connection IDs and `configCommitted: false`
-- **AND** the prior JSON configuration remains active while the completed credential mutations remain without compensating rollback
-
-#### Scenario: Persisting probe observations fails after a save
-
-- **WHEN** FREE has committed editable configuration but cannot persist the post-save probe observations
-- **THEN** FREE returns a stable error containing `configCommitted: true`
-- **AND** the committed editable configuration remains active and can be safely retried or manually probed
+- **WHEN** configuration deletion commits but best-effort credential cleanup fails
+- **THEN** the removed UUID remains absent from the authoritative JSON configuration
+- **AND** the inert credential does not appear in configuration views or become available to another connection
 
 ### Requirement: Seven provider kinds have explicit connection contracts
 
@@ -113,7 +107,7 @@ FREE SHALL support exactly these Model Connection kinds: Ollama, OpenAI, Anthrop
 
 #### Scenario: Each provider kind is represented
 
-- **WHEN** the configuration view is requested
+- **WHEN** the configuration is requested with GET
 - **THEN** it contains serializable descriptors for Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and OpenAI-compatible in stable provider order
 - **AND** each descriptor exposes its applicable credential mode without exposing a credential value
 
@@ -154,44 +148,51 @@ FREE SHALL support exactly these Model Connection kinds: Ollama, OpenAI, Anthrop
 - **AND** the OpenAI-compatible adapter constructs a Chat Completions model and generates through `{root}/v1/chat/completions`
 - **AND** neither adapter falls back to or substitutes the other protocol
 
-### Requirement: Discovery is advisory, persisted, and selection-gating
+### Requirement: Discovery is advisory, ephemeral, and seamless
 
-FREE SHALL probe only saved Model Connections and SHALL never generate model content as part of a probe. Successful discovery SHALL persist the latest catalog and connected observation with the non-secret provider, normalized-root, and credential-revision fingerprint that produced them. A failed, non-stale probe SHALL persist its bounded failure observation while retaining the last successful catalog for offline display. A retained catalog SHALL gate a new route selection only when its fingerprint matches the current connection; readiness SHALL use an observation fingerprint matching the current connection. Probe status SHALL be exactly one of `connected`, `authentication_failed`, `unreachable`, `not_installed`, `invalid_response`, `discovery_failed`, or `timed_out`. Each probe SHALL have a 15-second wall-clock deadline, read at most 1 MiB of discovery response, accept at most 10,000 unique models, and bound model IDs, labels, and persisted messages as defined by the design wire contract. New route selections SHALL be limited to the latest matching catalog, except that a successfully authenticated Claude Code connection SHALL expose only the static aliases `fable`, `opus`, `sonnet`, and `haiku` as its catalog.
+FREE SHALL probe a structurally valid draft Model Connection after its provider, service root, or credential input has remained unchanged for 500 ms, and SHALL also offer an immediate Refresh models retry. It SHALL never generate model content or modify saved configuration or credentials as part of a probe. A probe SHALL return a bounded observation and catalog for the current page session. Probe status SHALL be exactly one of `connected`, `authentication_failed`, `unreachable`, `not_installed`, `invalid_response`, `discovery_failed`, or `timed_out`. Each probe SHALL have a 15-second wall-clock deadline, read at most 1 MiB of discovery response, accept at most 10,000 unique models, and bound model IDs, labels, and messages as defined by the design wire contract. Route model IDs SHALL remain manually editable and SHALL NOT require prior discovery or membership in a probe result.
 
-#### Scenario: Discovery failure preserves the offline catalog
+#### Scenario: A researcher enters a valid connection
 
-- **WHEN** a connection with a previously discovered catalog is probed while its provider is offline, unauthenticated, unreachable, malformed, or not installed
-- **THEN** FREE persists the failed observation and retains the previous catalog for offline display
-- **AND** the retained catalog is not eligible for a new route selection unless its connection fingerprint still matches
-- **AND** the probe performs no paid or test generation
+- **WHEN** valid provider, root, and credential input settles for 500 ms
+- **THEN** FREE reports whether the connection is currently usable and returns its current catalog
+- **AND** the page may offer that catalog as selection help for the current session
+- **AND** neither success nor failure changes `model-config.json`
 
-#### Scenario: A probe is advisory
+#### Scenario: Probe input changes
 
-- **WHEN** a valid Model Connection is saved while its automatic discovery probe is unavailable
-- **THEN** FREE commits the editable configuration and returns the bounded advisory probe result without rolling back the save
-- **AND** the connection remains available for a later explicit probe, while a new route selection still requires a matching discovered catalog
+- **WHEN** provider, root, or credential input changes while a probe is pending
+- **THEN** the page aborts that request where possible and ignores its response
+- **AND** only the latest probe for that connection may update its inline status or catalog
 
-#### Scenario: Route selection is discovered-only
+#### Scenario: The panel opens with saved connections
 
-- **WHEN** a researcher selects a model for a route that was not already selected
-- **THEN** FREE accepts it only when its exact ID is in that connection's latest catalog whose fingerprint matches the current connection
-- **AND** an offline connection without a matching catalog may be saved but cannot receive a new route target
+- **WHEN** the researcher opens the configuration panel without editing probe inputs
+- **THEN** FREE does not probe every saved connection automatically
+- **AND** each connection offers Refresh models for an immediate current check
+
+#### Scenario: Discovery fails
+
+- **WHEN** an explicit probe finds a provider offline, unauthenticated, unreachable, malformed, or not installed
+- **THEN** FREE returns a bounded advisory failure for the current page session
+- **AND** it neither changes saved configuration or credentials nor performs paid or test generation
+- **AND** Apply remains available
+
+#### Scenario: A model ID is entered manually
+
+- **WHEN** a researcher enters a non-empty model ID that has not appeared in a probe result
+- **THEN** FREE accepts and persists the route
+- **AND** execution later attempts that exact ID without substitution
 
 #### Scenario: Claude Code has no dynamic model listing
 
 - **WHEN** a Claude Code probe confirms its external harness is installed and authenticated
-- **THEN** its persisted catalog contains exactly `fable`, `opus`, `sonnet`, and `haiku`
-- **AND** no other manually entered Claude Code identifier is accepted as a new route selection
-
-#### Scenario: A selected model disappears
-
-- **WHEN** later successful discovery omits a currently selected model
-- **THEN** FREE preserves that route and returns its readiness as `model_unavailable`
-- **AND** it does not select another model automatically
+- **THEN** its probe result suggests exactly `fable`, `opus`, `sonnet`, and `haiku`
+- **AND** the suggestions do not prevent manual entry of another non-empty model ID
 
 ### Requirement: Configuration and probe endpoints expose stable observable results
 
-FREE SHALL expose `GET /api/model_config`, whole-document `PUT /api/model_config`, and `POST /api/model_probe` with the exact `ProviderDescriptor`, `ProbeResult`, and related wire types defined in the design. GET SHALL not perform a provider network or CLI probe. A changed connection saved by PUT SHALL be committed before it is automatically probed; an advisory probe failure SHALL not roll back the save. Configuration API failures SHALL use `{ "error": { "code": string, "message": string, "details"?: unknown } }` with 400 for invalid requests, 409 for invalid model configuration, 502 for provider failure, 503 for required keyring failure, and 500 for unexpected failure. Immediate provider details MAY include a raw verbatim response body only within the design's size bound; the API MUST NOT add FREE-managed credentials, request headers, full request bodies, stack traces, or arbitrary thrown objects, and persisted observations SHALL retain only a bounded summary. A completed probe SHALL be applied only if its connection fingerprint and per-connection generation are still current; a stale result SHALL report `superseded`, `connection_changed`, or `connection_deleted` and SHALL NOT mutate saved state.
+FREE SHALL expose `GET /api/model_config`, whole-document `PUT /api/model_config`, and `POST /api/model_probe` with the exact response and related wire types defined in the design. GET SHALL return the editable `config`, UUID-keyed credential states, and static provider descriptors. PUT SHALL accept that `config` unchanged plus optional write-only credential actions and return the normalized `config` plus UUID-keyed credential states without re-sending provider descriptors. GET and PUT SHALL not perform a provider network or CLI probe. POST SHALL accept structurally valid draft connection details and an optional write-only credential action: omission reuses a matching saved credential, a non-empty string overrides it for this request only, and `null` probes without one. Configuration API failures SHALL use `{ "error": { "code": string, "message": string, "details"?: unknown } }` with 400 for invalid requests, 409 for invalid model configuration, 502 for provider failure, 503 for required keyring failure, and 500 for unexpected failure. Immediate provider details MAY include a raw verbatim response body only within the design's size bound; the API MUST NOT add FREE-managed credentials, request headers, full request bodies, stack traces, or arbitrary thrown objects. A probe response and transient credential are ephemeral and MUST NOT mutate saved state or the keyring.
 
 #### Scenario: Configuration starts unconfigured and is read locally
 
@@ -199,37 +200,37 @@ FREE SHALL expose `GET /api/model_config`, whole-document `PUT /api/model_config
 - **THEN** it receives the empty configuration and provider descriptors without provider or CLI traffic
 - **AND** the API remains supported only through the local Vite/Studio source prototype, not a hosted deployment
 
-#### Scenario: A changed connection is saved while offline
+#### Scenario: Apply does not probe
 
-- **WHEN** a client PUTs a valid changed local or remote Model Connection whose automatic probe fails
-- **THEN** PUT returns HTTP 200 with the committed configuration and that connection's advisory probe result
-- **AND** the returned result and persisted observation do not contain a credential or raw provider response body
+- **WHEN** the page successfully applies a changed local or remote Model Connection
+- **THEN** PUT returns HTTP 200 with the normalized committed `config` and credential states without probing it or re-sending static provider descriptors
+- **AND** the researcher may explicitly refresh that saved connection later
 
 #### Scenario: An explicit probe fails
 
-- **WHEN** `POST /api/model_probe` fails for a saved connection
-- **THEN** FREE persists the bounded observation and returns HTTP 502 with `error.code` `provider_failure`
-- **AND** its details identify the connection and retained catalog without a credential or request body
+- **WHEN** `POST /api/model_probe` fails for valid draft connection details
+- **THEN** FREE returns HTTP 502 with `error.code` `provider_failure`
+- **AND** its ephemeral details identify the connection without a credential or request body
 
-#### Scenario: An unknown connection is probed
+#### Scenario: A new draft is probed
 
-- **WHEN** `POST /api/model_probe` names a connection absent from saved configuration
-- **THEN** FREE returns HTTP 409 with `error.code` `invalid_model_config`
-- **AND** it does not probe a draft connection or transient credential
+- **WHEN** `POST /api/model_probe` supplies a valid new connection and any required transient credential
+- **THEN** FREE probes those draft values without first saving the connection
+- **AND** it never stores or returns the transient credential
 
-#### Scenario: An overlapping probe result becomes stale
+#### Scenario: Probes overlap
 
-- **WHEN** a probe completes after a newer probe was allocated or after its connection, URL, or credential revision changed or was deleted
-- **THEN** FREE does not persist that completed observation or catalog
-- **AND** its response reports `superseded`, `connection_changed`, or `connection_deleted` while preserving the completed attempt's HTTP success or provider-failure status
+- **WHEN** two explicit probes overlap
+- **THEN** each independently returns the result of the draft snapshot it probed
+- **AND** neither result changes saved configuration
 
 ### Requirement: The Model Connection page offers equivalent Single model and Capability Routes modes
 
-The Model Connection page SHALL load backend-owned configuration state and retain visible Single model and Capability Routes modes. Single model mode SHALL save one selected discovered model as both routes. Capability Routes mode SHALL save independently selected discovered models for Extraction and Interaction. Both modes SHALL use the same whole-document save, explicit credential actions, advisory probe results, and unavailable-model display.
+The Model Connection page SHALL load backend-owned configuration into one editable draft and retain visible Single model and Capability Routes modes. Single model mode SHALL save one explicit model ID as both routes. Capability Routes mode SHALL save independently entered model IDs for Extraction and Interaction. Both modes SHALL use the same Apply action and write-only credential changes; seamless draft checks and Refresh models SHALL report current connection usability and MAY assist selection without gating it.
 
 #### Scenario: Single model mode configures a local-only setup
 
-- **WHEN** a researcher selects one discovered local Ollama model in Single model mode and saves
+- **WHEN** a researcher enters one local Ollama model ID in Single model mode and saves
 - **THEN** the saved Extraction and Interaction Routes reference that same local connection and model with the general profile
 - **AND** no separate inline provider or credential configuration is created
 
@@ -239,8 +240,8 @@ The Model Connection page SHALL load backend-owned configuration state and retai
 - **THEN** both saved routes retain their independently selected connections and models
 - **AND** the page displays the returned persisted route state rather than fabricated connection status
 
-#### Scenario: An unavailable selected model is displayed
+#### Scenario: A manual model ID is displayed
 
-- **WHEN** GET returns a route with readiness `model_unavailable`
-- **THEN** the page displays the saved selected model as unavailable
-- **AND** it does not substitute, clear, or hide that selection
+- **WHEN** GET returns a route whose model ID was entered manually
+- **THEN** the page displays that exact saved model ID
+- **AND** a later probe result does not substitute, clear, or hide it

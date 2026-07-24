@@ -26,23 +26,17 @@ For each model operation, FREE SHALL read one validated immutable saved configur
 - **THEN** the operation fails with the stable HTTP error envelope and `error.code` `invalid_model_config`
 - **AND** it does not try the other route or any default target
 
-#### Scenario: The selected model is absent from its catalog
+#### Scenario: The selected model was entered manually
 
-- **WHEN** the selected model ID is absent from the latest persisted catalog
+- **WHEN** the selected model ID did not appear in an explicit probe result
 - **THEN** FREE passes that exact selected ID to the selected provider
-- **AND** it does not block execution based on the catalog or select a discovered replacement
+- **AND** it does not block execution or select a discovered replacement
 
 #### Scenario: Environment settings are present
 
 - **WHEN** `AI_PROVIDER`, `AI_MODEL`, `AI_CHAT_MODEL`, `AI_BASE_URL`, or `AI_API_KEY` is present while an operation is resolved
 - **THEN** FREE does not read it as model configuration or credentials
 - **AND** the saved route remains the sole target source
-
-#### Scenario: Resolution begins during a configuration save
-
-- **WHEN** a model operation begins while a PUT is between credential mutation and JSON commit
-- **THEN** route resolution does not wait for the PUT and reads one validated saved configuration snapshot immediately
-- **AND** any credential/configuration mismatch fails through the normal error contract without target substitution
 
 #### Scenario: A local and a remote route are both configured
 
