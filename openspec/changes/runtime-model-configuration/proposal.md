@@ -12,8 +12,7 @@ without silent substitution or duplicated provider rules.
   Capability Route configuration concepts while replacing its local catalogs,
   credential workflow, and fabricated status with backend-owned state and APIs.
 - Persist non-secret Model Connections and exactly two Capability Routes in one
-  versioned document in the operating
-  system’s user application-config directory.
+  document in the operating system’s user application-config directory.
 - Store FREE-managed credentials only in the operating system credential store,
   with no plaintext or memory-only fallback. Report managed credential presence
   separately from external CLI installation and authentication; credentialless
@@ -22,12 +21,12 @@ without silent substitution or duplicated provider rules.
   OpenAI-compatible Model Connections through one backend provider registry
   that owns provider metadata, defaults, credential modes, discovery, model
   construction, and concrete execution capabilities. Every stored HTTP URL is
-  an unversioned service root: adapters append Ollama `/api`,
-  OpenAI/Anthropic/generic `/v1`, or Google `/v1beta` resources exactly once for
-  both discovery and generation. Generic connections thereby guarantee
-  `/v1/models` and `/v1/chat/completions` beneath the stored root. Custom Model
-  Connections accept any valid researcher-supplied HTTP or HTTPS service root
-  without query, fragment, or embedded userinfo;
+  the exact provider API base expected by its adapter, including any version
+  prefix. Adapters append only resource-local paths for discovery and
+  generation. Generic connections thereby guarantee `/models` and
+  `/chat/completions` beneath the stored base. Custom Model Connections accept
+  any valid researcher-supplied HTTP or HTTPS API base without query, fragment,
+  or embedded userinfo;
   native providers retain that provider’s native contract, and the configured
   root is displayed without special remote-egress warnings or confirmation.
 - Add whole-document `GET/PUT /api/model_config` and `POST /api/model_probe`.
@@ -44,8 +43,8 @@ without silent substitution or duplicated provider rules.
   React draft and one Apply request carry configuration and write-only credential
   changes. Apply failures remain visible and retryable without transaction
   journals or rollback machinery.
-- Fail closed when the saved configuration is malformed or uses an unsupported
-  version, preserving the document unchanged for manual recovery.
+- Fail closed when the saved configuration is malformed, preserving the
+  document unchanged for manual recovery.
 - Accept explicit model IDs without prior discovery. Automatic draft checks and
   Refresh models offer the returned catalog as selection help and report whether
   the connection is currently usable; they never gate or change configuration.
@@ -54,7 +53,8 @@ without silent substitution or duplicated provider rules.
   conversational Extraction Schema editing use the Interaction Route. Missing
   routes and provider failures fail explicitly without fallback.
 - Resolve general execution through registry-declared provider capabilities and
-  retain raw Ollama NuExtract as an explicit Extraction Route profile. Both
+  retain raw Ollama NuExtract as an `nuextractRaw?: true` Extraction Route flag;
+  `profile` is an internal resolved-target discriminator only. Both
   Interaction-routed operations use canonical Source Document Markdown when it
   is present; conversational Extraction Schema editing preserves its nullable
   document source and proceeds without Source Document Markdown when it is
@@ -85,9 +85,10 @@ without silent substitution or duplicated provider rules.
   boundaries, ephemeral discovery, configuration/probe APIs, configuration
   request/error behavior, and the Studio configuration workflow.
 - `capability-route-resolution`: Explicit Extraction and Interaction Capability
-  Routes, per-operation resolution, execution profiles, nullable Interaction
-  context, unsupported-temperature validation, pre-stream versus in-stream error
-  contracts, and no-fallback behavior.
+  Routes, per-operation resolution, the internal execution-profile target,
+  nullable Interaction context, unsupported-temperature validation, and
+  no-fallback behavior. Transport envelopes and pre-stream versus in-stream
+  error contracts are owned by `studio-model-operation-contract`.
 - `studio-model-operation-contract`: Request, success-response, and failure
   contracts for Studio’s TypeScript `/api/extract`, `/api/generate_schema`,
   `/api/edit_schema`, and `/api/chat` handlers, including the boundary between

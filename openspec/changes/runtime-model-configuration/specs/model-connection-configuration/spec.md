@@ -2,12 +2,12 @@
 
 ### Requirement: Model configuration has one durable machine-wide source
 
-FREE SHALL persist non-secret Model Connections and the v1 Capability Route map in `model-config.json` in the operating system user configuration directory for `FREE Studio`. An absent file SHALL represent an empty valid v1 configuration: no Model Connections and null Extraction and Interaction Routes. Saved runtime configuration SHALL be the sole source of model configuration; FREE MUST NOT import, overlay, or fall back to `AI_PROVIDER`, `AI_MODEL`, `AI_CHAT_MODEL`, `AI_BASE_URL`, or `AI_API_KEY`.
+FREE SHALL persist non-secret Model Connections and the Capability Route map in `model-config.json` in the operating system user configuration directory for `FREE Studio`. An absent file SHALL represent an empty valid configuration: no Model Connections and null Extraction and Interaction Routes. Saved runtime configuration SHALL be the sole source of model configuration; FREE MUST NOT import, overlay, or fall back to `AI_PROVIDER`, `AI_MODEL`, `AI_CHAT_MODEL`, `AI_BASE_URL`, or `AI_API_KEY`.
 
 #### Scenario: FREE starts without configuration
 
 - **WHEN** `model-config.json` does not exist
-- **THEN** `GET /api/model_config` returns an empty valid v1 configuration with both routes null
+- **THEN** `GET /api/model_config` returns an empty valid configuration with both routes null
 - **AND** no Model Connection or route is derived from `AI_*` process settings
 
 #### Scenario: AI settings are present after configuration exists
@@ -16,22 +16,16 @@ FREE SHALL persist non-secret Model Connections and the v1 Capability Route map 
 - **THEN** `GET /api/model_config` and subsequent saves expose only the saved configuration
 - **AND** the `AI_*` settings do not alter a Model Connection, credential state, or route
 
-#### Scenario: Saved configuration is corrupt or unsupported
+#### Scenario: Saved configuration is corrupt or invalid
 
-- **WHEN** the saved document is malformed, has an unsupported version, has duplicate connection IDs, has an invalid connection, or has a dangling route
+- **WHEN** the saved document is malformed, has duplicate connection IDs, has an invalid connection, or has a dangling route
 - **THEN** the configuration endpoint returns HTTP 409 with `error.code` `invalid_model_config`
 - **AND** its error details identify the configuration path and bounded validation information
-- **AND** FREE leaves the saved document unchanged and does not reset, migrate, or replace it automatically
+- **AND** FREE leaves the saved document unchanged and does not reset or replace it automatically
 
 ### Requirement: Configuration writes accept only researcher-editable state
 
-`PUT /api/model_config` SHALL accept a complete editable v1 configuration and optional explicit credential actions. The editable configuration SHALL have exactly the same wire schema as the `config` object returned by GET and PUT, so it can be submitted without field stripping or reconstruction. A Model Connection SHALL have a stable UUID, name, provider kind, and service root where applicable. Credential states and provider descriptors are server-owned sibling data and MUST NOT be accepted inside the editable configuration. A non-null submitted route SHALL reference a submitted Model Connection and MAY use any non-empty model ID without prior discovery.
-
-#### Scenario: Server-owned data is submitted
-
-- **WHEN** a PUT includes credential state or a provider descriptor as editable state
-- **THEN** FREE returns HTTP 400 with `error.code` `invalid_request`
-- **AND** it does not commit the submitted configuration
+`PUT /api/model_config` SHALL accept a complete editable configuration and optional explicit credential actions. The editable configuration SHALL have exactly the same wire schema as the `config` object returned by GET and PUT, so it can be submitted without field stripping or reconstruction. A Model Connection SHALL have a stable UUID, name, provider kind, and provider API base where applicable. Credential states and provider descriptors are server-owned sibling data and MUST NOT be accepted inside the editable configuration. A non-null submitted route SHALL reference a submitted Model Connection and MAY use any non-empty model ID without prior discovery.
 
 #### Scenario: Existing identity changes provider kind
 
@@ -47,12 +41,12 @@ FREE SHALL persist non-secret Model Connections and the v1 Capability Route map 
 
 ### Requirement: Credential values are exclusive to the OS credential store
 
-FREE SHALL store FREE-managed credentials only in the operating system credential store under `FREE Studio` and `model-connection/<connection UUID>`. Credential values MUST NOT appear in the JSON document, configuration views, probe results, logs, or error responses. In a PUT credential-action map, an omitted ID SHALL preserve the credential, a non-empty string SHALL replace it, and `null` SHALL delete it; an empty string SHALL be invalid.
+FREE SHALL store FREE-managed credentials only in the operating system credential store under `FREE Studio` and `model-connection/<connection UUID>`. Credential values MUST NOT appear in the JSON document, configuration views, probe results, logs, or error responses. In a PUT credential-action map, an omitted ID SHALL preserve the credential, a non-empty string SHALL replace it, and `null` SHALL delete it; action keys SHALL name submitted connections and an empty string SHALL be invalid. Connection removal alone owns orphan cleanup after the JSON commit.
 
 #### Scenario: A configuration response redacts secrets
 
 - **WHEN** a connection has a stored managed credential
-- **THEN** GET and PUT responses report only its credential state in a UUID-keyed sibling map containing exactly the returned connections
+- **THEN** GET and PUT responses report only its credential state in a UUID-keyed sibling map containing only managed or optional returned connections
 - **AND** neither response nor its persisted configuration contains the credential value or a reversible masked value
 
 #### Scenario: Researcher preserves, replaces, and deletes a credential
@@ -103,13 +97,13 @@ The Model Connection page SHALL own one editable React draft and submit it throu
 
 ### Requirement: Seven provider kinds have explicit connection contracts
 
-FREE SHALL support exactly these Model Connection kinds: Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and OpenAI-compatible. HTTP providers SHALL use an absolute `http:` or `https:` unversioned service root without username, password, query, or fragment; trailing slashes are insignificant. CLI providers SHALL have a null service root and external installation/authentication state. A configured native-provider root SHALL retain that provider's native protocol, while an OpenAI-compatible root SHALL guarantee `/v1/models` and `/v1/chat/completions` beneath the stored root.
+FREE SHALL support exactly these Model Connection kinds: Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and OpenAI-compatible. HTTP providers SHALL use an absolute `http:` or `https:` provider API base without username, password, query, or fragment; version prefixes such as `/v1` are valid and trailing slashes are insignificant. CLI providers SHALL have a null API base and external installation/authentication state. A configured native-provider base SHALL retain that provider's native protocol, while an OpenAI-compatible base SHALL guarantee `/models` and `/chat/completions` beneath the stored base.
 
 #### Scenario: Each provider kind is represented
 
 - **WHEN** the configuration is requested with GET
 - **THEN** it contains serializable descriptors for Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and OpenAI-compatible in stable provider order
-- **AND** each descriptor exposes its applicable credential mode without exposing a credential value
+- **AND** each descriptor exposes its applicable credential mode and UI-required `supportsNuextractRaw` flag without exposing backend execution capabilities or a credential value
 
 #### Scenario: A duplicate CLI connection is submitted
 
@@ -117,51 +111,46 @@ FREE SHALL support exactly these Model Connection kinds: Ollama, OpenAI, Anthrop
 - **THEN** FREE returns HTTP 409 with `error.code` `invalid_model_config`
 - **AND** HTTP provider kinds remain available for multiple independently named Model Connections
 
-#### Scenario: HTTP service roots are used without duplicate version suffixes
+#### Scenario: Provider API bases preserve their supplied version
 
-- **WHEN** an HTTP connection is saved with a valid unversioned root
-- **THEN** Ollama resources are addressed below `/api`, OpenAI, Anthropic, and OpenAI-compatible resources below `/v1`, and Google resources below `/v1beta`
-- **AND** a path prefix in the stored root is retained
+- **WHEN** an HTTP connection is saved with a valid provider API base, including
+  an API base ending in `/v1` or `/v1beta`
+- **THEN** each adapter appends only resource-local paths below that exact base
+- **AND** a path prefix in the stored base is retained without suffix rejection
 
-#### Scenario: A versioned root is submitted
+#### Scenario: An API base contains embedded credentials
 
-- **WHEN** a provider root already ends in that provider's appended API suffix
-- **THEN** FREE returns HTTP 409 with `error.code` `invalid_model_config`
-- **AND** it does not request or construct a duplicated suffix such as `/v1/v1`
-
-#### Scenario: A root contains embedded credentials
-
-- **WHEN** an HTTP connection root contains a username or password component
+- **WHEN** an HTTP connection API base contains a username or password component
 - **THEN** FREE returns HTTP 409 with `error.code` `invalid_model_config`
 - **AND** it does not persist or send the embedded value as connection configuration
 
-#### Scenario: A native root is customized
+#### Scenario: A native API base is customized
 
-- **WHEN** an Ollama, OpenAI, Anthropic, or Google connection uses a custom valid service root
-- **THEN** FREE uses the selected native provider contract at that root
+- **WHEN** an Ollama, OpenAI, Anthropic, or Google connection uses a custom valid API base
+- **THEN** FREE uses the selected native provider contract at that base
 - **AND** it does not reinterpret the connection as OpenAI-compatible
 
 #### Scenario: Native OpenAI and OpenAI-compatible use distinct generation protocols
 
 - **WHEN** otherwise equivalent routes select an OpenAI connection and an OpenAI-compatible connection
-- **THEN** the native OpenAI adapter constructs a Responses model and generates through `{root}/v1/responses`
-- **AND** the OpenAI-compatible adapter constructs a Chat Completions model and generates through `{root}/v1/chat/completions`
+- **THEN** the native OpenAI adapter constructs a Responses model and generates through `{base}/responses`
+- **AND** the OpenAI-compatible adapter constructs a Chat Completions model and generates through `{base}/chat/completions`
 - **AND** neither adapter falls back to or substitutes the other protocol
 
 ### Requirement: Discovery is advisory, ephemeral, and seamless
 
-FREE SHALL probe a structurally valid draft Model Connection after its provider, service root, or credential input has remained unchanged for 500 ms, and SHALL also offer an immediate Refresh models retry. It SHALL never generate model content or modify saved configuration or credentials as part of a probe. A probe SHALL return a bounded observation and catalog for the current page session. Probe status SHALL be exactly one of `connected`, `authentication_failed`, `unreachable`, `not_installed`, `invalid_response`, `discovery_failed`, or `timed_out`. Each probe SHALL have a 15-second wall-clock deadline, read at most 1 MiB of discovery response, accept at most 10,000 unique models, and bound model IDs, labels, and messages as defined by the design wire contract. Route model IDs SHALL remain manually editable and SHALL NOT require prior discovery or membership in a probe result.
+FREE SHALL probe a structurally valid draft Model Connection after its provider, API base, or credential input has remained unchanged for 500 ms, and SHALL also offer an immediate Refresh models retry. It SHALL never generate model content or modify saved configuration or credentials as part of a probe. A probe SHALL return a bounded flattened result and catalog for the current page session. Probe status SHALL be exactly one of `connected`, `authentication_failed`, `unreachable`, `not_installed`, `invalid_response`, `discovery_failed`, or `timed_out`. Each probe SHALL have a 15-second wall-clock deadline, read at most 1 MiB of discovery response, accept at most 10,000 unique models, and bound model IDs, labels, and messages as defined by the design wire contract. Route model IDs SHALL remain manually editable and SHALL NOT require prior discovery or membership in a probe result.
 
 #### Scenario: A researcher enters a valid connection
 
-- **WHEN** valid provider, root, and credential input settles for 500 ms
+- **WHEN** valid provider, API-base, and credential input settles for 500 ms
 - **THEN** FREE reports whether the connection is currently usable and returns its current catalog
 - **AND** the page may offer that catalog as selection help for the current session
 - **AND** neither success nor failure changes `model-config.json`
 
 #### Scenario: Probe input changes
 
-- **WHEN** provider, root, or credential input changes while a probe is pending
+- **WHEN** provider, API-base, or credential input changes while a probe is pending
 - **THEN** the page aborts that request where possible and ignores its response
 - **AND** only the latest probe for that connection may update its inline status or catalog
 
@@ -192,7 +181,7 @@ FREE SHALL probe a structurally valid draft Model Connection after its provider,
 
 ### Requirement: Configuration and probe endpoints expose stable observable results
 
-FREE SHALL expose `GET /api/model_config`, whole-document `PUT /api/model_config`, and `POST /api/model_probe` with the exact response and related wire types defined in the design. GET SHALL return the editable `config`, UUID-keyed credential states, and static provider descriptors. PUT SHALL accept that `config` unchanged plus optional write-only credential actions and return the normalized `config` plus UUID-keyed credential states without re-sending provider descriptors. GET and PUT SHALL not perform a provider network or CLI probe. POST SHALL accept structurally valid draft connection details and an optional write-only credential action: omission reuses a matching saved credential, a non-empty string overrides it for this request only, and `null` probes without one. Configuration API failures SHALL use `{ "error": { "code": string, "message": string, "details"?: unknown } }` with 400 for invalid requests, 409 for invalid model configuration, 502 for provider failure, 503 for required keyring failure, and 500 for unexpected failure. Immediate provider details MAY include a raw verbatim response body only within the design's size bound; the API MUST NOT add FREE-managed credentials, request headers, full request bodies, stack traces, or arbitrary thrown objects. A probe response and transient credential are ephemeral and MUST NOT mutate saved state or the keyring.
+FREE SHALL expose `GET /api/model_config`, whole-document `PUT /api/model_config`, and `POST /api/model_probe` with the exact response and related wire types defined in the design. GET SHALL return the shared `config`, UUID-keyed credential states, and static provider descriptors. PUT SHALL accept that `config` unchanged plus optional write-only credential actions and return the normalized `config` plus UUID-keyed credential states without re-sending provider descriptors. GET and PUT SHALL not perform a provider network or CLI probe. POST SHALL accept one complete `ModelConnection` draft and an optional write-only credential action: omission reuses a matching saved credential, a non-empty string overrides it for this request only, and `null` probes without one. Configuration API failures SHALL use `{ "error": { "code": string, "message": string, "details"?: unknown } }` with 400 for invalid requests, 409 for invalid model configuration, 503 for required keyring failure, and 500 for unexpected failure. A completed probe, including a negative provider observation, returns HTTP 200 with `ProbeResult`. Immediate provider details MAY include a raw verbatim response body only within the design's size bound; the API MUST NOT add FREE-managed credentials, request headers, full request bodies, stack traces, or arbitrary thrown objects. A probe response and transient credential are ephemeral and MUST NOT mutate saved state or the keyring.
 
 #### Scenario: Configuration starts unconfigured and is read locally
 
@@ -206,11 +195,13 @@ FREE SHALL expose `GET /api/model_config`, whole-document `PUT /api/model_config
 - **THEN** PUT returns HTTP 200 with the normalized committed `config` and credential states without probing it or re-sending static provider descriptors
 - **AND** the researcher may explicitly refresh that saved connection later
 
-#### Scenario: An explicit probe fails
+#### Scenario: An explicit probe reports a provider failure
 
-- **WHEN** `POST /api/model_probe` fails for valid draft connection details
-- **THEN** FREE returns HTTP 502 with `error.code` `provider_failure`
-- **AND** its ephemeral details identify the connection without a credential or request body
+- **WHEN** `POST /api/model_probe` completes after a provider is offline,
+  unauthenticated, unreachable, malformed, or not installed
+- **THEN** FREE returns HTTP 200 with a flattened `ProbeResult` whose status
+  identifies the advisory failure
+- **AND** it contains no credential or request body
 
 #### Scenario: A new draft is probed
 
@@ -226,12 +217,12 @@ FREE SHALL expose `GET /api/model_config`, whole-document `PUT /api/model_config
 
 ### Requirement: The Model Connection page offers equivalent Single model and Capability Routes modes
 
-The Model Connection page SHALL load backend-owned configuration into one editable draft and retain visible Single model and Capability Routes modes. Single model mode SHALL save one explicit model ID as both routes. Capability Routes mode SHALL save independently entered model IDs for Extraction and Interaction. Both modes SHALL use the same Apply action and write-only credential changes; seamless draft checks and Refresh models SHALL report current connection usability and MAY assist selection without gating it.
+The Model Connection page SHALL load backend-owned configuration into one draft using the shared configuration shape and retain visible Single model and Capability Routes modes. Single model mode SHALL save one explicit model ID as both routes. Capability Routes mode SHALL save independently entered model IDs for Extraction and Interaction. Both modes SHALL use the same Apply action and write-only credential changes; seamless draft checks and Refresh models SHALL report current connection usability and MAY assist selection without gating it.
 
 #### Scenario: Single model mode configures a local-only setup
 
 - **WHEN** a researcher enters one local Ollama model ID in Single model mode and saves
-- **THEN** the saved Extraction and Interaction Routes reference that same local connection and model with the general profile
+- **THEN** the saved Extraction and Interaction Routes reference that same local connection and model without the raw NuExtract flag
 - **AND** no separate inline provider or credential configuration is created
 
 #### Scenario: Capability Routes mode configures mixed routing

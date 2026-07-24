@@ -46,25 +46,28 @@ For each model operation, FREE SHALL read one validated immutable saved configur
 
 ### Requirement: Execution profiles are explicit and constrained
 
-The Extraction Route SHALL allow profile `general` for supported providers and `nuextract-raw` only for Ollama. The Interaction Route SHALL allow only profile `general`. FREE SHALL reject any other connection/profile/route combination with HTTP 409 and `error.code` `invalid_model_config`; it MUST NOT coerce the profile.
+The persisted Extraction Route SHALL use the optional `nuextractRaw?: true` flag
+for raw NuExtract and omit that flag for the general path. The Interaction Route
+cannot carry that flag. During resolution, FREE SHALL derive the internal
+execution target profile as `general` or `nuextract-raw`; it SHALL not expose a
+second persisted profile representation or coerce invalid combinations. The raw
+flag is valid only when the selected connection is Ollama, and a flagged
+Extraction Route on another provider fails with HTTP 409 and
+`error.code` `invalid_model_config`.
 
-#### Scenario: General profile is selected
+#### Scenario: General execution is selected
 
-- **WHEN** an Extraction or Interaction Route selects profile `general`
-- **THEN** FREE executes the selected provider through its general model protocol
+- **WHEN** an Extraction or Interaction Route omits `nuextractRaw`
+- **THEN** FREE resolves the internal `profile: 'general'` target
 - **AND** it does not infer a different profile from the model ID
 
-#### Scenario: Raw NuExtract profile is selected
+#### Scenario: Raw NuExtract is selected
 
-- **WHEN** the Extraction Route selects an Ollama model with profile `nuextract-raw`
-- **THEN** FREE uses the raw Ollama NuExtract protocol with the exact saved model ID, service root, and optional resolved authorization
-- **AND** it does not route that request through the general model protocol
-
-#### Scenario: Raw NuExtract is invalid for Interaction
-
-- **WHEN** an Interaction Route selects `nuextract-raw`
-- **THEN** FREE rejects the configuration with HTTP 409 and `error.code` `invalid_model_config`
-- **AND** it does not rewrite the route to `general`
+- **WHEN** the Extraction Route sets `nuextractRaw: true` on an Ollama
+  connection
+- **THEN** FREE resolves the internal `profile: 'nuextract-raw'` target
+- **AND** it uses the raw Ollama protocol with the exact saved model ID, API
+  base, and optional resolved authorization
 
 ### Requirement: Interaction context uses canonical Source Document Markdown
 
@@ -109,46 +112,7 @@ When a model-operation request supplies an explicit temperature and the selected
 - **THEN** FREE passes the explicit temperature to the exact selected provider path
 - **AND** it does not change routes or profiles
 
-### Requirement: Model-operation request and error boundaries are stable
-
-FREE SHALL parse client-supplied model-operation JSON strictly and SHALL reserve repair for generated model output. Buffered model operations and document-chat failures detected before stream creation SHALL return `{ "error": { "code": string, "message": string, "details"?: unknown } }`. Statuses SHALL be 400 for invalid requests or unsupported options, 409 for invalid saved model state, 502 for provider or generated-output failure, 503 for required keyring failure, and 500 for unexpected failure. The envelope and its details MUST NOT add FREE-managed credentials, request headers, full request bodies, stack traces, or arbitrary thrown objects; immediate provider response detail MAY be raw but SHALL obey the bounded design contract.
-
-#### Scenario: Client JSON is malformed
-
-- **WHEN** a buffered model operation or pre-stream document-chat request contains malformed or schema-invalid client JSON
-- **THEN** FREE returns HTTP 400 with `error.code` `invalid_request`
-- **AND** it does not repair the supplied JSON or invoke a model
-
-#### Scenario: Required credential cannot be resolved
-
-- **WHEN** the exact selected route requires a FREE-managed credential and its keyring entry is unavailable or cannot be read
-- **THEN** the operation returns HTTP 503 with `error.code` `keyring_unavailable`
-- **AND** it does not try a credentialless, external, environment, or alternate connection
-
-#### Scenario: Buffered operation has a provider failure
-
-- **WHEN** Extraction, Schema Suggestion, or conversational Extraction Schema editing reaches its selected provider and the provider or generated output fails
-- **THEN** FREE returns HTTP 502 with a stable error envelope
-- **AND** any immediate upstream detail is the bounded raw provider detail allowed by the design, while the envelope does not add FREE-managed credentials, request headers, full request bodies, stack traces, or arbitrary thrown objects
-
-### Requirement: Document chat preserves the committed stream error protocol
-
-Before document-chat stream headers are committed, failures SHALL use the stable HTTP error envelope. After headers are committed, FREE SHALL emit the standard AI SDK UI-message error part `{ "type": "error", "errorText": string }` with sanitized bounded text. FREE MUST NOT encode the JSON error envelope in the stream or alter the already committed HTTP status; the frontend SHALL treat the error part as a failed operation.
-
-#### Scenario: Document chat fails before streaming starts
-
-- **WHEN** document-chat request parsing, route resolution, temperature validation, or required credential lookup fails before stream creation
-- **THEN** FREE returns the corresponding non-200 HTTP status and stable JSON error envelope
-- **AND** it does not open a UI-message stream
-
-#### Scenario: Document chat fails after streaming starts
-
-- **WHEN** the selected provider or generation fails after document-chat stream headers are committed
-- **THEN** FREE emits an AI SDK UI-message error part with sanitized `errorText`
-- **AND** the committed HTTP status remains unchanged and the event omits upstream bodies, credentials, causes, stack traces, and error details
-
-#### Scenario: The frontend receives an in-stream error
-
-- **WHEN** the document-chat frontend receives an AI SDK UI-message error part
-- **THEN** it terminates stream consumption on that error, including through `readUIMessageStream` with `terminateOnError: true` or equivalent behavior
-- **AND** it reports a failed operation rather than a completed assistant message
+Transport envelopes, strict client-request parsing, and pre-stream versus
+committed-stream error behavior are specified normatively by
+`studio-model-operation-contract`. This capability owns only route-specific
+causes and the no-fallback requirement above.

@@ -29,7 +29,7 @@ NuExtract control-token prompt and sending it to `/api/generate` with
 
 **Goals:**
 
-- Persist one machine-wide, versioned model-configuration document and keep all
+- Persist one machine-wide model-configuration document and keep all
   FREE-managed secrets exclusively in the OS credential store.
 - Define exact whole-document configuration and draft-connection probe APIs.
 - Make one typed seven-provider table authoritative for UI metadata,
@@ -75,24 +75,23 @@ under the new `502` provider/generated-output error mapping.
 
 ## Decisions
 
-### Persist one versioned JSON document in the OS user config directory
+### Persist one JSON document in the OS user config directory
 
 Use `env-paths` with the application name `FREE Studio` and store
 `model-config.json` in its `config` directory. Create the directory when the
-first configuration is committed. The complete persisted v1 document is:
+first configuration is committed. The complete persisted document is:
 
 ```ts
-type StoredModelConfigV1 = {
-  version: 1
-  connections: StoredConnection[]
+type ModelConfig = {
+  connections: ModelConnection[]
   routes: Routes
 }
 
-type StoredConnection = {
+type ModelConnection = {
   id: string                 // UUID created with crypto.randomUUID() in Studio
   name: string
   provider: ProviderKind
-  baseUrl: string | null     // HTTP service root; null for CLI providers
+  baseUrl: string | null     // Provider API base; null for CLI providers
 }
 
 type ModelDescriptor = { id: string; label: string }
@@ -105,13 +104,6 @@ type ProbeStatus =
   | 'invalid_response'
   | 'discovery_failed'
   | 'timed_out'
-
-type ProbeObservation = {
-  checkedAt: string          // ISO 8601 UTC
-  status: ProbeStatus
-  message: string            // sanitized, at most 512 Unicode code points
-  upstreamStatus: number | null
-}
 
 // ProbeStatus is exhaustive. invalid_response means the provider answered but
 // its discovery payload could not be parsed or validated; discovery_failed is
@@ -128,13 +120,13 @@ shape; `timed_out` means the 15-second FREE deadline elapsed; and
 `discovery_failed` covers other provider or CLI listing failures, including
 non-authentication HTTP failures.
 
-An absent file means the valid empty v1 configuration: no connections, both
-routes `null`, and no implicit environment-derived defaults. Reads parse JSON
-strictly and validate the complete versioned shape. A malformed document,
-unsupported version, duplicate connection ID, invalid URL, invalid provider
-kind, or dangling route produces `409 invalid_model_config`
-with the path and bounded validation detail. FREE leaves the file byte-for-byte
-unchanged and does not auto-reset, migrate, back up, or replace it.
+An absent file means the valid empty configuration: no connections, both routes
+`null`, and no implicit environment-derived defaults. Reads parse JSON strictly
+and validate the complete shape. A malformed document, duplicate connection ID,
+invalid URL, invalid provider kind, or dangling route produces
+`409 invalid_model_config` with the path and bounded validation detail. FREE
+leaves the file byte-for-byte unchanged and does not auto-reset, back up, or
+replace it.
 
 Writes create a sibling temporary file, flush and close it, then rename it over
 `model-config.json`; the JSON document is atomic at the replacement boundary.
@@ -152,33 +144,23 @@ Alternatives considered:
 - Repository-local storage would make the configuration checkout-wide rather
   than machine-wide and conflicts with the accepted domain term.
 
-### Separate editable configuration from server-owned state
+### Share one configuration shape and keep server-owned state separate
 
-The client may edit only connection identity/configuration and the two routes:
+`ModelConfig` and `ModelConnection` are the single non-secret configuration
+shapes used for persistence, GET and PUT `config`, and the React draft. The
+client may edit only connection identity/configuration and the two routes;
+credential states and provider descriptors remain server-owned siblings.
 
 ```ts
-type EditableModelConfig = {
-  version: 1
-  connections: Array<{
-    id: string
-    name: string
-    provider: ProviderKind
-    baseUrl: string | null
-  }>
-  routes: Routes
-}
-
 type Route = {
   connectionId: string
   modelId: string
 }
 
-// The Extraction Route may opt into the raw NuExtract transport; the flag is
-// valid only when its connection is Ollama and is absent for the general path.
-// The Interaction Route is always general and carries no such flag, so raw
-// NuExtract on Interaction is not representable.
+// Only extraction can opt into raw NuExtract. The flag is absent for the
+// general path and is not representable on Interaction.
 type Routes = {
-  extraction: (Route & { nuextractRaw?: boolean }) | null
+  extraction: (Route & { nuextractRaw?: true }) | null
   interaction: Route | null
 }
 ```
@@ -188,14 +170,13 @@ different provider kind; changing provider kind requires deleting the old Model
 Connection and creating a new one. At most one `codex-cli` connection and one
 `claude-code` connection may exist because each kind resolves the same local
 executable and external authentication; HTTP provider kinds may have multiple
-connections. Names and HTTP-provider URLs are editable. HTTP providers require
-an absolute `http:` or `https:` service-root URL with no username, password,
+connections. Names and HTTP-provider URLs are editable. HTTP providers require an
+absolute `http:` or `https:` provider API base with no username, password,
 query, or fragment and may point to any researcher-selected local or remote
-destination. A trailing slash is semantically irrelevant. Provider-specific
-validation rejects a root that
-already ends in the protocol suffix FREE appends (`/api` for Ollama, `/v1` for
-OpenAI, Anthropic, and OpenAI-compatible, or `/v1beta` for Google), preventing a
-stored `/v1` from becoming `/v1/v1`. CLI providers require `baseUrl: null`.
+destination. A trailing slash is semantically irrelevant. The configured base
+is stored exactly as entered (apart from insignificant trailing slashes), so
+conventional API bases such as `/v1` are valid. Adapters append only their
+resource-local paths. CLI providers require `baseUrl: null`.
 
 A non-null route must reference a connection in the submitted document. A new
 route selection accepts its exact non-empty model ID without prior discovery.
@@ -226,28 +207,28 @@ type CredentialActions = Record<string, string | null>
 ```
 
 Empty strings are invalid rather than aliases for preserve or delete. Action
-keys must name connections in either the old or submitted document. A managed
-credential must be supplied or already present for providers whose
-authentication mode is `managed`; `optional` providers remain valid without
-one. Deleting a Model Connection also schedules deletion of its keyring entry,
-if present, without requiring a redundant `null` action. That deletion must
-succeed before the JSON commit. External CLI authentication is never represented
-as a FREE-managed credential and is neither created nor deleted by this API.
+keys must name connections in the submitted document. A managed credential must
+be supplied or already present for providers whose authentication mode is
+`managed`; `optional` providers remain valid without one. Removing a Model
+Connection is represented solely by its absence. After the JSON commit, FREE
+best-effort deletes any credential belonging to the removed connection; an inert
+orphan is harmless. External CLI authentication is never represented as a
+FREE-managed credential and is neither created nor deleted by this API.
 
 Configuration responses report credential state in a sibling map keyed by
 connection UUID:
 
 ```ts
-type CredentialState = 'present' | 'absent' | 'unavailable' | 'not_applicable'
+type CredentialState = 'present' | 'absent' | 'unavailable'
 ```
 
 `present` and `absent` apply only to `managed` and `optional` providers;
-`unavailable` means the keyring could not be queried; and `not_applicable`
-applies to `none` and `external` authentication. CLI installation and login are
-reported only by probe state, never as credential presence.
+`unavailable` means the keyring could not be queried. An absent map entry means
+FREE does not manage a credential for that connection. CLI installation and
+login are reported only by probe state, never as credential presence.
 
-If the keyring is unavailable, reading configuration and using `none` or
-`external` connections still work. Any PUT action or route resolution that
+If the keyring is unavailable, reading configuration and using `external`
+connections still work. Any PUT action or route resolution that
 requires a FREE-managed credential fails with `503 keyring_unavailable`. There
 is no plaintext, environment, or process-memory fallback.
 
@@ -261,9 +242,9 @@ the returned normalized `config`, while failure keeps the draft and displays the
 error so the researcher can retry.
 
 Connection checking is separate from Apply. Once a draft connection has a valid
-provider, service root where applicable, and required credential source, the
-page waits 500 ms after the latest provider/root/credential edit and probes that
-draft. It shows checking, connected, or the bounded failure beside the edited
+provider, API base where applicable, and required credential source, the
+page waits 500 ms after the latest provider/API-base/credential edit and probes
+that draft. It shows checking, connected, or the bounded failure beside the edited
 connection. Changing only its name or a route model ID does not probe. Opening
 the panel does not probe every saved connection. Refresh models provides an
 immediate retry.
@@ -279,12 +260,13 @@ Each PUT performs these steps:
 2. Read and validate the current JSON document and query only credential states
    needed to validate the requested change.
 3. Validate routes and calculate deleted connections.
-4. Apply explicit credential creates, replacements, and deletions.
+4. Apply explicit credential creates, replacements, and deletions for submitted
+   connections only.
 5. Atomically replace the JSON document. At this point the configuration is
    committed and usable.
 6. Best-effort delete credentials belonging to removed connections and return
-   the normalized configuration and credential states. A leftover credential is inert because its UUID is
-   absent from the authoritative JSON document.
+   the normalized configuration and credential states. A leftover credential is
+   inert because its UUID is absent from the authoritative JSON document.
 
 Keyring and filesystem writes cannot form a transaction and no compensating
 rollback is attempted. A rare failure after a credential replacement but before
@@ -323,12 +305,8 @@ type ProviderDescriptor = {
   label: string
   transport: 'http' | 'cli'
   defaultBaseUrl: string | null
-  authentication: 'none' | 'managed' | 'optional' | 'external'
-  capabilities: {
-    jsonOutput: 'native' | 'prompt'
-    temperature: boolean
-    nuextractRaw: boolean   // Extraction Route may opt into raw NuExtract (Ollama only)
-  }
+  authentication: 'managed' | 'optional' | 'external'
+  supportsNuextractRaw: boolean
 }
 
 type ImmediateUpstreamDetail = {
@@ -338,8 +316,9 @@ type ImmediateUpstreamDetail = {
 }
 
 type ProbeResult = {
-  connectionId: string
-  observation: ProbeObservation
+  checkedAt: string
+  status: ProbeStatus
+  message: string
   catalog: ModelDescriptor[]
   upstream?: ImmediateUpstreamDetail
 }
@@ -347,8 +326,8 @@ type ProbeResult = {
 type ModelProbeResponse = ProbeResult
 
 type ModelConfigState = {
-  config: EditableModelConfig
-  // Exactly one entry for every connection in config; no other entries.
+  config: ModelConfig
+  // Entries exist only for managed and optional connections.
   credentialStates: Record<string, CredentialState>
 }
 
@@ -369,7 +348,7 @@ failure does not fail GET; affected map entries use `unavailable`.
 
 ```ts
 type PutModelConfigRequest = {
-  config: EditableModelConfig
+  config: ModelConfig
   credentials?: CredentialActions
 }
 ```
@@ -384,11 +363,7 @@ invalid submitted or saved configuration is `409`; required keyring failure is
 
 ```ts
 type ModelProbeRequest = {
-  connection: {
-    id: string
-    provider: ProviderKind
-    baseUrl: string | null
-  }
+  connection: ModelConnection
   credential?: string | null
 }
 ```
@@ -400,13 +375,16 @@ tests without a managed credential. Empty strings are invalid. The request-local
 credential is never logged, returned, or stored. Probes may overlap and
 independently return `ModelProbeResponse`; they never mutate configuration or the
 keyring. A successful discovery has `status: 'connected'` and a catalog that the
-current page session may offer as selection help.
+current page session may offer as selection help. Every completed probe,
+including a negative connectivity or discovery observation, returns `200` with
+this same `ProbeResult` shape.
 
 An omitted required credential with no matching saved keyring entry is `409`.
-Unavailable required keyring access is `503`. Provider connectivity,
-authentication, installation, timeout, response-shape, or discovery failure
-returns `502 provider_failure`; its error `details` is exactly the corresponding
-`ProbeResult`. No probe performs model generation or writes configuration.
+Unavailable required keyring access is `503`. Invalid requests and unexpected
+server failures use their normal non-2xx envelopes; provider connectivity,
+authentication, installation, timeout, response-shape, and discovery failures
+are completed probe observations rather than `502` errors. No probe performs
+model generation or writes configuration.
 
 ### Use one ApiError envelope and bounded provider detail
 
@@ -432,7 +410,7 @@ The status mapping is deliberately small:
 | --- | --- |
 | `400` | Invalid request syntax, JSON, form value, or explicit unsupported option |
 | `409` | Invalid, incomplete, corrupt, or unsupported saved/submitted model state |
-| `502` | Provider, CLI, discovery, generation, or generated-response failure |
+| `502` | Provider, CLI, generation, or generated-response failure for model operations |
 | `503` | OS credential store unavailable for an operation that requires it |
 | `500` | Unexpected implementation or storage failure |
 
@@ -448,9 +426,8 @@ with `truncated` true exactly when bytes were omitted. `body` is decoded as
 UTF-8 with replacement. This raw detail is immediate-only and is not described
 as sanitized. FREE MUST NOT add request headers, FREE-managed credentials, full
 request bodies, stack traces, or arbitrary error objects to the envelope.
-Persisted `ProbeObservation` keeps only timestamp, status, upstream status, and a
-sanitized message truncated to 512 Unicode code points; it never stores the raw
-body. Unknown thrown values become a generic `500 unexpected_failure` and their
+Ephemeral `ProbeResult` keeps only its bounded timestamp, status, message,
+catalog, and immediate upstream detail; it never persists a raw provider body. Unknown thrown values become a generic `500 unexpected_failure` and their
 internal cause is retained only for safe server-side diagnostics, never
 serialized into an API response or persisted configuration.
 
@@ -477,43 +454,41 @@ confined to generated text and a generated-output failure remains `502`.
 ### Keep one typed seven-provider table
 
 `_provider.ts` owns one literal satisfying a `ProviderTable` type. Its entries
-contain UI metadata, default URL, authentication mode, discovery function,
-AI SDK model factory, and only the capabilities current orchestration consumes:
-`jsonOutput`, `temperature`, and allowed execution profiles.
+contain UI metadata, default API base, authentication mode, discovery function,
+AI SDK model factory, and concrete execution capabilities. The serializable
+provider descriptor exposes only UI metadata, authentication, default base, and
+`supportsNuextractRaw`; JSON-output and temperature capabilities remain
+backend-only.
 
-Every HTTP `baseUrl` in storage is an unversioned service root, not an endpoint
-or versioned API root. Derive URLs by removing trailing slashes and appending the
-relative path shown below without discarding any existing path prefix. For
-example, the OpenAI-compatible root `https://host.example/proxy/openai` yields
-`https://host.example/proxy/openai/v1/models`; no code detects or de-duplicates
-an already supplied version suffix because validation rejects one.
+Every HTTP `baseUrl` in storage is the exact provider API base, including any
+version prefix researchers supply. Derive URLs by removing trailing slashes and
+appending only resource-local paths without discarding an existing path prefix.
+For example, the OpenAI-compatible base `https://host.example/proxy/openai/v1`
+yields `https://host.example/proxy/openai/v1/models`; no suffix rejection or
+version normalization is performed.
 
-| Kind | Metadata and auth | Discovery URL from stored root | Generation construction and URL | Concrete capabilities |
+| Kind | Metadata and auth | Discovery URL from stored API base | Generation construction and URL | Concrete capabilities |
 | --- | --- | --- | --- | --- |
-| `ollama` | Ollama; default root `http://127.0.0.1:11434`; `optional` managed bearer credential | `GET {root}/api/tags` | `createOllama({ baseURL: root, apiKey })`; general generation uses `{root}/api/chat`, raw NuExtract uses `{root}/api/generate` | JSON `native`; temperature supported; `general` and `nuextract-raw` |
-| `openai` | OpenAI; default root `https://api.openai.com`; `managed` credential | Native `GET {root}/v1/models` | `createOpenAI({ baseURL: '{root}/v1', apiKey }).responses(modelId)`; generation uses the native Responses resource at `{root}/v1/responses` | JSON `native`; temperature supported; `general` |
-| `anthropic` | Anthropic; default root `https://api.anthropic.com`; `managed` credential | Native `GET {root}/v1/models` with Anthropic headers | `createAnthropic` receives API root `{root}/v1`; generation uses `{root}/v1/messages` | JSON `prompt` because schema-less JSON mode is not guaranteed; temperature supported; `general` |
-| `google` | Google; default root `https://generativelanguage.googleapis.com`; `managed` credential | Native `GET {root}/v1beta/models` | `createGoogleGenerativeAI` receives API root `{root}/v1beta`; generation uses `{root}/v1beta/models/{modelId}:generateContent` or the streaming form of that resource | JSON `native`; temperature supported; `general` |
-| `codex-cli` | Codex CLI; no URL; `external` authentication | Provider `listModels()` through the installed/authenticated app server | Existing isolated, tool-disabled `createCodexAppServer` factory; no HTTP URL is derived by FREE | JSON `prompt` for schema-less output; temperature unsupported; `general` |
-| `claude-code` | Claude Code; no URL; `external` authentication | Check installation/authentication without generation, then expose static `fable`, `opus`, `sonnet`, `haiku` aliases | `claudeCode(modelId, { tools: [], settingSources: [] })`; no HTTP URL is derived by FREE | JSON `prompt`; temperature unsupported; `general` |
-| `openai-compatible` | OpenAI-compatible; no default root; `optional` managed bearer credential | Guaranteed `GET {root}/v1/models` | `createOpenAICompatible({ name: 'free-openai-compatible', baseURL: '{root}/v1', ...credential }).chatModel(modelId)`; generation uses `{root}/v1/chat/completions` | JSON `prompt`; temperature supported by the guaranteed Chat Completions contract; `general` |
+| `ollama` | Ollama; default API base `http://127.0.0.1:11434/api`; `optional` managed bearer credential | `GET {root}/tags` | `createOllama({ baseURL: root, apiKey })`; general generation uses `{root}/chat`, raw NuExtract uses `{root}/generate` | JSON `native`; `temperatureSupported: true`; `general` and `nuextract-raw` |
+| `openai` | OpenAI; default API base `https://api.openai.com/v1`; `managed` credential | Native `GET {root}/models` | `createOpenAI({ baseURL: root, apiKey }).responses(modelId)`; generation uses `{root}/responses` | JSON `native`; `temperatureSupported: true`; `general` |
+| `anthropic` | Anthropic; default API base `https://api.anthropic.com/v1`; `managed` credential | Native `GET {root}/models` with Anthropic headers | `createAnthropic` receives API root `{root}`; generation uses `{root}/messages` | JSON `prompt` because schema-less JSON mode is not guaranteed; `temperatureSupported: true`; `general` |
+| `google` | Google; default API base `https://generativelanguage.googleapis.com/v1beta`; `managed` credential | Native `GET {root}/models` | `createGoogleGenerativeAI` receives API root `{root}`; generation uses `{root}/models/{modelId}:generateContent` or the streaming form of that resource | JSON `native`; `temperatureSupported: true`; `general` |
+| `codex-cli` | Codex CLI; no URL; `external` authentication | Provider `listModels()` through the installed/authenticated app server | Existing isolated, tool-disabled `createCodexAppServer` factory; no HTTP URL is derived by FREE | JSON `prompt` for schema-less output; `temperatureSupported: false`; `general` |
+| `claude-code` | Claude Code; no URL; `external` authentication | Check installation/authentication without generation, then expose static `fable`, `opus`, `sonnet`, `haiku` aliases | `claudeCode(modelId, { tools: [], settingSources: [] })`; no HTTP URL is derived by FREE | JSON `prompt`; `temperatureSupported: false`; `general` |
+| `openai-compatible` | OpenAI-compatible; no default API base; `optional` managed bearer credential | Guaranteed `GET {root}/models` | `createOpenAICompatible({ name: 'free-openai-compatible', baseURL: root, ...credential }).chatModel(modelId)`; generation uses `{root}/chat/completions` | JSON `prompt`; `temperatureSupported: true` under the guaranteed Chat Completions contract; `general` |
 
-Derive discovery resource URLs separately, and pass each factory its required
-base: the stored root for Ollama, `{root}/v1` for OpenAI, Anthropic, and
-OpenAI-compatible, and `{root}/v1beta` for Google. SDK default base URLs are
-never combined with a stored root. Native-provider custom roots retain that
-provider's protocol. The join helper must preserve path prefixes; for example,
-it may construct `new URL('v1/models',`${trimmedRoot}/`)` but must not use a
-leading `/v1/models`, which would discard `/proxy/openai`. This makes the generic
-provider's contract exactly the two relative resources `/v1/models` and
-`/v1/chat/completions` beneath the stored root and prevents `/v1/v1/...` joins.
+Derive discovery resource URLs by appending `/models` to the exact stored API
+base, and pass each factory that same base. SDK default base URLs are never
+combined with a stored API base. Native-provider custom bases retain that
+provider's protocol. The join helper must preserve path prefixes and must not use a leading
+slash that discards them. The generic provider's contract is exactly the two
+relative resources `/models` and `/chat/completions` beneath its stored API base.
 
 `managed` means a credential is required and owned by FREE, `optional` means
 FREE may own one, and `external` means the provider harness owns installation
 and authentication. The table is converted to serializable
 `ProviderDescriptor` values for the UI; functions and secrets never cross the
-HTTP boundary. The generic provider guarantees only `/v1/models` and
-`/v1/chat/completions`, including streaming. Native-provider custom URLs still
+HTTP boundary. The generic provider guarantees only `/models` and `/chat/completions`, including streaming. Native-provider custom URLs still
 use that provider's native protocol and are not silently treated as generic.
 
 These capabilities describe adapter/protocol behavior, not per-model
@@ -541,8 +516,8 @@ Alternatives considered:
 
 ### Resolve exactly two Capability Routes to direct execution targets
 
-Keep the route map keyed by `extraction` and `interaction` so another named
-capability family can be added later, but define exactly these two keys in v1.
+Define the route map with exactly the two current keys, `extraction` and
+`interaction`.
 The operation mapping is fixed:
 
 | Operation | Capability Route |
@@ -564,7 +539,7 @@ type GeneralExecutionTarget = {
   profile: 'general'
   model: LanguageModel
   jsonOutput: 'native' | 'prompt'
-  temperature: 'supported' | 'unsupported'
+  temperatureSupported: boolean
 }
 
 type NuExtractRawExecutionTarget = {
@@ -572,7 +547,7 @@ type NuExtractRawExecutionTarget = {
   modelId: string
   baseUrl: string
   authorization: string | null
-  temperature: 'supported'
+  temperatureSupported: boolean
 }
 
 type ExecutionTarget = GeneralExecutionTarget | NuExtractRawExecutionTarget
@@ -593,7 +568,9 @@ factory because discovery is advisory. Provider or model failure is returned
 unchanged in routing terms and never triggers substitution.
 
 Both Interaction-routed operations have an explicit Source Document context
-contract. Document chat sends canonical Source Document Markdown with the
+contract. Transport envelopes and pre-stream versus committed-stream behavior
+are owned by `studio-model-operation-contract`; this route specification keeps
+only route-specific causes and no-fallback requirements. Document chat sends canonical Source Document Markdown with the
 conversation. Conversational Extraction Schema editing sends that same canonical
 Markdown when its existing nullable document source is present; when the source
 is `null`, editing proceeds with the conversation and current Extraction Schema
@@ -605,7 +582,8 @@ unchanged.
 ### Preserve the raw NuExtract prompt as a specialized path
 
 For an Ollama Extraction Route with `nuextractRaw: true`, preserve the
-current `renderNuExtractPrompt` and `/api/generate` behavior:
+current `renderNuExtractPrompt` and `/generate` resource behavior beneath the
+stored Ollama API base:
 
 - Build the hand-authored `<|im_start|>` prompt with `【task】`, optional
   `【template_start】...【template_end】`, structured-only
@@ -615,7 +593,7 @@ current `renderNuExtractPrompt` and `/api/generate` behavior:
 - Put schema-suggestion guidance first in template-generation message content;
   do not invent an instructions slot for that mode.
 - Send `raw: true`, `stream: false`, extracted base64 images, the exact selected
-  `modelId`, the resolved Model Connection URL/credential, and temperature
+  `modelId`, the resolved Model Connection API base/credential, and temperature
   `0.2` when the caller did not supply one.
 - Do not send `chat_template_kwargs`, infer NuExtract from a model ID, route raw
   NuExtract through AI SDK, or move prompt semantics into the provider table.
@@ -652,25 +630,26 @@ needed.
 
 Vitest covers real module behavior with isolated adapters:
 
-- Use a temporary config root to test absent, valid, corrupt, unsupported, and
-  atomic-replacement-failure without touching the researcher's config directory.
-  Also test that embedded URL userinfo is rejected.
+- Use a temporary config root to test absent, valid, malformed, duplicate-ID,
+  dangling-route, and atomic-replacement-failure cases without touching the
+  researcher's config directory. Also test that embedded URL userinfo is
+  rejected.
 - Use a fake keyring to test credential tri-state, service/account naming,
   unavailable-keyring degradation, and best-effort orphan cleanup.
 - Use fake HTTP/CLI provider adapters to table-test all seven metadata entries,
   auth modes, discovery mappings, static Claude aliases, CLI singleton
   validation, bounded upstream detail, and no generation during
   probes. Assert separately that native OpenAI constructs a Responses model
-  targeting `/v1/responses`,
-  while OpenAI-compatible constructs a Chat Completions model targeting
-  `/v1/chat/completions`, so the two adapters cannot collapse onto one protocol.
+  targeting `/responses`, while OpenAI-compatible constructs a Chat
+  Completions model targeting `/chat/completions`, so the two adapters cannot
+  collapse onto one protocol.
 - Test GET, PUT, and POST handlers against the exact wire schemas and status
   mapping, including no probes during GET/PUT and no writes during POST.
 - Test document chat failures before stream creation as HTTP `ApiErrorBody`
   responses and failures after stream commitment as AI SDK error parts with the
   512-code-point public error bound.
 - Table-test all four operation-to-route mappings, exact selected IDs,
-  arbitrary selected model IDs, missing routes, profile restrictions,
+  arbitrary selected model IDs, missing routes, raw-flag restrictions,
   unsupported temperature, both Interaction context cases (including nullable
   schema-edit source), no `AI_*` reads, and no fallback.
 - Retain regression tests for the deferred output behavior: tolerant
@@ -717,7 +696,7 @@ those integration boundaries.
   only managed-credential operations and keep credentialless and external-auth
   connections usable without a fallback secret store.
 
-## Migration Plan
+## Rollout Plan
 
 `tasks.md` owns the executable sequence. Its work items must be fresh-session,
 vertical tracer slices: each slice is independently understandable and
@@ -729,10 +708,9 @@ raw NuExtract behavior, remove `AI_*` model configuration without fallback, and
 keep browser tests isolated from real credentials, providers, CLI processes,
 and configuration files.
 
-There is no persisted legacy configuration to migrate. A fresh install begins
-unconfigured. Rollback requires reverting the code; the v1 JSON and keyring
-entries may remain inert for a later retry or can be removed manually. Rollback
-must not silently translate them back into environment variables.
+A fresh install begins unconfigured. Reverting the code may leave the JSON and
+keyring entries inert; they can be removed manually and are never translated
+into environment variables.
 
 ## Open Questions
 

@@ -13,8 +13,8 @@ fix deletes. Each finding notes how many of the six reviews raised it.
 
 Decisions confirmed so far:
 
-1. **A — Accept:** use one shared `ModelConfigV1` / `ModelConnection`
-   shape for persistence, GET, PUT, and the React draft. Keep server-owned
+1. **A — Accept:** use one shared `ModelConfig` / `ModelConnection` shape for
+   persistence, GET, PUT, and the React draft. Keep server-owned
    credential state and provider descriptors separate.
 2. **B — Accept:** persist `nuextractRaw?: true` only on the Extraction Route.
    Keep `profile` solely as an internal resolved-target discriminator.
@@ -55,6 +55,10 @@ Decisions confirmed so far:
     parsing, HTTP envelopes, and pre-stream versus committed-stream error
     behavior. `capability-route-resolution` keeps only route-specific causes and
     no-fallback requirements, with a cross-reference to the owning contract.
+13. **Additional decision — no configuration versioning:** use `ModelConfig`
+    without a persisted version field. Backward compatibility and configuration
+    migration are not requirements; a future incompatible contract may replace
+    the current file shape.
 
 All merged-review findings are decided.
 
@@ -68,13 +72,13 @@ All merged-review findings are decided.
   `specs/model-connection-configuration/spec.md:26-28`.
 - **Pattern:** 1 (redundant representation) + 5 (hand-synced parallel types).
 - **Wound:** `StoredModelConfigV1`/`StoredConnection` and `EditableModelConfig`
-  now describe the exact same v1 document — the credentialState→sibling-map fix
+  now describe the exact same document — the credentialState→sibling-map fix
   removed the last distinguishing field. GET and PUT deliberately round-trip the
   same `config` shape, so two hand-synced type definitions exist for a
   distinction that no longer does. All genuinely server-owned data
   (`credentialStates`, `providers`) already lives outside `config` in
   `ModelConfigState` / `GetModelConfigResponse`.
-- **Minimal tweak:** Collapse to one `ModelConfigV1` + one `ModelConnection` used
+- **Minimal tweak:** Collapse to one `ModelConfig` + one `ModelConnection` used
   for persistence, GET, PUT, and the React draft; keep credential states and
   provider descriptors as siblings.
 - **Deletes:** one type definition; the stored↔editable transform/reconcile
@@ -324,7 +328,7 @@ All merged-review findings are decided.
 
 | # | Finding | Reviews | Fix decided |
 | - | ------- | :-----: | ----------- |
-| A | Duplicate config types | 6/6 | one `ModelConfigV1`/`ModelConnection` |
+| A | Duplicate config types | 6/6 | one unversioned `ModelConfig`/`ModelConnection` |
 | B | Raw NuExtract dual rep + impossible 409 | 6/6 | flag-only `nuextractRaw?: true` on extraction; `profile` internal |
 | D | HTTP/CLI nullable shape | 5/6 | **rejected:** keep flat shape + centralized validation |
 | C | Unversioned-root URL matrix | 3/6 | **accepted:** store adapter API base, append resource paths |
