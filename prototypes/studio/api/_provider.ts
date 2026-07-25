@@ -6,6 +6,97 @@ import { createCodexAppServer } from "ai-sdk-provider-codex-cli";
 import { claudeCode } from 'ai-sdk-provider-claude-code';
 import { RequestError } from "./_http.js";
 
+export type ProviderKind =
+	| "ollama"
+	| "openai"
+	| "anthropic"
+	| "google"
+	| "codex-cli"
+	| "claude-code"
+	| "openai-compatible";
+
+export type ProviderDescriptor = {
+	kind: ProviderKind;
+	label: string;
+	transport: "http" | "cli";
+	defaultBaseUrl: string | null;
+	authentication: "managed" | "optional" | "external";
+	supportsNuextractRaw: boolean;
+};
+
+// The one table every layer asks about a provider. Discovery adapters, model
+// factories, and execution capabilities join these rows in later task groups.
+export const providerTable = {
+	ollama: {
+		kind: "ollama",
+		label: "Ollama",
+		transport: "http",
+		defaultBaseUrl: "http://127.0.0.1:11434/api",
+		authentication: "optional",
+		supportsNuextractRaw: true,
+	},
+	openai: {
+		kind: "openai",
+		label: "OpenAI",
+		transport: "http",
+		defaultBaseUrl: "https://api.openai.com/v1",
+		authentication: "managed",
+		supportsNuextractRaw: false,
+	},
+	anthropic: {
+		kind: "anthropic",
+		label: "Anthropic",
+		transport: "http",
+		defaultBaseUrl: "https://api.anthropic.com/v1",
+		authentication: "managed",
+		supportsNuextractRaw: false,
+	},
+	google: {
+		kind: "google",
+		label: "Google",
+		transport: "http",
+		defaultBaseUrl: "https://generativelanguage.googleapis.com/v1beta",
+		authentication: "managed",
+		supportsNuextractRaw: false,
+	},
+	"codex-cli": {
+		kind: "codex-cli",
+		label: "Codex CLI",
+		transport: "cli",
+		defaultBaseUrl: null,
+		authentication: "external",
+		supportsNuextractRaw: false,
+	},
+	"claude-code": {
+		kind: "claude-code",
+		label: "Claude Code",
+		transport: "cli",
+		defaultBaseUrl: null,
+		authentication: "external",
+		supportsNuextractRaw: false,
+	},
+	"openai-compatible": {
+		kind: "openai-compatible",
+		label: "OpenAI-compatible",
+		transport: "http",
+		defaultBaseUrl: null,
+		authentication: "optional",
+		supportsNuextractRaw: false,
+	},
+} as const satisfies Record<ProviderKind, ProviderDescriptor>;
+
+/** Stable provider order for the Model Connection page. */
+export const PROVIDERS: readonly ProviderDescriptor[] = Object.values(providerTable);
+
+/**
+ * A stored API base is the exact provider root, version prefix included, so a
+ * resource joins below it. Trailing slashes are insignificant and stripped here
+ * rather than when the researcher's value is read back.
+ */
+export function appendProviderResource(baseUrl: string, resource: string): string {
+	return `${baseUrl.replace(/\/+$/, "")}/${resource.replace(/^\/+/, "")}`;
+}
+
 const DEFAULT_MODEL = "llama3.2";
 const DEFAULT_CODEX_MODEL = "gpt-5.5";
 const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-5-20250514"

@@ -18,7 +18,7 @@ import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model
 import { extractionRenderer, resolveModel } from './_provider.js'
 
 export { parseAnnotationMode, parseAnnotations, parseDocument } from './_document.js'
-export { json, modelError, parseTemperature, RequestError } from './_http.js'
+export { json, modelError, parseTemperature, RequestError, type FormValue } from './_http.js'
 
 const DEFAULT_MODEL = 'llama3.2'
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434'

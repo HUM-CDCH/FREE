@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { RequestError } from './_http'
+import { RequestError, type FormValue } from './_http'
 
 const supportedMediaTypes = new Set([
   'application/pdf',
@@ -24,7 +24,7 @@ export type Annotation = {
   readonly pageNumber: number
 }
 
-export function parseAnnotations(value: FormDataEntryValue | null): readonly Annotation[] {
+export function parseAnnotations(value: FormValue | null): readonly Annotation[] {
   if (value === null || typeof value !== 'string' || value.trim() === '') {
     return []
   }
@@ -40,7 +40,7 @@ export function parseAnnotations(value: FormDataEntryValue | null): readonly Ann
     .parse(parsed)
 }
 
-export function parseAnnotationMode(value: FormDataEntryValue | null): AnnotationMode {
+export function parseAnnotationMode(value: FormValue | null): AnnotationMode {
   if (value === null || value === '') {
     return 'hints'
   }

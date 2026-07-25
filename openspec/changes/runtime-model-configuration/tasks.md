@@ -12,12 +12,12 @@ Each numbered group is one fresh implementation session. Groups are dependency o
 
 **Explicit non-goals:** Keyring mutation, provider discovery, non-null route creation, model execution cutover, and Model Connection UI exposure.
 
-- [ ] 1.1 Add the required Studio dependencies and implement the shared strict wire schemas, `ApiError`/error mapper, bounded validation details, provider kinds, one shared round-trippable configuration shape, response metadata, and empty configuration document in cohesive `_http.ts` and `_model_config.ts` seams
-- [ ] 1.2 Implement `env-paths('FREE Studio')` config-path resolution, absent-file behavior, complete stored-document validation, byte-preserving fail-closed reads, and flushed sibling-temp atomic replacement with injectable config root/filesystem seams
-- [ ] 1.3 Define the ordered seven-provider descriptor table sufficiently for GET metadata and validate provider API bases without username/password/query/fragment components, retained path prefixes, null CLI bases, at most one connection per CLI kind, UUID identity, duplicate IDs, raw-flag combinations, and dangling routes without consulting `AI_*`
-- [ ] 1.4 Add `GET /api/model_config` and strict local Vite routing/error handling; return static provider descriptors and a UUID-keyed credential-state map, degrading keyring-status reads to `unavailable`
-- [ ] 1.5 Add focused tests for absent, valid, corrupt, duplicate-ID, invalid-root, embedded-userinfo, supplied-version-base, dangling-route, atomic-replacement-failure, descriptor order, no-probe GET, and ignored `AI_*` environment values
-- [ ] 1.6 Run `pnpm --filter studio test -- api/_model_config.test.ts api/_provider.test.ts src/apiEndpoints.test.ts` and `pnpm --filter studio build`
+- [x] 1.1 Add the required Studio dependencies and implement the shared strict wire schemas, `ApiError`/error mapper, bounded validation details, provider kinds, one shared round-trippable configuration shape, response metadata, and empty configuration document in cohesive `_http.ts` and `_model_config.ts` seams
+- [x] 1.2 Implement `env-paths('FREE Studio')` config-path resolution, absent-file behavior, complete stored-document validation, byte-preserving fail-closed reads, and flushed sibling-temp atomic replacement with injectable config root/filesystem seams
+- [x] 1.3 Define the ordered seven-provider descriptor table sufficiently for GET metadata and validate provider API bases without username/password/query/fragment components, retained path prefixes, null CLI bases, at most one connection per CLI kind, UUID identity, duplicate IDs, raw-flag combinations, and dangling routes without consulting `AI_*`
+- [x] 1.4 Add `GET /api/model_config` and strict local Vite routing/error handling; return static provider descriptors and a UUID-keyed credential-state map, degrading keyring-status reads to `unavailable`
+- [x] 1.5 Add focused tests for absent, valid, corrupt, duplicate-ID, invalid-root, embedded-userinfo, supplied-version-base, dangling-route, atomic-replacement-failure, descriptor order, no-probe GET, and ignored `AI_*` environment values
+- [x] 1.6 Run `pnpm --filter studio test -- api/_model_config.test.ts api/_provider.test.ts src/apiEndpoints.test.ts` and `pnpm --filter studio build`
 
 **Stopping boundary:** Stop with GET available only as a read-only, unconfigured/configured contract; do not expose editable UI or runtime routing until saves and credential behavior are durable.
 

@@ -5,6 +5,7 @@ import {
   parseDocument,
   parseTemperature,
   RequestError,
+  type FormValue,
 } from './_model'
 
 export async function POST(request: Request): Promise<Response> {
@@ -25,7 +26,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
-function parseTemplate(value: FormDataEntryValue | null): unknown {
+function parseTemplate(value: FormValue | null): unknown {
   if (value === null || value === '') {
     return {}
   }
@@ -35,6 +36,6 @@ function parseTemplate(value: FormDataEntryValue | null): unknown {
   return JSON.parse(value)
 }
 
-function stringValue(value: FormDataEntryValue | null): string | undefined {
+function stringValue(value: FormValue | null): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined
 }
