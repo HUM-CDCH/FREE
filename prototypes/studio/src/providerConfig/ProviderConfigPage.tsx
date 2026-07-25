@@ -1,4 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
+import type {
+  CredentialActions,
+  CredentialState,
+  ModelConfig,
+  ModelConnection,
+  ProbeResult,
+  ProviderDescriptor,
+  ProviderKind,
+  RouteKey,
+} from '../../shared/modelConfig.contract'
 import { Button, EmptyState, Overline, Pill } from '../ui'
 import {
   ModelConfigApiError,
@@ -6,14 +16,6 @@ import {
   getModelConfig,
   probeModelConnection,
   putModelConfig,
-  type CredentialActions,
-  type CredentialState,
-  type ModelConfig,
-  type ModelConnection,
-  type ProbeResult,
-  type ProviderDescriptor,
-  type ProviderKind,
-  type RouteKey,
 } from './providerConfig.data'
 
 const fieldClass =

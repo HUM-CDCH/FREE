@@ -3,27 +3,23 @@ import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import envPaths from 'env-paths'
 import { z } from 'zod'
+import {
+  apiBaseIssue,
+  modelConfigSchema,
+  type CredentialActions,
+  modelConfigUpdateSchema,
+  modelProbeRequestSchema,
+  type CredentialState,
+  type ModelConfig,
+  type ModelConfigUpdate,
+  type ModelConnection,
+  type ModelProbeRequest,
+  type ProviderKind,
+} from '../shared/modelConfig.contract.js'
 import { ApiError, boundedValidationDetails, type ValidationIssue } from './_http.js'
 import type { CredentialStore } from './_keyring.js'
-import { providerTable, type ProviderKind } from './_provider.js'
+import { providerTable } from './_provider.js'
 
-export type ModelConnection = {
-  id: string
-  name: string
-  provider: ProviderKind
-  baseUrl: string | null
-}
-export type Route = { connectionId: string; modelId: string }
-export type Routes = {
-  extraction: (Route & { nuextractRaw?: true }) | null
-  interaction: Route | null
-}
-export type ModelConfig = { connections: ModelConnection[]; routes: Routes }
-export type CredentialState = 'present' | 'absent' | 'unavailable'
-/** Omitted ID preserves, non-empty string replaces, `null` deletes. */
-export type CredentialActions = Record<string, string | null>
-export type ModelConfigUpdate = { config: ModelConfig; credentials: CredentialActions }
-export type ModelProbeRequest = { connection: ModelConnection; credential?: string | null }
 
 function emptyModelConfig(): ModelConfig {
   return { connections: [], routes: { extraction: null, interaction: null } }
@@ -32,54 +28,6 @@ function emptyModelConfig(): ModelConfig {
 /** Comparison value only. Readers return a fresh document so callers cannot alias it. */
 export const EMPTY_MODEL_CONFIG: ModelConfig = emptyModelConfig()
 
-const uuidSchema = z
-  .string()
-  .regex(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    'Must be a canonical lowercase UUID.',
-  )
-const connectionSchema = z
-  .object({
-    id: uuidSchema,
-    name: z.string().min(1, 'Must not be empty.'),
-    provider: z.enum(Object.keys(providerTable) as [ProviderKind, ...ProviderKind[]]),
-    baseUrl: z.string().min(1).nullable(),
-  })
-  .strict()
-const routeSchema = z
-  .object({ connectionId: uuidSchema, modelId: z.string().min(1, 'Must not be empty.') })
-  .strict()
-const modelConfigSchema = z
-  .object({
-    connections: z.array(connectionSchema),
-    routes: z
-      .object({
-        extraction: routeSchema.extend({ nuextractRaw: z.literal(true).optional() }).nullable(),
-        interaction: routeSchema.nullable(),
-      })
-      .strict(),
-  })
-  .strict()
-
-/**
- * The editable document is submitted unchanged, so PUT reuses the same schema GET
- * returns. An empty-string action is invalid rather than an alias for either
- * preserve or delete, which the value schema states rather than a later check.
- */
-const modelConfigUpdateSchema = z
-  .object({
-    config: modelConfigSchema,
-    credentials: z
-      .record(uuidSchema, z.string().min(1, 'Must not be empty.').nullable())
-      .optional(),
-  })
-  .strict()
-const modelProbeRequestSchema = z
-  .object({
-    connection: connectionSchema,
-    credential: z.string().min(1, 'Must not be empty.').nullable().optional(),
-  })
-  .strict()
 
 export type ConfigFileHandle = {
   writeFile(contents: string, options: { encoding: 'utf8' }): Promise<void>
@@ -116,34 +64,6 @@ function invalidModelConfig(path: string, issues: readonly ValidationIssue[], ca
   })
 }
 
-/**
- * `new URL()` silently normalises away a bare `@`, backslashes, surrounding
- * whitespace, and control characters, so a lenient check would store a base
- * that differs from the one FREE later fetches and shows the researcher.
- * Each rejection below is a case URL parsing alone does not catch.
- */
-function apiBaseIssue(value: string): string | null {
-  if (value.trim() !== value) return 'API base must not have surrounding whitespace.'
-  if (/\p{Cc}/u.test(value)) return 'API base must not contain control characters.'
-  if (value.includes('\\')) return 'API base must not contain backslashes.'
-
-  let parsed: URL
-  try {
-    parsed = new URL(value)
-  } catch {
-    return 'API base must be an absolute HTTP or HTTPS URL.'
-  }
-  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.host === '') {
-    return 'API base must be an absolute HTTP or HTTPS URL.'
-  }
-  const authority = /^https?:\/\/([^/?#]*)/i.exec(value)?.[1] ?? ''
-  if (parsed.username !== '' || parsed.password !== '' || authority.includes('@')) {
-    return 'API base must not contain embedded userinfo.'
-  }
-  if (parsed.search !== '') return 'API base must not contain a query.'
-  if (parsed.hash !== '') return 'API base must not contain a fragment.'
-  return null
-}
 
 function semanticIssues(config: ModelConfig): ValidationIssue[] {
   const issues: ValidationIssue[] = []
@@ -226,7 +146,9 @@ function invalidSubmitted(issues: readonly ValidationIssue[]): ApiError {
 }
 
 /** A malformed request is `400`; a well-formed one describing invalid state is `409`. */
-export function parseModelConfigUpdate(value: unknown): ModelConfigUpdate {
+export function parseModelConfigUpdate(
+  value: unknown,
+): ModelConfigUpdate & { credentials: CredentialActions } {
   const parsed = modelConfigUpdateSchema.safeParse(value)
   if (!parsed.success) {
     throw new ApiError(400, 'invalid_request', 'The request is invalid.', {

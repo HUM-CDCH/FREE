@@ -1,10 +1,10 @@
+import type { ModelConnection } from '../shared/modelConfig.contract.js'
 import { ApiError, apiErrorResponse, json, parseJsonRequest } from './_http.js'
 import { systemCredentialStore, type CredentialStore } from './_keyring.js'
 import {
   parseModelProbeRequest,
   readModelConfig,
   type ConfigStorageOptions,
-  type ModelConnection,
 } from './_model_config.js'
 import {
   probeConnection,

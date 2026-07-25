@@ -11,45 +11,19 @@ import type { LanguageModel } from 'ai'
 import { createOllama } from 'ai-sdk-ollama'
 import { claudeCode } from 'ai-sdk-provider-claude-code'
 import { createCodexAppServer, type CodexAppServerProvider } from 'ai-sdk-provider-codex-cli'
+import type {
+  ImmediateUpstreamDetail,
+  ModelConfig,
+  ModelConnection,
+  ModelDescriptor,
+  ProbeResult,
+  ProbeStatus,
+  ProviderDescriptor,
+  ProviderKind,
+} from '../shared/modelConfig.contract.js'
 import { ApiError } from './_http.js'
 import { systemCredentialStore, type CredentialStore } from './_keyring.js'
-import type { ModelConfig, ModelConnection } from './_model_config.js'
 
-export type ProviderKind =
-  | 'ollama'
-  | 'openai'
-  | 'anthropic'
-  | 'google'
-  | 'codex-cli'
-  | 'claude-code'
-  | 'openai-compatible'
-
-export type ProviderDescriptor = {
-  kind: ProviderKind
-  label: string
-  transport: 'http' | 'cli'
-  defaultBaseUrl: string | null
-  authentication: 'managed' | 'optional' | 'external'
-  supportsNuextractRaw: boolean
-}
-
-export type ModelDescriptor = { id: string; label: string }
-export type ProbeStatus =
-  | 'connected'
-  | 'authentication_failed'
-  | 'unreachable'
-  | 'not_installed'
-  | 'invalid_response'
-  | 'discovery_failed'
-  | 'timed_out'
-export type ImmediateUpstreamDetail = { status: number | null; body: string; truncated: boolean }
-export type ProbeResult = {
-  checkedAt: string
-  status: ProbeStatus
-  message: string
-  catalog: ModelDescriptor[]
-  upstream?: ImmediateUpstreamDetail
-}
 
 export type JsonOutputCapability = 'native' | 'prompt'
 type ExecutionCapability = 'general' | 'nuextract-raw'

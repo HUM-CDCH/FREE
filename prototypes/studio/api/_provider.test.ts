@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ModelConfig, ModelConnection } from './_model_config.js'
+import type { ModelConfig, ModelConnection } from '../shared/modelConfig.contract.js'
 import {
   PROVIDERS,
   appendProviderResource,

@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import { ApiError } from './_http.js'
 import { createCredentialStore, type CredentialStore } from './_keyring.js'
 import {
@@ -11,7 +12,6 @@ import {
   readModelConfig,
   validateModelConfig,
   writeModelConfig,
-  type ModelConfig,
 } from './_model_config.js'
 import { PROVIDERS, appendProviderResource } from './_provider.js'
 import { createGetModelConfig, createPutModelConfig } from './model_config.js'
