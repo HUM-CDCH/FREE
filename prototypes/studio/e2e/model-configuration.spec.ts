@@ -147,13 +147,36 @@ test('Capability Routes save mixed exact targets and Ollama-only raw mode', asyn
   expect(state.probes()).toBe(probesBeforeReload)
 })
 
+test('a draft provider change probes again, drops raw NuExtract, and locks once saved', async ({ page }) => {
+  const state = await mockConfiguration(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Configure providers' }).click()
+  await page.getByRole('button', { name: '+ New connection' }).click()
+  await expect.poll(state.probes).toBe(1)
+
+  await page.locator('article').first().getByLabel('API credential').fill('transient-secret')
+  await page.getByRole('button', { name: 'Capability Routes' }).click()
+  await page.getByLabel('Extraction & Schema Suggestion connection').selectOption({ label: 'Ollama' })
+  await page.getByLabel('Use raw NuExtract protocol').check()
+
+  await page.getByLabel('Ollama provider').selectOption('claude-code')
+  await expect.poll(state.probes).toBe(2)
+  await expect(page.getByLabel('Use raw NuExtract protocol')).toBeHidden()
+
+  await page.getByRole('button', { name: 'Apply' }).click()
+  await expect(page.getByLabel('Claude Code provider')).toBeHidden()
+  expect(state.config().connections[0]).toMatchObject({ provider: 'claude-code', baseUrl: null })
+  expect(state.config().routes.extraction).not.toHaveProperty('nuextractRaw')
+})
+
 test('probe failures do not gate retryable offline Apply and pending state', async ({ page }) => {
   const state = await mockConfiguration(page)
   state.setProbeStatus('unreachable')
   await page.goto('/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
-  await expect(page.getByText('Credential store unavailable.')).toBeVisible()
+  // A connection FREE manages no credential for yet is not a broken keyring.
+  await expect(page.getByText('Credential store unavailable.')).toBeHidden()
   await expect(page.getByText('Provider is offline.')).toBeVisible()
   await page.getByRole('button', { name: 'Refresh models' }).click()
   await expect.poll(state.probes).toBe(2)

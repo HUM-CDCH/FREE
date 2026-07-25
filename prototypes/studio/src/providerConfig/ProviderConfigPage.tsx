@@ -76,6 +76,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
   const [providers, setProviders] = useState<ProviderDescriptor[]>([])
   const [credentialStates, setCredentialStates] = useState<Record<string, CredentialState>>({})
   const [credentialActions, setCredentialActions] = useState<CredentialActions>({})
+  const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(new Set())
   const [probes, setProbes] = useState<Record<string, ProbeView>>({})
   const [mode, setMode] = useState<'single' | 'routes'>('single')
   const [newProvider, setNewProvider] = useState<ProviderKind>('ollama')
@@ -93,6 +94,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
         setDraft(state.config)
         setMode(configurationMode(state.config))
         setProviders(state.providers)
+        setSavedIds(new Set(state.config.connections.map(({ id }) => id)))
         setCredentialStates(state.credentialStates)
         setNewProvider(state.providers[0]?.kind ?? 'ollama')
       })
@@ -157,10 +159,9 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
     }
   }
 
-  function scheduleProbe(connection: ModelConnection): void {
+  function scheduleProbe(connection: ModelConnection, action = actionFor(connection.id)): void {
     const sequence = (sequences.current.get(connection.id) ?? 0) + 1
     sequences.current.set(connection.id, sequence)
-    const action = actionFor(connection.id)
     window.clearTimeout(timers.current.get(connection.id))
     controllers.current.get(connection.id)?.abort()
     if (!canProbe(connection, action)) {
@@ -194,6 +195,40 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
       connections: draft.connections.map((item) => (item.id === connection.id ? next : item)),
     })
     if (probeInput) scheduleProbe(next)
+  }
+
+  /**
+   * Draft connections only: the backend rejects a provider change on a saved
+   * connection, so `savedIds` gates the control.
+   */
+  function changeProvider(connection: ModelConnection, kind: ProviderKind): void {
+    if (!draft) return
+    const provider = providers.find((item) => item.kind === kind)
+    if (!provider) return
+    const next: ModelConnection = {
+      ...connection,
+      provider: kind,
+      name: connection.name === descriptor(connection)?.label ? provider.label : connection.name,
+      baseUrl: provider.transport === 'http' ? (provider.defaultBaseUrl ?? '') : null,
+    }
+    const routes = { ...draft.routes }
+    const { extraction } = routes
+    if (extraction?.connectionId === connection.id && !provider.supportsNuextractRaw) {
+      routes.extraction = { connectionId: extraction.connectionId, modelId: extraction.modelId }
+    }
+    setDraft({
+      connections: draft.connections.map((item) => (item.id === connection.id ? next : item)),
+      routes,
+    })
+    // An external provider has no FREE-managed credential, and the probe rejects
+    // one, so a pending action for it is dropped rather than sent.
+    const action = provider.authentication === 'external' ? undefined : actionFor(connection.id)
+    if (provider.authentication === 'external' && Object.hasOwn(credentialActions, connection.id)) {
+      const actions = { ...credentialActions }
+      delete actions[connection.id]
+      setCredentialActions(actions)
+    }
+    scheduleProbe(next, action)
   }
 
   function updateCredential(connection: ModelConnection, action: string | null | undefined): void {
@@ -313,6 +348,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
     try {
       const state = await putModelConfig(draft, credentialActions)
       setDraft(state.config)
+      setSavedIds(new Set(state.config.connections.map(({ id }) => id)))
       setCredentialStates(state.credentialStates)
       setCredentialActions({})
     } catch (cause) {
@@ -345,6 +381,8 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
     !('nuextractRaw' in extraction && extraction.nuextractRaw)
   const singleConnectionId = uniform ? extraction.connectionId : (extraction?.connectionId ?? '')
   const singleModelId = uniform ? extraction.modelId : (extraction?.modelId ?? '')
+  const singleProbe = probes[singleConnectionId]
+  const singleCatalog = singleProbe?.phase === 'done' ? singleProbe.result.catalog : []
 
   return (
     <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
@@ -384,7 +422,22 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
               </label>
               <label className="flex flex-col gap-1.5">
                 <span className="font-mono text-[10px] font-semibold uppercase text-ink-muted">Model ID</span>
-                <input aria-label="Single model ID" value={singleModelId} onChange={(event) => setSingleModel(event.target.value)} placeholder="Enter an exact model ID" className={`font-mono ${fieldClass}`} />
+                <input
+                  aria-label="Single model ID"
+                  value={singleModelId}
+                  onChange={(event) => setSingleModel(event.target.value)}
+                  list={singleConnectionId ? `models-single-${singleConnectionId}` : undefined}
+                  placeholder={singleCatalog.length > 0 ? 'Select or enter a model ID' : 'Enter an exact model ID'}
+                  className={`font-mono ${fieldClass}`}
+                />
+                {singleConnectionId && (
+                  <datalist id={`models-single-${singleConnectionId}`}>
+                    {singleCatalog.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}
+                  </datalist>
+                )}
+                {singleConnectionId && singleCatalog.length === 0 && (
+                  <span className="text-[10.5px] text-ink-faint">Use Refresh models below to list this connection's models.</span>
+                )}
               </label>
             </div>
           </div>
@@ -462,7 +515,9 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
             const view = probes[connection.id] ?? { phase: 'idle' as const }
             const tone = statusTone(view)
             const action = actionFor(connection.id)
-            const credentialState = credentialStates[connection.id] ?? 'unavailable'
+            // An absent map entry means FREE manages no credential for this
+            // connection yet (e.g. it is not saved) — not a broken keyring.
+            const credentialState = credentialStates[connection.id] ?? 'absent'
             const statusText = view.phase === 'checking'
               ? 'Checking…'
               : view.phase === 'done'
@@ -484,6 +539,14 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
                     <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Display name</span>
                     <input value={connection.name} onChange={(event) => updateConnection(connection, { name: event.target.value }, false)} className={fieldClass} />
                   </label>
+                  {!savedIds.has(connection.id) && (
+                    <label className="flex flex-col gap-1">
+                      <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Provider</span>
+                      <select aria-label={`${connection.name} provider`} value={connection.provider} onChange={(event) => changeProvider(connection, event.target.value as ProviderKind)} className={`${fieldClass} cursor-pointer`}>
+                        {providers.map((item) => <option key={item.kind} value={item.kind}>{item.label}</option>)}
+                      </select>
+                    </label>
+                  )}
                   {provider.transport === 'http' && (
                     <label className="flex flex-col gap-1">
                       <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Provider API base</span>

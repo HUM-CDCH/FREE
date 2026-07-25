@@ -31,7 +31,8 @@ async function savedCredential(
 
   try {
     const credential = await (dependencies.credentialStore ?? systemCredentialStore).get?.(connection.id)
-    if (credential !== undefined) return credential
+    // Loose null: the keyring resolves `null`, not `undefined`, for a missing entry.
+    if (credential != null) return credential
     if (entry.authentication === 'optional') return null
   } catch (cause) {
     if (entry.authentication === 'optional') return null

@@ -392,6 +392,16 @@ describe('OS credential adapter', () => {
     expect(entry.setPassword).toHaveBeenCalledWith('write-only-secret')
     expect(entry.deleteCredential).toHaveBeenCalledOnce()
   })
+
+  it('reads a missing entry as absent when the keyring resolves null', async () => {
+    const store = createCredentialStore(async () => ({
+      getPassword: async () => null as unknown as undefined,
+      setPassword: async () => undefined,
+      deleteCredential: async () => true,
+    }))
+
+    await expect(store.state(OPENAI_ID)).resolves.toBe('absent')
+  })
 })
 
 describe('PUT /api/model_config', () => {

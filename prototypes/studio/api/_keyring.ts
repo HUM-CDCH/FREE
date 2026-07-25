@@ -38,7 +38,9 @@ export function createCredentialStore(entry: KeyringEntryFactory = nativeEntry):
   const open = (connectionId: string) => entry(KEYRING_SERVICE, credentialAccount(connectionId))
   return {
     async state(connectionId) {
-      return (await (await open(connectionId)).getPassword()) === undefined ? 'absent' : 'present'
+      // ponytail: loose null — @napi-rs/keyring resolves `null` for a missing
+      // entry despite its `string | undefined` typing.
+      return (await (await open(connectionId)).getPassword()) == null ? 'absent' : 'present'
     },
     async get(connectionId) {
       return (await open(connectionId)).getPassword()

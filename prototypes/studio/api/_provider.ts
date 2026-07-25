@@ -599,7 +599,8 @@ async function resolvedCredential(
   if (authentication === 'external') return null
   try {
     const value = await store.get?.(connection.id)
-    if (value !== undefined) return value
+    // Loose null: the keyring resolves `null`, not `undefined`, for a missing entry.
+    if (value != null) return value
     if (authentication === 'optional') return null
   } catch (cause) {
     if (authentication === 'optional') return null
