@@ -150,6 +150,20 @@ describe('probeConnection', () => {
   })
 
   it.each([
+    [401, 'denied'],
+    [403, 'forbidden'],
+    [200, '{malformed'],
+    [200, JSON.stringify({ unexpected: [] })],
+  ])('suppresses upstream detail for credential-bearing HTTP observations (%s)', async (status, body) => {
+    const result = await probeConnection(connection, 'secret', {
+      fetch: async () => new Response(body, { status }),
+    })
+    expect(result.status).toBe(status === 401 || status === 403 ? 'authentication_failed' : 'invalid_response')
+    expect(result).not.toHaveProperty('upstream')
+    expect(JSON.stringify(result)).not.toContain('secret')
+  })
+
+  it.each([
     ['unreachable', async () => { throw new TypeError('fetch failed') }],
     ['discovery_failed', async () => new Response('failed', { status: 500 })],
     ['invalid_response', async () => Response.json({ unexpected: [] })],

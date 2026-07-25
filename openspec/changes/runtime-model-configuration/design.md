@@ -420,16 +420,21 @@ reading. HTTP discovery reads at most 1 MiB of response body and accepts at most
 labels are each at most 512 Unicode code points; an invalid item makes the whole
 response `invalid_response` rather than producing a partial catalog.
 
-For an immediate provider failure, `details.upstream` may contain its numeric
-status and raw verbatim provider response body truncated to 8,192 UTF-8 bytes,
-with `truncated` true exactly when bytes were omitted. `body` is decoded as
-UTF-8 with replacement. This raw detail is immediate-only and is not described
-as sanitized. FREE MUST NOT add request headers, FREE-managed credentials, full
-request bodies, stack traces, or arbitrary error objects to the envelope.
-Ephemeral `ProbeResult` keeps only its bounded timestamp, status, message,
-catalog, and immediate upstream detail; it never persists a raw provider body. Unknown thrown values become a generic `500 unexpected_failure` and their
-internal cause is retained only for safe server-side diagnostics, never
-serialized into an API response or persisted configuration.
+For an immediate credentialless provider failure, `details.upstream` may contain
+its numeric status and raw verbatim provider response body truncated to 8,192
+UTF-8 bytes, with `truncated` true exactly when bytes were omitted. `body` is
+decoded as UTF-8 with replacement. This credentialless raw detail is
+immediate-only and is not described as sanitized. When the effective HTTP probe
+credential is non-null, FREE omits immediate upstream detail from every
+observation, including authentication failures, other non-2xx responses,
+oversized bodies, invalid JSON, and invalid catalogs. FREE MUST NOT add request
+headers, FREE-managed credentials, full request bodies, stack traces, or
+arbitrary error objects to the envelope. Ephemeral `ProbeResult` keeps only its
+bounded timestamp, status, message, catalog, and any permitted credentialless
+immediate upstream detail; it never persists a raw provider body.
+Unknown thrown values become a generic `500 unexpected_failure`; their internal
+cause is retained only for safe server-side diagnostics, never serialized into
+an API response or persisted configuration.
 
 Document chat has two error phases. Request parsing, route resolution, credential
 lookup, and any other failure caught before the UI-message stream response is

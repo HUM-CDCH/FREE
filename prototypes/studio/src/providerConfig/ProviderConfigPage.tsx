@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import type {
-  CredentialActions,
-  CredentialState,
-  ModelConfig,
-  ModelConnection,
-  ProbeResult,
-  ProviderDescriptor,
-  ProviderKind,
-  RouteKey,
+import {
+  isValidApiBase,
+  type CredentialActions,
+  type CredentialState,
+  type ModelConfig,
+  type ModelConnection,
+  type ProbeResult,
+  type ProviderDescriptor,
+  type ProviderKind,
+  type RouteKey,
 } from '../../shared/modelConfig.contract'
 import { Button, EmptyState, Overline, Pill } from '../ui'
 import {
@@ -40,22 +41,6 @@ function publicError(error: unknown): string {
   return error instanceof ModelConfigApiError ? `${error.code}: ${error.message}` : 'unexpected_failure: An unexpected failure occurred.'
 }
 
-function validApiBase(value: string | null): boolean {
-  if (value === null || value.trim() !== value) return false
-  try {
-    const url = new URL(value)
-    return (
-      (url.protocol === 'http:' || url.protocol === 'https:') &&
-      url.host !== '' &&
-      url.username === '' &&
-      url.password === '' &&
-      url.search === '' &&
-      url.hash === ''
-    )
-  } catch {
-    return false
-  }
-}
 
 function configurationMode(config: ModelConfig): 'single' | 'routes' {
   const { extraction, interaction } = config.routes
@@ -126,7 +111,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
   function canProbe(connection: ModelConnection, action = actionFor(connection.id)): boolean {
     const provider = descriptor(connection)
     if (!provider || !connection.name.trim()) return false
-    if (provider.transport === 'http' && !validApiBase(connection.baseUrl)) return false
+    if (provider.transport === 'http' && !isValidApiBase(connection.baseUrl)) return false
     if (provider.authentication !== 'managed') return true
     return typeof action === 'string' && action.length > 0
       ? true

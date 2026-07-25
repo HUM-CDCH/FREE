@@ -140,7 +140,7 @@ function httpDiscovery(
     }
 
     const body = await readBoundedBody(response)
-    const upstream = upstreamDetail(response.status, body.bytes)
+    const upstream = credential === null ? upstreamDetail(response.status, body.bytes) : undefined
     if (body.exceeded) {
       return observation('invalid_response', 'The provider response exceeded the 1 MiB limit.', upstream)
     }

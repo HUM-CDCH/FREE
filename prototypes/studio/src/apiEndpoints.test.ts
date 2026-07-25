@@ -107,6 +107,21 @@ describe('Studio API endpoints', () => {
     expect(extractWithModel).not.toHaveBeenCalled()
   })
 
+  it('rejects a File annotations entry before schema generation', async () => {
+    const form = new FormData()
+    form.append('document_markdown', '# Report')
+    form.append('annotations', new File(['[]'], 'annotations.json', { type: 'application/json' }))
+    const response = await schemaPost(
+      new Request('http://local.test/api/generate_schema', { method: 'POST', body: form }),
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'invalid_request', message: 'annotations must be text' },
+    })
+    expect(generateSchemaWithModel).not.toHaveBeenCalled()
+  })
+
   it('keeps schema-edit client parsing strict while preserving null document context', async () => {
     const malformed = new FormData()
     malformed.append('current_template', '{broken')

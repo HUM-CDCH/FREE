@@ -85,6 +85,63 @@ describe('POST /api/model_probe', () => {
     expect(await readFile(join(root, 'model-config.json'))).toEqual(before)
   })
 
+  it.each([
+    ['transient', 'transient-secret', undefined],
+    ['stored', undefined, 'stored-secret'],
+  ])('does not serialize credential-bearing upstream detail for %s credentials', async (_mode, transient, stored) => {
+    const root = await temporaryRoot()
+    if (stored !== undefined) {
+      await writeModelConfig({
+        connections: [connection],
+        routes: { extraction: null, interaction: null },
+      }, { configRoot: root })
+    }
+    const post = createPostModelProbe({
+      configRoot: root,
+      credentialStore: store(stored),
+      fetch: async () => new Response('{malformed', { status: 403 }),
+    })
+    const response = await post(request({
+      connection,
+      ...(transient === undefined ? {} : { credential: transient }),
+    }))
+    const result = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(result).toMatchObject({ status: 'authentication_failed', catalog: [] })
+    expect(result).not.toHaveProperty('credential')
+    expect(result).not.toHaveProperty('upstream')
+    expect(JSON.stringify(result)).not.toContain(transient ?? stored)
+  })
+
+  it.each([
+    ['transient', 'transient-secret', undefined],
+    ['stored', undefined, 'stored-secret'],
+  ])('does not serialize credential-bearing malformed responses for %s credentials', async (_mode, transient, stored) => {
+    const root = await temporaryRoot()
+    if (stored !== undefined) {
+      await writeModelConfig({
+        connections: [connection],
+        routes: { extraction: null, interaction: null },
+      }, { configRoot: root })
+    }
+    const post = createPostModelProbe({
+      configRoot: root,
+      credentialStore: store(stored),
+      fetch: async () => new Response('{malformed'),
+    })
+    const response = await post(request({
+      connection,
+      ...(transient === undefined ? {} : { credential: transient }),
+    }))
+    const result = await response.json()
+
+    expect(result).toMatchObject({ status: 'invalid_response', catalog: [] })
+    expect(result).not.toHaveProperty('credential')
+    expect(result).not.toHaveProperty('upstream')
+    expect(JSON.stringify(result)).not.toContain(transient ?? stored)
+  })
+
   it('returns provider failures as completed 200 observations', async () => {
     const post = createPostModelProbe({
       configRoot: await temporaryRoot(),

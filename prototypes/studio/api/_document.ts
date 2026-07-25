@@ -25,8 +25,9 @@ export type Annotation = {
 }
 
 export function parseAnnotations(value: FormValue | null): readonly Annotation[] {
-  if (value === null || typeof value !== 'string' || value.trim() === '') {
-    return []
+  if (value === null || (typeof value === 'string' && value.trim() === '')) return []
+  if (typeof value !== 'string') {
+    throw new ApiError(400, 'invalid_request', 'annotations must be text')
   }
 
   try {
