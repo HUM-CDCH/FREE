@@ -1,41 +1,44 @@
 import {
-  extractWithModel,
-  json,
-  modelError,
-  parseDocument,
-  parseTemperature,
-  RequestError,
+  ApiError,
+  apiErrorResponse,
+  assertFormFields,
+  parseFormRequest,
   type FormValue,
-} from './_model'
+} from './_http.js'
+import { extractWithModel, json, parseDocument, parseTemperature } from './_model.js'
+
+const FIELDS = ['file', 'document_markdown', 'template', 'instruction', 'temperature'] as const
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const form = await request.formData()
-    const template = parseTemplate(form.get('template'))
-    const instruction = stringValue(form.get('instruction'))
+    const form = await parseFormRequest(request)
+    assertFormFields(form, FIELDS)
     const result = await extractWithModel({
       document: await parseDocument(form),
-      template,
-      instruction,
+      template: parseTemplate(form.get('template')),
+      instruction: optionalString(form.get('instruction'), 'instruction'),
       temperature: parseTemperature(form.get('temperature')),
     })
-
     return json(result)
   } catch (error) {
-    return modelError(error)
+    return apiErrorResponse(error)
   }
 }
 
 function parseTemplate(value: FormValue | null): unknown {
-  if (value === null || value === '') {
-    return {}
-  }
+  if (value === null || value === '') return {}
   if (typeof value !== 'string') {
-    throw new RequestError(400, 'template must be JSON')
+    throw new ApiError(400, 'invalid_request', 'template must be JSON')
   }
-  return JSON.parse(value)
+  try {
+    return JSON.parse(value)
+  } catch (cause) {
+    throw new ApiError(400, 'invalid_request', 'template must be valid JSON', { cause })
+  }
 }
 
-function stringValue(value: FormValue | null): string | undefined {
-  return typeof value === 'string' && value.trim() ? value : undefined
+function optionalString(value: FormValue | null, name: string): string | undefined {
+  if (value === null || (typeof value === 'string' && value.trim() === '')) return undefined
+  if (typeof value !== 'string') throw new ApiError(400, 'invalid_request', `${name} must be text`)
+  return value
 }

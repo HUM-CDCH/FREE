@@ -177,10 +177,7 @@ type Props = {
 
 export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, schemaTemplate, containerEl, focusPath }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const schemaTemplateRef = useRef(schemaTemplate)
-  schemaTemplateRef.current = schemaTemplate
   const focusPathRef = useRef<string[] | null>(null)
-  focusPathRef.current = focusPath
   const cachedEntriesRef = useRef<CachedEntry[]>([])
   const [scale, setScale] = useState(1)
   const [containerVersion, setContainerVersion] = useState(0)
@@ -202,11 +199,15 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
     return () => { observer.disconnect() }
   }, [containerEl])
 
+  useEffect(() => {
+    focusPathRef.current = focusPath
+  }, [focusPath])
+
   // Main effect: search PDF for each highlight, build position cache, draw progressively.
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
-    const schemaKeys = isRecord(schemaTemplateRef.current) ? Object.keys(schemaTemplateRef.current) : []
+    const schemaKeys = isRecord(schemaTemplate) ? Object.keys(schemaTemplate) : []
     const fieldColorMap: Record<string, string> = {}
     schemaKeys.forEach((k, i) => { fieldColorMap[k] = PALETTE[i % PALETTE.length] })
     const highlights = buildHighlights(result, evidence, fieldColorMap)
@@ -267,7 +268,7 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
 
     void render()
     return () => { cancelled = true }
-  }, [pdfViewer, result, evidence, containerEl, scale, containerVersion])
+  }, [pdfViewer, result, evidence, schemaTemplate, containerEl, scale, containerVersion])
 
   // Focus effect: scroll to active value and redraw from cache (no PDF search).
   useEffect(() => {

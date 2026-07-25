@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { RequestError, type FormValue } from './_http'
+import { ApiError, type FormValue } from './_http.js'
 
 const supportedMediaTypes = new Set([
   'application/pdf',
@@ -29,15 +29,19 @@ export function parseAnnotations(value: FormValue | null): readonly Annotation[]
     return []
   }
 
-  const parsed: unknown = JSON.parse(value)
-  return z
-    .array(
-      z.object({
-        text: z.string(),
-        pageNumber: z.number(),
-      }),
-    )
-    .parse(parsed)
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return z
+      .array(
+        z.object({
+          text: z.string(),
+          pageNumber: z.number(),
+        }).strict(),
+      )
+      .parse(parsed)
+  } catch (cause) {
+    throw new ApiError(400, 'invalid_request', 'annotations must contain valid annotation JSON.', { cause })
+  }
 }
 
 export function parseAnnotationMode(value: FormValue | null): AnnotationMode {
@@ -47,7 +51,7 @@ export function parseAnnotationMode(value: FormValue | null): AnnotationMode {
   if (value === 'hints' || value === 'fields') {
     return value
   }
-  throw new RequestError(400, "annotations_mode must be 'hints' or 'fields'")
+  throw new ApiError(400, 'invalid_request', "annotations_mode must be 'hints' or 'fields'")
 }
 
 export async function parseDocument(form: FormData): Promise<DocumentInput> {
@@ -58,14 +62,14 @@ export async function parseDocument(form: FormData): Promise<DocumentInput> {
   // Markdown-only: no file to validate or rasterise.
   if (!(file instanceof File)) {
     if (!markdown) {
-      throw new RequestError(400, "FormData must include a 'file' or 'document_markdown' entry")
+      throw new ApiError(400, 'invalid_request', "FormData must include a 'file' or 'document_markdown' entry")
     }
     return { file: null, pages: null, markdown }
   }
 
   const mediaType = file.type || mediaTypeFromName(file.name)
   if (!supportedMediaTypes.has(mediaType)) {
-    throw new RequestError(400, `Unsupported source document type: ${mediaType || 'unknown'}`)
+    throw new ApiError(400, 'invalid_request', `Unsupported source document type: ${mediaType || 'unknown'}`)
   }
 
   return { file: new File([file], file.name, { type: mediaType }), pages: null, markdown }

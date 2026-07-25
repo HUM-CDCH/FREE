@@ -1,9 +1,9 @@
-// ponytail: `FormDataEntryValue` is a DOM global; api/* typechecks with
-// types:["node"], where undici keeps the alias module-local. Same shape.
+// `FormDataEntryValue` is a DOM global; API modules typecheck with Node types.
 export type FormValue = string | File
 
 const MAX_VALIDATION_ISSUES = 20
 const MAX_VALIDATION_TEXT = 512
+const MAX_UPSTREAM_BYTES = 8192
 
 export class ApiError extends Error {
   readonly status: number
@@ -44,6 +44,10 @@ export function boundedValidationDetails(
   }
 }
 
+export function json(data: unknown, init?: ResponseInit): Response {
+  return Response.json(data, init)
+}
+
 export function apiErrorResponse(error: unknown): Response {
   const mapped =
     error instanceof ApiError
@@ -56,24 +60,7 @@ export function apiErrorResponse(error: unknown): Response {
   return json(body, { status: mapped.status })
 }
 
-// Retained until the model-operation cutover replaces it with ApiError.
-export class RequestError extends Error {
-  readonly status: number
-  readonly raw: string | null
-
-  constructor(status: number, message: string, raw: string | null = null) {
-    super(message)
-    this.name = 'RequestError'
-    this.status = status
-    this.raw = raw
-  }
-}
-
-export function json(data: unknown, init?: ResponseInit): Response {
-  return Response.json(data, init)
-}
-
-/** Wrong media type and malformed JSON are both structural: `400 invalid_request`. */
+/** Wrong media type and malformed JSON are both structural request failures. */
 export async function parseJsonRequest(request: Request): Promise<unknown> {
   const mediaType = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase()
   if (mediaType !== 'application/json') {
@@ -86,26 +73,59 @@ export async function parseJsonRequest(request: Request): Promise<unknown> {
   }
 }
 
-export function modelError(error: unknown): Response {
-  if (error instanceof RequestError) {
-    const detail = error.raw ? { message: error.message, raw: error.raw } : error.message
-    return json({ detail }, { status: error.status })
+export async function parseFormRequest(request: Request): Promise<FormData> {
+  const mediaType = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase()
+  if (mediaType !== 'multipart/form-data' && mediaType !== 'application/x-www-form-urlencoded') {
+    throw new ApiError(400, 'invalid_request', 'The request must contain form data.')
   }
-
-  if (error instanceof Error) {
-    return json({ detail: error.message }, { status: 502 })
+  try {
+    return await request.formData()
+  } catch (cause) {
+    throw new ApiError(400, 'invalid_request', 'The request body contains invalid form data.', { cause })
   }
+}
 
-  return json({ detail: 'Model request failed.' }, { status: 502 })
+export function assertFormFields(form: FormData, allowedFields: readonly string[]): void {
+  const allowed = new Set(allowedFields)
+  for (const key of form.keys()) {
+    if (!allowed.has(key)) {
+      throw new ApiError(400, 'invalid_request', `Unknown form field: ${key}`)
+    }
+  }
 }
 
 export function parseTemperature(value: FormValue | null): number | undefined {
-  if (value === null || typeof value !== 'string' || value.trim() === '') {
-    return undefined
+  if (value === null || (typeof value === 'string' && value.trim() === '')) return undefined
+  if (typeof value !== 'string') {
+    throw new ApiError(400, 'invalid_request', 'temperature must be a number between 0 and 2')
   }
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > 2) {
-    throw new RequestError(400, 'temperature must be a number between 0 and 2')
+    throw new ApiError(400, 'invalid_request', 'temperature must be a number between 0 and 2')
   }
   return parsed
+}
+
+export function boundedUpstreamDetail(status: number | null, body: string) {
+  const encoded = new TextEncoder().encode(body)
+  const truncated = encoded.byteLength > MAX_UPSTREAM_BYTES
+  return {
+    status,
+    body: new TextDecoder().decode(truncated ? encoded.subarray(0, MAX_UPSTREAM_BYTES) : encoded),
+    truncated,
+  }
+}
+
+/** Convert only known provider-response fields; arbitrary thrown objects are never serialized. */
+export function asModelOperationError(error: unknown, message = 'The model operation failed.'): ApiError {
+  if (error instanceof ApiError) return error
+  const data = typeof error === 'object' && error !== null ? (error as Record<string, unknown>) : {}
+  const status = typeof data.statusCode === 'number' ? data.statusCode : null
+  const responseBody = typeof data.responseBody === 'string' ? data.responseBody : null
+  return new ApiError(502, 'model_operation_failed', message, {
+    ...(status !== null || responseBody !== null
+      ? { details: { upstream: boundedUpstreamDetail(status, responseBody ?? '') } }
+      : {}),
+    cause: error,
+  })
 }

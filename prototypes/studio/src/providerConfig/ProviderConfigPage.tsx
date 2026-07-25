@@ -1,205 +1,532 @@
-import { useState } from "react";
-import { Button, EmptyState, Overline, Pill } from "../ui";
+import { useEffect, useRef, useState } from 'react'
+import { Button, EmptyState, Overline, Pill } from '../ui'
 import {
-	API_PROVIDERS,
-	CONNECTION_KINDS,
-	INITIAL_CONNECTIONS,
-	INITIAL_ROUTES,
-	ROUTABLE_TASKS,
-	type ApiProviderKey,
-	type Connection,
-	type ConnectionKind,
-	type Draft,
-	type TaskId,
-} from "./providerConfig.data";
+  ModelConfigApiError,
+  ROUTABLE_TASKS,
+  getModelConfig,
+  probeModelConnection,
+  putModelConfig,
+  type CredentialActions,
+  type CredentialState,
+  type ModelConfig,
+  type ModelConnection,
+  type ProbeResult,
+  type ProviderDescriptor,
+  type ProviderKind,
+  type RouteKey,
+} from './providerConfig.data'
 
 const fieldClass =
-	"w-full rounded-lg border border-line-strong bg-canvas px-2.75 py-2 text-[12.5px] text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent";
+  'w-full rounded-lg border border-line-strong bg-canvas px-2.75 py-2 text-[12.5px] text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent'
 const tones = {
-	ok: { pill: "success", dot: "bg-green", text: "text-green", border: "border-line" },
-	warn: { pill: "stale", dot: "bg-stale", text: "text-stale-ink", border: "border-stale" },
-	err: { pill: "danger", dot: "bg-danger", text: "text-danger", border: "border-danger/40" },
-} as const;
+  ok: { pill: 'success', dot: 'bg-green', text: 'text-green' },
+  warn: { pill: 'stale', dot: 'bg-stale', text: 'text-stale-ink' },
+  err: { pill: 'danger', dot: 'bg-danger', text: 'text-danger' },
+} as const
 
-function modelsFor(connection: Connection) {
-	return connection.kind === "api" && connection.apiProvider
-		? API_PROVIDERS[connection.apiProvider].models
-		: CONNECTION_KINDS[connection.kind].models;
+type ProbeView =
+  | { phase: 'idle' }
+  | { phase: 'checking' }
+  | { phase: 'done'; result: ProbeResult }
+  | { phase: 'error'; message: string }
+
+function Dot({ tone }: { tone: keyof typeof tones }) {
+  return <span aria-hidden="true" className={`size-1.25 shrink-0 rounded-full ${tones[tone].dot}`} />
 }
 
-function kindNameFor(connection: Connection) {
-	return connection.kind === "api" && connection.apiProvider
-		? API_PROVIDERS[connection.apiProvider].name
-		: CONNECTION_KINDS[connection.kind].name;
+function publicError(error: unknown): string {
+  return error instanceof ModelConfigApiError ? `${error.code}: ${error.message}` : 'unexpected_failure: An unexpected failure occurred.'
 }
 
-function connectionStatus(connection: Connection) {
-	if (!connection.reachable) return { kind: "err", text: "Unreachable" } as const;
-	if (connection.kind === "api" && !connection.apiKey)
-		return { kind: "warn", text: "Key required" } as const;
-	return {
-		kind: "ok",
-		text: connection.kind === "codex" || connection.kind === "claudecode" ? "Detected" : "Connected",
-	} as const;
+function validApiBase(value: string | null): boolean {
+  if (value === null || value.trim() !== value) return false
+  try {
+    const url = new URL(value)
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.host !== '' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.search === '' &&
+      url.hash === ''
+    )
+  } catch {
+    return false
+  }
 }
 
-function Dot({ kind }: { kind: keyof typeof tones }) {
-	return <span aria-hidden="true" className={`size-1.25 shrink-0 rounded-full ${tones[kind].dot}`} />;
+function configurationMode(config: ModelConfig): 'single' | 'routes' {
+  const { extraction, interaction } = config.routes
+  if (extraction === null && interaction === null) return 'single'
+  if (extraction === null || interaction === null) return 'routes'
+  return extraction.connectionId === interaction.connectionId &&
+    extraction.modelId === interaction.modelId &&
+    !('nuextractRaw' in extraction && extraction.nuextractRaw)
+    ? 'single'
+    : 'routes'
 }
 
-const providerOptions = Object.entries(API_PROVIDERS).map(([key, provider]) => <option key={key} value={key}>{provider.name}</option>);
-const keyPlaceholder: Record<ApiProviderKey, string> = { openai: "sk-...", anthropic: "sk-ant-...", google: "AIza..." };
-
-const EyeIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
-const EyeOffIcon = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-4" aria-hidden="true"><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2M9.4 5.2A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.3 4.1M6.1 6.1A17.6 17.6 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 3.9-.8" /><path d="m2 2 20 20" /></svg>;
-
-function ApiKeyField({ label = "API key", value, onChange, placeholder, className = "gap-1.5" }: { label?: string; value: string; onChange: (value: string) => void; placeholder: string; className?: string }) {
-	const [reveal, setReveal] = useState(false);
-	// ponytail: type=text + CSS masking (not type=password) so browser/password managers don't offer "strong password" suggestions on a secret that isn't a login password.
-	return <label className={`flex flex-col ${className}`}><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">{label}</span><div className="relative"><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} autoComplete="off" data-1p-ignore data-lpignore="true" className={`pr-9 font-mono ${reveal ? "" : "[-webkit-text-security:disc]"} ${fieldClass}`} />{value && <button type="button" onClick={() => setReveal((current) => !current)} aria-label={reveal ? "Hide API key" : "Show API key"} className="absolute inset-y-0 right-2.5 flex items-center text-ink-faint transition-colors hover:text-ink">{reveal ? EyeOffIcon : EyeIcon}</button>}</div></label>;
+function statusTone(view: ProbeView): keyof typeof tones {
+  if (view.phase === 'done') return view.result.status === 'connected' ? 'ok' : 'err'
+  return view.phase === 'error' ? 'err' : 'warn'
 }
 
 function ProviderConfigPage({ onClose }: { onClose: () => void }) {
-	const [connections, setConnections] = useState(INITIAL_CONNECTIONS);
-	const [routes, setRoutes] = useState(INITIAL_ROUTES);
-	const [draft, setDraft] = useState<Draft | "pick" | null>(null);
-	const [showAdvanced, setShowAdvanced] = useState(false);
-	const [mode, setMode] = useState<"simple" | "advanced">("simple");
-	const [simple, setSimple] = useState({ provider: "openai" as ApiProviderKey, apiKey: "", model: API_PROVIDERS.openai.models[0].id as string });
+  const [draft, setDraft] = useState<ModelConfig | null>(null)
+  const [providers, setProviders] = useState<ProviderDescriptor[]>([])
+  const [credentialStates, setCredentialStates] = useState<Record<string, CredentialState>>({})
+  const [credentialActions, setCredentialActions] = useState<CredentialActions>({})
+  const [probes, setProbes] = useState<Record<string, ProbeView>>({})
+  const [mode, setMode] = useState<'single' | 'routes'>('single')
+  const [newProvider, setNewProvider] = useState<ProviderKind>('ollama')
+  const [loading, setLoading] = useState(true)
+  const [applying, setApplying] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const timers = useRef(new Map<string, number>())
+  const controllers = useRef(new Map<string, AbortController>())
+  const sequences = useRef(new Map<string, number>())
 
-	function pickKind(kind: ConnectionKind) {
-		const provider = kind === "api" ? API_PROVIDERS.openai : null;
-		const config = CONNECTION_KINDS[kind];
-		setShowAdvanced(false);
-		setDraft({
-			kind,
-			apiProvider: provider ? "openai" : undefined,
-			name: provider?.name ?? config.name,
-			baseUrl:
-				provider?.defaultUrl ?? ("defaultUrl" in config ? config.defaultUrl : ""),
-			apiKey: "",
-		});
-	}
+  useEffect(() => {
+    const controller = new AbortController()
+    void getModelConfig(controller.signal)
+      .then((state) => {
+        setDraft(state.config)
+        setMode(configurationMode(state.config))
+        setProviders(state.providers)
+        setCredentialStates(state.credentialStates)
+        setNewProvider(state.providers[0]?.kind ?? 'ollama')
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setError(publicError(cause))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+    return () => controller.abort()
+  }, [])
 
-	function save() {
-		if (!draft || draft === "pick") return;
-		setConnections((current) => [
-			...current,
-			{ ...draft, apiKey: draft.apiKey.trim(), name: draft.name || CONNECTION_KINDS[draft.kind].name, id: crypto.randomUUID(), reachable: true },
-		]);
-		setDraft(null);
-	}
+  useEffect(
+    () => () => {
+      for (const timer of timers.current.values()) window.clearTimeout(timer)
+      for (const controller of controllers.current.values()) controller.abort()
+    },
+    [],
+  )
 
-	function updateRoute(taskId: TaskId, connectionId: string) {
-		const connection = connections.find((item) => item.id === connectionId);
-		setRoutes((current) => ({
-			...current,
-			[taskId]: { connectionId, model: connection ? modelsFor(connection)[0]?.id : null },
-		}));
-	}
+  const descriptor = (connection: ModelConnection) =>
+    providers.find(({ kind }) => kind === connection.provider)
 
-	const simpleConnection = connections.find((item) => item.kind === "api" && item.apiProvider === simple.provider);
-	const simpleProvider = API_PROVIDERS[simple.provider];
-	const hasDraft = !!simple.apiKey.trim();
-	const hasStoredKey = !!simpleConnection?.apiKey;
-	const simpleApplied = !hasDraft && hasStoredKey && ROUTABLE_TASKS.every((task) => routes[task.id].connectionId === simpleConnection.id && routes[task.id].model === simple.model);
+  const actionFor = (connectionId: string): string | null | undefined =>
+    Object.hasOwn(credentialActions, connectionId) ? credentialActions[connectionId] : undefined
 
-	function applySimple() {
-		const apiKey = simple.apiKey.trim() || simpleConnection?.apiKey;
-		if (!apiKey) return;
-		const connection: Connection = simpleConnection
-			? { ...simpleConnection, apiKey, reachable: true }
-			: { id: crypto.randomUUID(), kind: "api", apiProvider: simple.provider, name: simpleProvider.name, baseUrl: simpleProvider.defaultUrl, apiKey, reachable: true };
-		setConnections((current) => (simpleConnection ? current.map((item) => (item.id === connection.id ? connection : item)) : [...current, connection]));
-		setRoutes({ ext: { connectionId: connection.id, model: simple.model }, chat: { connectionId: connection.id, model: simple.model } });
-		setSimple((current) => ({ ...current, apiKey: "" }));
-	}
+  function canProbe(connection: ModelConnection, action = actionFor(connection.id)): boolean {
+    const provider = descriptor(connection)
+    if (!provider || !connection.name.trim()) return false
+    if (provider.transport === 'http' && !validApiBase(connection.baseUrl)) return false
+    if (provider.authentication !== 'managed') return true
+    return typeof action === 'string' && action.length > 0
+      ? true
+      : action === undefined && credentialStates[connection.id] === 'present'
+  }
 
-	const routeStatuses = ROUTABLE_TASKS.map((task) => {
-		const route = routes[task.id];
-		const connection = connections.find((item) => item.id === route.connectionId);
-		if (!connection) return { kind: "err", text: route.connectionId ? "Connection removed · pick another" : "Select a connection" } as const;
-		const status = connectionStatus(connection);
-		if (status.kind !== "ok") return status;
-		return modelsFor(connection).some((model) => model.id === route.model)
-			? ({ kind: "ok", text: "Ready" } as const)
-			: ({ kind: "warn", text: "Model unavailable" } as const);
-	});
-	const singleConnection = new Set(Object.values(routes).map((route) => route.connectionId).filter(Boolean)).size === 1;
-	const routesUniform = !!routes.ext.connectionId && ROUTABLE_TASKS.every((task) => routes[task.id].connectionId === routes.ext.connectionId && routes[task.id].model === routes.ext.model);
-	const simpleStatusText = simpleApplied
-		? `${simpleProvider.name} · ${simpleProvider.models.find((model) => model.id === simple.model)?.label}`
-		: !hasStoredKey && !hasDraft
-			? `Paste your ${simpleProvider.name} API key.`
-			: "Not saved · Apply.";
+  async function runProbe(
+    connection: ModelConnection,
+    sequence: number,
+    action = actionFor(connection.id),
+  ): Promise<void> {
+    if (!canProbe(connection, action)) return
+    controllers.current.get(connection.id)?.abort()
+    const controller = new AbortController()
+    controllers.current.set(connection.id, controller)
+    setProbes((current) => ({ ...current, [connection.id]: { phase: 'checking' } }))
+    try {
+      const result = await probeModelConnection(connection, {
+        ...(action === undefined ? {} : { credential: action }),
+        signal: controller.signal,
+      })
+      if (sequences.current.get(connection.id) === sequence) {
+        setProbes((current) => ({ ...current, [connection.id]: { phase: 'done', result } }))
+      }
+    } catch (cause) {
+      if (!controller.signal.aborted && sequences.current.get(connection.id) === sequence) {
+        setProbes((current) => ({
+          ...current,
+          [connection.id]: { phase: 'error', message: publicError(cause) },
+        }))
+      }
+    }
+  }
 
-	return (
-		<div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
-			<header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.75">
-				<b className="text-[13px] text-ink">Providers</b>
-				<div className="flex shrink-0 items-center gap-3"><div role="group" aria-label="Configuration mode" className="flex shrink-0 gap-0.5 rounded-lg border border-line bg-surface-muted p-0.5">{(["simple", "advanced"] as const).map((value) => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)} className={`cursor-pointer rounded-md px-3 py-[5px] text-[10.5px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${mode === value ? "bg-canvas text-accent shadow-[0_1px_2px_rgba(60,50,40,0.12)]" : "bg-transparent text-ink-faint hover:text-ink"}`}>{value === "simple" ? "Single model" : "Task routing"}</button>)}</div><button type="button" onClick={onClose} aria-label="Close provider configuration" title="Close" className="text-ink-muted transition-colors hover:text-accent">✕</button></div>
-			</header>
-			{mode === "simple" && <div className="flex flex-col gap-4 p-4.5">
-				{!routesUniform && <div className="flex items-center gap-2 rounded-[9px] border border-stale bg-stale-soft px-3 py-2.25 text-[11px] font-medium leading-[1.35] text-stale-ink"><span aria-hidden="true" className="size-1.25 shrink-0 rounded-full bg-current" />Tasks currently use different models — pick one below and Apply to use it everywhere.</div>}
-				<div className="grid grid-cols-2 gap-3.5">
-					<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Provider</span><select value={simple.provider} onChange={(event) => { const provider = event.target.value as ApiProviderKey; setSimple({ provider, apiKey: "", model: API_PROVIDERS[provider].models[0].id }); }} className={`${fieldClass} cursor-pointer`}>{providerOptions}</select></label>
-					<label className="flex flex-col gap-1.75"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Model</span><select value={simple.model} onChange={(event) => setSimple((current) => ({ ...current, model: event.target.value }))} className={`cursor-pointer font-mono ${fieldClass}`}>{simpleProvider.models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select></label>
-				</div>
-				<ApiKeyField value={simple.apiKey} onChange={(apiKey) => setSimple((current) => ({ ...current, apiKey }))} placeholder={hasStoredKey ? keyPlaceholder[simple.provider] : "Paste your API key"} className="gap-1.75" />
-				<div className="flex items-center justify-between gap-3">
-					<div className="flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.04em]"><Dot kind={simpleApplied ? "ok" : "warn"} /><span className={tones[simpleApplied ? "ok" : "warn"].text}>{simpleStatusText}</span></div>
-					<Button variant="primary" size="md" disabled={!hasDraft && !hasStoredKey} onClick={applySimple}>Apply</Button>
-				</div>
-			</div>}
-			{mode === "advanced" && <div className="grid grid-cols-1 md:grid-cols-[1.08fr_1fr]">
-				<section className="min-h-90 border-b border-line p-4.5 md:border-r md:border-b-0">
-					<div className="mb-3.25 flex items-center justify-between"><Overline>Your connections</Overline>{draft === null && <Button variant="primary" size="sm" onClick={() => setDraft("pick")}>+ New connection</Button>}</div>
-					{draft === null && <div className="flex flex-col gap-2.25">
-						{connections.map((connection) => {
-							const status = connectionStatus(connection);
-							return <div key={connection.id} className={`rounded-xl border bg-surface p-3 ${tones[status.kind].border}`}>
-								<div className="flex items-center justify-between gap-2"><b className="min-w-0 truncate text-[12.5px] text-ink">{connection.name}</b><div className="flex shrink-0 items-center gap-1.5"><Pill tone={tones[status.kind].pill} className="gap-1"><Dot kind={status.kind} />{status.text}</Pill><button type="button" title="Delete connection" aria-label={`Delete ${connection.name}`} onClick={() => setConnections((current) => current.filter((item) => item.id !== connection.id))} className="grid size-5.5 place-items-center rounded-md border border-line text-sm text-ink-faint transition-colors hover:border-danger/40 hover:text-danger">×</button></div></div>
-								<p className="mt-1 truncate font-mono text-[11px] text-ink-faint">{connection.baseUrl || "Local agent harness"}</p><p className="mt-0.5 text-[10.5px] text-ink-faint">{kindNameFor(connection)} · {modelsFor(connection).length} models</p>
-							</div>;
-						})}
-						{connections.length === 0 && <EmptyState title="No connections yet." description="Add one to route your tasks." />}
-					</div>}
-					{draft === "pick" && <div>
-						<div className="mb-2.75 flex items-center justify-between"><span className="text-xs text-ink-muted">Choose a connection type</span><button type="button" onClick={() => setDraft(null)} className="text-[11px] font-semibold text-ink-muted hover:text-ink">Cancel</button></div>
-						<div className="grid grid-cols-2 gap-2">{Object.entries(CONNECTION_KINDS).map(([kind, config]) => <button key={kind} type="button" onClick={() => pickKind(kind as ConnectionKind)} className="flex flex-col items-start gap-0.5 rounded-lg border border-line-strong bg-surface p-2.75 text-left outline-none transition-colors hover:border-accent/50 focus-visible:border-accent"><b className="text-xs text-ink">{config.name}</b><span className="text-[10px] text-ink-faint">{config.tagline}</span></button>)}</div>
-					</div>}
-					{draft && draft !== "pick" && <div className="flex flex-col gap-3">
-						<b className="text-[13px] text-ink">New {draft.kind === "api" && draft.apiProvider ? API_PROVIDERS[draft.apiProvider].name : CONNECTION_KINDS[draft.kind].name} connection</b>
-						{draft.kind === "api" && <label className="flex flex-col gap-1.5"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Provider</span><select value={draft.apiProvider} onChange={(event) => {
-							const key = event.target.value as ApiProviderKey;
-							const provider = API_PROVIDERS[key];
-							setDraft({ ...draft, apiProvider: key, name: provider.name, baseUrl: provider.defaultUrl, apiKey: "" });
-						}} className={`${fieldClass} cursor-pointer`}>{providerOptions}</select></label>}
-						<label className="flex flex-col gap-1.5"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Display name</span><input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="e.g. Lab GPU box" className={fieldClass} /></label>
-						{(draft.kind === "api" || draft.kind === "ollama") && <ApiKeyField label={draft.kind === "api" ? "API key" : "API key (only if your server requires one)"} value={draft.apiKey} onChange={(apiKey) => setDraft({ ...draft, apiKey })} placeholder={draft.kind === "api" && draft.apiProvider ? keyPlaceholder[draft.apiProvider] : "Optional API key"} />}
-						{(draft.kind === "ollama" || (draft.kind === "api" && showAdvanced)) && <label className="flex flex-col gap-1.5"><span className="font-mono text-[10px] font-semibold uppercase tracking-[0.07em] text-ink-muted">{draft.kind === "api" ? "API base URL" : "Server URL"}</span><input value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })} placeholder="http://localhost:11434" className={`font-mono ${fieldClass}`} /></label>}
-						{draft.kind === "api" && <button type="button" onClick={() => setShowAdvanced((current) => !current)} className="self-start font-mono text-[10.5px] font-semibold text-accent">{showAdvanced ? "Hide advanced" : "Advanced · custom base URL"}</button>}
-						<p className="text-[11px] leading-relaxed text-ink-faint">{draft.kind === "api" ? "The base URL is set from the provider · open Advanced to change it for a proxy or gateway." : draft.kind === "ollama" ? "Point at localhost or a remote machine. Any OpenAI-compatible server works." : `Uses your local ${CONNECTION_KINDS[draft.kind].name} sign-in · no URL or key needed.`}</p>
-						<div className="mt-0.5 flex gap-2"><Button variant="primary" size="md" disabled={(draft.kind === "ollama" && !draft.baseUrl) || (draft.kind === "api" && !draft.apiKey.trim())} onClick={save}>Save connection</Button><Button variant="secondary" size="md" onClick={() => setDraft(null)}>Cancel</Button></div>
-					</div>}
-				</section>
-				<section className="p-4.5">
-					<Overline as="p" className="mb-3.25">Task routing</Overline>
-					<div className="flex flex-col gap-3.25">{ROUTABLE_TASKS.map((task, index) => {
-						const route = routes[task.id];
-						const connection = connections.find((item) => item.id === route.connectionId);
-						const status = routeStatuses[index];
-						return <div key={task.id} className="rounded-xl border border-line bg-surface p-3.5">
-							<b className="text-[12.5px] text-ink">{task.label}</b><p className="mb-2.75 text-[10.5px] text-ink-faint">{task.sub}</p>
-							<div className="flex flex-col gap-2.25"><label className="flex flex-col gap-1.25"><span className="font-mono text-[9px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Connection</span><select value={connection?.id ?? ""} onChange={(event) => updateRoute(task.id, event.target.value)} className={`${fieldClass} cursor-pointer`}><option value="" disabled>Select a connection…</option>{connections.map((item) => <option key={item.id} value={item.id}>{item.name} · {kindNameFor(item)}</option>)}</select></label>
-							{connection && <label className="flex flex-col gap-1.25"><span className="font-mono text-[9px] font-semibold uppercase tracking-[0.07em] text-ink-muted">Model</span><select value={route.model ?? ""} onChange={(event) => setRoutes((current) => ({ ...current, [task.id]: { ...route, model: event.target.value } }))} className={`cursor-pointer font-mono ${fieldClass}`}>{modelsFor(connection).map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select></label>}</div>
-							<div className="mt-2.25 flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.04em]"><Dot kind={status.kind} /><span className={tones[status.kind].text}>{status.text}</span></div>
-						</div>;
-					})}<p className="px-0.5 text-[11px] font-medium text-ink-muted">{singleConnection ? "All tasks use the same connection." : "Mixed setup · each task uses a different connection."}</p></div>
-				</section>
-			</div>}
-		</div>
-	);
+  function scheduleProbe(connection: ModelConnection): void {
+    const sequence = (sequences.current.get(connection.id) ?? 0) + 1
+    sequences.current.set(connection.id, sequence)
+    const action = actionFor(connection.id)
+    window.clearTimeout(timers.current.get(connection.id))
+    controllers.current.get(connection.id)?.abort()
+    if (!canProbe(connection, action)) {
+      setProbes((current) => ({ ...current, [connection.id]: { phase: 'idle' } }))
+      return
+    }
+    timers.current.set(
+      connection.id,
+      window.setTimeout(() => {
+        void runProbe(connection, sequence, action)
+      }, 500),
+    )
+  }
+
+  function refresh(connection: ModelConnection): void {
+    const sequence = (sequences.current.get(connection.id) ?? 0) + 1
+    sequences.current.set(connection.id, sequence)
+    window.clearTimeout(timers.current.get(connection.id))
+    void runProbe(connection, sequence, actionFor(connection.id))
+  }
+
+  function updateConnection(
+    connection: ModelConnection,
+    change: Partial<Pick<ModelConnection, 'name' | 'baseUrl'>>,
+    probeInput: boolean,
+  ): void {
+    if (!draft) return
+    const next = { ...connection, ...change }
+    setDraft({
+      ...draft,
+      connections: draft.connections.map((item) => (item.id === connection.id ? next : item)),
+    })
+    if (probeInput) scheduleProbe(next)
+  }
+
+  function updateCredential(connection: ModelConnection, action: string | null | undefined): void {
+    const next = { ...credentialActions }
+    if (action === undefined) delete next[connection.id]
+    else next[connection.id] = action
+    setCredentialActions(next)
+    const sequence = (sequences.current.get(connection.id) ?? 0) + 1
+    sequences.current.set(connection.id, sequence)
+    window.clearTimeout(timers.current.get(connection.id))
+    controllers.current.get(connection.id)?.abort()
+    if (!canProbe(connection, action)) {
+      setProbes((current) => ({ ...current, [connection.id]: { phase: 'idle' } }))
+      return
+    }
+    timers.current.set(
+      connection.id,
+      window.setTimeout(() => {
+        void runProbe(connection, sequence, action)
+      }, 500),
+    )
+  }
+
+  function addConnection(): void {
+    if (!draft) return
+    const provider = providers.find(({ kind }) => kind === newProvider)
+    if (!provider) return
+    const connection: ModelConnection = {
+      id: crypto.randomUUID(),
+      name: provider.label,
+      provider: provider.kind,
+      baseUrl: provider.transport === 'http' ? (provider.defaultBaseUrl ?? '') : null,
+    }
+    setDraft({
+      ...draft,
+      connections: [...draft.connections, connection],
+    })
+    scheduleProbe(connection)
+  }
+
+  function removeConnection(connectionId: string): void {
+    if (!draft) return
+    const routes = { ...draft.routes }
+    if (routes.extraction?.connectionId === connectionId) routes.extraction = null
+    if (routes.interaction?.connectionId === connectionId) routes.interaction = null
+    setDraft({
+      connections: draft.connections.filter(({ id }) => id !== connectionId),
+      routes,
+    })
+    const actions = { ...credentialActions }
+    delete actions[connectionId]
+    setCredentialActions(actions)
+    controllers.current.get(connectionId)?.abort()
+    window.clearTimeout(timers.current.get(connectionId))
+    setProbes((current) => {
+      const next = { ...current }
+      delete next[connectionId]
+      return next
+    })
+  }
+
+  function setRoute(key: RouteKey, connectionId: string): void {
+    if (!draft) return
+    if (!connectionId) {
+      setDraft({ ...draft, routes: { ...draft.routes, [key]: null } })
+      return
+    }
+    const current = draft.routes[key]
+    const selected = draft.connections.find(({ id }) => id === connectionId)
+    const rawSupported = selected ? descriptor(selected)?.supportsNuextractRaw === true : false
+    setDraft({
+      ...draft,
+      routes: {
+        ...draft.routes,
+        [key]: {
+          connectionId,
+          modelId: current?.modelId ?? '',
+          ...(key === 'extraction' && rawSupported && current && 'nuextractRaw' in current && current.nuextractRaw
+            ? { nuextractRaw: true as const }
+            : {}),
+        },
+      },
+    })
+  }
+
+  function setRouteModel(key: RouteKey, modelId: string): void {
+    if (!draft?.routes[key]) return
+    setDraft({
+      ...draft,
+      routes: { ...draft.routes, [key]: { ...draft.routes[key], modelId } },
+    })
+  }
+
+  function setSingleConnection(connectionId: string): void {
+    if (!draft) return
+    if (!connectionId) {
+      setDraft({ ...draft, routes: { extraction: null, interaction: null } })
+      return
+    }
+    const modelId = draft.routes.extraction?.modelId ?? draft.routes.interaction?.modelId ?? ''
+    const route = { connectionId, modelId }
+    setDraft({ ...draft, routes: { extraction: route, interaction: route } })
+  }
+
+  function setSingleModel(modelId: string): void {
+    if (!draft) return
+    const connectionId = draft.routes.extraction?.connectionId ?? draft.routes.interaction?.connectionId
+    if (!connectionId) return
+    const route = { connectionId, modelId }
+    setDraft({ ...draft, routes: { extraction: route, interaction: route } })
+  }
+
+  async function apply(): Promise<void> {
+    if (!draft || applying) return
+    setApplying(true)
+    setError(null)
+    try {
+      const state = await putModelConfig(draft, credentialActions)
+      setDraft(state.config)
+      setCredentialStates(state.credentialStates)
+      setCredentialActions({})
+    } catch (cause) {
+      setError(publicError(cause))
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  if (loading) {
+    return <div className="mx-auto max-w-4xl rounded-2xl border border-line bg-surface p-6 text-sm text-ink-muted">Loading model configuration…</div>
+  }
+  if (!draft) {
+    return (
+      <div className="mx-auto max-w-4xl rounded-2xl border border-danger/40 bg-surface p-6">
+        <p className="text-sm font-semibold text-danger">Model configuration could not be loaded.</p>
+        {error && <p role="alert" className="mt-2 font-mono text-xs text-danger">{error}</p>}
+        <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+      </div>
+    )
+  }
+
+  const extraction = draft.routes.extraction
+  const interaction = draft.routes.interaction
+  const uniform =
+    extraction !== null &&
+    interaction !== null &&
+    extraction.connectionId === interaction.connectionId &&
+    extraction.modelId === interaction.modelId &&
+    !('nuextractRaw' in extraction && extraction.nuextractRaw)
+  const singleConnectionId = uniform ? extraction.connectionId : (extraction?.connectionId ?? '')
+  const singleModelId = uniform ? extraction.modelId : (extraction?.modelId ?? '')
+
+  return (
+    <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
+      <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.75">
+        <b className="text-[13px] text-ink">Model Connections</b>
+        <div className="flex items-center gap-3">
+          <div role="group" aria-label="Configuration mode" className="flex gap-0.5 rounded-lg border border-line bg-surface-muted p-0.5">
+            {(['single', 'routes'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={mode === value}
+                onClick={() => setMode(value)}
+                className={`rounded-md px-3 py-[5px] text-[10.5px] font-semibold ${mode === value ? 'bg-canvas text-accent shadow-sm' : 'text-ink-faint'}`}
+              >
+                {value === 'single' ? 'Single model' : 'Capability Routes'}
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close Model Connections" className="text-lg text-ink-faint hover:text-ink">×</button>
+        </div>
+      </header>
+
+      {error && <p role="alert" className="m-4 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-mono text-xs text-danger">{error}</p>}
+
+      <section className="border-b border-line bg-surface p-4.5">
+        {mode === 'single' ? (
+          <div className="flex flex-col gap-3">
+            {!uniform && <p className="rounded-lg border border-stale bg-stale-soft px-3 py-2 text-[11px] text-stale-ink">Capability Routes currently differ. Selecting a connection and model here will assign the same target to both.</p>}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label className="flex flex-col gap-1.5">
+                <span className="font-mono text-[10px] font-semibold uppercase text-ink-muted">Connection</span>
+                <select aria-label="Single model connection" value={singleConnectionId} onChange={(event) => setSingleConnection(event.target.value)} className={`${fieldClass} cursor-pointer`}>
+                  <option value="">Select a connection…</option>
+                  {draft.connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.name}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="font-mono text-[10px] font-semibold uppercase text-ink-muted">Model ID</span>
+                <input aria-label="Single model ID" value={singleModelId} onChange={(event) => setSingleModel(event.target.value)} placeholder="Enter an exact model ID" className={`font-mono ${fieldClass}`} />
+              </label>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <Overline as="p" className="mb-3">Capability Routes</Overline>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {ROUTABLE_TASKS.map((task) => {
+                const route = draft.routes[task.key]
+                const connection = draft.connections.find(({ id }) => id === route?.connectionId)
+                const provider = connection ? descriptor(connection) : undefined
+                const probe = connection ? probes[connection.id] : undefined
+                const catalog = probe?.phase === 'done' ? probe.result.catalog : []
+                return (
+                  <div key={task.key} className="rounded-xl border border-line bg-canvas p-3.5">
+                    <b className="text-[12.5px] text-ink">{task.label}</b>
+                    <p className="mb-2.5 text-[10.5px] text-ink-faint">{task.description}</p>
+                    <label className="mb-2 flex flex-col gap-1">
+                      <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Connection</span>
+                      <select aria-label={`${task.label} connection`} value={route?.connectionId ?? ''} onChange={(event) => setRoute(task.key, event.target.value)} className={`${fieldClass} cursor-pointer`}>
+                        <option value="">Select a connection…</option>
+                        {draft.connections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Model ID</span>
+                      <input
+                        aria-label={`${task.label} model ID`}
+                        value={route?.modelId ?? ''}
+                        onChange={(event) => setRouteModel(task.key, event.target.value)}
+                        list={connection ? `models-${task.key}-${connection.id}` : undefined}
+                        disabled={!route}
+                        placeholder="Enter an exact model ID"
+                        className={`font-mono ${fieldClass}`}
+                      />
+                      {connection && <datalist id={`models-${task.key}-${connection.id}`}>{catalog.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</datalist>}
+                    </label>
+                    {task.key === 'extraction' && provider?.supportsNuextractRaw && route && (
+                      <label className="mt-2 flex items-center gap-2 text-[11px] text-ink-muted">
+                        <input
+                          type="checkbox"
+                          checked={'nuextractRaw' in route && route.nuextractRaw === true}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? { ...route, nuextractRaw: true as const }
+                              : { connectionId: route.connectionId, modelId: route.modelId }
+                            setDraft({ ...draft, routes: { ...draft.routes, extraction: next } })
+                          }}
+                        />
+                        Use raw NuExtract protocol
+                      </label>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="p-4.5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <Overline>Your connections</Overline>
+          <div className="flex gap-2">
+            <select value={newProvider} onChange={(event) => setNewProvider(event.target.value as ProviderKind)} aria-label="New connection provider" className={`${fieldClass} w-auto cursor-pointer`}>
+              {providers.map((provider) => <option key={provider.kind} value={provider.kind}>{provider.label}</option>)}
+            </select>
+            <Button variant="primary" size="sm" onClick={addConnection}>+ New connection</Button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-3">
+          {draft.connections.map((connection) => {
+            const provider = descriptor(connection)
+            if (!provider) return null
+            const view = probes[connection.id] ?? { phase: 'idle' as const }
+            const tone = statusTone(view)
+            const action = actionFor(connection.id)
+            const credentialState = credentialStates[connection.id] ?? 'unavailable'
+            const statusText = view.phase === 'checking'
+              ? 'Checking…'
+              : view.phase === 'done'
+                ? view.result.message
+                : view.phase === 'error'
+                  ? view.message
+                  : 'Not checked this session.'
+            return (
+              <article key={connection.id} className="rounded-xl border border-line bg-surface p-3.5">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <b className="text-[12.5px] text-ink">{provider.label}</b>
+                  <div className="flex items-center gap-2">
+                    <Pill tone={tones[tone].pill} className="gap-1"><Dot tone={tone} />{view.phase === 'done' ? view.result.status : view.phase}</Pill>
+                    <button type="button" onClick={() => removeConnection(connection.id)} aria-label={`Delete ${connection.name}`} className="text-danger">×</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Display name</span>
+                    <input value={connection.name} onChange={(event) => updateConnection(connection, { name: event.target.value }, false)} className={fieldClass} />
+                  </label>
+                  {provider.transport === 'http' && (
+                    <label className="flex flex-col gap-1">
+                      <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Provider API base</span>
+                      <input value={connection.baseUrl ?? ''} onChange={(event) => updateConnection(connection, { baseUrl: event.target.value }, true)} className={`font-mono ${fieldClass}`} />
+                    </label>
+                  )}
+                </div>
+                {provider.authentication !== 'external' && (
+                  <div className="mt-2 grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr_auto]">
+                    <label className="flex flex-col gap-1">
+                      <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">{provider.authentication === 'managed' ? 'API credential' : 'API credential (optional)'}</span>
+                      <input
+                        type="text"
+                        autoComplete="off"
+                        data-1p-ignore
+                        value={typeof action === 'string' ? action : ''}
+                        onChange={(event) => updateCredential(connection, event.target.value || undefined)}
+                        placeholder={credentialState === 'present' ? 'Stored credential will be preserved' : 'Enter a credential'}
+                        className={`font-mono [-webkit-text-security:disc] ${fieldClass}`}
+                      />
+                    </label>
+                    <div className="flex gap-2">
+                      {credentialState === 'present' && action !== null && <Button variant="secondary" size="sm" onClick={() => updateCredential(connection, null)}>Remove credential</Button>}
+                      {action !== undefined && <Button variant="secondary" size="sm" onClick={() => updateCredential(connection, undefined)}>Preserve stored value</Button>}
+                    </div>
+                    {credentialState === 'unavailable' && <p className="text-[11px] text-danger">Credential store unavailable.</p>}
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className={`text-[11px] ${tones[tone].text}`}>{statusText}</p>
+                  <Button variant="secondary" size="sm" disabled={!canProbe(connection) || view.phase === 'checking'} onClick={() => refresh(connection)}>Refresh models</Button>
+                </div>
+              </article>
+            )
+          })}
+          {draft.connections.length === 0 && <EmptyState title="No Model Connections yet." description="Add one, enter an exact model ID, and Apply." />}
+        </div>
+        <div className="mt-4 flex items-center justify-end gap-3">
+          <Button variant="primary" size="md" disabled={applying} onClick={() => void apply()}>{applying ? 'Applying…' : 'Apply'}</Button>
+        </div>
+      </section>
+    </div>
+  )
 }
 
-export default ProviderConfigPage;
+export default ProviderConfigPage

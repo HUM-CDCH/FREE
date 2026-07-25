@@ -6,14 +6,18 @@
   "types": "dist-lib/index.d.ts",
   "scripts": {
     "dev": "vite",
-    "vercel:dev": "vercel dev",
     "build": "tsc -b && vite build",
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.19",
+    "@ai-sdk/google": "^4.0.23",
+    "@ai-sdk/openai": "^4.0.20",
+    "@ai-sdk/openai-compatible": "^3.0.14",
     "@napi-rs/keyring": "^1.2.0",
     "@tailwindcss/vite": "^4.3.0",
     "ai": "^7.0.15",
@@ -29,6 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^24.13.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -39,7 +44,6 @@
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vercel": "^54.15.0",
     "vite": "^8.0.12",
     "vitest": "^4.1.9"
   }

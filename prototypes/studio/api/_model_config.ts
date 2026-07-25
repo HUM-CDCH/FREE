@@ -23,6 +23,7 @@ export type CredentialState = 'present' | 'absent' | 'unavailable'
 /** Omitted ID preserves, non-empty string replaces, `null` deletes. */
 export type CredentialActions = Record<string, string | null>
 export type ModelConfigUpdate = { config: ModelConfig; credentials: CredentialActions }
+export type ModelProbeRequest = { connection: ModelConnection; credential?: string | null }
 
 function emptyModelConfig(): ModelConfig {
   return { connections: [], routes: { extraction: null, interaction: null } }
@@ -71,6 +72,12 @@ const modelConfigUpdateSchema = z
     credentials: z
       .record(uuidSchema, z.string().min(1, 'Must not be empty.').nullable())
       .optional(),
+  })
+  .strict()
+const modelProbeRequestSchema = z
+  .object({
+    connection: connectionSchema,
+    credential: z.string().min(1, 'Must not be empty.').nullable().optional(),
   })
   .strict()
 
@@ -235,6 +242,30 @@ export function parseModelConfigUpdate(value: unknown): ModelConfigUpdate {
     throw invalidSubmitted(issues.map((issue) => ({ ...issue, path: `config.${issue.path}` })))
   }
   return { config: parsed.data.config, credentials: parsed.data.credentials ?? {} }
+}
+
+/** Probe request syntax is structural; connection-contract violations are semantic. */
+export function parseModelProbeRequest(value: unknown): ModelProbeRequest {
+  const parsed = modelProbeRequestSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new ApiError(400, 'invalid_request', 'The request is invalid.', {
+      details: boundedValidationDetails('request', zodIssues(parsed.error)),
+      cause: parsed.error,
+    })
+  }
+  const issues = semanticIssues({
+    connections: [parsed.data.connection],
+    routes: { extraction: null, interaction: null },
+  })
+  if (issues.length > 0) {
+    throw invalidSubmitted(
+      issues.map((issue) => ({
+        ...issue,
+        path: issue.path.replace(/^connections\\.0/, 'connection'),
+      })),
+    )
+  }
+  return parsed.data
 }
 
 function isMissingFile(error: unknown): boolean {

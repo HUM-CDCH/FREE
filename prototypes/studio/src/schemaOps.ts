@@ -42,7 +42,7 @@ export function addSchemaNode(
   }
 
   let added = false
-  const result = mapNodes(nodes, (n, _parent) => {
+  const result = mapNodes(nodes, (n) => {
     if (n.name === parentName && (n.type === 'object' || n.type === 'array')) {
       added = true
       return { ...n, children: [...(n.children ?? []), newNode] }

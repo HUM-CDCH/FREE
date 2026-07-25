@@ -27,6 +27,7 @@ type SchemaPanelProps = {
   annotationCount: number
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
+  documentMarkdown: string | null
 }
 
 type DragState = {
@@ -316,6 +317,7 @@ function SchemaPanel({
   annotationCount,
   annotationsMode,
   onAnnotationsModeChange,
+  documentMarkdown,
 }: SchemaPanelProps) {
   // ── render state ──
   const [nodes, setNodes] = useState<SchemaNode[]>([])
@@ -506,7 +508,6 @@ function SchemaPanel({
       window.removeEventListener('mouseup', onUp)
       stopScroll()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Task 2.3 – drag start ──
@@ -594,7 +595,8 @@ function SchemaPanel({
   function toggleSelected(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -645,7 +647,7 @@ function SchemaPanel({
     chatAbortRef.current = controller
 
     try {
-      const ops = await requestSchemaEdit(nodesRef.current, userMsg, controller.signal)
+      const ops = await requestSchemaEdit(nodesRef.current, userMsg, documentMarkdown, controller.signal)
       const newNodes = applyOps(nodesRef.current, ops)
       const { displayNodes, diffMap } = buildDiffPreview(nodesRef.current, newNodes)
       if (diffMap.size === 0) {
@@ -842,7 +844,12 @@ function SchemaPanel({
 
     const toggleExpand = (e: React.MouseEvent) => {
       e.stopPropagation()
-      setExpandedIds(s => { const ns = new Set(s); ns.has(child.id) ? ns.delete(child.id) : ns.add(child.id); return ns })
+      setExpandedIds(s => {
+        const ns = new Set(s)
+        if (ns.has(child.id)) ns.delete(child.id)
+        else ns.add(child.id)
+        return ns
+      })
     }
 
     return (

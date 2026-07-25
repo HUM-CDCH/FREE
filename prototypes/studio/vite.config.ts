@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { Readable } from 'node:stream'
@@ -27,8 +27,7 @@ async function send(response: Response, res: ServerResponse): Promise<void> {
   else res.end()
 }
 
-// ponytail: dev-only stand-in for `vercel dev` so `pnpm dev` serves the Vercel
-// `api/*.ts` handlers. Drop this plugin if you switch to `pnpm vercel:dev`.
+// Local dev adapter for the Studio Request/Response handlers under `api/`.
 export function apiFunctions(): Plugin {
   return {
     name: 'free-api-functions',
@@ -84,19 +83,11 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks)
 }
 
-// https://vite.dev/config/
-export default defineConfig(({ mode }) => {
-  // ponytail: Vite only exposes VITE_* to the client; the api/* handlers read
-  // process.env. Load .env into process.env so `pnpm dev` matches `vercel dev`.
-  // Override (not soft-merge): Vite restarts in-process on .env edits, so stale
-  // process.env values must be replaced for edits to take effect.
-  Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
-
-  return {
-    plugins: [
-      react(),
-      tailwindcss(),
-      apiFunctions(),
-    ],
-  }
+// Vite's implicit localhost binding is the only supported Studio deployment.
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    apiFunctions(),
+  ],
 })

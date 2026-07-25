@@ -400,7 +400,7 @@ function App() {
     }
   }
 
-  function handleValueClick(path: string[], _value: string) {
+  function handleValueClick(path: string[]) {
     setFocusPath(path)
   }
 
@@ -666,7 +666,6 @@ function App() {
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
-            pdfSource={pdfSource}
             documentMarkdown={documentMarkdown}
             onValueClick={handleValueClick}
             focusPath={focusPath}

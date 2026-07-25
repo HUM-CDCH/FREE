@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import ResultValue from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from './template'
@@ -45,12 +45,15 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onValueClick, f
   const [navPath, setNavPath] = useState<string[]>([])
   const [backStack, setBackStack] = useState<string[][]>([])
   const [forwardStack, setForwardStack] = useState<string[][]>([])
+  const [previousState, setPreviousState] = useState(state)
 
-  useEffect(() => {
+
+  if (previousState !== state) {
+    setPreviousState(state)
     setNavPath([])
     setBackStack([])
     setForwardStack([])
-  }, [state])
+  }
 
   const displayResult = state.status === 'ready' ? state.result as Record<string, unknown> : null
 

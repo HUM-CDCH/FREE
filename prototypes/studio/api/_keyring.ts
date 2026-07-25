@@ -6,11 +6,12 @@ export function credentialAccount(connectionId: string): string {
 }
 
 /**
- * Only presence crosses this boundary. Configuration code needs to know whether
- * a credential exists, never what it is, so the value has no caller above here.
+ * Secret values cross this boundary only for immediate provider use. They never
+ * enter configuration state, responses, logs, or process-memory fallback state.
  */
 export type CredentialStore = {
   state(connectionId: string): Promise<'present' | 'absent'>
+  get?(connectionId: string): Promise<string | undefined>
   set(connectionId: string, credential: string): Promise<void>
   delete(connectionId: string): Promise<void>
 }
@@ -38,6 +39,9 @@ export function createCredentialStore(entry: KeyringEntryFactory = nativeEntry):
   return {
     async state(connectionId) {
       return (await (await open(connectionId)).getPassword()) === undefined ? 'absent' : 'present'
+    },
+    async get(connectionId) {
+      return (await open(connectionId)).getPassword()
     },
     async set(connectionId, credential) {
       await (await open(connectionId)).setPassword(credential)
