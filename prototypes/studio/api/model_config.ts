@@ -1,14 +1,18 @@
-import { apiErrorResponse, json } from './_http.js'
+import { apiErrorResponse, json, parseJsonRequest } from './_http.js'
+import { systemCredentialStore, type CredentialStore } from './_keyring.js'
 import {
   credentialStates,
   readModelConfig,
+  updateModelConfig,
   type ConfigStorageOptions,
-  type CredentialStateReader,
 } from './_model_config.js'
 import { PROVIDERS } from './_provider.js'
 
-export type ModelConfigDependencies = ConfigStorageOptions & {
-  readCredentialState?: CredentialStateReader
+/** `credentialStore` is the keyring seam; tests inject a fake for both handlers. */
+export type ModelConfigDependencies = ConfigStorageOptions & { credentialStore?: CredentialStore }
+
+function storeFor(dependencies: ModelConfigDependencies): CredentialStore {
+  return dependencies.credentialStore ?? systemCredentialStore
 }
 
 /** Reads saved state only: no provider network call, CLI process, or `AI_*` value. */
@@ -18,7 +22,7 @@ export function createGetModelConfig(dependencies: ModelConfigDependencies = {})
       const config = await readModelConfig(dependencies)
       return json({
         config,
-        credentialStates: await credentialStates(config, dependencies.readCredentialState),
+        credentialStates: await credentialStates(config, storeFor(dependencies)),
         providers: PROVIDERS,
       })
     } catch (error) {
@@ -27,4 +31,17 @@ export function createGetModelConfig(dependencies: ModelConfigDependencies = {})
   }
 }
 
+/** Whole-document save. Returns the committed configuration, never a descriptor or secret. */
+export function createPutModelConfig(dependencies: ModelConfigDependencies = {}) {
+  return async function putModelConfig(request: Request): Promise<Response> {
+    try {
+      const body = await parseJsonRequest(request)
+      return json(await updateModelConfig(body, { ...dependencies, credentialStore: storeFor(dependencies) }))
+    } catch (error) {
+      return apiErrorResponse(error)
+    }
+  }
+}
+
 export const GET = createGetModelConfig()
+export const PUT = createPutModelConfig()

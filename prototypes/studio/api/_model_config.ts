@@ -4,6 +4,7 @@ import { basename, dirname, join } from 'node:path'
 import envPaths from 'env-paths'
 import { z } from 'zod'
 import { ApiError, boundedValidationDetails, type ValidationIssue } from './_http.js'
+import type { CredentialStore } from './_keyring.js'
 import { providerTable, type ProviderKind } from './_provider.js'
 
 export type ModelConnection = {
@@ -19,6 +20,9 @@ export type Routes = {
 }
 export type ModelConfig = { connections: ModelConnection[]; routes: Routes }
 export type CredentialState = 'present' | 'absent' | 'unavailable'
+/** Omitted ID preserves, non-empty string replaces, `null` deletes. */
+export type CredentialActions = Record<string, string | null>
+export type ModelConfigUpdate = { config: ModelConfig; credentials: CredentialActions }
 
 function emptyModelConfig(): ModelConfig {
   return { connections: [], routes: { extraction: null, interaction: null } }
@@ -53,6 +57,20 @@ const modelConfigSchema = z
         interaction: routeSchema.nullable(),
       })
       .strict(),
+  })
+  .strict()
+
+/**
+ * The editable document is submitted unchanged, so PUT reuses the same schema GET
+ * returns. An empty-string action is invalid rather than an alias for either
+ * preserve or delete, which the value schema states rather than a later check.
+ */
+const modelConfigUpdateSchema = z
+  .object({
+    config: modelConfigSchema,
+    credentials: z
+      .record(uuidSchema, z.string().min(1, 'Must not be empty.').nullable())
+      .optional(),
   })
   .strict()
 
@@ -178,22 +196,45 @@ function semanticIssues(config: ModelConfig): ValidationIssue[] {
   return issues
 }
 
+function zodIssues(error: z.ZodError): ValidationIssue[] {
+  return error.issues.map((issue) => ({
+    path: issue.path.map(String).join('.'),
+    message: issue.message,
+  }))
+}
+
 export function validateModelConfig(value: unknown, path: string): ModelConfig {
   const parsed = modelConfigSchema.safeParse(value)
-  if (!parsed.success) {
-    throw invalidModelConfig(
-      path,
-      parsed.error.issues.map((issue) => ({
-        path: issue.path.map(String).join('.'),
-        message: issue.message,
-      })),
-      parsed.error,
-    )
-  }
+  if (!parsed.success) throw invalidModelConfig(path, zodIssues(parsed.error), parsed.error)
 
   const issues = semanticIssues(parsed.data)
   if (issues.length > 0) throw invalidModelConfig(path, issues)
   return parsed.data
+}
+
+function invalidSubmitted(issues: readonly ValidationIssue[]): ApiError {
+  return new ApiError(409, 'invalid_model_config', 'The submitted model configuration is invalid.', {
+    details: boundedValidationDetails('request', issues),
+  })
+}
+
+/** A malformed request is `400`; a well-formed one describing invalid state is `409`. */
+export function parseModelConfigUpdate(value: unknown): ModelConfigUpdate {
+  const parsed = modelConfigUpdateSchema.safeParse(value)
+  if (!parsed.success) {
+    throw new ApiError(400, 'invalid_request', 'The request is invalid.', {
+      details: boundedValidationDetails('request', zodIssues(parsed.error)),
+      cause: parsed.error,
+    })
+  }
+
+  // The submitted document is whole, so duplicate IDs, CLI singletons, API bases
+  // and dangling routes are all decidable here, by the same rules a saved one obeys.
+  const issues = semanticIssues(parsed.data.config)
+  if (issues.length > 0) {
+    throw invalidSubmitted(issues.map((issue) => ({ ...issue, path: `config.${issue.path}` })))
+  }
+  return { config: parsed.data.config, credentials: parsed.data.credentials ?? {} }
 }
 
 function isMissingFile(error: unknown): boolean {
@@ -263,27 +304,131 @@ export async function writeModelConfig(
 }
 
 /**
- * Group 2 injects the real OS-keyring reader. Until then every managed or
- * optional connection reports `unavailable` rather than claiming a state.
+ * Externally authenticated connections are absent from the map entirely: FREE
+ * manages no credential for them, and CLI login is a probe concern.
+ *
+ * Reporting state is best effort by design, so a keyring failure degrades to
+ * `unavailable` here. The mutating paths below take the opposite policy and fail
+ * with `503`, because a save that silently skipped the keyring would be a lie.
  */
-export type CredentialStateReader = (connection: ModelConnection) => Promise<'present' | 'absent'>
-
 export async function credentialStates(
   config: ModelConfig,
-  read?: CredentialStateReader,
+  store: CredentialStore,
 ): Promise<Record<string, CredentialState>> {
   const states: Record<string, CredentialState> = {}
   for (const connection of config.connections) {
     if (providerTable[connection.provider].authentication === 'external') continue
-    if (!read) {
-      states[connection.id] = 'unavailable'
-      continue
-    }
     try {
-      states[connection.id] = await read(connection)
+      states[connection.id] = await store.state(connection.id)
     } catch {
       states[connection.id] = 'unavailable'
     }
   }
   return states
+}
+
+export type ModelConfigUpdateOptions = ConfigStorageOptions & { credentialStore: CredentialStore }
+
+async function requireKeyring<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (cause) {
+    throw new ApiError(503, 'keyring_unavailable', 'The operating system credential store is unavailable.', {
+      cause,
+    })
+  }
+}
+
+/** Every issue decidable without the keyring, collected so one response reports them all. */
+function updateIssues(
+  previous: ModelConfig,
+  config: ModelConfig,
+  credentials: CredentialActions,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  const previousById = new Map(previous.connections.map((connection) => [connection.id, connection]))
+  const submittedById = new Map(config.connections.map((connection) => [connection.id, connection]))
+
+  config.connections.forEach((connection, index) => {
+    const before = previousById.get(connection.id)
+    if (before && before.provider !== connection.provider) {
+      issues.push({
+        path: `config.connections.${index}.provider`,
+        message: 'An existing connection cannot change provider kind. Delete it and create a new UUID.',
+      })
+    }
+  })
+
+  for (const [id, action] of Object.entries(credentials)) {
+    const connection = submittedById.get(id)
+    if (!connection) {
+      issues.push({ path: `credentials.${id}`, message: 'Credential actions must name a submitted connection.' })
+      continue
+    }
+    const { authentication } = providerTable[connection.provider]
+    if (authentication === 'external') {
+      issues.push({
+        path: `credentials.${id}`,
+        message: 'Externally authenticated providers have no FREE-managed credential.',
+      })
+    } else if (authentication === 'managed' && action === null) {
+      issues.push({ path: `credentials.${id}`, message: 'This provider requires a credential.' })
+    }
+  }
+  return issues
+}
+
+/**
+ * A `managed` provider left out of the actions keeps whatever the keyring holds,
+ * so this is the one validation step that has to ask the keyring.
+ */
+async function requireManagedCredentials(
+  config: ModelConfig,
+  credentials: CredentialActions,
+  store: CredentialStore,
+): Promise<void> {
+  const issues: ValidationIssue[] = []
+  for (const { id, provider } of config.connections) {
+    if (providerTable[provider].authentication !== 'managed') continue
+    if (Object.hasOwn(credentials, id)) continue
+    if ((await requireKeyring(() => store.state(id))) === 'absent') {
+      issues.push({ path: `credentials.${id}`, message: 'This provider requires a credential.' })
+    }
+  }
+  if (issues.length > 0) throw invalidSubmitted(issues)
+}
+
+/**
+ * Credentials move before the JSON commit so a committed route can never name a
+ * credential that was never stored. The two stores cannot commit together: a
+ * failure between them leaves the new credential beside the old configuration,
+ * which the next successful Apply overwrites. No rollback, no action journal.
+ */
+export async function updateModelConfig(
+  value: unknown,
+  options: ModelConfigUpdateOptions,
+): Promise<{ config: ModelConfig; credentialStates: Record<string, CredentialState> }> {
+  const { config, credentials } = parseModelConfigUpdate(value)
+  const store = options.credentialStore
+  const previous = await readModelConfig(options)
+
+  const issues = updateIssues(previous, config, credentials)
+  if (issues.length > 0) throw invalidSubmitted(issues)
+  await requireManagedCredentials(config, credentials, store)
+
+  for (const [id, action] of Object.entries(credentials)) {
+    await requireKeyring(() => (action === null ? store.delete(id) : store.set(id, action)))
+  }
+
+  const committed = await writeModelConfig(config, options)
+
+  // Past the commit the JSON is authoritative, so a credential the removed UUID
+  // left behind is inert: no saved connection can reach it. Cleanup may fail.
+  const submitted = new Set(config.connections.map(({ id }) => id))
+  for (const { id, provider } of previous.connections) {
+    if (submitted.has(id) || providerTable[provider].authentication === 'external') continue
+    await store.delete(id).catch(() => undefined)
+  }
+
+  return { config: committed, credentialStates: await credentialStates(committed, store) }
 }

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from './_http.js'
+import { createCredentialStore, type CredentialStore } from './_keyring.js'
 import {
   EMPTY_MODEL_CONFIG,
   modelConfigPath,
@@ -13,7 +14,7 @@ import {
   type ModelConfig,
 } from './_model_config.js'
 import { PROVIDERS, appendProviderResource } from './_provider.js'
-import { createGetModelConfig } from './model_config.js'
+import { createGetModelConfig, createPutModelConfig } from './model_config.js'
 
 const OLLAMA_ID = '00000000-0000-4000-8000-000000000001'
 const OPENAI_ID = '00000000-0000-4000-8000-000000000002'
@@ -50,6 +51,46 @@ function expectInvalid(run: () => unknown, issuePath: string): void {
     const { issues } = (error as ApiError).details as { issues: { path: string }[] }
     expect(issues.map(({ path }) => path)).toContain(issuePath)
   }
+}
+
+/**
+ * Isolated stand-in for the OS keyring. Every handler under test is constructed
+ * with one of these, so no test can reach the researcher's real `FREE Studio`
+ * entries — the machine-global resource this suite must never touch.
+ */
+function fakeCredentialStore(initial: Record<string, string> = {}) {
+  const values = new Map(Object.entries(initial))
+  const calls: string[] = []
+  const store: CredentialStore = {
+    async state(id) {
+      calls.push(`state:${id}`)
+      return values.has(id) ? 'present' : 'absent'
+    },
+    async set(id, credential) {
+      calls.push(`set:${id}`)
+      values.set(id, credential)
+    },
+    async delete(id) {
+      calls.push(`delete:${id}`)
+      values.delete(id)
+    },
+  }
+  return { store, values, calls }
+}
+
+/** Stands in for a missing native binding or a locked keyring: every call rejects. */
+const unavailableStore: CredentialStore = {
+  state: () => Promise.reject(new Error('keyring unavailable')),
+  set: () => Promise.reject(new Error('keyring unavailable')),
+  delete: () => Promise.reject(new Error('keyring unavailable')),
+}
+
+function putRequest(body: unknown, contentType = 'application/json'): Request {
+  return new Request('http://local.test/api/model_config', {
+    method: 'PUT',
+    headers: { 'content-type': contentType },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  })
 }
 
 afterEach(async () => {
@@ -221,7 +262,7 @@ describe('GET /api/model_config', () => {
     const root = await temporaryRoot()
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
-    const response = await createGetModelConfig({ configRoot: root })()
+    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
@@ -238,7 +279,7 @@ describe('GET /api/model_config', () => {
     await writeModelConfig(configured(), { configRoot: root })
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
-    const response = await createGetModelConfig({ configRoot: root })()
+    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
 
     expect(response.status).toBe(200)
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -254,27 +295,29 @@ describe('GET /api/model_config', () => {
       ],
     })
     await writeModelConfig(config, { configRoot: root })
-    const readCredentialState = vi.fn(async ({ id }: { id: string }) => {
-      if (id === OPENAI_ID) throw new Error('keyring unavailable')
-      return 'present' as const
-    })
+    const partial = fakeCredentialStore({ [OLLAMA_ID]: 'stored' })
+    const store: CredentialStore = {
+      ...partial.store,
+      state: (id) => (id === OPENAI_ID ? Promise.reject(new Error('locked')) : partial.store.state(id)),
+    }
 
-    const response = await createGetModelConfig({ configRoot: root, readCredentialState })()
+    const response = await createGetModelConfig({ configRoot: root, credentialStore: store })()
 
-    // codex-cli authenticates externally, so it never appears in the map.
+    // codex-cli authenticates externally, so it never appears in the map at all.
     await expect(response.json()).resolves.toMatchObject({
       credentialStates: { [OLLAMA_ID]: 'present', [OPENAI_ID]: 'unavailable' },
     })
-    expect(readCredentialState).toHaveBeenCalledTimes(2)
   })
 
-  it('reports managed connections as unavailable until a keyring reader exists', async () => {
+  it('keeps reading configuration when the whole keyring is unavailable', async () => {
     const root = await temporaryRoot()
     await writeModelConfig(configured(), { configRoot: root })
 
-    const response = await createGetModelConfig({ configRoot: root })()
+    const response = await createGetModelConfig({ configRoot: root, credentialStore: unavailableStore })()
 
+    expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
+      config: configured(),
       credentialStates: { [OLLAMA_ID]: 'unavailable', [OPENAI_ID]: 'unavailable' },
     })
   })
@@ -283,7 +326,7 @@ describe('GET /api/model_config', () => {
     const root = await temporaryRoot()
     await writeFile(modelConfigPath(root), '{')
 
-    const response = await createGetModelConfig({ configRoot: root })()
+    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
 
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({
@@ -314,7 +357,7 @@ describe('GET /api/model_config', () => {
       }),
     )
 
-    const response = await createGetModelConfig({ configRoot: root })()
+    const response = await createGetModelConfig({ configRoot: root, credentialStore: fakeCredentialStore().store })()
     const body = (await response.json()) as {
       error: { details: { issues: unknown[]; truncated: boolean } }
     }
@@ -322,5 +365,236 @@ describe('GET /api/model_config', () => {
     expect(response.status).toBe(409)
     expect(body.error.details.issues).toHaveLength(20)
     expect(body.error.details.truncated).toBe(true)
+  })
+})
+
+describe('OS credential adapter', () => {
+  it('addresses every operation by the fixed service and the UUID-derived account', async () => {
+    const entry = {
+      getPassword: vi.fn(async () => undefined),
+      setPassword: vi.fn(async () => undefined),
+      deleteCredential: vi.fn(async () => true),
+    }
+    const openEntry = vi.fn(async () => entry)
+    const store = createCredentialStore(openEntry)
+
+    await expect(store.state(OPENAI_ID)).resolves.toBe('absent')
+    await store.set(OPENAI_ID, 'write-only-secret')
+    await store.delete(OPENAI_ID)
+
+    // Naming is asserted through the factory, so renaming or reordering the
+    // service and account arguments cannot pass unnoticed.
+    expect(openEntry.mock.calls).toEqual([
+      ['FREE Studio', `model-connection/${OPENAI_ID}`],
+      ['FREE Studio', `model-connection/${OPENAI_ID}`],
+      ['FREE Studio', `model-connection/${OPENAI_ID}`],
+    ])
+    expect(entry.setPassword).toHaveBeenCalledWith('write-only-secret')
+    expect(entry.deleteCredential).toHaveBeenCalledOnce()
+  })
+})
+
+describe('PUT /api/model_config', () => {
+  it.each([
+    ['a wrong media type', { config: EMPTY_MODEL_CONFIG }, 'text/plain'],
+    ['malformed JSON', '{ definitely not JSON', 'application/json'],
+    ['an unknown top-level field', { config: EMPTY_MODEL_CONFIG, extra: 1 }, 'application/json'],
+    ['a server-owned sibling inside config', { config: { ...EMPTY_MODEL_CONFIG, credentialStates: {} } }, 'application/json'],
+    ['an empty-string credential action', { config: EMPTY_MODEL_CONFIG, credentials: { [OPENAI_ID]: '' } }, 'application/json'],
+    ['a credential key that is not a UUID', { config: EMPTY_MODEL_CONFIG, credentials: { 'not-a-uuid': 'x' } }, 'application/json'],
+  ])('rejects %s as a structural 400 before reaching storage', async (_label, body, contentType) => {
+    const fake = fakeCredentialStore()
+    const put = createPutModelConfig({ configRoot: await temporaryRoot(), credentialStore: fake.store })
+
+    const response = await put(putRequest(body, contentType))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'invalid_request' } })
+    expect(fake.calls).toEqual([])
+  })
+
+  it('round-trips the editable document unchanged and returns no descriptor or secret', async () => {
+    const root = await temporaryRoot()
+    const fake = fakeCredentialStore()
+    const config = configured()
+    // A base whose trailing slash must survive, and a model ID no probe could suggest.
+    config.connections[1].baseUrl = 'https://gateway.example/proxy/openai/v1/'
+    config.routes.interaction = { connectionId: OPENAI_ID, modelId: 'an opaque model id' }
+    const put = createPutModelConfig({ configRoot: root, credentialStore: fake.store })
+
+    const response = await put(putRequest({ config, credentials: { [OPENAI_ID]: 'sk-secret' } }))
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body).toEqual({
+      config,
+      credentialStates: { [OLLAMA_ID]: 'absent', [OPENAI_ID]: 'present' },
+    })
+    expect(body).not.toHaveProperty('providers')
+    expect(JSON.stringify(body)).not.toContain('sk-secret')
+
+    // The trailing slash is stored verbatim; it is insignificant at the join instead.
+    const saved = await readFile(modelConfigPath(root), 'utf8')
+    expect(saved).not.toContain('sk-secret')
+    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(config)
+    expect(appendProviderResource(config.connections[1].baseUrl!, 'models')).toBe(
+      'https://gateway.example/proxy/openai/v1/models',
+    )
+  })
+
+  it('preserves, replaces, and deletes a credential from the action tri-state alone', async () => {
+    const root = await temporaryRoot()
+    const fake = fakeCredentialStore()
+    // Ollama authenticates optionally, so it stays valid with no credential at all.
+    const config = configured({
+      connections: [configured().connections[0]],
+      routes: { extraction: { connectionId: OLLAMA_ID, modelId: 'vendor/model:latest' }, interaction: null },
+    })
+    const put = createPutModelConfig({ configRoot: root, credentialStore: fake.store })
+
+    await put(putRequest({ config, credentials: { [OLLAMA_ID]: 'first' } }))
+    expect(fake.values.get(OLLAMA_ID)).toBe('first')
+
+    await put(putRequest({ config, credentials: { [OLLAMA_ID]: 'second' } }))
+    expect(fake.values.get(OLLAMA_ID)).toBe('second')
+
+    const preserved = await put(putRequest({ config }))
+    expect(fake.values.get(OLLAMA_ID)).toBe('second')
+    await expect(preserved.json()).resolves.toMatchObject({
+      credentialStates: { [OLLAMA_ID]: 'present' },
+    })
+
+    const deleted = await put(putRequest({ config, credentials: { [OLLAMA_ID]: null } }))
+    expect(fake.values.has(OLLAMA_ID)).toBe(false)
+    await expect(deleted.json()).resolves.toMatchObject({
+      credentialStates: { [OLLAMA_ID]: 'absent' },
+    })
+  })
+
+  it('refuses to change the provider kind of an already-saved UUID', async () => {
+    const root = await temporaryRoot()
+    await writeModelConfig(configured(), { configRoot: root })
+    const fake = fakeCredentialStore({ [OPENAI_ID]: 'sk-existing' })
+    const changed = configured()
+    changed.connections[1] = { ...changed.connections[1], provider: 'anthropic' }
+
+    const response = await createPutModelConfig({ configRoot: root, credentialStore: fake.store })(
+      putRequest({ config: changed }),
+    )
+
+    expect(response.status).toBe(409)
+    const body = (await response.json()) as { error: { details: { issues: { path: string }[] } } }
+    expect(body.error.details.issues.map(({ path }) => path)).toContain('config.connections.1.provider')
+    // The researcher must delete the connection and create a new UUID instead.
+    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(configured())
+  })
+
+  it.each([
+    [
+      'a route left dangling by a removed connection',
+      () => ({
+        config: configured({ connections: [configured().connections[0]] }),
+        credentials: {},
+      }),
+      'config.routes.interaction.connectionId',
+    ],
+    [
+      'an action naming a connection that was not submitted',
+      () => ({ config: configured(), credentials: { [OPENAI_ID]: 'sk', [OTHER_ID]: 'sk' } }),
+      `credentials.${OTHER_ID}`,
+    ],
+    [
+      'an action against externally authenticated CLI login',
+      () => ({
+        config: configured({
+          connections: [...configured().connections, { id: OTHER_ID, name: 'Codex', provider: 'codex-cli' as const, baseUrl: null }],
+        }),
+        credentials: { [OPENAI_ID]: 'sk', [OTHER_ID]: 'sk' },
+      }),
+      `credentials.${OTHER_ID}`,
+    ],
+    [
+      'a managed provider whose credential is explicitly deleted',
+      () => ({ config: configured(), credentials: { [OPENAI_ID]: null } }),
+      `credentials.${OPENAI_ID}`,
+    ],
+    [
+      'a managed provider preserving a credential that was never stored',
+      () => ({ config: configured() }),
+      `credentials.${OPENAI_ID}`,
+    ],
+  ])('rejects %s as a semantic 409 with bounded details', async (_label, build, issuePath) => {
+    const root = await temporaryRoot()
+    const fake = fakeCredentialStore()
+    const put = createPutModelConfig({ configRoot: root, credentialStore: fake.store })
+
+    const response = await put(putRequest(build()))
+
+    expect(response.status).toBe(409)
+    const body = (await response.json()) as { error: { code: string; details: { issues: { path: string }[] } } }
+    expect(body.error.code).toBe('invalid_model_config')
+    expect(body.error.details.issues.map(({ path }) => path)).toContain(issuePath)
+    // Nothing was committed and no credential moved.
+    await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(fake.values.size).toBe(0)
+  })
+
+  it('maps a required keyring operation failure to 503 without any fallback', async () => {
+    const root = await temporaryRoot()
+    const put = createPutModelConfig({ configRoot: root, credentialStore: unavailableStore })
+
+    for (const body of [{ config: configured() }, { config: configured(), credentials: { [OPENAI_ID]: 'sk' } }]) {
+      const response = await put(putRequest(body))
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'keyring_unavailable',
+          message: 'The operating system credential store is unavailable.',
+        },
+      })
+    }
+    // No plaintext, environment, or file fallback: nothing was written.
+    await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('keeps the applied credential when the atomic JSON replacement fails', async () => {
+    const root = await temporaryRoot()
+    const fake = fakeCredentialStore()
+    const fileSystem = { ...nodeFileSystem, rename: () => Promise.reject(new Error('disk full')) }
+    const put = createPutModelConfig({ configRoot: root, credentialStore: fake.store, fileSystem })
+
+    const response = await put(putRequest({ config: configured(), credentials: { [OPENAI_ID]: 'sk-new' } }))
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'storage_failure' } })
+    // Credentials precede the commit and are never rolled back: JSON stays authoritative
+    // and the next successful Apply overwrites the pairing.
+    expect(fake.values.get(OPENAI_ID)).toBe('sk-new')
+    await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('commits a removal even when best-effort orphan cleanup fails', async () => {
+    const root = await temporaryRoot()
+    await writeModelConfig(configured(), { configRoot: root })
+    const fake = fakeCredentialStore({ [OPENAI_ID]: 'sk-orphan' })
+    const store: CredentialStore = { ...fake.store, delete: () => Promise.reject(new Error('locked')) }
+    const remaining = configured({
+      connections: [configured().connections[0]],
+      routes: { extraction: configured().routes.extraction, interaction: null },
+    })
+
+    const response = await createPutModelConfig({ configRoot: root, credentialStore: store })(
+      putRequest({ config: remaining }),
+    )
+
+    expect(response.status).toBe(200)
+    // The removed UUID is gone from the authoritative document, so the credential
+    // it left behind is inert: no saved connection can reach it.
+    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(remaining)
+    await expect(response.json()).resolves.toMatchObject({
+      credentialStates: { [OLLAMA_ID]: 'absent' },
+    })
+    expect(fake.values.get(OPENAI_ID)).toBe('sk-orphan')
   })
 })

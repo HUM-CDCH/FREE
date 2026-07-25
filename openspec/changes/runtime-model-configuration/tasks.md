@@ -29,11 +29,11 @@ Each numbered group is one fresh implementation session. Groups are dependency o
 
 **Explicit non-goals:** Provider probing, model construction, operation routing, and browser Model Connection workflows.
 
-- [ ] 2.1 Add the narrow `@napi-rs/keyring` adapter using service `FREE Studio` and account `model-connection/<UUID>`, with injectable fakes and no plaintext, environment, process-memory, or file fallback
-- [ ] 2.2 Implement strict PUT parsing and semantic validation for unknown fields, immutable provider kind per UUID, explicit model IDs, credential preserve/replace/delete, best-effort credential cleanup for removed connections, and managed/optional/external auth rules and partial credential-state maps
-- [ ] 2.3 Apply explicit credential changes, atomically commit JSON state, best-effort clean credentials for removed connections, and return normalized `config` plus UUID-keyed credential states without provider descriptors, rollback, or action-journal machinery
-- [ ] 2.4 Test configuration round-tripping without transforms, credential service/account naming, tri-state actions, redaction, unavailable-keyring GET degradation, required-keyring PUT failure, old/new provider identity, arbitrary model IDs, URL normalization, atomic JSON failure, and inert orphan cleanup
-- [ ] 2.5 Run `pnpm --filter studio test -- api/_model_config.test.ts src/apiEndpoints.test.ts` and `pnpm --filter studio build`
+- [x] 2.1 Add the narrow `@napi-rs/keyring` adapter using service `FREE Studio` and account `model-connection/<UUID>`, with injectable fakes and no plaintext, environment, process-memory, or file fallback
+- [x] 2.2 Implement strict PUT parsing and semantic validation for unknown fields, immutable provider kind per UUID, explicit model IDs, credential preserve/replace/delete, best-effort credential cleanup for removed connections, and managed/optional/external auth rules and partial credential-state maps
+- [x] 2.3 Apply explicit credential changes, atomically commit JSON state, best-effort clean credentials for removed connections, and return normalized `config` plus UUID-keyed credential states without provider descriptors, rollback, or action-journal machinery
+- [x] 2.4 Test configuration round-tripping without transforms, credential service/account naming, tri-state actions, redaction, unavailable-keyring GET degradation, required-keyring PUT failure, old/new provider identity, arbitrary model IDs, URL normalization, atomic JSON failure, and inert orphan cleanup
+- [x] 2.5 Run `pnpm --filter studio test -- api/_model_config.test.ts src/apiEndpoints.test.ts` and `pnpm --filter studio build`
 
 **Stopping boundary:** Stop once durable edits and write-only credentials are tested; do not claim transactional rollback or expose a researcher-facing Apply before probing is available.
 

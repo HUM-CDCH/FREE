@@ -73,6 +73,19 @@ export function json(data: unknown, init?: ResponseInit): Response {
   return Response.json(data, init)
 }
 
+/** Wrong media type and malformed JSON are both structural: `400 invalid_request`. */
+export async function parseJsonRequest(request: Request): Promise<unknown> {
+  const mediaType = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase()
+  if (mediaType !== 'application/json') {
+    throw new ApiError(400, 'invalid_request', 'The request must use application/json.')
+  }
+  try {
+    return await request.json()
+  } catch (cause) {
+    throw new ApiError(400, 'invalid_request', 'The request body must contain valid JSON.', { cause })
+  }
+}
+
 export function modelError(error: unknown): Response {
   if (error instanceof RequestError) {
     const detail = error.raw ? { message: error.message, raw: error.raw } : error.message
