@@ -31,6 +31,7 @@ async function mockConfiguration(page: Page) {
   let putFailure = false
   let putDelay = 0
   let probeStatus: 'connected' | 'unreachable' = 'connected'
+  let probeDelay = 0
   await page.route('http://127.0.0.1:8000/**', (route) => route.abort())
   await page.route('**/api/**', async (route) => {
     const request = route.request()
@@ -64,6 +65,11 @@ async function mockConfiguration(page: Page) {
     }
     if (path === '/api/model_probe' && request.method() === 'POST') {
       probes += 1
+      if (probeDelay > 0) {
+        const { promise, resolve } = Promise.withResolvers<void>()
+        setTimeout(resolve, probeDelay)
+        await promise
+      }
       const connected = probeStatus === 'connected'
       await route.fulfill({
         json: {
@@ -83,6 +89,7 @@ async function mockConfiguration(page: Page) {
     setPutFailure: (value: boolean) => { putFailure = value },
     setPutDelay: (value: number) => { putDelay = value },
     setProbeStatus: (value: 'connected' | 'unreachable') => { probeStatus = value },
+    setProbeDelay: (value: number) => { probeDelay = value },
   }
 }
 
@@ -110,6 +117,48 @@ test('Single model saves, reloads, and checks without probing on open or Apply',
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await expect(page.getByLabel('Single model ID')).toHaveValue('manual-model-id')
   expect(state.probes()).toBe(1)
+})
+
+test('probe scheduling and refresh share one supersession path', async ({ page }) => {
+  const state = await mockConfiguration(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Configure providers' }).click()
+  await page.getByRole('button', { name: '+ New connection' }).click()
+  await page.getByLabel('Provider API base').fill('http://localhost:11434/first')
+  await page.getByLabel('Provider API base').fill('http://localhost:11434/latest')
+  await page.getByRole('button', { name: 'Refresh models' }).click()
+
+  await expect.poll(state.probes).toBe(1)
+  await page.waitForTimeout(600)
+  expect(state.probes()).toBe(1)
+})
+
+test('removing a connection disposes its pending and late probe state', async ({ page }) => {
+  // Every new connection reuses one ID, so disposal must survive same-ID recreation.
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, 'randomUUID', {
+      configurable: true,
+      value: () => '11111111-1111-4111-8111-111111111111',
+    })
+  })
+  const state = await mockConfiguration(page)
+  state.setProbeDelay(150)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Configure providers' }).click()
+  await page.getByRole('button', { name: '+ New connection' }).click()
+  await page.getByRole('button', { name: 'Delete Ollama' }).click()
+
+  await page.waitForTimeout(600)
+  expect(state.probes()).toBe(0)
+  await expect(page.getByText('No Model Connections yet.')).toBeVisible()
+  await page.getByRole('button', { name: '+ New connection' }).click()
+  await expect.poll(state.probes).toBe(1)
+  await page.getByRole('button', { name: 'Delete Ollama' }).click()
+  await expect(page.getByText('No Model Connections yet.')).toBeVisible()
+  await page.getByRole('button', { name: '+ New connection' }).click()
+  await page.waitForTimeout(400)
+  await expect(page.getByText('Not checked this session.')).toBeVisible()
+  await expect(page.getByText('Connected. 1 model available.')).toBeHidden()
 })
 
 test('Capability Routes save mixed exact targets and Ollama-only raw mode', async ({ page }) => {
@@ -163,6 +212,7 @@ test('a draft provider change probes again, drops raw NuExtract, and locks once 
   await expect.poll(state.probes).toBe(2)
   await expect(page.getByLabel('Use raw NuExtract protocol')).toBeHidden()
 
+  await page.getByLabel('Extraction & Schema Suggestion model ID').fill('claude-manual')
   await page.getByRole('button', { name: 'Apply' }).click()
   await expect(page.getByLabel('Claude Code provider')).toBeHidden()
   expect(state.config().connections[0]).toMatchObject({ provider: 'claude-code', baseUrl: null })

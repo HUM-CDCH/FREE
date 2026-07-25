@@ -1,23 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
-import {
-  isValidApiBase,
-  type CredentialActions,
-  type CredentialState,
-  type ModelConfig,
-  type ModelConnection,
-  type ProbeResult,
-  type ProviderDescriptor,
-  type ProviderKind,
-  type RouteKey,
+import { useEffect, useState } from 'react'
+import type {
+  CredentialActions,
+  CredentialState,
+  ModelConfig,
+  ModelConnection,
+  ProviderDescriptor,
+  ProviderKind,
+  RouteKey,
 } from '../../shared/modelConfig.contract'
 import { Button, EmptyState, Overline, Pill } from '../ui'
-import {
-  ModelConfigApiError,
-  ROUTABLE_TASKS,
-  getModelConfig,
-  probeModelConnection,
-  putModelConfig,
-} from './providerConfig.data'
+import { ModelConfigApiError, ROUTABLE_TASKS, getModelConfig, putModelConfig } from './providerConfig.data'
+import { useProbeLifecycle, type ProbeView } from './useProbeLifecycle'
 
 const fieldClass =
   'w-full rounded-lg border border-line-strong bg-canvas px-2.75 py-2 text-[12.5px] text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent'
@@ -27,11 +20,6 @@ const tones = {
   err: { pill: 'danger', dot: 'bg-danger', text: 'text-danger' },
 } as const
 
-type ProbeView =
-  | { phase: 'idle' }
-  | { phase: 'checking' }
-  | { phase: 'done'; result: ProbeResult }
-  | { phase: 'error'; message: string }
 
 function Dot({ tone }: { tone: keyof typeof tones }) {
   return <span aria-hidden="true" className={`size-1.25 shrink-0 rounded-full ${tones[tone].dot}`} />
@@ -64,15 +52,11 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
   const [credentialStates, setCredentialStates] = useState<Record<string, CredentialState>>({})
   const [credentialActions, setCredentialActions] = useState<CredentialActions>({})
   const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(new Set())
-  const [probes, setProbes] = useState<Record<string, ProbeView>>({})
   const [mode, setMode] = useState<'single' | 'routes'>('single')
   const [newProvider, setNewProvider] = useState<ProviderKind>('ollama')
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const timers = useRef(new Map<string, number>())
-  const controllers = useRef(new Map<string, AbortController>())
-  const sequences = useRef(new Map<string, number>())
 
   useEffect(() => {
     const controller = new AbortController()
@@ -94,81 +78,17 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
     return () => controller.abort()
   }, [])
 
-  useEffect(
-    () => () => {
-      for (const timer of timers.current.values()) window.clearTimeout(timer)
-      for (const controller of controllers.current.values()) controller.abort()
-    },
-    [],
-  )
 
   const descriptor = (connection: ModelConnection) =>
     providers.find(({ kind }) => kind === connection.provider)
 
   const actionFor = (connectionId: string): string | null | undefined =>
     Object.hasOwn(credentialActions, connectionId) ? credentialActions[connectionId] : undefined
+  const { probes, canProbe, schedule, refresh, dispose } = useProbeLifecycle({
+    providers,
+    credentialStates,
+  })
 
-  function canProbe(connection: ModelConnection, action = actionFor(connection.id)): boolean {
-    const provider = descriptor(connection)
-    if (!provider || !connection.name.trim()) return false
-    if (provider.transport === 'http' && !isValidApiBase(connection.baseUrl)) return false
-    if (provider.authentication !== 'managed') return true
-    return typeof action === 'string' && action.length > 0
-      ? true
-      : action === undefined && credentialStates[connection.id] === 'present'
-  }
-
-  async function runProbe(
-    connection: ModelConnection,
-    sequence: number,
-    action = actionFor(connection.id),
-  ): Promise<void> {
-    if (!canProbe(connection, action)) return
-    controllers.current.get(connection.id)?.abort()
-    const controller = new AbortController()
-    controllers.current.set(connection.id, controller)
-    setProbes((current) => ({ ...current, [connection.id]: { phase: 'checking' } }))
-    try {
-      const result = await probeModelConnection(connection, {
-        ...(action === undefined ? {} : { credential: action }),
-        signal: controller.signal,
-      })
-      if (sequences.current.get(connection.id) === sequence) {
-        setProbes((current) => ({ ...current, [connection.id]: { phase: 'done', result } }))
-      }
-    } catch (cause) {
-      if (!controller.signal.aborted && sequences.current.get(connection.id) === sequence) {
-        setProbes((current) => ({
-          ...current,
-          [connection.id]: { phase: 'error', message: publicError(cause) },
-        }))
-      }
-    }
-  }
-
-  function scheduleProbe(connection: ModelConnection, action = actionFor(connection.id)): void {
-    const sequence = (sequences.current.get(connection.id) ?? 0) + 1
-    sequences.current.set(connection.id, sequence)
-    window.clearTimeout(timers.current.get(connection.id))
-    controllers.current.get(connection.id)?.abort()
-    if (!canProbe(connection, action)) {
-      setProbes((current) => ({ ...current, [connection.id]: { phase: 'idle' } }))
-      return
-    }
-    timers.current.set(
-      connection.id,
-      window.setTimeout(() => {
-        void runProbe(connection, sequence, action)
-      }, 500),
-    )
-  }
-
-  function refresh(connection: ModelConnection): void {
-    const sequence = (sequences.current.get(connection.id) ?? 0) + 1
-    sequences.current.set(connection.id, sequence)
-    window.clearTimeout(timers.current.get(connection.id))
-    void runProbe(connection, sequence, actionFor(connection.id))
-  }
 
   function updateConnection(
     connection: ModelConnection,
@@ -181,7 +101,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
       ...draft,
       connections: draft.connections.map((item) => (item.id === connection.id ? next : item)),
     })
-    if (probeInput) scheduleProbe(next)
+    if (probeInput) schedule(next, actionFor(next.id))
   }
 
   /**
@@ -215,7 +135,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
       delete actions[connection.id]
       setCredentialActions(actions)
     }
-    scheduleProbe(next, action)
+    schedule(next, action)
   }
 
   function updateCredential(connection: ModelConnection, action: string | null | undefined): void {
@@ -223,20 +143,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
     if (action === undefined) delete next[connection.id]
     else next[connection.id] = action
     setCredentialActions(next)
-    const sequence = (sequences.current.get(connection.id) ?? 0) + 1
-    sequences.current.set(connection.id, sequence)
-    window.clearTimeout(timers.current.get(connection.id))
-    controllers.current.get(connection.id)?.abort()
-    if (!canProbe(connection, action)) {
-      setProbes((current) => ({ ...current, [connection.id]: { phase: 'idle' } }))
-      return
-    }
-    timers.current.set(
-      connection.id,
-      window.setTimeout(() => {
-        void runProbe(connection, sequence, action)
-      }, 500),
-    )
+    schedule(connection, action)
   }
 
   function addConnection(): void {
@@ -253,7 +160,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
       ...draft,
       connections: [...draft.connections, connection],
     })
-    scheduleProbe(connection)
+    schedule(connection, actionFor(connection.id))
   }
 
   function removeConnection(connectionId: string): void {
@@ -268,13 +175,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
     const actions = { ...credentialActions }
     delete actions[connectionId]
     setCredentialActions(actions)
-    controllers.current.get(connectionId)?.abort()
-    window.clearTimeout(timers.current.get(connectionId))
-    setProbes((current) => {
-      const next = { ...current }
-      delete next[connectionId]
-      return next
-    })
+    dispose(connectionId)
   }
 
   function setRoute(key: RouteKey, connectionId: string): void {
@@ -564,7 +465,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
                 )}
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                   <p className={`text-[11px] ${tones[tone].text}`}>{statusText}</p>
-                  <Button variant="secondary" size="sm" disabled={!canProbe(connection) || view.phase === 'checking'} onClick={() => refresh(connection)}>Refresh models</Button>
+                  <Button variant="secondary" size="sm" disabled={!canProbe(connection, actionFor(connection.id)) || view.phase === 'checking'} onClick={() => refresh(connection, actionFor(connection.id))}>Refresh models</Button>
                 </div>
               </article>
             )
