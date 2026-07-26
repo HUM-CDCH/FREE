@@ -28,7 +28,6 @@ type RightRailProps = {
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
-  pdfSource: { url: string; filename: string } | null
   documentMarkdown: string | null
   onValueClick?: (path: string[], value: string) => void
   focusPath?: string[] | null
@@ -65,7 +64,6 @@ function RightRail({
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
-  pdfSource,
   documentMarkdown,
   onValueClick,
   focusPath,
@@ -142,7 +140,7 @@ function RightRail({
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'chat'}>
-        <ChatTab pdfSource={pdfSource} />
+        <ChatTab documentMarkdown={documentMarkdown} />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'schema'}>
         <SchemaPanel
@@ -153,6 +151,7 @@ function RightRail({
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}
+          documentMarkdown={documentMarkdown}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>

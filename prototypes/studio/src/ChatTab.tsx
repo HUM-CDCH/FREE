@@ -1,13 +1,18 @@
 import { DefaultChatTransport, readUIMessageStream } from 'ai'
-import type { FileUIPart, UIMessage } from 'ai'
+import type { UIMessage } from 'ai'
 import { useRef, useState } from 'react'
 import { API_BASE } from './api'
 
 type ChatTabProps = {
-  pdfSource: { url: string; filename: string } | null
+  documentMarkdown: string | null
 }
 
-const transport = new DefaultChatTransport<UIMessage>({ api: `${API_BASE}/chat` })
+const transport = new DefaultChatTransport<UIMessage>({
+  api: `${API_BASE}/chat`,
+  prepareSendMessagesRequest: ({ messages, body }) => ({
+    body: { messages, documentMarkdown: body?.documentMarkdown },
+  }),
+})
 
 function messageText(message: UIMessage): string {
   return message.parts
@@ -20,32 +25,8 @@ function nextId(): string {
   return crypto.randomUUID()
 }
 
-async function filePart(pdfSource: { url: string; filename: string }): Promise<FileUIPart> {
-  const blob = await (await fetch(pdfSource.url)).blob()
-  return {
-    type: 'file',
-    filename: pdfSource.filename,
-    mediaType: blob.type || 'application/pdf',
-    url: await dataUrl(blob),
-  }
-}
 
-function dataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result)
-        return
-      }
-      reject(new Error('Unable to read source document.'))
-    }
-    reader.onerror = () => reject(new Error('Unable to read source document.'))
-    reader.readAsDataURL(blob)
-  })
-}
-
-function ChatTab({ pdfSource }: ChatTabProps) {
+function ChatTab({ documentMarkdown }: ChatTabProps) {
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<'ready' | 'running' | 'error'>('ready')
@@ -53,7 +34,7 @@ function ChatTab({ pdfSource }: ChatTabProps) {
 
   async function send() {
     const text = draft.trim()
-    if (!text || status === 'running') {
+    if (!text || status === 'running' || documentMarkdown === null) {
       return
     }
 
@@ -63,14 +44,12 @@ function ChatTab({ pdfSource }: ChatTabProps) {
     setStatus('running')
     setDraft('')
 
-    const textPart = { type: 'text' as const, text }
-    const parts = pdfSource ? [textPart, await filePart(pdfSource)] : [textPart]
     const nextMessages: UIMessage[] = [
       ...messages,
       {
         id: nextId(),
         role: 'user',
-        parts,
+        parts: [{ type: 'text', text }],
       },
     ]
     setMessages(nextMessages)
@@ -82,9 +61,10 @@ function ChatTab({ pdfSource }: ChatTabProps) {
         trigger: 'submit-message',
         messageId: undefined,
         abortSignal: abortController.signal,
+        body: { documentMarkdown },
       })
 
-      for await (const assistantMessage of readUIMessageStream({ stream })) {
+      for await (const assistantMessage of readUIMessageStream({ stream, terminateOnError: true })) {
         setMessages([...nextMessages, assistantMessage])
       }
       setStatus('ready')
@@ -112,9 +92,9 @@ function ChatTab({ pdfSource }: ChatTabProps) {
           <div className="mt-1.5 rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
             <p className="text-[13.5px] font-semibold text-ink">Ask about this source document</p>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
-              {pdfSource
-                ? 'The current source document is attached to each question.'
-                : 'No source document context is available yet.'}
+              {documentMarkdown !== null
+                ? 'Canonical Source Document Markdown is included with each question.'
+                : 'No Source Document Markdown is available yet.'}
             </p>
           </div>
         )}
@@ -136,7 +116,7 @@ function ChatTab({ pdfSource }: ChatTabProps) {
           className="min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3 py-2 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent"
           value={draft}
           placeholder="Ask about this source document..."
-          disabled={status === 'running'}
+          disabled={status === 'running' || documentMarkdown === null}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
@@ -148,7 +128,7 @@ function ChatTab({ pdfSource }: ChatTabProps) {
           className="shrink-0 cursor-pointer rounded-lg border border-accent bg-accent px-3.5 py-2 text-[13px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60"
           type="button"
           title="Send"
-          disabled={status === 'running'}
+          disabled={status === 'running' || documentMarkdown === null}
           onClick={() => void send()}
         >
           ↑
