@@ -13,7 +13,6 @@ import json
 import math
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -21,9 +20,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.testclient import TestClient
 
-from app.storage import paths
-from app.workers import parse_worker
 from main import app
+from tests.storage_test_support import isolated_storage
 
 SOURCE_PDF = (
     Path(__file__).resolve().parents[3] / "examples" / "Beretning_Ellekilde_8_13.pdf"
@@ -222,29 +220,13 @@ class TestSemanticInvariants(unittest.TestCase):
 )
 class TestGoldenE2E(unittest.TestCase):
     def setUp(self):
-        self._storage_tmp = tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT)
-        root = Path(self._storage_tmp.name)
-        self._original_storage_paths = (
-            paths.DEFAULT_DATA_DIR,
-            paths.DEFAULT_SOURCE_STORE_DIR,
-            paths.DEFAULT_DOCUMENT_STORE_DIR,
-            parse_worker.DEFAULT_DATA_DIR,
-        )
-        paths.DEFAULT_DATA_DIR = root / "tasks"
-        paths.DEFAULT_SOURCE_STORE_DIR = root / "sources"
-        paths.DEFAULT_DOCUMENT_STORE_DIR = root / "documents"
-        parse_worker.DEFAULT_DATA_DIR = paths.DEFAULT_DATA_DIR
+        self._storage = isolated_storage()
+        self._storage.__enter__()
+        self.addCleanup(self._storage.__exit__, None, None, None)
         self.client = TestClient(app)
 
     def tearDown(self):
         self.client.close()
-        (
-            paths.DEFAULT_DATA_DIR,
-            paths.DEFAULT_SOURCE_STORE_DIR,
-            paths.DEFAULT_DOCUMENT_STORE_DIR,
-            parse_worker.DEFAULT_DATA_DIR,
-        ) = self._original_storage_paths
-        self._storage_tmp.cleanup()
 
     def test_parsed_document_matches_semantic_oracle(self):
         response = self.client.post(

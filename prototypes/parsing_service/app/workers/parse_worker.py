@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
 import logging
 import os
 import shutil
@@ -50,6 +49,7 @@ from app.storage.paths import (
     task_store_lock_path,
     validate_task_id,
 )
+from app.timing import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +62,6 @@ _ACTIVE_TASK_IDS: set[str] = set()
 
 class _TaskStateError(Exception):
     pass
-
-
-def _utc_now() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
 def _cached_document_matches_task(
@@ -223,7 +219,7 @@ def _completed_metadata(
         updated["status"] = "completed"
         updated["error_code"] = None
         updated["error"] = None
-        updated["updated_at"] = _utc_now()
+        updated["updated_at"] = utc_now()
     except (OSError, TypeError, ValueError) as exc:
         raise _TaskStateError from exc
 
@@ -263,7 +259,7 @@ def _run_task_sync(task_id: str) -> None:
     with lock.acquire(timeout=_CANONICAL_LOCK_TIMEOUT_SECONDS):
         metadata = load_task_metadata(task_dir)
         metadata["status"] = "running"
-        metadata["updated_at"] = _utc_now()
+        metadata["updated_at"] = utc_now()
         _persist_task_metadata(task_dir, metadata)
         try:
             content_sha256 = metadata.get("content_sha256")
@@ -285,7 +281,7 @@ def _run_task_sync(task_id: str) -> None:
         except Exception as exc:
             logger.exception("Canonical parsing task %s failed", task_id)
             metadata = _failure_metadata(load_task_metadata(task_dir), exc)
-            metadata["updated_at"] = _utc_now()
+            metadata["updated_at"] = utc_now()
             _persist_task_metadata(task_dir, metadata)
 
 
@@ -308,7 +304,7 @@ async def run_extraction_task(
         logger.exception("Could not dispatch canonical parsing task %s", task_id)
         task_dir = task_dir_for(task_id)
         metadata = _failure_metadata(load_task_metadata(task_dir), exc)
-        metadata["updated_at"] = _utc_now()
+        metadata["updated_at"] = utc_now()
         _persist_task_metadata(task_dir, metadata)
     finally:
         _ACTIVE_TASK_IDS.discard(task_id)
@@ -348,7 +344,7 @@ def _normalize_legacy_metadata(
     normalized.setdefault("canonical_parsed_document_ref", None)
     normalized.setdefault("error_code", None)
     normalized.setdefault("error", None)
-    now = _utc_now()
+    now = utc_now()
     normalized.setdefault("created_at", now)
     normalized.setdefault("updated_at", now)
     return normalized
@@ -401,7 +397,7 @@ def reconcile_interrupted_tasks() -> int:
                     metadata["error"] = (
                         "Parsing was interrupted before a canonical result was published."
                     )
-                    metadata["updated_at"] = _utc_now()
+                    metadata["updated_at"] = utc_now()
                     _persist_task_metadata(entry, metadata)
                     reconciled += 1
                 except (

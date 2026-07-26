@@ -12,7 +12,6 @@ complete rotation transform is independently verified.
 
 from __future__ import annotations
 
-import datetime
 import importlib
 import logging
 import math
@@ -24,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from app.models.parsed_document import BoundingBox, ParsedTable, TableCell
+from app.timing import duration_ms, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -48,17 +48,6 @@ class TableExtractionOutput:
     metrics: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
-
-
-def _utc_now() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-
-def _duration_ms(start: float) -> int:
-    try:
-        return int((time.time() - start) * 1000)
-    except (OverflowError, ValueError):
-        return 0
 
 
 def _norm_cell(value: Any) -> str:
@@ -928,7 +917,7 @@ def extract_tables(
 ) -> TableExtractionOutput:
     """Extract all available tables, preferring Docling's bounded inventory."""
     del content_sha256
-    started_at = _utc_now()
+    started_at = utc_now()
     start = time.time()
     warnings: list[str] = []
     rotations = page_rotations or {}
@@ -972,8 +961,8 @@ def extract_tables(
             parser=TABLE_PIPELINE_NAME,
             status="success",
             started_at=started_at,
-            finished_at=_utc_now(),
-            duration_ms=_duration_ms(start),
+            finished_at=utc_now(),
+            duration_ms=duration_ms(start),
             tables=tables,
             metrics={
                 "tables_found": len(inventory_tables),
@@ -1007,8 +996,8 @@ def extract_tables(
         return TableExtractionOutput(
             status="success",
             started_at=started_at,
-            finished_at=_utc_now(),
-            duration_ms=_duration_ms(start),
+            finished_at=utc_now(),
+            duration_ms=duration_ms(start),
             tables=tables,
             metrics={
                 "tables_found": len(found),
@@ -1026,8 +1015,8 @@ def extract_tables(
     return TableExtractionOutput(
         status="failed",
         started_at=started_at,
-        finished_at=_utc_now(),
-        duration_ms=_duration_ms(start),
+        finished_at=utc_now(),
+        duration_ms=duration_ms(start),
         warnings=warnings,
         error=error,
     )

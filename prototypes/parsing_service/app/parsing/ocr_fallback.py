@@ -11,7 +11,6 @@ BoundingBox space — no per-page rotation math is needed.
 
 from __future__ import annotations
 
-import datetime
 import importlib
 import logging
 import math
@@ -25,6 +24,7 @@ from app.models.parser import CANONICAL_OCR_MODEL
 from app.parsing.render import convert_pdf_to_images
 from app.storage.atomic_json import write_text_atomic
 from app.storage.paths import document_artifacts_dir, service_relative_ref
+from app.timing import duration_ms, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -48,17 +48,6 @@ class OcrFallbackOutput:
     output_ref: str | None = None
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
-
-
-def _utc_now() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-
-def _duration_ms(start: float) -> int:
-    try:
-        return int((time.time() - start) * 1000)
-    except (OverflowError, ValueError):
-        return 0
 
 
 def _write_text(path: Path, content: str) -> None:
@@ -135,7 +124,7 @@ def run_paddleocr_fallback(
     if not page_numbers:
         return OcrFallbackOutput(warnings=["ocr_fallback_not_required"])
 
-    started_at = _utc_now()
+    started_at = utc_now()
     start = time.time()
     fallback_dir = (
         artifact_root or document_artifacts_dir(content_sha256)
@@ -180,8 +169,8 @@ def run_paddleocr_fallback(
         return OcrFallbackOutput(
             status="success",
             started_at=started_at,
-            finished_at=_utc_now(),
-            duration_ms=_duration_ms(start),
+            finished_at=utc_now(),
+            duration_ms=duration_ms(start),
             pages=pages,
             page_lines=page_lines,
             output_ref=service_relative_ref(index_path),
@@ -197,8 +186,8 @@ def run_paddleocr_fallback(
         return OcrFallbackOutput(
             status="failed",
             started_at=started_at,
-            finished_at=_utc_now(),
-            duration_ms=_duration_ms(start),
+            finished_at=utc_now(),
+            duration_ms=duration_ms(start),
             warnings=warnings,
             error=(
                 "ocr_fallback_unavailable" if unavailable else "ocr_fallback_failed"

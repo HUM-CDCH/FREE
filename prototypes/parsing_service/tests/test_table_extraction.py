@@ -5,7 +5,7 @@ import json
 import math
 import tempfile
 import unittest
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -25,6 +25,7 @@ from app.parsing.table_extraction import (
     extract_tables,
     is_matrixlike,
     table_matrix_to_parsed_table,
+    TableExtractionOutput,
 )
 
 NUMERIC_MATRIX = [
@@ -43,6 +44,23 @@ PROSE_MATRIX = [
         "",
     ]
     for _ in range(5)
+]
+SMALL_TABLE_ROWS = [
+    ["Fundnummer", "Beskrivelse", "Bemærkninger"],
+    ["28-2", "Skår", "Bundniveau"],
+]
+
+ALIGNED_CAMELOT_CELL_BBOXES = [
+    [
+        (10.0, 125.0, 70.0, 150.0),
+        (70.0, 125.0, 130.0, 150.0),
+        (130.0, 125.0, 190.0, 150.0),
+    ],
+    [
+        (10.0, 100.0, 70.0, 125.0),
+        (70.0, 100.0, 130.0, 125.0),
+        (130.0, 100.0, 190.0, 125.0),
+    ],
 ]
 
 
@@ -69,6 +87,28 @@ class _FakeTable:
             self.cells.append(fake_row)
         self._bbox = bbox
         self.parsing_report = {"accuracy": 99.0, "whitespace": 1.0}
+
+
+def _extract_with_fake_camelot(
+    tables: Sequence[_FakeTable],
+    *,
+    page_heights_pt: dict[int, float],
+    docling_tables: Sequence[Mapping[str, object]] = (),
+    page_rotations: Mapping[int, int] | None = None,
+) -> tuple[TableExtractionOutput, Mock]:
+    read_pdf = Mock(return_value=list(tables))
+    with patch(
+        "app.parsing.table_extraction.importlib.import_module",
+        return_value=SimpleNamespace(read_pdf=read_pdf),
+    ):
+        output = extract_tables(
+            source_pdf=Path("source.pdf"),
+            content_sha256="a" * 64,
+            page_heights_pt=page_heights_pt,
+            docling_tables=docling_tables,
+            page_rotations=page_rotations,
+        )
+    return output, read_pdf
 
 
 def _inventory_for_rows(
@@ -131,10 +171,7 @@ class TestIsMatrixlike(unittest.TestCase):
     def test_small_table_is_eligible_when_it_has_table_shape(self):
         self.assertTrue(
             is_matrixlike(
-                [
-                    ["Fundnummer", "Beskrivelse", "Bemærkninger"],
-                    ["28-2", "Skår", "Bundniveau"],
-                ],
+                SMALL_TABLE_ROWS,
                 min_rows=1,
                 min_cols=3,
             )
@@ -260,17 +297,10 @@ class TestExtractTables(unittest.TestCase):
         self.assertNotIn("token", output.error or "")
 
     def test_successful_camelot_call_with_no_candidates_is_empty_success(self):
-        camelot = Mock()
-        camelot.read_pdf.return_value = []
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=camelot,
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={1: 792.0},
-            )
+        output, _ = _extract_with_fake_camelot(
+            [],
+            page_heights_pt={1: 792.0},
+        )
 
         self.assertEqual(output.status, "success")
         self.assertIsNone(output.error)
@@ -280,24 +310,17 @@ class TestExtractTables(unittest.TestCase):
         self.assertEqual(output.warnings, [])
 
     def test_camelot_non_string_missing_values_become_empty_json_safe_cells(self):
-        camelot = Mock()
-        camelot.read_pdf.return_value = [
-            _FakeTable(
-                [
-                    ["Label", "Count", "NaN", "Missing", "Literal"],
-                    ["K1", 12, math.nan, pandas.NA, "NaN"],
-                ]
-            )
-        ]
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=camelot,
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={1: 792.0},
-            )
+        output, _ = _extract_with_fake_camelot(
+            [
+                _FakeTable(
+                    [
+                        ["Label", "Count", "NaN", "Missing", "Literal"],
+                        ["K1", 12, math.nan, pandas.NA, "NaN"],
+                    ]
+                )
+            ],
+            page_heights_pt={1: 792.0},
+        )
 
         table = output.tables[0]
         self.assertFalse(
@@ -407,18 +430,11 @@ class TestExtractTables(unittest.TestCase):
             data=SimpleNamespace(num_rows=1, num_cols=1, table_cells=[cell]),
         )
         inventory = _table_inventory(SimpleNamespace(tables=[table, table]))
-        read_pdf = Mock(return_value=[])
-
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=SimpleNamespace(read_pdf=read_pdf),
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={1: 200.0},
-                docling_tables=inventory,
-            )
+        output, read_pdf = _extract_with_fake_camelot(
+            [],
+            page_heights_pt={1: 200.0},
+            docling_tables=inventory,
+        )
 
         self.assertEqual(
             inventory[0]["bbox"],
@@ -478,22 +494,12 @@ class TestExtractTables(unittest.TestCase):
         self.assertEqual(len(output.tables), 2)
 
     def test_equivalent_camelot_candidate_without_geometry_keeps_docling(self):
-        rows = [
-            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
-            ["28-2", "Skår", "Bundniveau"],
-        ]
-        inventory = [_inventory_for_rows(rows)]
-        read_pdf = Mock(return_value=[_FakeTable(rows, page=2)])
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=SimpleNamespace(read_pdf=read_pdf),
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={2: 200.0},
-                docling_tables=inventory,
-            )
+        inventory = [_inventory_for_rows(SMALL_TABLE_ROWS)]
+        output, read_pdf = _extract_with_fake_camelot(
+            [_FakeTable(SMALL_TABLE_ROWS, page=2)],
+            page_heights_pt={2: 200.0},
+            docling_tables=inventory,
+        )
 
         self.assertEqual(output.tables[0].source_parser, DOCLING_TABLE_PARSER_NAME)
         self.assertEqual(
@@ -506,22 +512,9 @@ class TestExtractTables(unittest.TestCase):
         )
 
     def test_camelot_replaces_docling_only_with_strict_geometry_improvement(self):
-        rows = [
-            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
-            ["28-2", "Skår", "Bundniveau"],
-        ]
-        camelot_cell_bboxes = [
-            [
-                (11.0, 126.0, 69.0, 149.0),
-                (70.0, 125.0, 130.0, 150.0),
-                (130.0, 125.0, 190.0, 150.0),
-            ],
-            [
-                (10.0, 100.0, 70.0, 125.0),
-                (70.0, 100.0, 130.0, 125.0),
-                (130.0, 100.0, 190.0, 125.0),
-            ],
-        ]
+        rows = SMALL_TABLE_ROWS
+        camelot_cell_bboxes = [row.copy() for row in ALIGNED_CAMELOT_CELL_BBOXES]
+        camelot_cell_bboxes[0][0] = (11.0, 126.0, 69.0, 149.0)
         inventory = [
             _inventory_for_rows(
                 rows,
@@ -534,16 +527,11 @@ class TestExtractTables(unittest.TestCase):
             bbox=(10.0, 100.0, 190.0, 150.0),
             cell_bboxes=camelot_cell_bboxes,
         )
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=SimpleNamespace(read_pdf=Mock(return_value=[candidate])),
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={2: 200.0},
-                docling_tables=inventory,
-            )
+        output, _ = _extract_with_fake_camelot(
+            [candidate],
+            page_heights_pt={2: 200.0},
+            docling_tables=inventory,
+        )
 
         table = output.tables[0]
         self.assertEqual(table.source_parser, "camelot_stream")
@@ -559,22 +547,8 @@ class TestExtractTables(unittest.TestCase):
         )
 
     def test_equal_geometry_coverage_keeps_docling(self):
-        rows = [
-            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
-            ["28-2", "Skår", "Bundniveau"],
-        ]
-        camelot_cell_bboxes = [
-            [
-                (10.0, 125.0, 70.0, 150.0),
-                (70.0, 125.0, 130.0, 150.0),
-                (130.0, 125.0, 190.0, 150.0),
-            ],
-            [
-                (10.0, 100.0, 70.0, 125.0),
-                (70.0, 100.0, 130.0, 125.0),
-                (130.0, 100.0, 190.0, 125.0),
-            ],
-        ]
+        rows = SMALL_TABLE_ROWS
+        camelot_cell_bboxes = ALIGNED_CAMELOT_CELL_BBOXES
         docling_cell_bboxes = {
             (row, col): (bbox[0], 200.0 - bbox[3], bbox[2], 200.0 - bbox[1])
             for row, values in enumerate(camelot_cell_bboxes)
@@ -586,40 +560,19 @@ class TestExtractTables(unittest.TestCase):
             bbox=(10.0, 100.0, 190.0, 150.0),
             cell_bboxes=camelot_cell_bboxes,
         )
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=SimpleNamespace(read_pdf=Mock(return_value=[candidate])),
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={2: 200.0},
-                docling_tables=[
-                    _inventory_for_rows(rows, cell_bboxes=docling_cell_bboxes)
-                ],
-            )
+        output, _ = _extract_with_fake_camelot(
+            [candidate],
+            page_heights_pt={2: 200.0},
+            docling_tables=[_inventory_for_rows(rows, cell_bboxes=docling_cell_bboxes)],
+        )
 
         self.assertEqual(output.tables[0].source_parser, DOCLING_TABLE_PARSER_NAME)
 
     def test_displaced_existing_geometry_or_role_mismatch_keeps_docling(self):
-        rows = [
-            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
-            ["28-2", "Skår", "Bundniveau"],
-        ]
-        displaced_cell_bboxes = [
-            [
-                (80.0, 125.0, 140.0, 150.0),
-                (70.0, 125.0, 130.0, 150.0),
-                (130.0, 125.0, 190.0, 150.0),
-            ],
-            [
-                (10.0, 100.0, 70.0, 125.0),
-                (70.0, 100.0, 130.0, 125.0),
-                (130.0, 100.0, 190.0, 125.0),
-            ],
-        ]
-        aligned_cell_bboxes = [row.copy() for row in displaced_cell_bboxes]
-        aligned_cell_bboxes[0][0] = (10.0, 125.0, 70.0, 150.0)
+        rows = SMALL_TABLE_ROWS
+        displaced_cell_bboxes = [row.copy() for row in ALIGNED_CAMELOT_CELL_BBOXES]
+        displaced_cell_bboxes[0][0] = (80.0, 125.0, 140.0, 150.0)
+        aligned_cell_bboxes = ALIGNED_CAMELOT_CELL_BBOXES
         cases = (
             (
                 "displaced geometry",
@@ -642,45 +595,22 @@ class TestExtractTables(unittest.TestCase):
                 bbox=(10.0, 100.0, 190.0, 150.0),
                 cell_bboxes=candidate_cell_bboxes,
             )
-            with (
-                self.subTest(reason=reason),
-                patch(
-                    "app.parsing.table_extraction.importlib.import_module",
-                    return_value=SimpleNamespace(
-                        read_pdf=Mock(return_value=[candidate])
-                    ),
-                ),
-            ):
-                output = extract_tables(
-                    source_pdf=Path("source.pdf"),
-                    content_sha256="a" * 64,
+            with self.subTest(reason=reason):
+                output, _ = _extract_with_fake_camelot(
+                    [candidate],
                     page_heights_pt={2: 200.0},
                     docling_tables=[inventory],
                 )
             self.assertEqual(output.tables[0].source_parser, DOCLING_TABLE_PARSER_NAME)
 
     def test_smaller_candidate_geometry_cannot_replace_docling(self):
-        rows = [
-            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
-            ["28-2", "Skår", "Bundniveau"],
-        ]
+        rows = SMALL_TABLE_ROWS
         inventory_cell_bbox = BoundingBox(x0=10.0, y0=50.0, x1=70.0, y1=75.0)
         inventory = _inventory_for_rows(
             rows,
             cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)},
         )
-        full_candidate_boxes = [
-            [
-                (10.0, 125.0, 70.0, 150.0),
-                (70.0, 125.0, 130.0, 150.0),
-                (130.0, 125.0, 190.0, 150.0),
-            ],
-            [
-                (10.0, 100.0, 70.0, 125.0),
-                (70.0, 100.0, 130.0, 125.0),
-                (130.0, 100.0, 190.0, 125.0),
-            ],
-        ]
+        full_candidate_boxes = ALIGNED_CAMELOT_CELL_BBOXES
         nested_table_boxes = [[(10.0, 125.0, 70.0, 150.0)] * len(row) for row in rows]
         nested_cell_boxes = [row.copy() for row in full_candidate_boxes]
         nested_cell_boxes[0][0] = (20.0, 140.0, 30.0, 145.0)
@@ -696,18 +626,11 @@ class TestExtractTables(unittest.TestCase):
                 cell_bboxes=candidate_cell_boxes,
             )
             with self.subTest(reason=reason):
-                with patch(
-                    "app.parsing.table_extraction.importlib.import_module",
-                    return_value=SimpleNamespace(
-                        read_pdf=Mock(return_value=[candidate])
-                    ),
-                ):
-                    output = extract_tables(
-                        source_pdf=Path("source.pdf"),
-                        content_sha256="a" * 64,
-                        page_heights_pt={2: 200.0},
-                        docling_tables=[inventory],
-                    )
+                output, _ = _extract_with_fake_camelot(
+                    [candidate],
+                    page_heights_pt={2: 200.0},
+                    docling_tables=[inventory],
+                )
 
                 table = output.tables[0]
                 by_position = {(cell.row, cell.col): cell for cell in table.cells}
@@ -716,10 +639,7 @@ class TestExtractTables(unittest.TestCase):
                 self.assertIsNone(by_position[(0, 1)].bbox)
 
     def test_repeated_matrices_match_camelot_by_geometry(self):
-        rows = [
-            ["Fundnummer", "Beskrivelse", "Bemærkninger"],
-            ["28-2", "Skår", "Bundniveau"],
-        ]
+        rows = SMALL_TABLE_ROWS
         first = _inventory_for_rows(
             rows,
             bbox=(10.0, 20.0, 190.0, 70.0),
@@ -747,16 +667,11 @@ class TestExtractTables(unittest.TestCase):
                 ],
             ],
         )
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=SimpleNamespace(read_pdf=Mock(return_value=[candidate])),
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={2: 200.0},
-                docling_tables=[first, second],
-            )
+        output, _ = _extract_with_fake_camelot(
+            [candidate],
+            page_heights_pt={2: 200.0},
+            docling_tables=[first, second],
+        )
 
         self.assertEqual(
             [table.source_parser for table in output.tables],
@@ -772,62 +687,32 @@ class TestExtractTables(unittest.TestCase):
         )
 
     def test_camelot_extracts_one_row_text_table(self):
-        fake_camelot = SimpleNamespace(
-            read_pdf=lambda *args, **kwargs: [
-                _FakeTable([["Object type", "Description"]])
-            ]
+        output, _ = _extract_with_fake_camelot(
+            [_FakeTable([["Object type", "Description"]])],
+            page_heights_pt={1: 200.0},
         )
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=fake_camelot,
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={1: 200.0},
-            )
         self.assertEqual(len(output.tables), 1)
 
     def test_camelot_extracts_small_table_when_available(self):
-        fake_table = _FakeTable(
-            [
-                ["Fundnummer", "Beskrivelse", "Bemærkninger"],
-                ["28-2", "Skår", "Bundniveau"],
-            ]
+        output, _ = _extract_with_fake_camelot(
+            [_FakeTable(SMALL_TABLE_ROWS)],
+            page_heights_pt={1: 200.0},
         )
-        fake_camelot = SimpleNamespace(read_pdf=lambda *args, **kwargs: [fake_table])
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=fake_camelot,
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={1: 200.0},
-            )
         self.assertEqual(output.status, "success")
         self.assertEqual(len(output.tables), 1)
         self.assertEqual((output.tables[0].rows, output.tables[0].cols), (2, 3))
 
     def test_rotated_camelot_page_keeps_content_but_suppresses_geometry(self):
-        fake_table = _FakeTable(
+        output, _ = _extract_with_fake_camelot(
             [
-                ["Fundnummer", "Beskrivelse", "Bemærkninger"],
-                ["28-2", "Skår", "Bundniveau"],
-            ]
+                _FakeTable(
+                    SMALL_TABLE_ROWS,
+                    bbox=(10.0, 10.0, 100.0, 100.0),
+                )
+            ],
+            page_heights_pt={1: 200.0},
+            page_rotations={1: 90},
         )
-        fake_table._bbox = (10.0, 10.0, 100.0, 100.0)
-        fake_camelot = SimpleNamespace(read_pdf=lambda *args, **kwargs: [fake_table])
-        with patch(
-            "app.parsing.table_extraction.importlib.import_module",
-            return_value=fake_camelot,
-        ):
-            output = extract_tables(
-                source_pdf=Path("source.pdf"),
-                content_sha256="a" * 64,
-                page_heights_pt={1: 200.0},
-                page_rotations={1: 90},
-            )
         self.assertEqual(len(output.tables), 1)
         self.assertIsNone(output.tables[0].bbox)
         self.assertTrue(all(cell.bbox is None for cell in output.tables[0].cells))

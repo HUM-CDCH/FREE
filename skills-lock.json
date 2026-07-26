@@ -13,6 +13,12 @@
       "skillPath": "skills/engineering/diagnose/SKILL.md",
       "computedHash": "15939a26f86edec2d4862042b8564e5a062cb81d04e047a0cea6305c8830b5f5"
     },
+    "dry-refactoring": {
+      "source": "kucherenko/jscpd",
+      "sourceType": "github",
+      "skillPath": "skills/dry-refactoring/SKILL.md",
+      "computedHash": "21c7e0663ef01366fe4b934883ae09dd485f97aecae31885bfbf4b39939ba370"
+    },
     "grill-me": {
       "source": "mattpocock/skills",
       "sourceType": "github",

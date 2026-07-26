@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import logging
 import math
 import time
@@ -9,6 +8,7 @@ from typing import Literal
 
 import fitz  # type: ignore[import-not-found]
 from pydantic import BaseModel, ConfigDict, Field
+from app.timing import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +44,6 @@ class PdfInspection(BaseModel):
     error: str | None = None
 
 
-def _utc_now() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-
 def _parser_version() -> str | None:
     version = getattr(fitz, "__version__", None)
     return str(version) if version else None
@@ -62,14 +58,14 @@ def inspect_pdf(
     max_total_pixels: int | None = None,
 ) -> PdfInspection:
     """Inspect page metadata and text, rejecting oversized inputs before extraction."""
-    started = _utc_now()
+    started = utc_now()
     start = time.perf_counter()
     parser_version = _parser_version()
     try:
         document = fitz.open(source_path)
     except Exception:
         logger.exception("PyMuPDF could not open the source document")
-        finished = _utc_now()
+        finished = utc_now()
         return PdfInspection(
             parser_version=parser_version,
             status="failed",
@@ -95,7 +91,7 @@ def inspect_pdf(
                 parser_version=parser_version,
                 status="completed",
                 started_at=started,
-                finished_at=_utc_now(),
+                finished_at=utc_now(),
                 duration_ms=int((time.perf_counter() - start) * 1000),
                 page_count=page_count,
                 pages=[],
@@ -121,7 +117,7 @@ def inspect_pdf(
                             parser_version=parser_version,
                             status="failed",
                             started_at=started,
-                            finished_at=_utc_now(),
+                            finished_at=utc_now(),
                             duration_ms=int((time.perf_counter() - start) * 1000),
                             page_count=page_count,
                             is_encrypted=is_encrypted,
@@ -133,7 +129,7 @@ def inspect_pdf(
                             parser_version=parser_version,
                             status="failed",
                             started_at=started,
-                            finished_at=_utc_now(),
+                            finished_at=utc_now(),
                             duration_ms=int((time.perf_counter() - start) * 1000),
                             page_count=page_count,
                             is_encrypted=is_encrypted,
@@ -221,7 +217,7 @@ def inspect_pdf(
                     )
                 )
 
-        finished = _utc_now()
+        finished = utc_now()
         return PdfInspection(
             parser_version=parser_version,
             status="completed",

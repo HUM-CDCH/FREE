@@ -7,7 +7,6 @@ serialized per physical page so page identity never depends on collapsed
 
 from __future__ import annotations
 
-import datetime
 import importlib
 import json
 import logging
@@ -19,6 +18,7 @@ from typing import Any
 from app.storage.atomic_json import write_json_atomic, write_text_atomic
 from app.storage.hashing import compute_sha256
 from app.storage.paths import document_artifacts_dir, service_relative_ref
+from app.timing import duration_ms, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -45,17 +45,6 @@ class DoclingRunnerOutput:
     table_inventory: tuple[dict[str, Any], ...] = ()
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
-
-
-def _utc_now() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-
-def _duration_ms(start: float) -> int:
-    try:
-        return int((time.time() - start) * 1000)
-    except (OverflowError, ValueError):
-        return 0
 
 
 def _write_text(path: Path, content: str) -> None:
@@ -227,7 +216,7 @@ def run_docling_ingestion(
     artifact_root: Path | None = None,
 ) -> DoclingRunnerOutput:
     """Run Docling once and persist raw and canonical DocTags artifacts."""
-    started_at = _utc_now()
+    started_at = utc_now()
     start = time.time()
     artifact_dir = (artifact_root or document_artifacts_dir(content_sha256)) / "docling"
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -241,8 +230,8 @@ def run_docling_ingestion(
             parser="docling_doctags",
             status="failed",
             started_at=started_at,
-            finished_at=_utc_now(),
-            duration_ms=_duration_ms(start),
+            finished_at=utc_now(),
+            duration_ms=duration_ms(start),
             error="docling_conversion_failed",
         )
 
@@ -349,8 +338,8 @@ def run_docling_ingestion(
         parser="docling_doctags",
         status=status,
         started_at=started_at,
-        finished_at=_utc_now(),
-        duration_ms=_duration_ms(start),
+        finished_at=utc_now(),
+        duration_ms=duration_ms(start),
         raw_docling_json_ref=raw_docling_json_ref,
         raw_doctags_ref=raw_doctags_ref,
         aggregate_doctags_ref=aggregate_doctags_ref,

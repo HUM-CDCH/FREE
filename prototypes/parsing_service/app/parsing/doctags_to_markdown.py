@@ -410,6 +410,17 @@ def doctags_to_markdown(doctags: str, *, drop_page_footers: bool = True) -> str:
     ).markdown
 
 
+def _page_markdown_span(page: int, raw_chunk: str, offset: int) -> PageMarkdownSpan:
+    text = raw_chunk.strip()
+    start = offset + len(raw_chunk) - len(raw_chunk.lstrip())
+    return PageMarkdownSpan(
+        page=page,
+        text=text,
+        llm_markdown_start=start,
+        llm_markdown_end=start + len(text),
+    )
+
+
 def llm_markdown_page_spans(llm_markdown: str) -> list[PageMarkdownSpan]:
     """Best-effort compatibility parser for standalone page-rule Markdown.
 
@@ -425,30 +436,12 @@ def llm_markdown_page_spans(llm_markdown: str) -> list[PageMarkdownSpan]:
     page = 1
     for match in separator.finditer(llm_markdown):
         raw_chunk = llm_markdown[cursor : match.start()]
-        text = raw_chunk.strip()
-        start = cursor + (len(raw_chunk) - len(raw_chunk.lstrip()))
-        spans.append(
-            PageMarkdownSpan(
-                page=page,
-                text=text,
-                llm_markdown_start=start,
-                llm_markdown_end=start + len(text),
-            )
-        )
+        spans.append(_page_markdown_span(page, raw_chunk, cursor))
         cursor = match.end()
         page += 1
 
     raw_chunk = llm_markdown[cursor:]
-    text = raw_chunk.strip()
-    start = cursor + (len(raw_chunk) - len(raw_chunk.lstrip()))
-    spans.append(
-        PageMarkdownSpan(
-            page=page,
-            text=text,
-            llm_markdown_start=start,
-            llm_markdown_end=start + len(text),
-        )
-    )
+    spans.append(_page_markdown_span(page, raw_chunk, cursor))
     return spans
 
 

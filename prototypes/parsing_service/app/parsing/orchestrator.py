@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 import importlib
 import math
 import re
@@ -45,6 +44,7 @@ from app.storage.paths import (
     service_relative_ref,
     task_dir_for,
 )
+from app.timing import utc_now
 
 PREPROCESS_PROFILE = "production_default"
 
@@ -63,10 +63,6 @@ class CanonicalIngestionError(RuntimeError):
         self.code = code
         self.public_message = message
         self.parser_runs = list(parser_runs or [])
-
-
-def _utc_now() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
 def package_version(package_name: str) -> str | None:
@@ -613,7 +609,7 @@ def build_parsed_document(
     source_name = params.get("source_name", SOURCE_FILENAME)
     source_path = source_path or task_dir / SOURCE_FILENAME
 
-    started_at = metadata.get("created_at") or _utc_now()
+    started_at = metadata.get("created_at") or utc_now()
     inspection = inspect_pdf(
         source_path,
         max_pages=MAX_INGESTION_PAGES,
@@ -807,7 +803,7 @@ def build_parsed_document(
         config_hash=config_hash,
         service_version=package_version("parsing_service"),
         started_at=started_at,
-        finished_at=_utc_now(),
+        finished_at=utc_now(),
         status="completed_with_warnings" if warnings else "completed",
         warnings=warnings,
     )
