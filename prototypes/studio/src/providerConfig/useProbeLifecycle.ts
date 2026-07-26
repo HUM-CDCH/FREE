@@ -128,12 +128,16 @@ export function useProbeLifecycle({ providers, credentialStates }: ProbeInputs) 
     })
   }
 
-  useEffect(
-    () => () => {
-      for (const connectionId of [...lifecycles.current.keys()]) dispose(connectionId)
-    },
-    [],
-  )
+  useEffect(() => {
+    const active = lifecycles.current
+    return () => {
+      for (const { timer, controller } of active.values()) {
+        if (timer !== undefined) window.clearTimeout(timer)
+        controller?.abort()
+      }
+      active.clear()
+    }
+  }, [])
 
   return { probes, canProbe, schedule, refresh, dispose }
 }
