@@ -413,18 +413,7 @@ function App() {
       state.status === 'ready' ? { ...state, nodes, edited: true } : state,
     )
     showToast(message)
-  }
-
-  // Only chat-driven schema edits are recorded to history (not drag/inline/JSON/description edits).
-  function changeNodesFromChat(nodes: SchemaNode[], message: string) {
-    changeNodes(nodes, message)
     setSchemaHistory((history) => appendSchemaHistoryEntry(history, nodes, message))
-  }
-
-  function restoreSchemaVersion(entryId: string) {
-    const entry = schemaHistory.find((e) => e.id === entryId)
-    if (!entry) return
-    changeNodes(entry.nodes, `Restored: ${entry.message}`)
   }
 
   function startResize(event: React.MouseEvent, side: 'nav' | 'rail') {
@@ -679,9 +668,8 @@ function App() {
             schemaFieldCount={schemaFieldCount}
             onGenerate={() => void generateSchema()}
             onNodesChange={changeNodes}
-            onChatSchemaChange={changeNodesFromChat}
+            onChatSchemaChange={changeNodes}
             schemaHistory={schemaHistory}
-            onRestoreSchemaVersion={restoreSchemaVersion}
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}

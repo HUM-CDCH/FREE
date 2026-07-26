@@ -4,7 +4,7 @@ import { requestSchemaEdit } from './api'
 import { applyOps } from './schemaOps'
 import { countTemplateFields, isRecord } from './template'
 import { type SchemaNode, mkId, templateToNodes, nodesToTemplate } from './schemaNode'
-import type { SchemaHistoryEntry } from './schemaHistory'
+import { collectIds, summarizeSchemaChange, type SchemaHistoryEntry } from './schemaHistory'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Exported types (App.tsx depends on TemplateState)
@@ -27,7 +27,6 @@ type SchemaPanelProps = {
   onNodesChange: (nodes: SchemaNode[], message: string) => void
   onChatSchemaChange: (nodes: SchemaNode[], message: string) => void
   history: SchemaHistoryEntry[]
-  onRestoreVersion: (entryId: string) => void
   annotationCount: number
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
@@ -56,23 +55,9 @@ type PendingChange = {
   diffMap: Map<string, NodeDiffStatus>
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Task 1.1–1.4: Data model & converters
-// ────────────────────────────────────────────────────────────────────────────
 
-
-
-// ────────────────────────────────────────────────────────────────────────────
 // Diff computation (task 7.3)
 // ────────────────────────────────────────────────────────────────────────────
-
-function collectIds(nodes: SchemaNode[], out = new Map<string, SchemaNode>()): Map<string, SchemaNode> {
-  for (const n of nodes) {
-    out.set(n.id, n)
-    if (n.children) collectIds(n.children, out)
-  }
-  return out
-}
 
 function buildDiffPreview(
   oldNodes: SchemaNode[],
@@ -319,7 +304,6 @@ function SchemaPanel({
   onNodesChange,
   onChatSchemaChange,
   history,
-  onRestoreVersion,
   annotationCount,
   annotationsMode,
   onAnnotationsModeChange,
@@ -420,7 +404,7 @@ function SchemaPanel({
 
     const apply = (nodes: SchemaNode[]) => {
       nodesRef.current = nodes; setNodes(nodes)
-      onNodesChangeRef.current(nodes, '⠿ Schema reordered')
+      onNodesChangeRef.current(nodes, `⠿ Moved "${drag.name}"`)
     }
 
     if (horizontalIntent && dx > 0) {
@@ -474,7 +458,7 @@ function SchemaPanel({
       const finalNodes = insertIntoNode(root, target.id, moved)
       nodesRef.current = finalNodes
       setNodes(finalNodes)
-      onNodesChangeRef.current(finalNodes, '⠿ Schema reordered')
+      onNodesChangeRef.current(finalNodes, `⠿ Moved "${drag.name}" into "${target.name}"`)
     } else {
       const { parentId, index } = target
       const si = srcIndex(cur, drag)
@@ -485,7 +469,7 @@ function SchemaPanel({
       const finalNodes = insertAtSlot(root, parentId ?? null, ii, moved)
       nodesRef.current = finalNodes
       setNodes(finalNodes)
-      onNodesChangeRef.current(finalNodes, '⠿ Schema reordered')
+      onNodesChangeRef.current(finalNodes, `⠿ Moved "${drag.name}"`)
     }
   }
 
@@ -563,8 +547,9 @@ function SchemaPanel({
   // ── Task 5: inline edit ──
   function saveEdit() {
     if (!editing) return
+    const oldNodes = nodesRef.current
     const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_') || 'field'
-    const newNodes = nodesRef.current.map(n => {
+    const newNodes = oldNodes.map(n => {
       if (n.id === editing.id) {
         // Task 5.2 – convert type/children
         const out: SchemaNode = { ...n, name, type: editing.type }
@@ -582,19 +567,20 @@ function SchemaPanel({
     })
     nodesRef.current = newNodes
     setNodes(newNodes)
-    onNodesChange(newNodes, '✎ Schema updated')
+    onNodesChange(newNodes, `✎ ${summarizeSchemaChange(oldNodes, newNodes)}`)
     setEditing(null)
   }
 
   function bulkRemoveNodes() {
-    let newNodes = nodesRef.current
+    const oldNodes = nodesRef.current
+    let newNodes = oldNodes
     for (const id of selectedIds) {
       const [, after] = extractNode(newNodes, id)
       newNodes = after
     }
     nodesRef.current = newNodes
     setNodes(newNodes)
-    onNodesChange(newNodes, `${selectedIds.size} field${selectedIds.size !== 1 ? 's' : ''} removed`)
+    onNodesChange(newNodes, `✎ ${summarizeSchemaChange(oldNodes, newNodes)}`)
     if (editing && selectedIds.has(editing.id)) setEditing(null)
     setSelectedIds(new Set())
   }
@@ -608,6 +594,7 @@ function SchemaPanel({
   }
 
   function updateNodeDescription(id: string, description: string | undefined) {
+    const oldNodes = nodesRef.current
     function update(ns: SchemaNode[]): SchemaNode[] {
       return ns.map(n => {
         if (n.id === id) return { ...n, description }
@@ -615,10 +602,10 @@ function SchemaPanel({
         return n
       })
     }
-    const newNodes = update(nodesRef.current)
+    const newNodes = update(oldNodes)
     nodesRef.current = newNodes
     setNodes(newNodes)
-    onNodesChangeRef.current(newNodes, '✎ Description updated')
+    onNodesChangeRef.current(newNodes, `✎ ${summarizeSchemaChange(oldNodes, newNodes)}`)
   }
 
   function addField() {
@@ -630,7 +617,7 @@ function SchemaPanel({
     const newNodes = [...cur, { id, name, type: 'verbatim-string' }]
     nodesRef.current = newNodes
     setNodes(newNodes)
-    onNodesChange(newNodes, '✎ Schema updated')
+    onNodesChange(newNodes, `✎ ${summarizeSchemaChange(cur, newNodes)}`)
     setView('fields')
     setEditing({ id, name, type: 'verbatim-string' })
   }
@@ -680,9 +667,10 @@ function SchemaPanel({
   // Task 8.2 – apply pending
   function applyPending() {
     if (!pending) return
+    const oldNodes = nodesRef.current
     nodesRef.current = pending.newNodes
     setNodes(pending.newNodes)
-    onChatSchemaChange(pending.newNodes, '✦ Schema updated via chat')
+    onChatSchemaChange(pending.newNodes, `✦ ${summarizeSchemaChange(oldNodes, pending.newNodes)} (via chat)`)
     setChat(c => [...c, { role: 'assistant', text: '✓ Schema changes applied.' }])
     setPending(null)
   }
@@ -1036,10 +1024,11 @@ function SchemaPanel({
                       try {
                         const parsed: unknown = JSON.parse(jsonDraft)
                         if (!isRecord(parsed)) throw new Error('JSON must be an object')
+                        const oldNodes = nodesRef.current
                         const newNodes = templateToNodes(parsed)
                         nodesRef.current = newNodes
                         setNodes(newNodes)
-                        onNodesChangeRef.current(newNodes, '✎ Schema updated via JSON editor')
+                        onNodesChangeRef.current(newNodes, `✎ ${summarizeSchemaChange(oldNodes, newNodes)} (via JSON editor)`)
                         setJsonEditMode(false)
                         setJsonEditError(null)
                       } catch (e) {
@@ -1112,7 +1101,7 @@ function SchemaPanel({
               <button
                 className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent disabled:cursor-default disabled:opacity-40"
                 type="button"
-                title="Chat edit history"
+                title="Schema edit history"
                 disabled={history.length === 0}
                 onClick={() => setHistoryOpen((open) => !open)}
               >
@@ -1121,7 +1110,7 @@ function SchemaPanel({
               {historyOpen && (
                 <div className="scrollbar-subtle absolute right-0 bottom-full z-20 mb-1.5 max-h-80 w-72 overflow-y-auto rounded-lg border border-line bg-surface shadow-[0_4px_20px_rgba(51,48,44,.16)]">
                   {history.length === 0 ? (
-                    <p className="px-3 py-3 text-[12px] text-ink-muted">No chat edits yet.</p>
+                    <p className="px-3 py-3 text-[12px] text-ink-muted">No edits yet.</p>
                   ) : (
                     <ul className="flex flex-col divide-y divide-line">
                       {[...history].reverse().map((entry) => (
@@ -1129,7 +1118,12 @@ function SchemaPanel({
                           <button
                             className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left outline-none transition-colors hover:bg-accent-ghost/40 focus-visible:bg-accent-ghost/40"
                             type="button"
-                            onClick={() => { onRestoreVersion(entry.id); setHistoryOpen(false) }}
+                            onClick={() => {
+                              nodesRef.current = entry.nodes
+                              setNodes(entry.nodes)
+                              onNodesChange(entry.nodes, `Restored: ${entry.message}`)
+                              setHistoryOpen(false)
+                            }}
                           >
                             <span className="text-[12px] font-medium text-ink">{entry.message}</span>
                             <span className="text-[10.5px] text-ink-faint">{new Date(entry.timestamp).toLocaleTimeString()}</span>

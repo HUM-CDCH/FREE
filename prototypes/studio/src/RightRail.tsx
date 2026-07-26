@@ -28,7 +28,6 @@ type RightRailProps = {
   onNodesChange: (nodes: SchemaNode[], message: string) => void
   onChatSchemaChange: (nodes: SchemaNode[], message: string) => void
   schemaHistory: SchemaHistoryEntry[]
-  onRestoreSchemaVersion: (entryId: string) => void
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
@@ -68,7 +67,6 @@ function RightRail({
   onNodesChange,
   onChatSchemaChange,
   schemaHistory,
-  onRestoreSchemaVersion,
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
@@ -159,7 +157,6 @@ function RightRail({
           onNodesChange={onNodesChange}
           onChatSchemaChange={onChatSchemaChange}
           history={schemaHistory}
-          onRestoreVersion={onRestoreSchemaVersion}
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}
