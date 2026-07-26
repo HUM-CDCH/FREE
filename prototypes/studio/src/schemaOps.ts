@@ -23,10 +23,19 @@ function mapNodes(
   return out
 }
 
+// Sentinel for "no parent" (top-level), so root-level ops can't be confused
+// with an unconstrained wildcard match. Built from a NUL char at runtime
+// (rather than a literal escape) so it can't collide with a real field name,
+// without putting a raw control byte in the source file itself.
+const ROOT_PARENT = String.fromCharCode(0) + 'root'
+
+function normalizeParent(parentName: string | undefined): string {
+  return parentName ?? ROOT_PARENT
+}
+
 function matches(node: SchemaNode, name: string, parentName: string | undefined, actualParent: string | undefined): boolean {
   if (node.name !== name) return false
-  if (parentName !== undefined && parentName !== actualParent) return false
-  return true
+  return normalizeParent(parentName) === normalizeParent(actualParent)
 }
 
 export function addSchemaNode(

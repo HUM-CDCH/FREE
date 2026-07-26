@@ -31,7 +31,12 @@ function wrapSchema(template: unknown): unknown {
     return template.map((item) => wrapSchema(item))
   }
   if (isRecord(template)) {
-    return Object.fromEntries(Object.entries(template).map(([key, value]) => [key, wrapSchema(value)]))
+    return Object.fromEntries(
+      // "_description" is NuExtract's own field-guidance convention, not an
+      // extraction target — it must reach the model as plain text, not
+      // wrapped in {value, snippet, page} like a real field.
+      Object.entries(template).map(([key, value]) => [key, key === '_description' ? value : wrapSchema(value)]),
+    )
   }
   return { value: template, snippet: 'string', page: 'number' }
 }
@@ -65,6 +70,7 @@ function splitNode(node: unknown): SplitEvidence {
     const result: Record<string, unknown> = {}
     const evidence: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(node)) {
+      if (key === '_description') continue // schema guidance, not an extracted value
       const split = splitNode(value)
       result[key] = split.result
       if (split.evidence !== null) {

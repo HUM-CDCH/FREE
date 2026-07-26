@@ -50,9 +50,11 @@ type ChatMsg = { role: 'user' | 'assistant'; text: string }
 type NodeDiffStatus = 'added' | 'removed'
 
 type PendingChange = {
-  newNodes: SchemaNode[]
   displayNodes: SchemaNode[]
   diffMap: Map<string, NodeDiffStatus>
+  // Keyed by the real node id (never a "-ghost" id) — one entry per logical
+  // change (add / remove / rename+retype), independent of accept/reject.
+  rejectedKeys: Set<string>
 }
 
 
@@ -113,6 +115,78 @@ function buildDiffPreview(
 
   const displayNodes = diffMap.size === 0 ? newNodes : mergeLevel(newNodes, oldNodes)
   return { displayNodes, diffMap }
+}
+
+// A modified field is split into a "-ghost" (old) row and a real (new) row —
+// both belong to the same logical change, keyed by the real id.
+function changeKeyOf(nodeId: string): string {
+  return nodeId.replace(/-ghost$/, '')
+}
+
+// Whether `nodeId` is the root of a wholesale added/removed subtree — i.e. a
+// genuinely new or deleted node, as opposed to the "new" half of a
+// rename/retype pair (which keeps its subtree's independent diffs intact).
+// Descendants of a wholesale add/remove all get their own diffMap entries
+// too (buildDiffPreview flattens ids recursively), but those are echoes of
+// the same change, not independent decisions — see resolveAcceptedNodes and
+// its render-side counterpart in SchemaPanel's row renderers.
+function isWholesaleDiffRoot(diffMap: Map<string, NodeDiffStatus>, nodeId: string): boolean {
+  const status = diffMap.get(nodeId)
+  if (status === 'removed') return !nodeId.endsWith('-ghost')
+  if (status === 'added') return diffMap.get(`${nodeId}-ghost`) !== 'removed'
+  return false
+}
+
+// Resolves `displayNodes` (which contains every proposed change, positioned
+// for preview) down to the tree that should actually be committed, given
+// which logical changes the researcher rejected. `displayNodes` already has
+// removed/old nodes reinserted at their original position (see mergeLevel
+// above), so this only has to decide, per row, whether to keep the old or
+// the new version — no separate position-tracking is needed.
+function resolveAcceptedNodes(
+  displayLevel: SchemaNode[],
+  diffMap: Map<string, NodeDiffStatus>,
+  rejectedKeys: Set<string>,
+): SchemaNode[] {
+  const out: SchemaNode[] = []
+  for (let i = 0; i < displayLevel.length; i++) {
+    const node = displayLevel[i]
+    const status = diffMap.get(node.id)
+
+    if (status === undefined) {
+      out.push(node.children ? { ...node, children: resolveAcceptedNodes(node.children, diffMap, rejectedKeys) } : node)
+      continue
+    }
+
+    if (node.id.endsWith('-ghost')) {
+      const realId = changeKeyOf(node.id)
+      if (rejectedKeys.has(realId)) {
+        // rename/retype rejected — keep the old version, skip the paired new row
+        out.push(node.children
+          ? { ...node, id: realId, children: resolveAcceptedNodes(node.children, diffMap, rejectedKeys) }
+          : { ...node, id: realId })
+        i++
+      }
+      // accepted — drop the ghost, let the loop reach the paired new row below
+      continue
+    }
+
+    if (status === 'added') {
+      if (rejectedKeys.has(node.id)) continue // reverts an add, or the new half of a rejected rename/retype
+      out.push(node.children ? { ...node, children: resolveAcceptedNodes(node.children, diffMap, rejectedKeys) } : node)
+      continue
+    }
+
+    // status === 'removed' (real id, not a ghost) — a wholesale deletion.
+    // Keep the *entire* original subtree verbatim when rejected: descendants
+    // carry their own 'removed' diffMap entries too (buildDiffPreview
+    // flattens ids recursively), but those are echoes of this same removal,
+    // not independent decisions, so they must not be re-resolved here.
+    if (rejectedKeys.has(node.id)) {
+      out.push(node)
+    }
+  }
+  return out
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -646,7 +720,7 @@ function SchemaPanel({
       if (diffMap.size === 0) {
         setChat(c => [...c, { role: 'assistant', text: 'No changes needed — the schema already matches your request.' }])
       } else {
-        setPending({ newNodes, displayNodes, diffMap })
+        setPending({ displayNodes, diffMap, rejectedKeys: new Set() })
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -668,11 +742,23 @@ function SchemaPanel({
   function applyPending() {
     if (!pending) return
     const oldNodes = nodesRef.current
-    nodesRef.current = pending.newNodes
-    setNodes(pending.newNodes)
-    onChatSchemaChange(pending.newNodes, `✦ ${summarizeSchemaChange(oldNodes, pending.newNodes)} (via chat)`)
+    const finalNodes = resolveAcceptedNodes(pending.displayNodes, pending.diffMap, pending.rejectedKeys)
+    nodesRef.current = finalNodes
+    setNodes(finalNodes)
+    onChatSchemaChange(finalNodes, `✦ ${summarizeSchemaChange(oldNodes, finalNodes)} (via chat)`)
     setChat(c => [...c, { role: 'assistant', text: '✓ Schema changes applied.' }])
     setPending(null)
+  }
+
+  // Toggles whether one proposed change (keyed by its real node id) is
+  // included when the pending diff is applied.
+  function toggleChangeRejected(key: string) {
+    setPending(p => {
+      if (!p) return p
+      const next = new Set(p.rejectedKeys)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return { ...p, rejectedKeys: next }
+    })
   }
 
   // Task 8.3 – discard
@@ -717,6 +803,12 @@ function SchemaPanel({
   // Task 8.4 – disable chat input while pending
   const chatBlocked = !!pending || chatLoading
 
+  // Whether at least one proposed change is still accepted (not rejected) —
+  // "Apply changes" is a no-op otherwise.
+  const hasAcceptedChanges = pending
+    ? [...pending.diffMap.keys()].some(id => !pending.rejectedKeys.has(changeKeyOf(id)))
+    : false
+
   // const activeSuggs = SUGGESTIONS.filter(s => !usedSuggs.includes(s.id))
 
   const tabCls = (active: boolean) =>
@@ -733,8 +825,13 @@ function SchemaPanel({
     const isEditing = editing?.id === node.id
     const diffStatus = pending?.diffMap.get(node.id) ?? null
     const isDiff = diffStatus !== null
+    const isGhostRow = node.id.endsWith('-ghost')
+    const changeKey = changeKeyOf(node.id)
+    const isRejected = isDiff && (pending?.rejectedKeys.has(changeKey) ?? false)
+    const showToggle = isDiff && !isGhostRow
     const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : ''
     const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : 'text-ink'
+    const absorbedByForChildren = pending && isWholesaleDiffRoot(pending.diffMap, node.id) ? changeKey : null
 
     return (
       <div key={node.id}>
@@ -745,7 +842,7 @@ function SchemaPanel({
           <FieldEditForm editing={editing} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} />
         ) : (
           <div
-            className={`${rowCls(node.id, intoGroup, isDragging)} ${diffBg}`}
+            className={`${rowCls(node.id, intoGroup, isDragging)} ${diffBg} ${isRejected ? 'opacity-45' : ''}`}
             onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name)}
             onMouseLeave={() => !isDiff && clearGroupTarget(node.id)}
           >
@@ -764,6 +861,16 @@ function SchemaPanel({
               </span>
             )}
             <span className="min-w-0 flex-1" />
+            {showToggle && (
+              <button
+                className={`shrink-0 cursor-pointer whitespace-nowrap rounded px-1.5 py-0.5 font-sans text-[10.5px] font-semibold outline-none transition-colors ${isRejected ? 'text-ink-muted hover:text-accent' : 'text-danger hover:brightness-90'}`}
+                type="button"
+                title={isRejected ? 'Restore this change' : 'Reject this change'}
+                onClick={e => { e.stopPropagation(); toggleChangeRejected(changeKey) }}
+              >
+                {isRejected ? '↺ Restore' : '✕ Reject'}
+              </button>
+            )}
             {!isDiff && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
@@ -814,7 +921,7 @@ function SchemaPanel({
         {/* Nested children area — shown when there are children or dragging (for drop slot) */}
         {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j))}
+            {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j, absorbedByForChildren))}
             <div
               className={slotCls(node.id, (node.children ?? []).length)}
               onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)}
@@ -825,7 +932,13 @@ function SchemaPanel({
     )
   }
 
-  function renderChildField(child: SchemaNode, parentId: string, j: number): React.ReactNode {
+  // `absorbedBy` is the change-key of the nearest ancestor whose ENTIRE
+  // subtree was wholesale added/removed (not renamed/retyped) — such an
+  // ancestor's descendants get their own diffMap entries too, but those are
+  // just echoes of the same change, so they inherit its key instead of
+  // getting their own independent accept/reject toggle. Null means this row
+  // is itself the top of whatever change it's part of.
+  function renderChildField(child: SchemaNode, parentId: string, j: number, absorbedBy: string | null): React.ReactNode {
     const isDragging = dragging?.id === child.id
     const isEditing = editing?.id === child.id
     const isGroup = child.children !== undefined
@@ -833,8 +946,14 @@ function SchemaPanel({
     const isExpanded = expandedIds.has(child.id) || intoGroup
     const diffStatus = pending?.diffMap.get(child.id) ?? null
     const isDiff = diffStatus !== null
+    const isGhostRow = child.id.endsWith('-ghost')
+    const ownChangeKey = changeKeyOf(child.id)
+    const changeKey = absorbedBy ?? ownChangeKey
+    const isRejected = isDiff && (pending?.rejectedKeys.has(changeKey) ?? false)
+    const showToggle = isDiff && !isGhostRow && absorbedBy === null
     const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : ''
     const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : 'text-ink'
+    const absorbedByForChildren = absorbedBy ?? (pending && isWholesaleDiffRoot(pending.diffMap, child.id) ? ownChangeKey : null)
 
     const toggleExpand = (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -852,7 +971,7 @@ function SchemaPanel({
           <FieldEditForm editing={editing} onChange={setEditing} onSave={saveEdit} onCancel={() => setEditing(null)} />
         ) : (
           <div
-            className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup && !isDiff ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''} ${diffBg}`}
+            className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup && !isDiff ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''} ${diffBg} ${isRejected ? 'opacity-45' : ''}`}
           >
             {!isDiff && (
               <span
@@ -879,6 +998,16 @@ function SchemaPanel({
               </span>
             )}
             <span className="min-w-0 flex-1" />
+            {showToggle && (
+              <button
+                className={`shrink-0 cursor-pointer whitespace-nowrap rounded px-1.5 py-0.5 font-sans text-[10.5px] font-semibold outline-none transition-colors ${isRejected ? 'text-ink-muted hover:text-accent' : 'text-danger hover:brightness-90'}`}
+                type="button"
+                title={isRejected ? 'Restore this change' : 'Reject this change'}
+                onClick={e => { e.stopPropagation(); toggleChangeRejected(changeKey) }}
+              >
+                {isRejected ? '↺ Restore' : '✕ Reject'}
+              </button>
+            )}
             {!isDiff && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
@@ -929,7 +1058,7 @@ function SchemaPanel({
         {/* Children area — shown when expanded and has children or dragging (for drop slot) */}
         {isGroup && isExpanded && ((child.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k))}
+            {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k, absorbedByForChildren))}
             <div
               className={slotCls(child.id, (child.children ?? []).length)}
               onMouseEnter={() => setSlotTarget(child.id, (child.children ?? []).length)}
@@ -1158,8 +1287,10 @@ function SchemaPanel({
           {pending && (
             <div className="shrink-0 flex items-center gap-2 border-t border-line px-3.5 py-2.5">
               <button
-                className="cursor-pointer rounded-md border border-accent bg-accent px-3.5 py-1.5 font-sans text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108"
+                className="cursor-pointer rounded-md border border-accent bg-accent px-3.5 py-1.5 font-sans text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 disabled:cursor-default disabled:border-line-strong disabled:bg-surface disabled:text-ink-faint"
                 type="button"
+                disabled={!hasAcceptedChanges}
+                title={hasAcceptedChanges ? undefined : 'All changes rejected — nothing to apply'}
                 onClick={applyPending}
               >
                 Apply changes

@@ -392,6 +392,7 @@ function App() {
       })
       if (!abortController.signal.aborted) {
         setTemplateState({ status: 'ready', nodes: templateToNodes(template), inputsKey })
+        setSchemaHistory(clearSchemaHistory())
       }
     } catch (error) {
       if (abortController.signal.aborted) {

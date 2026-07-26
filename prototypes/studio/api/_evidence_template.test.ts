@@ -18,6 +18,19 @@ describe('wrapTemplateWithEvidence', () => {
       cemetery: { city: { value: 'string', snippet: 'string', page: 'number' } },
     })
   })
+
+  it('passes "_description" through untouched instead of wrapping it as a field', () => {
+    const template = {
+      cemetery: { _description: 'Only the excavation cemetery, not modern place names.', city: 'string' },
+    }
+
+    expect(wrapTemplateWithEvidence(template)).toEqual({
+      cemetery: {
+        _description: 'Only the excavation cemetery, not modern place names.',
+        city: { value: 'string', snippet: 'string', page: 'number' },
+      },
+    })
+  })
 })
 
 describe('splitEvidenceResult', () => {
@@ -55,6 +68,20 @@ describe('splitEvidenceResult', () => {
         },
       },
       evidence: null,
+    })
+  })
+
+  it('drops "_description" from the extraction result instead of echoing it back', () => {
+    const extracted = {
+      cemetery: {
+        _description: 'Only the excavation cemetery, not modern place names.',
+        city: { value: 'Ribe', snippet: 'Ribe', page: 3 },
+      },
+    }
+
+    expect(splitEvidenceResult(extracted)).toEqual({
+      result: { cemetery: { city: 'Ribe' } },
+      evidence: { cemetery: { city: { value: 'Ribe', snippet: 'Ribe', page: 3 } } },
     })
   })
 })

@@ -32,7 +32,9 @@ const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 const NON_THINKING_TEMPERATURE = 0.2
 
 const EVIDENCE_FIELD_INSTRUCTION =
-  'For every evidence field in the template, set "snippet" to a short verbatim excerpt from the document that contains the value, and set "page" to the 1-based index of the page or image where the value appears. Never leave "snippet" or "page" as null.'
+  'For every evidence field in the template, set "snippet" to a short verbatim excerpt from the document that contains the value, and set "page" to the 1-based index of the page or image where the value appears. Never leave "snippet" or "page" as null. ' +
+  'A "_description" next to a field in the template is a mandatory researcher-authored rule for that field and everything nested under it. Follow it exactly, even where it narrows or overrides what the field\'s name alone would suggest. ' +
+  'Use the field names given in the template exactly as spelled, character for character, in your output — never translate, localize, or substitute a name from the Source Document\'s own language, even when the document consistently uses a different term for that field.'
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -448,7 +450,7 @@ Researcher instruction: "${instruction}"
 
 Field: "${field.path}" — current name "${fieldName(field.path)}", current type "${field.type}".
 
-Decide this field's result after applying the instruction. If the instruction does not affect this field, echo its current name and current type unchanged and set "removed" to false. If the instruction says to delete this field, set "removed" to true.`
+Decide this field's result after applying the instruction. When researcher asks to delete or add a field, make sure the field name follow the instruction exactly. If the instruction is irrelevant this field, echo its current name and current type unchanged and set "removed" to false. If the instruction says to delete this field, set "removed" to true.`
 
   let lastError: unknown
   for (let attempt = 0; attempt < FIELD_EDIT_ATTEMPTS; attempt++) {
