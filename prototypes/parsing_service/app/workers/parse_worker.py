@@ -14,7 +14,6 @@ from typing import Any
 from filelock import FileLock, Timeout
 
 from app.models.parsed_document import ParsedDocument
-from app.models.parser import canonical_preprocessing_config
 from app.parsing.orchestrator import CanonicalIngestionError, build_parsed_document
 from app.storage.blobs import (
     prune_document_store,
@@ -47,9 +46,17 @@ from app.storage.paths import (
     task_dir_for,
     task_lock_path,
     task_store_lock_path,
-    validate_task_id,
 )
 from app.timing import utc_now
+from app.workers._task_state import (
+    cached_document_matches_task,
+    failure_metadata as _failure_metadata,
+    iter_task_entries as _iter_task_entries,
+    normalize_legacy_metadata as _normalize_legacy_metadata,
+    task_modified_at as _task_modified_at,
+)
+
+_cached_document_matches_task = cached_document_matches_task
 
 logger = logging.getLogger(__name__)
 
@@ -58,25 +65,11 @@ logger = logging.getLogger(__name__)
 _PARSER_ADMISSION = asyncio.Semaphore(1)
 _CANONICAL_LOCK_TIMEOUT_SECONDS = 15 * 60
 _ACTIVE_TASK_IDS: set[str] = set()
+_SOURCE_PDF_FILENAME = "source.pdf"
 
 
 class _TaskStateError(Exception):
     pass
-
-
-def _cached_document_matches_task(
-    parsed_document: ParsedDocument,
-    metadata: dict[str, Any],
-) -> bool:
-    content_sha256 = metadata.get("content_sha256")
-    return bool(
-        isinstance(content_sha256, str)
-        and parsed_document.document.content_sha256 == content_sha256
-        and parsed_document.document.document_id
-        == document_id_from_hash(content_sha256)
-        and parsed_document.preprocessing.config_hash
-        == preprocessing_config_hash(metadata)
-    )
 
 
 def _load_valid_canonical(
@@ -105,7 +98,7 @@ def _authenticated_source_blob(
     task_id: str,
     content_sha256: str,
 ) -> Path:
-    task_source = task_dir_for(task_id) / "source.pdf"
+    task_source = task_dir_for(task_id) / _SOURCE_PDF_FILENAME
     if not task_source.is_file() or compute_sha256(task_source) != content_sha256:
         raise CanonicalIngestionError(
             "source_digest_mismatch",
@@ -233,26 +226,6 @@ def _completed_metadata(
     return updated
 
 
-def _failure_metadata(
-    metadata: dict[str, Any],
-    exc: Exception,
-) -> dict[str, Any]:
-    updated = dict(metadata)
-    if isinstance(exc, CanonicalIngestionError):
-        updated["error_code"] = exc.code
-        updated["error"] = exc.public_message
-        updated["parser_runs"] = [
-            run.model_dump(mode="json") for run in exc.parser_runs
-        ]
-        updated["stats"] = {run.parser: run.metrics for run in exc.parser_runs}
-    else:
-        updated["error_code"] = "parsing_failed"
-        updated["error"] = "Parsing failed. See server logs for details."
-    updated["selected_parser"] = None
-    updated["status"] = "failed"
-    return updated
-
-
 def _run_task_sync(task_id: str) -> None:
     task_dir = task_dir_for(task_id)
     lock = FileLock(str(task_lock_path(task_id)))
@@ -310,154 +283,114 @@ async def run_extraction_task(
         _ACTIVE_TASK_IDS.discard(task_id)
 
 
-def _normalize_legacy_metadata(
-    task_id: str,
-    metadata: dict[str, Any],
-) -> dict[str, Any]:
-    normalized = dict(metadata)
-    normalized["task_id"] = task_id
-    content_sha256 = normalized.get("content_sha256")
-    if isinstance(content_sha256, str):
-        normalized["document_id"] = document_id_from_hash(content_sha256)
-        normalized.setdefault(
-            "source_store_path",
-            f"data/sources/{content_sha256}.pdf",
+def _probe_shared_store_locks() -> None:
+    """Verify shared lock paths are accessible without requiring ownership."""
+    for store_lock_path in (task_store_lock_path(), document_store_lock_path()):
+        try:
+            lock = FileLock(str(store_lock_path))
+            lock.acquire(timeout=0)
+            lock.release()
+        except Timeout:
+            pass
+
+
+def _reconcile_task(entry: Path, task_id: str) -> bool:
+    """Reconcile one locked task, isolating malformed task-local state."""
+    try:
+        stored_metadata = load_task_metadata(entry)
+        metadata = _normalize_legacy_metadata(task_id, stored_metadata)
+        status = metadata.get("status")
+        if status not in {"pending", "running", "completed", "failed"}:
+            raise ValueError("Task metadata has an invalid status.")
+        if status in {"completed", "failed"}:
+            if metadata != stored_metadata:
+                _persist_task_metadata(entry, metadata)
+            return False
+
+        content_sha256 = metadata.get("content_sha256")
+        cached = (
+            _load_valid_canonical(content_sha256, metadata)
+            if isinstance(content_sha256, str)
+            else None
         )
-    params = dict(normalized.get("params", {}))
-    resolved_device = str(
-        params.get("resolved_ocr_device") or params.get("device") or "cpu"
-    )
-    normalized["params"] = {
-        **canonical_preprocessing_config(resolved_ocr_device=resolved_device),
-        **params,
-        "resolved_ocr_device": resolved_device,
-        "source_name": str(params.get("source_name") or "source.pdf"),
-    }
-    normalized.setdefault("source_path", "source.pdf")
-    normalized.setdefault(
-        "source_kind",
-        "url" if normalized.get("submitted_url") else "upload",
-    )
-    normalized.setdefault("stats", {})
-    normalized.setdefault("parser_runs", [])
-    normalized.setdefault("selected_parser", None)
-    normalized.setdefault("canonical_parsed_document_ref", None)
-    normalized.setdefault("error_code", None)
-    normalized.setdefault("error", None)
-    now = utc_now()
-    normalized.setdefault("created_at", now)
-    normalized.setdefault("updated_at", now)
-    return normalized
+        if cached is not None:
+            _completed_metadata(entry, metadata, cached)
+            return True
+
+        metadata["status"] = "failed"
+        metadata["error_code"] = "task_interrupted"
+        metadata["error"] = (
+            "Parsing was interrupted before a canonical result was published."
+        )
+        metadata["updated_at"] = utc_now()
+        _persist_task_metadata(entry, metadata)
+        return True
+    except (
+        _TaskStateError,
+        TaskNotFoundError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        logger.warning(
+            "Task recovery skipped for task %s (%s)",
+            task_id,
+            type(exc).__name__,
+        )
+        return False
 
 
 def reconcile_interrupted_tasks() -> int:
     """Finish from a valid cache or mark interrupted tasks failed on startup."""
+    _probe_shared_store_locks()
     reconciled = 0
-    data_path = Path(DEFAULT_DATA_DIR)
-    # Contention proves coordination works; lock access errors must abort startup.
-    for store_lock_path in (task_store_lock_path(), document_store_lock_path()):
+    for entry, task_id in _iter_task_entries(Path(DEFAULT_DATA_DIR)):
         try:
-            with FileLock(str(store_lock_path)).acquire(timeout=0):
-                pass
-        except Timeout:
-            pass
-    for entry in data_path.iterdir():
-        if not entry.is_dir():
-            continue
-        try:
-            task_id = validate_task_id(entry.name)
-        except ValueError:
-            continue
-        lock = FileLock(str(task_lock_path(task_id)))
-        try:
-            with lock.acquire(timeout=0):
-                try:
-                    stored_metadata = load_task_metadata(entry)
-                    metadata = _normalize_legacy_metadata(task_id, stored_metadata)
-                    status = metadata.get("status")
-                    if status not in {"pending", "running", "completed", "failed"}:
-                        raise ValueError("Task metadata has an invalid status.")
-                    if status in {"completed", "failed"}:
-                        if metadata != stored_metadata:
-                            _persist_task_metadata(entry, metadata)
-                        continue
-
-                    content_sha256 = metadata.get("content_sha256")
-                    cached = (
-                        _load_valid_canonical(content_sha256, metadata)
-                        if isinstance(content_sha256, str)
-                        else None
-                    )
-                    if cached is not None:
-                        _completed_metadata(entry, metadata, cached)
-                        reconciled += 1
-                        continue
-                    metadata["status"] = "failed"
-                    metadata["error_code"] = "task_interrupted"
-                    metadata["error"] = (
-                        "Parsing was interrupted before a canonical result was published."
-                    )
-                    metadata["updated_at"] = utc_now()
-                    _persist_task_metadata(entry, metadata)
-                    reconciled += 1
-                except (
-                    _TaskStateError,
-                    TaskNotFoundError,
-                    TypeError,
-                    ValueError,
-                ) as exc:
-                    logger.warning(
-                        "Task recovery skipped for task %s (%s)",
-                        task_id,
-                        type(exc).__name__,
-                    )
+            with FileLock(str(task_lock_path(task_id))).acquire(timeout=0):
+                reconciled += _reconcile_task(entry, task_id)
         except Timeout:
             continue
     return reconciled
 
 
-def cleanup_once(*, now: float | None = None) -> int:
-    """Remove expired inactive tasks and prune unreferenced source stores."""
-    removed = 0
-    current = time.time() if now is None else now
-    cutoff = current - 24 * 3600
-    data_path = Path(DEFAULT_DATA_DIR)
-    if data_path.exists():
-        for entry in data_path.iterdir():
-            if not entry.is_dir():
-                continue
-            try:
-                task_id = validate_task_id(entry.name)
-            except ValueError:
-                continue
-            if task_id in _ACTIVE_TASK_IDS:
-                continue
-            meta_path = entry / "metadata.json"
-            try:
-                modified = (
-                    meta_path.stat().st_mtime
-                    if meta_path.exists()
-                    else entry.stat().st_mtime
-                )
-            except OSError:
-                continue
-            if modified >= cutoff:
-                continue
-            lock = FileLock(str(task_lock_path(task_id)))
-            try:
-                with lock.acquire(timeout=0):
-                    shutil.rmtree(entry)
-                    removed += 1
-            except (Timeout, FileNotFoundError, PermissionError, OSError):
-                continue
-    prune_source_store(data_dir=DEFAULT_DATA_DIR)
+def _remove_expired_task(entry: Path, task_id: str, cutoff: float) -> bool:
+    if task_id in _ACTIVE_TASK_IDS:
+        return False
+    modified = _task_modified_at(entry)
+    if modified is None or modified >= cutoff:
+        return False
+
+    lock = FileLock(str(task_lock_path(task_id)))
+    try:
+        with lock.acquire(timeout=0):
+            shutil.rmtree(entry)
+    except OSError:
+        return False
+    return True
+
+
+def _prune_document_stores() -> None:
     document_store_lock = FileLock(str(document_store_lock_path()))
     try:
         with document_store_lock.acquire(timeout=0):
             prune_orphan_document_generations(data_dir=DEFAULT_DATA_DIR)
             prune_document_store(data_dir=DEFAULT_DATA_DIR)
     except Timeout:
-        pass
+        return
+
+
+def cleanup_once(*, now: float | None = None) -> int:
+    """Remove expired inactive tasks and prune unreferenced source stores."""
+    current = time.time() if now is None else now
+    cutoff = current - 24 * 3600
+    data_path = Path(DEFAULT_DATA_DIR)
+    entries = _iter_task_entries(data_path) if data_path.exists() else ()
+    removed = sum(
+        _remove_expired_task(entry, task_id, cutoff)
+        for entry, task_id in entries
+    )
+
+    prune_source_store(data_dir=DEFAULT_DATA_DIR)
+    _prune_document_stores()
     return removed
 
 

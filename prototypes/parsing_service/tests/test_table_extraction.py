@@ -6,6 +6,7 @@ import math
 import tempfile
 import unittest
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -64,6 +65,14 @@ ALIGNED_CAMELOT_CELL_BBOXES = [
 ]
 
 
+@dataclass(frozen=True, slots=True)
+class _InventoryContext:
+    page: int = 2
+    bbox: BBoxTuple = (10.0, 50.0, 190.0, 100.0)
+    cell_bboxes: Mapping[tuple[int, int], BBoxTuple] | None = None
+    role_overrides: Mapping[tuple[int, int], str] | None = None
+
+
 class _FakeTable:
     def __init__(
         self,
@@ -113,20 +122,17 @@ def _extract_with_fake_camelot(
 
 def _inventory_for_rows(
     rows: list[list[str]],
-    *,
-    page: int = 2,
-    bbox: BBoxTuple = (10.0, 50.0, 190.0, 100.0),
-    cell_bboxes: dict[tuple[int, int], BBoxTuple] | None = None,
-    role_overrides: dict[tuple[int, int], str] | None = None,
+    context: _InventoryContext | None = None,
 ) -> dict[str, object]:
+    context = context or _InventoryContext()
     inferred = table_matrix_to_parsed_table(
         rows,
-        page_number=page,
+        page_number=context.page,
         table_index=1,
         page_height_pt=None,
     )
     roles = {(cell.row, cell.col): cell.role or "data" for cell in inferred.cells}
-    roles.update(role_overrides or {})
+    roles.update(context.role_overrides or {})
     raw_cells: list[dict[str, object]] = []
     for row, values in enumerate(rows):
         for col, text in enumerate(values):
@@ -136,7 +142,7 @@ def _inventory_for_rows(
                 "text": text,
                 "role": roles[(row, col)],
             }
-            cell_bbox = (cell_bboxes or {}).get((row, col))
+            cell_bbox = (context.cell_bboxes or {}).get((row, col))
             if cell_bbox is not None:
                 cell["bbox"] = {
                     "x0": cell_bbox[0],
@@ -147,14 +153,14 @@ def _inventory_for_rows(
                 }
             raw_cells.append(cell)
     return {
-        "page_number": page,
+        "page_number": context.page,
         "rows": len(rows),
         "cols": len(rows[0]),
         "bbox": {
-            "x0": bbox[0],
-            "y0": bbox[1],
-            "x1": bbox[2],
-            "y1": bbox[3],
+            "x0": context.bbox[0],
+            "y0": context.bbox[1],
+            "x1": context.bbox[2],
+            "y1": context.bbox[3],
             "origin": "TOPLEFT",
         },
         "cells": raw_cells,
@@ -390,7 +396,7 @@ class TestExtractTables(unittest.TestCase):
             )
         mock_import.assert_called_once_with("camelot")
         self.assertEqual(output.status, "success")
-        self.assertEqual(output.error, None)
+        self.assertIsNone(output.error)
         self.assertEqual(len(output.tables), 1)
         self.assertEqual(output.tables[0].source_parser, DOCLING_TABLE_PARSER_NAME)
         self.assertEqual(
@@ -518,7 +524,9 @@ class TestExtractTables(unittest.TestCase):
         inventory = [
             _inventory_for_rows(
                 rows,
-                cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)},
+                _InventoryContext(
+                    cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)}
+                ),
             )
         ]
         candidate = _FakeTable(
@@ -563,7 +571,12 @@ class TestExtractTables(unittest.TestCase):
         output, _ = _extract_with_fake_camelot(
             [candidate],
             page_heights_pt={2: 200.0},
-            docling_tables=[_inventory_for_rows(rows, cell_bboxes=docling_cell_bboxes)],
+            docling_tables=[
+                _inventory_for_rows(
+                    rows,
+                    _InventoryContext(cell_bboxes=docling_cell_bboxes),
+                )
+            ],
         )
 
         self.assertEqual(output.tables[0].source_parser, DOCLING_TABLE_PARSER_NAME)
@@ -578,13 +591,18 @@ class TestExtractTables(unittest.TestCase):
                 "displaced geometry",
                 _inventory_for_rows(
                     rows,
-                    cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)},
+                    _InventoryContext(
+                        cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)}
+                    ),
                 ),
                 displaced_cell_bboxes,
             ),
             (
                 "role mismatch",
-                _inventory_for_rows(rows, role_overrides={(0, 1): "data"}),
+                _inventory_for_rows(
+                    rows,
+                    _InventoryContext(role_overrides={(0, 1): "data"}),
+                ),
                 aligned_cell_bboxes,
             ),
         )
@@ -608,7 +626,9 @@ class TestExtractTables(unittest.TestCase):
         inventory_cell_bbox = BoundingBox(x0=10.0, y0=50.0, x1=70.0, y1=75.0)
         inventory = _inventory_for_rows(
             rows,
-            cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)},
+            _InventoryContext(
+                cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)}
+            ),
         )
         full_candidate_boxes = ALIGNED_CAMELOT_CELL_BBOXES
         nested_table_boxes = [[(10.0, 125.0, 70.0, 150.0)] * len(row) for row in rows]
@@ -642,13 +662,17 @@ class TestExtractTables(unittest.TestCase):
         rows = SMALL_TABLE_ROWS
         first = _inventory_for_rows(
             rows,
-            bbox=(10.0, 20.0, 190.0, 70.0),
-            cell_bboxes={(0, 0): (10.0, 20.0, 70.0, 45.0)},
+            _InventoryContext(
+                bbox=(10.0, 20.0, 190.0, 70.0),
+                cell_bboxes={(0, 0): (10.0, 20.0, 70.0, 45.0)},
+            ),
         )
         second = _inventory_for_rows(
             rows,
-            bbox=(10.0, 100.0, 190.0, 150.0),
-            cell_bboxes={(0, 0): (10.0, 100.0, 70.0, 125.0)},
+            _InventoryContext(
+                bbox=(10.0, 100.0, 190.0, 150.0),
+                cell_bboxes={(0, 0): (10.0, 100.0, 70.0, 125.0)},
+            ),
         )
         candidate = _FakeTable(
             rows,

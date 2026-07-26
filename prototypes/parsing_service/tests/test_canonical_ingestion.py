@@ -607,6 +607,20 @@ class TestCanonicalIngestion(unittest.TestCase):
             [2],
         )
 
+    def test_unknown_drawing_inventory_still_requires_ocr(self):
+        inspection = _inspection("Body", "")
+        docling = compose_page_markdown(["Body", ""])
+
+        unknown_pages = list(inspection.pages)
+        unknown_pages[1] = unknown_pages[1].model_copy(
+            update={"drawing_count": None}
+        )
+        unknown = inspection.model_copy(update={"pages": unknown_pages})
+        self.assertEqual(
+            _pages_requiring_fallback(docling.page_spans, unknown),
+            [2],
+        )
+
     def test_trailing_blank_page_offsets_slice_published_doctags_view(self):
         composed = compose_page_markdown(["One", ""])
         pages, views = _pages_and_views_from_llm_markdown(
@@ -624,7 +638,6 @@ class TestCanonicalIngestion(unittest.TestCase):
         for page in pages:
             span = page.char_span
             self.assertIsNotNone(span)
-            assert span is not None
             self.assertLessEqual(
                 span.doc_tags_simplified_end or 0,
                 len(views.doc_tags_simplified or ""),

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from app.models.parsed_document import (
     CharSpan,
@@ -11,7 +13,7 @@ from app.models.parsed_document import (
     ParserRun,
     TextViews,
 )
-from app.parsing.adapters.pymupdf_inspect import PdfInspection
+from app.parsing.adapters.pymupdf_inspect import PdfInspection, PdfPageInspection
 
 PAGE_SEGMENTATION_UNAVAILABLE_WARNING = (
     "selected parser produced document-level markdown; "
@@ -74,116 +76,114 @@ def _page_quality(text: str, warnings: list[str]) -> PageQuality:
     )
 
 
-def _inspection_pages(inspection: PdfInspection) -> list:
+def _inspection_pages(inspection: PdfInspection) -> list[PdfPageInspection]:
     return list(inspection.pages) if inspection.status == "completed" else []
 
 
-def normalize_markdown_to_pages(
-    *,
-    selected_page_markdown: list[str],
-    selected_parser: str | None,
-    inspection: PdfInspection,
-    exact_page_segmentation: bool,
-    document_markdown: str,
+@dataclass(frozen=True)
+class _NormalizationRequest:
+    selected_page_markdown: list[str]
+    selected_parser: str | None
+    inspection: PdfInspection
+    exact_page_segmentation: bool
+    document_markdown: str
+
+
+def _normalize_exact_pages(
+    request: _NormalizationRequest,
+    inspected_pages: list[PdfPageInspection],
 ) -> tuple[list[ParsedPage], TextViews]:
-    """Build canonical pages with exact char spans plus the document text views."""
-    inspected_pages = _inspection_pages(inspection)
-
-    if exact_page_segmentation:
-        pages: list[ParsedPage] = []
-        plain_cursor = 0
-        marked_cursor = 0
-        plain_chunks: list[str] = []
-        marked_chunks: list[str] = []
-        page_count = max(inspection.page_count, len(selected_page_markdown))
-        for index in range(1, page_count + 1):
-            text = (
-                selected_page_markdown[index - 1]
-                if index <= len(selected_page_markdown)
-                else ""
-            )
-            inspected = (
-                inspected_pages[index - 1] if index <= len(inspected_pages) else None
-            )
-            if plain_chunks:
-                plain_chunks.append("\n\n")
-                plain_cursor += 2
-                marked_chunks.append("\n\n")
-                marked_cursor += 2
-            marker = f"[PAGE {index}]\n"
-            marked_chunks.append(marker)
-            marked_cursor += len(marker)
-
-            char_span = CharSpan(
-                plain_text_start=plain_cursor,
-                plain_text_end=plain_cursor + len(text),
-                page_marked_text_start=marked_cursor,
-                page_marked_text_end=marked_cursor + len(text),
-            )
-            plain_chunks.append(text)
-            plain_cursor += len(text)
-            marked_chunks.append(text)
-            marked_cursor += len(text)
-
-            page_warnings = list(
-                getattr(inspected, "warnings", []) if inspected else []
-            )
-            if index > len(selected_page_markdown):
-                page_warnings.append(
-                    "selected parser did not produce page-specific text for this page"
-                )
-            pages.append(
-                ParsedPage(
-                    page=index,
-                    width_pt=getattr(inspected, "width_pt", None),
-                    height_pt=getattr(inspected, "height_pt", None),
-                    rotation=getattr(inspected, "rotation", None),
-                    selected_parser=selected_parser,
-                    text=text,
-                    markdown=text,
-                    char_span=char_span,
-                    quality=_page_quality(text, page_warnings),
-                )
-            )
-        return pages, TextViews(
-            plain_text="".join(plain_chunks),
-            page_marked_text="".join(marked_chunks),
-            markdown=document_markdown,
-        )
-
-    # Document-level markdown only: pages carry native PyMuPDF text with exact
-    # plain_text spans; the page-marked view keeps the whole selected markdown.
-    pages = []
-    plain_chunks = []
+    """Emit one page per physical page with exact plain and page-marked spans."""
+    selected = request.selected_page_markdown
+    pages: list[ParsedPage] = []
+    plain_chunks: list[str] = []
+    marked_chunks: list[str] = []
     plain_cursor = 0
-    for index, inspected in enumerate(inspected_pages, start=1):
-        text = inspected.native_text
-        if plain_chunks:
-            plain_chunks.append("\n\n")
-            plain_cursor += 2
-        char_span = CharSpan(
-            plain_text_start=plain_cursor,
-            plain_text_end=plain_cursor + len(text),
-        )
-        plain_chunks.append(text)
-        plain_cursor += len(text)
+    marked_cursor = 0
+    for page in range(1, max(request.inspection.page_count, len(selected)) + 1):
+        text = selected[page - 1] if page <= len(selected) else ""
+        inspected = inspected_pages[page - 1] if page <= len(inspected_pages) else None
+        warnings = list(getattr(inspected, "warnings", ()))
+        if page > len(selected):
+            warnings.append(
+                "selected parser did not produce page-specific text for this page"
+            )
+        separator = "\n\n" if plain_chunks else ""
+        marker = f"[PAGE {page}]\n"
+        plain_chunks.extend((separator, text))
+        marked_chunks.extend((separator, marker, text))
+        plain_start = plain_cursor + len(separator)
+        marked_start = marked_cursor + len(separator) + len(marker)
+        plain_cursor = plain_start + len(text)
+        marked_cursor = marked_start + len(text)
         pages.append(
             ParsedPage(
-                page=index,
+                page=page,
+                width_pt=getattr(inspected, "width_pt", None),
+                height_pt=getattr(inspected, "height_pt", None),
+                rotation=getattr(inspected, "rotation", None),
+                selected_parser=request.selected_parser,
+                text=text,
+                markdown=text,
+                char_span=CharSpan(
+                    plain_text_start=plain_start,
+                    plain_text_end=plain_cursor,
+                    page_marked_text_start=marked_start,
+                    page_marked_text_end=marked_cursor,
+                ),
+                quality=_page_quality(text, warnings),
+            )
+        )
+    return pages, TextViews(
+        plain_text="".join(plain_chunks),
+        page_marked_text="".join(marked_chunks),
+        markdown=request.document_markdown,
+    )
+
+
+def _normalize_document_pages(
+    request: _NormalizationRequest,
+    inspected_pages: list[PdfPageInspection],
+) -> tuple[list[ParsedPage], TextViews]:
+    """Fall back to inspected native text with no page-marked provenance."""
+    pages: list[ParsedPage] = []
+    plain_chunks: list[str] = []
+    cursor = 0
+    for page, inspected in enumerate(inspected_pages, start=1):
+        text = inspected.native_text
+        separator = "\n\n" if plain_chunks else ""
+        plain_chunks.extend((separator, text))
+        start = cursor + len(separator)
+        cursor = start + len(text)
+        pages.append(
+            ParsedPage(
+                page=page,
                 width_pt=inspected.width_pt,
                 height_pt=inspected.height_pt,
                 rotation=inspected.rotation,
-                selected_parser=selected_parser,
+                selected_parser=request.selected_parser,
                 text=text,
                 markdown=None,
-                char_span=char_span,
+                char_span=CharSpan(plain_text_start=start, plain_text_end=cursor),
                 quality=_page_quality(
-                    text, [*inspected.warnings, PAGE_SEGMENTATION_UNAVAILABLE_WARNING]
+                    text,
+                    [*inspected.warnings, PAGE_SEGMENTATION_UNAVAILABLE_WARNING],
                 ),
             )
         )
     return pages, TextViews(
         plain_text="".join(plain_chunks),
-        page_marked_text=f"[DOCUMENT]\n{document_markdown}",
-        markdown=document_markdown,
+        page_marked_text=f"[DOCUMENT]\n{request.document_markdown}",
+        markdown=request.document_markdown,
     )
+
+
+def normalize_markdown_to_pages(
+    **arguments: Any,
+) -> tuple[list[ParsedPage], TextViews]:
+    """Build canonical pages with exact char spans plus the document text views."""
+    request = _NormalizationRequest(**arguments)
+    inspected_pages = _inspection_pages(request.inspection)
+    if request.exact_page_segmentation:
+        return _normalize_exact_pages(request, inspected_pages)
+    return _normalize_document_pages(request, inspected_pages)

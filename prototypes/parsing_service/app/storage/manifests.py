@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app.models.parsed_document import ParsedDocument
+from app.models.parsed_document import ParsedDocument, ParserRun
 from app.models.parser import canonical_preprocessing_config
 from app.storage.atomic_json import read_json, write_json_atomic
 from app.storage.hashing import (
@@ -15,6 +15,7 @@ from app.storage.hashing import (
     document_id_from_hash,
 )
 from app.storage.paths import (
+    METADATA_FILENAME,
     PARSED_DOCUMENT_FILENAME,
     SERVICE_ROOT,
     SOURCE_FILENAME,
@@ -29,14 +30,14 @@ class TaskNotFoundError(Exception):
 
 
 def load_task_metadata(task_dir: Path) -> dict[str, Any]:
-    meta_path = task_dir / "metadata.json"
+    meta_path = task_dir / METADATA_FILENAME
     if not meta_path.exists():
         raise TaskNotFoundError("Task not found")
     return read_json(meta_path)
 
 
 def save_task_metadata(task_dir: Path, data: dict[str, Any]) -> None:
-    write_json_atomic(task_dir / "metadata.json", data)
+    write_json_atomic(task_dir / METADATA_FILENAME, data)
 
 
 def preprocessing_config_hash(metadata: dict[str, Any] | None = None) -> str:
@@ -191,13 +192,11 @@ def rebase_parsed_document_artifacts(
     )
 
 
-def validate_canonical_document(
+def _validate_canonical_identity(
     parsed_document: ParsedDocument,
-    *,
     expected_sha256: str,
     expected_config_hash: str,
 ) -> None:
-    """Authenticate a cache entry and every referenced canonical artifact."""
     if parsed_document.document.content_sha256 != expected_sha256:
         raise ValueError("Canonical document source hash mismatch.")
     if parsed_document.document.document_id != document_id_from_hash(expected_sha256):
@@ -205,8 +204,9 @@ def validate_canonical_document(
     if parsed_document.preprocessing.config_hash != expected_config_hash:
         raise ValueError("Canonical preprocessing policy mismatch.")
 
-    document_root = document_store_dir(expected_sha256).resolve()
-    refs = {
+
+def _canonical_artifact_refs(parsed_document: ParsedDocument) -> set[str]:
+    return {
         ref
         for ref in (
             parsed_document.artifacts.raw_docling_json_ref,
@@ -216,28 +216,55 @@ def validate_canonical_document(
         )
         if ref
     }
+
+
+def _validate_markdown_artifact_ref(parsed_document: ParsedDocument) -> None:
     if (
         parsed_document.text_views.llm_markdown
         and not parsed_document.artifacts.llm_markdown_ref
     ):
         raise ValueError("Canonical Markdown artifact reference is missing.")
-    for ref in refs:
-        candidate = SERVICE_ROOT / ref
-        if candidate.is_symlink():
-            raise ValueError("Canonical artifact may not be a symlink.")
-        resolved = candidate.resolve()
-        if not resolved.is_relative_to(document_root) or not resolved.is_file():
-            raise ValueError("Canonical artifact reference is invalid.")
 
+
+def _validate_canonical_artifact(ref: str, document_root: Path) -> None:
+    candidate = SERVICE_ROOT / ref
+    if candidate.is_symlink():
+        raise ValueError("Canonical artifact may not be a symlink.")
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(document_root) or not resolved.is_file():
+        raise ValueError("Canonical artifact reference is invalid.")
+
+
+def _validate_parser_run(parser_run: ParserRun, expected_sha256: str) -> None:
+    input_hash = parser_run.metrics.get("input_sha256")
+    if input_hash is not None and input_hash != expected_sha256:
+        raise ValueError("Canonical parser input hash mismatch.")
+    expected_output_hash = parser_run.metrics.get("output_sha256")
+    if expected_output_hash and parser_run.output_ref:
+        output_path = (SERVICE_ROOT / parser_run.output_ref).resolve()
+        if compute_sha256(output_path) != expected_output_hash:
+            raise ValueError("Canonical parser output digest mismatch.")
+
+
+def validate_canonical_document(
+    parsed_document: ParsedDocument,
+    *,
+    expected_sha256: str,
+    expected_config_hash: str,
+) -> None:
+    """Authenticate a cache entry and every referenced canonical artifact."""
+    _validate_canonical_identity(
+        parsed_document,
+        expected_sha256,
+        expected_config_hash,
+    )
+    document_root = document_store_dir(expected_sha256).resolve()
+    refs = _canonical_artifact_refs(parsed_document)
+    _validate_markdown_artifact_ref(parsed_document)
+    for ref in refs:
+        _validate_canonical_artifact(ref, document_root)
     for parser_run in parsed_document.parser_runs:
-        input_hash = parser_run.metrics.get("input_sha256")
-        if input_hash is not None and input_hash != expected_sha256:
-            raise ValueError("Canonical parser input hash mismatch.")
-        expected_output_hash = parser_run.metrics.get("output_sha256")
-        if expected_output_hash and parser_run.output_ref:
-            output_path = (SERVICE_ROOT / parser_run.output_ref).resolve()
-            if compute_sha256(output_path) != expected_output_hash:
-                raise ValueError("Canonical parser output digest mismatch.")
+        _validate_parser_run(parser_run, expected_sha256)
 
 
 def write_parsed_document(task_dir: Path, parsed_document: ParsedDocument) -> None:
@@ -262,8 +289,8 @@ def read_canonical_parsed_document(content_sha256: str) -> ParsedDocument:
 
 def read_parsed_document(task_dir: Path) -> ParsedDocument:
     parsed_path = task_dir / PARSED_DOCUMENT_FILENAME
+    metadata_path = task_dir / METADATA_FILENAME
     if not parsed_path.exists():
-        metadata_path = task_dir / "metadata.json"
         if metadata_path.exists():
             metadata = read_json(metadata_path)
             content_sha256 = metadata.get("content_sha256")
@@ -278,7 +305,6 @@ def read_parsed_document(task_dir: Path) -> ParsedDocument:
                     pass
         raise FileNotFoundError("Parsed document JSON not found.")
     parsed_document = ParsedDocument.model_validate(read_json(parsed_path))
-    metadata_path = task_dir / "metadata.json"
     if metadata_path.exists():
         return rebind_parsed_document_for_task(
             task_dir, read_json(metadata_path), parsed_document

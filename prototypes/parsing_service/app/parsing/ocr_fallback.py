@@ -50,8 +50,14 @@ class OcrFallbackOutput:
     error: str | None = None
 
 
-def _write_text(path: Path, content: str) -> None:
-    write_text_atomic(path, content)
+@dataclass(frozen=True)
+class _OcrFallbackRequest:
+    source_pdf: Path
+    content_sha256: str
+    page_numbers: list[int]
+    dpi: int
+    device: str
+    artifact_root: Path | None = None
 
 
 def _extract_markdown_from_result(result: Any) -> str:
@@ -59,6 +65,18 @@ def _extract_markdown_from_result(result: Any) -> str:
     if isinstance(markdown, dict):
         return str(markdown.get("markdown_texts") or "")
     return ""
+
+
+def _valid_line_geometry(values: list[float], confidence: float) -> bool:
+    if len(values) != 4:
+        return False
+    if not all(math.isfinite(value) and value >= 0 for value in values):
+        return False
+    if not math.isfinite(confidence):
+        return False
+    if values[0] > values[2]:
+        return False
+    return values[1] <= values[3]
 
 
 def _extract_lines_from_result(
@@ -87,13 +105,7 @@ def _extract_lines_from_result(
         try:
             values = [float(value) for value in box]
             confidence_value = float(score)
-            if (
-                len(values) != 4
-                or not all(math.isfinite(value) and value >= 0 for value in values)
-                or not math.isfinite(confidence_value)
-                or values[0] > values[2]
-                or values[1] > values[3]
-            ):
+            if not _valid_line_geometry(values, confidence_value):
                 raise ValueError("invalid OCR line geometry")
             bbox = [round(value * scale, 2) for value in values]
             confidence = min(max(confidence_value, 0.0), 1.0)
@@ -112,28 +124,26 @@ def _extract_lines_from_result(
     return lines
 
 
-def run_paddleocr_fallback(
-    *,
-    source_pdf: Path,
-    content_sha256: str,
-    page_numbers: list[int],
-    dpi: int,
-    device: str,
-    artifact_root: Path | None = None,
-) -> OcrFallbackOutput:
-    if not page_numbers:
+def run_paddleocr_fallback(**options: Any) -> OcrFallbackOutput:
+    """Run page-level PaddleOCR over the requested physical pages."""
+    request = _OcrFallbackRequest(**options)
+    if not request.page_numbers:
         return OcrFallbackOutput(warnings=["ocr_fallback_not_required"])
 
     started_at = utc_now()
     start = time.time()
     fallback_dir = (
-        artifact_root or document_artifacts_dir(content_sha256)
+        request.artifact_root
+        or document_artifacts_dir(request.content_sha256)
     ) / "paddleocr_fallback"
     image_dir = fallback_dir / "images"
     warnings: list[str] = []
     try:
         image_paths = convert_pdf_to_images(
-            str(source_pdf), str(image_dir), dpi=dpi, page_numbers=page_numbers
+            str(request.source_pdf),
+            str(image_dir),
+            dpi=request.dpi,
+            page_numbers=request.page_numbers,
         )
         paddleocr_module = importlib.import_module("paddleocr")
         pipeline = paddleocr_module.PPStructureV3(
@@ -141,14 +151,18 @@ def run_paddleocr_fallback(
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
             use_textline_orientation=False,
-            device=device,
+            device=request.device,
         )
-        if len(image_paths) != len(page_numbers):
+        if len(image_paths) != len(request.page_numbers):
             raise RuntimeError("OCR rendering did not return every requested page.")
-        scale = 72.0 / dpi
+        scale = 72.0 / request.dpi
         pages: dict[int, str] = {}
         page_lines: dict[int, list[dict[str, Any]]] = {}
-        for page_number, image_path in zip(page_numbers, image_paths, strict=True):
+        for page_number, image_path in zip(
+            request.page_numbers,
+            image_paths,
+            strict=True,
+        ):
             texts: list[str] = []
             lines: list[dict[str, Any]] = []
             for result in pipeline.predict(image_path):
@@ -159,10 +173,10 @@ def run_paddleocr_fallback(
             page_text = "\n\n".join(texts).strip()
             pages[page_number] = page_text
             page_lines[page_number] = lines
-            _write_text(fallback_dir / f"page_{page_number:02d}.md", page_text)
+            write_text_atomic(fallback_dir / f"page_{page_number:02d}.md", page_text)
 
         index_path = fallback_dir / "document.md"
-        _write_text(
+        write_text_atomic(
             index_path,
             "\n\n".join(pages[page] for page in sorted(pages)).strip(),
         )

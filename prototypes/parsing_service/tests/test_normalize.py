@@ -53,9 +53,9 @@ class TestNormalize(unittest.TestCase):
         previous_marked_end = -1
         for page, text in zip(pages, texts, strict=True):
             span = page.char_span
-            assert span is not None
-            assert span.page_marked_text_start is not None
-            assert span.page_marked_text_end is not None
+            self.assertIsNotNone(span)
+            self.assertIsNotNone(span.page_marked_text_start)
+            self.assertIsNotNone(span.page_marked_text_end)
             self.assertLessEqual(span.plain_text_start, span.plain_text_end)
             self.assertGreater(span.plain_text_start, previous_plain_end)
             self.assertGreater(span.page_marked_text_start, previous_marked_end)
@@ -87,7 +87,7 @@ class TestNormalize(unittest.TestCase):
         for index, page in enumerate(pages, start=1):
             self.assertEqual(page.text, f"native {index}")
             span = page.char_span
-            assert span is not None
+            self.assertIsNotNone(span)
             self.assertIsNone(span.page_marked_text_start)
             self.assertEqual(
                 views.plain_text[span.plain_text_start : span.plain_text_end],

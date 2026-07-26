@@ -67,12 +67,8 @@ class BodyReadingAsgiApp:
         await send({"type": "http.response.body", "body": b""})
 
 
-async def run_asgi_request(
-    application, *, headers=(), messages=None, method="POST", path="/tasks"
-):
-    pending = list(
-        messages or [{"type": "http.request", "body": b"", "more_body": False}]
-    )
+async def run_asgi_request(application, *, headers=(), path="/tasks"):
+    pending = [{"type": "http.request", "body": b"", "more_body": False}]
     sent = []
 
     async def receive():
@@ -87,7 +83,7 @@ async def run_asgi_request(
         "type": "http",
         "asgi": {"version": "3.0", "spec_version": "2.3"},
         "http_version": "1.1",
-        "method": method,
+        "method": "POST",
         "scheme": "http",
         "path": path,
         "raw_path": path.encode("ascii"),
@@ -336,9 +332,9 @@ class TestService(unittest.TestCase):
                 side_effect=PermissionError("shared store unavailable"),
             ),
             self.assertRaisesRegex(PermissionError, "shared store unavailable"),
-            self.client,
+            self.client as client,
         ):
-            pass
+            client.get("/status")
 
     def test_root_ui_describes_canonical_docling_doctags(self):
         response = self.client.get("/")
@@ -799,7 +795,7 @@ class TestService(unittest.TestCase):
         self.assertEqual(alias_response.json(), document)
 
     def test_fallback_document_preserves_page_markers_and_spans(self):
-        task_id, task_dir, content_hash = self._create_completed_task(
+        task_id, task_dir, _ = self._create_completed_task(
             TWO_PAGE_PDF_BYTES,
             params={
                 "pipeline": "all",
@@ -863,7 +859,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_two_page_pdf_produces_two_page_parsed_document(self):
-        task_id, task_dir, content_hash = self._create_completed_task(
+        task_id, task_dir, _ = self._create_completed_task(
             TWO_PAGE_PDF_BYTES,
             params={
                 "pipeline": "docling_pdf",

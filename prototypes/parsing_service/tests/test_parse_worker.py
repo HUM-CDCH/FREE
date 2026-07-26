@@ -135,7 +135,7 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
 
     def test_corrupt_cache_rebuilds_into_immutable_generation(self):
         with isolated_storage():
-            task_id, task_dir, content_hash, metadata = _rebuild_task()
+            task_id, _, content_hash, metadata = _rebuild_task()
             corrupt = paths.canonical_parsed_document_path(content_hash)
             corrupt.write_text("{not-json", encoding="utf-8")
 
@@ -177,7 +177,7 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
 
     def test_failed_rebuild_preserves_previous_generation(self):
         with isolated_storage():
-            task_id, task_dir, content_hash, metadata = _rebuild_task()
+            task_id, _, content_hash, metadata = _rebuild_task()
 
             def successful_build(task_id, *, source_path, artifact_root):
                 llm_path = artifact_root / "document.llm.md"
@@ -265,6 +265,14 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(metadata["document_id"], f"sha256:{'a' * 64}")
 
     def test_startup_reconciliation_isolates_task_local_failures(self):
+        def failure_injector(blocked_dir, error_type, label, original):
+            def fail_blocked(task_dir, *args, **kwargs):
+                if task_dir == blocked_dir:
+                    raise error_type(f"{label}: {blocked_dir}")
+                return original(task_dir, *args, **kwargs)
+
+            return fail_blocked
+
         failure_cases = (
             ("invalid JSON", b"{invalid", None, ValueError),
             ("invalid status", b'{"status":"bogus"}', None, ValueError),
@@ -281,21 +289,16 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
                     (blocked_dir / "metadata.json").write_bytes(malformed_metadata)
                     failure = nullcontext()
                 else:
-                    assert dependency is not None
+                    if dependency is None:
+                        self.fail(f"missing dependency for {label}")
                     original = getattr(parse_worker, dependency)
 
-                    def fail_blocked(
-                        task_dir,
-                        *args,
-                        blocked_dir=blocked_dir,
-                        error_type=error_type,
-                        label=label,
-                        original=original,
-                        **kwargs,
-                    ):
-                        if task_dir == blocked_dir:
-                            raise error_type(f"{label}: {blocked_dir}")
-                        return original(task_dir, *args, **kwargs)
+                    fail_blocked = failure_injector(
+                        blocked_dir,
+                        error_type,
+                        label,
+                        original,
+                    )
 
                     failure = patch(
                         f"app.workers.parse_worker.{dependency}",

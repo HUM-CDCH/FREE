@@ -39,7 +39,8 @@ class TestStorageSafety(unittest.TestCase):
 
     def test_safe_display_filename_strips_path_components(self):
         self.assertEqual(safe_display_filename("../evil.pdf"), "evil.pdf")
-        self.assertEqual(safe_display_filename("/tmp/evil.pdf"), "evil.pdf")
+        absolute_name = str(Path(tempfile.gettempdir()) / "evil.pdf")
+        self.assertEqual(safe_display_filename(absolute_name), "evil.pdf")
         self.assertEqual(safe_display_filename(r"C:\\tmp\\report.pdf"), "report.pdf")
 
     def test_safe_relative_ref_rejects_escapes(self):
