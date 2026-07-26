@@ -1,0 +1,66 @@
+rules:
+  - id: free-no-chat-template-kwargs
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: Do not send chat_template_kwargs from Studio. NuExtract uses the hand-built raw Ollama prompt; general models use AI SDK provider adapters.
+    paths:
+      include:
+        - /prototypes/studio/api/**
+      exclude:
+        - /prototypes/studio/api/**/*.test.ts
+    pattern-either:
+      - pattern: '{ ..., chat_template_kwargs: $VALUE, ... }'
+      - pattern: '{ ..., "chat_template_kwargs": $VALUE, ... }'
+
+  - id: free-nuextract-generate-must-be-raw
+    languages: [typescript]
+    severity: ERROR
+    message: Ollama NuExtract generation must set raw:true and stream:false so Ollama cannot apply a chat template or streaming protocol.
+    paths:
+      include:
+        - /prototypes/studio/api/**
+      exclude:
+        - /prototypes/studio/api/**/*.test.ts
+    patterns:
+      - pattern-inside: |
+          $FETCH(appendProviderResource($BASE, 'generate'), {
+            ...,
+            body: JSON.stringify($BODY),
+            ...
+          })
+      - pattern: JSON.stringify($BODY)
+      - pattern-not: 'JSON.stringify({ ..., raw: true, stream: false, ... })'
+
+  - id: free-no-ai-environment-fallback
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: FREE model configuration comes only from the saved Model Connections and Capability Routes; do not restore AI_* environment fallbacks.
+    paths:
+      include:
+        - /prototypes/studio/api/**
+        - /prototypes/studio/src/**
+      exclude:
+        - /prototypes/studio/**/*.test.ts
+        - /prototypes/studio/**/*.test.tsx
+    patterns:
+      - pattern-either:
+          - pattern: process.env.$KEY
+          - pattern: import.meta.env.$KEY
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: ^AI_[A-Z0-9_]+$
+
+  - id: free-task-paths-use-validated-helper
+    languages: [python]
+    severity: ERROR
+    message: Build task paths through task_dir_for/http_task_dir so task IDs are UUID-validated and contained under the task store.
+    paths:
+      include:
+        - /prototypes/parsing_service/app/**
+      exclude:
+        - /prototypes/parsing_service/app/storage/paths.py
+    pattern-either:
+      - pattern: DEFAULT_DATA_DIR / $TASK_ID
+      - pattern: Path(DEFAULT_DATA_DIR) / $TASK_ID
+      - pattern: $PATHS.DEFAULT_DATA_DIR / $TASK_ID
+      - pattern: Path($PATHS.DEFAULT_DATA_DIR) / $TASK_ID

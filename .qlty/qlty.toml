@@ -15,6 +15,13 @@
 config_version = "0"
 
 exclude_patterns = [
+  "**/.agents/**",
+  "**/.claude/**",
+  "**/.codex/**",
+  "**/.design-sync/**",
+  "**/.omo/**",
+  "**/.pi/**",
+  "**/.DS_Store",
   "*_min.*",
   "*-min.*",
   "*.min.*",
@@ -96,3 +103,9 @@ drivers = [
 
 [[plugin]]
 name = "trufflehog"
+
+[[plugin]]
+name = "ast-grep"
+
+[[plugin]]
+name = "semgrep"

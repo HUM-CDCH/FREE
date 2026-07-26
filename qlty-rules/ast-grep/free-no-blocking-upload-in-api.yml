@@ -1,0 +1,8 @@
+id: free-no-blocking-upload-in-api
+language: Python
+files:
+  - prototypes/parsing_service/app/api/**/*.py
+rule:
+  pattern: save_uploaded_source($$$ARGS)
+message: Run save_uploaded_source through run_in_threadpool; bounded upload validation and storage perform blocking file I/O.
+severity: warning
