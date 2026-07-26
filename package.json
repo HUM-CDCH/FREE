@@ -6,6 +6,7 @@
     "install:cpu": "pnpm --filter parsing-service install:python:cpu",
     "install:gpu": "pnpm --filter parsing-service install:python:gpu",
     "start": "pnpm dev",
+    "predev": "lsof -ti tcp:8000 | xargs kill -9 2>/dev/null || true",
     "dev": "pnpm --recursive --parallel dev",
     "dev:cpu": "pnpm install:cpu && pnpm dev",
     "dev:gpu": "pnpm install:gpu && pnpm dev",
