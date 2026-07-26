@@ -167,4 +167,22 @@ describe('POST /api/model_probe', () => {
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'invalid_request' } })
     expect(fetch).not.toHaveBeenCalled()
   })
+
+  // The issue paths are rewritten from the shared connection-contract check, so
+  // they must name the probe payload's `connection`, not a `connections` array.
+  it('reports semantic issues against the submitted payload shape', async () => {
+    const fetch = vi.fn()
+    const post = createPostModelProbe({ configRoot: await temporaryRoot(), fetch, credentialStore: store() })
+    const response = await post(
+      request({ connection: { ...connection, baseUrl: 'https://gateway.example/openai/v1?key=x' } }),
+    )
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: 'invalid_model_config',
+        details: { issues: [{ path: 'connection.baseUrl' }] },
+      },
+    })
+    expect(fetch).not.toHaveBeenCalled()
+  })
 })

@@ -183,7 +183,7 @@ export function parseModelProbeRequest(value: unknown): ModelProbeRequest {
     throw invalidSubmitted(
       issues.map((issue) => ({
         ...issue,
-        path: issue.path.replace(/^connections\\.0/, 'connection'),
+        path: issue.path.replace(/^connections\.0/, 'connection'),
       })),
     )
   }
