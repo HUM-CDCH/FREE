@@ -371,7 +371,12 @@ type ModelProbeRequest = {
 It probes the supplied structurally valid draft. An omitted credential reuses
 the keyring entry only when the UUID and provider identify an existing saved
 connection; a non-empty string is a request-local override, and `null` explicitly
-tests without a managed credential. Empty strings are invalid. The request-local
+tests without a managed credential. Empty strings are invalid. A reused keyring
+entry is therefore sent to the draft's API base, not the saved one, so editing a
+saved connection's API base and checking it before Apply discloses that
+credential to the edited host. This is accepted: the researcher supplies both the
+host and the credential, Studio is loopback-only, and refusing to check an edited
+API base would make the credential unverifiable exactly when it changed hosts. The request-local
 credential is never logged, returned, or stored. Probes may overlap and
 independently return `ModelProbeResponse`; they never mutate configuration or the
 keyring. A successful discovery has `status: 'connected'` and a catalog that the

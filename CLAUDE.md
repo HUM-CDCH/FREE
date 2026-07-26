@@ -98,7 +98,8 @@ VS Code tasks and launches should call pnpm workspace scripts from the repositor
 
 - The PDF viewer uses `pdfjs-dist`'s `PDFViewer` component with `AnnotationEditorType.HIGHLIGHT`. Only text-selection highlights are allowed; free rectangular highlights are blocked by intercepting `pointerdown` during capture phase.
 - `pdf.js` has no public event for editor add/remove. `App.tsx` monkey-patches `uiManager.addEditor` / `removeEditor` to keep the annotation sidebar in sync.
-- `api.ts` contains browser communication with Studio model routes and the parsing service. Model routes are `/api/chat`, `/api/generate_schema`, and `/api/extract`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
+- `api.ts` contains browser communication with Studio model routes and the parsing service. Model routes are `/api/chat`, `/api/generate_schema`, `/api/extract`, and `/api/edit_schema`; configuration routes are `/api/model_config` (GET/PUT) and `/api/model_probe` (POST), reached through `src/providerConfig/providerConfig.data.ts`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
+- Every model operation resolves its provider from saved configuration through `resolveCapabilityRoute` in `api/_provider.ts`. There are no `AI_*` environment settings; `api/_environment.test.ts` fails the build if one reappears.
 - `AnnotationSidebar` shows the current annotation set (highlighted passages + page numbers). `SchemaPanel` shows the generated schema and controls annotation mode (`hints` vs `fields`).
 - The hardcoded source document is `examples/Beretning_Ellekilde_8_13.pdf` (a Danish archaeological site report).
 
@@ -136,7 +137,11 @@ for the per-provider channel if NuExtract is ever served that way.
 
 ## What the prototype does not yet have
 
-FREE has no persistence layer. There are no `/annotations`, `/validations`, or
+FREE persists only model configuration: non-secret Model Connections and
+Capability Routes as `model-config.json` in the OS user config directory for
+`FREE Studio`, and FREE-managed credentials in the OS credential store.
+
+Nothing else persists. There are no `/annotations`, `/validations`, or
 `/documents/prepare` endpoints. Annotations are passed inline with each
 `/api/generate_schema` request. Adding a thin in-memory store (or SQLite) with
 these three endpoints is the next backend task.
