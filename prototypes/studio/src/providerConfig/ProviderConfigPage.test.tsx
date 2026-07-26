@@ -248,6 +248,37 @@ describe('ProviderConfigPage', () => {
     expect(screen.getByLabelText('Single model ID')).toHaveValue('offline-model')
   })
 
+  // An empty model ID is the likeliest rejected Apply and `invalid_request: The
+  // request is invalid.` alone does not say which field to fix.
+  it('names the offending field when a rejected Apply carries validation issues', async () => {
+    mockFetch((url, init) => {
+      if (url === '/api/model_config' && init.method === 'PUT') {
+        return jsonResponse(
+          {
+            error: {
+              code: 'invalid_request',
+              message: 'The request is invalid.',
+              details: {
+                path: 'request',
+                issues: [{ path: 'config.routes.extraction.modelId', message: 'Must not be empty.' }],
+                truncated: false,
+              },
+            },
+          },
+          400,
+        )
+      }
+      return configResponse(ollamaConfig())
+    })
+
+    await renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('invalid_request: The request is invalid.')
+    expect(alert).toHaveTextContent('config.routes.extraction.modelId: Must not be empty.')
+  })
+
   it('debounces draft checks, cancels and suppresses stale results, retries immediately, and saves offline', async () => {
     const probeResolvers: Array<(response: Response) => void> = []
     const putBodies: Record<string, unknown>[] = []

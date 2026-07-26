@@ -10,6 +10,7 @@ import {
   type ModelConnection,
   type ProbeResult,
   type RouteKey,
+  validationDetailsSchema,
 } from '../../shared/modelConfig.contract'
 
 export const ROUTABLE_TASKS: readonly {
@@ -41,6 +42,25 @@ export class ModelConfigApiError extends Error {
     this.code = code
     this.details = details
   }
+}
+
+/**
+ * The one renderable form of a failed configuration or probe request. Validation
+ * issues are included because they name the offending field, which `code` and
+ * `message` alone never do: an empty model ID would otherwise read only as
+ * `invalid_request: The request is invalid.`
+ */
+export function apiErrorText(error: unknown): string {
+  if (!(error instanceof ModelConfigApiError)) {
+    return 'unexpected_failure: An unexpected failure occurred.'
+  }
+  const details = validationDetailsSchema.safeParse(error.details)
+  const lines = [`${error.code}: ${error.message}`]
+  if (details.success) {
+    lines.push(...details.data.issues.map(({ path, message }) => `${path}: ${message}`))
+    if (details.data.truncated) lines.push('Further issues were omitted.')
+  }
+  return lines.join('\n')
 }
 
 async function responseJson(response: Response): Promise<unknown> {

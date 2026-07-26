@@ -93,7 +93,7 @@ export function ProviderConnectionCard({
         </div>
       )}
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <p className={`text-[11px] ${tones[tone].text}`}>{statusText}</p>
+        <p className={`whitespace-pre-line text-[11px] ${tones[tone].text}`}>{statusText}</p>
         <Button variant="secondary" size="sm" disabled={!canProbe || probe.phase === 'checking'} onClick={onRefresh}>Refresh models</Button>
       </div>
     </article>

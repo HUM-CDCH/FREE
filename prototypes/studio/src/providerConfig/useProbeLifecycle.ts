@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { isValidApiBase, type CredentialState, type ModelConnection, type ProbeResult, type ProviderDescriptor } from '../../shared/modelConfig.contract'
-import { ModelConfigApiError, probeModelConnection } from './providerConfig.data'
+import { apiErrorText, probeModelConnection } from './providerConfig.data'
 
 export type ProbeView =
   | { phase: 'idle' }
@@ -17,12 +17,6 @@ type LifecycleRecord = {
 type ProbeInputs = {
   providers: readonly ProviderDescriptor[]
   credentialStates: Readonly<Record<string, CredentialState>>
-}
-
-function publicProbeError(error: unknown): string {
-  return error instanceof ModelConfigApiError
-    ? `${error.code}: ${error.message}`
-    : 'unexpected_failure: An unexpected failure occurred.'
 }
 
 export function useProbeLifecycle({ providers, credentialStates }: ProbeInputs) {
@@ -92,7 +86,7 @@ export function useProbeLifecycle({ providers, credentialStates }: ProbeInputs) 
         record.controller = undefined
         setProbes((current) => ({
           ...current,
-          [connection.id]: { phase: 'error', message: publicProbeError(cause) },
+          [connection.id]: { phase: 'error', message: apiErrorText(cause) },
         }))
       }
     }

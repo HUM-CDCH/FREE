@@ -3,15 +3,9 @@ import type { CredentialState, ProviderDescriptor, ProviderKind } from '../../sh
 import { Button, EmptyState, Overline } from '../ui'
 import { ProviderConnectionCard, providerFieldClass } from './ProviderConnectionCard'
 import { ProviderRoutesEditor } from './ProviderRoutesEditor'
-import { ModelConfigApiError, getModelConfig, putModelConfig } from './providerConfig.data'
+import { apiErrorText, getModelConfig, putModelConfig } from './providerConfig.data'
 import { useProbeLifecycle } from './useProbeLifecycle'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
-
-function publicError(error: unknown): string {
-  return error instanceof ModelConfigApiError
-    ? `${error.code}: ${error.message}`
-    : 'unexpected_failure: An unexpected failure occurred.'
-}
 
 
 function ProviderConfigPage({ onClose }: { onClose: () => void }) {
@@ -63,7 +57,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
         setNewProvider(state.providers[0]?.kind ?? 'ollama')
       })
       .catch((cause: unknown) => {
-        if (!controller.signal.aborted) setError(publicError(cause))
+        if (!controller.signal.aborted) setError(apiErrorText(cause))
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -83,7 +77,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
       setCredentialStates(state.credentialStates)
       // Credential actions clear only inside replaceAfterApply after success.
     } catch (cause) {
-      setError(publicError(cause))
+      setError(apiErrorText(cause))
     } finally {
       setApplying(false)
     }
@@ -96,7 +90,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
     return (
       <div className="mx-auto max-w-4xl rounded-2xl border border-danger/40 bg-surface p-6">
         <p className="text-sm font-semibold text-danger">Model configuration could not be loaded.</p>
-        {error && <p role="alert" className="mt-2 font-mono text-xs text-danger">{error}</p>}
+        {error && <p role="alert" className="mt-2 whitespace-pre-line font-mono text-xs text-danger">{error}</p>}
         <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
       </div>
     )
@@ -125,7 +119,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
         </div>
       </header>
 
-      {error && <p role="alert" className="m-4 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-mono text-xs text-danger">{error}</p>}
+      {error && <p role="alert" className="m-4 whitespace-pre-line rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-mono text-xs text-danger">{error}</p>}
 
       <section className="border-b border-line bg-surface p-4.5">
         <ProviderRoutesEditor

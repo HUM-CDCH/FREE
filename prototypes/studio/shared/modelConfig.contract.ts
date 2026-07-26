@@ -131,6 +131,16 @@ export const apiErrorBodySchema = z
   .strict()
 export type ApiErrorBody = z.infer<typeof apiErrorBodySchema>
 
+/** The `details` shape `boundedValidationDetails` attaches to a rejected configuration. */
+export const validationDetailsSchema = z
+  .object({
+    path: z.string(),
+    issues: z.array(z.object({ path: z.string(), message: z.string() }).strict()),
+    truncated: z.boolean(),
+  })
+  .strict()
+export type ValidationDetails = z.infer<typeof validationDetailsSchema>
+
 export type RouteKey = keyof ModelConfig['routes']
 
 export function apiBaseIssue(value: string): string | null {
