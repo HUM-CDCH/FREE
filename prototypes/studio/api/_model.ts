@@ -278,7 +278,7 @@ async function generateWithNuExtractRawPrompt(
 
   const bodyText = await response.text()
   if (!response.ok) {
-    throw new ApiError(502, 'provider_failure', 'Ollama generation failed.', {
+    throw new ApiError(502, 'model_operation_failed', 'Ollama generation failed.', {
       details: { upstream: boundedUpstreamDetail(response.status, bodyText) },
     })
   }
