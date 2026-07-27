@@ -338,25 +338,70 @@ describe('ProviderConfigPage', () => {
     })
     expect(screen.queryByText('Stale provider failure.')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh models' }))
-    expect(probeResolvers).toHaveLength(3)
-    await act(async () => {
-      probeResolvers[2](jsonResponse({
-        checkedAt: '2026-07-25T00:00:02.000Z',
-        status: 'unreachable',
-        message: 'Provider is offline.',
-        catalog: [],
-      }))
-      await Promise.resolve()
-    })
-    expect(screen.getByText('Provider is offline.')).toBeInTheDocument()
-
     fireEvent.change(screen.getByLabelText('Single model connection'), { target: { value: OLLAMA_ID } })
+    fireEvent.focus(screen.getByLabelText('Single model ID'))
+    expect(probeResolvers).toHaveLength(2) // already probed this session; opening the list must not re-probe
+    const listbox = screen.getByRole('listbox')
+    expect(within(listbox).getAllByRole('option')).toHaveLength(1)
+    fireEvent.mouseDown(within(listbox).getByRole('option', { name: 'Latest model' }))
+    expect(screen.getByLabelText('Single model ID')).toHaveValue('latest-model')
+
+    // reopening after a pick still shows the full catalog, not a filtered single entry
+    fireEvent.focus(screen.getByLabelText('Single model ID'))
+    expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(1)
+
     fireEvent.change(screen.getByLabelText('Single model ID'), { target: { value: 'manual-offline-model' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await act(async () => { await Promise.resolve() })
     expect(putBodies).toHaveLength(1)
     expect((putBodies[0].config as ModelConfig).routes.extraction?.modelId).toBe('manual-offline-model')
+  })
+
+  it('probes when the model list is opened for an unchecked connection, once per session', async () => {
+    const probeResolvers: Array<(response: Response) => void> = []
+    const request = mockFetch((url) => {
+      if (url === '/api/model_probe') {
+        return new Promise<Response>((resolve) => probeResolvers.push(resolve))
+      }
+      return configResponse(ollamaConfig())
+    })
+
+    await renderPage()
+    expect(request.mock.calls.some(([url]) => String(url) === '/api/model_probe')).toBe(false)
+
+    fireEvent.focus(screen.getByLabelText('Single model ID'))
+    expect(probeResolvers).toHaveLength(1)
+    expect(within(screen.getByRole('listbox')).getByText('Loading models…')).toBeInTheDocument()
+    await act(async () => {
+      probeResolvers[0](jsonResponse({
+        checkedAt: '2026-07-25T00:00:00.000Z',
+        status: 'connected',
+        message: 'Connection is ready.',
+        catalog: [
+          { id: 'model-a', label: 'Model A' },
+          { id: 'model-b', label: 'Model B' },
+        ],
+      }))
+      await Promise.resolve()
+    })
+    expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(2)
+
+    fireEvent.mouseDown(within(screen.getByRole('listbox')).getByRole('option', { name: 'Model A' }))
+    expect(screen.getByLabelText('Single model ID')).toHaveValue('model-a')
+    fireEvent.focus(screen.getByLabelText('Single model ID'))
+    expect(probeResolvers).toHaveLength(1)
+    expect(within(screen.getByRole('listbox')).getAllByRole('option')).toHaveLength(2)
+  })
+
+  it('guides first-time setup when no connections exist', async () => {
+    mockFetch(() => configResponse(emptyConfig))
+
+    await renderPage()
+
+    expect(screen.getByText('No Model Connections yet.')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Configuration mode' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Single model connection')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Capability Routes currently differ/)).not.toBeInTheDocument()
   })
 
   it('implements credential preserve, replace, and delete without retaining transient values', async () => {

@@ -18,12 +18,10 @@ type Props = {
   credentialState: CredentialState
   credentialAction: string | null | undefined
   probe: ProbeView
-  canProbe: boolean
   onUpdate: (change: Partial<Pick<ModelConnection, 'name' | 'baseUrl'>>, probeInput: boolean) => void
   onProviderChange: (kind: ProviderKind) => void
   onCredentialChange: (action: string | null | undefined) => void
   onRemove: () => void
-  onRefresh: () => void
 }
 
 export function ProviderConnectionCard({
@@ -34,12 +32,10 @@ export function ProviderConnectionCard({
   credentialState,
   credentialAction,
   probe,
-  canProbe,
   onUpdate,
   onProviderChange,
   onCredentialChange,
   onRemove,
-  onRefresh,
 }: Props) {
   const tone = probe.phase === 'done' ? (probe.result.status === 'connected' ? 'ok' : 'err') : probe.phase === 'error' ? 'err' : 'warn'
   const statusText = probe.phase === 'checking'
@@ -92,10 +88,7 @@ export function ProviderConnectionCard({
           {credentialState === 'unavailable' && <p className="text-[11px] text-danger">Credential store unavailable.</p>}
         </div>
       )}
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <p className={`whitespace-pre-line text-[11px] ${tones[tone].text}`}>{statusText}</p>
-        <Button variant="secondary" size="sm" disabled={!canProbe || probe.phase === 'checking'} onClick={onRefresh}>Refresh models</Button>
-      </div>
+      <p className={`mt-2 whitespace-pre-line text-[11px] ${tones[tone].text}`}>{statusText}</p>
     </article>
   )
 }

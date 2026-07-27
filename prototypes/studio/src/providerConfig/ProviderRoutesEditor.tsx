@@ -1,5 +1,6 @@
 import type { ModelConfig, ModelConnection, ProviderDescriptor, RouteKey } from '../../shared/modelConfig.contract'
 import { Overline } from '../ui'
+import { ModelCombobox } from './ModelCombobox'
 import { providerFieldClass } from './ProviderConnectionCard'
 import { ROUTABLE_TASKS } from './providerConfig.data'
 import type { ProbeView } from './useProbeLifecycle'
@@ -10,6 +11,7 @@ type Props = {
   draft: ModelConfig
   probes: Readonly<Record<string, ProbeView>>
   descriptor: (connection: ModelConnection) => ProviderDescriptor | undefined
+  onModelListOpen: (connectionId: string) => void
   setRoute: (key: RouteKey, connectionId: string) => void
   setRouteModel: (key: RouteKey, modelId: string) => void
   setSingleConnection: (connectionId: string) => void
@@ -22,6 +24,7 @@ export function ProviderRoutesEditor({
   draft,
   probes,
   descriptor,
+  onModelListOpen,
   setRoute,
   setRouteModel,
   setSingleConnection,
@@ -44,7 +47,7 @@ export function ProviderRoutesEditor({
   if (mode === 'single') {
     return (
       <div>
-        {!uniform && <p className="rounded-lg border border-stale bg-stale-soft px-3 py-2 text-[11px] text-stale-ink">Capability Routes currently differ. Selecting a connection and model here will assign the same target to both.</p>}
+        {!uniform && (extraction !== null || interaction !== null) && <p className="rounded-lg border border-stale bg-stale-soft px-3 py-2 text-[11px] text-stale-ink">Capability Routes currently differ. Selecting a connection and model here will assign the same target to both.</p>}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <label className="flex flex-col gap-1">
             <span className="font-mono text-[10px] font-semibold uppercase text-ink-muted">Connection</span>
@@ -53,12 +56,18 @@ export function ProviderRoutesEditor({
               {draft.connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.name}</option>)}
             </select>
           </label>
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="font-mono text-[10px] font-semibold uppercase text-ink-muted">Model ID</span>
-            <input aria-label="Single model ID" value={singleModelId} onChange={(event) => setSingleModel(event.target.value)} list={singleConnectionId ? `models-single-${singleConnectionId}` : undefined} placeholder={singleCatalog.length > 0 ? 'Select or enter a model ID' : 'Enter an exact model ID'} className={`font-mono ${providerFieldClass}`} />
-            {singleConnectionId && <datalist id={`models-single-${singleConnectionId}`}>{singleCatalog.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</datalist>}
-            {singleConnectionId && singleCatalog.length === 0 && <span className="text-[10.5px] text-ink-faint">Use Refresh models below to list this connection's models.</span>}
-          </label>
+            <ModelCombobox
+              ariaLabel="Single model ID"
+              value={singleModelId}
+              onChange={setSingleModel}
+              options={singleCatalog}
+              probePhase={singleProbe?.phase ?? 'idle'}
+              disabled={!singleConnectionId}
+              onOpen={() => singleConnectionId && onModelListOpen(singleConnectionId)}
+            />
+          </div>
         </div>
       </div>
     )
@@ -85,11 +94,18 @@ export function ProviderRoutesEditor({
                   {draft.connections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
               </label>
-              <label className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1">
                 <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Model ID</span>
-                <input aria-label={`${task.label} model ID`} value={route?.modelId ?? ''} onChange={(event) => setRouteModel(task.key, event.target.value)} list={connection ? `models-${task.key}-${connection.id}` : undefined} disabled={!route} placeholder="Enter an exact model ID" className={`font-mono ${providerFieldClass}`} />
-                {connection && <datalist id={`models-${task.key}-${connection.id}`}>{catalog.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</datalist>}
-              </label>
+                <ModelCombobox
+                  ariaLabel={`${task.label} model ID`}
+                  value={route?.modelId ?? ''}
+                  onChange={(modelId) => setRouteModel(task.key, modelId)}
+                  options={catalog}
+                  probePhase={probe?.phase ?? 'idle'}
+                  disabled={!route}
+                  onOpen={() => connection && onModelListOpen(connection.id)}
+                />
+              </div>
               {task.key === 'extraction' && provider?.supportsNuextractRaw && route && (
                 <label className="mt-2 flex items-center gap-2 text-[11px] text-ink-muted">
                   <input type="checkbox" checked={'nuextractRaw' in route && route.nuextractRaw === true} onChange={(event) => setRawNuextract(event.target.checked)} />

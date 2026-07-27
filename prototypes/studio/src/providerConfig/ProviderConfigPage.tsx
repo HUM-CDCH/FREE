@@ -17,7 +17,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const { probes, canProbe, schedule, refresh, dispose } = useProbeLifecycle({
+  const { probes, schedule, refresh, dispose } = useProbeLifecycle({
     providers,
     credentialStates,
   })
@@ -97,43 +97,55 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
   }
 
 
+  const hasConnections = draft.connections.length > 0
+
+  function openModelList(connectionId: string): void {
+    const phase = probes[connectionId]?.phase ?? 'idle'
+    if (phase === 'checking' || phase === 'done') return
+    const connection = draft?.connections.find(({ id }) => id === connectionId)
+    if (connection) refresh(connection, actionFor(connection.id))
+  }
+
   return (
     <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-line bg-surface-muted shadow-page">
       <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2.75">
         <b className="text-[13px] text-ink">Model Connections</b>
         <div className="flex items-center gap-3">
-          <div role="group" aria-label="Configuration mode" className="flex gap-0.5 rounded-lg border border-line bg-surface-muted p-0.5">
-            {(['single', 'routes'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={mode === value}
-                onClick={() => setMode(value)}
-                className={`rounded-md px-3 py-[5px] text-[10.5px] font-semibold ${mode === value ? 'bg-canvas text-accent shadow-sm' : 'text-ink-faint'}`}
-              >
-                {value === 'single' ? 'Single model' : 'Capability Routes'}
-              </button>
-            ))}
-          </div>
+          {hasConnections && (
+            <div role="group" aria-label="Configuration mode" className="flex gap-0.5 rounded-lg border border-line bg-surface-muted p-0.5">
+              {(['single', 'routes'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={mode === value}
+                  onClick={() => setMode(value)}
+                  className={`rounded-md px-3 py-[5px] text-[10.5px] font-semibold ${mode === value ? 'bg-canvas text-accent shadow-sm' : 'text-ink-faint'}`}
+                >
+                  {value === 'single' ? 'Single model' : 'Capability Routes'}
+                </button>
+              ))}
+            </div>
+          )}
           <button type="button" onClick={onClose} aria-label="Close Model Connections" className="text-lg text-ink-faint hover:text-ink">×</button>
         </div>
       </header>
 
       {error && <p role="alert" className="m-4 whitespace-pre-line rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 font-mono text-xs text-danger">{error}</p>}
 
-      <section className="border-b border-line bg-surface p-4.5">
+      {hasConnections && <section className="border-b border-line bg-surface p-4.5">
         <ProviderRoutesEditor
           mode={mode}
           draft={draft}
           probes={probes}
           descriptor={descriptor}
+          onModelListOpen={openModelList}
           setRoute={setRoute}
           setRouteModel={setRouteModel}
           setSingleConnection={setSingleConnection}
           setSingleModel={setSingleModel}
           setRawNuextract={setRawNuextract}
         />
-      </section>
+      </section>}
       <section className="p-4.5">
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -160,16 +172,14 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
                 credentialState={credentialStates[connection.id] ?? 'absent'}
                 credentialAction={action}
                 probe={probes[connection.id] ?? { phase: 'idle' }}
-                canProbe={canProbe(connection, action)}
                 onUpdate={(change, probeInput) => updateConnection(connection, change, probeInput)}
                 onProviderChange={(kind) => changeProvider(connection, kind)}
                 onCredentialChange={(next) => updateCredential(connection, next)}
                 onRemove={() => removeConnection(connection.id)}
-                onRefresh={() => refresh(connection, action)}
               />
             )
           })}
-          {draft.connections.length === 0 && <EmptyState title="No Model Connections yet." description="Add one, enter an exact model ID, and Apply." />}
+          {!hasConnections && <EmptyState title="No Model Connections yet." description="Choose a provider above and add your first connection. You'll pick a model afterwards." />}
         </div>
         <div className="mt-4 flex items-center justify-end gap-3">
           <Button variant="primary" size="md" disabled={applying} onClick={() => void apply()}>{applying ? 'Applying…' : 'Apply'}</Button>
