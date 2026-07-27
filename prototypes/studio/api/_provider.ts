@@ -61,7 +61,7 @@ const MAX_MESSAGE_TEXT = 512
 const PROBE_TIMEOUT_MS = 15_000
 const execFile = promisify(execFileCallback)
 
-/** A provider API base already includes every researcher-supplied path prefix. */
+/** A provider base already includes every researcher-supplied path prefix. */
 export function appendProviderResource(baseUrl: string, resource: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${resource.replace(/^\/+/, '')}`
 }
@@ -369,16 +369,17 @@ const commonHttpHeaders = (credential: string | null): Record<string, string> =>
 
 export const providerTable = {
   ollama: {
+    // The SDK appends api/chat; FREE appends api/tags and api/generate at their own call sites.
     kind: 'ollama',
     label: 'Ollama',
     transport: 'http',
-    defaultBaseUrl: 'http://127.0.0.1:11434/api',
+    defaultBaseUrl: 'http://127.0.0.1:11434',
     authentication: 'optional',
     supportsNuextractRaw: true,
     jsonOutput: 'native',
     temperatureSupported: true,
     execution: ['general', 'nuextract-raw'],
-    discover: httpDiscovery('tags', commonHttpHeaders, ollamaCatalog),
+    discover: httpDiscovery('api/tags', commonHttpHeaders, ollamaCatalog),
     createModel: (connection, modelId, credential) =>
       createOllama({ baseURL: connection.baseUrl!, ...(credential ? { apiKey: credential } : {}) })(modelId),
   },

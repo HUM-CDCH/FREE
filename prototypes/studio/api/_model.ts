@@ -236,8 +236,8 @@ async function generateWithGenericJsonPrompt(
     })
     return { response: generated.text }
   } catch (error) {
-    if (target.jsonOutput === 'native' && NoObjectGeneratedError.isInstance(error) && error.text) {
-      return { response: error.text }
+    if (target.jsonOutput === 'native' && NoObjectGeneratedError.isInstance(error) && error.message) {
+      return { response: error.message }
     }
     throw asModelOperationError(error)
   }
@@ -257,7 +257,7 @@ async function generateWithNuExtractRawPrompt(
   const rendered = renderNuExtractPrompt(input)
   let response: Response
   try {
-    response = await requestFetch(appendProviderResource(target.baseUrl, 'generate'), {
+    response = await requestFetch(appendProviderResource(target.baseUrl, 'api/generate'), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',

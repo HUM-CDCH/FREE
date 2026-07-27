@@ -74,7 +74,7 @@ export function ProviderConnectionCard({
         )}
         {provider.transport === 'http' && (
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Provider API base</span>
+            <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">Provider base URL</span>
             <input value={connection.baseUrl ?? ''} onChange={(event) => onUpdate({ baseUrl: event.target.value }, true)} className={`font-mono ${providerFieldClass}`} />
           </label>
         )}
