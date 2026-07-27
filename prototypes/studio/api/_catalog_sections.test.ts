@@ -5,6 +5,7 @@ import {
   isEmptyResult,
   offsetPageNumbers,
   pageForOffset,
+  sectionContainsTable,
   splitMarkdownByHeadings,
 } from './_catalog_sections'
 
@@ -110,6 +111,31 @@ describe('splitMarkdownByHeadings', () => {
       'Grav 30',
       'Grav 31',
     ])
+  })
+})
+
+describe('sectionContainsTable', () => {
+  it('detects a GitHub-flavored-Markdown table by its header separator row', () => {
+    const body = '# Grav 8\n\n| Nummer | Beskrivelse |\n| --- | --- |\n| 8-1 | Kæbe og tænder |\n'
+    expect(sectionContainsTable(body)).toBe(true)
+  })
+
+  it('detects compact separator syntax without spaces', () => {
+    expect(sectionContainsTable('|Nummer|Beskrivelse|\n|---|---|\n|8-1|Kæbe|\n')).toBe(true)
+  })
+
+  it('detects alignment-colon separator syntax', () => {
+    expect(sectionContainsTable('| Nummer | Depth |\n|:---|---:|\n| 8-1 | 12 |\n')).toBe(true)
+  })
+
+  it('returns false for prose sections with no table', () => {
+    const body = '# Grav 8\n\nArk: 67\n\nBaggrund og udgravning: some narrative text with - a dash - in it.\n'
+    expect(sectionContainsTable(body)).toBe(false)
+  })
+
+  it('does not mistake a Markdown horizontal rule or list dashes for a table', () => {
+    expect(sectionContainsTable('# Grav 8\n\n---\n\nSome text.\n')).toBe(false)
+    expect(sectionContainsTable('# Grav 8\n\n- item one\n- item two\n')).toBe(false)
   })
 })
 

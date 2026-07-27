@@ -161,6 +161,50 @@ describe('extractWithModel', () => {
     })
   })
 
+  it('detects tables per section, not from a whole-document flag: only the section with a table gets row_header/column_header', async () => {
+    const markdown =
+      '# Grave 1\n\n' +
+      '| Nummer | Beskrivelse |\n| --- | --- |\n| 8-1 | Kæbe og tænder |\n\n' +
+      '# Grave 2\n\n' +
+      'A plain narrative section with no table at all.\n'
+    const fetchMock = vi.fn().mockImplementation(async (_url: unknown, init: { body: string }) => {
+      const body = JSON.parse(init.body) as { prompt: string }
+      if (body.prompt.includes('Kæbe')) {
+        // The table section's request must ask for row_header/column_header...
+        expect(body.prompt).toContain('row_header')
+        expect(body.prompt).toContain('column_header')
+        return new Response(
+          JSON.stringify({
+            response:
+              '{"name":{"value":"8-1","snippet":"8-1","page":1,"row_header":"8-1","column_header":"Nummer"}}',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        )
+      }
+      // ...but the plain-narrative section's request must not.
+      expect(body.prompt).not.toContain('row_header')
+      expect(body.prompt).not.toContain('column_header')
+      return new Response(
+        JSON.stringify({ response: '{"name":{"value":"Grave 2","snippet":"Grave 2","page":1}}' }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await extractWithModel({
+      document: { file: null, markdown, pages: null },
+      template: { entries: [{ name: 'verbatim-string' }] },
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.evidence).toEqual({
+      entries: [
+        { name: { value: '8-1', snippet: '8-1', page: 1, row_header: '8-1', column_header: 'Nummer' } },
+        { name: { value: 'Grave 2', snippet: 'Grave 2', page: 1, row_header: null, column_header: null } },
+      ],
+    })
+  })
+
   it('drops a sectioned entry whose extraction came back entirely empty', async () => {
     const markdown = '# Grave 1\n\nDepth: 10\n\n# Grave 2\n\nNothing relevant here.\n'
     const fetchMock = vi.fn().mockImplementation(async (_url: unknown, init: { body: string }) => {

@@ -21,6 +21,7 @@ import {
   isEmptyResult,
   offsetPageNumbers,
   pageForOffset,
+  sectionContainsTable,
   splitMarkdownByHeadings,
   type MarkdownSection,
 } from './_catalog_sections.js'
@@ -41,7 +42,7 @@ const NON_THINKING_TEMPERATURE = 0.2
 // Sections run concurrently rather than the historical Catalog pipeline's
 // sequential per-record loop, capped since a local Ollama instance mostly
 // serializes GPU work anyway — unbounded parallel requests would just queue.
-const MAX_CONCURRENT_SECTION_CALLS = 4
+const MAX_CONCURRENT_SECTION_CALLS = 7
 
 const EVIDENCE_FIELD_INSTRUCTION =
   'For every evidence field in the template, set "snippet" to a short verbatim excerpt from the document that contains the value, and set "page" to the 1-based index of the page or image where the value appears. Never leave "snippet" or "page" as null. ' +
@@ -143,10 +144,17 @@ export async function extractWithModel({
   readonly pages: number | null
 }> {
   const documentParts = await documentContentParts(document)
+  const callerInstruction = instruction?.trim()
+  // Table-awareness is decided per-section below (see runSectionedExtraction),
+  // not from this whole-document flag — baseInstructions deliberately excludes
+  // TABLE_EVIDENCE_FIELD_INSTRUCTION so each section can add it only when its
+  // own body actually contains a table.
+  const baseInstructions = callerInstruction
+    ? `${EVIDENCE_FIELD_INSTRUCTION}\n\n${callerInstruction}`
+    : EVIDENCE_FIELD_INSTRUCTION
   const evidenceFieldInstruction = hasTables
     ? `${EVIDENCE_FIELD_INSTRUCTION}\n\n${TABLE_EVIDENCE_FIELD_INSTRUCTION}`
     : EVIDENCE_FIELD_INSTRUCTION
-  const callerInstruction = instruction?.trim()
   const instructions = callerInstruction
     ? `${evidenceFieldInstruction}\n\n${callerInstruction}`
     : evidenceFieldInstruction
@@ -164,8 +172,7 @@ export async function extractWithModel({
       itemTemplate,
       sections,
       fullMarkdown: document.markdown as string,
-      hasTables: hasTables ?? false,
-      instructions: templateDescription ? `${templateDescription}\n\n${instructions}` : instructions,
+      baseInstructions: templateDescription ? `${templateDescription}\n\n${baseInstructions}` : baseInstructions,
       temperature,
     })
     return {
@@ -243,34 +250,40 @@ async function runExtractionCall({
 // against just the array's item template, then merged back under arrayKey.
 // Mirrors the historical hierarchical pipeline's slice → per-record extract →
 // merge, but sections run concurrently instead of in a sequential loop.
+//
+// Table-awareness is decided per section (sectionContainsTable), not from a
+// single whole-document flag: a section whose own body has no table gets the
+// plain 3-key evidence shape and no table instruction, even when a sibling
+// section elsewhere in the document does have one.
 async function runSectionedExtraction({
   arrayKey,
   itemTemplate,
   sections,
   fullMarkdown,
-  hasTables,
-  instructions,
+  baseInstructions,
   temperature,
 }: {
   readonly arrayKey: string
   readonly itemTemplate: Record<string, unknown>
   readonly sections: readonly MarkdownSection[]
   readonly fullMarkdown: string
-  readonly hasTables: boolean
-  readonly instructions: string
+  readonly baseInstructions: string
   readonly temperature?: number
 }): Promise<{
   readonly result: Record<string, unknown>
   readonly evidence: Record<string, unknown> | null
   readonly raw: string
 }> {
-  const itemEvidenceTemplate = wrapTemplateWithEvidence(itemTemplate, hasTables)
-
   const perSection = await runWithConcurrencyLimit(
     sections.map((section) => async () => {
+      const sectionHasTables = sectionContainsTable(section.body)
+      const itemEvidenceTemplate = wrapTemplateWithEvidence(itemTemplate, sectionHasTables)
+      const sectionInstructions = sectionHasTables
+        ? `${baseInstructions}\n\n${TABLE_EVIDENCE_FIELD_INSTRUCTION}`
+        : baseInstructions
       const generated = await runExtractionCall({
         evidenceTemplate: itemEvidenceTemplate,
-        instructions,
+        instructions: sectionInstructions,
         documentParts: [{ type: 'text', text: section.body }],
         temperature,
       })

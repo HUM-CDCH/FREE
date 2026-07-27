@@ -9,6 +9,11 @@
 
 const PAGE_BREAK = '\n\n---\n\n'
 const LEVEL_1_HEADING = /^# (.+)$/gm
+// GitHub-flavored-Markdown table header-separator row, e.g. "| --- | --- |" or
+// "|---|:---:|" — the canonical LLM Markdown the parsing service emits renders
+// every table with this exact pipe syntax, so its presence in a section's body
+// reliably means that section contains at least one table.
+const MARKDOWN_TABLE_SEPARATOR_ROW = /^[ \t]*\|?[ \t]*:?-{2,}:?[ \t]*(?:\|[ \t]*:?-{2,}:?[ \t]*)+\|?[ \t]*$/m
 
 export type MarkdownSection = {
   readonly headingText: string
@@ -94,6 +99,14 @@ export function splitMarkdownByHeadings(markdown: string): readonly MarkdownSect
       startOffset: start,
     }
   })
+}
+
+// Whether a single section's own Markdown body contains a table, independent
+// of whether the document as a whole has any. Drives per-section evidence
+// gating in runSectionedExtraction (_model.ts) — a section with no table gets
+// no row_header/column_header prompt overhead, even when a sibling section does.
+export function sectionContainsTable(body: string): boolean {
+  return MARKDOWN_TABLE_SEPARATOR_ROW.test(body)
 }
 
 // 1-based page number for a Markdown character offset, counting preceding

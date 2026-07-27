@@ -406,8 +406,9 @@ function App() {
         markdown: documentMarkdown,
       })
       if (!abortController.signal.aborted) {
-        setTemplateState({ status: 'ready', nodes: templateToNodes(template), inputsKey })
-        setSchemaHistory(clearSchemaHistory())
+        const nodes = templateToNodes(template)
+        setTemplateState({ status: 'ready', nodes, inputsKey })
+        setSchemaHistory(appendSchemaHistoryEntry(clearSchemaHistory(), nodes, '✦ Schema generated'))
       }
     } catch (error) {
       if (abortController.signal.aborted) {
