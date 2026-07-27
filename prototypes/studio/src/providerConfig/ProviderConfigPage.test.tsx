@@ -18,7 +18,7 @@ const providers: ProviderDescriptor[] = [
     kind: 'ollama',
     label: 'Ollama',
     transport: 'http',
-    defaultBaseUrl: 'http://127.0.0.1:11434/api',
+    defaultBaseUrl: 'http://127.0.0.1:11434',
     authentication: 'optional',
     supportsNuextractRaw: true,
   },
@@ -85,7 +85,7 @@ function ollamaConfig(modelId = 'saved-model'): ModelConfig {
         id: OLLAMA_ID,
         name: 'Local Ollama',
         provider: 'ollama',
-        baseUrl: 'http://127.0.0.1:11434/api',
+        baseUrl: 'http://127.0.0.1:11434',
       },
     ],
     routes: { extraction: route, interaction: route },
@@ -99,7 +99,7 @@ function mixedConfig(): ModelConfig {
         id: OLLAMA_ID,
         name: 'Local Ollama',
         provider: 'ollama',
-        baseUrl: 'http://127.0.0.1:11434/api',
+        baseUrl: 'http://127.0.0.1:11434',
       },
       {
         id: OPENAI_ID,
@@ -302,7 +302,7 @@ describe('ProviderConfigPage', () => {
     vi.useFakeTimers()
 
     fireEvent.click(screen.getByRole('button', { name: '+ New connection' }))
-    const baseInput = screen.getByDisplayValue('http://127.0.0.1:11434/api')
+    const baseInput = screen.getByDisplayValue('http://127.0.0.1:11434')
     fireEvent.change(baseInput, { target: { value: 'http://localhost:11434/first' } })
     await act(() => vi.advanceTimersByTimeAsync(499))
     expect(probeResolvers).toHaveLength(0)

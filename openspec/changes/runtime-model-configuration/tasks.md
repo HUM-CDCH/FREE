@@ -121,3 +121,18 @@ Each numbered group is one fresh implementation session. Groups are dependency o
 - [x] 7.5 Confirm repository searches find no obsolete static catalogs, plaintext browser credential state, duplicated environment routing, or stale instructional `AI_*` documentation outside historical interview/change artifacts
 
 **Stopping boundary:** Stop with cleanup and verification complete; do not archive the change or broaden scope into unrelated deployment, parsing, Evidence, schema vocabulary, cancellation, or output-tolerance work.
+
+## 8. Canonical Ollama server base
+
+**Blocking task groups:** 7.
+
+**Expected outcome:** An Ollama Model Connection stores the server base expected by `ai-sdk-ollama`, while discovery, general generation, and raw NuExtract each reach exactly one native `/api` resource path.
+
+**Explicit non-goals:** Migrating or rewriting existing Ollama connections that end in `/api`, rejecting arbitrary path-prefixed server bases, or changing another provider's base-URL contract.
+
+- [x] 8.1 Change the Ollama default to `http://127.0.0.1:11434`, pass that stored base unchanged to `createOllama`, append `api/tags` for discovery and `api/generate` for raw NuExtract, and remove execution-boundary URL rewriting
+- [x] 8.2 Update configuration UI wording, current documentation, ADR, design, and delta specifications so Ollama stores a server base while other HTTP providers retain their adapter-specific versioned API bases
+- [x] 8.3 Add regressions for exact Ollama discovery, general generation, and raw NuExtract URLs, including trailing slashes and retained custom proxy prefixes, and update fixtures that encode the old default
+- [x] 8.4 Run focused and full Studio tests, mocked Playwright configuration workflows, lint, build, OpenSpec validation, and `git diff --check`
+
+**Stopping boundary:** Stop with the three Ollama native resources derived exactly once from the stored server base; do not archive the change or add compatibility transforms.

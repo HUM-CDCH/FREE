@@ -21,11 +21,11 @@ without silent substitution or duplicated provider rules.
   OpenAI-compatible Model Connections through one backend provider registry
   that owns provider metadata, defaults, credential modes, discovery, model
   construction, and concrete execution capabilities. Every stored HTTP URL is
-  the exact provider API base expected by its adapter, including any version
-  prefix. Adapters append only resource-local paths for discovery and
-  generation. Generic connections thereby guarantee `/models` and
+  the exact base expected by its adapter. Ollama stores its server base and
+  appends the native `/api` resources exactly once; other providers retain any
+  required version prefix. Generic connections thereby guarantee `/models` and
   `/chat/completions` beneath the stored base. Custom Model Connections accept
-  any valid researcher-supplied HTTP or HTTPS API base without query, fragment,
+  any valid researcher-supplied HTTP or HTTPS base URL without query, fragment,
   or embedded userinfo;
   native providers retain that provider’s native contract, and the configured
   root is displayed without special remote-egress warnings or confirmation.
@@ -75,6 +75,9 @@ without silent substitution or duplicated provider rules.
 - **BREAKING**: Remove `AI_PROVIDER`, `AI_MODEL`, `AI_CHAT_MODEL`, `AI_BASE_URL`,
   and `AI_API_KEY` as runtime model-configuration inputs; saved configuration
   becomes the sole source.
+- **BREAKING**: Ollama Model Connections store the server base expected by
+  `ai-sdk-ollama` (for example `http://127.0.0.1:11434`) rather than a base
+  ending in `/api`. Existing Ollama connections are not migrated or rewritten.
 
 ## Capabilities
 

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const providers = [
-  ['ollama', 'Ollama', 'http', 'http://127.0.0.1:11434/api', 'optional', true],
+  ['ollama', 'Ollama', 'http', 'http://127.0.0.1:11434', 'optional', true],
   ['openai', 'OpenAI', 'http', 'https://api.openai.com/v1', 'managed', false],
   ['anthropic', 'Anthropic', 'http', 'https://api.anthropic.com/v1', 'managed', false],
   ['google', 'Google', 'http', 'https://generativelanguage.googleapis.com/v1beta', 'managed', false],
@@ -101,7 +101,7 @@ test('Single model saves, reloads, and checks without probing on open or Apply',
   expect(state.probes()).toBe(0)
 
   await page.getByRole('button', { name: '+ New connection' }).click()
-  await page.getByLabel('Provider API base').fill('http://127.0.0.1:11434/custom/api')
+  await page.getByLabel('Provider base URL').fill('http://127.0.0.1:11434/custom')
   await expect.poll(state.probes).toBe(1)
   await expect(page.getByText('Connected. 1 model available.')).toBeVisible()
   await page.getByLabel('Single model connection').selectOption({ label: 'Ollama' })
@@ -124,8 +124,8 @@ test('probe scheduling and refresh share one supersession path', async ({ page }
   await page.goto('/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
-  await page.getByLabel('Provider API base').fill('http://localhost:11434/first')
-  await page.getByLabel('Provider API base').fill('http://localhost:11434/latest')
+  await page.getByLabel('Provider base URL').fill('http://localhost:11434/first')
+  await page.getByLabel('Provider base URL').fill('http://localhost:11434/latest')
   await page.getByRole('button', { name: 'Refresh models' }).click()
 
   await expect.poll(state.probes).toBe(1)

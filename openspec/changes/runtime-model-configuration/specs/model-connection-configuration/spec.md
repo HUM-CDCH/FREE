@@ -25,7 +25,7 @@ FREE SHALL persist non-secret Model Connections and the Capability Route map in 
 
 ### Requirement: Configuration writes accept only researcher-editable state
 
-`PUT /api/model_config` SHALL accept a complete editable configuration and optional explicit credential actions. The editable configuration SHALL have exactly the same wire schema as the `config` object returned by GET and PUT, so it can be submitted without field stripping or reconstruction. A Model Connection SHALL have a stable UUID, name, provider kind, and provider API base where applicable. Credential states and provider descriptors are server-owned sibling data and MUST NOT be accepted inside the editable configuration. A non-null submitted route SHALL reference a submitted Model Connection and MAY use any non-empty model ID without prior discovery.
+`PUT /api/model_config` SHALL accept a complete editable configuration and optional explicit credential actions. The editable configuration SHALL have exactly the same wire schema as the `config` object returned by GET and PUT, so it can be submitted without field stripping or reconstruction. A Model Connection SHALL have a stable UUID, name, provider kind, and provider base URL where applicable. Credential states and provider descriptors are server-owned sibling data and MUST NOT be accepted inside the editable configuration. A non-null submitted route SHALL reference a submitted Model Connection and MAY use any non-empty model ID without prior discovery.
 
 #### Scenario: Existing identity changes provider kind
 
@@ -97,7 +97,7 @@ The Model Connection page SHALL own one editable React draft and submit it throu
 
 ### Requirement: Seven provider kinds have explicit connection contracts
 
-FREE SHALL support exactly these Model Connection kinds: Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and OpenAI-compatible. HTTP providers SHALL use an absolute `http:` or `https:` provider API base without username, password, query, or fragment; version prefixes such as `/v1` are valid and trailing slashes are insignificant. CLI providers SHALL have a null API base and external installation/authentication state. A configured native-provider base SHALL retain that provider's native protocol, while an OpenAI-compatible base SHALL guarantee `/models` and `/chat/completions` beneath the stored base.
+FREE SHALL support exactly these Model Connection kinds: Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and OpenAI-compatible. HTTP providers SHALL use an absolute `http:` or `https:` provider base URL without username, password, query, or fragment; adapter-required version prefixes such as `/v1` are valid and trailing slashes are insignificant. Ollama SHALL store the server base expected by its adapter rather than an API base ending in `/api`. CLI providers SHALL have a null base URL and external installation/authentication state. A configured native-provider base SHALL retain that provider's native protocol, while an OpenAI-compatible base SHALL guarantee `/models` and `/chat/completions` beneath the stored base.
 
 #### Scenario: Each provider kind is represented
 
@@ -111,10 +111,10 @@ FREE SHALL support exactly these Model Connection kinds: Ollama, OpenAI, Anthrop
 - **THEN** FREE returns HTTP 409 with `error.code` `invalid_model_config`
 - **AND** HTTP provider kinds remain available for multiple independently named Model Connections
 
-#### Scenario: Provider API bases preserve their supplied version
+#### Scenario: Provider bases preserve supplied versions and prefixes
 
-- **WHEN** an HTTP connection is saved with a valid provider API base, including
-  an API base ending in `/v1` or `/v1beta`
+- **WHEN** an HTTP connection is saved with a valid provider base, including
+  a base ending in `/v1` or `/v1beta`
 - **THEN** each adapter appends only resource-local paths below that exact base
 - **AND** a path prefix in the stored base is retained without suffix rejection
 
@@ -129,6 +129,12 @@ FREE SHALL support exactly these Model Connection kinds: Ollama, OpenAI, Anthrop
 - **WHEN** an Ollama, OpenAI, Anthropic, or Google connection uses a custom valid API base
 - **THEN** FREE uses the selected native provider contract at that base
 - **AND** it does not reinterpret the connection as OpenAI-compatible
+
+#### Scenario: An Ollama server base reaches each native resource once
+
+- **WHEN** an Ollama connection stores `http://127.0.0.1:11434` or a custom path-prefixed server base
+- **THEN** discovery uses `{base}/api/tags`, general generation uses `{base}/api/chat`, and raw NuExtract uses `{base}/api/generate`
+- **AND** FREE neither appends `/api` twice nor strips or rewrites the stored base
 
 #### Scenario: Native OpenAI and OpenAI-compatible use distinct generation protocols
 

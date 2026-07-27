@@ -21,7 +21,7 @@ const document = { file: null, markdown: 'Grave 1', pages: null }
 const rawTarget: ExecutionTarget = {
   profile: 'nuextract-raw',
   modelId: 'nuextract/manual',
-  baseUrl: 'http://127.0.0.1:11434/api',
+  baseUrl: 'http://127.0.0.1:11434',
   authorization: 'Bearer secret',
   temperatureSupported: true,
 }
@@ -75,6 +75,21 @@ describe('extractWithModel', () => {
       options: { temperature: 0.2 },
     })
     expect(body).not.toHaveProperty('chat_template_kwargs')
+  })
+
+  it('preserves a path-prefixed Ollama server base for raw generation', async () => {
+    const request = stubOllamaResponse(
+      '{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}',
+    )
+    await extractWithModel(
+      { document, template: { grave: [{ name: 'verbatim-string' }] } },
+      { ...rawTarget, baseUrl: 'https://gateway.example/ollama/' },
+    )
+
+    expect(request).toHaveBeenCalledWith(
+      'https://gateway.example/ollama/api/generate',
+      expect.objectContaining({ method: 'POST' }),
+    )
   })
 
   it('keeps parseable schema-mismatched extraction output', async () => {

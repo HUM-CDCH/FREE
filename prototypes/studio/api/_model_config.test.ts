@@ -31,7 +31,7 @@ async function temporaryRoot(): Promise<string> {
 function configured(overrides: Partial<ModelConfig> = {}): ModelConfig {
   return {
     connections: [
-      { id: OLLAMA_ID, name: 'Local Ollama', provider: 'ollama', baseUrl: 'http://127.0.0.1:11434/api' },
+      { id: OLLAMA_ID, name: 'Local Ollama', provider: 'ollama', baseUrl: 'http://127.0.0.1:11434' },
       { id: OPENAI_ID, name: 'Research OpenAI', provider: 'openai', baseUrl: 'https://gateway.example/proxy/openai/v1' },
     ],
     routes: {

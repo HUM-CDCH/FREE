@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { generateText } from 'ai'
 import type { ModelConfig, ModelConnection } from '../shared/modelConfig.contract.js'
 import {
   PROVIDERS,
@@ -22,6 +23,10 @@ const presentCredentialStore = {
   delete: async () => undefined,
 }
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
   return {
     connections: [connection],
@@ -34,6 +39,42 @@ function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
 }
 
 describe('provider table', () => {
+  it.each([
+    ['default server', 'http://127.0.0.1:11434', 'http://127.0.0.1:11434/api/chat'],
+    ['path-prefixed server', 'https://gateway.example/ollama/', 'https://gateway.example:443/ollama/api/chat'],
+  ])('sends general Ollama generation from the %s base to the native chat endpoint', async (_label, baseUrl, expectedUrl) => {
+    const request = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url !== expectedUrl) {
+        return new Response('404 page not found', { status: 404 })
+      }
+      return new Response(JSON.stringify({
+        model: 'manual/model',
+        created_at: '2026-07-27T00:00:00Z',
+        message: { role: 'assistant', content: '{"grave":[]}' },
+        done: true,
+        done_reason: 'stop',
+        total_duration: 1,
+        load_duration: 1,
+        prompt_eval_count: 1,
+        prompt_eval_duration: 1,
+        eval_count: 1,
+        eval_duration: 1,
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    })
+    vi.stubGlobal('fetch', request)
+
+    const model = providerTable.ollama.createModel(
+      { ...connection, provider: 'ollama', baseUrl },
+      'manual/model',
+      null,
+    )
+    await generateText({ model, prompt: 'Generate a schema.' })
+
+    expect(request).toHaveBeenCalled()
+    expect(String(request.mock.calls[0][0])).toBe(expectedUrl)
+  })
+
   it('exposes only all seven serializable descriptors in stable order', () => {
     expect(PROVIDERS.map(({ kind }) => kind)).toEqual([
       'ollama',
@@ -88,7 +129,7 @@ describe('probeConnection', () => {
   })
 
   it.each([
-    ['ollama', 'tags', { models: [{ name: 'llama-local' }] }, 'llama-local', 'authorization', 'Bearer secret'],
+    ['ollama', 'api/tags', { models: [{ name: 'llama-local' }] }, 'llama-local', 'authorization', 'Bearer secret'],
     ['openai', 'models', { data: [{ id: 'gpt-native' }] }, 'gpt-native', 'authorization', 'Bearer secret'],
     ['anthropic', 'models', { data: [{ id: 'claude-native', display_name: 'Claude' }] }, 'claude-native', 'x-api-key', 'secret'],
     ['google', 'models', { models: [{ name: 'models/gemini-native', displayName: 'Gemini' }] }, 'gemini-native', 'x-goog-api-key', 'secret'],
@@ -249,7 +290,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it.each([
-    ['ollama', 'http://127.0.0.1:11434/api', 'native', true],
+    ['ollama', 'http://127.0.0.1:11434', 'native', true],
     ['openai', 'https://api.openai.com/v1', 'native', true],
     ['anthropic', 'https://api.anthropic.com/v1', 'prompt', true],
     ['google', 'https://generativelanguage.googleapis.com/v1beta', 'native', true],
@@ -318,7 +359,7 @@ describe('resolveCapabilityRoute', () => {
   })
 
   it('derives raw NuExtract only from an explicitly flagged Ollama Extraction Route', async () => {
-    const ollama = { ...connection, provider: 'ollama' as const, baseUrl: 'http://ollama.example/api' }
+    const ollama = { ...connection, provider: 'ollama' as const, baseUrl: 'http://ollama.example' }
     const target = await resolveCapabilityRoute('extraction', {}, {
       config: routed({
         connections: [ollama],
@@ -332,7 +373,7 @@ describe('resolveCapabilityRoute', () => {
     expect(target).toEqual({
       profile: 'nuextract-raw',
       modelId: 'manual-nuextract',
-      baseUrl: 'http://ollama.example/api',
+      baseUrl: 'http://ollama.example',
       authorization: 'Bearer secret',
       temperatureSupported: true,
     })
@@ -350,7 +391,7 @@ describe('resolveCapabilityRoute', () => {
     await resolveCapabilityRoute(operation, {}, {
       config: {
         connections: [
-          { ...connection, provider: 'ollama', baseUrl: 'http://ollama.example/api' },
+          { ...connection, provider: 'ollama', baseUrl: 'http://ollama.example' },
           { ...connection, id: interactionId, provider: 'openai', baseUrl: 'https://api.openai.com/v1' },
         ],
         routes: {

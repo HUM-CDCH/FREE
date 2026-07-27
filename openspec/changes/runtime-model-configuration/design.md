@@ -91,7 +91,7 @@ type ModelConnection = {
   id: string                 // UUID created with crypto.randomUUID() in Studio
   name: string
   provider: ProviderKind
-  baseUrl: string | null     // Provider API base; null for CLI providers
+  baseUrl: string | null     // Provider base URL; null for CLI providers
 }
 
 type ModelDescriptor = { id: string; label: string }
@@ -171,12 +171,14 @@ Connection and creating a new one. At most one `codex-cli` connection and one
 `claude-code` connection may exist because each kind resolves the same local
 executable and external authentication; HTTP provider kinds may have multiple
 connections. Names and HTTP-provider URLs are editable. HTTP providers require an
-absolute `http:` or `https:` provider API base with no username, password,
+absolute `http:` or `https:` provider base URL with no username, password,
 query, or fragment and may point to any researcher-selected local or remote
 destination. A trailing slash is semantically irrelevant. The configured base
 is stored exactly as entered (apart from insignificant trailing slashes), so
-conventional API bases such as `/v1` are valid. Adapters append only their
-resource-local paths. CLI providers require `baseUrl: null`.
+conventional API bases such as `/v1` are valid. Ollama stores the server base
+expected by `ai-sdk-ollama`; its discovery and raw transports append `api/tags`
+and `api/generate`, while the SDK appends `api/chat`. Other adapters append only
+their resource-local paths. CLI providers require `baseUrl: null`.
 
 A non-null route must reference a connection in the submitted document. A new
 route selection accepts its exact non-empty model ID without prior discovery.
@@ -470,16 +472,19 @@ provider descriptor exposes only UI metadata, authentication, default base, and
 `supportsNuextractRaw`; JSON-output and temperature capabilities remain
 backend-only.
 
-Every HTTP `baseUrl` in storage is the exact provider API base, including any
-version prefix researchers supply. Derive URLs by removing trailing slashes and
-appending only resource-local paths without discarding an existing path prefix.
-For example, the OpenAI-compatible base `https://host.example/proxy/openai/v1`
-yields `https://host.example/proxy/openai/v1/models`; no suffix rejection or
-version normalization is performed.
+Every HTTP `baseUrl` in storage is the exact base expected by that provider
+adapter. Ollama stores its server base; versioned providers retain any version
+prefix researchers supply. Derive URLs by removing trailing slashes and
+appending only provider-relative resource paths without discarding an existing
+path prefix. For example, the Ollama base `https://host.example/proxy/ollama`
+yields `https://host.example/proxy/ollama/api/tags`, while the OpenAI-compatible
+base `https://host.example/proxy/openai/v1` yields
+`https://host.example/proxy/openai/v1/models`. No suffix rejection, migration,
+or version normalization is performed.
 
 | Kind | Metadata and auth | Discovery URL from stored API base | Generation construction and URL | Concrete capabilities |
 | --- | --- | --- | --- | --- |
-| `ollama` | Ollama; default API base `http://127.0.0.1:11434/api`; `optional` managed bearer credential | `GET {root}/tags` | `createOllama({ baseURL: root, apiKey })`; general generation uses `{root}/chat`, raw NuExtract uses `{root}/generate` | JSON `native`; `temperatureSupported: true`; `general` and `nuextract-raw` |
+| `ollama` | Ollama; default server base `http://127.0.0.1:11434`; `optional` managed bearer credential | `GET {base}/api/tags` | `createOllama({ baseURL: base, apiKey })`; general generation uses `{base}/api/chat`, raw NuExtract uses `{base}/api/generate` | JSON `native`; `temperatureSupported: true`; `general` and `nuextract-raw` |
 | `openai` | OpenAI; default API base `https://api.openai.com/v1`; `managed` credential | Native `GET {root}/models` | `createOpenAI({ baseURL: root, apiKey }).responses(modelId)`; generation uses `{root}/responses` | JSON `native`; `temperatureSupported: true`; `general` |
 | `anthropic` | Anthropic; default API base `https://api.anthropic.com/v1`; `managed` credential | Native `GET {root}/models` with Anthropic headers | `createAnthropic` receives API root `{root}`; generation uses `{root}/messages` | JSON `prompt` because schema-less JSON mode is not guaranteed; `temperatureSupported: true`; `general` |
 | `google` | Google; default API base `https://generativelanguage.googleapis.com/v1beta`; `managed` credential | Native `GET {root}/models` | `createGoogleGenerativeAI` receives API root `{root}`; generation uses `{root}/models/{modelId}:generateContent` or the streaming form of that resource | JSON `native`; `temperatureSupported: true`; `general` |
@@ -487,12 +492,13 @@ version normalization is performed.
 | `claude-code` | Claude Code; no URL; `external` authentication | Check installation/authentication without generation, then expose static `fable`, `opus`, `sonnet`, `haiku` aliases | `claudeCode(modelId, { tools: [], settingSources: [] })`; no HTTP URL is derived by FREE | JSON `prompt`; `temperatureSupported: false`; `general` |
 | `openai-compatible` | OpenAI-compatible; no default API base; `optional` managed bearer credential | Guaranteed `GET {root}/models` | `createOpenAICompatible({ name: 'free-openai-compatible', baseURL: root, ...credential }).chatModel(modelId)`; generation uses `{root}/chat/completions` | JSON `prompt`; `temperatureSupported: true` under the guaranteed Chat Completions contract; `general` |
 
-Derive discovery resource URLs by appending `/models` to the exact stored API
-base, and pass each factory that same base. SDK default base URLs are never
-combined with a stored API base. Native-provider custom bases retain that
-provider's protocol. The join helper must preserve path prefixes and must not use a leading
-slash that discards them. The generic provider's contract is exactly the two
-relative resources `/models` and `/chat/completions` beneath its stored API base.
+Derive discovery resource URLs from the exact stored provider base, using
+`api/tags` for Ollama and `models` for the other HTTP providers, and pass each
+factory that same base. SDK default base URLs are never combined with a stored
+base. Native-provider custom bases retain that provider's protocol. The join
+helper must preserve path prefixes and must not use a leading slash that
+discards them. The generic provider's contract is exactly the two relative
+resources `/models` and `/chat/completions` beneath its stored base.
 
 `managed` means a credential is required and owned by FREE, `optional` means
 FREE may own one, and `external` means the provider harness owns installation
@@ -592,8 +598,8 @@ unchanged.
 ### Preserve the raw NuExtract prompt as a specialized path
 
 For an Ollama Extraction Route with `nuextractRaw: true`, preserve the
-current `renderNuExtractPrompt` and `/generate` resource behavior beneath the
-stored Ollama API base:
+current `renderNuExtractPrompt` and `/api/generate` resource behavior beneath
+the stored Ollama server base:
 
 - Build the hand-authored `<|im_start|>` prompt with `【task】`, optional
   `【template_start】...【template_end】`, structured-only
@@ -603,7 +609,7 @@ stored Ollama API base:
 - Put schema-suggestion guidance first in template-generation message content;
   do not invent an instructions slot for that mode.
 - Send `raw: true`, `stream: false`, extracted base64 images, the exact selected
-  `modelId`, the resolved Model Connection API base/credential, and temperature
+  `modelId`, the resolved Model Connection server base/credential, and temperature
   `0.2` when the caller did not supply one.
 - Do not send `chat_template_kwargs`, infer NuExtract from a model ID, route raw
   NuExtract through AI SDK, or move prompt semantics into the provider table.
@@ -718,9 +724,12 @@ raw NuExtract behavior, remove `AI_*` model configuration without fallback, and
 keep browser tests isolated from real credentials, providers, CLI processes,
 and configuration files.
 
-A fresh install begins unconfigured. Reverting the code may leave the JSON and
-keyring entries inert; they can be removed manually and are never translated
-into environment variables.
+A fresh install begins unconfigured. Existing Ollama connections whose
+`baseUrl` ends in `/api` are not migrated or rewritten and must be edited or
+recreated with the server base. Arbitrary path-prefixed bases remain valid and
+are not suffix-rejected. Reverting the code may leave the JSON and keyring
+entries inert; they can be removed manually and are never translated into
+environment variables.
 
 ## Open Questions
 

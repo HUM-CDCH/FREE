@@ -66,7 +66,7 @@ Extraction Route on another provider fails with HTTP 409 and
 - **WHEN** the Extraction Route sets `nuextractRaw: true` on an Ollama
   connection
 - **THEN** FREE resolves the internal `profile: 'nuextract-raw'` target
-- **AND** it uses the raw Ollama protocol with the exact saved model ID, API
+- **AND** it uses the raw Ollama protocol with the exact saved model ID, server
   base, and optional resolved authorization
 
 ### Requirement: Interaction context uses canonical Source Document Markdown
