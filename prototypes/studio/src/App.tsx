@@ -56,6 +56,14 @@ function isFreeHighlightTarget(target: EventTarget | null) {
   )
 }
 
+function isEditableTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') !==
+      null
+  )
+}
+
 type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; pageCount: number }
@@ -404,6 +412,28 @@ function App() {
     setFocusPath(path)
   }
 
+  function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
+    if (
+      isEditableTarget(event.target) ||
+      (event.type !== 'paste' && !window.getSelection()?.isCollapsed)
+    ) {
+      event.stopPropagation()
+      return
+    }
+    if (event.type === 'paste' && event.clipboardData.types.includes('application/pdfjs')) return
+    if (event.type !== 'paste' && event.target instanceof Element && event.target.closest('.pdfViewer')) return
+    event.stopPropagation()
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    if (!isEditableTarget(event.target)) return
+    const modifier = event.ctrlKey || event.metaKey
+    const key = event.key.toLowerCase()
+    if (['backspace', 'delete'].includes(key) || (modifier && ['a', 'z', 'y'].includes(key))) {
+      event.stopPropagation()
+    }
+  }
+
   function changeNodes(nodes: SchemaNode[], message: string) {
     setTemplateState((state) =>
       state.status === 'ready' ? { ...state, nodes, edited: true } : state,
@@ -497,7 +527,13 @@ function App() {
           : 'Open the Schema tab to generate the extraction schema for this document'
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden bg-canvas text-ink">
+    <main
+      className="flex h-dvh flex-col overflow-hidden bg-canvas text-ink"
+      onCopy={handleClipboard}
+      onCut={handleClipboard}
+      onPaste={handleClipboard}
+      onKeyDown={handleKeyDown}
+    >
       <header className="relative z-10 flex shrink-0 items-stretch border-b border-line bg-surface">
         <div
           style={{ width: effectiveNavWidth }}
