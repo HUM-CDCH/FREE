@@ -144,6 +144,8 @@ function RightRail({
           items={annotationItems}
           onSelectItem={onSelectAnnotation}
           onRemoveItem={onRemoveAnnotation}
+          annotationsMode={annotationsMode}
+          onAnnotationsModeChange={onAnnotationsModeChange}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'chat'}>
@@ -157,9 +159,6 @@ function RightRail({
           onNodesChange={onNodesChange}
           onChatSchemaChange={onChatSchemaChange}
           history={schemaHistory}
-          annotationCount={annotationItems.length}
-          annotationsMode={annotationsMode}
-          onAnnotationsModeChange={onAnnotationsModeChange}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>

@@ -16,8 +16,9 @@ import { templateToNodes, nodesToTemplate } from './schemaNode'
 import { countTemplateFields } from './template'
 import type { SchemaHistoryEntry } from './schemaHistory'
 import { appendSchemaHistoryEntry, clearSchemaHistory, loadSchemaHistory } from './schemaHistory'
-import { requestSchema, parseDocumentToMarkdown } from './api'
+import { requestSchema, parseDocumentToMarkdown, fetchParsedTables } from './api'
 import type { AnnotationsMode } from './api'
+import type { ParsedTable } from './parsedDocument'
 import { useExtraction } from './useExtraction'
 import EvidenceHighlightLayer from './EvidenceHighlightLayer'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
@@ -64,9 +65,11 @@ type LoadState =
   | { status: 'error'; message: string }
 
 // The parsing service's Markdown index of the current document, built on upload.
+// `tables` is best-effort table cell geometry (see design.md) — an empty array
+// means either the document has no tables or the geometry fetch failed/was skipped.
 type DocIndex =
   | { status: 'parsing' }
-  | { status: 'ready'; markdown: string }
+  | { status: 'ready'; markdown: string; tables: ParsedTable[] }
   | { status: 'error'; message: string }
 
 function getHighlightLabel(editor: AnnotationEditor) {
@@ -118,6 +121,7 @@ function App() {
 
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
+  const documentTables = docIndex.status === 'ready' ? docIndex.tables : []
 
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
@@ -307,22 +311,33 @@ function App() {
 
     void (async () => {
       if (pdfSource.filename === ACTIVE_DOC) {
-        setDocIndex({ status: 'ready', markdown: cachedMarkdown })
+        // No parsing-service task exists for the bundled demo document, so it has no table geometry.
+        setDocIndex({ status: 'ready', markdown: cachedMarkdown, tables: [] })
         return
       }
 
       setDocIndex({ status: 'parsing' })
       try {
         const devTaskId = import.meta.env.VITE_DEV_TASK_ID as string | undefined
-        const markdown = devTaskId
-          ? await fetch(`${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`).then(r => r.text())
-          : await parseDocumentToMarkdown(
-              await (await fetch(pdfSource.url, { signal: abortController.signal })).blob(),
-              pdfSource.filename,
-              abortController.signal,
-            )
+        let taskId: string
+        let markdown: string
+        if (devTaskId) {
+          taskId = devTaskId
+          markdown = await fetch(
+            `${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`,
+          ).then((r) => r.text())
+        } else {
+          const parsed = await parseDocumentToMarkdown(
+            await (await fetch(pdfSource.url, { signal: abortController.signal })).blob(),
+            pdfSource.filename,
+            abortController.signal,
+          )
+          taskId = parsed.taskId
+          markdown = parsed.markdown
+        }
+        const tables = await fetchParsedTables(taskId, abortController.signal).catch(() => [])
         if (!abortController.signal.aborted) {
-          setDocIndex({ status: 'ready', markdown })
+          setDocIndex({ status: 'ready', markdown, tables })
         }
       } catch (error) {
         if (abortController.signal.aborted) return
@@ -470,6 +485,7 @@ function App() {
     template: schemaTemplate,
     schemaReady,
     markdown: documentMarkdown,
+    hasTables: documentTables.length > 0,
     indexing,
     onComplete: (isRerun) => {
       setRailTab('results')
@@ -601,6 +617,7 @@ function App() {
               schemaTemplate={schemaTemplate}
               containerEl={containerEl}
               focusPath={focusPath}
+              tables={documentTables}
             />
           </div>
           {extraction.state.status === 'running' && (

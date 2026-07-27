@@ -1,6 +1,7 @@
 import { isRecord } from './template'
 import { type SchemaNode, nodesToTemplate } from './schemaNode'
 import type { SchemaOp } from './schemaOps'
+import { type ParsedTable, parseParsedTables } from './parsedDocument'
 
 export const API_BASE = '/api'
 
@@ -89,7 +90,7 @@ export async function parseDocumentToMarkdown(
   file: Blob,
   fileName: string,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<{ taskId: string; markdown: string }> {
   const form = new FormData()
   form.append('file', file, fileName)
   form.append('pipeline', 'docling_pdf')
@@ -124,7 +125,18 @@ export async function parseDocumentToMarkdown(
   if (!md.ok) {
     throw new Error(`Could not fetch parsed Markdown (HTTP ${md.status})`)
   }
-  return md.text()
+  return { taskId, markdown: await md.text() }
+}
+
+// Best-effort: table geometry is an enhancement (see design.md), never a hard
+// dependency, so callers should treat a rejected promise the same as "no tables".
+export async function fetchParsedTables(taskId: string, signal?: AbortSignal): Promise<ParsedTable[]> {
+  const response = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}/document`, { signal })
+  if (!response.ok) {
+    throw new Error(`Could not fetch parsed document (HTTP ${response.status})`)
+  }
+  const data = (await response.json()) as { tables?: unknown }
+  return parseParsedTables(data.tables)
 }
 
 // ---------- request wrappers ----------
@@ -157,6 +169,7 @@ export async function requestExtraction(
   signal?: AbortSignal,
   markdown?: string | null,
   instruction?: string,
+  hasTables?: boolean,
 ): Promise<{ result: unknown; evidence: unknown }> {
   const form = new FormData()
   form.append('template', JSON.stringify(template ?? {}))
@@ -166,6 +179,7 @@ export async function requestExtraction(
     form.append('file', file, fileName)
   }
   if (instruction) form.append('instruction', instruction)
+  form.append('has_tables', hasTables ? 'true' : 'false')
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
   return { result: done.result, evidence: done.evidence }

@@ -16,6 +16,14 @@ import { RequestError } from './_http.js'
 import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template.js'
 import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output.js'
 import { extractionRenderer, resolveModel } from './_provider.js'
+import {
+  findPrimaryArrayKey,
+  isEmptyResult,
+  offsetPageNumbers,
+  pageForOffset,
+  splitMarkdownByHeadings,
+  type MarkdownSection,
+} from './_catalog_sections.js'
 
 export { parseAnnotationMode, parseAnnotations, parseDocument } from './_document.js'
 export { json, modelError, parseTemperature, RequestError } from './_http.js'
@@ -30,11 +38,20 @@ const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 // ponytail: thinking mode (temp 0.6, <think> left open) isn't wired up — add an
 // enable_thinking path in renderNuExtractPrompt if difficult layouts need it.
 const NON_THINKING_TEMPERATURE = 0.2
+// Sections run concurrently rather than the historical Catalog pipeline's
+// sequential per-record loop, capped since a local Ollama instance mostly
+// serializes GPU work anyway — unbounded parallel requests would just queue.
+const MAX_CONCURRENT_SECTION_CALLS = 4
 
 const EVIDENCE_FIELD_INSTRUCTION =
   'For every evidence field in the template, set "snippet" to a short verbatim excerpt from the document that contains the value, and set "page" to the 1-based index of the page or image where the value appears. Never leave "snippet" or "page" as null. ' +
   'A "_description" next to a field in the template is a mandatory researcher-authored rule for that field and everything nested under it. Follow it exactly, even where it narrows or overrides what the field\'s name alone would suggest. ' +
   'Use the field names given in the template exactly as spelled, character for character, in your output — never translate, localize, or substitute a name from the Source Document\'s own language, even when the document consistently uses a different term for that field.'
+
+const TABLE_EVIDENCE_FIELD_INSTRUCTION =
+  'The Source Document contains one or more tables. For every evidence field, always include "row_header" and "column_header". ' +
+  'When the value comes from a table cell, set "row_header" to that row\'s identifying label and "column_header" to that column\'s header text. ' +
+  'When the value does not come from a table cell, set "row_header" and "column_header" to empty strings.'
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -45,6 +62,7 @@ export type ExtractModelInput = {
   readonly template: unknown
   readonly instruction?: string
   readonly temperature?: number
+  readonly hasTables?: boolean
 }
 
 export type SchemaModelInput = {
@@ -111,7 +129,13 @@ export async function streamChatWithModel(messages: readonly UIMessage[]): Promi
   })
 }
 
-export async function extractWithModel({ document, template, instruction, temperature }: ExtractModelInput): Promise<{
+export async function extractWithModel({
+  document,
+  template,
+  instruction,
+  temperature,
+  hasTables,
+}: ExtractModelInput): Promise<{
   readonly result: Record<string, unknown>
   readonly evidence: Record<string, unknown> | null
   readonly raw: string
@@ -119,38 +143,47 @@ export async function extractWithModel({ document, template, instruction, temper
   readonly pages: number | null
 }> {
   const documentParts = await documentContentParts(document)
-  const evidenceTemplate = wrapTemplateWithEvidence(template ?? {})
+  const evidenceFieldInstruction = hasTables
+    ? `${EVIDENCE_FIELD_INSTRUCTION}\n\n${TABLE_EVIDENCE_FIELD_INSTRUCTION}`
+    : EVIDENCE_FIELD_INSTRUCTION
   const callerInstruction = instruction?.trim()
   const instructions = callerInstruction
-    ? `${EVIDENCE_FIELD_INSTRUCTION}\n\n${callerInstruction}`
-    : EVIDENCE_FIELD_INSTRUCTION
-  let generated: { readonly response: string }
-  if (extractionRenderer() === 'generic') {
-    const request = [
-      'Extract information from the Source Document using this Extraction Schema:',
-      JSON.stringify(evidenceTemplate, null, 2),
-      instructions ? `Additional extraction instruction:\n${instructions}` : null,
-    ]
-      .filter((value) => value !== null)
-      .join('\n\n')
-    generated = await generateWithGenericJsonPrompt({
-      instructions:
-        'Produce a source-grounded FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
-        'Each schema leaf is an evidence object with value, an exact source snippet, and a page number when available. ' +
-        'Return only one JSON object with no Markdown or commentary.',
-      request,
-      documentParts: documentParts.parts,
+    ? `${evidenceFieldInstruction}\n\n${callerInstruction}`
+    : evidenceFieldInstruction
+
+  const arrayKey = document.markdown ? findPrimaryArrayKey(template) : null
+  const sections = arrayKey && document.markdown ? splitMarkdownByHeadings(document.markdown) : []
+
+  if (arrayKey && sections.length >= 2) {
+    const templateRecord = template as Record<string, unknown>
+    const itemTemplate = (templateRecord[arrayKey] as readonly unknown[])[0] as Record<string, unknown>
+    const templateDescription =
+      typeof templateRecord._description === 'string' ? templateRecord._description : null
+    const sectioned = await runSectionedExtraction({
+      arrayKey,
+      itemTemplate,
+      sections,
+      fullMarkdown: document.markdown as string,
+      hasTables: hasTables ?? false,
+      instructions: templateDescription ? `${templateDescription}\n\n${instructions}` : instructions,
       temperature,
     })
-  } else {
-    generated = await generateWithNuExtractRawPrompt({
-      mode: 'structured',
-      template: JSON.stringify(evidenceTemplate, null, 2),
-      instructions,
-      documentParts: documentParts.parts,
-      temperature,
-    })
+    return {
+      result: sectioned.result,
+      evidence: sectioned.evidence,
+      raw: sectioned.raw,
+      reasoning: null,
+      pages: documentParts.pages ?? document.pages,
+    }
   }
+
+  const evidenceTemplate = wrapTemplateWithEvidence(template ?? {}, hasTables ?? false)
+  const generated = await runExtractionCall({
+    evidenceTemplate,
+    instructions,
+    documentParts: documentParts.parts,
+    temperature,
+  })
   const parsed = await parseExtractionResult(generated.response, evidenceTemplate)
   const split = splitEvidenceResult(parsed)
 
@@ -160,6 +193,108 @@ export async function extractWithModel({ document, template, instruction, temper
     raw: generated.response,
     reasoning: null,
     pages: documentParts.pages ?? document.pages,
+  }
+}
+
+// Shared by the whole-document path and the per-section Catalog path below —
+// picks generic-JSON vs raw-NuExtract rendering exactly like the single call
+// used to inline, just parameterized over which template/document text to use.
+async function runExtractionCall({
+  evidenceTemplate,
+  instructions,
+  documentParts,
+  temperature,
+}: {
+  readonly evidenceTemplate: unknown
+  readonly instructions: string
+  readonly documentParts: readonly DocumentContentPart[]
+  readonly temperature?: number
+}): Promise<{ readonly response: string }> {
+  if (extractionRenderer() === 'generic') {
+    const request = [
+      'Extract information from the Source Document using this Extraction Schema:',
+      JSON.stringify(evidenceTemplate, null, 2),
+      instructions ? `Additional extraction instruction:\n${instructions}` : null,
+    ]
+      .filter((value) => value !== null)
+      .join('\n\n')
+    return generateWithGenericJsonPrompt({
+      instructions:
+        'Produce a source-grounded FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
+        'Each schema leaf is an evidence object with value, an exact source snippet, and a page number when available. ' +
+        'Return only one JSON object with no Markdown or commentary.',
+      request,
+      documentParts,
+      temperature,
+    })
+  }
+  return generateWithNuExtractRawPrompt({
+    mode: 'structured',
+    template: JSON.stringify(evidenceTemplate, null, 2),
+    instructions,
+    documentParts,
+    temperature,
+  })
+}
+
+// Lightweight "Catalog" extraction: the document was already split into
+// record-aligned sections by heading (no boundary-detection model call —
+// see _catalog_sections.ts), so each section is extracted independently
+// against just the array's item template, then merged back under arrayKey.
+// Mirrors the historical hierarchical pipeline's slice → per-record extract →
+// merge, but sections run concurrently instead of in a sequential loop.
+async function runSectionedExtraction({
+  arrayKey,
+  itemTemplate,
+  sections,
+  fullMarkdown,
+  hasTables,
+  instructions,
+  temperature,
+}: {
+  readonly arrayKey: string
+  readonly itemTemplate: Record<string, unknown>
+  readonly sections: readonly MarkdownSection[]
+  readonly fullMarkdown: string
+  readonly hasTables: boolean
+  readonly instructions: string
+  readonly temperature?: number
+}): Promise<{
+  readonly result: Record<string, unknown>
+  readonly evidence: Record<string, unknown> | null
+  readonly raw: string
+}> {
+  const itemEvidenceTemplate = wrapTemplateWithEvidence(itemTemplate, hasTables)
+
+  const perSection = await runWithConcurrencyLimit(
+    sections.map((section) => async () => {
+      const generated = await runExtractionCall({
+        evidenceTemplate: itemEvidenceTemplate,
+        instructions,
+        documentParts: [{ type: 'text', text: section.body }],
+        temperature,
+      })
+      const parsed = await parseExtractionResult(generated.response, itemEvidenceTemplate)
+      const split = splitEvidenceResult(parsed)
+      const pageOffset = pageForOffset(fullMarkdown, section.startOffset) - 1
+      return {
+        result: split.result,
+        evidence: split.evidence
+          ? (offsetPageNumbers(split.evidence, pageOffset) as Record<string, unknown>)
+          : null,
+        raw: generated.response,
+      }
+    }),
+    MAX_CONCURRENT_SECTION_CALLS,
+  )
+
+  const kept = perSection.filter((item) => !isEmptyResult(item.result))
+  const hasAnyEvidence = kept.some((item) => item.evidence !== null)
+
+  return {
+    result: { [arrayKey]: kept.map((item) => item.result) },
+    evidence: hasAnyEvidence ? { [arrayKey]: kept.map((item) => item.evidence) } : null,
+    raw: perSection.map((item) => item.raw).join('\n\n'),
   }
 }
 

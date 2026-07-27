@@ -45,7 +45,7 @@ describe('extractWithModel', () => {
 
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
     expect(result.evidence).toEqual({
-      grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1 } }],
+      grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: null, column_header: null } }],
     })
   })
 
@@ -80,6 +80,132 @@ describe('extractWithModel', () => {
     expect(result.result).toEqual({ grave: [{ name: 42 }] })
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
+  })
+
+  it('adds row_header/column_header slots and instruction when hasTables is true', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          response:
+            '{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1,"row_header":"Row 1","column_header":"Name"}}]}',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await extractWithModel({
+      document,
+      template: { grave: [{ name: 'verbatim-string' }] },
+      hasTables: true,
+    })
+
+    const body = fetchMock.mock.calls[0][1].body as string
+    expect(body).toContain('row_header')
+    expect(body).toContain('column_header')
+    expect(result.evidence).toEqual({
+      grave: [
+        { name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: 'Row 1', column_header: 'Name' } },
+      ],
+    })
+  })
+
+  it('omits row_header/column_header slots and instruction when hasTables is false', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ response: '{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}' }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await extractWithModel({
+      document,
+      template: { grave: [{ name: 'verbatim-string' }] },
+    })
+
+    const body = fetchMock.mock.calls[0][1].body as string
+    expect(body).not.toContain('row_header')
+    expect(body).not.toContain('column_header')
+  })
+
+  it('sections markdown by its recurring heading pattern and extracts each section independently', async () => {
+    const markdown = '# Grave 1\n\nDepth: 10\n\n---\n\n# Grave 2\n\nDepth: 20\n'
+    const fetchMock = vi.fn().mockImplementation(async (_url: unknown, init: { body: string }) => {
+      const body = JSON.parse(init.body) as { prompt: string }
+      const response = body.prompt.includes('Grave 1')
+        ? '{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}'
+        : '{"name":{"value":"Grave 2","snippet":"Grave 2","page":1}}'
+      return new Response(JSON.stringify({ response }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await extractWithModel({
+      document: { file: null, markdown, pages: null },
+      template: { entries: [{ name: 'verbatim-string' }] },
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.result).toEqual({ entries: [{ name: 'Grave 1' }, { name: 'Grave 2' }] })
+    // Each section only sees its own text, so the model's "page" is
+    // section-relative (1); extractWithModel must remap it to the section's
+    // true absolute page (1 and 2, split by the "---" page break).
+    expect(result.evidence).toEqual({
+      entries: [
+        { name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: null, column_header: null } },
+        { name: { value: 'Grave 2', snippet: 'Grave 2', page: 2, row_header: null, column_header: null } },
+      ],
+    })
+  })
+
+  it('drops a sectioned entry whose extraction came back entirely empty', async () => {
+    const markdown = '# Grave 1\n\nDepth: 10\n\n# Grave 2\n\nNothing relevant here.\n'
+    const fetchMock = vi.fn().mockImplementation(async (_url: unknown, init: { body: string }) => {
+      const body = JSON.parse(init.body) as { prompt: string }
+      const response = body.prompt.includes('Depth: 10')
+        ? '{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}'
+        : '{"name":{"value":"","snippet":null,"page":null}}'
+      return new Response(JSON.stringify({ response }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await extractWithModel({
+      document: { file: null, markdown, pages: null },
+      template: { entries: [{ name: 'verbatim-string' }] },
+    })
+
+    expect(result.result).toEqual({ entries: [{ name: 'Grave 1' }] })
+  })
+
+  it('falls back to a single whole-document call when the markdown has no recurring heading pattern', async () => {
+    stubOllamaResponse('{"entries":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}')
+
+    await extractWithModel({
+      document: { file: null, markdown: 'No headings at all here.', pages: null },
+      template: { entries: [{ name: 'verbatim-string' }] },
+    })
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to a single whole-document call when the template mixes a sibling field alongside the array', async () => {
+    stubOllamaResponse(
+      '{"site_name":{"value":"Ellekilde","snippet":"Ellekilde","page":1},"entries":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}',
+    )
+    const markdown = '# Grave 1\n\nDepth: 10\n\n# Grave 2\n\nDepth: 20\n'
+
+    await extractWithModel({
+      document: { file: null, markdown, pages: null },
+      template: { site_name: 'string', entries: [{ name: 'verbatim-string' }] },
+    })
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
   })
 
   it('routes codex-cli extraction through the AI SDK instead of Ollama', async () => {

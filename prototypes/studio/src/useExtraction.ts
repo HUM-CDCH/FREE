@@ -9,6 +9,7 @@ type UseExtractionOptions = {
   template: unknown
   schemaReady: boolean
   markdown: string | null
+  hasTables: boolean
   indexing: boolean
   onComplete: (isRerun: boolean) => void
   onError: (message: string) => void
@@ -21,6 +22,7 @@ export function useExtraction({
   template,
   schemaReady,
   markdown,
+  hasTables,
   indexing,
   onComplete,
   onError,
@@ -51,6 +53,8 @@ export function useExtraction({
         { records: [template] },
         abortController.signal,
         markdown,
+        undefined,
+        hasTables,
       )
       if (abortController.signal.aborted) {
         return

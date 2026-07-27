@@ -17,6 +17,7 @@ export async function POST(request: Request): Promise<Response> {
       template,
       instruction,
       temperature: parseTemperature(form.get('temperature')),
+      hasTables: form.get('has_tables') === 'true',
     })
 
     return json(result)

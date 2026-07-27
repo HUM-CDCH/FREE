@@ -3,6 +3,8 @@ import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import { buildHighlights, PALETTE } from './evidenceHighlights'
 import type { Highlight } from './evidenceHighlights'
 import { isRecord } from './template'
+import type { BoundingBox, ParsedTable } from './parsedDocument'
+import { findTableCellMatch, computeOccurrenceIndices } from './tableCellMatch'
 
 // ── text-layer helpers ────────────────────────────────────────────────────────
 
@@ -42,6 +44,47 @@ async function getPageTextData(pdfViewer: PDFViewer, pageNumber: number): Promis
     viewportScale: viewport.scale,
     viewportHeight: viewport.height,
   }
+}
+
+// ── table-cell coordinate lookup ────────────────────────────────────────────────
+
+type PageViewportScale = { scale: number; width: number; height: number }
+
+// Cheaper than getPageTextData when only the scale factor is needed (no text content).
+async function getPageViewportScale(pdfViewer: PDFViewer, pageNumber: number): Promise<PageViewportScale | null> {
+  const pageCount = pdfViewer.pdfDocument?.numPages ?? 0
+  if (pageNumber < 1 || pageNumber > pageCount) return null
+  const pdfPage = await pdfViewer.pdfDocument?.getPage(pageNumber)
+  if (!pdfPage) return null
+
+  const CSS_UNITS = 96.0 / 72.0
+  const viewport = pdfPage.getViewport({ scale: pdfViewer.currentScale * CSS_UNITS })
+  return { scale: viewport.scale, width: viewport.width, height: viewport.height }
+}
+
+// BoundingBox is PDF points, top-left origin, in the same displayed/post-rotation
+// page space pdf.js's viewport renders into — a straight scale, no y-flip
+// (unlike raw text-item transforms, which are bottom-origin; see design.md decision 7).
+function bboxToRect(bbox: BoundingBox, viewportScale: number): DOMRect {
+  return new DOMRect(
+    bbox.x0 * viewportScale,
+    bbox.y0 * viewportScale,
+    (bbox.x1 - bbox.x0) * viewportScale,
+    (bbox.y1 - bbox.y0) * viewportScale,
+  )
+}
+
+// Defensive guard (design.md risk: unverified rotation/origin assumption) — a
+// converted rect that falls outside the rendered page is treated as no match.
+function rectWithinPage(rect: DOMRect, viewport: PageViewportScale): boolean {
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    rect.x >= -1 &&
+    rect.y >= -1 &&
+    rect.x + rect.width <= viewport.width + 1 &&
+    rect.y + rect.height <= viewport.height + 1
+  )
 }
 
 function rectsForQuery(data: PageTextData, query: string, searchFrom = 0): DOMRect[] {
@@ -152,6 +195,36 @@ async function findValueRects(
   return null
 }
 
+// Table-cell coordinate lookup, tried before the text search above (see
+// design.md decision 6 and evidence-highlight-layer spec). Returns null on any
+// inconclusive step so the caller falls back to findValueRects unchanged.
+async function findTableCellRects(
+  pdfViewer: PDFViewer,
+  tables: ParsedTable[],
+  highlight: Highlight,
+  occurrenceIndex: number | null,
+): Promise<PageRects | null> {
+  if (tables.length === 0) return null
+
+  const match = findTableCellMatch(
+    tables,
+    highlight.value,
+    highlight.rowHeader,
+    highlight.columnHeader,
+    highlight.hintPage,
+    occurrenceIndex,
+  )
+  if (!match) return null
+
+  const viewport = await getPageViewportScale(pdfViewer, match.pageNumber)
+  if (!viewport) return null
+
+  const rect = bboxToRect(match.bbox, viewport.scale)
+  if (!rectWithinPage(rect, viewport)) return null
+
+  return { pageNumber: match.pageNumber, rects: [rect] }
+}
+
 // ── component ─────────────────────────────────────────────────────────────────
 
 type CachedEntry = {
@@ -173,9 +246,18 @@ type Props = {
   schemaTemplate: unknown
   containerEl: HTMLDivElement | null
   focusPath: string[] | null
+  tables?: ParsedTable[]
 }
 
-export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, schemaTemplate, containerEl, focusPath }: Props) {
+export default function EvidenceHighlightLayer({
+  pdfViewer,
+  result,
+  evidence,
+  schemaTemplate,
+  containerEl,
+  focusPath,
+  tables = [],
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const schemaTemplateRef = useRef(schemaTemplate)
   schemaTemplateRef.current = schemaTemplate
@@ -211,6 +293,7 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
     schemaKeys.forEach((k, i) => { fieldColorMap[k] = PALETTE[i % PALETTE.length] })
     const highlights = buildHighlights(result, evidence, fieldColorMap)
     if (highlights.length === 0) return
+    const occurrenceIndices = computeOccurrenceIndices(highlights)
 
     cachedEntriesRef.current = []
     let cancelled = false
@@ -232,7 +315,10 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
       for (const h of highlights) {
         if (cancelled) return
 
-        const found = await findValueRects(pdfViewer, h.value, h.snippet, h.hintPage)
+        const occurrenceIndex = occurrenceIndices.get(h) ?? null
+        const found =
+          (await findTableCellRects(pdfViewer, tables, h, occurrenceIndex)) ??
+          (await findValueRects(pdfViewer, h.value, h.snippet, h.hintPage))
         if (!found) continue
 
         const pageEl = containerEl.querySelector(
@@ -267,7 +353,7 @@ export default function EvidenceHighlightLayer({ pdfViewer, result, evidence, sc
 
     void render()
     return () => { cancelled = true }
-  }, [pdfViewer, result, evidence, containerEl, scale, containerVersion])
+  }, [pdfViewer, result, evidence, containerEl, scale, containerVersion, tables])
 
   // Focus effect: scroll to active value and redraw from cache (no PDF search).
   useEffect(() => {

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AnnotationsMode } from './api'
 import { requestSchemaEdit } from './api'
 import { applyOps } from './schemaOps'
 import { countTemplateFields, isRecord } from './template'
@@ -27,9 +26,6 @@ type SchemaPanelProps = {
   onNodesChange: (nodes: SchemaNode[], message: string) => void
   onChatSchemaChange: (nodes: SchemaNode[], message: string) => void
   history: SchemaHistoryEntry[]
-  annotationCount: number
-  annotationsMode: AnnotationsMode
-  onAnnotationsModeChange: (mode: AnnotationsMode) => void
 }
 
 type DragState = {
@@ -290,17 +286,6 @@ function WorkingIndicator() {
 const genBtnCls =
   'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted'
 
-function AnnotationsModeToggle({ mode, onChange }: { mode: AnnotationsMode; onChange: (mode: AnnotationsMode) => void }) {
-  const seg = (active: boolean) =>
-    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
-  return (
-    <div className="flex shrink-0 overflow-hidden rounded-md border border-line" role="group" aria-label="How highlights shape the schema">
-      <button className={seg(mode === 'hints')} type="button" aria-pressed={mode === 'hints'} onClick={() => onChange('hints')}>Hints</button>
-      <button className={seg(mode === 'fields')} type="button" aria-pressed={mode === 'fields'} onClick={() => onChange('fields')}>Fields</button>
-    </div>
-  )
-}
-
 // Task 5.1 – FieldEditForm (id-based, not path-based)
 function FieldEditForm({ editing, onChange, onSave, onCancel }: {
   editing: FieldEditing
@@ -378,9 +363,6 @@ function SchemaPanel({
   onNodesChange,
   onChatSchemaChange,
   history,
-  annotationCount,
-  annotationsMode,
-  onAnnotationsModeChange,
 }: SchemaPanelProps) {
   // ── render state ──
   const [nodes, setNodes] = useState<SchemaNode[]>([])
@@ -1095,12 +1077,6 @@ function SchemaPanel({
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
               FREE produces the extraction schema from the document with the extraction model.
             </p>
-            {annotationCount > 0 && (
-              <div className="mt-3 flex items-center justify-center gap-2">
-                <span className="text-[11px] text-ink-faint">Use highlights as</span>
-                <AnnotationsModeToggle mode={annotationsMode} onChange={onAnnotationsModeChange} />
-              </div>
-            )}
             <button className={`${genBtnCls} mt-3`} type="button" onClick={onGenerate}>Generate schema</button>
           </div>
         )}
@@ -1378,7 +1354,6 @@ function SchemaPanel({
         </p>
         {ready && (
           <div className="flex shrink-0 items-center gap-2">
-            {annotationCount > 0 && <AnnotationsModeToggle mode={annotationsMode} onChange={onAnnotationsModeChange} />}
             <button className={genBtnCls} type="button" onClick={onGenerate}>Regenerate</button>
           </div>
         )}

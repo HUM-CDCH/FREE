@@ -1,4 +1,5 @@
 // import { EmptyState } from './ui'
+import type { AnnotationsMode } from './api'
 
 export type AnnotationSetItem = {
   id: string
@@ -10,6 +11,8 @@ type Props = {
   items: AnnotationSetItem[]
   onSelectItem: (id: string) => void
   onRemoveItem: (id: string) => void
+  annotationsMode: AnnotationsMode
+  onAnnotationsModeChange: (mode: AnnotationsMode) => void
 }
 
 type Group = { pageNumber: number; items: AnnotationSetItem[] }
@@ -24,9 +27,26 @@ function groupByPage(items: AnnotationSetItem[]): Group[] {
   return groups
 }
 
-function AnnotationSidebar({ items, onSelectItem, onRemoveItem }: Props) {
+function AnnotationsModeToggle({ mode, onChange }: { mode: AnnotationsMode; onChange: (mode: AnnotationsMode) => void }) {
+  const seg = (active: boolean) =>
+    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
+  return (
+    <div className="flex shrink-0 overflow-hidden rounded-md border border-line" role="group" aria-label="How highlights shape the schema">
+      <button className={seg(mode === 'hints')} type="button" aria-pressed={mode === 'hints'} onClick={() => onChange('hints')}>Hints</button>
+      <button className={seg(mode === 'fields')} type="button" aria-pressed={mode === 'fields'} onClick={() => onChange('fields')}>Fields</button>
+    </div>
+  )
+}
+
+function AnnotationSidebar({ items, onSelectItem, onRemoveItem, annotationsMode, onAnnotationsModeChange }: Props) {
   return (
     <aside className="scrollbar-subtle flex h-full min-h-0 flex-col overflow-y-auto" aria-label="Annotation set">
+      {items.length > 0 && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-line px-3.5 py-2.5">
+          <span className="text-[11px] text-ink-faint">Use highlights as</span>
+          <AnnotationsModeToggle mode={annotationsMode} onChange={onAnnotationsModeChange} />
+        </div>
+      )}
       <div className="px-3.5 py-4">
         {items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-line px-4 py-7 text-center">

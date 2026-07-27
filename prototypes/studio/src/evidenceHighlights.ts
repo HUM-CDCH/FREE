@@ -9,7 +9,15 @@ export const PALETTE: string[] = [
   'rgba(93, 168, 153, 0.45)',
 ]
 
-export type Highlight = { value: string; snippet: string | null; hintPage: number | null; color: string; path: string[] }
+export type Highlight = {
+  value: string
+  snippet: string | null
+  hintPage: number | null
+  rowHeader: string | null
+  columnHeader: string | null
+  color: string
+  path: string[]
+}
 
 function collectEvidenceLeaf(node: unknown, color: string, path: string[], out: Highlight[]): boolean {
   if (
@@ -20,7 +28,15 @@ function collectEvidenceLeaf(node: unknown, color: string, path: string[], out: 
     const v = node.value.trim()
     const s = node.snippet.trim()
     if (v && s) {
-      out.push({ value: v, snippet: s, hintPage: typeof node.page === 'number' ? node.page : null, color, path })
+      out.push({
+        value: v,
+        snippet: s,
+        hintPage: typeof node.page === 'number' ? node.page : null,
+        rowHeader: typeof node.row_header === 'string' && node.row_header.trim() ? node.row_header : null,
+        columnHeader: typeof node.column_header === 'string' && node.column_header.trim() ? node.column_header : null,
+        color,
+        path,
+      })
       return true
     }
   }
@@ -30,7 +46,7 @@ function collectEvidenceLeaf(node: unknown, color: string, path: string[], out: 
 function collectResultLeaves(node: unknown, color: string, path: string[], out: Highlight[]): void {
   if (typeof node === 'string' || typeof node === 'number') {
     const v = String(node).trim()
-    if (v) out.push({ value: v, snippet: null, hintPage: null, color, path })
+    if (v) out.push({ value: v, snippet: null, hintPage: null, rowHeader: null, columnHeader: null, color, path })
   } else if (Array.isArray(node)) {
     for (let i = 0; i < node.length; i++) collectResultLeaves(node[i], color, [...path, String(i)], out)
   } else if (isRecord(node)) {

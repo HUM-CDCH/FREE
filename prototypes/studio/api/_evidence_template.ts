@@ -3,11 +3,11 @@ type SplitEvidence = {
   readonly evidence: unknown
 }
 
-export function wrapTemplateWithEvidence(template: unknown): unknown {
+export function wrapTemplateWithEvidence(template: unknown, hasTables = false): unknown {
   if (!isRecord(template)) {
     return template
   }
-  return wrapSchema(template)
+  return wrapSchema(template, hasTables)
 }
 
 export function splitEvidenceResult(input: Record<string, unknown>): {
@@ -26,19 +26,24 @@ export function splitEvidenceResult(input: Record<string, unknown>): {
   return { result, evidence: Object.keys(evidence).length > 0 ? evidence : null }
 }
 
-function wrapSchema(template: unknown): unknown {
+function wrapSchema(template: unknown, hasTables: boolean): unknown {
   if (Array.isArray(template)) {
-    return template.map((item) => wrapSchema(item))
+    return template.map((item) => wrapSchema(item, hasTables))
   }
   if (isRecord(template)) {
     return Object.fromEntries(
       // "_description" is NuExtract's own field-guidance convention, not an
       // extraction target — it must reach the model as plain text, not
       // wrapped in {value, snippet, page} like a real field.
-      Object.entries(template).map(([key, value]) => [key, key === '_description' ? value : wrapSchema(value)]),
+      Object.entries(template).map(([key, value]) => [
+        key,
+        key === '_description' ? value : wrapSchema(value, hasTables),
+      ]),
     )
   }
-  return { value: template, snippet: 'string', page: 'number' }
+  return hasTables
+    ? { value: template, snippet: 'string', page: 'number', row_header: 'string', column_header: 'string' }
+    : { value: template, snippet: 'string', page: 'number' }
 }
 
 function splitNode(node: unknown): SplitEvidence {
@@ -47,9 +52,14 @@ function splitNode(node: unknown): SplitEvidence {
     const page = node.page
     const value = node.value
     const hasEvidence = typeof snippet === 'string' && snippet.length > 0 && typeof page === 'number' && page > 0
+    const rowHeader = typeof node.row_header === 'string' && node.row_header.trim() ? node.row_header : null
+    const columnHeader =
+      typeof node.column_header === 'string' && node.column_header.trim() ? node.column_header : null
     return {
       result: value,
-      evidence: hasEvidence ? { snippet, page: Math.trunc(page), value } : null,
+      evidence: hasEvidence
+        ? { snippet, page: Math.trunc(page), value, row_header: rowHeader, column_header: columnHeader }
+        : null,
     }
   }
 
@@ -83,7 +93,9 @@ function splitNode(node: unknown): SplitEvidence {
   return { result: node, evidence: null }
 }
 
-function isInlineEvidence(value: unknown): value is Record<'page' | 'snippet' | 'value', unknown> {
+function isInlineEvidence(
+  value: unknown,
+): value is Record<'page' | 'snippet' | 'value' | 'row_header' | 'column_header', unknown> {
   return (
     isRecord(value) &&
     'value' in value &&

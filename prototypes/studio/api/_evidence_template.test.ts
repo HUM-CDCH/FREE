@@ -31,6 +31,34 @@ describe('wrapTemplateWithEvidence', () => {
       },
     })
   })
+
+  it('leaves the leaf shape unchanged when hasTables is false or omitted', () => {
+    const template = { grave: { depth: 'number' } }
+
+    expect(wrapTemplateWithEvidence(template)).toEqual(wrapTemplateWithEvidence(template, false))
+    expect(wrapTemplateWithEvidence(template, false)).toEqual({
+      grave: { depth: { value: 'number', snippet: 'string', page: 'number' } },
+    })
+  })
+
+  it('adds row_header/column_header slots to every leaf when hasTables is true', () => {
+    const template = {
+      grave: [{ name: 'verbatim-string', depth: 'number' }],
+      cemetery: { city: 'string' },
+    }
+
+    expect(wrapTemplateWithEvidence(template, true)).toEqual({
+      grave: [
+        {
+          name: { value: 'verbatim-string', snippet: 'string', page: 'number', row_header: 'string', column_header: 'string' },
+          depth: { value: 'number', snippet: 'string', page: 'number', row_header: 'string', column_header: 'string' },
+        },
+      ],
+      cemetery: {
+        city: { value: 'string', snippet: 'string', page: 'number', row_header: 'string', column_header: 'string' },
+      },
+    })
+  })
 })
 
 describe('splitEvidenceResult', () => {
@@ -46,7 +74,9 @@ describe('splitEvidenceResult', () => {
 
     expect(splitEvidenceResult(extracted)).toEqual({
       result: { grave: [{ name: 'Grave 1', depth: 42 }] },
-      evidence: { grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 2 } }] },
+      evidence: {
+        grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 2, row_header: null, column_header: null } }],
+      },
     })
   })
 
@@ -81,7 +111,45 @@ describe('splitEvidenceResult', () => {
 
     expect(splitEvidenceResult(extracted)).toEqual({
       result: { cemetery: { city: 'Ribe' } },
-      evidence: { cemetery: { city: { value: 'Ribe', snippet: 'Ribe', page: 3 } } },
+      evidence: { cemetery: { city: { value: 'Ribe', snippet: 'Ribe', page: 3, row_header: null, column_header: null } } },
+    })
+  })
+
+  it('carries row_header/column_header through when the model provides them', () => {
+    const extracted = {
+      grave: [
+        {
+          depth: {
+            value: '42 cm',
+            snippet: '42 cm',
+            page: 2,
+            row_header: 'Grave 1',
+            column_header: 'Depth',
+          },
+        },
+      ],
+    }
+
+    expect(splitEvidenceResult(extracted)).toEqual({
+      result: { grave: [{ depth: '42 cm' }] },
+      evidence: {
+        grave: [
+          { depth: { value: '42 cm', snippet: '42 cm', page: 2, row_header: 'Grave 1', column_header: 'Depth' } },
+        ],
+      },
+    })
+  })
+
+  it('defaults row_header/column_header to null when the model omits them', () => {
+    const extracted = {
+      grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 2 } }],
+    }
+
+    expect(splitEvidenceResult(extracted)).toEqual({
+      result: { grave: [{ name: 'Grave 1' }] },
+      evidence: {
+        grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 2, row_header: null, column_header: null } }],
+      },
     })
   })
 })

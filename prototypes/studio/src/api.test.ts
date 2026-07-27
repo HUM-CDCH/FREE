@@ -96,7 +96,10 @@ describe('parseDocumentToMarkdown', () => {
       }),
     )
 
-    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).resolves.toBe('# Doc')
+    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).resolves.toEqual({
+      taskId: 'abc',
+      markdown: '# Doc',
+    })
   })
 
   it('throws the job error when parsing fails', async () => {
