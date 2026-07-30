@@ -3,48 +3,11 @@ import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import { buildHighlights, PALETTE } from './evidenceHighlights'
 import type { Highlight } from './evidenceHighlights'
 import { isRecord } from './template'
-import type { BoundingBox, ParsedTable } from './parsedDocument'
+import type { BoundingBox, EvidenceAnchor, ParsedTable } from './parsedDocument'
 import { findTableCellMatch, computeOccurrenceIndices } from './tableCellMatch'
-
-// ── text-layer helpers ────────────────────────────────────────────────────────
-
-type HasStr = { str: string; transform: number[]; width: number; height: number }
-
-type PageTextData = {
-  items: HasStr[]
-  normStrs: string[]
-  fullText: string
-  viewportScale: number
-  viewportHeight: number
-}
-
-async function getPageTextData(pdfViewer: PDFViewer, pageNumber: number): Promise<PageTextData | null> {
-  const pageCount = pdfViewer.pdfDocument?.numPages ?? 0
-  if (pageNumber < 1 || pageNumber > pageCount) return null
-  const pdfPage = await pdfViewer.pdfDocument?.getPage(pageNumber)
-  if (!pdfPage) return null
-
-  const textContent = await pdfPage.getTextContent()
-  const CSS_UNITS = 96.0 / 72.0
-  const viewport = pdfPage.getViewport({ scale: pdfViewer.currentScale * CSS_UNITS })
-
-  const items: HasStr[] = []
-  const normStrs: string[] = []
-  for (const raw of textContent.items) {
-    if (!('str' in raw)) continue
-    const item = raw as HasStr
-    const norm = item.str.replace(/\s+/g, ' ').trim()
-    if (norm) { items.push(item); normStrs.push(norm) }
-  }
-
-  return {
-    items,
-    normStrs,
-    fullText: normStrs.join(' '),
-    viewportScale: viewport.scale,
-    viewportHeight: viewport.height,
-  }
-}
+import { findMarkdownAnchorMatch } from './markdownAnchorMatch'
+import { findValueRects } from './evidenceTextSearch'
+import type { PageRects } from './evidenceTextSearch'
 
 // ── table-cell coordinate lookup ────────────────────────────────────────────────
 
@@ -87,114 +50,6 @@ function rectWithinPage(rect: DOMRect, viewport: PageViewportScale): boolean {
   )
 }
 
-function rectsForQuery(data: PageTextData, query: string, searchFrom = 0): DOMRect[] {
-  const idx = data.fullText.toLowerCase().indexOf(query.toLowerCase(), searchFrom)
-  if (idx === -1) return []
-
-  const rects: DOMRect[] = []
-  let cursor = 0
-  const end = idx + query.length
-  for (let i = 0; i < data.items.length; i++) {
-    const normLen = data.normStrs[i].length
-    const itemEnd = cursor + normLen
-    if (itemEnd > idx && cursor < end) {
-      const [, , , , tx, ty] = data.items[i].transform
-      const x = tx * data.viewportScale
-      const y = data.viewportHeight - (ty + data.items[i].height) * data.viewportScale
-      rects.push(new DOMRect(x, y, data.items[i].width * data.viewportScale, data.items[i].height * data.viewportScale))
-    }
-    cursor += normLen + 1
-  }
-  return rects
-}
-
-// Find `value` within the region where `snippet` appears on a page.
-// Falls back to searching value across the whole page if snippet isn't found.
-function searchValueAnchoredBySnippet(data: PageTextData, snippet: string, value: string): DOMRect[] {
-  const snippetNorm = snippet.replace(/\s+/g, ' ').trim()
-  const snippetIdx = data.fullText.toLowerCase().indexOf(snippetNorm.toLowerCase())
-
-  if (snippetIdx !== -1) {
-    // Build a sub-text covering the snippet's item range
-    const snippetEnd = snippetIdx + snippetNorm.length
-    let cursor = 0
-    let subStart = -1
-    let subEnd = 0
-    for (let i = 0; i < data.items.length; i++) {
-      const normLen = data.normStrs[i].length
-      const itemEnd = cursor + normLen
-      if (itemEnd > snippetIdx && subStart === -1) subStart = i
-      if (cursor < snippetEnd) subEnd = i
-      cursor += normLen + 1
-    }
-
-    if (subStart !== -1) {
-      const subData: PageTextData = {
-        items: data.items.slice(subStart, subEnd + 1),
-        normStrs: data.normStrs.slice(subStart, subEnd + 1),
-        fullText: data.normStrs.slice(subStart, subEnd + 1).join(' '),
-        viewportScale: data.viewportScale,
-        viewportHeight: data.viewportHeight,
-      }
-      const valueNorm = value.replace(/\s+/g, ' ').trim()
-      const rects = rectsForQuery(subData, valueNorm)
-      if (rects.length > 0) return rects
-    }
-  }
-
-  // Snippet not found or value not in snippet — search value across whole page
-  const valueNorm = value.replace(/\s+/g, ' ').trim()
-  return rectsForQuery(data, valueNorm)
-}
-
-// ── main search ───────────────────────────────────────────────────────────────
-
-type PageRects = { pageNumber: number; rects: DOMRect[] }
-
-async function findValueRects(
-  pdfViewer: PDFViewer,
-  value: string,
-  snippet: string | null,
-  hintPage: number | null,
-): Promise<PageRects | null> {
-  const pageCount = pdfViewer.pdfDocument?.numPages ?? 0
-  const valueNorm = value.replace(/\s+/g, ' ').trim()
-  if (!valueNorm) return null
-
-  // Build query list with progressive shortening for direct fallback
-  const words = valueNorm.split(' ')
-  const queries: string[] = [valueNorm]
-  if (words.length > 4) queries.push(words.slice(0, 5).join(' '))
-  if (words.length > 2) queries.push(words.slice(0, 3).join(' '))
-
-  // Page order: hint page first, then the rest
-  const pages = hintPage != null
-    ? [hintPage, ...Array.from({ length: pageCount }, (_, i) => i + 1).filter(p => p !== hintPage)]
-    : Array.from({ length: pageCount }, (_, i) => i + 1)
-
-  if (snippet) {
-    // Snippet-anchored: search for value within snippet context
-    for (const p of pages) {
-      const data = await getPageTextData(pdfViewer, p)
-      if (!data) continue
-      const rects = searchValueAnchoredBySnippet(data, snippet, valueNorm)
-      if (rects.length > 0) return { pageNumber: p, rects }
-    }
-  }
-
-  // Direct search with progressive shortening (no snippet, or snippet search failed)
-  for (const query of queries) {
-    for (const p of pages) {
-      const data = await getPageTextData(pdfViewer, p)
-      if (!data) continue
-      const rects = rectsForQuery(data, query)
-      if (rects.length > 0) return { pageNumber: p, rects }
-    }
-  }
-
-  return null
-}
-
 // Table-cell coordinate lookup, tried before the text search above (see
 // design.md decision 6 and evidence-highlight-layer spec). Returns null on any
 // inconclusive step so the caller falls back to findValueRects unchanged.
@@ -225,6 +80,30 @@ async function findTableCellRects(
   return { pageNumber: match.pageNumber, rects: [rect] }
 }
 
+// Anchor-based lookup, tried after the table-cell tier and before the PDF
+// text-search fallback (see design.md decision 6 and evidence-highlight-layer
+// spec). Returns null whenever no anchor covers the snippet, so the caller
+// falls back to findValueRects unchanged.
+async function findAnchorRects(
+  pdfViewer: PDFViewer,
+  markdown: string | null,
+  anchors: EvidenceAnchor[],
+  highlight: Highlight,
+): Promise<PageRects | null> {
+  if (!markdown || anchors.length === 0) return null
+
+  const match = findMarkdownAnchorMatch(markdown, anchors, highlight.snippet)
+  if (!match) return null
+
+  const viewport = await getPageViewportScale(pdfViewer, match.page)
+  if (!viewport) return null
+
+  const rect = bboxToRect(match.bbox, viewport.scale)
+  if (!rectWithinPage(rect, viewport)) return null
+
+  return { pageNumber: match.page, rects: [rect] }
+}
+
 // ── component ─────────────────────────────────────────────────────────────────
 
 type CachedEntry = {
@@ -247,6 +126,8 @@ type Props = {
   containerEl: HTMLDivElement | null
   focusPath: string[] | null
   tables?: ParsedTable[]
+  markdown?: string | null
+  anchors?: EvidenceAnchor[]
 }
 
 export default function EvidenceHighlightLayer({
@@ -257,6 +138,8 @@ export default function EvidenceHighlightLayer({
   containerEl,
   focusPath,
   tables = [],
+  markdown = null,
+  anchors = [],
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const schemaTemplateRef = useRef(schemaTemplate)
@@ -318,7 +201,8 @@ export default function EvidenceHighlightLayer({
         const occurrenceIndex = occurrenceIndices.get(h) ?? null
         const found =
           (await findTableCellRects(pdfViewer, tables, h, occurrenceIndex)) ??
-          (await findValueRects(pdfViewer, h.value, h.snippet, h.hintPage))
+          (await findAnchorRects(pdfViewer, markdown, anchors, h)) ??
+          (await findValueRects(pdfViewer, h.value, h.snippet, h.hintPage, occurrenceIndex))
         if (!found) continue
 
         const pageEl = containerEl.querySelector(
@@ -353,7 +237,7 @@ export default function EvidenceHighlightLayer({
 
     void render()
     return () => { cancelled = true }
-  }, [pdfViewer, result, evidence, containerEl, scale, containerVersion, tables])
+  }, [pdfViewer, result, evidence, containerEl, scale, containerVersion, tables, markdown, anchors])
 
   // Focus effect: scroll to active value and redraw from cache (no PDF search).
   useEffect(() => {

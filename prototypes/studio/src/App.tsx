@@ -16,9 +16,9 @@ import { templateToNodes, nodesToTemplate } from './schemaNode'
 import { countTemplateFields } from './template'
 import type { SchemaHistoryEntry } from './schemaHistory'
 import { appendSchemaHistoryEntry, clearSchemaHistory, loadSchemaHistory } from './schemaHistory'
-import { requestSchema, parseDocumentToMarkdown, fetchParsedTables } from './api'
+import { requestSchema, parseDocumentToMarkdown, fetchParsedDocumentExtras } from './api'
 import type { AnnotationsMode, ExtractionStrategy } from './api'
-import type { ParsedTable } from './parsedDocument'
+import type { ParsedTable, EvidenceAnchor } from './parsedDocument'
 import { useExtraction } from './useExtraction'
 import EvidenceHighlightLayer from './EvidenceHighlightLayer'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
@@ -69,7 +69,7 @@ type LoadState =
 // means either the document has no tables or the geometry fetch failed/was skipped.
 type DocIndex =
   | { status: 'parsing' }
-  | { status: 'ready'; markdown: string; tables: ParsedTable[] }
+  | { status: 'ready'; markdown: string; tables: ParsedTable[]; anchors: EvidenceAnchor[] }
   | { status: 'error'; message: string }
 
 function getHighlightLabel(editor: AnnotationEditor) {
@@ -129,6 +129,7 @@ function App() {
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
   const documentTables = docIndex.status === 'ready' ? docIndex.tables : []
+  const documentAnchors = docIndex.status === 'ready' ? docIndex.anchors : []
 
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
@@ -319,8 +320,8 @@ function App() {
 
     void (async () => {
       if (pdfSource.filename === ACTIVE_DOC) {
-        // No parsing-service task exists for the bundled demo document, so it has no table geometry.
-        setDocIndex({ status: 'ready', markdown: cachedMarkdown, tables: [] })
+        // No parsing-service task exists for the bundled demo document, so it has no table geometry or anchors.
+        setDocIndex({ status: 'ready', markdown: cachedMarkdown, tables: [], anchors: [] })
         return
       }
 
@@ -343,9 +344,12 @@ function App() {
           taskId = parsed.taskId
           markdown = parsed.markdown
         }
-        const tables = await fetchParsedTables(taskId, abortController.signal).catch(() => [])
+        const { tables, anchors } = await fetchParsedDocumentExtras(taskId, abortController.signal).catch(() => ({
+          tables: [],
+          anchors: [],
+        }))
         if (!abortController.signal.aborted) {
-          setDocIndex({ status: 'ready', markdown, tables })
+          setDocIndex({ status: 'ready', markdown, tables, anchors })
         }
       } catch (error) {
         if (abortController.signal.aborted) return
@@ -647,6 +651,8 @@ function App() {
               containerEl={containerEl}
               focusPath={focusPath}
               tables={documentTables}
+              markdown={documentMarkdown}
+              anchors={documentAnchors}
             />
           </div>
           {extraction.state.status === 'running' && (

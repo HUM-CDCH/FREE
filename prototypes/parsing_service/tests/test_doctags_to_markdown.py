@@ -258,5 +258,62 @@ class TestDocTagsToMarkdown(unittest.TestCase):
             )
 
 
+class TestAnchorResolution(unittest.TestCase):
+    def test_block_location_tokens_resolve_to_an_anchor(self):
+        result = convert_doctags_to_markdown(
+            "<doctag><text><loc_60><loc_107><loc_321><loc_124>Alpha body.</text></doctag>",
+            page_dims={1: (612.0, 792.0)},
+        )
+
+        self.assertEqual(result.markdown, "Alpha body.")
+        self.assertNotIn("loc_", result.markdown)
+        self.assertEqual(len(result.anchors), 1)
+        anchor = result.anchors[0]
+        self.assertEqual(
+            result.markdown[anchor.markdown_start : anchor.markdown_end],
+            "Alpha body.",
+        )
+        self.assertEqual(anchor.page, 1)
+        x0, y0, x1, y1 = anchor.bbox
+        self.assertAlmostEqual(x0, 60 / 500 * 612.0)
+        self.assertAlmostEqual(y0, 107 / 500 * 792.0)
+        self.assertAlmostEqual(x1, 321 / 500 * 612.0)
+        self.assertAlmostEqual(y1, 124 / 500 * 792.0)
+
+    def test_table_cell_location_tokens_produce_no_anchor(self):
+        result = convert_doctags_to_markdown(
+            "<doctag><otsl><ched><loc_1><loc_2><loc_3><loc_4>Name"
+            "<ched><loc_5><loc_6><loc_7><loc_8>Age<nl>"
+            "<fcel><loc_9><loc_10><loc_11><loc_12>Ada"
+            "<fcel><loc_13><loc_14><loc_15><loc_16>37</otsl></doctag>",
+            page_dims={1: (612.0, 792.0)},
+        )
+
+        self.assertEqual(result.anchors, ())
+        self.assertNotIn("loc_", result.markdown)
+        self.assertEqual(
+            result.markdown,
+            "| Name | Age |\n| --- | --- |\n| Ada | 37 |",
+        )
+
+    def test_no_location_tokens_leaves_markdown_byte_identical(self):
+        doctags = "<doctag><text>Alpha body.</text><page_break><text>Two</text></doctag>"
+
+        without_dims = convert_doctags_to_markdown(doctags)
+        with_dims = convert_doctags_to_markdown(doctags, page_dims={1: (612.0, 792.0)})
+
+        self.assertEqual(without_dims.markdown, with_dims.markdown)
+        self.assertEqual(without_dims.anchors, ())
+        self.assertEqual(with_dims.anchors, ())
+
+    def test_missing_page_dims_still_strips_locations_without_anchors(self):
+        result = convert_doctags_to_markdown(
+            "<doctag><text><loc_60><loc_107><loc_321><loc_124>Alpha body.</text></doctag>"
+        )
+
+        self.assertEqual(result.markdown, "Alpha body.")
+        self.assertEqual(result.anchors, ())
+
+
 if __name__ == "__main__":
     unittest.main()

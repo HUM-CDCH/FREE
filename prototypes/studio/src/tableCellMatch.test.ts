@@ -108,6 +108,49 @@ describe('findTableCellMatch', () => {
 
     expect(findTableCellMatch([t], 'Unlocated', null, null, null, null)).toBeNull()
   })
+
+  it('falls back to a tolerant match when a cell has a trailing-unit formatting difference', () => {
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: 'Weight', role: 'header' }),
+      cell({ row: 1, col: 0, text: '1234 g', role: 'data', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }),
+    ])
+
+    const match = findTableCellMatch([t], '1234', null, null, null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
+  })
+
+  it('tolerates a dash-variant difference between value and cell text', () => {
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: 'Item', role: 'header' }),
+      cell({ row: 1, col: 0, text: '1234–05', role: 'data', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }),
+    ])
+
+    const match = findTableCellMatch([t], '1234-05', null, null, null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
+  })
+
+  it('does not let a short numeric value spuriously match inside a longer number', () => {
+    const t = table('t1', 1, [cell({ row: 0, col: 0, text: '420', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })])
+
+    expect(findTableCellMatch([t], '42', null, null, null, null)).toBeNull()
+  })
+
+  it('does not add a tolerant duplicate for a table where the exact tier already found a candidate', () => {
+    // '1234 g' would also satisfy the tolerant tier, but since this table
+    // already has an exact match, the tolerant tier must not run for it —
+    // otherwise this would become an ambiguous 2-candidate match instead of
+    // resolving directly (see spec: exact behavior unchanged where it succeeds).
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: '1234', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }),
+      cell({ row: 1, col: 0, text: '1234 g' }),
+    ])
+
+    const match = findTableCellMatch([t], '1234', null, null, null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
+  })
 })
 
 describe('computeOccurrenceIndices', () => {

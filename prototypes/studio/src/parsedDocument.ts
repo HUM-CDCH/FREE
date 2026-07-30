@@ -19,6 +19,13 @@ export type ParsedTable = {
   cells: TableCell[]
 }
 
+export type EvidenceAnchor = {
+  markdownStart: number
+  markdownEnd: number
+  page: number
+  bbox: BoundingBox
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -65,4 +72,36 @@ export function parseParsedTables(value: unknown): ParsedTable[] {
     tables.push({ tableId: entry.table_id, pageNumber: entry.page_number, cells })
   }
   return tables
+}
+
+function parseEvidenceAnchor(value: unknown): EvidenceAnchor | null {
+  if (
+    !isRecord(value) ||
+    typeof value.markdown_start !== 'number' ||
+    typeof value.markdown_end !== 'number' ||
+    typeof value.page !== 'number'
+  ) {
+    return null
+  }
+  const bbox = parseBoundingBox(value.bbox)
+  if (bbox === null) {
+    return null
+  }
+  return {
+    markdownStart: value.markdown_start,
+    markdownEnd: value.markdown_end,
+    page: value.page,
+    bbox,
+  }
+}
+
+// Tolerant parser for `/tasks/{id}/document`'s `evidence_index.anchors`
+// array — malformed or unrecognized entries are dropped rather than thrown,
+// since anchor-based highlighting is a best-effort enhancement layered on
+// top of the existing PDF text-search fallback (see design.md).
+export function parseEvidenceAnchors(value: unknown): EvidenceAnchor[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value.map(parseEvidenceAnchor).filter((a): a is EvidenceAnchor => a !== null)
 }

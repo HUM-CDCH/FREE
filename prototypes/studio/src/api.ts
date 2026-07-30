@@ -1,7 +1,7 @@
 import { isRecord } from './template'
 import { type SchemaNode, nodesToTemplate } from './schemaNode'
 import type { SchemaOp } from './schemaOps'
-import { type ParsedTable, parseParsedTables } from './parsedDocument'
+import { type ParsedTable, parseParsedTables, type EvidenceAnchor, parseEvidenceAnchors } from './parsedDocument'
 
 export const API_BASE = '/api'
 
@@ -137,15 +137,22 @@ export async function parseDocumentToMarkdown(
   return { taskId, markdown: await md.text() }
 }
 
-// Best-effort: table geometry is an enhancement (see design.md), never a hard
-// dependency, so callers should treat a rejected promise the same as "no tables".
-export async function fetchParsedTables(taskId: string, signal?: AbortSignal): Promise<ParsedTable[]> {
+// Best-effort: table geometry and evidence anchors are enhancements (see
+// design.md), never a hard dependency, so callers should treat a rejected
+// promise the same as "no tables, no anchors".
+export async function fetchParsedDocumentExtras(
+  taskId: string,
+  signal?: AbortSignal,
+): Promise<{ tables: ParsedTable[]; anchors: EvidenceAnchor[] }> {
   const response = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}/document`, { signal })
   if (!response.ok) {
     throw new Error(`Could not fetch parsed document (HTTP ${response.status})`)
   }
-  const data = (await response.json()) as { tables?: unknown }
-  return parseParsedTables(data.tables)
+  const data = (await response.json()) as { tables?: unknown; evidence_index?: { anchors?: unknown } }
+  return {
+    tables: parseParsedTables(data.tables),
+    anchors: parseEvidenceAnchors(data.evidence_index?.anchors),
+  }
 }
 
 // ---------- request wrappers ----------

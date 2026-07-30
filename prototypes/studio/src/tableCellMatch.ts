@@ -8,6 +8,26 @@ function normalize(text: string): string {
   return text.replace(/\s+/g, ' ').trim().toLowerCase()
 }
 
+// Dash-variant characters commonly produced by PDF text extraction in place
+// of a plain hyphen (en dash, em dash, minus sign, non-breaking hyphen, etc).
+const DASH_VARIANTS_RE = /[‐‑‒–—―−]/g
+const PUNCTUATION_RE = /[.,;:!?'"()[\]{}/\\]/g
+
+function normalizeTolerant(text: string): string {
+  return normalize(text.replace(DASH_VARIANTS_RE, '-').replace(PUNCTUATION_RE, ''))
+}
+
+// Borrowed from this project's own prior, never-merged table-matching attempt
+// (`_table_evidence.ts`'s `textsMatch`) rather than a hand-rolled
+// word-boundary regex: exact equality always matches; otherwise containment
+// is only accepted when the shorter string is at least 4 characters, so short
+// numeric values can't spuriously match inside an unrelated longer number.
+function textsMatchTolerant(a: string, b: string): boolean {
+  if (!a || !b) return false
+  if (a === b) return true
+  return Math.min(a.length, b.length) >= 4 && (a.includes(b) || b.includes(a))
+}
+
 // Ranks each highlight by its 0-based occurrence order among OTHER highlights that
 // share its exact (field key, normalized value, hint page) triple, in the order
 // `highlights` is given (i.e. document/traversal order). This is deliberately NOT
@@ -35,13 +55,23 @@ export function computeOccurrenceIndices<T extends { path: readonly string[]; va
   return indices
 }
 
+// Exact tier first, per table; only a table with zero exact matches falls
+// back to the tolerant tier (dash/whitespace/punctuation normalization plus
+// length-gated substring containment), so behavior is unchanged wherever
+// exact matching already succeeds for a given table.
 function collectCandidates(tables: readonly ParsedTable[], value: string): Candidate[] {
   const target = normalize(value)
   if (!target) return []
+  const tolerantTarget = normalizeTolerant(value)
   const candidates: Candidate[] = []
   for (const table of tables) {
+    const exact = table.cells.filter((cell) => normalize(cell.text) === target)
+    if (exact.length > 0) {
+      candidates.push(...exact.map((cell) => ({ table, cell })))
+      continue
+    }
     for (const cell of table.cells) {
-      if (normalize(cell.text) === target) {
+      if (textsMatchTolerant(tolerantTarget, normalizeTolerant(cell.text))) {
         candidates.push({ table, cell })
       }
     }

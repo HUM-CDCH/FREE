@@ -231,11 +231,25 @@ class ParsedPage(BaseModel):
     word_boxes_ref: str | None = None
 
 
+class Anchor(BaseModel):
+    """A rendered block's absolute position, keyed to `text_views.llm_markdown`.
+
+    `bbox` is in PDF points (see `BoundingBox`), resolved from Docling's
+    normalized location tokens using the block's page width/height.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    markdown_start: int = Field(ge=0)
+    markdown_end: int = Field(ge=0)
+    page: int = Field(ge=1)
+    bbox: BoundingBox
+
+
 class EvidenceIndex(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    # ponytail: no anchor producer exists yet; type the anchor shape when one does
-    anchors: list[dict[str, Any]] = Field(default_factory=list)
+    anchors: list[Anchor] = Field(default_factory=list)
 
 
 class ParsedDocument(BaseModel):

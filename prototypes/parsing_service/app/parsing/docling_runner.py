@@ -40,6 +40,7 @@ class DoclingRunnerOutput:
     raw_doctags_char_count: int = 0
     output_sha256: str | None = None
     page_spans: tuple[Any, ...] = ()
+    anchors: tuple[Any, ...] = ()
     page_mapping_verified: bool = False
     physical_page_export_complete: bool = False
     table_inventory: tuple[dict[str, Any], ...] = ()
@@ -182,9 +183,13 @@ def _convert_document(source_pdf: Path) -> Any:
     return result.document
 
 
-def _convert_doctags(raw_doctags: str) -> Any:
+def _convert_doctags(
+    raw_doctags: str, page_dims: dict[int, tuple[float, float]] | None = None
+) -> Any:
     module = importlib.import_module("app.parsing.doctags_to_markdown")
-    return module.convert_doctags_to_markdown(raw_doctags, drop_page_footers=True)
+    return module.convert_doctags_to_markdown(
+        raw_doctags, drop_page_footers=True, page_dims=page_dims
+    )
 
 
 def _physical_doctags(
@@ -225,6 +230,7 @@ def run_docling_ingestion(
     *,
     physical_pages: list[int] | None = None,
     artifact_root: Path | None = None,
+    page_dims: dict[int, tuple[float, float]] | None = None,
 ) -> DoclingRunnerOutput:
     """Run Docling once and persist raw and canonical DocTags artifacts."""
     started_at = _utc_now()
@@ -254,6 +260,7 @@ def run_docling_ingestion(
     llm_markdown = ""
     raw_doctags = ""
     page_spans: tuple[Any, ...] = ()
+    anchors: tuple[Any, ...] = ()
     page_mapping_verified = False
     physical_page_export_complete = False
     table_inventory = _table_inventory(document)
@@ -312,8 +319,9 @@ def run_docling_ingestion(
 
     if canonical_doctags:
         try:
-            conversion = _convert_doctags(canonical_doctags)
+            conversion = _convert_doctags(canonical_doctags, page_dims)
             llm_markdown = str(conversion.markdown)
+            anchors = tuple(conversion.anchors)
             if page_mapping_verified:
                 page_spans = tuple(conversion.page_spans)
                 if len(page_spans) != len(requested_pages):
@@ -361,6 +369,7 @@ def run_docling_ingestion(
         raw_doctags_char_count=len(canonical_doctags),
         output_sha256=output_sha256,
         page_spans=page_spans,
+        anchors=anchors,
         page_mapping_verified=page_mapping_verified,
         physical_page_export_complete=physical_page_export_complete,
         table_inventory=table_inventory,

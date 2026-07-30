@@ -2,8 +2,32 @@ import { useEffect, useRef, useState } from 'react'
 import { requestExtraction } from './api'
 import type { ExtractionStrategy } from './api'
 import type { ExtractionState } from './extraction'
+import { isRecord } from './template'
 
 type PdfSource = { url: string; filename: string }
+
+// Article strategy always wraps the researcher's schema as `{ records: [template] }`
+// on the way in (see _catalog_sections.ts's findPrimaryArrayKey / _model.ts's
+// extractWithModel) purely as request plumbing to carry `_strategy` alongside a
+// `SchemaNode[]`-derived template that has no root-metadata slot — the array is
+// guaranteed to hold exactly one item for Article, never a real repeated group.
+// Catalog's `records` is a genuine multi-item array (one per detected section) and
+// must stay wrapped. Falls back to the original values unchanged when the response
+// isn't shaped as expected, rather than throwing.
+export function unwrapArticleResult(
+  strategy: ExtractionStrategy,
+  result: unknown,
+  evidence: unknown,
+): { result: unknown; evidence: unknown } {
+  if (strategy === 'catalog' || !isRecord(result) || !Array.isArray(result.records) || result.records.length === 0) {
+    return { result, evidence }
+  }
+  const unwrappedEvidence =
+    isRecord(evidence) && Array.isArray(evidence.records) && evidence.records.length > 0
+      ? evidence.records[0]
+      : null
+  return { result: result.records[0], evidence: unwrappedEvidence }
+}
 
 type UseExtractionOptions = {
   pdfSource: PdfSource | null
@@ -65,7 +89,8 @@ export function useExtraction({
       if (abortController.signal.aborted) {
         return
       }
-      setState({ status: 'ready', result, evidence })
+      const unwrapped = unwrapArticleResult(extractionStrategy, result, evidence)
+      setState({ status: 'ready', result: unwrapped.result, evidence: unwrapped.evidence })
       onComplete(isRerun)
     } catch (error) {
       if (abortController.signal.aborted) {

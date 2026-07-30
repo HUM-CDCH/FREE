@@ -364,6 +364,140 @@ class TestCanonicalIngestion(unittest.TestCase):
                 paths.DEFAULT_DATA_DIR = original_tasks
                 paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
 
+    def test_docling_anchors_populate_evidence_index(self):
+        conversion = convert_doctags_to_markdown(
+            "<doctag><text><loc_10><loc_20><loc_30><loc_40>Ada was here.</text></doctag>",
+            page_dims={1: (100.0, 200.0)},
+        )
+        self.assertEqual(len(conversion.anchors), 1)
+        with tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT) as tmp_dir:
+            root = Path(tmp_dir)
+            original_tasks = paths.DEFAULT_DATA_DIR
+            original_documents = paths.DEFAULT_DOCUMENT_STORE_DIR
+            paths.DEFAULT_DATA_DIR = root / "tasks"
+            paths.DEFAULT_DOCUMENT_STORE_DIR = root / "documents"
+            try:
+                task_id = str(uuid.uuid4())
+                task_dir = paths.task_dir_for(task_id)
+                task_dir.mkdir(parents=True)
+                (task_dir / "source.pdf").write_bytes(b"%PDF-1.4\n")
+                save_task_metadata(
+                    task_dir,
+                    {
+                        "content_sha256": CONTENT_HASH,
+                        "source_kind": "upload",
+                        "created_at": NOW,
+                        "params": {"source_name": "source.pdf"},
+                    },
+                )
+                docling = DoclingRunnerOutput(
+                    parser="docling_doctags",
+                    status="success",
+                    started_at=NOW,
+                    finished_at=NOW,
+                    duration_ms=1,
+                    llm_markdown_ref="data/documents/anchors.llm.md",
+                    llm_markdown=conversion.markdown,
+                    char_count=len(conversion.markdown),
+                    page_spans=conversion.page_spans,
+                    anchors=conversion.anchors,
+                    page_mapping_verified=True,
+                )
+                with (
+                    patch(
+                        "app.parsing.orchestrator.inspect_pdf",
+                        return_value=_inspection("Ada was here."),
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_docling_ingestion",
+                        return_value=docling,
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_table_extraction",
+                        return_value=TableExtractionOutput(
+                            status="success", tables=[], metrics={}
+                        ),
+                    ),
+                ):
+                    document = build_parsed_document(task_id)
+
+                self.assertIsNotNone(document.evidence_index)
+                self.assertEqual(len(document.evidence_index.anchors), 1)
+                anchor = document.evidence_index.anchors[0]
+                self.assertEqual(
+                    document.text_views.llm_markdown[
+                        anchor.markdown_start : anchor.markdown_end
+                    ],
+                    "Ada was here.",
+                )
+                self.assertEqual(anchor.page, 1)
+                self.assertEqual(
+                    (anchor.bbox.x0, anchor.bbox.y0, anchor.bbox.x1, anchor.bbox.y1),
+                    conversion.anchors[0].bbox,
+                )
+            finally:
+                paths.DEFAULT_DATA_DIR = original_tasks
+                paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
+
+    def test_no_location_tokens_yields_empty_anchors_list(self):
+        body = "Canonical body text."
+        conversion = compose_page_markdown([body])
+        with tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT) as tmp_dir:
+            root = Path(tmp_dir)
+            original_tasks = paths.DEFAULT_DATA_DIR
+            original_documents = paths.DEFAULT_DOCUMENT_STORE_DIR
+            paths.DEFAULT_DATA_DIR = root / "tasks"
+            paths.DEFAULT_DOCUMENT_STORE_DIR = root / "documents"
+            try:
+                task_id = str(uuid.uuid4())
+                task_dir = paths.task_dir_for(task_id)
+                task_dir.mkdir(parents=True)
+                (task_dir / "source.pdf").write_bytes(b"%PDF-1.4\n")
+                save_task_metadata(
+                    task_dir,
+                    {
+                        "content_sha256": CONTENT_HASH,
+                        "source_kind": "upload",
+                        "created_at": NOW,
+                        "params": {"source_name": "source.pdf"},
+                    },
+                )
+                docling = DoclingRunnerOutput(
+                    parser="docling_doctags",
+                    status="success",
+                    started_at=NOW,
+                    finished_at=NOW,
+                    duration_ms=1,
+                    llm_markdown_ref="data/documents/no-anchors.llm.md",
+                    llm_markdown=conversion.markdown,
+                    char_count=len(conversion.markdown),
+                    page_spans=conversion.page_spans,
+                    page_mapping_verified=True,
+                )
+                with (
+                    patch(
+                        "app.parsing.orchestrator.inspect_pdf",
+                        return_value=_inspection(body),
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_docling_ingestion",
+                        return_value=docling,
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_table_extraction",
+                        return_value=TableExtractionOutput(
+                            status="success", tables=[], metrics={}
+                        ),
+                    ),
+                ):
+                    document = build_parsed_document(task_id)
+
+                self.assertIsNotNone(document.evidence_index)
+                self.assertEqual(document.evidence_index.anchors, [])
+            finally:
+                paths.DEFAULT_DATA_DIR = original_tasks
+                paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
+
     def test_successful_empty_table_result_does_not_add_document_warning(self):
         camelot = Mock()
         camelot.read_pdf.return_value = []

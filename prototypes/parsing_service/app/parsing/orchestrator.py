@@ -12,8 +12,10 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 from app.models.parsed_document import (
+    Anchor,
     ArbitrationResult,
     ArtifactManifest,
+    BoundingBox,
     CharSpan,
     DocumentMetadata,
     EvidenceIndex,
@@ -161,6 +163,7 @@ def _run_docling_ingestion(
     content_sha256: str,
     physical_pages: list[int],
     artifact_root: Path | None,
+    page_dims: dict[int, tuple[float, float]] | None = None,
 ) -> Any:
     module = importlib.import_module("app.parsing.docling_runner")
     return module.run_docling_ingestion(
@@ -168,6 +171,7 @@ def _run_docling_ingestion(
         content_sha256,
         physical_pages=physical_pages,
         artifact_root=artifact_root,
+        page_dims=page_dims,
     )
 
 
@@ -645,6 +649,7 @@ def build_parsed_document(
         content_sha256,
         list(range(1, inspection.page_count + 1)),
         artifact_root,
+        page_dims={page.page: (page.width_pt, page.height_pt) for page in inspection.pages},
     )
     parser_runs = [
         inspection_run,
@@ -659,6 +664,7 @@ def build_parsed_document(
     )
     docling_spans = list(getattr(docling_output, "page_spans", ()) or ())
     docling_tables = tuple(getattr(docling_output, "table_inventory", ()) or ())
+    docling_anchors = tuple(getattr(docling_output, "anchors", ()) or ())
     page_mapping_verified = bool(
         getattr(docling_output, "page_mapping_verified", False)
     )
@@ -837,6 +843,29 @@ def build_parsed_document(
         ],
     )
 
+    # Anchors were resolved against `doc_tags_simplified` (Docling's own
+    # Markdown). If OCR fallback or page merging produced a different final
+    # `llm_markdown`, those offsets no longer line up, so drop anchors rather
+    # than publish stale ones (evidence_index.anchors=[] is always valid).
+    evidence_anchors = (
+        [
+            Anchor(
+                markdown_start=anchor.markdown_start,
+                markdown_end=anchor.markdown_end,
+                page=anchor.page,
+                bbox=BoundingBox(
+                    x0=anchor.bbox[0],
+                    y0=anchor.bbox[1],
+                    x1=anchor.bbox[2],
+                    y1=anchor.bbox[3],
+                ),
+            )
+            for anchor in docling_anchors
+        ]
+        if llm_markdown == doc_tags_simplified
+        else []
+    )
+
     return ParsedDocument(
         document=document_metadata,
         preprocessing=preprocessing,
@@ -846,5 +875,5 @@ def build_parsed_document(
         text_views=text_views,
         pages=pages,
         tables=tables,
-        evidence_index=EvidenceIndex(),
+        evidence_index=EvidenceIndex(anchors=evidence_anchors),
     )
