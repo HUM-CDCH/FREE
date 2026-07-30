@@ -31,11 +31,13 @@ from app.storage.manifests import (
     TaskNotFoundError,
     load_task_metadata,
     preprocessing_config_hash,
+    read_canonical_generation_ref,
     read_canonical_parsed_document,
     rebase_parsed_document_artifacts,
     rebind_parsed_document_for_task,
     save_task_metadata,
     validate_canonical_document,
+    write_canonical_generation_pointer,
     write_canonical_parsed_document,
     write_parsed_document,
 )
@@ -117,6 +119,28 @@ def _authenticated_source_blob(
     return source_blob
 
 
+def _reusable_canonical(
+    content_sha256: str,
+    metadata: dict[str, Any],
+) -> ParsedDocument | None:
+    """Return a cache entry only when it can be bound to a live generation.
+
+    Task completion requires an immutable generation binding, so a canonical
+    document whose generation was pruned is treated as a miss and rebuilt.
+    """
+    cached = _load_valid_canonical(content_sha256, metadata)
+    if cached is None:
+        return None
+    generation_ref = read_canonical_generation_ref(
+        content_sha256,
+        expected_config_hash=preprocessing_config_hash(metadata),
+    )
+    if generation_ref is None:
+        return None
+    metadata["canonical_generation_ref"] = generation_ref
+    return cached
+
+
 def _new_generation_id(config_hash: str) -> str:
     return f"{config_hash[:16]}-{uuid.uuid4().hex}"
 
@@ -136,7 +160,7 @@ def _build_or_load_canonical(
             store_lock.acquire(timeout=_CANONICAL_LOCK_TIMEOUT_SECONDS),
             source_lock.acquire(timeout=_CANONICAL_LOCK_TIMEOUT_SECONDS),
         ):
-            cached = _load_valid_canonical(content_sha256, metadata)
+            cached = _reusable_canonical(content_sha256, metadata)
             if cached is not None:
                 return cached
 
@@ -170,6 +194,11 @@ def _build_or_load_canonical(
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(pending_dir, final_dir)
                 published_generation = True
+                write_canonical_generation_pointer(
+                    content_sha256,
+                    generation_ref=metadata["canonical_generation_ref"],
+                    config_hash=config_hash,
+                )
                 validate_canonical_document(
                     parsed_document,
                     expected_sha256=content_sha256,
@@ -183,7 +212,7 @@ def _build_or_load_canonical(
                     shutil.rmtree(final_dir, ignore_errors=True)
                 raise
     except Timeout as exc:
-        cached = _load_valid_canonical(content_sha256, metadata)
+        cached = _reusable_canonical(content_sha256, metadata)
         if cached is not None:
             return cached
         raise CanonicalIngestionError(

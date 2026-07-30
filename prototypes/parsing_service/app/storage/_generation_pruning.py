@@ -56,9 +56,15 @@ def _referenced_generation_dirs(
     data_dir: Path,
     document_store: Path,
 ) -> set[Path]:
-    pattern = f"*/{paths.PARSED_DOCUMENT_FILENAME}"
-    manifests = list(document_store.glob(pattern))
-    manifests.extend(data_dir.glob(pattern))
+    parsed_documents = f"*/{paths.PARSED_DOCUMENT_FILENAME}"
+    manifests = list(document_store.glob(parsed_documents))
+    manifests.extend(data_dir.glob(parsed_documents))
+    # A portable v2 ParsedDocument holds no generation refs, so the live
+    # binding lives in the store pointer and in each task's metadata.
+    manifests.extend(
+        document_store.glob(f"*/{paths.CANONICAL_GENERATION_FILENAME}")
+    )
+    manifests.extend(data_dir.glob(f"*/{paths.METADATA_FILENAME}"))
     resolved_store = document_store.resolve()
     referenced: set[Path] = set()
     for manifest in manifests:

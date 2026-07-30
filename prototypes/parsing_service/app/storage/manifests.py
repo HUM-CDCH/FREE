@@ -18,6 +18,7 @@ from app.storage.paths import (
     METADATA_FILENAME,
     PARSED_DOCUMENT_FILENAME,
     SOURCE_FILENAME,
+    canonical_generation_pointer_path,
     canonical_parsed_document_path,
     document_store_dir,
     resolve_service_ref,
@@ -105,6 +106,74 @@ def generation_ref_from_artifact_ref(ref: str | None) -> str | None:
         return "/".join(parts[: index + 2])
     except ValueError:
         return None
+
+
+CANONICAL_GENERATION_POINTER_SCHEMA = "canonical-generation.v1"
+
+
+def write_canonical_generation_pointer(
+    content_sha256: str,
+    *,
+    generation_ref: str,
+    config_hash: str,
+) -> Path:
+    """Bind a canonical document to the generation whose artifacts back it.
+
+    The portable ParsedDocument carries no cache references, so without this
+    pointer a cache hit cannot rediscover its own immutable generation.
+    """
+    destination = canonical_generation_pointer_path(content_sha256)
+    write_json_atomic(
+        destination,
+        {
+            "schema_version": CANONICAL_GENERATION_POINTER_SCHEMA,
+            "content_sha256": content_sha256,
+            "config_hash": config_hash,
+            "generation_ref": generation_ref,
+        },
+    )
+    return destination
+
+
+def read_canonical_generation_ref(
+    content_sha256: str,
+    *,
+    expected_config_hash: str,
+) -> str | None:
+    """Return the bound generation ref, or None when it cannot be trusted.
+
+    A missing, mismatched, or pruned generation is reported as unbound so the
+    caller rebuilds rather than completing a task against absent artifacts.
+    """
+    pointer_path = canonical_generation_pointer_path(content_sha256)
+    if not pointer_path.is_file():
+        return None
+    try:
+        payload = read_json(pointer_path)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema_version") != CANONICAL_GENERATION_POINTER_SCHEMA:
+        return None
+    if payload.get("content_sha256") != content_sha256:
+        return None
+    if payload.get("config_hash") != expected_config_hash:
+        return None
+    generation_ref = payload.get("generation_ref")
+    if not isinstance(generation_ref, str) or not generation_ref:
+        return None
+    try:
+        generation = resolve_service_ref(generation_ref)
+    except ValueError:
+        return None
+    root = document_store_dir(content_sha256).resolve()
+    if not generation.is_relative_to(root) or not generation.is_dir():
+        return None
+    markdown = generation / "artifacts" / "document.llm.md"
+    if markdown.is_symlink() or not markdown.is_file():
+        return None
+    return generation_ref
 
 
 def read_committed_markdown(

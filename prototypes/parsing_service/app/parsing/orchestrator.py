@@ -127,6 +127,8 @@ class _TableResolution:
     tables: list[Any]
     parser_run: ParserRun
     parser_by_page: dict[int, str]
+    # Rejected/excluded table candidates stay auditable as portable diagnostics.
+    diagnostics: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -605,6 +607,10 @@ def _extract_document_tables(
             context.content_sha256,
         ),
         parser_by_page=_table_parsers_by_page(tables),
+        diagnostics=tuple(
+            dict(diagnostic)
+            for diagnostic in (getattr(output, "diagnostics", ()) or ())
+        ),
     )
 
 
