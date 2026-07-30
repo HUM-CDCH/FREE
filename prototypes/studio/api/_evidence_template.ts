@@ -17,6 +17,7 @@ export function splitEvidenceResult(input: Record<string, unknown>): {
   const result: Record<string, unknown> = {}
   const evidence: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(input)) {
+    if (key === '_description' || key === '_strategy') continue // schema/routing metadata, not an extracted value
     const split = splitNode(value)
     result[key] = split.result
     if (split.evidence !== null) {
@@ -32,13 +33,15 @@ function wrapSchema(template: unknown, hasTables: boolean): unknown {
   }
   if (isRecord(template)) {
     return Object.fromEntries(
-      // "_description" is NuExtract's own field-guidance convention, not an
-      // extraction target — it must reach the model as plain text, not
-      // wrapped in {value, snippet, page} like a real field.
-      Object.entries(template).map(([key, value]) => [
-        key,
-        key === '_description' ? value : wrapSchema(value, hasTables),
-      ]),
+      Object.entries(template)
+        // "_strategy" (Catalog/Article) is internal routing metadata, not
+        // something the model should ever see — drop it before it reaches
+        // the prompt, unlike "_description" below which the model does read.
+        .filter(([key]) => key !== '_strategy')
+        // "_description" is NuExtract's own field-guidance convention, not an
+        // extraction target — it must reach the model as plain text, not
+        // wrapped in {value, snippet, page} like a real field.
+        .map(([key, value]) => [key, key === '_description' ? value : wrapSchema(value, hasTables)]),
     )
   }
   return hasTables
@@ -80,7 +83,7 @@ function splitNode(node: unknown): SplitEvidence {
     const result: Record<string, unknown> = {}
     const evidence: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(node)) {
-      if (key === '_description') continue // schema guidance, not an extracted value
+      if (key === '_description' || key === '_strategy') continue // schema/routing metadata, not an extracted value
       const split = splitNode(value)
       result[key] = split.result
       if (split.evidence !== null) {

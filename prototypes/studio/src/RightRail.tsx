@@ -8,7 +8,7 @@ import type { SchemaNode } from './schemaNode'
 import type { SchemaHistoryEntry } from './schemaHistory'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
-import type { AnnotationsMode } from './api'
+import type { AnnotationsMode, ExtractionStrategy } from './api'
 
 export type RailTab = 'annot' | 'chat' | 'schema' | 'results'
 
@@ -28,6 +28,8 @@ type RightRailProps = {
   onNodesChange: (nodes: SchemaNode[], message: string) => void
   onChatSchemaChange: (nodes: SchemaNode[], message: string) => void
   schemaHistory: SchemaHistoryEntry[]
+  extractionStrategy: ExtractionStrategy
+  onExtractionStrategyChange: (strategy: ExtractionStrategy) => void
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
@@ -67,6 +69,8 @@ function RightRail({
   onNodesChange,
   onChatSchemaChange,
   schemaHistory,
+  extractionStrategy,
+  onExtractionStrategyChange,
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
@@ -159,6 +163,9 @@ function RightRail({
           onNodesChange={onNodesChange}
           onChatSchemaChange={onChatSchemaChange}
           history={schemaHistory}
+          extractionStrategy={extractionStrategy}
+          onExtractionStrategyChange={onExtractionStrategyChange}
+          documentFileName={pdfSource?.filename ?? null}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>

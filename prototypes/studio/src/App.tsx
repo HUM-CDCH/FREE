@@ -17,7 +17,7 @@ import { countTemplateFields } from './template'
 import type { SchemaHistoryEntry } from './schemaHistory'
 import { appendSchemaHistoryEntry, clearSchemaHistory, loadSchemaHistory } from './schemaHistory'
 import { requestSchema, parseDocumentToMarkdown, fetchParsedTables } from './api'
-import type { AnnotationsMode } from './api'
+import type { AnnotationsMode, ExtractionStrategy } from './api'
 import type { ParsedTable } from './parsedDocument'
 import { useExtraction } from './useExtraction'
 import EvidenceHighlightLayer from './EvidenceHighlightLayer'
@@ -100,7 +100,14 @@ function App() {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [templateState, setTemplateState] = useState<TemplateState>({ status: 'idle' })
   const [schemaHistory, setSchemaHistory] = useState<SchemaHistoryEntry[]>(() => loadSchemaHistory())
-  const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
+  const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('fields')
+  // Chosen before schema generation (it shapes the generation prompt — see
+  // schemaPrompt's catalog-vs-article guidance) and carried through to
+  // extraction afterward, so it must NOT reset when generation completes.
+  // Defaults to 'article' (never auto-section) rather than inferring, and
+  // resets only when a new PDF is opened, since the choice is bound to the
+  // current document/schema, not persisted anywhere.
+  const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>('article')
   const [navOpen, setNavOpen] = useState(true)
   const [navWidth, setNavWidth] = useState(212)
   const [railOpen, setRailOpen] = useState(true)
@@ -157,6 +164,7 @@ function App() {
     setAnnotationItems([])
     setTemplateState({ status: 'idle' })
     setSchemaHistory(clearSchemaHistory())
+    setExtractionStrategy('article')
     event.target.value = ''
   }
 
@@ -386,7 +394,12 @@ function App() {
     toastTimerRef.current = window.setTimeout(() => setToast(null), 2600)
   }
 
-  async function generateSchema() {
+  // `strategy` defaults to current state for the normal "Generate"/"Regenerate"
+  // button, but callers reacting to a just-changed strategy (see
+  // handleExtractionStrategyChange) pass the new value explicitly — React
+  // state updates aren't visible in this closure until the next render, so
+  // relying on `extractionStrategy` alone would still send the stale choice.
+  async function generateSchema(strategy: ExtractionStrategy = extractionStrategy) {
     if (!pdfSource) return
     if (indexing) {
       showToast('Document is still being indexed…')
@@ -404,6 +417,7 @@ function App() {
         annotations: annotationItems.map(({ label, pageNumber }) => ({ text: label, pageNumber })),
         annotationsMode,
         markdown: documentMarkdown,
+        strategy,
       })
       if (!abortController.signal.aborted) {
         const nodes = templateToNodes(template)
@@ -418,6 +432,19 @@ function App() {
         status: 'error',
         message: error instanceof Error ? error.message : 'Schema generation failed.',
       })
+    }
+  }
+
+  // Switching Catalog/Article reshapes the schema-generation guidance itself
+  // (see schemaPrompt), so a schema already generated under the old strategy
+  // no longer matches — regenerate automatically rather than leaving a
+  // stale/mismatched schema in place. Nothing to regenerate from 'idle' (the
+  // researcher hasn't generated anything yet), so just record the choice.
+  function handleExtractionStrategyChange(strategy: ExtractionStrategy) {
+    setExtractionStrategy(strategy)
+    if (templateState.status !== 'idle') {
+      showToast(`↻ Regenerating schema for ${strategy === 'catalog' ? 'Catalog' : 'Article'}…`)
+      void generateSchema(strategy)
     }
   }
 
@@ -488,6 +515,7 @@ function App() {
     markdown: documentMarkdown,
     hasTables: documentTables.length > 0,
     indexing,
+    extractionStrategy,
     onComplete: (isRerun) => {
       setRailTab('results')
       setFocusPath(null)
@@ -689,6 +717,8 @@ function App() {
             onNodesChange={changeNodes}
             onChatSchemaChange={changeNodes}
             schemaHistory={schemaHistory}
+            extractionStrategy={extractionStrategy}
+            onExtractionStrategyChange={handleExtractionStrategyChange}
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}

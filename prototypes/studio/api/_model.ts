@@ -18,16 +18,19 @@ import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model
 import { extractionRenderer, resolveModel } from './_provider.js'
 import {
   findPrimaryArrayKey,
+  getExtractionStrategy,
   isEmptyResult,
   offsetPageNumbers,
   pageForOffset,
   sectionContainsTable,
   splitMarkdownByHeadings,
+  type ExtractionStrategy,
   type MarkdownSection,
 } from './_catalog_sections.js'
 
 export { parseAnnotationMode, parseAnnotations, parseDocument } from './_document.js'
 export { json, modelError, parseTemperature, RequestError } from './_http.js'
+export type { ExtractionStrategy } from './_catalog_sections.js'
 
 const DEFAULT_MODEL = 'llama3.2'
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434'
@@ -70,6 +73,7 @@ export type SchemaModelInput = {
   readonly document: DocumentInput
   readonly annotations: readonly Annotation[]
   readonly annotationsMode: AnnotationMode
+  readonly strategy?: ExtractionStrategy
   readonly temperature?: number
 }
 
@@ -159,7 +163,15 @@ export async function extractWithModel({
     ? `${evidenceFieldInstruction}\n\n${callerInstruction}`
     : evidenceFieldInstruction
 
-  const arrayKey = document.markdown ? findPrimaryArrayKey(template) : null
+  // Sectioning is only ever attempted for a schema explicitly marked
+  // 'catalog' — an 'article' or unmarked (legacy) schema always takes the
+  // whole-document path below, even if it would otherwise structurally
+  // qualify (findPrimaryArrayKey) and its document's headings happen to
+  // recur (splitMarkdownByHeadings). This is what stops a journal article
+  // with generic numbered sections ("Section 1", "Section 2", ...) from
+  // being incorrectly auto-sectioned as if it were a records catalog.
+  const strategy = getExtractionStrategy(template)
+  const arrayKey = strategy === 'catalog' && document.markdown ? findPrimaryArrayKey(template) : null
   const sections = arrayKey && document.markdown ? splitMarkdownByHeadings(document.markdown) : []
 
   if (arrayKey && sections.length >= 2) {
@@ -311,10 +323,22 @@ async function runSectionedExtraction({
   }
 }
 
+// In "fields" mode the annotations ARE the document the model gets to see —
+// the whole Source Document is withheld so the model can't invent fields from
+// unannotated content. Page numbers are kept inline so the model can still
+// tell apart annotations that land on different pages.
+function annotationOnlyParts(annotations: readonly Annotation[]): readonly DocumentContentPart[] {
+  return annotations.map((annotation) => ({
+    type: 'text',
+    text: `Page ${annotation.pageNumber}: ${annotation.text}`,
+  }))
+}
+
 export async function generateSchemaWithModel({
   document,
   annotations,
   annotationsMode,
+  strategy,
   temperature,
 }: SchemaModelInput): Promise<{
   readonly template: Record<string, unknown>
@@ -322,7 +346,11 @@ export async function generateSchemaWithModel({
   readonly pages: number | null
 }> {
   const documentParts = await documentContentParts(document)
-  const guidance = schemaPrompt(annotations, annotationsMode)
+  const guidance = schemaPrompt(annotations, annotationsMode, strategy)
+  const schemaDocumentParts: readonly DocumentContentPart[] =
+    annotationsMode === 'fields' && annotations.length > 0
+      ? annotationOnlyParts(annotations)
+      : documentParts.parts
   let generated: { readonly response: string }
   if (extractionRenderer() === 'generic') {
     generated = await generateWithGenericJsonPrompt({
@@ -330,14 +358,14 @@ export async function generateSchemaWithModel({
         'Propose a compact FREE Extraction Schema grounded in the supplied Source Document. ' +
         'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
       request: guidance,
-      documentParts: documentParts.parts,
+      documentParts: schemaDocumentParts,
       temperature,
     })
   } else {
     generated = await generateWithNuExtractRawPrompt({
       mode: 'template-generation',
       instructions: null,
-      documentParts: [{ type: 'text', text: guidance }, ...documentParts.parts],
+      documentParts: [{ type: 'text', text: guidance }, ...schemaDocumentParts],
       temperature,
     })
   }

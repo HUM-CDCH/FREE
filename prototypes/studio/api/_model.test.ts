@@ -145,7 +145,7 @@ describe('extractWithModel', () => {
 
     const result = await extractWithModel({
       document: { file: null, markdown, pages: null },
-      template: { entries: [{ name: 'verbatim-string' }] },
+      template: { _strategy: 'catalog', entries: [{ name: 'verbatim-string' }] },
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -193,7 +193,7 @@ describe('extractWithModel', () => {
 
     const result = await extractWithModel({
       document: { file: null, markdown, pages: null },
-      template: { entries: [{ name: 'verbatim-string' }] },
+      template: { _strategy: 'catalog', entries: [{ name: 'verbatim-string' }] },
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -221,7 +221,7 @@ describe('extractWithModel', () => {
 
     const result = await extractWithModel({
       document: { file: null, markdown, pages: null },
-      template: { entries: [{ name: 'verbatim-string' }] },
+      template: { _strategy: 'catalog', entries: [{ name: 'verbatim-string' }] },
     })
 
     expect(result.result).toEqual({ entries: [{ name: 'Grave 1' }] })
@@ -232,7 +232,7 @@ describe('extractWithModel', () => {
 
     await extractWithModel({
       document: { file: null, markdown: 'No headings at all here.', pages: null },
-      template: { entries: [{ name: 'verbatim-string' }] },
+      template: { _strategy: 'catalog', entries: [{ name: 'verbatim-string' }] },
     })
 
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
@@ -246,7 +246,35 @@ describe('extractWithModel', () => {
 
     await extractWithModel({
       document: { file: null, markdown, pages: null },
-      template: { site_name: 'string', entries: [{ name: 'verbatim-string' }] },
+      template: { _strategy: 'catalog', site_name: 'string', entries: [{ name: 'verbatim-string' }] },
+    })
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+  })
+
+  it('never sections when _strategy is "article", even if the schema and heading pattern would otherwise qualify', async () => {
+    stubOllamaResponse(
+      '{"entries":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}},{"name":{"value":"Grave 2","snippet":"Grave 2","page":1}}]}',
+    )
+    const markdown = '# Grave 1\n\nDepth: 10\n\n# Grave 2\n\nDepth: 20\n'
+
+    await extractWithModel({
+      document: { file: null, markdown, pages: null },
+      template: { _strategy: 'article', entries: [{ name: 'verbatim-string' }] },
+    })
+
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+  })
+
+  it('never sections when _strategy is unset, even if the schema and heading pattern would otherwise qualify', async () => {
+    stubOllamaResponse(
+      '{"entries":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}},{"name":{"value":"Grave 2","snippet":"Grave 2","page":1}}]}',
+    )
+    const markdown = '# Grave 1\n\nDepth: 10\n\n# Grave 2\n\nDepth: 20\n'
+
+    await extractWithModel({
+      document: { file: null, markdown, pages: null },
+      template: { entries: [{ name: 'verbatim-string' }] },
     })
 
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
@@ -303,6 +331,26 @@ describe('generateSchemaWithModel', () => {
 
     const body = fetchMock.mock.calls[0][1].body as string
     expect(body.indexOf('compact JSON extraction schema')).toBeLessThan(body.indexOf('Grave 1'))
+  })
+
+  it('withholds the rest of the document in fields mode, sending only the annotations', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ response: '{"grave":[{"name":"verbatim-string"}]}' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await generateSchemaWithModel({
+      document: { file: null, markdown: 'Grave 1\n\nUnrelated content elsewhere in the report.', pages: null },
+      annotations: [{ text: 'Grave 1', pageNumber: 1 }],
+      annotationsMode: 'fields',
+    })
+
+    const body = fetchMock.mock.calls[0][1].body as string
+    expect(body).toContain('Grave 1')
+    expect(body).not.toContain('Unrelated content elsewhere in the report.')
   })
 
   it('routes codex-cli schema suggestions through the AI SDK', async () => {

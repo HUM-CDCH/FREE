@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { requestExtraction } from './api'
+import type { ExtractionStrategy } from './api'
 import type { ExtractionState } from './extraction'
 
 type PdfSource = { url: string; filename: string }
@@ -11,6 +12,7 @@ type UseExtractionOptions = {
   markdown: string | null
   hasTables: boolean
   indexing: boolean
+  extractionStrategy: ExtractionStrategy
   onComplete: (isRerun: boolean) => void
   onError: (message: string) => void
 }
@@ -24,6 +26,7 @@ export function useExtraction({
   markdown,
   hasTables,
   indexing,
+  extractionStrategy,
   onComplete,
   onError,
 }: UseExtractionOptions) {
@@ -50,7 +53,10 @@ export function useExtraction({
       const { result, evidence } = await requestExtraction(
         blob,
         pdfSource.filename,
-        { records: [template] },
+        // `_strategy` sits alongside `records`, not inside it — it's routing
+        // metadata for extractWithModel's Catalog/Article gate, not part of
+        // the researcher's own schema fields (see _catalog_sections.ts).
+        { records: [template], _strategy: extractionStrategy },
         abortController.signal,
         markdown,
         undefined,

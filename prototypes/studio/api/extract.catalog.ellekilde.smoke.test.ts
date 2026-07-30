@@ -22,7 +22,7 @@ describe.skipIf(!runLiveSmoke)('live Catalog smoke on the full Ellekilde field r
     // once split.
     const extraction = await extractWithModel({
       document: { file: null, markdown, pages: null },
-      template: { entries: [{ Grav_id: 'string' }] },
+      template: { _strategy: 'catalog', entries: [{ Grav_id: 'string' }] },
     })
 
     const entries = extraction.result.entries as Array<Record<string, unknown>>

@@ -21,15 +21,31 @@ export type MarkdownSection = {
   readonly startOffset: number
 }
 
+export type ExtractionStrategy = 'catalog' | 'article'
+
+// The researcher's explicit Catalog/Article choice, carried as reserved
+// metadata on the schema template (parallel to `_description`) rather than
+// inferred — an Article-type document (e.g. a journal article using generic
+// recurring section numbers) can otherwise defeat the heading-recurrence
+// heuristic below and get incorrectly sectioned. Anything other than exactly
+// 'catalog' or 'article' (including missing) is "not decided" and gates
+// sectioning off entirely — see findPrimaryArrayKey's caller in _model.ts.
+export function getExtractionStrategy(template: unknown): ExtractionStrategy | null {
+  if (!isRecord(template)) return null
+  const value = template._strategy
+  return value === 'catalog' || value === 'article' ? value : null
+}
+
 // The template's one repeated-array field, when it's the template's only
-// extraction target (aside from top-level `_description` guidance). Mirrors
-// the historical schema_infer.py's `_is_array_of_objects` check, adapted to
-// this codebase's template shape (a singleton array whose element is itself
-// a field template, the same convention `_model_output.ts`'s
+// extraction target (aside from top-level `_description` guidance and the
+// `_strategy` marker above — neither is an extraction target). Mirrors the
+// historical schema_infer.py's `_is_array_of_objects` check, adapted to this
+// codebase's template shape (a singleton array whose element is itself a
+// field template, the same convention `_model_output.ts`'s
 // `valueSchemaFromTemplate` already relies on).
 export function findPrimaryArrayKey(template: unknown): string | null {
   if (!isRecord(template)) return null
-  const keys = Object.keys(template).filter((key) => key !== '_description')
+  const keys = Object.keys(template).filter((key) => key !== '_description' && key !== '_strategy')
   if (keys.length !== 1) return null
   const [key] = keys
   const value = template[key]

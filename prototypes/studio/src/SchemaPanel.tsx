@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { requestSchemaEdit } from './api'
+import type { ExtractionStrategy } from './api'
 import { applyOps } from './schemaOps'
 import { countTemplateFields, isRecord } from './template'
 import { type SchemaNode, mkId, templateToNodes, nodesToTemplate } from './schemaNode'
 import { collectIds, summarizeSchemaChange, type SchemaHistoryEntry } from './schemaHistory'
+import { SegmentedControl } from './ui'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Exported types (App.tsx depends on TemplateState)
@@ -26,6 +28,9 @@ type SchemaPanelProps = {
   onNodesChange: (nodes: SchemaNode[], message: string) => void
   onChatSchemaChange: (nodes: SchemaNode[], message: string) => void
   history: SchemaHistoryEntry[]
+  extractionStrategy: ExtractionStrategy
+  onExtractionStrategyChange: (strategy: ExtractionStrategy) => void
+  documentFileName: string | null
 }
 
 type DragState = {
@@ -363,6 +368,9 @@ function SchemaPanel({
   onNodesChange,
   onChatSchemaChange,
   history,
+  extractionStrategy,
+  onExtractionStrategyChange,
+  documentFileName,
 }: SchemaPanelProps) {
   // ── render state ──
   const [nodes, setNodes] = useState<SchemaNode[]>([])
@@ -1056,17 +1064,31 @@ function SchemaPanel({
     <div className="flex h-full min-h-0 flex-col">
 
       {/* ── Header ── */}
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+      <header className="flex shrink-0 flex-col gap-1.5 border-b border-line px-4 py-2.5">
         <div className="min-w-0">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">Extraction Schema</h2>
-          <p className="truncate font-mono text-[13px] font-medium text-ink">Beretning_Ellekilde_8_13.pdf</p>
+          <p className="truncate font-mono text-[13px] font-medium text-ink">{documentFileName ?? 'No document open'}</p>
         </div>
-        {ready && (
-          <div className="flex shrink-0 overflow-hidden rounded-md border border-line">
-            <button className={tabCls(view === 'fields')} type="button" aria-pressed={view === 'fields'} onClick={() => setView('fields')}>Fields</button>
-            <button className={`${tabCls(view === 'json')} font-mono`} type="button" aria-pressed={view === 'json'} onClick={() => setView('json')}>{'JSON'}</button>
-          </div>
-        )}
+        <div className="flex shrink-0 items-center justify-between gap-2">
+          {/* Chosen before generation — it shapes the generation prompt itself
+              (see schemaPrompt), so it stays available in every schema state,
+              not just once a schema already exists. */}
+          <SegmentedControl
+            aria-label="Extraction strategy"
+            value={extractionStrategy}
+            onChange={onExtractionStrategyChange}
+            options={[
+              { value: 'article', label: 'Article', title: 'One continuous document — always extract in a single pass' },
+              { value: 'catalog', label: 'Catalog', title: 'Many similar records (e.g. one section per grave) — extract each section independently' },
+            ]}
+          />
+          {ready && (
+            <div className="flex shrink-0 overflow-hidden rounded-md border border-line">
+              <button className={tabCls(view === 'fields')} type="button" aria-pressed={view === 'fields'} onClick={() => setView('fields')}>Fields</button>
+              <button className={`${tabCls(view === 'json')} font-mono`} type="button" aria-pressed={view === 'json'} onClick={() => setView('json')}>{'JSON'}</button>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* ── Schema list / states ── */}

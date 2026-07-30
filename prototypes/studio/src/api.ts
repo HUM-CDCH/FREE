@@ -17,10 +17,19 @@ export type TemplateAnnotation = { text: string; pageNumber: number }
 
 export type AnnotationsMode = 'hints' | 'fields'
 
+// The researcher's explicit choice of extraction pipeline for the current
+// schema — 'catalog' documents (many structurally similar records, e.g. one
+// section per grave) get heading-based per-section extraction; 'article'
+// documents (one continuous document, e.g. a journal article) always run a
+// single whole-document extraction, even if their heading structure would
+// otherwise look sectionable. See _catalog_sections.ts's getExtractionStrategy.
+export type ExtractionStrategy = 'catalog' | 'article'
+
 type TemplateOptions = {
   annotations?: TemplateAnnotation[]
   annotationsMode?: AnnotationsMode
   markdown?: string | null
+  strategy?: ExtractionStrategy
 }
 
 export type ExtractDone = {
@@ -156,6 +165,9 @@ export async function requestSchema(
   if (options?.annotations?.length) {
     form.append('annotations', JSON.stringify(options.annotations))
     form.append('annotations_mode', options.annotationsMode ?? 'hints')
+  }
+  if (options?.strategy) {
+    form.append('strategy', options.strategy)
   }
 
   const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)

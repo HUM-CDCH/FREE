@@ -32,6 +32,17 @@ describe('wrapTemplateWithEvidence', () => {
     })
   })
 
+  it('drops "_strategy" entirely instead of passing it through like "_description"', () => {
+    const template = {
+      _strategy: 'catalog',
+      entries: [{ name: 'verbatim-string' }],
+    }
+
+    expect(wrapTemplateWithEvidence(template)).toEqual({
+      entries: [{ name: { value: 'verbatim-string', snippet: 'string', page: 'number' } }],
+    })
+  })
+
   it('leaves the leaf shape unchanged when hasTables is false or omitted', () => {
     const template = { grave: { depth: 'number' } }
 
@@ -112,6 +123,20 @@ describe('splitEvidenceResult', () => {
     expect(splitEvidenceResult(extracted)).toEqual({
       result: { cemetery: { city: 'Ribe' } },
       evidence: { cemetery: { city: { value: 'Ribe', snippet: 'Ribe', page: 3, row_header: null, column_header: null } } },
+    })
+  })
+
+  it('drops "_strategy" from the extraction result instead of echoing it back', () => {
+    const extracted = {
+      _strategy: 'catalog',
+      entries: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1 } }],
+    }
+
+    expect(splitEvidenceResult(extracted)).toEqual({
+      result: { entries: [{ name: 'Grave 1' }] },
+      evidence: {
+        entries: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: null, column_header: null } }],
+      },
     })
   })
 
