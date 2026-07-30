@@ -1,18 +1,19 @@
-"""Canonical ParsedDocument schema (parsed_document.v1).
+"""The canonical parsed-document model support types.
 
-This is the versioned contract consumed by downstream LLM extraction,
-evidence review, retries, and benchmarking. Keep changes backward
-compatible or bump the schema version.
+``ParsedDocument`` is resolved lazily to the single public v2 model in
+``parsed_document_v2``.  The small producer records in this module are kept
+internal because table extraction and parser orchestration need a typed seam
+before publication; they are not a second public document contract.
 """
 
 from __future__ import annotations
 
 import math
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-SCHEMA_VERSION = "parsed_document.v1"
+SCHEMA_VERSION = "parsed_document.v2"
 
 
 class BoundingBox(BaseModel):
@@ -44,10 +45,8 @@ class BoundingBox(BaseModel):
 class SourceInfo(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["upload", "url"]
+    kind: Literal["upload"]
     original_filename: str | None = None
-    submitted_url: str | None = None
-    resolved_url: str | None = None
     media_type: str = "application/pdf"
     byte_size: int | None = Field(default=None, ge=0)
 
@@ -86,19 +85,6 @@ class PreprocessingMetadata(BaseModel):
     finished_at: str | None = None
     status: Literal["completed", "completed_with_warnings", "failed"]
     warnings: list[str] = Field(default_factory=list)
-
-
-class ArtifactManifest(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    source_ref: str | None = None
-    parsed_json_ref: str | None = None
-    canonical_parsed_json_ref: str | None = None
-    raw_docling_json_ref: str | None = None
-    raw_doctags_ref: str | None = None
-    llm_markdown_ref: str | None = None
-    page_images: list[str] = Field(default_factory=list)
-    debug_refs: list[str] = Field(default_factory=list)
 
 
 class ParserRun(BaseModel):
@@ -207,7 +193,15 @@ class ParsedTable(BaseModel):
 
     table_id: str
     page_number: int = Field(ge=1)
+    # Document-local producer observations; never logical-table identities.
+    producer_ref: str | None = None
+    producer_order: int | None = Field(default=None, ge=0)
     source_parser: str | None = None
+    # Internal producer-stage role attribution; publication converts this to
+    # the strict v2 table model.
+    content_parser: str | None = None
+    structure_parser: str | None = None
+    geometry_parser: str | None = None
     bbox: BoundingBox | None = None
     rows: int | None = Field(default=None, ge=0)
     cols: int | None = Field(default=None, ge=0)
@@ -231,23 +225,29 @@ class ParsedPage(BaseModel):
     word_boxes_ref: str | None = None
 
 
-class EvidenceIndex(BaseModel):
-    model_config = ConfigDict(frozen=True)
+def __getattr__(name: str) -> Any:
+    """Expose the one canonical model without introducing an import cycle."""
+    if name == "ParsedDocument":
+        from app.models.parsed_document_v2 import ParsedDocument
 
-    # ponytail: no anchor producer exists yet; type the anchor shape when one does
-    anchors: list[dict[str, Any]] = Field(default_factory=list)
+        return ParsedDocument
+    raise AttributeError(name)
 
 
-class ParsedDocument(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    schema_version: Literal["parsed_document.v1"] = SCHEMA_VERSION
-    document: DocumentMetadata
-    preprocessing: PreprocessingMetadata
-    artifacts: ArtifactManifest
-    parser_runs: list[ParserRun]
-    arbitration: ArbitrationResult
-    text_views: TextViews
-    pages: list[ParsedPage] = Field(default_factory=list)
-    tables: list[ParsedTable] = Field(default_factory=list)
-    evidence_index: EvidenceIndex | None = None
+__all__ = [
+    "BoundingBox",
+    "SourceInfo",
+    "InputProfile",
+    "DocumentMetadata",
+    "PreprocessingMetadata",
+    "ParserRun",
+    "PageDecision",
+    "ArbitrationResult",
+    "TextViews",
+    "CharSpan",
+    "PageQuality",
+    "TableCell",
+    "ParsedTable",
+    "ParsedPage",
+    "ParsedDocument",
+]
