@@ -12,6 +12,12 @@
     "test": "pnpm --recursive test",
     "test:cpu": "pnpm install:cpu && pnpm test",
     "test:gpu": "pnpm install:gpu && pnpm test",
-    "build": "pnpm --filter studio build"
+    "build": "pnpm --filter studio build",
+    "architecture:dev": "likec4 dev",
+    "architecture:check": "likec4 validate",
+    "architecture:build": "likec4 build -o artifacts/architecture/site --use-hash-history"
+  },
+  "devDependencies": {
+    "likec4": "^1.59.2"
   }
 }
