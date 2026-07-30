@@ -12,6 +12,15 @@ const schemaResponse = {
   pages: 6,
 }
 
+test('bundled parsed document exposes page-scoped source Evidence @deterministic', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByText('6 pages · text highlights only')).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('tab', { name: /Evidence/ }).click()
+  await expect(page.getByRole('heading', { name: 'Source Evidence' })).toBeVisible()
+  await expect(page.getByText('Physical page 1')).toBeVisible()
+  await page.getByRole('button', { name: /Evidence anchor bundled-anchor/ }).click()
+})
+
 test('application editors retain clipboard and keyboard ownership with a stale PDF selection @deterministic', async ({
   page,
 }) => {

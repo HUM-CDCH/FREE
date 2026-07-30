@@ -5,6 +5,7 @@ import type { ExtractionController } from './useExtraction'
 import {
   decodeExtractDone,
   decodeSchemaDone,
+  fetchParsedDocument,
   parseDocumentToMarkdown,
   requestExtraction,
   requestSchema,
@@ -75,6 +76,35 @@ describe('requestSchema', () => {
     await requestSchema(new Blob(['pdf']), 'report.pdf')
 
     expect(submittedUrl).toBe('/api/generate_schema')
+  })
+})
+
+describe('fetchParsedDocument', () => {
+  it('decodes the strict v2 document route', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      schema_version: 'parsed_document.v2',
+      document: {
+        document_id: 'document-a', content_sha256: 'a'.repeat(64),
+        source: { kind: 'upload', original_filename: 'source.pdf', media_type: 'application/pdf', byte_size: null },
+        created_at: 'now', page_count: 1, language_hints: [], is_encrypted: false,
+        input_profile: { file_kind: 'pdf', detected_mime: 'application/pdf', pdf_version: null, has_text_layer: true, has_images: false },
+      },
+      preprocessing: { preprocess_id: 'test', profile: 'production_default', service_version: null, started_at: null, finished_at: null, status: 'completed', warnings: [] },
+      page_count: 1, page_mapping_verified: true,
+      artifacts: { source_ref: 'source.pdf', parsed_json_ref: 'parsed_document.json', markdown_ref: 'artifacts/document.llm.md' },
+      parser_runs: [], arbitration: null, diagnostics: [],
+      pages: [{ page_number: 1, width_pt: null, height_pt: null, rotation: 0, ordered_content: [], unplaced_content: [], markdown_span: null }],
+      content_stream: [], tables: [], evidence_index: { anchors: [] },
+    })))
+    const document = await fetchParsedDocument('task-1')
+    expect(document.page_count).toBe(1)
+  })
+
+  it('rejects alternate or unknown document fields', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      schema_version: 'parsed_document.v2', future_field: 'not allowed',
+    })))
+    await expect(fetchParsedDocument('task-1')).rejects.toThrow()
   })
 })
 

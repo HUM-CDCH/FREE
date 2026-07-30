@@ -9,7 +9,9 @@ import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
 import { type SchemaNode, nodesToTemplate, templateToNodes } from '../shared/schemaNode'
 import { countTemplateFields } from './template'
-import { requestSchema, parseDocumentToMarkdown } from './api'
+import { requestSchema, parseDocument, fetchParsedDocument } from './api'
+import type { ParsedDocumentV2, ParsedEvidenceAnchor } from './parsedDocument'
+import { blockText, findTextLayerMatch, verifiedEvidenceBbox } from './evidenceNavigation'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
 import EvidenceHighlightLayer from './EvidenceHighlightLayer'
@@ -65,7 +67,7 @@ type LoadState =
 // The parsing service's Markdown index of the current document, built on upload.
 type DocIndex =
   | { status: 'parsing' }
-  | { status: 'ready'; markdown: string }
+  | { status: 'ready'; markdown: string; document: ParsedDocumentV2 | null }
   | { status: 'error'; message: string }
 
 async function readMarkdown(url: string, signal: AbortSignal): Promise<string> {
@@ -169,6 +171,7 @@ export function DocumentWorkspace({
 
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
+  const parsedDocument = docIndex.status === 'ready' ? docIndex.document : null
 
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
@@ -332,14 +335,23 @@ export function DocumentWorkspace({
         const devTaskId = import.meta.env.VITE_DEV_TASK_ID as
           | string
           | undefined
-        const markdown = markdownUrl
-          ? await readMarkdown(markdownUrl, abortController.signal)
-          : devTaskId
-            ? await readMarkdown(
-                `${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`,
+        const parsed = markdownUrl
+          ? {
+              markdown: await readMarkdown(
+                markdownUrl,
                 abortController.signal,
-              )
-            : await parseDocumentToMarkdown(
+              ),
+              document: null,
+            }
+          : devTaskId
+            ? await Promise.all([
+                readMarkdown(
+                  `${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`,
+                  abortController.signal,
+                ),
+                fetchParsedDocument(devTaskId, abortController.signal),
+              ]).then(([markdown, document]) => ({ markdown, document }))
+            : await parseDocument(
                 await (
                   await fetch(pdfSource.url, {
                     signal: abortController.signal,
@@ -349,7 +361,7 @@ export function DocumentWorkspace({
                 abortController.signal,
               )
         if (!abortController.signal.aborted) {
-          setDocIndex({ status: 'ready', markdown })
+          setDocIndex({ status: 'ready', markdown: parsed.markdown, document: parsed.document })
         }
       } catch (error) {
         if (abortController.signal.aborted) return
@@ -364,10 +376,38 @@ export function DocumentWorkspace({
     return () => abortController.abort()
   }, [markdownUrl, onInitialResourceLoadFailure, pdfSource])
 
-  // A reopened annotation has no pdf.js editor yet — its highlight is not
-  // recreated in the viewer — so both handlers fall back to the recorded page
-  // and the set itself. ponytail: the fallback goes away once reopening
-  // rebuilds the editors from the retained anchors.
+  function selectEvidenceAnchor(anchor: ParsedEvidenceAnchor) {
+    const viewer = pdfViewerRef.current
+    if (!viewer) return
+    const pageNumber = anchor.kind === 'text' ? anchor.page_number : anchor.producer_observation.page_number
+    viewer.scrollPageIntoView({ pageNumber })
+    const page = containerRef.current?.querySelector(`.page[data-page-number="${pageNumber}"]`)
+    if (!(page instanceof HTMLElement)) return
+    page.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+    page.querySelector('.parsed-evidence-focus')?.remove()
+    const bbox = verifiedEvidenceBbox(anchor)
+    if (bbox) {
+      const pageMeta = parsedDocument?.pages.find((candidate) => candidate.page_number === pageNumber)
+      const width = typeof pageMeta?.width_pt === 'number' && pageMeta.width_pt > 0 ? pageMeta.width_pt : page.clientWidth
+      const height = typeof pageMeta?.height_pt === 'number' && pageMeta.height_pt > 0 ? pageMeta.height_pt : page.clientHeight
+      const focus = document.createElement('div')
+      focus.className = 'parsed-evidence-focus'
+      Object.assign(focus.style, {
+        position: 'absolute', left: `${bbox.x0 / width * 100}%`, top: `${bbox.y0 / height * 100}%`,
+        width: `${(bbox.x1 - bbox.x0) / width * 100}%`, height: `${(bbox.y1 - bbox.y0) / height * 100}%`,
+        border: '2px solid #d97706', background: 'rgb(251 191 36 / 0.22)', pointerEvents: 'none', zIndex: '5',
+      })
+      if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
+      page.append(focus)
+      focus.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+      return
+    }
+    if (anchor.kind === 'text' && parsedDocument) {
+      const match = findTextLayerMatch(page, blockText(parsedDocument, anchor))
+      match?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+    }
+  }
+
   function selectAnnotationItem(id: string) {
     const manager = annotationManagerRef.current
     const editor = manager?.getEditor(id)
@@ -664,6 +704,8 @@ export function DocumentWorkspace({
             onValueClick={handleValueClick}
             focusPath={focusPath}
             onClearFocus={() => setFocusPath(null)}
+            parsedDocument={parsedDocument}
+            onSelectEvidence={selectEvidenceAnchor}
           />
         </aside>
       </div>
