@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import pdfUrl from '../../../examples/Beretning_Ellekilde_8_13.pdf?url'
+import historicalTestPdfUrl from '../../../examples/1790-06-17-1.pdf?url'
+import collagenTestPdfUrl from '../../../examples/Zhang et al. 2024 - Properties of skin collagen from southern catfish (Silurus meridionalis) fed with raw and cooked food.pdf?url'
 import cachedMarkdown from './assets/document.md?raw'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import type { AnnotationSetItem } from './AnnotationSidebar'
 import ProjectNav from './ProjectNav'
-import { ACTIVE_DOC } from './ProjectNav'
+import { ACTIVE_DOC, COLLAGEN_TEST_DOC, HISTORICAL_TEST_DOC } from './ProjectNav'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
@@ -33,6 +35,11 @@ const NAV_MAX = 400
 const RAIL_MIN = 264
 const RAIL_MAX = 560
 const ANNOTATION_HIGHLIGHT_COLORS = 'annotation=#FFF066'
+const BUNDLED_DOCUMENTS = new Map([
+  [ACTIVE_DOC, pdfUrl],
+  [HISTORICAL_TEST_DOC, historicalTestPdfUrl],
+  [COLLAGEN_TEST_DOC, collagenTestPdfUrl],
+])
 
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
 // (AnnotationEditorLayer #textLayerPointerDown): the text-layer background
@@ -151,13 +158,23 @@ function App() {
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
+    openPdfSource({ url: URL.createObjectURL(file), filename: file.name })
+    event.target.value = ''
+  }
+
+  function openPdfSource(source: { url: string; filename: string }) {
     if (pdfSource?.url.startsWith('blob:')) {
       URL.revokeObjectURL(pdfSource.url)
     }
-    setPdfSource({ url: URL.createObjectURL(file), filename: file.name })
+    setPdfSource(source)
+    setDocIndex({ status: 'parsing' })
     setAnnotationItems([])
     setTemplateState({ status: 'idle' })
-    event.target.value = ''
+  }
+
+  function selectBundledDocument(filename: string) {
+    const url = BUNDLED_DOCUMENTS.get(filename)
+    if (url) openPdfSource({ url, filename })
   }
 
   useEffect(() => {
@@ -612,7 +629,14 @@ function App() {
           className="min-h-0 shrink-0 border-r border-line bg-surface"
           aria-label="Project navigation"
         >
-          <ProjectNav open={effectiveNavOpen} onToggle={() => setNavOpen((open) => !open)} onToast={showToast} />
+          <ProjectNav
+            open={effectiveNavOpen}
+            onToggle={() => setNavOpen((open) => !open)}
+            onToast={showToast}
+            activeDocument={pdfSource?.filename ?? ''}
+            selectableDocuments={new Set(BUNDLED_DOCUMENTS.keys())}
+            onSelectDocument={selectBundledDocument}
+          />
         </aside>
         {effectiveNavOpen && (
           <div

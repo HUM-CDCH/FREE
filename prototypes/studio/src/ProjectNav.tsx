@@ -4,21 +4,37 @@ import { Overline } from './ui'
 
 export const ACTIVE_DOC = 'Beretning_Ellekilde_8_13.pdf'
 export const ACTIVE_PROJECT = 'Ellekilde, TAK 1355'
+export const HISTORICAL_TEST_DOC = '1790-06-17-1.pdf'
+export const COLLAGEN_TEST_DOC =
+  'Zhang et al. 2024 - Properties of skin collagen from southern catfish (Silurus meridionalis) fed with raw and cooked food.pdf'
 
 const PROJECTS = [
   { name: ACTIVE_PROJECT, docs: [ACTIVE_DOC, 'Fundliste_TAK1355.pdf', 'Fotoliste_TAK1355.pdf'] },
   { name: 'Snubbekorsgård, TAK 1402', docs: ['Beretning_Snubbekorsgård.pdf'] },
   { name: 'Vasbygård, TAK 1288', docs: ['Beretning_Vasbygård_grav1_4.pdf'] },
+  { name: 'Test documents', docs: [HISTORICAL_TEST_DOC, COLLAGEN_TEST_DOC] },
 ]
 
 type ProjectNavProps = {
   open: boolean
   onToggle: () => void
   onToast: (message: string) => void
+  activeDocument: string
+  selectableDocuments: ReadonlySet<string>
+  onSelectDocument: (filename: string) => void
 }
 
-function ProjectNav({ open, onToggle, onToast }: ProjectNavProps) {
-  const [openProjects, setOpenProjects] = useState(() => PROJECTS.map((_, index) => index === 0))
+function ProjectNav({
+  open,
+  onToggle,
+  onToast,
+  activeDocument,
+  selectableDocuments,
+  onSelectDocument,
+}: ProjectNavProps) {
+  const [openProjects, setOpenProjects] = useState(() =>
+    PROJECTS.map((_, index) => index === 0 || index === PROJECTS.length - 1),
+  )
 
   if (!open) {
     return (
@@ -73,7 +89,8 @@ function ProjectNav({ open, onToggle, onToast }: ProjectNavProps) {
                 {projectOpen && (
                   <ul className="flex flex-col gap-px">
                     {project.docs.map((doc) => {
-                      const active = index === 0 && doc === ACTIVE_DOC
+                      const active = doc === activeDocument
+                      const selectable = selectableDocuments.has(doc)
                       return (
                         <li key={doc}>
                           <button
@@ -82,8 +99,11 @@ function ProjectNav({ open, onToggle, onToast }: ProjectNavProps) {
                             }`}
                             type="button"
                             aria-current={active ? 'true' : undefined}
-                            onClick={
-                              active ? undefined : () => onToast(`Only ${ACTIVE_DOC} is loaded in this prototype`)
+                            disabled={active}
+                            onClick={() =>
+                              selectable
+                                ? onSelectDocument(doc)
+                                : onToast(`${doc} is not loaded in this prototype`)
                             }
                           >
                             <span
