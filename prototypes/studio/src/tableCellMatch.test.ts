@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findTableCellMatch, computeOccurrenceIndices } from './tableCellMatch'
+import { findTableCellMatch, computeOccurrenceIndices, resolveTableCellMatches } from './tableCellMatch'
 import type { ParsedTable, TableCell } from './parsedDocument'
 
 function cell(partial: Partial<TableCell> & Pick<TableCell, 'row' | 'col' | 'text'>): TableCell {
@@ -150,6 +150,76 @@ describe('findTableCellMatch', () => {
     const match = findTableCellMatch([t], '1234', null, null, null, null)
 
     expect(match).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
+  })
+})
+
+describe('resolveTableCellMatches', () => {
+  // Two structurally identical tables (e.g. one per grave) that each have a
+  // "flint" cell — the kind of cross-table duplicate that a flattened
+  // `records[]` array (one record per table) commonly produces.
+  function twinTables(): [ParsedTable, ParsedTable] {
+    const tableA = table('tA', 1, [
+      cell({ row: 0, col: 0, text: 'ID', role: 'header' }),
+      cell({ row: 0, col: 1, text: 'Material', role: 'header' }),
+      cell({ row: 1, col: 0, text: 'Grave 1', role: 'row_header', bbox: { x0: 0, y0: 0, x1: 10, y1: 10 } }),
+      cell({ row: 1, col: 1, text: 'flint', role: 'data', bbox: { x0: 20, y0: 0, x1: 30, y1: 10 } }),
+    ])
+    const tableB = table('tB', 1, [
+      cell({ row: 0, col: 0, text: 'ID', role: 'header' }),
+      cell({ row: 0, col: 1, text: 'Material', role: 'header' }),
+      cell({ row: 1, col: 0, text: 'Grave 7', role: 'row_header', bbox: { x0: 0, y0: 100, x1: 10, y1: 110 } }),
+      cell({ row: 1, col: 1, text: 'flint', role: 'data', bbox: { x0: 20, y0: 100, x1: 30, y1: 110 } }),
+    ])
+    return [tableA, tableB]
+  }
+
+  it('keeps a record\'s ambiguous field on the same table as its unambiguously-resolved sibling field', () => {
+    const [tableA, tableB] = twinTables()
+    const highlights = [
+      { path: ['records', '3', 'gravnr'], value: 'Grave 7', rowHeader: null, columnHeader: null, hintPage: null },
+      { path: ['records', '3', 'material'], value: 'flint', rowHeader: null, columnHeader: null, hintPage: null },
+    ]
+    const occurrenceIndices = computeOccurrenceIndices(highlights)
+
+    // Without record-scoping, plain occurrence-index resolution picks table
+    // A's "flint" (it sorts first by y0) — the exact bug this fixes.
+    expect(findTableCellMatch([tableA, tableB], 'flint', null, null, null, 0)).toEqual({
+      pageNumber: 1,
+      bbox: { x0: 20, y0: 0, x1: 30, y1: 10 },
+    })
+
+    const matches = resolveTableCellMatches([tableA, tableB], highlights, occurrenceIndices)
+
+    expect(matches.get(highlights[0])).toEqual({ pageNumber: 1, bbox: { x0: 0, y0: 100, x1: 10, y1: 110 } })
+    // Record-scoped: 'material' follows 'gravnr' onto table B, not table A.
+    expect(matches.get(highlights[1])).toEqual({ pageNumber: 1, bbox: { x0: 20, y0: 100, x1: 30, y1: 110 } })
+  })
+
+  it('falls back to plain reading-order disambiguation when no sibling field resolved unambiguously', () => {
+    const [tableA, tableB] = twinTables()
+    // Only the ambiguous field is present for this record — nothing to vote
+    // with, so behavior matches findTableCellMatch's own positional fallback.
+    const highlights = [
+      { path: ['records', '3', 'material'], value: 'flint', rowHeader: null, columnHeader: null, hintPage: null },
+    ]
+    const occurrenceIndices = computeOccurrenceIndices(highlights)
+
+    const matches = resolveTableCellMatches([tableA, tableB], highlights, occurrenceIndices)
+
+    expect(matches.get(highlights[0])).toEqual({ pageNumber: 1, bbox: { x0: 20, y0: 0, x1: 30, y1: 10 } })
+  })
+
+  it('does not change already-unambiguous resolutions', () => {
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: 'Depth', role: 'header' }),
+      cell({ row: 1, col: 0, text: '42 cm', role: 'data', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }),
+    ])
+    const highlights = [{ path: ['records', '0', 'depth'], value: '42 cm', rowHeader: null, columnHeader: null, hintPage: null }]
+    const occurrenceIndices = computeOccurrenceIndices(highlights)
+
+    const matches = resolveTableCellMatches([t], highlights, occurrenceIndices)
+
+    expect(matches.get(highlights[0])).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
   })
 })
 

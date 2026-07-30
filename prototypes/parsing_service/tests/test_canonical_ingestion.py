@@ -687,6 +687,111 @@ class TestCanonicalIngestion(unittest.TestCase):
                 paths.DEFAULT_DATA_DIR = original_tasks
                 paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
 
+    def test_anchor_on_unaffected_page_survives_ocr_fallback_on_another_page(self):
+        # Page 1 has no Docling text at all (triggers OCR fallback); page 2
+        # has a normal, anchor-bearing block. An earlier all-or-nothing check
+        # (`llm_markdown == doc_tags_simplified`) would drop page 2's anchor
+        # too, just because page 1 needed OCR — even though page 2's own text
+        # is completely untouched. This confirms the anchor survives, with
+        # its offset correctly shifted for page 1's OCR replacement text
+        # being a different length than page 1's (empty) Docling text.
+        conversion = convert_doctags_to_markdown(
+            "<doctag></doctag><page_break>"
+            "<doctag><text><loc_10><loc_20><loc_30><loc_40>Ada was here.</text></doctag>",
+            page_dims={1: (100.0, 200.0), 2: (100.0, 200.0)},
+        )
+        self.assertEqual(len(conversion.anchors), 1)
+        original_anchor = conversion.anchors[0]
+        self.assertEqual(original_anchor.page, 2)
+
+        with tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT) as tmp_dir:
+            root = Path(tmp_dir)
+            original_tasks = paths.DEFAULT_DATA_DIR
+            original_documents = paths.DEFAULT_DOCUMENT_STORE_DIR
+            paths.DEFAULT_DATA_DIR = root / "tasks"
+            paths.DEFAULT_DOCUMENT_STORE_DIR = root / "documents"
+            try:
+                task_id = str(uuid.uuid4())
+                task_dir = paths.task_dir_for(task_id)
+                task_dir.mkdir(parents=True, exist_ok=True)
+                (task_dir / "source.pdf").write_bytes(b"%PDF-1.4\n")
+                save_task_metadata(
+                    task_dir,
+                    {
+                        "content_sha256": CONTENT_HASH,
+                        "source_path": "source.pdf",
+                        "source_kind": "upload",
+                        "created_at": NOW,
+                        "params": {
+                            "dpi": 150,
+                            "device": "cpu",
+                            "source_name": "source.pdf",
+                        },
+                    },
+                )
+                docling = DoclingRunnerOutput(
+                    parser="docling_doctags",
+                    status="success",
+                    started_at=NOW,
+                    finished_at=NOW,
+                    duration_ms=1,
+                    llm_markdown_ref="data/documents/source.llm.md",
+                    llm_markdown=conversion.markdown,
+                    char_count=len(conversion.markdown),
+                    page_spans=conversion.page_spans,
+                    anchors=conversion.anchors,
+                    page_mapping_verified=True,
+                )
+                ocr = OcrFallbackOutput(
+                    status="success",
+                    started_at=NOW,
+                    finished_at=NOW,
+                    duration_ms=1,
+                    pages={1: "OCR replacement text for page one, much longer than empty"},
+                    page_lines={},
+                )
+                with (
+                    patch(
+                        "app.parsing.orchestrator.inspect_pdf",
+                        return_value=_inspection("Scanned page one", "Ada was here."),
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_docling_ingestion",
+                        return_value=docling,
+                    ),
+                    patch(
+                        "app.parsing.orchestrator._run_ocr_fallback",
+                        return_value=ocr,
+                    ) as mock_ocr,
+                    patch(
+                        "app.parsing.orchestrator._run_table_extraction",
+                        return_value=TableExtractionOutput(),
+                    ),
+                ):
+                    document = build_parsed_document(task_id)
+
+                mock_ocr.assert_called_once()
+                self.assertEqual(mock_ocr.call_args.args[2], [1])
+                self.assertEqual(document.pages[0].selected_parser, "paddleocr_fallback")
+                self.assertEqual(document.pages[1].selected_parser, "docling_doctags")
+
+                self.assertEqual(len(document.evidence_index.anchors), 1)
+                anchor = document.evidence_index.anchors[0]
+                self.assertEqual(anchor.page, 2)
+                self.assertEqual(
+                    document.text_views.llm_markdown[
+                        anchor.markdown_start : anchor.markdown_end
+                    ],
+                    "Ada was here.",
+                )
+                # Page 1's OCR text is a different length than its (empty)
+                # Docling text, so the anchor's offset must have actually
+                # shifted — not just been carried over unchanged.
+                self.assertNotEqual(anchor.markdown_start, original_anchor.markdown_start)
+            finally:
+                paths.DEFAULT_DATA_DIR = original_tasks
+                paths.DEFAULT_DOCUMENT_STORE_DIR = original_documents
+
     def test_unverified_doctags_remain_document_level_without_page_offsets(self):
         pages, views = _pages_and_views_from_llm_markdown(
             llm_markdown="One\n\n---\n\nThree",

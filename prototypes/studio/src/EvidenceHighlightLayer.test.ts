@@ -220,4 +220,22 @@ describe('findValueRects page-anchored fallback', () => {
 
     expect(found?.pageNumber).toBe(2)
   })
+
+  it('does not lock onto an early page where the value merely recurs without its snippet', async () => {
+    // Page 1 contains the bare value text as an unrelated coincidence (no
+    // snippet context there at all); the real evidence — snippet AND value —
+    // is on page 3. With no hint page, findValueRects must not settle for
+    // page 1's snippet-less match just because it's encountered first.
+    const value = '8'
+    const snippet = 'Later Grave 8 contained pottery in situ'
+    const viewer = fakePdfViewer({
+      1: ['An', 'unrelated', 'count', 'of', '8', 'objects', 'were', 'catalogued'],
+      2: ['Nothing', 'relevant', 'here'],
+      3: ['Later', 'Grave', '8', 'contained', 'pottery', 'in', 'situ'],
+    })
+
+    const found = await findValueRects(viewer, value, snippet, null, null)
+
+    expect(found?.pageNumber).toBe(3)
+  })
 })

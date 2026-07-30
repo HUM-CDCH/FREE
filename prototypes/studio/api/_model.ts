@@ -448,7 +448,16 @@ async function generateWithNuExtractRawPrompt({
       images: rendered.images.length > 0 ? rendered.images : undefined,
       raw: true,
       stream: false,
-      options: { temperature: temperature ?? NON_THINKING_TEMPERATURE },
+      // Ollama defaults num_ctx to 2048 regardless of the model's actual
+      // context capability unless the caller overrides it. num_ctx is a
+      // combined prompt+completion budget: extraction's completion (an
+      // evidence-wrapped {value, snippet, page} object per schema leaf) is far
+      // larger than schema generation's (shape only, no values), so the same
+      // document that fit for template-generation can still blow the budget
+      // here, silently cutting the JSON off mid-generation partway through the
+      // schema's fields. NuExtract3 supports up to 262144 tokens; 131072 covers
+      // a full paper/report plus its fully evidenced extraction result.
+      options: { temperature: temperature ?? NON_THINKING_TEMPERATURE, num_ctx: 131072 },
     }),
   })
 

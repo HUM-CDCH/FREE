@@ -4,7 +4,8 @@ import { buildHighlights, PALETTE } from './evidenceHighlights'
 import type { Highlight } from './evidenceHighlights'
 import { isRecord } from './template'
 import type { BoundingBox, EvidenceAnchor, ParsedTable } from './parsedDocument'
-import { findTableCellMatch, computeOccurrenceIndices } from './tableCellMatch'
+import { resolveTableCellMatches, computeOccurrenceIndices } from './tableCellMatch'
+import type { TableCellMatch } from './tableCellMatch'
 import { findMarkdownAnchorMatch } from './markdownAnchorMatch'
 import { findValueRects } from './evidenceTextSearch'
 import type { PageRects } from './evidenceTextSearch'
@@ -52,23 +53,15 @@ function rectWithinPage(rect: DOMRect, viewport: PageViewportScale): boolean {
 
 // Table-cell coordinate lookup, tried before the text search above (see
 // design.md decision 6 and evidence-highlight-layer spec). Returns null on any
-// inconclusive step so the caller falls back to findValueRects unchanged.
+// inconclusive step so the caller falls back to findValueRects unchanged. The
+// match itself is resolved up front for every highlight at once (see
+// resolveTableCellMatches) rather than per-field here, so that a record's
+// fields can be kept on the same source table when disambiguation is
+// otherwise inconclusive.
 async function findTableCellRects(
   pdfViewer: PDFViewer,
-  tables: ParsedTable[],
-  highlight: Highlight,
-  occurrenceIndex: number | null,
+  match: TableCellMatch | null,
 ): Promise<PageRects | null> {
-  if (tables.length === 0) return null
-
-  const match = findTableCellMatch(
-    tables,
-    highlight.value,
-    highlight.rowHeader,
-    highlight.columnHeader,
-    highlight.hintPage,
-    occurrenceIndex,
-  )
   if (!match) return null
 
   const viewport = await getPageViewportScale(pdfViewer, match.pageNumber)
@@ -89,10 +82,11 @@ async function findAnchorRects(
   markdown: string | null,
   anchors: EvidenceAnchor[],
   highlight: Highlight,
+  occurrenceIndex: number | null,
 ): Promise<PageRects | null> {
   if (!markdown || anchors.length === 0) return null
 
-  const match = findMarkdownAnchorMatch(markdown, anchors, highlight.snippet)
+  const match = findMarkdownAnchorMatch(markdown, anchors, highlight.snippet, highlight.hintPage, occurrenceIndex)
   if (!match) return null
 
   const viewport = await getPageViewportScale(pdfViewer, match.page)
@@ -177,6 +171,7 @@ export default function EvidenceHighlightLayer({
     const highlights = buildHighlights(result, evidence, fieldColorMap)
     if (highlights.length === 0) return
     const occurrenceIndices = computeOccurrenceIndices(highlights)
+    const tableMatches = resolveTableCellMatches(tables, highlights, occurrenceIndices)
 
     cachedEntriesRef.current = []
     let cancelled = false
@@ -200,8 +195,8 @@ export default function EvidenceHighlightLayer({
 
         const occurrenceIndex = occurrenceIndices.get(h) ?? null
         const found =
-          (await findTableCellRects(pdfViewer, tables, h, occurrenceIndex)) ??
-          (await findAnchorRects(pdfViewer, markdown, anchors, h)) ??
+          (await findTableCellRects(pdfViewer, tableMatches.get(h) ?? null)) ??
+          (await findAnchorRects(pdfViewer, markdown, anchors, h, occurrenceIndex)) ??
           (await findValueRects(pdfViewer, h.value, h.snippet, h.hintPage, occurrenceIndex))
         if (!found) continue
 

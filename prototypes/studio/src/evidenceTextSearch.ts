@@ -119,8 +119,13 @@ export function rectsForQuery(data: PageTextData, query: string, occurrenceIndex
 // the page, falls back to the snippet's own matched location rather than
 // returning nothing (see evidence-highlight-layer spec — no highlight should
 // be silently omitted just because the value isn't a verbatim substring).
-// Falls back to searching value across the whole page if the snippet itself
-// isn't found at all.
+// Returns no match when the snippet itself isn't found on THIS page — the
+// caller (findValueRects) loops this over every page precisely so that a page
+// where the snippet is genuinely absent is skipped in favor of a later page
+// where it's present, rather than this function silently matching `value`
+// alone wherever it happens to recur first. An un-anchored, whole-document
+// value search remains available, but only as findValueRects's own final,
+// explicit fallback tier — never smuggled in here per-page.
 export function searchValueAnchoredBySnippet(
   data: PageTextData,
   snippet: string,
@@ -129,46 +134,40 @@ export function searchValueAnchoredBySnippet(
 ): DOMRect[] {
   const snippetNorm = snippet.replace(/\s+/g, ' ').trim()
   const snippetIdx = normalizeForMatch(data.fullText).indexOf(normalizeForMatch(snippetNorm))
+  if (snippetIdx === -1) return []
 
-  if (snippetIdx !== -1) {
-    // Build a sub-text covering the snippet's item range
-    const snippetEnd = snippetIdx + snippetNorm.length
-    let cursor = 0
-    let subStart = -1
-    let subEnd = 0
-    for (let i = 0; i < data.items.length; i++) {
-      const normLen = data.normStrs[i].length
-      const itemEnd = cursor + normLen
-      if (itemEnd > snippetIdx && subStart === -1) subStart = i
-      if (cursor < snippetEnd) subEnd = i
-      cursor += normLen + 1
-    }
-
-    if (subStart !== -1) {
-      const subItems = data.items.slice(subStart, subEnd + 1)
-      const subData: PageTextData = {
-        items: subItems,
-        normStrs: data.normStrs.slice(subStart, subEnd + 1),
-        fullText: data.normStrs.slice(subStart, subEnd + 1).join(' '),
-        viewportScale: data.viewportScale,
-        viewportHeight: data.viewportHeight,
-      }
-      const valueNorm = value.replace(/\s+/g, ' ').trim()
-      const rects = rectsForQuery(subData, valueNorm, occurrenceIndex)
-      if (rects.length > 0) return rects
-
-      const wholePageRects = rectsForQuery(data, valueNorm, occurrenceIndex)
-      if (wholePageRects.length > 0) return wholePageRects
-
-      // Value not pinpointable anywhere on the page — highlight the
-      // snippet's own matched location instead of omitting this field.
-      return rectsForItems(subItems, data.viewportScale, data.viewportHeight)
-    }
+  // Build a sub-text covering the snippet's item range
+  const snippetEnd = snippetIdx + snippetNorm.length
+  let cursor = 0
+  let subStart = -1
+  let subEnd = 0
+  for (let i = 0; i < data.items.length; i++) {
+    const normLen = data.normStrs[i].length
+    const itemEnd = cursor + normLen
+    if (itemEnd > snippetIdx && subStart === -1) subStart = i
+    if (cursor < snippetEnd) subEnd = i
+    cursor += normLen + 1
   }
+  if (subStart === -1) return []
 
-  // Snippet not found — search value across whole page
+  const subItems = data.items.slice(subStart, subEnd + 1)
+  const subData: PageTextData = {
+    items: subItems,
+    normStrs: data.normStrs.slice(subStart, subEnd + 1),
+    fullText: data.normStrs.slice(subStart, subEnd + 1).join(' '),
+    viewportScale: data.viewportScale,
+    viewportHeight: data.viewportHeight,
+  }
   const valueNorm = value.replace(/\s+/g, ' ').trim()
-  return rectsForQuery(data, valueNorm, occurrenceIndex)
+  const rects = rectsForQuery(subData, valueNorm, occurrenceIndex)
+  if (rects.length > 0) return rects
+
+  const wholePageRects = rectsForQuery(data, valueNorm, occurrenceIndex)
+  if (wholePageRects.length > 0) return wholePageRects
+
+  // Value not pinpointable anywhere on the page — highlight the
+  // snippet's own matched location instead of omitting this field.
+  return rectsForItems(subItems, data.viewportScale, data.viewportHeight)
 }
 
 // ── main search ───────────────────────────────────────────────────────────────

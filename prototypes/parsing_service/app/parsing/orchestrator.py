@@ -532,6 +532,66 @@ def _merge_page_fallback_text(
     )
 
 
+def _resolve_evidence_anchors(
+    *,
+    docling_anchors: tuple[Any, ...],
+    docling_spans: list[Any] | tuple[Any, ...],
+    llm_spans: tuple[Any, ...],
+    parser_by_page: dict[int, str],
+) -> list[Anchor]:
+    """Keep each anchor whose page's text survived into `llm_markdown`
+    unchanged, remapping its offsets to that page's new position; drop only
+    the anchors on pages OCR fallback actually replaced.
+
+    Anchors are resolved against `doc_tags_simplified` (Docling's own
+    Markdown). OCR page-fallback/merging can produce a different final
+    `llm_markdown` — but `compose_page_markdown` (used to build both strings)
+    is a pure function of its per-page text list with a fixed separator, so a
+    page whose own text is unchanged between the two compositions sits at a
+    purely additive offset shift (from other pages' fallback text having a
+    different length), not a rewritten one. Only pages whose text was
+    actually replaced by OCR lose their anchors — every other page keeps
+    exact, page-scoped evidence locations instead of the whole document
+    losing anchors over one unrelated scanned page.
+    """
+    docling_span_by_page = {span.page: span for span in docling_spans}
+    llm_span_by_page = {span.page: span for span in llm_spans}
+
+    resolved: list[Anchor] = []
+    for anchor in docling_anchors:
+        if parser_by_page.get(anchor.page) != "docling_doctags":
+            continue
+        docling_span = docling_span_by_page.get(anchor.page)
+        llm_span = llm_span_by_page.get(anchor.page)
+        if docling_span is None or llm_span is None:
+            continue
+
+        shift = llm_span.llm_markdown_start - docling_span.llm_markdown_start
+        new_start = anchor.markdown_start + shift
+        new_end = anchor.markdown_end + shift
+        if new_start < llm_span.llm_markdown_start or new_end > llm_span.llm_markdown_end:
+            # Defensive: the shifted range should stay inside this page's own
+            # span; if it doesn't, something about this page's composition
+            # isn't the pure text-preserving case this remap assumes — drop
+            # rather than publish a possibly-misaligned anchor.
+            continue
+
+        resolved.append(
+            Anchor(
+                markdown_start=new_start,
+                markdown_end=new_end,
+                page=anchor.page,
+                bbox=BoundingBox(
+                    x0=anchor.bbox[0],
+                    y0=anchor.bbox[1],
+                    x1=anchor.bbox[2],
+                    y1=anchor.bbox[3],
+                ),
+            )
+        )
+    return resolved
+
+
 def _write_final_llm_markdown(
     content_sha256: str,
     llm_markdown: str,
@@ -843,27 +903,11 @@ def build_parsed_document(
         ],
     )
 
-    # Anchors were resolved against `doc_tags_simplified` (Docling's own
-    # Markdown). If OCR fallback or page merging produced a different final
-    # `llm_markdown`, those offsets no longer line up, so drop anchors rather
-    # than publish stale ones (evidence_index.anchors=[] is always valid).
-    evidence_anchors = (
-        [
-            Anchor(
-                markdown_start=anchor.markdown_start,
-                markdown_end=anchor.markdown_end,
-                page=anchor.page,
-                bbox=BoundingBox(
-                    x0=anchor.bbox[0],
-                    y0=anchor.bbox[1],
-                    x1=anchor.bbox[2],
-                    y1=anchor.bbox[3],
-                ),
-            )
-            for anchor in docling_anchors
-        ]
-        if llm_markdown == doc_tags_simplified
-        else []
+    evidence_anchors = _resolve_evidence_anchors(
+        docling_anchors=docling_anchors,
+        docling_spans=docling_spans,
+        llm_spans=llm_spans,
+        parser_by_page=parser_by_page,
     )
 
     return ParsedDocument(
