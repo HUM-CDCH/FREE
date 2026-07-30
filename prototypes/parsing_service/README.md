@@ -16,6 +16,15 @@ Docling is the primary parser. PaddleOCR is a page-level fallback. PyMuPDF is
 used for PDF inspection only. Camelot may enrich matching Docling geometry;
 Camelot-only candidates are diagnostics and are never canonical tables.
 
+The service installs `opencv-contrib-python` as its single `cv2` provider.
+Docling/RapidOCR and Camelot declare the overlapping `opencv-python` and
+`opencv-python-headless` distributions, so those transitive dependencies are
+excluded in `pyproject.toml`; installing multiple OpenCV wheel variants into one
+environment corrupts their shared `cv2` namespace. The excluded distributions'
+published metadata cannot express that the contrib build provides the same API,
+so `uv pip check` reports those names as missing; the installed-Docling contract
+test is the runtime compatibility check.
+
 ## Canonical pipeline
 
 1. Accept and validate one uploaded PDF.
