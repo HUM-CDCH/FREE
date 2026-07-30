@@ -1,12 +1,21 @@
+<!-- markdownlint-disable MD013 -->
+
 # ParsedDocument v2 uses one canonical semantic content stream
 
-FREE will make a typed, PDF-page-scoped semantic content stream the authority
-for `parsed_document.v2`, deriving canonical Markdown, page spans, table
-placement, and Evidence Anchors from that stream and the final canonical table
-objects rather than maintaining independently authoritative views. This is a
-breaking pre-production replacement for v1 with no compatibility shim: it adds
-complexity to ingestion, but prevents Markdown/table drift, keeps uncertain
-semantics and reading order explicit, and gives annotations and later grounded
-extraction stable logical locations without moving schema or model behavior
-into `parsing_service`. Exact multi-page table fragment fields remain gated on
-the real Docling fixture required by ADR 0004.
+> **Accepted.** `ParsedDocument` in `app.models.parsed_document` is the sole
+> public typed interface for canonical PDF ingestion.
+
+The typed, page-scoped semantic content stream is authoritative for ordered
+content, physical pages, table placement, canonical Markdown, and text
+Evidence. The renderer emits reserved page markers and records half-open
+UTF-8 byte spans into the exact Markdown bytes.
+
+The public document contains sanitized parser provenance and typed diagnostics.
+Cache paths, raw parser artifacts, parser input/output refs, and internal
+digests stay in the generation manifest. Route JSON and packaged JSON use the
+same portable shape.
+
+Docling supplies semantic table values and structure. Camelot can only add
+exact-match monotonic geometry and never creates a canonical table alone.
+PaddleOCR is the page-level fallback for unresolved text; non-PDF and URL
+sources are outside this contract.
