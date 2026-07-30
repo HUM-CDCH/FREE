@@ -1,0 +1,1621 @@
+{
+  "_fixture": {
+    "source_capture": "/tmp/parsed-document-v2-docling-evidence/docling/document.docling.json",
+    "source_tables": [
+      6,
+      7,
+      10,
+      11
+    ],
+    "selected_cells": "complete raw table_cells for reviewed tables 6 and 7; reduced anomaly records retain reviewed cells",
+    "not_a_v2_contract": true,
+    "current_locked_capture": {
+      "docling_version": "2.111.0",
+      "docling_core_version": "2.86.0",
+      "source_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+      "physical_doctags_sha256": "f68fe3f89e1f896e048696aaf7136007885f68e004bcb3eb0d6a94014524cf8a",
+      "producer_records_sha256": "f8fb6436d420a87d88c11d3d685c85b63d4fe0d99003cd1b42dfd46bbb241680",
+      "reviewed_boundary_digest": "37f6dbeaf040adf7742d2d82a135da3e43fcfda08f2f3123dae384ca78d351c5",
+      "positive_pair": ["#/tables/6", "#/tables/7"],
+      "negative_pair": ["#/tables/10", "#/tables/11"]
+    }
+  },
+  "record_sets": {
+    "6_7": [
+      {
+        "self_ref": "#/tables/6",
+        "prov": [
+          {
+            "page_no": 4,
+            "bbox": {
+              "l": 76.75452423095703,
+              "t": 252.0433349609375,
+              "r": 499.1171875,
+              "b": 114.3948974609375,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              0
+            ]
+          }
+        ],
+        "data": {
+          "num_rows": 10,
+          "num_cols": 3,
+          "orientation": "rot_0",
+          "table_cells": [
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 593.549208264896,
+                "r": 140.24549024565755,
+                "b": 601.8066725772277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "Fundnummer",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.76499065885434,
+                "t": 593.549208264896,
+                "r": 200.36696163696632,
+                "b": 601.8066725772277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Beskrivelse",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.8766125011711,
+                "t": 593.549208264896,
+                "r": 352.6745552995457,
+                "b": 601.8066725772277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Bemærkninger",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 606.2222156888961,
+                "r": 98.9774874145216,
+                "b": 614.4796800012277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.81820083158402,
+                "t": 606.2222156888961,
+                "r": 187.01321621288326,
+                "b": 614.4796800012277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Keramik",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.9137592255297,
+                "t": 606.2222156888961,
+                "r": 391.3473072532091,
+                "b": 614.4796800012277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Lille skår, 2x4 cm. Niv. 1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 618.950084616896,
+                "r": 98.9804993110912,
+                "b": 627.2075489292276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-2",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8232206592,
+                "t": 618.950084616896,
+                "r": 187.02425983363835,
+                "b": 627.2075489292276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Keramik",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.9268107773311,
+                "t": 618.950084616896,
+                "r": 382.72324340892123,
+                "b": 627.2075489292276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Små fragmenter. Niv. 1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 630.964753992896,
+                "r": 98.99555879393918,
+                "b": 639.2222183052277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-4",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.84831979727997,
+                "t": 630.964753992896,
+                "r": 187.07947793741437,
+                "b": 639.2222183052277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Keramik",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.9920685363392,
+                "t": 630.964753992896,
+                "r": 352.8361937487808,
+                "b": 639.2222183052277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Små skår. Niv 3",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 642.979423368896,
+                "r": 98.9804993110912,
+                "b": 651.2368876812277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-5",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8232206592,
+                "t": 642.979423368896,
+                "r": 155.166425851456,
+                "b": 651.2368876812277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "-",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.8846442253568,
+                "t": 642.979423368896,
+                "r": 313.02193299523833,
+                "b": 651.2368876812277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Udgår",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 655.7072922968961,
+                "r": 98.974475517952,
+                "b": 663.9647566092276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.813181003968,
+                "t": 655.7072922968961,
+                "r": 168.569365586176,
+                "b": 663.9647566092276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Jern",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.900707673728,
+                "t": 655.7072922968961,
+                "r": 415.3440911887364,
+                "b": 663.9647566092276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Fragmenter af beslag e.l. Niv. 3",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 679.242877512896,
+                "r": 98.9774874145216,
+                "b": 687.5003418252277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-7",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.81820083158402,
+                "t": 679.242877512896,
+                "r": 187.01321621288326,
+                "b": 687.5003418252277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Keramik",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.9137592255297,
+                "t": 679.242877512896,
+                "r": 356.4213546321277,
+                "b": 687.5003418252277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Lille skår. Niv. 4",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 691.970746440896,
+                "r": 98.9804993110912,
+                "b": 700.2282107532277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-8",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8232206592,
+                "t": 691.970746440896,
+                "r": 187.02425983363835,
+                "b": 700.2282107532277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Keramik",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.9268107773311,
+                "t": 691.970746440896,
+                "r": 414.55899014959317,
+                "b": 700.2282107532277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Lille skår, ornamenteret. Niv. 4",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 703.985415816896,
+                "r": 98.9774874145216,
+                "b": 712.2428801292276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-9",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.81820083158402,
+                "t": 703.985415816896,
+                "r": 187.01321621288326,
+                "b": 712.2428801292276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Keramik",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.9137592255297,
+                "t": 703.985415816896,
+                "r": 356.4213546321277,
+                "b": 712.2428801292276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 8,
+              "end_row_offset_idx": 9,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Lille skår. Niv. 4",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 716.713284744896,
+                "r": 104.0123745133696,
+                "b": 724.9707490572276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-10",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8051492797824,
+                "t": 716.713284744896,
+                "r": 187.00618845422073,
+                "b": 724.9707490572276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Keramik",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.9087393979135,
+                "t": 716.713284744896,
+                "r": 398.9091755739516,
+                "b": 724.9707490572276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 9,
+              "end_row_offset_idx": 10,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Hank, fragmenteret. Niv. 4.",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        }
+      },
+      {
+        "self_ref": "#/tables/7",
+        "prov": [
+          {
+            "page_no": 5,
+            "bbox": {
+              "l": 76.73636627197266,
+              "t": 728.2894973754883,
+              "r": 498.8749694824219,
+              "b": 625.8388977050781,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              0
+            ]
+          }
+        ],
+        "data": {
+          "num_rows": 8,
+          "num_cols": 3,
+          "orientation": "rot_0",
+          "table_cells": [
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 116.85760000889604,
+                "r": 104.00434278918401,
+                "b": 125.11506432122769,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-11",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.803141348736,
+                "t": 116.85760000889604,
+                "r": 186.99213293689598,
+                "b": 125.11506432122769,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Keramik",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.890668018496,
+                "t": 116.85760000889604,
+                "r": 449.6696724269445,
+                "b": 125.11506432122769,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Fragmenter af ornamenteret skår. Niv. 6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 129.53060743289598,
+                "r": 104.02442209964798,
+                "b": 137.78807174522774,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-15",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8232206592,
+                "t": 129.53060743289598,
+                "r": 187.04233121305597,
+                "b": 137.78807174522774,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Keramik",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.95090594988795,
+                "t": 129.53060743289598,
+                "r": 313.1253414441281,
+                "b": 137.78807174522774,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Niv. 6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 142.258476360896,
+                "r": 104.0123745133696,
+                "b": 150.51594067322765,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-16",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8051492797824,
+                "t": 142.258476360896,
+                "r": 188.13263777125115,
+                "b": 150.51594067322765,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Ravperle",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.94086629465596,
+                "t": 142.258476360896,
+                "r": 313.1002423060479,
+                "b": 150.51594067322765,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Niv. 6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 154.93148378489593,
+                "r": 104.0083586512768,
+                "b": 163.1889480972277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-17",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8091651418752,
+                "t": 154.93148378489593,
+                "r": 190.36947295694085,
+                "b": 163.1889480972277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Glasperle",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.97700905349126,
+                "t": 154.93148378489593,
+                "r": 338.29676504179827,
+                "b": 163.1889480972277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 3,
+              "end_row_offset_idx": 4,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Hvid. Niv. 6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 167.65935271289595,
+                "r": 103.99631106499841,
+                "b": 175.9168170252276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-23",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.79109376245765,
+                "t": 167.65935271289595,
+                "r": 190.32730640496638,
+                "b": 175.9168170252276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Glasperle",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.9388583636096,
+                "t": 167.65935271289595,
+                "r": 374.6473447403006,
+                "b": 175.9168170252276,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 4,
+              "end_row_offset_idx": 5,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Blå, facetteret. Niv. 6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 180.38722164089597,
+                "r": 104.0123745133696,
+                "b": 188.64468595322774,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-25",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8051492797824,
+                "t": 180.38722164089597,
+                "r": 188.13263777125115,
+                "b": 188.64468595322774,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Ravperle",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.94086629465596,
+                "t": 180.38722164089597,
+                "r": 313.1002423060479,
+                "b": 188.64468595322774,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 5,
+              "end_row_offset_idx": 6,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Niv. 6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 193.06022906489602,
+                "r": 104.0123745133696,
+                "b": 201.31769337722767,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-26",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8051492797824,
+                "t": 193.06022906489602,
+                "r": 188.13263777125115,
+                "b": 201.31769337722767,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Ravperle",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.94086629465596,
+                "t": 193.06022906489602,
+                "r": 313.1002423060479,
+                "b": 201.31769337722767,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 6,
+              "end_row_offset_idx": 7,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Niv. 6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 205.78809799289604,
+                "r": 104.02040623755519,
+                "b": 214.0455623052277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "26-27",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.81719686606078,
+                "t": 205.78809799289604,
+                "r": 178.64315564596487,
+                "b": 214.0455623052277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Lerkar",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.9428742257025,
+                "t": 205.78809799289604,
+                "r": 359.53565568509464,
+                "b": 214.0455623052277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 7,
+              "end_row_offset_idx": 8,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Hankekop. Niv. 6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        }
+      }
+    ],
+    "10_11": [
+      {
+        "self_ref": "#/tables/10",
+        "prov": [
+          {
+            "page_no": 5,
+            "bbox": {
+              "l": 76.77305603027344,
+              "t": 159.23486328125,
+              "r": 498.9899597167969,
+              "b": 120.69134521484375,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              0
+            ]
+          }
+        ],
+        "data": {
+          "num_rows": 3,
+          "num_cols": 3,
+          "orientation": "rot_0",
+          "table_cells": [
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 686.703950621056,
+                "r": 119.05579391299838,
+                "b": 694.9614149333877,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "N ummer",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.8513316938496,
+                "t": 686.703950621056,
+                "r": 200.43623525806723,
+                "b": 694.9614149333877,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Beskrivelse",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.93986232913284,
+                "t": 686.703950621056,
+                "r": 352.7177258170431,
+                "b": 694.9614149333877,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Bemærkninger",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 699.1027419608961,
+                "r": 98.98652310423039,
+                "b": 707.3602062732277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "30-1",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.83326031443198,
+                "t": 699.1027419608961,
+                "r": 216.17741069632024,
+                "b": 707.3602062732277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Skeletdele, tand",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 711.556303368896,
+                "r": 98.974475517952,
+                "b": 719.8137676812277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "30-3",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.813181003968,
+                "t": 711.556303368896,
+                "r": 228.0844418014719,
+                "b": 719.8137676812277,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Knoglefragmenter,",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        }
+      },
+      {
+        "self_ref": "#/tables/11",
+        "prov": [
+          {
+            "page_no": 6,
+            "bbox": {
+              "l": 76.82107543945312,
+              "t": 728.3861618041992,
+              "r": 498.6757507324219,
+              "b": 678.5730438232422,
+              "coord_origin": "BOTTOMLEFT"
+            },
+            "charspan": [
+              0,
+              0
+            ]
+          }
+        ],
+        "data": {
+          "num_rows": 3,
+          "num_cols": 3,
+          "orientation": "rot_0",
+          "table_cells": [
+            {
+              "bbox": {
+                "l": 151.861623712,
+                "t": 116.85760000889604,
+                "r": 247.6931447980097,
+                "b": 125.11506432122769,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 0,
+              "end_row_offset_idx": 1,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "formodentlig skinneben",
+              "column_header": true,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 129.31116141689597,
+                "r": 98.974475517952,
+                "b": 137.56862572922762,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "30-4",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.813181003968,
+                "t": 129.31116141689597,
+                "r": 247.6928704904897,
+                "b": 149.14431163738766,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 1,
+              "end_row_offset_idx": 2,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Knoglefragmenter, formodentlig skinneben",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 80.541668512,
+                "t": 152.9016081368959,
+                "r": 98.97146362138241,
+                "b": 161.15907244922766,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 0,
+              "end_col_offset_idx": 1,
+              "text": "30-6",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 151.808161176352,
+                "t": 152.9016081368959,
+                "r": 225.54440902777614,
+                "b": 161.15907244922766,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 1,
+              "end_col_offset_idx": 2,
+              "text": "Knoglefragmenter",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            },
+            {
+              "bbox": {
+                "l": 287.91778788864,
+                "t": 152.9016081368959,
+                "r": 377.8831384225918,
+                "b": 161.15907244922766,
+                "coord_origin": "TOPLEFT"
+              },
+              "row_span": 1,
+              "col_span": 1,
+              "start_row_offset_idx": 2,
+              "end_row_offset_idx": 3,
+              "start_col_offset_idx": 2,
+              "end_col_offset_idx": 3,
+              "text": "Fundet ved afrensning",
+              "column_header": false,
+              "row_header": false,
+              "row_section": false,
+              "fillable": false
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "positive_6_to_7",
+      "_fixture_record_set": "6_7",
+      "boundary": {
+        "_fixture_interstitial": [
+          {
+            "tag": "<page_break>"
+          }
+        ],
+        "following_content": [
+          {
+            "kind": "text",
+            "text": "Tolkning: Jordfæstegrav. Vurderet på baggrund af perlerne fra graven kan der være tale om en kvindegrav."
+          }
+        ],
+        "_fixture_doctags": [
+          {
+            "page_no": 4,
+            "otsl": "<otsl><loc_64><loc_350><loc_419><loc_432><ched>Fundnummer<ched>Beskrivelse<ched>Bemærkninger<nl><fcel>26-1<fcel>Keramik<fcel>Lille skår, 2x4 cm. Niv. 1<nl><fcel>26-2<fcel>Keramik<fcel>Små fragmenter. Niv. 1<nl><fcel>26-4<fcel>Keramik<fcel>Små skår. Niv 3<nl><fcel>26-5<fcel>-<fcel>Udgår<nl><fcel>26-6<fcel>Jern<fcel>Fragmenter af beslag e.l. Niv. 3<nl><fcel>26-7<fcel>Keramik<fcel>Lille skår. Niv. 4<nl><fcel>26-8<fcel>Keramik<fcel>Lille skår, ornamenteret. Niv. 4<nl><fcel>26-9<fcel>Keramik<fcel>Lille skår. Niv. 4<nl><fcel>26-10<fcel>Keramik<fcel>Hank, fragmenteret. Niv. 4.<nl></otsl>",
+            "following_raw": "<page_footer><loc_65><loc_454><loc_142><loc_459>Ellekilde, TAK 1355</page_footer><page_footer><loc_427><loc_453><loc_435><loc_458>10</page_footer></doctag>"
+          },
+          {
+            "page_no": 5,
+            "otsl": "<otsl><loc_64><loc_67><loc_419><loc_128><fcel>26-11<fcel>Keramik<fcel>Fragmenter af ornamenteret skår. Niv. 6<nl><fcel>26-15<fcel>Keramik<fcel>Niv. 6<nl><fcel>26-16<fcel>Ravperle<fcel>Niv. 6<nl><fcel>26-17<fcel>Glasperle<fcel>Hvid. Niv. 6<nl><fcel>26-23<fcel>Glasperle<fcel>Blå, facetteret. Niv. 6<nl><fcel>26-25<fcel>Ravperle<fcel>Niv. 6<nl><fcel>26-26<fcel>Ravperle<fcel>Niv. 6<nl><fcel>26-27<fcel>Lerkar<fcel>Hankekop. Niv. 6<nl></otsl>",
+            "following_raw": "<text><loc_65><loc_130><loc_416><loc_143>Tolkning: Jordfæstegrav. Vurderet på baggrund af perlerne fra graven kan der være tale om en kvindegrav.</text>"
+          }
+        ]
+      }
+    },
+    {
+      "name": "narrative_interstitial",
+      "_fixture_record_set": "6_7",
+      "boundary": {
+        "_fixture_interstitial": [
+          {
+            "tag": "<page_break>"
+          },
+          {
+            "tag": "<text>",
+            "text": "Narrative context"
+          }
+        ],
+        "following_content": [
+          {
+            "kind": "text",
+            "text": "Grav 26"
+          }
+        ],
+        "_fixture_doctags": []
+      }
+    },
+    {
+      "name": "new_table_header_row",
+      "_fixture_record_set": "6_7",
+      "boundary": {
+        "_fixture_interstitial": [
+          {
+            "tag": "<page_break>"
+          },
+          {
+            "tag": "<otsl>",
+            "otsl": "<otsl><ched>Fundnummer<ched>Beskrivelse<ched>Bemærkninger</otsl>"
+          }
+        ],
+        "following_content": [
+          {
+            "kind": "text",
+            "text": "Grav 26"
+          }
+        ],
+        "_fixture_doctags": []
+      }
+    },
+    {
+      "name": "caption_interstitial",
+      "_fixture_record_set": "6_7",
+      "boundary": {
+        "_fixture_interstitial": [
+          {
+            "tag": "<page_break>"
+          },
+          {
+            "tag": "<caption>",
+            "text": "Fund fra lag 6"
+          }
+        ],
+        "following_content": [
+          {
+            "kind": "text",
+            "text": "Grav 26"
+          }
+        ],
+        "_fixture_doctags": []
+      }
+    },
+    {
+      "name": "failed_continuation_evidence",
+      "_fixture_record_set": "6_7",
+      "boundary": {
+        "_fixture_interstitial": [
+          {
+            "tag": "<page_break>"
+          }
+        ],
+        "following_content": [
+          {
+            "kind": "text",
+            "text": "Grav 26"
+          }
+        ],
+        "_fixture_doctags": []
+      }
+    },
+    {
+      "name": "anomaly_10_to_11",
+      "_fixture_record_set": "10_11",
+      "boundary": {
+        "_fixture_interstitial": [
+          {
+            "tag": "<page_break>"
+          }
+        ],
+        "following_content": [
+          {
+            "kind": "text",
+            "text": "Antropologisk kunne skeletresterne bestemmes til at stamme fra et individ af uvist køn på 20-35 år. Gravudstyr: I gravens nordlige halvdel fandtes få skår fra lerkar samt en dyretand. Fundliste til grav 30:"
+          },
+          {
+            "kind": "table_boundary",
+            "self_ref": "#/tables/12"
+          }
+        ],
+        "_fixture_doctags": [
+          {
+            "page_no": 5,
+            "otsl": "<otsl><loc_64><loc_405><loc_419><loc_428><ched>N ummer<ched>Beskrivelse<ched>Bemærkninger<nl><fcel>30-1<fcel>Skeletdele, tand<ecel><nl><fcel>30-3<fcel>Knoglefragmenter,<ecel><nl></otsl>",
+            "following_raw": "<page_footer><loc_65><loc_454><loc_142><loc_459>Ellekilde, TAK 1355</page_footer><page_footer><loc_427><loc_435><loc_458>11</page_footer></doctag>"
+          },
+          {
+            "page_no": 6,
+            "otsl": "<otsl><loc_65><loc_67><loc_419><loc_97><ecel><ched>formodentlig skinneben<ecel><nl><fcel>30-4<fcel>Knoglefragmenter, formodentlig skinneben<ecel><nl><fcel>30-6<fcel>Knoglefragmenter<fcel>Fundet ved afrensning<nl></otsl>",
+            "following_raw": "<text><loc_65><loc_98><loc_434><loc_119>Antropologisk kunne skeletresterne bestemmes til at stamme fra et individ af uvist køn på 20-35 år.</text>"
+          }
+        ]
+      }
+    }
+  ]
+}

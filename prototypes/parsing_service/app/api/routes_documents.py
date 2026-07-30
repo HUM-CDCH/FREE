@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 
 from app.api.deps import http_task_dir, load_metadata, require_completed
 from app.models.parsed_document import ParsedDocument
-from app.storage.manifests import read_parsed_document
+from app.storage.manifests import read_committed_markdown, read_parsed_document
 from app.storage.paths import SOURCE_FILENAME
 
 router = APIRouter()
@@ -22,7 +22,8 @@ class MarkdownResponse(Response):
 def read_stored_parsed_document(task_id: str) -> ParsedDocument:
     task_dir = http_task_dir(task_id)
     try:
-        return read_parsed_document(task_dir)
+        parsed = read_parsed_document(task_dir)
+        return parsed
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -31,13 +32,14 @@ def read_stored_parsed_document(task_id: str) -> ParsedDocument:
         ) from exc
 
 
-def canonical_markdown(task_id: str) -> str:
+def canonical_markdown(task_id: str) -> bytes:
     parsed_document = read_stored_parsed_document(task_id)
-    return (
-        parsed_document.text_views.llm_markdown
-        or parsed_document.text_views.doc_tags_simplified
-        or parsed_document.text_views.page_marked_text
-    )
+    try:
+        return read_committed_markdown(http_task_dir(task_id), parsed_document)
+    except (FileNotFoundError, OSError, ValueError) as exc:
+        raise HTTPException(
+            status_code=500, detail="Canonical Markdown is unavailable."
+        ) from exc
 
 
 @router.api_route(
@@ -80,11 +82,6 @@ async def get_task_markdown(task_id: str):
 
 
 @router.get("/tasks/{task_id}/document", response_model=ParsedDocument)
-@router.get(
-    "/tasks/{task_id}/parsed-document",
-    response_model=ParsedDocument,
-    include_in_schema=False,
-)
 async def get_task_document(task_id: str):
     metadata = load_metadata(task_id)
     require_completed(metadata, "parsed document")

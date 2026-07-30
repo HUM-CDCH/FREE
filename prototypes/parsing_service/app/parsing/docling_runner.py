@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from app.parsing.docling_inventory import table_inventory as _table_inventory
+from app.parsing.semantic_stream import convert_doctags_to_blocks
 from app.storage.atomic_json import write_json_atomic, write_text_atomic
 from app.storage.hashing import compute_sha256
 from app.storage.paths import document_artifacts_dir, service_relative_ref
@@ -44,6 +45,12 @@ class DoclingRunnerOutput:
     page_mapping_verified: bool = False
     physical_page_export_complete: bool = False
     table_inventory: tuple[dict[str, Any], ...] = ()
+    # Intermediate, producer-observed semantic stream.  The v2 assembler may
+    # promote these blocks; v1 consumers continue to use llm_markdown.
+    semantic_blocks: tuple[Any, ...] = ()
+    # Raw producer records are retained only for the reviewed continuation gate.
+    producer_records: tuple[dict[str, Any], ...] = ()
+    canonical_doctags: str = ""
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
 
@@ -314,6 +321,12 @@ def run_docling_ingestion(
         streams, artifact_dir, warnings
     )
     simplified = _simplify_doctags(streams, artifact_dir, warnings)
+    try:
+        semantic_blocks = convert_doctags_to_blocks(streams.canonical)
+    except Exception:
+        logger.exception("DocTags semantic block conversion failed")
+        semantic_blocks = ()
+        warnings.append("doctags_semantic_blocks_unavailable")
     markdown_ref = _persist_diagnostic_markdown(document, artifact_dir, warnings)
 
     status = "success" if simplified.markdown else "failed"
@@ -341,6 +354,13 @@ def run_docling_ingestion(
         page_mapping_verified=simplified.page_mapping_verified,
         physical_page_export_complete=streams.physical_page_export_complete,
         table_inventory=inventory,
+        semantic_blocks=semantic_blocks,
+        producer_records=tuple(
+            item["producer_record"]
+            for item in inventory
+            if isinstance(item.get("producer_record"), dict)
+        ),
+        canonical_doctags=streams.canonical,
         warnings=warnings,
         error=None if status == "success" else "canonical_doctags_unavailable",
     )

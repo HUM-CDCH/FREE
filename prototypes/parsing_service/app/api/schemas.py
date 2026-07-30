@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.parsed_document import ParserRun
+from app.models.parsed_document_v2 import PublicParserProvenance
 
 __all__ = ["TaskCreatedResponse", "TaskParameters", "TaskStatusResponse"]
 
@@ -44,16 +44,13 @@ class TaskStatusResponse(BaseModel):
     task_id: str
     document_id: str
     content_sha256: str
-    source_path: str
-    source_store_path: str
-    source_kind: Literal["upload", "url"]
+    source_kind: Literal["upload"]
     status: Literal["pending", "running", "completed", "failed"]
     created_at: str
     updated_at: str
     params: TaskParameters
     stats: dict[str, dict[str, Any]]
-    parser_runs: list[ParserRun]
+    parser_runs: list[PublicParserProvenance]
     selected_parser: str | None = None
-    canonical_parsed_document_ref: str | None = None
     error_code: str | None = None
     error: str | None = None

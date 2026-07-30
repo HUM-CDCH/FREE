@@ -194,3 +194,13 @@ def safe_relative_ref(base: Path, path: Path) -> str:
         return path.resolve().relative_to(base.resolve()).as_posix()
     except ValueError as exc:
         raise ValueError("Artifact path escaped the base directory.") from exc
+def resolve_service_ref(ref: str) -> Path:
+    """Resolve a service-relative artifact reference without symlink escapes."""
+    service_root = SERVICE_ROOT.resolve()
+    candidate = SERVICE_ROOT / ref
+    if candidate.is_symlink():
+        raise ValueError("Artifact reference may not be a symlink.")
+    path = candidate.resolve()
+    if not path.is_relative_to(service_root):
+        raise ValueError("Artifact reference escaped the service root.")
+    return path

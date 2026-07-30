@@ -6,23 +6,24 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app.models.parsed_document import ParsedDocument, ParserRun
+from app.models.parsed_document_v2 import ParsedDocument
 from app.models.parser import canonical_preprocessing_config
 from app.storage.atomic_json import read_json, write_json_atomic
 from app.storage.hashing import (
     compute_config_hash,
-    compute_sha256,
     document_id_from_hash,
+    preprocess_id_from_hashes,
 )
 from app.storage.paths import (
     METADATA_FILENAME,
     PARSED_DOCUMENT_FILENAME,
-    SERVICE_ROOT,
     SOURCE_FILENAME,
     canonical_parsed_document_path,
     document_store_dir,
-    service_relative_ref,
+    resolve_service_ref,
 )
+
+StoredParsedDocument = ParsedDocument
 
 
 class TaskNotFoundError(Exception):
@@ -49,18 +50,9 @@ def preprocessing_config_hash(metadata: dict[str, Any] | None = None) -> str:
     )
 
 
-def public_url_ref(url: str | None) -> str | None:
-    if not isinstance(url, str) or not url:
-        return None
-    from urllib.parse import urlsplit, urlunsplit
-
-    parts = urlsplit(url)
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
-
-
 def rebind_parsed_document_for_task(
-    task_dir: Path, metadata: dict[str, Any], parsed_document: ParsedDocument
-) -> ParsedDocument:
+    task_dir: Path, metadata: dict[str, Any], parsed_document: StoredParsedDocument
+) -> StoredParsedDocument:
     """Return a task-local view of a content-addressed ParsedDocument.
 
     Canonical documents are keyed by source hash, but public task responses must
@@ -79,10 +71,9 @@ def rebind_parsed_document_for_task(
 
     source = parsed_document.document.source.model_copy(
         update={
-            "kind": metadata.get("source_kind") or parsed_document.document.source.kind,
+            "kind": "upload",
             "original_filename": params.get("source_name")
             or parsed_document.document.source.original_filename,
-            "submitted_url": public_url_ref(metadata.get("submitted_url")),
             "byte_size": byte_size,
         }
     )
@@ -95,24 +86,47 @@ def rebind_parsed_document_for_task(
             or parsed_document.document.created_at,
         }
     )
-    artifacts = parsed_document.artifacts.model_copy(
-        update={
-            "source_ref": metadata.get("source_store_path")
-            or parsed_document.artifacts.source_ref,
-            "parsed_json_ref": service_relative_ref(
-                task_dir / PARSED_DOCUMENT_FILENAME
-            ),
-            "canonical_parsed_json_ref": service_relative_ref(
-                canonical_parsed_document_path(content_sha256)
-            ),
-        }
-    )
     return parsed_document.model_copy(
         update={
             "document": document,
-            "artifacts": artifacts,
         }
     )
+
+
+def generation_ref_from_artifact_ref(ref: str | None) -> str | None:
+    """Return the immutable generation root represented by an artifact ref."""
+    if not isinstance(ref, str):
+        return None
+    parts = Path(ref).parts
+    try:
+        index = parts.index("generations")
+        if index + 1 >= len(parts):
+            return None
+        return "/".join(parts[: index + 2])
+    except ValueError:
+        return None
+
+
+def read_committed_markdown(
+    task_dir: Path,
+    parsed_document: StoredParsedDocument | None = None,
+) -> bytes:
+    """Read Markdown from the task's explicitly bound immutable generation."""
+    if parsed_document is None:
+        parsed_document = read_parsed_document(task_dir)
+    metadata = load_task_metadata(task_dir)
+    generation_ref = metadata.get("canonical_generation_ref")
+    if not isinstance(generation_ref, str) or not generation_ref:
+        raise FileNotFoundError("Canonical generation binding is missing.")
+    generation = resolve_service_ref(generation_ref)
+    root = document_store_dir(parsed_document.document.content_sha256).resolve()
+    candidate_path = generation / "artifacts" / "document.llm.md"
+    if candidate_path.is_symlink():
+        raise FileNotFoundError("Bound canonical Markdown artifact is unavailable.")
+    candidate = candidate_path.resolve()
+    if not candidate.is_relative_to(root) or not candidate.is_file():
+        raise FileNotFoundError("Bound canonical Markdown artifact is unavailable.")
+    return candidate.read_bytes()
 
 
 def json_payload_size(payload: Any) -> int:
@@ -139,61 +153,17 @@ def _rebase_value(value: Any, old_prefix: str, new_prefix: str) -> Any:
 
 
 def rebase_parsed_document_artifacts(
-    parsed_document: ParsedDocument,
+    parsed_document: StoredParsedDocument,
     old_root: Path,
     new_root: Path,
-) -> ParsedDocument:
-    """Repoint a fully built pending generation to its immutable final path."""
-    old_prefix = service_relative_ref(old_root)
-    new_prefix = service_relative_ref(new_root)
-    artifacts = parsed_document.artifacts.model_copy(
-        update={
-            "raw_docling_json_ref": _rebase_value(
-                parsed_document.artifacts.raw_docling_json_ref,
-                old_prefix,
-                new_prefix,
-            ),
-            "raw_doctags_ref": _rebase_value(
-                parsed_document.artifacts.raw_doctags_ref,
-                old_prefix,
-                new_prefix,
-            ),
-            "llm_markdown_ref": _rebase_value(
-                parsed_document.artifacts.llm_markdown_ref,
-                old_prefix,
-                new_prefix,
-            ),
-            "debug_refs": _rebase_value(
-                parsed_document.artifacts.debug_refs,
-                old_prefix,
-                new_prefix,
-            ),
-        }
-    )
-    parser_runs = [
-        run.model_copy(
-            update={
-                "output_ref": _rebase_value(
-                    run.output_ref,
-                    old_prefix,
-                    new_prefix,
-                ),
-                "metrics": _rebase_value(
-                    run.metrics,
-                    old_prefix,
-                    new_prefix,
-                ),
-            }
-        )
-        for run in parsed_document.parser_runs
-    ]
-    return parsed_document.model_copy(
-        update={"artifacts": artifacts, "parser_runs": parser_runs}
-    )
+) -> StoredParsedDocument:
+    """Public v2 JSON contains no cache references, so rebasing is a no-op."""
+    _ = (old_root, new_root)
+    return parsed_document
 
 
 def _validate_canonical_identity(
-    parsed_document: ParsedDocument,
+    parsed_document: StoredParsedDocument,
     expected_sha256: str,
     expected_config_hash: str,
 ) -> None:
@@ -201,53 +171,28 @@ def _validate_canonical_identity(
         raise ValueError("Canonical document source hash mismatch.")
     if parsed_document.document.document_id != document_id_from_hash(expected_sha256):
         raise ValueError("Canonical document id mismatch.")
-    if parsed_document.preprocessing.config_hash != expected_config_hash:
+    if parsed_document.preprocessing.preprocess_id != preprocess_id_from_hashes(
+        expected_sha256, expected_config_hash
+    ):
         raise ValueError("Canonical preprocessing policy mismatch.")
 
 
-def _canonical_artifact_refs(parsed_document: ParsedDocument) -> set[str]:
-    return {
-        ref
-        for ref in (
-            parsed_document.artifacts.raw_docling_json_ref,
-            parsed_document.artifacts.raw_doctags_ref,
-            parsed_document.artifacts.llm_markdown_ref,
-            *parsed_document.artifacts.debug_refs,
-        )
-        if ref
-    }
+def _canonical_artifact_refs(parsed_document: StoredParsedDocument) -> set[str]:
+    _ = parsed_document
+    return set()
 
 
-def _validate_markdown_artifact_ref(parsed_document: ParsedDocument) -> None:
-    if (
-        parsed_document.text_views.llm_markdown
-        and not parsed_document.artifacts.llm_markdown_ref
-    ):
-        raise ValueError("Canonical Markdown artifact reference is missing.")
-
-
-def _validate_canonical_artifact(ref: str, document_root: Path) -> None:
-    candidate = SERVICE_ROOT / ref
-    if candidate.is_symlink():
-        raise ValueError("Canonical artifact may not be a symlink.")
-    resolved = candidate.resolve()
-    if not resolved.is_relative_to(document_root) or not resolved.is_file():
-        raise ValueError("Canonical artifact reference is invalid.")
-
-
-def _validate_parser_run(parser_run: ParserRun, expected_sha256: str) -> None:
-    input_hash = parser_run.metrics.get("input_sha256")
-    if input_hash is not None and input_hash != expected_sha256:
-        raise ValueError("Canonical parser input hash mismatch.")
-    expected_output_hash = parser_run.metrics.get("output_sha256")
-    if expected_output_hash and parser_run.output_ref:
-        output_path = (SERVICE_ROOT / parser_run.output_ref).resolve()
-        if compute_sha256(output_path) != expected_output_hash:
-            raise ValueError("Canonical parser output digest mismatch.")
+def _validate_markdown_artifact_ref(
+    parsed_document: StoredParsedDocument,
+    document_root: Path,
+) -> None:
+    _ = document_root
+    if parsed_document.artifacts.markdown_ref != "artifacts/document.llm.md":
+        raise ValueError("Canonical Markdown artifact reference is invalid.")
 
 
 def validate_canonical_document(
-    parsed_document: ParsedDocument,
+    parsed_document: StoredParsedDocument,
     *,
     expected_sha256: str,
     expected_config_hash: str,
@@ -259,35 +204,40 @@ def validate_canonical_document(
         expected_config_hash,
     )
     document_root = document_store_dir(expected_sha256).resolve()
-    refs = _canonical_artifact_refs(parsed_document)
-    _validate_markdown_artifact_ref(parsed_document)
-    for ref in refs:
-        _validate_canonical_artifact(ref, document_root)
-    for parser_run in parsed_document.parser_runs:
-        _validate_parser_run(parser_run, expected_sha256)
+    _validate_markdown_artifact_ref(parsed_document, document_root)
+    # Raw parser refs/digests live in the internal generation manifest, never
+    # in the portable ParsedDocument.
 
 
-def write_parsed_document(task_dir: Path, parsed_document: ParsedDocument) -> None:
+def write_parsed_document(
+    task_dir: Path, parsed_document: StoredParsedDocument
+) -> None:
     destination = task_dir / PARSED_DOCUMENT_FILENAME
     write_json_atomic(destination, parsed_document.model_dump(mode="json"))
 
 
 def write_canonical_parsed_document(
-    content_sha256: str, parsed_document: ParsedDocument
+    content_sha256: str, parsed_document: StoredParsedDocument
 ) -> Path:
     destination = canonical_parsed_document_path(content_sha256)
     write_json_atomic(destination, parsed_document.model_dump(mode="json"))
     return destination
 
 
-def read_canonical_parsed_document(content_sha256: str) -> ParsedDocument:
+def _validate_stored_json(payload: Any) -> StoredParsedDocument:
+    if not isinstance(payload, dict) or payload.get("schema_version") != "parsed_document.v2":
+        raise ValueError("parsed_document_contract_invalid")
+    return ParsedDocument.model_validate(payload)
+
+
+def read_canonical_parsed_document(content_sha256: str) -> StoredParsedDocument:
     parsed_path = canonical_parsed_document_path(content_sha256)
     if not parsed_path.exists():
         raise FileNotFoundError("Canonical parsed document JSON not found.")
-    return ParsedDocument.model_validate(read_json(parsed_path))
+    return _validate_stored_json(read_json(parsed_path))
 
 
-def read_parsed_document(task_dir: Path) -> ParsedDocument:
+def read_parsed_document(task_dir: Path) -> StoredParsedDocument:
     parsed_path = task_dir / PARSED_DOCUMENT_FILENAME
     metadata_path = task_dir / METADATA_FILENAME
     if not parsed_path.exists():
@@ -304,7 +254,7 @@ def read_parsed_document(task_dir: Path) -> ParsedDocument:
                 except FileNotFoundError:
                     pass
         raise FileNotFoundError("Parsed document JSON not found.")
-    parsed_document = ParsedDocument.model_validate(read_json(parsed_path))
+    parsed_document = _validate_stored_json(read_json(parsed_path))
     if metadata_path.exists():
         return rebind_parsed_document_for_task(
             task_dir, read_json(metadata_path), parsed_document

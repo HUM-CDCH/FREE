@@ -36,6 +36,7 @@ from app.parsing._table_matrix import (
     _normalise_matrix,
     is_matrixlike,
 )
+from app.parsing.v2_publication import render_table_markdown
 from app.timing import duration_ms, utc_now
 
 TABLE_PARSER_NAME = "camelot_stream"
@@ -60,6 +61,7 @@ __all__ = (
     "extract_tables",
     "is_matrixlike",
     "table_matrix_to_parsed_table",
+    "render_parsed_table_markdown",
 )
 
 
@@ -73,6 +75,9 @@ class TableExtractionOutput:
     tables: list[ParsedTable] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
+    # Rejected candidates stay internal and auditable; they never become a
+    # second public canonical table.
+    diagnostics: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
 
@@ -123,9 +128,7 @@ def _bbox_topleft(
     origin: str = "bottomleft",
     enabled: bool = True,
 ) -> BoundingBox | None:
-    values = _topleft_bbox_values(
-        raw, page_height_pt, origin=origin, enabled=enabled
-    )
+    values = _topleft_bbox_values(raw, page_height_pt, origin=origin, enabled=enabled)
     if values is None:
         return None
     try:
@@ -185,17 +188,18 @@ def _is_column_header(matrix: list[list[str]], r: int, c: int, n_rows: int) -> b
 
 
 def _markdown_view(matrix: list[list[str]], header_rows: list[int]) -> str:
-    if not matrix:
-        return ""
-    n_cols = len(matrix[0])
-    separator_after = header_rows[-1] if header_rows else 0
-    separator = "| " + " | ".join("---" for _ in range(n_cols)) + " |"
-    lines: list[str] = []
-    for index, row in enumerate(matrix):
-        lines.append("| " + " | ".join(cell.replace("|", "\\|") for cell in row) + " |")
-        if index == separator_after:
-            lines.append(separator)
-    return "\n".join(lines)
+    """Render the same matrix policy used by v2 publication."""
+    return render_table_markdown(matrix, header_rows)
+
+
+def render_parsed_table_markdown(table: ParsedTable) -> str:
+    """Render Markdown from the final typed table cells.
+
+    This is the table-extraction seam used by v2 publication and is purposely
+    a thin delegation to the shared renderer; no OTSL or Camelot matrix is
+    consulted after canonicalization.
+    """
+    return render_table_markdown(table)
 
 
 def _safe_spans(
@@ -318,10 +322,11 @@ def _parsed_table_from_matrix(
         table_id=f"p{context.page_number:02d}_t{context.table_index:02d}",
         page_number=context.page_number,
         source_parser=context.source_parser,
+        content_parser=context.source_parser,
+        structure_parser=context.source_parser,
+        geometry_parser=(context.source_parser if context.geometry_enabled else None),
         bbox=(
-            context.bbox(context.table_bbox)
-            if context.table_bbox is not None
-            else None
+            context.bbox(context.table_bbox) if context.table_bbox is not None else None
         ),
         rows=n_rows,
         cols=n_cols,
@@ -343,9 +348,7 @@ def table_matrix_to_parsed_table(
     """
     return _parsed_table_from_matrix(
         matrix,
-        _TableBuildContext(
-            page_number=page_number, table_index=table_index, **options
-        ),
+        _TableBuildContext(page_number=page_number, table_index=table_index, **options),
     )
 
 
@@ -431,7 +434,20 @@ def _docling_table_to_parsed_table(
             header_rows=sorted(header_rows),
         ),
     )
-    return table if table.cells else None
+    if not table.cells:
+        return None
+    producer_ref = inventory.get("producer_ref")
+    producer_order = inventory.get("producer_order")
+    return table.model_copy(
+        update={
+            "producer_ref": str(producer_ref) if producer_ref is not None else None,
+            "producer_order": (
+                int(producer_order)
+                if isinstance(producer_order, int) and producer_order >= 0
+                else None
+            ),
+        }
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -533,6 +549,7 @@ class _Extraction:
     camelot: Any | None
     camelot_error: str
     warnings: list[str] = field(default_factory=list)
+    diagnostics: list[dict[str, Any]] = field(default_factory=list)
 
     def warn_once(self, warning: str) -> None:
         if warning not in self.warnings:
@@ -635,6 +652,7 @@ def _camelot_segments(
     runs: Sequence[tuple[int, int]],
     page_number: int,
     extraction: _Extraction,
+    region_index: int,
 ) -> list[ParsedTable]:
     """Convert each table-shaped row run of one Camelot region into a table."""
     grid = _cell_bbox_grid(table, len(matrix), len(matrix[0]) if matrix else 0)
@@ -657,17 +675,30 @@ def _camelot_segments(
             ),
         )
         if segment.cells:
-            segments.append(segment)
+            # Camelot has no Docling ``#/tables/N`` identity.  Preserve the
+            # actual capture-local region/segment identity instead, so a
+            # validated no-inventory fallback can be published as explicitly
+            # Camelot-attributed Evidence without masquerading as producer
+            # observations from another parser.
+            segments.append(
+                segment.model_copy(
+                    update={
+                        "producer_ref": (
+                            f"camelot://page/{page_number}/region/{region_index}"
+                            f"/segment/{len(segments) + 1}"
+                        ),
+                        "producer_order": region_index - 1,
+                    }
+                )
+            )
     return segments
 
 
-def _camelot_tables(
-    found: Sequence[Any], extraction: _Extraction
-) -> list[ParsedTable]:
+def _camelot_tables(found: Sequence[Any], extraction: _Extraction) -> list[ParsedTable]:
     """Segment Camelot stream regions into canonical tables."""
     tables: list[ParsedTable] = []
     warned_rotations: set[int] = set()
-    for table in found:
+    for region_index, table in enumerate(found, start=1):
         matrix = _camelot_matrix(table, extraction)
         if matrix is None:
             continue
@@ -680,7 +711,9 @@ def _camelot_tables(
                 extraction.warnings.append(ROTATED_TABLE_GEOMETRY_WARNING)
             warned_rotations.add(page_number)
         tables.extend(
-            _camelot_segments(table, matrix, runs, page_number, extraction)
+            _camelot_segments(
+                table, matrix, runs, page_number, extraction, region_index
+            )
         )
     return _deduplicate_tables(tables)
 
@@ -718,9 +751,7 @@ def _cell_structure_signature(
 
 def _boxed_cells(table: ParsedTable) -> dict[CellPosition, BoundingBox]:
     return {
-        (cell.row, cell.col): cell.bbox
-        for cell in table.cells
-        if cell.bbox is not None
+        (cell.row, cell.col): cell.bbox for cell in table.cells if cell.bbox is not None
     }
 
 
@@ -764,7 +795,12 @@ def _merge_enriched_geometry(
     ]
     return inventory.model_copy(
         update={
-            "source_parser": candidate.source_parser or inventory.source_parser,
+            # Docling remains authoritative for semantic content and
+            # structure. Camelot contributes geometry only; preserve the
+            # inventory parser identity so a Camelot candidate can never be
+            # mistaken for a publishable canonical table.
+            "source_parser": inventory.source_parser,
+            "geometry_parser": candidate.source_parser or "camelot_stream",
             "cells": cells,
         }
     )
@@ -789,9 +825,12 @@ def _enrichment_candidates(
         ]
         if not areas:
             continue
+        camelot = extraction.camelot
+        if camelot is None:
+            continue
         try:
             found = list(
-                extraction.camelot.read_pdf(
+                camelot.read_pdf(
                     str(extraction.source_pdf),
                     pages=str(page_number),
                     flavor="stream",
@@ -821,6 +860,13 @@ def _enrich_inventory_tables(
         best = max(eligible, default=None)
         if best is None:
             reconciled.append(inventory)
+            extraction.diagnostics.append(
+                {
+                    "code": "camelot_candidate_rejected",
+                    "page_number": inventory.page_number,
+                    "table_id": inventory.table_id,
+                }
+            )
         else:
             candidate = available.pop(-best[1])
             reconciled.append(_merge_enriched_geometry(inventory, candidate))
@@ -921,13 +967,24 @@ def extract_tables(
                 finished_at=utc_now(),
                 duration_ms=duration_ms(start_time),
                 warnings=extraction.warnings,
+                diagnostics=extraction.diagnostics,
                 error=camelot_error,
             )
-        tables = _assign_table_ids(_camelot_tables(found, extraction))
+        # Camelot has no reviewed semantic authority without a Docling
+        # inventory. Keep candidate counts and diagnostics internal, but do
+        # not publish Camelot-only canonical tables.
+        camelot_candidates = _camelot_tables(found, extraction)
+        extraction.diagnostics.append(
+            {
+                "code": "camelot_only_tables_excluded",
+                "count": len(camelot_candidates),
+            }
+        )
+        tables = []
         metrics = {
             "tables_found": len(found),
-            "tables_kept": len(tables),
-            "camelot_candidates": len(found),
+            "tables_kept": 0,
+            "camelot_candidates": len(camelot_candidates),
         }
         parser = TABLE_PARSER_NAME
 
@@ -940,4 +997,5 @@ def extract_tables(
         tables=tables,
         metrics=metrics,
         warnings=extraction.warnings,
+        diagnostics=extraction.diagnostics,
     )

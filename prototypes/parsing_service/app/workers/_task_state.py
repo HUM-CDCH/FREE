@@ -7,12 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from app.models.parsed_document import ParsedDocument
-from app.models.parser import canonical_preprocessing_config
+from app.models.parsed_document_v2 import PublicParserProvenance
 from app.parsing.orchestrator import CanonicalIngestionError
-from app.storage.hashing import document_id_from_hash
+from app.storage.hashing import document_id_from_hash, preprocess_id_from_hashes
 from app.storage.manifests import preprocessing_config_hash
 from app.storage.paths import validate_task_id
-from app.timing import utc_now
 
 _SOURCE_PDF_FILENAME = "source.pdf"
 
@@ -28,8 +27,8 @@ def cached_document_matches_task(
         and parsed_document.document.content_sha256 == content_sha256
         and parsed_document.document.document_id
         == document_id_from_hash(content_sha256)
-        and parsed_document.preprocessing.config_hash
-        == preprocessing_config_hash(metadata)
+        and parsed_document.preprocessing.preprocess_id
+        == preprocess_id_from_hashes(content_sha256, preprocessing_config_hash(metadata))
     )
 
 
@@ -43,7 +42,14 @@ def failure_metadata(
         updated["error_code"] = exc.code
         updated["error"] = exc.public_message
         updated["parser_runs"] = [
-            run.model_dump(mode="json") for run in exc.parser_runs
+            PublicParserProvenance(
+                parser=run.parser,
+                version=run.version,
+                status=run.status,
+                warnings=list(run.warnings),
+                error=run.error,
+            ).model_dump(mode="json")
+            for run in exc.parser_runs
         ]
         updated["stats"] = {run.parser: run.metrics for run in exc.parser_runs}
     else:
@@ -54,45 +60,28 @@ def failure_metadata(
     return updated
 
 
-def normalize_legacy_metadata(
+def validate_current_task_metadata(
     task_id: str,
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    """Fill current task-state fields while preserving recorded values."""
-    normalized = dict(metadata)
-    normalized["task_id"] = task_id
-    content_sha256 = normalized.get("content_sha256")
-    if isinstance(content_sha256, str):
-        normalized["document_id"] = document_id_from_hash(content_sha256)
-        normalized.setdefault(
-            "source_store_path",
-            f"data/sources/{content_sha256}.pdf",
-        )
-    params = dict(normalized.get("params", {}))
-    resolved_device = str(
-        params.get("resolved_ocr_device") or params.get("device") or "cpu"
-    )
-    normalized["params"] = {
-        **canonical_preprocessing_config(resolved_ocr_device=resolved_device),
-        **params,
-        "resolved_ocr_device": resolved_device,
-        "source_name": str(params.get("source_name") or _SOURCE_PDF_FILENAME),
+    """Accept only a current upload task; never migrate legacy task shapes."""
+    required = {
+        "task_id", "document_id", "content_sha256", "source_path",
+        "source_store_path", "source_kind", "status", "created_at",
+        "updated_at", "params", "stats", "parser_runs", "selected_parser",
+        "canonical_parsed_document_ref", "error_code", "error",
     }
-    normalized.setdefault("source_path", _SOURCE_PDF_FILENAME)
-    normalized.setdefault(
-        "source_kind",
-        "url" if normalized.get("submitted_url") else "upload",
-    )
-    normalized.setdefault("stats", {})
-    normalized.setdefault("parser_runs", [])
-    normalized.setdefault("selected_parser", None)
-    normalized.setdefault("canonical_parsed_document_ref", None)
-    normalized.setdefault("error_code", None)
-    normalized.setdefault("error", None)
-    now = utc_now()
-    normalized.setdefault("created_at", now)
-    normalized.setdefault("updated_at", now)
-    return normalized
+    missing = sorted(required.difference(metadata))
+    if missing or metadata.get("task_id") != task_id:
+        raise ValueError("task_metadata_not_current")
+    if metadata.get("source_kind") != "upload":
+        raise ValueError("task_metadata_not_current")
+    digest = metadata.get("content_sha256")
+    if not isinstance(digest, str) or metadata.get("document_id") != document_id_from_hash(digest):
+        raise ValueError("task_metadata_not_current")
+    if not isinstance(metadata.get("params"), dict) or not isinstance(metadata.get("parser_runs"), list):
+        raise ValueError("task_metadata_not_current")
+    return dict(metadata)
 
 
 def iter_task_entries(data_path: Path) -> Iterator[tuple[Path, str]]:

@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+import unittest
+
+from app.models.parsed_document import ParsedTable, TableCell
+from app.parsing.semantic_stream import (
+    TableSlot,
+    convert_doctags_to_blocks,
+    doctags_to_intermediate_blocks,
+    derive_logical_table_groups,
+    match_table_slot,
+    ocr_pages_to_blocks,
+    place_table_slots,
+)
+
+
+class TestSemanticStream(unittest.TestCase):
+    def test_doc_tags_emit_ordered_typed_blocks_and_page_boundary(self):
+        blocks = convert_doctags_to_blocks(
+            "<doctag><section_header_level_2>Title</section_header_level_2>"
+            "<text>Body &amp; exact</text><caption>Figure 1</caption></doctag>"
+            "<page_break><doctag><code>print(1)</code><formula>x^2</formula></doctag>"
+        )
+        self.assertEqual(
+            [(block.kind, block.page_number) for block in blocks],
+            [("heading", 1), ("paragraph", 1), ("caption", 1), ("page_boundary", 1), ("code", 2), ("formula", 2)],
+        )
+        self.assertEqual(blocks[1].text, "Body &amp; exact")
+
+    def test_minified_lists_code_formula_caption_and_blank_page(self):
+        blocks = convert_doctags_to_blocks(
+            "<unordered_list><list_item>A</list_item><list_item>B</list_item></unordered_list>"
+            "<code>x</code><formula>x^2</formula><page_break><page_break>"
+            "<caption>Caption</caption>"
+        )
+        self.assertEqual([block.kind for block in blocks], ["list", "code", "formula", "page_boundary", "page_boundary", "caption"])
+        self.assertEqual(blocks[-1].page_number, 3)
+
+    def test_ocr_is_generic_and_keeps_page_geometry_as_provenance(self):
+        blocks = ocr_pages_to_blocks({2: "OCR"}, {2: [{"bbox": [1, 2, 3, 4]}]})
+        self.assertEqual(blocks[0].kind, "text")
+        self.assertEqual(blocks[0].page_number, 2)
+        self.assertEqual(blocks[0].geometry, ({"bbox": [1, 2, 3, 4]},))
+        rotated = ocr_pages_to_blocks({4: "rotated"}, {4: []})
+        self.assertIsNone(rotated[0].geometry)
+
+    def test_inline_table_slot_is_preserved_until_canonical_matching(self):
+        blocks, slots = doctags_to_intermediate_blocks("<text>Before</text><otsl><ched>Name</otsl>")
+        self.assertEqual([block.kind for block in blocks], ["paragraph", "table_slot"])
+        self.assertEqual(slots[0].matrix, (("Name",),))
+
+    def test_mismatched_slot_is_unplaced_and_never_substituted_inline(self):
+        blocks, slots = doctags_to_intermediate_blocks(
+            "<otsl><ched>Different</otsl>"
+        )
+        table = ParsedTable(
+            table_id="table-1", page_number=1, rows=1, cols=1,
+            cells=[TableCell(row=0, col=0, text="Canonical", role="header")],
+        )
+        placed = place_table_slots(blocks, slots, [table])
+        self.assertFalse(any(block.kind == "table_slot" for block in placed.blocks))
+        self.assertEqual(placed.unplaced_content, {1: ("table-1",)})
+        self.assertEqual(placed.diagnostics[0].code, "table_slot_unmatched")
+
+    def test_continuation_requires_an_explicit_reviewed_pair(self):
+        first = ParsedTable(table_id="first", page_number=1, rows=1, cols=1, cells=[TableCell(row=0, col=0, text="A")])
+        second = ParsedTable(table_id="second", page_number=2, rows=1, cols=1, cells=[TableCell(row=0, col=0, text="A")])
+        self.assertEqual(len(derive_logical_table_groups([first, second])), 2)
+        groups = derive_logical_table_groups([first, second], continuation_pairs=[("first", "second")])
+        self.assertEqual(len(groups), 1)
+        self.assertTrue(groups[0].continuation)
+        self.assertEqual([table.table_id for table in groups[0].fragments], ["first", "second"])
+
+    def test_producer_reference_is_used_for_same_content_repeated_tables(self):
+        from app.parsing.semantic_stream import TableSlot
+        first = ParsedTable(table_id="first", page_number=1, producer_ref="#/tables/0", producer_order=0, rows=1, cols=1, cells=[TableCell(row=0, col=0, text="Same", role="header")])
+        second = ParsedTable(table_id="second", page_number=1, producer_ref="#/tables/1", producer_order=1, rows=1, cols=1, cells=[TableCell(row=0, col=0, text="Same", role="header")])
+        matched, diagnostics = match_table_slot(TableSlot(1, 1, (("Same",),), (("header",),), producer_ref="#/tables/1"), [first, second])
+        self.assertEqual(matched, second)
+        self.assertEqual(diagnostics, ())
+
+    def test_matching_slot_requires_exact_content(self):
+        blocks = convert_doctags_to_blocks("<otsl><ched>Name</otsl>")
+        slot_id = next(block.table_slot for block in blocks if block.kind == "table_slot")
+        table = ParsedTable(table_id="table-1", page_number=1, rows=1, cols=1, cells=[TableCell(row=0, col=0, text="Name", role="header")])
+        matched, diagnostics = match_table_slot(TableSlot(1, 1, (("Name",),), (("header",),)), [table])
+        self.assertEqual(matched, table)
+        self.assertEqual(diagnostics, ())
+        self.assertIsNotNone(slot_id)
+
+
+if __name__ == "__main__":
+    unittest.main()
