@@ -145,3 +145,17 @@ Nothing else persists. There are no `/annotations`, `/validations`, or
 `/documents/prepare` endpoints. Annotations are passed inline with each
 `/api/generate_schema` request. Adding a thin in-memory store (or SQLite) with
 these three endpoints is the next backend task.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for `HUM-CDCH/FREE`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The default five-label triage vocabulary is used. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain documentation uses the single-context layout. See `docs/agents/domain.md`.
