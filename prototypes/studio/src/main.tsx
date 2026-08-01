@@ -10,3 +10,5 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+if (import.meta.env.DEV) void import('./llmInspector/mount.tsx').then(({ mountLlmInspector }) => mountLlmInspector())

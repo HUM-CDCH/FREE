@@ -20,6 +20,7 @@ import {
 import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template.js'
 import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
+import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'
 import {
   appendProviderResource,
   resolveCapabilityRoute,
@@ -79,11 +80,11 @@ async function operationTarget(
   target: ExecutionTarget | undefined,
   dependencies: ModelDependencies,
 ): Promise<ExecutionTarget> {
-  if (target) return target
-  return resolveCapabilityRoute(operation, { temperature }, {
+  const resolved = target ?? await resolveCapabilityRoute(operation, { temperature }, {
     ...dependencies,
     readConfig: dependencies.readConfig ?? (() => readModelConfig()),
   })
+  return inspectTarget(operation, resolved)
 }
 
 export async function streamChatWithModel(
@@ -152,7 +153,7 @@ export async function extractWithModel(
       temperature,
     })
   } else {
-    generated = await generateWithNuExtractRawPrompt(resolved, {
+    generated = await generateWithNuExtractRawPrompt('extraction', resolved, {
       mode: 'structured',
       template: JSON.stringify(evidenceTemplate, null, 2),
       instructions,
@@ -194,7 +195,7 @@ export async function generateSchemaWithModel(
           documentParts: documentParts.parts,
           temperature,
         })
-      : await generateWithNuExtractRawPrompt(resolved, {
+      : await generateWithNuExtractRawPrompt('schema-suggestion', resolved, {
           mode: 'template-generation',
           instructions: null,
           documentParts: [{ type: 'text', text: guidance }, ...documentParts.parts],
@@ -244,6 +245,7 @@ async function generateWithGenericJsonPrompt(
 }
 
 async function generateWithNuExtractRawPrompt(
+  operation: ModelOperation,
   target: NuExtractRawExecutionTarget,
   input: {
     readonly mode: NuExtractMode
@@ -255,23 +257,30 @@ async function generateWithNuExtractRawPrompt(
   requestFetch: typeof fetch = fetch,
 ): Promise<{ readonly response: string }> {
   const rendered = renderNuExtractPrompt(input)
+  const url = appendProviderResource(target.baseUrl, 'api/generate')
+  const requestBody = JSON.stringify({
+    model: target.modelId,
+    prompt: rendered.prompt,
+    images: rendered.images.length > 0 ? rendered.images : undefined,
+    raw: true,
+    stream: false,
+    options: { temperature: input.temperature ?? NON_THINKING_TEMPERATURE },
+  })
   let response: Response
   try {
-    response = await requestFetch(appendProviderResource(target.baseUrl, 'api/generate'), {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(target.authorization === null ? {} : { authorization: target.authorization }),
-      },
-      body: JSON.stringify({
-        model: target.modelId,
-        prompt: rendered.prompt,
-        images: rendered.images.length > 0 ? rendered.images : undefined,
-        raw: true,
-        stream: false,
-        options: { temperature: input.temperature ?? NON_THINKING_TEMPERATURE },
+    response = await inspectHttpExchange(
+      operation,
+      target,
+      { url, method: 'POST', body: JSON.parse(requestBody) },
+      () => requestFetch(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(target.authorization === null ? {} : { authorization: target.authorization }),
+        },
+        body: requestBody,
       }),
-    })
+    )
   } catch (error) {
     throw asModelOperationError(error, 'Ollama generation failed.')
   }
