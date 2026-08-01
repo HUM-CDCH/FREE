@@ -1,24 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { wrapLanguageModel, type LanguageModelMiddleware } from 'ai'
+import type { LlmTrace, LlmTraceStatus } from '../shared/llmInspector.contract.js'
 import type { ExecutionTarget, ModelOperation, NuExtractRawExecutionTarget } from './_provider.js'
 
 const TRACE_LIMIT = 50
 const SENSITIVE_KEY = /^(?:authorization|proxy-authorization|cookie|set-cookie|x-goog-api-key|x-api-key|api[-_]?key|token|x-auth-token|access[-_]?token|refresh[-_]?token|id[-_]?token|secret|credential|password)$/i
-
-export type LlmTraceStatus = 'running' | 'complete' | 'failed' | 'cancelled'
-
-export type LlmTrace = {
-  readonly id: string
-  readonly operation: string
-  readonly provider: string
-  readonly model: string
-  readonly profile: string
-  readonly startedAt: string
-  completedAt: string | null
-  status: LlmTraceStatus
-  request: string
-  response: string | null
-}
 
 const traces: LlmTrace[] = []
 const inspectedModels = new WeakSet<object>()
@@ -37,15 +23,17 @@ function redactString(value: string, secrets: Set<string>): string {
     .replace(/\bBearer\s+[^\s"',}]+/gi, 'Bearer [REDACTED]')
     .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, '[REDACTED]')
   for (const secret of secrets) redacted = redacted.replaceAll(secret, '[REDACTED]')
-  try {
-    const url = new URL(redacted)
-    if (url.username) url.username = '[REDACTED]'
-    if (url.password) url.password = '[REDACTED]'
-    for (const key of url.searchParams.keys()) if (SENSITIVE_KEY.test(key)) url.searchParams.set(key, '[REDACTED]')
-    return url.toString()
-  } catch {
-    return redacted
-  }
+  return redacted.replace(/https?:\/\/[^\s"',}]+/gi, (match) => {
+    try {
+      const url = new URL(match)
+      if (url.username) url.username = '[REDACTED]'
+      if (url.password) url.password = '[REDACTED]'
+      for (const key of url.searchParams.keys()) if (SENSITIVE_KEY.test(key)) url.searchParams.set(key, '[REDACTED]')
+      return url.toString()
+    } catch {
+      return match
+    }
+  })
 }
 
 function payload(value: unknown, secrets = new Set<string>()): string {
@@ -141,17 +129,22 @@ function inspectorMiddleware(operation: ModelOperation, target: ExecutionTarget)
       }
       const reader = result.stream.getReader()
       const chunks: StreamPart[] = []
+      let streamFailed = false
       const stream = new ReadableStream<StreamPart>({
         async pull(controller) {
           try {
             const next = await reader.read()
             if (next.done) {
-              trace.complete({ request: result.request, response: result.response, chunks })
+              if (!streamFailed) trace.complete({ request: result.request, response: result.response, chunks })
               controller.close()
               reader.releaseLock()
               return
             }
             chunks.push(next.value)
+            if (next.value.type === 'error') {
+              streamFailed = true
+              trace.fail(next.value.error)
+            }
             controller.enqueue(next.value)
           } catch (error) {
             trace.fail(error)

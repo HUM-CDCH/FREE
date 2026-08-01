@@ -71,7 +71,7 @@ describe('LLM inspector middleware', () => {
   })
 
   it('captures retry attempts independently and preserves provider errors', async () => {
-    const providerError = new Error('temporary failure: Bearer leaked-token')
+    const providerError = new Error('request to https://alice:password@example.test/v1?api_key=query-secret failed')
     const doGenerate = vi.fn().mockRejectedValueOnce(providerError).mockResolvedValueOnce(generated)
     const wrapped = inspected(model({ doGenerate }))
 
@@ -80,7 +80,9 @@ describe('LLM inspector middleware', () => {
 
     const history = await traces()
     expect(history.map(({ status }) => status)).toEqual(['complete', 'failed'])
-    expect(history[1].response).not.toContain('leaked-token')
+    for (const secret of ['alice', 'password', 'query-secret']) {
+      expect(history[1].response).not.toContain(secret)
+    }
   })
 
   it('taps streamed chunks without changing them and records stream failures', async () => {
@@ -96,6 +98,23 @@ describe('LLM inspector middleware', () => {
 
     expect(received).toEqual(chunks)
     expect((await traces())[0]).toMatchObject({ status: 'complete' })
+
+    const protocolError = new Error('provider stream failed')
+    const errored = inspected(model({
+      doStream: async () => ({
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'error', error: protocolError })
+            controller.close()
+          },
+        }),
+      }),
+    }))
+    const erroredResult = await errored.doStream({ prompt: [] })
+    const errorParts = []
+    for await (const part of erroredResult.stream) errorParts.push(part)
+    expect(errorParts).toEqual([{ type: 'error', error: protocolError }])
+    expect((await traces())[0]).toMatchObject({ status: 'failed' })
 
     const providerError = new Error('stream failed')
     const failed = inspected(model({

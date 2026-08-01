@@ -1,19 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { StrictMode, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-
-type LlmTrace = {
-  id: string
-  operation: string
-  provider: string
-  model: string
-  profile: string
-  startedAt: string
-  completedAt: string | null
-  status: 'running' | 'complete' | 'failed' | 'cancelled'
-  request: string
-  response: string | null
-}
+import type { LlmTrace } from '../../shared/llmInspector.contract'
 
 function elapsed(trace: LlmTrace): string {
   const end = trace.completedAt ? Date.parse(trace.completedAt) : Date.now()
@@ -87,7 +75,7 @@ function Inspector({ onClose }: { onClose: () => void }) {
       </header>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <nav aria-label="LLM calls" className="scrollbar-subtle max-h-48 w-full shrink-0 overflow-auto border-b border-[#393c3a] bg-[#171918] md:max-h-none md:w-72 md:border-b-0 md:border-r">
-          {traces.length === 0 && <div className="px-5 py-10 text-center font-mono text-[11px] leading-relaxed text-[#777e76]">No provider calls yet.<br />Run an extraction, schema action, or chat.</div>}
+          {traces.length === 0 && <div className="px-5 py-10 text-center font-mono text-[11px] leading-relaxed text-[#777e76]">No provider calls yet.<br />Run an Extraction, Schema Suggestion, or chat.</div>}
           {traces.map((trace) => (
             <button key={trace.id} type="button" onClick={() => setSelectedId(trace.id)} className={`block w-full border-b border-[#2d302e] px-3 py-3 text-left transition-colors ${selectedId === trace.id ? 'bg-[#282d25]' : 'hover:bg-[#202320]'}`}>
               <div className="flex items-center gap-2">
