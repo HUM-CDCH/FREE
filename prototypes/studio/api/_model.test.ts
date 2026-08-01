@@ -7,6 +7,11 @@ import {
   streamChatWithModel,
 } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
+import {
+  DELETE as clearLlmInspector,
+  GET as getLlmInspector,
+  type LlmTrace,
+} from './llm_inspector.js'
 
 const { generateTextMock, streamTextMock } = vi.hoisted(() => ({
   generateTextMock: vi.fn(),
@@ -27,7 +32,14 @@ const rawTarget: ExecutionTarget = {
 }
 const generalTarget: ExecutionTarget = {
   profile: 'general',
-  model: {} as never,
+  model: {
+    specificationVersion: 'v4',
+    provider: 'test-provider',
+    modelId: 'test-model',
+    supportedUrls: {},
+    doGenerate: vi.fn(),
+    doStream: vi.fn(),
+  },
   jsonOutput: 'prompt',
   temperatureSupported: false,
 }
@@ -46,6 +58,7 @@ function stubOllamaResponse(response: string) {
 afterEach(() => {
   vi.unstubAllGlobals()
   generateTextMock.mockReset()
+  clearLlmInspector()
 })
 
 describe('extractWithModel', () => {
@@ -75,6 +88,16 @@ describe('extractWithModel', () => {
       options: { temperature: 0.2 },
     })
     expect(body).not.toHaveProperty('chat_template_kwargs')
+    const inspector = await getLlmInspector().json() as { traces: LlmTrace[] }
+    expect(inspector.traces[0]).toMatchObject({
+      operation: 'extraction',
+      provider: 'ollama',
+      model: 'nuextract/manual',
+      status: 'complete',
+    })
+    expect(inspector.traces[0].request).toContain('【task】structured')
+    expect(inspector.traces[0].request).not.toContain('Bearer secret')
+    expect(inspector.traces[0].response).toContain('Grave 1')
   })
 
   it('preserves a path-prefixed Ollama server base for raw generation', async () => {
