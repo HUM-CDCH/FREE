@@ -1,0 +1,29 @@
+{
+  "name": "db",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "contract:emit": "prisma-next contract emit",
+    "db:init": "prisma-next db init",
+    "db:update": "prisma-next db update",
+    "db:verify": "prisma-next db verify",
+    "db:migrate": "prisma-next migrate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.9.0",
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "prisma-next": "^0.16.0",
+    "tsx": "^4.23.4",
+    "typescript": "~6.0.3"
+  },
+  "dependencies": {
+    "@prisma-next/postgres": "^0.16.0",
+    "dotenv": "^17.4.2"
+  }
+}
