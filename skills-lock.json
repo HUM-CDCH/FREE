@@ -37,6 +37,78 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "ef32aea0a8fab9b365ff9e08a95f8d353e20ca21ea46ec2e73587c86dd341351"
     },
+    "prisma-next": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next/SKILL.md",
+      "computedHash": "b52ac75c388fa0ab956e045d657871f2ee0556beda1529c0fb24c34b8abba431"
+    },
+    "prisma-next-build": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next-build/SKILL.md",
+      "computedHash": "ec2baef8672ab09f20fc7dd55441e3fbacba7ca3efdfedf948fb306029447f6f"
+    },
+    "prisma-next-contract": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next-contract/SKILL.md",
+      "computedHash": "79678026fe83749c3767c7427c70588eba1b79c05b0dc54719830715c85cff36"
+    },
+    "prisma-next-debug": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next-debug/SKILL.md",
+      "computedHash": "52ed9eeea88864e2c4afaee1e8ea1508d98ffa4da7ca7bcdf25bc0ed1b076e12"
+    },
+    "prisma-next-extension-upgrade": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/extension-author/prisma-next-extension-upgrade/SKILL.md",
+      "computedHash": "63f2945397738fa742ac7ada7b5b994659ef9ae14f68bab3b93af911ef1fbec6"
+    },
+    "prisma-next-feedback": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next-feedback/SKILL.md",
+      "computedHash": "8c0b3fd53fa3fb67cafb682b6b5b3de735e12c2ca6af6ad49c7380c8e181c66a"
+    },
+    "prisma-next-migration-review": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next-migration-review/SKILL.md",
+      "computedHash": "fd5359a22e3e6ed12a671718cafe96ccc627b0aa59330fb95dc1f9149a577c2d"
+    },
+    "prisma-next-migrations": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next-migrations/SKILL.md",
+      "computedHash": "34b7a69e89c2e7e74ab0fe93121faa326e82da0bfb0f18752f437e5f75557adb"
+    },
+    "prisma-next-queries": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next-queries/SKILL.md",
+      "computedHash": "a7c10a00f06eb79dfde4f702ee47df94a57916f4e31cc12b57920a4311d85f61"
+    },
+    "prisma-next-quickstart": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next-quickstart/SKILL.md",
+      "computedHash": "da52052b2a19ec6b04ac4dd6e5d4240a8266fec0d1f889d117c7aa465c1a926c"
+    },
+    "prisma-next-runtime": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/prisma-next-runtime/SKILL.md",
+      "computedHash": "5ab4c5abc8de728e5622f56903a5d1a1bab20e10dddddbad33e1c8104e949a18"
+    },
+    "prisma-next-upgrade": {
+      "source": "prisma/prisma-next",
+      "sourceType": "github",
+      "skillPath": "skills/upgrade/prisma-next-upgrade/SKILL.md",
+      "computedHash": "f7c6ad111c953da25794cc313d30aa7843c0b726aca3c6d8c61636c2cf11e7bd"
+    },
     "prototype": {
       "source": "mattpocock/skills",
       "sourceType": "github",

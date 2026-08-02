@@ -12,8 +12,10 @@ __pycache__/
 *.py[cod]
 
 node_modules/
+.pnpm-store/
 dist/
 coverage/
+packages/db/src/generated/prisma/
 artifacts/architecture/site/
 
 .playwright-mcp/
