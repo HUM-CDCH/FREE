@@ -1,6 +1,7 @@
 import { cascadeRepairText } from 'ai-sdk-ollama'
 import { z } from 'zod'
 import { ApiError } from './_http.js'
+import { isAllowedValues } from '../shared/allowedValues.js'
 
 const templateEnvelopeSchema = z.object({
   template: z.record(z.string(), z.unknown()),
@@ -102,6 +103,13 @@ function objectSchemaFromTemplate(template: Record<string, unknown>): z.ZodType<
 }
 
 function valueSchemaFromTemplate(value: unknown): z.ZodType<unknown> {
+  if (isAllowedValues(value)) {
+    // A closed set is written as an array but answered with one of its members —
+    // occasionally wrapped in a one-item array. Membership is not enforced here;
+    // `applyAllowedValues` degrades the single field instead of failing the run.
+    return z.union([z.string(), z.array(z.string())]).nullable()
+  }
+
   if (Array.isArray(value)) {
     return z.array(valueSchemaFromTemplate(value[0] ?? 'string')).nullable()
   }

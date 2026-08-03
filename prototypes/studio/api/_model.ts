@@ -17,6 +17,7 @@ import {
   asModelOperationError,
   boundedUpstreamDetail,
 } from './_http.js'
+import { applyAllowedValues } from '../shared/allowedValues.js'
 import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template.js'
 import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
@@ -165,7 +166,9 @@ export async function extractWithModel(
     }, dependencies.fetch)
   }
   const parsed = await parseExtractionResult(generated.response, evidenceTemplate)
-  const split = splitEvidenceResult(parsed)
+  // Before the split, so a one-item array answer is unwrapped while the evidence
+  // leaf still mirrors it — `buildHighlights` only follows a string value.
+  const split = splitEvidenceResult(applyAllowedValues(parsed, evidenceTemplate))
 
   return {
     result: split.result,

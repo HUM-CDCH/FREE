@@ -14,17 +14,6 @@ export function countTemplateFields(value: unknown): number {
   return 1
 }
 
-export const FIELD_TYPES = [
-  'verbatim-string',
-  'string',
-  'date',
-  'number',
-  'integer',
-  'boolean',
-  'object',
-  'array',
-] as const
-
 export function fieldTypeLabel(value: unknown): string {
   if (Array.isArray(value)) {
     return 'array'
