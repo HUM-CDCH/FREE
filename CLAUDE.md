@@ -23,117 +23,15 @@ Use the terminology in `CONTEXT.md` precisely. Key terms:
 | Review Decision | status, vote |
 | Evidence | citation, source, provenance |
 
-## Repository layout
+## Workspace
 
-```
-docs/                   vision, architecture, user stories, evaluation notes
-examples/               sample source documents
-prototypes/
-  parsing_service/      FastAPI server (Python, uv)
-  studio/               React + Vite frontend (pnpm)
-```
+The prototypes under `prototypes/` are self-contained but orchestrated with **pnpm workspaces**. Prefer root commands (`pnpm dev`, `pnpm test`, `pnpm build`) for normal work; `pnpm start` is an alias for `pnpm dev`.
 
-Each prototype is self-contained, but orchestrated using **pnpm workspaces**. Prefer root commands for normal work:
+Python services opt into the root install with an `install:python` script; the root `postinstall` discovers them with `pnpm --recursive --if-present install:python`. So `pnpm install` at the root also runs `uv sync` for Python services.
 
-```bash
-pnpm install   # installs JS deps and runs uv sync for Python services
-pnpm start     # alias for pnpm dev
-pnpm dev       # backend + frontend
-pnpm test
-pnpm build
-```
+VS Code tasks and launches should call pnpm workspace scripts from the repository root. Keep the backend debug launch direct through `debugpy`, but keep dev tasks on `pnpm --filter ...` so package scripts remain the source of truth.
 
-Python services opt into root install with an `install:python` script; the root `postinstall` discovers them with `pnpm --recursive --if-present install:python`.
-
-## Backend (`prototypes/parsing_service`)
-
-**Stack:** FastAPI · httpx · pypdfium2 · Pillow · pydantic-settings · Python 3.13+  
-**Package manager:** uv
-
-```bash
-cd prototypes/parsing_service
-uv sync --extra ocr-cpu  # use ocr-gpu instead on CUDA hosts
-uv run --no-sync python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
-uv run --no-sync fastapi run main.py        # production
-```
-
-The package script `pnpm --filter parsing-service dev` is the preferred dev entry point. Runtime scripts use `uv run --no-sync`, preserving whichever mutually exclusive CPU/GPU OCR profile was explicitly installed. The dev script uses Python UTF-8 mode for Windows and binds the backend to `http://127.0.0.1:8000`, which is what the studio frontend expects.
-
-**Endpoints:**
-
-- `GET /status` — Health and environment status for the parsing service.
-- `POST /tasks` — Start source document parsing and return a task id.
-- `GET /tasks/{task_id}` — Poll parsing status.
-- `GET /tasks/{task_id}/markdown` — Fetch canonical LLM Markdown for a completed task.
-- `GET /tasks/{task_id}/document` / `GET /tasks/{task_id}/parsed-document` — Fetch the versioned `ParsedDocument` JSON with parser provenance, page markers, and exact offsets for extraction.
-- `GET /tasks/{task_id}/download` — Download the task-local `ParsedDocument` and referenced canonical parser artifacts.
-
-Task source PDFs are stored internally as `source.pdf`, copied into a SHA-256 content-addressed source store, and exposed with only a sanitized display filename in metadata. Task route IDs must be UUIDs.
-
-The parsing service does not own model extraction endpoints. Studio serves model
-routes from same-origin `/api`.
-
-`GET /` serves a small local prototype control page for nontechnical testing of
-the parsing service. It is not the researcher-facing FREE interface; Studio
-remains the product UI for humanities researchers.
-
-## Frontend (`prototypes/studio`)
-
-**Stack:** React 19 · TypeScript · Vite · Tailwind CSS v4 · pdfjs-dist 6 · pnpm
-
-```bash
-cd prototypes/studio
-pnpm install
-pnpm dev          # dev server on :5173
-pnpm build        # tsc + vite build
-pnpm lint         # eslint
-```
-
-Studio model endpoints are served from same-origin `/api`. Set `VITE_PARSING_SERVICE_URL`
-to override the parsing service URL (default `http://127.0.0.1:8000`).
-
-VS Code tasks and launches should call pnpm workspace scripts from the repository root. Keep backend debug launch direct through `debugpy`, but keep dev tasks on `pnpm --filter ...` so package scripts remain the source of truth.
-
-**Key architecture points:**
-
-- The PDF viewer uses `pdfjs-dist`'s `PDFViewer` component with `AnnotationEditorType.HIGHLIGHT`. Only text-selection highlights are allowed; free rectangular highlights are blocked by intercepting `pointerdown` during capture phase.
-- `pdf.js` has no public event for editor add/remove. `App.tsx` monkey-patches `uiManager.addEditor` / `removeEditor` to keep the annotation sidebar in sync.
-- `api.ts` contains browser communication with Studio model routes and the parsing service. Model routes are `/api/chat`, `/api/generate_schema`, `/api/extract`, and `/api/edit_schema`; configuration routes are `/api/model_config` (GET/PUT) and `/api/model_probe` (POST), reached through `src/providerConfig/providerConfig.data.ts`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
-- Every model operation resolves its provider from saved configuration through `resolveCapabilityRoute` in `api/_provider.ts`. There are no `AI_*` environment settings; `api/_environment.test.ts` fails the build if one reappears.
-- `AnnotationSidebar` shows the current annotation set (highlighted passages + page numbers). `SchemaPanel` shows the generated schema and controls annotation mode (`hints` vs `fields`).
-- The hardcoded source document is `examples/Beretning_Ellekilde_8_13.pdf` (a Danish archaeological site report).
-
-**Annotation modes** (sent to `/api/generate_schema`):
-
-- `hints` — model designs schema from the whole document, but every highlighted passage must be covered.
-- `fields` — model derives schema primarily from the highlighted passages.
-
-## NuExtract prompting (raw prompts to Ollama)
-
-NuExtract3 is driven with a **hand-built raw prompt**, not OpenAI-style
-`chat_template_kwargs`. Historical control-channel evidence archived under
-`openspec/changes/archive/2026-06-17-select-nuextract-control-channel/`
-found the **Ollama** OpenAI-compatible endpoint silently ignores
-`chat_template_kwargs` (`mode`, `template`, `enable_thinking`) — kwargs-only
-requests come back as plain text. So `prototypes/studio/api/_model.ts` posts to Ollama's
-`/api/generate` with `raw: true` and reconstructs the NuExtract control tokens
-itself (`【task】`, `【template_start】`, `【document_start】…【document_end】`, trailing
-`<think>` block), mirroring `nuextract.template.jinja`. Consequences when editing
-schema/extraction prompts:
-
-- **No `【instructions】` slot outside `structured` mode** (jinja only emits it for
-  extraction). `template-generation` and `markdown` carry all guidance inline in
-  the message body, so schema-suggestion guidance must *lead* the document parts —
-  it's just message text, not a privileged slot.
-- **Thinking is `structured`/`content` only.** The jinja forbids `enable_thinking`
-  for `template-generation`/`markdown`; those always render the empty
-  `<think></think>` (non-thinking) prompt.
-- **Temperature:** NuExtract recommends `0.2` non-thinking / `0.6` thinking. We send
-  `0.2` by default (`NON_THINKING_TEMPERATURE`); leaving it unset lets Ollama apply
-  ~0.8, which produced noisy, instance-enumerated templates.
-
-Docker Model Runner and vLLM *do* honor `chat_template_kwargs` — see the probe doc
-for the per-provider channel if NuExtract is ever served that way.
+Per-prototype guidance loads with the directory: `prototypes/parsing_service/CLAUDE.md` and `prototypes/studio/CLAUDE.md`.
 
 ## What the prototype does not yet have
 
