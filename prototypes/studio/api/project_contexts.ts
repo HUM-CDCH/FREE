@@ -55,14 +55,14 @@ export function createGetProjectContexts(
           'invalid_request',
           'projectContextId must be a canonical lowercase UUID.',
         )
-      const chooser = await store
+      const projectContext = await store
         .getProjectContextWithDocuments(id)
         .catch((cause) => {
           throw unavailable(cause)
         })
-      if (!chooser)
+      if (!projectContext)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
-      return json(chooser, { headers: noStore })
+      return json(projectContext, { headers: noStore })
     } catch (error) {
       const response = apiErrorResponse(error)
       response.headers.set('Cache-Control', 'no-store')

@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
 import './pdf-viewer.css'
-import App from './App.tsx'
 import {
   ProjectNavigationProvider,
   ProjectRoutes,
@@ -11,13 +10,9 @@ import {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {location.pathname === '/studio' ? (
-      <App />
-    ) : (
-      <ProjectNavigationProvider>
-        <ProjectRoutes />
-      </ProjectNavigationProvider>
-    )}
+    <ProjectNavigationProvider>
+      <ProjectRoutes />
+    </ProjectNavigationProvider>
   </StrictMode>,
 )
 

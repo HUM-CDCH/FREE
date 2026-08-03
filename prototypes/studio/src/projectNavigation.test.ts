@@ -1,125 +1,65 @@
 import { createActor } from 'xstate'
 import { describe, expect, it, vi } from 'vitest'
-import { navigationMachine } from './projectNavigation'
+import {
+  href,
+  navigationMachine,
+  parseRoute,
+  type NavigableRoute,
+} from './projectNavigation'
 
-const id = '00000000-0000-4000-8000-000000000044'
+const projectContextId = '00000000-0000-4000-8000-000000000044'
+const sourceDocumentId = '00000000-0000-4000-8000-000000000045'
+
+describe('Project Context routes', () => {
+  it.each([
+    ['/', { kind: 'root' }],
+    ['/studio', { kind: 'root' }],
+    ['/anything', { kind: 'root' }],
+    ['/projects', { kind: 'root' }],
+    [`/projects/${projectContextId}/`, { kind: 'project', projectContextId }],
+    [`/projects/${projectContextId}/documents`, { kind: 'project', projectContextId }],
+    [
+      `/projects/${projectContextId}/documents/${sourceDocumentId}`,
+      { kind: 'document', projectContextId, sourceDocumentId },
+    ],
+    ['/projects/NOT-A-UUID', { kind: 'badReference' }],
+    [`/projects/${projectContextId}/documents/nope`, { kind: 'badReference' }],
+    [
+      `/projects/${projectContextId}/documents/${sourceDocumentId}/anything`,
+      { kind: 'badReference' },
+    ],
+  ])('parses %s', (pathname, route) => {
+    expect(parseRoute(pathname)).toEqual(route)
+  })
+
+  it.each<NavigableRoute>([
+    { kind: 'root' },
+    { kind: 'project', projectContextId },
+    { kind: 'document', projectContextId, sourceDocumentId },
+  ])('builds the canonical href for $kind routes', (route) => {
+    expect(parseRoute(href(route))).toEqual(route)
+  })
+})
 
 describe('project navigation machine', () => {
-  it('loads a direct route, pushes clicks, and aborts abandoned reads', async () => {
+  it('pushes navigation and accepts back/forward route changes without pushing', () => {
     const push = vi.fn()
-    let aborted = false
     const actor = createActor(navigationMachine, {
-      input: {
-        initialProjectContextId: id,
-        deps: {
-          list: async () => [
-            {
-              projectContextId: id,
-              name: 'Project',
-              createdAt: '2026-07-31T00:00:00.000Z',
-            },
-          ],
-          chooser: (_id, signal) =>
-            new Promise((resolve, reject) => {
-              signal.addEventListener('abort', () => {
-                aborted = true
-                reject(new DOMException('Aborted', 'AbortError'))
-              })
-              setTimeout(
-                () =>
-                  resolve({
-                    projectContext: {
-                      projectContextId: id,
-                      name: 'Project',
-                      createdAt: '2026-07-31T00:00:00.000Z',
-                    },
-                    sourceDocuments: [],
-                  }),
-                0,
-              )
-            }),
-          push,
-        },
-      },
+      input: { deps: { push }, initialRoute: { kind: 'root' } },
     })
     actor.start()
-    await vi.waitFor(() =>
-      expect(actor.getSnapshot().matches('choosingDocument')).toBe(true),
-    )
-    actor.send({ type: 'GO_PROJECT_LIST' })
-    expect(aborted).toBe(false)
-    actor.send({ type: 'OPEN_PROJECT', projectContextId: id })
-    expect(push).toHaveBeenCalledWith(id)
-    actor.send({ type: 'URL_CHANGED', projectContextId: null })
-    expect(aborted).toBe(true)
-    actor.stop()
-  })
 
-  it('retries a failed list read', async () => {
-    const list = vi
-      .fn()
-      .mockRejectedValueOnce({
-        code: 'persistence_unavailable',
-        message: 'Project Context storage is unavailable.',
-      })
-      .mockResolvedValueOnce([])
-    const actor = createActor(navigationMachine, {
-      input: {
-        initialProjectContextId: null,
-        deps: { list, chooser: vi.fn(), push: vi.fn() },
-      },
-    })
-    actor.start()
-    await vi.waitFor(() =>
-      expect(actor.getSnapshot().matches('listError')).toBe(true),
-    )
-    actor.send({ type: 'RETRY' })
-    await vi.waitFor(() =>
-      expect(actor.getSnapshot().matches('projectList')).toBe(true),
-    )
-    expect(list).toHaveBeenCalledTimes(2)
-    actor.stop()
-  })
+    const projectRoute = { kind: 'project', projectContextId } as const
+    actor.send({ type: 'NAVIGATE', route: projectRoute })
+    expect(push).toHaveBeenCalledWith(projectRoute)
+    expect(actor.getSnapshot().context.route).toEqual(projectRoute)
 
-  it('ignores a late chooser result after returning to the list', async () => {
-    const late = Promise.withResolvers<{
-      projectContext: {
-        projectContextId: string
-        name: string
-        createdAt: string
-      }
-      sourceDocuments: []
-    }>()
-    let chooserSignal: AbortSignal | undefined
-    const actor = createActor(navigationMachine, {
-      input: {
-        initialProjectContextId: id,
-        deps: {
-          list: async () => [],
-          chooser: async (_id, signal) => {
-            chooserSignal = signal
-            return late.promise
-          },
-          push: vi.fn(),
-        },
-      },
+    actor.send({ type: 'ROUTE_CHANGED', route: { kind: 'root' } })
+    expect(push).toHaveBeenCalledOnce()
+    expect(actor.getSnapshot().context).toEqual({
+      deps: { push },
+      route: { kind: 'root' },
     })
-    actor.start()
-    await vi.waitFor(() => expect(chooserSignal).toBeDefined())
-    actor.send({ type: 'URL_CHANGED', projectContextId: null })
-    expect(chooserSignal?.aborted).toBe(true)
-    late.resolve({
-      projectContext: {
-        projectContextId: id,
-        name: 'Late project',
-        createdAt: '2026-07-31T00:00:00.000Z',
-      },
-      sourceDocuments: [],
-    })
-    await vi.waitFor(() =>
-      expect(actor.getSnapshot().matches('projectList')).toBe(true),
-    )
-    expect(actor.getSnapshot().context.chooser).toBeNull()
     actor.stop()
   })
 })

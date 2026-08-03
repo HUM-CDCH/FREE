@@ -8,7 +8,7 @@ export type ProjectContextSummary = {
   createdAt: Date
 }
 
-/** Read-only seam for the Project Context chooser; writes and reopening stay out of it. */
+/** Read-only Project Context tree seam; writes and reopening stay out of it. */
 export type ProjectStore = {
   listProjectContexts(limit: number): Promise<ProjectContextSummary[]>
   getProjectContextWithDocuments(projectContextId: string): Promise<{

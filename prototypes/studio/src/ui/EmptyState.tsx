@@ -22,9 +22,9 @@ function EmptyState({ icon, title, description, tone = 'neutral', children, clas
           {icon}
         </p>
       )}
-      <p className={`${icon ? 'mt-2 ' : ''}text-[13px] font-semibold ${tone === 'danger' ? 'text-danger' : 'text-ink'}`}>
+      <h2 className={`${icon ? 'mt-2 ' : ''}text-[13px] font-semibold ${tone === 'danger' ? 'text-danger' : 'text-ink'}`}>
         {title}
-      </p>
+      </h2>
       {description && <p className="mt-1 text-xs leading-relaxed text-ink-muted">{description}</p>}
       {children && <div className="mt-3 flex items-center justify-center gap-2">{children}</div>}
     </div>

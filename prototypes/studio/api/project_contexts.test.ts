@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createProjectStore } from '../../../packages/db/src/project-store.js'
 import {
-  projectContextChooserResponseSchema,
+  projectContextWithDocumentsResponseSchema,
   projectContextListResponseSchema,
 } from '../shared/projectContext.contract.js'
 import {
@@ -11,7 +11,7 @@ import {
 import { createGetProjectContexts } from './project_contexts.js'
 
 describe('Project Context routes', () => {
-  it('returns no-store list and chooser DTOs, and bounds invalid input', async () => {
+  it('returns no-store list and detail DTOs, and bounds invalid input', async () => {
     const GET = createGetProjectContexts(projectContextFixture())
     const list = await GET(
       new Request('http://test/api/project-contexts?limit=1'),
@@ -21,13 +21,13 @@ describe('Project Context routes', () => {
     expect(projectContextListResponseSchema.parse(listBody)).toMatchObject({
       projectContexts: [{ projectContextId: DEMO_PROJECT_ID }],
     })
-    const chooser = await GET(
+    const detail = await GET(
       new Request(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`),
     )
-    expect(chooser.headers.get('cache-control')).toBe('no-store')
-    const chooserBody = await chooser.json()
+    expect(detail.headers.get('cache-control')).toBe('no-store')
+    const detailBody = await detail.json()
     expect(
-      projectContextChooserResponseSchema.parse(chooserBody),
+      projectContextWithDocumentsResponseSchema.parse(detailBody),
     ).toMatchObject({
       sourceDocuments: [{ name: 'Beretning_Ellekilde_8_13.pdf' }],
     })

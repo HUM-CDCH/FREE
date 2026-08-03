@@ -4,6 +4,7 @@
   "scripts": {
     "postinstall": "pnpm db:generate && pnpm --recursive --if-present install:python",
     "db:generate": "pnpm --filter db contract:emit",
+    "db:seed": "pnpm --filter db db:seed",
     "install:gpu": "pnpm --filter parsing-service install:python:gpu",
     "start": "pnpm dev",
     "predev": "pnpm db:generate",

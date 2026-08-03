@@ -1,4 +1,10 @@
 import { expect, test } from '@playwright/test'
+import { fileURLToPath } from 'node:url'
+import { projectContextFixture } from '../api/project_contexts.fixture.js'
+
+const sourceDocument = fileURLToPath(
+  new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
+)
 
 const schemaResponse = {
   template: { graves: [{ name: 'verbatim-string' }] },
@@ -9,10 +15,30 @@ const schemaResponse = {
 test('application editors retain clipboard and keyboard ownership with a stale PDF selection @deterministic', async ({
   page,
 }) => {
+  const store = projectContextFixture()
+  await page.route('**/api/project-contexts**', async (route) => {
+    const id = new URL(route.request().url()).pathname.split('/').at(-1)
+    await route.fulfill({
+      json:
+        id === 'project-contexts'
+          ? { projectContexts: await store.listProjectContexts(20) }
+          : await store.getProjectContextWithDocuments(id!),
+    })
+  })
   await page.route('**/api/generate_schema', (route) =>
     route.fulfill({ json: schemaResponse }),
   )
-  await page.goto('/studio')
+  await page.route('http://127.0.0.1:8000/**', (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/tasks')
+      return route.fulfill({ json: { task_id: 'dev-source-document' } })
+    if (path.endsWith('/markdown'))
+      return route.fulfill({ body: '# Source Document\n\nGrav 8' })
+    return route.fulfill({ json: { status: 'completed' } })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ellekilde, TAK 1355' }).click()
+  await page.getByLabel('Open a PDF (dev)').setInputFiles(sourceDocument)
   await expect(page.getByText('6 pages · text highlights only')).toBeVisible({
     timeout: 15_000,
   })

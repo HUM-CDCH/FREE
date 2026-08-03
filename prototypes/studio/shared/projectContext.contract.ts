@@ -27,7 +27,7 @@ export const sourceDocumentSummarySchema = z
 export const projectContextListResponseSchema = z
   .object({ projectContexts: z.array(projectContextSummarySchema) })
   .strict()
-export const projectContextChooserResponseSchema = z
+export const projectContextWithDocumentsResponseSchema = z
   .object({
     projectContext: projectContextSummarySchema,
     sourceDocuments: z.array(sourceDocumentSummarySchema),

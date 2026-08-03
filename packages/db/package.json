@@ -5,8 +5,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsx --test src/seed.test.ts",
     "contract:emit": "prisma-next contract emit",
+    "db:seed": "tsx src/seed.ts",
     "db:init": "prisma-next db init",
     "db:update": "prisma-next db update",
     "db:verify": "prisma-next db verify",
