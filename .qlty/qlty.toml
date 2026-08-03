@@ -32,7 +32,6 @@ exclude_patterns = [
   "**/build/**",
   "**/cache/**",
   "**/config/**",
-  "**/db/**",
   "**/deps/**",
   "**/dist/**",
   "**/extern/**",
@@ -63,6 +62,10 @@ test_patterns = [
 
 [smells]
 mode = "comment"
+
+[[exclude]]
+plugins = ["prettier"]
+file_patterns = ["pnpm-lock.yaml"]
 
 [[source]]
 name = "default"
@@ -109,3 +112,6 @@ name = "ast-grep"
 
 [[plugin]]
 name = "semgrep"
+
+[[plugin]]
+name = "prettier"

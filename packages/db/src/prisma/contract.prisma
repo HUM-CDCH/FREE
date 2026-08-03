@@ -1,7 +1,4 @@
 // use prisma-next
-
-// use prisma-next
-
 types {
   Uuid         = String @db.Uuid
   Timestamptz6 = DateTime @db.Timestamptz(6)

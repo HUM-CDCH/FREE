@@ -4,11 +4,24 @@ import './index.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
 import './pdf-viewer.css'
 import App from './App.tsx'
+import {
+  ProjectNavigationProvider,
+  ProjectRoutes,
+} from './ProjectNavigation.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {location.pathname === '/studio' ? (
+      <App />
+    ) : (
+      <ProjectNavigationProvider>
+        <ProjectRoutes />
+      </ProjectNavigationProvider>
+    )}
   </StrictMode>,
 )
 
-if (import.meta.env.DEV) void import('./llmInspector/mount.tsx').then(({ mountLlmInspector }) => mountLlmInspector())
+if (import.meta.env.DEV)
+  void import('./llmInspector/mount.tsx').then(({ mountLlmInspector }) =>
+    mountLlmInspector(),
+  )
