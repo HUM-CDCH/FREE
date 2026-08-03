@@ -6,188 +6,200 @@
 
 ### Requirement: Version 2 replaces the version 1 document contract
 
-Completed PDF ingestion SHALL publish `parsed_document.v2` from both document routes. The service SHALL NOT publish a version 1 projection, compatibility shim, or per-request version negotiation. Version 1 cache entries SHALL be cache misses under the v2 preprocessing identity.
+Completed PDF ingestion SHALL eventually publish `parsed_document.v2` from both document routes without a version 1 projection, compatibility shim, or per-request negotiation. Version 1 cache and completed-task migration behavior SHALL remain an explicit implementation gate until separately resolved.
 
-#### Scenario: Completed task document is requested
+#### Scenario: Completed v2 task document is requested
 
-- **WHEN** a client requests either `GET /tasks/{id}/document` or `GET /tasks/{id}/parsed-document` for a completed v2 task
+- **WHEN** a client requests either document route for a completed v2 task after route migration
 - **THEN** both routes return the same `parsed_document.v2` contract
-
-#### Scenario: Only a version 1 cache entry exists
-
-- **WHEN** a Source Document has a valid `parsed_document.v1` cache entry but no valid v2 generation
-- **THEN** the service rebuilds v2 from the content-addressed source rather than projecting or serving v1
 
 ### Requirement: Successful v2 ingestion has verified physical-page identity
 
-Every canonical content block, page span, and Evidence Anchor in a successful v2 PDF ingestion SHALL be assigned to its verified physical page. The service SHALL fail v2 ingestion with a stable capability or parsing error when physical-page mapping cannot be proven.
+Every canonical block, fragment, occurrence, page span, and Evidence Anchor SHALL use a verified 1-based physical page. Version 2 SHALL reuse the existing displayed-page geometry fields `width_pt`, `height_pt`, and `rotation`. Optional `BoundingBox` values SHALL use `x0`, `y0`, `x1`, and `y1` in PDF points with a top-left origin in displayed page space. Ingestion SHALL fail with a stable error when physical-page mapping cannot be proven.
 
-#### Scenario: Physical-page export is complete
+#### Scenario: Geometry is available
 
-- **WHEN** Docling or page-local OCR supplies canonical content for every inspected physical page
-- **THEN** v2 publishes page-scoped blocks and spans for exactly those pages
+- **WHEN** a fragment or cell occurrence has verified geometry
+- **THEN** its box references the occurrence's physical page
+- **AND** the box is valid under that page's geometry metadata
 
-#### Scenario: Exporter cannot prove page mapping
+#### Scenario: Page mapping cannot be proven
 
-- **WHEN** usable document-level text exists but its physical pages cannot be verified
+- **WHEN** usable document-level text exists but physical pages cannot be verified
 - **THEN** v2 ingestion fails with a stable error
-- **AND** does not publish document-level blocks with invented page identity
+- **AND** does not invent page identity
 
 ### Requirement: Canonical content is a typed semantic stream
 
-Version 2 SHALL publish an ordered stream of parser-observed content blocks. Supported block meaning SHALL include heading, paragraph, generic text, list, code, formula, caption, table reference, and physical page boundary. Each block SHALL have a deterministic generation-scoped ID, physical page, parser provenance, and a character span when it renders text into canonical Markdown. Geometry SHALL be optional and SHALL be absent when unverified.
+Version 2 SHALL publish physically ordered parser-observed heading, paragraph, generic text, list, code, formula, caption, table-reference, and page-boundary blocks. Every block SHALL have a deterministic generation-scoped ID, verified page, parser provenance, and an exact canonical span when it renders source text. Geometry SHALL be optional and absent when unverified.
 
-#### Scenario: Docling reports semantic structure
+#### Scenario: OCR semantics are not proven
 
-- **WHEN** Docling identifies a heading, paragraph, list, code block, formula, caption, or table in source order
-- **THEN** v2 emits the corresponding typed block without re-inferring extraction-domain concepts
-
-#### Scenario: OCR supplies text without reliable semantics
-
-- **WHEN** page-local OCR supplies ordered text but cannot prove whether it is a heading, paragraph, caption, or list
+- **WHEN** page-local OCR supplies ordered text without reliable semantic kind
 - **THEN** v2 emits a generic text block
-- **AND** does not infer a more specific semantic kind
-
-#### Scenario: Source contains a captioned non-text figure
-
-- **WHEN** ingestion observes textual caption content for a figure
-- **THEN** v2 retains the caption as a caption block
-- **AND** does not create a canonical figure interpretation or crop artifact
+- **AND** does not infer a more specific kind
 
 ### Requirement: Derived views share one canonical source
 
-Canonical Markdown, page character spans, table placement, and Evidence Anchors SHALL be derived from the final canonical content stream and final canonical tables. Publication SHALL fail closed if these views are internally inconsistent.
+Canonical Markdown, page spans, table placement, logical tables, and Evidence Anchors SHALL derive from the final content stream, logical cells, fragments, and mappings. Publication SHALL fail closed when any reference, mapping, span, or regenerated table rendering disagrees.
 
-#### Scenario: Canonical table receives geometry enrichment
+#### Scenario: Derived view is inconsistent
 
-- **WHEN** an exact semantic match safely adds missing table or cell geometry
-- **THEN** the table's Markdown rendering remains derived from the Docling-authoritative `ParsedTable`
-- **AND** the canonical Markdown table and typed cells contain the same values, roles, and spans
-- **AND** no semantic value, role, span, or existing geometry is replaced by the enrichment
-
-#### Scenario: Derived span does not slice emitted Markdown
-
-- **WHEN** any page, block, or text-anchor character span does not slice the exact canonical Markdown bytes it claims
+- **WHEN** a reference does not resolve or a rendered table differs from its canonical cells and fragment mapping
 - **THEN** the generation is not committed
 
 ### Requirement: Table semantics have one authority and parser roles remain explicit
 
-Docling inventory SHALL define canonical table content, structure, roles, and proven spans when it is available. Camelot SHALL NOT replace those semantics. Camelot MAY fill missing geometry only for an exact normalized matrix and structure match with safely overlapping geometry, or MAY provide an explicitly attributed fallback table when no Docling inventory exists. The contract SHALL distinguish semantic content source, structure source, and geometry source rather than representing all parser participation as one undifferentiated source.
+Docling SHALL define content, structure, roles, and proven spans within each observed fragment when available. FREE's deterministic canonicalizer SHALL own continuation and logical coordinate mapping. Camelot SHALL NOT replace Docling semantics and MAY add only missing verified geometry after an exact fragment-semantic match, or provide an attributed fallback when no Docling inventory exists. Content, structure, and geometry attribution SHALL remain distinct.
 
-#### Scenario: Camelot adds missing geometry to a Docling table
+#### Scenario: Camelot adds missing geometry
 
-- **WHEN** Camelot reports the same normalized matrix and structural signature as a Docling inventory table
-- **AND** its table and existing-cell boxes safely overlap the Docling geometry
-- **AND** it supplies strictly more verified cell geometry
-- **THEN** only missing geometry is copied into the canonical table
-- **AND** content and structure remain attributed to Docling
-- **AND** geometry records the Camelot contribution
+- **WHEN** a Camelot candidate exactly matches a Docling fragment's normalized matrix and structure
+- **AND** its geometry is safely compatible
+- **THEN** only missing geometry is added
+- **AND** Docling remains content and structure authority
 
-#### Scenario: Camelot content or structure differs
+#### Scenario: Parser semantics disagree
 
-- **WHEN** a Camelot candidate differs from the Docling matrix, roles, or proven spans
-- **THEN** it is not merged into or substituted for the canonical Docling table
-- **AND** a stable disagreement diagnostic is emitted
-- **AND** the conflicting candidate remains an internal diagnostic artifact rather than a second canonical table
+- **WHEN** a candidate differs from Docling content, roles, or proven spans
+- **THEN** it is not merged or substituted
+- **AND** a stable typed disagreement diagnostic is published
 
-#### Scenario: Docling inventory is unavailable
+### Requirement: DocTags placement uses page-local unique matching
 
-- **WHEN** no valid Docling inventory table exists
-- **AND** a Camelot fallback passes canonical table admission rules
-- **THEN** the fallback may be published with content, structure, and geometry attribution that explicitly identifies Camelot
+A DocTags table slot SHALL link to a page-local inventory fragment only through producer identity or a unique normalized content-and-structure match on that page. A non-unique or mismatched slot SHALL NOT assert inline placement. Its affected canonical fragment SHALL remain in that page's `unplaced_content`, and a stable typed placement diagnostic SHALL be published.
 
-### Requirement: DocTags placement and canonical tables cannot disagree silently
+#### Scenario: Slot match is ambiguous
 
-A DocTags table slot SHALL reference a canonical table inline only when producer identity or normalized content and structure prove the match. A slot mismatch SHALL NOT cause an unrelated table to be substituted at that reading-order position. The canonical table SHALL remain available as page-local unplaced content, and the service SHALL emit a stable placement-disagreement diagnostic.
+- **WHEN** more than one page-local inventory fragment can match a DocTags slot
+- **THEN** no candidate is inserted at that slot
+- **AND** affected fragments remain page-local unplaced content
 
-#### Scenario: DocTags slot matches the canonical table
+#### Scenario: Unplaced fragment is rendered
 
-- **WHEN** a DocTags table slot and final canonical table have proven identity or matching normalized content and structure
-- **THEN** the ordered table-reference block links to that canonical table
-- **AND** its Markdown is rendered from the canonical table object
+- **WHEN** a page contains one or more `UnplacedTableReference` values
+- **THEN** canonical Markdown renders their fragments in deterministic reference order under an explicitly labelled appendix at the end of that physical page
+- **AND** each rendering derives from the same logical cells and fragment mapping used by inline tables
+- **AND** no position among the page's ordered blocks is implied
 
-#### Scenario: DocTags slot is ambiguous or mismatched
+### Requirement: Canonical Markdown uses one reserved page marker
 
-- **WHEN** a table slot cannot be matched uniquely to a final canonical table
-- **THEN** no canonical table is inserted at the ambiguous inline position
-- **AND** the affected canonical table is retained under page-local `unplaced_content`
-- **AND** a stable disagreement diagnostic is published
+Canonical Markdown SHALL begin every physical page with exactly `<!-- FREE:PAGE n -->`, where `n` is its 1-based physical page number. The marker SHALL be renderer metadata outside source Evidence spans. `---` SHALL have no page semantics.
 
-### Requirement: Canonical Markdown marks physical pages explicitly
+#### Scenario: Source collides with reserved marker syntax
 
-Canonical Markdown SHALL begin each physical page with a reserved marker carrying its 1-based page number. The marker syntax SHALL be unambiguous with source Markdown and SHALL remain outside source-text Evidence spans.
+- **WHEN** source text contains a line matching the reserved page-marker grammar
+- **THEN** ingestion fails with stable `reserved_page_marker_collision`
+- **AND** does not escape, rewrite, or silently alter source text
 
-#### Scenario: Multi-page Markdown is rendered
+### Requirement: Logical tables contain ordered page-local fragments
 
-- **WHEN** a three-page Source Document is rendered to canonical Markdown
-- **THEN** the output contains one reserved marker for pages 1, 2, and 3 in physical order
-- **AND** no ordinary source horizontal rule is interpreted as a page boundary
+Every producer-observed table SHALL first have a deterministic generation-scoped page-local `fragment_id`. `ParsedTable` SHALL contain `table_id`, logical-root `cells`, and a non-empty `fragments` array whose array order is the canonical physical order. Each `TableFragment` SHALL contain `fragment_id`, `page_number`, optional `slot_id`, optional `bbox`, and fragment-local root `cells`. Every placed `TableReferenceBlock` SHALL contain `block_id`, `page_number`, `table_id`, and `fragment_id`; every `UnplacedTableReference` SHALL contain `table_id` and `fragment_id`.
 
-### Requirement: Table placement never invents reading order
+#### Scenario: One logical table has two fragments
 
-A table with verified document-stream placement SHALL appear as an ordered table-reference block. A valid canonical table whose page is known but whose relative reading-order position is not verified SHALL remain in the table collection and SHALL be referenced from page-local `unplaced_content` with a stable diagnostic.
+- **WHEN** deterministic continuation admits page-local fragments on pages 2 and 3
+- **THEN** v2 publishes one logical table with two ordered fragment identities
+- **AND** each page's table-reference block identifies its corresponding fragment
 
-#### Scenario: Docling table has verified stream placement
+### Requirement: Continuation detection is conservative and deterministic
 
-- **WHEN** a canonical table is matched to its Docling table position
-- **THEN** its table-reference block occupies that verified position in the content stream
+FREE SHALL join two fragments only when they are on consecutive pages; their DocTags slots are adjacent after ignoring verified page furniture; every slot has one unique page-local inventory match; normalized columns and structure are compatible; caption and header state are compatible; no narrative content interrupts the boundary; and predecessor and successor matching is unique in both directions. No LLM SHALL infer continuation or break ties.
 
-#### Scenario: Fallback-only table has no safe placement
+#### Scenario: All continuation conditions hold
 
-- **WHEN** a valid fallback table has a verified physical page but no verified position among page text blocks
-- **THEN** v2 lists its reference under that page's `unplaced_content`
-- **AND** does not append it to ordered content as if the position were known
+- **WHEN** a body-only or uniquely compatible repeated-header fragment follows its unique compatible predecessor on the next page with only page furniture between their adjacent slots
+- **THEN** both fragments belong to one logical table
 
-### Requirement: One logical table may carry page-scoped Evidence
+#### Scenario: Narrative interrupts the boundary
 
-A table continuing across physical pages SHALL have one stable logical table identity. Its canonical Evidence SHALL preserve the physical page of every represented fragment or cell location, and version 2 SHALL NOT collapse all geometry or Evidence onto the first page. The exact fragment field shape SHALL be frozen only after the prerequisite real Docling fixture is inspected.
+- **WHEN** narrative content occurs between candidate slots
+- **THEN** the fragments remain separate page-local logical tables
 
-#### Scenario: One table continues onto another physical page
+#### Scenario: Fragments are definitely incompatible
 
-- **WHEN** the proven Docling payload identifies one logical table with Evidence on pages 2 and 3
-- **THEN** v2 publishes one logical table identity
-- **AND** its page-scoped Evidence distinguishes content on pages 2 and 3
+- **WHEN** a required compatibility condition deterministically fails
+- **THEN** the fragments remain separate page-local logical tables
+- **AND** no continuation-ambiguity diagnostic is required
 
-#### Scenario: Multi-page geometry is incomplete
+#### Scenario: Continuation is ambiguous
 
-- **WHEN** a table's logical cells are known but geometry is verified for only some physical-page fragments
-- **THEN** verified page-scoped geometry is retained
-- **AND** missing geometry remains absent rather than being copied from another page
+- **WHEN** multiple predecessors, successors, or repeated-header mappings remain plausible
+- **THEN** the fragments remain separate page-local logical tables
+- **AND** v2 publishes stable `table_continuation_ambiguous` with the involved fragment IDs
 
-### Requirement: EvidenceIndex contains logical block and cell anchors
+### Requirement: Repeated headers preserve physical observations without logical duplication
 
-Version 2 SHALL publish a typed `EvidenceIndex` containing one anchor for every anchorable textual content block and one anchor for every canonical table cell. A text anchor SHALL identify its block, physical page, and exact canonical character span; its source text SHALL be recovered from the referenced canonical content rather than duplicated in the index. A table-cell anchor SHALL identify its logical table, row, column, physical-page Evidence, and proven span; its text SHALL come from the referenced canonical cell. Bounding boxes SHALL be optional enrichments rather than a validity requirement.
+A producer-observed continuation header SHALL map uniquely to existing logical header cells and add ordered page-scoped physical occurrences. It SHALL NOT add logical rows. If mapping is not unique and structurally compatible, continuation SHALL be rejected as ambiguous. A renderer-generated repeated header SHALL create no source occurrence, geometry, span, or Evidence location.
 
-#### Scenario: Text block is indexed
+#### Scenario: Producer repeats a compatible header
 
-- **WHEN** a paragraph or generic text block is rendered into canonical Markdown
-- **THEN** its anchor identifies the exact page and character range that reproduces its source text
+- **WHEN** a continuation fragment contains a header uniquely matching the logical header
+- **THEN** its cells map to existing logical header root coordinates
+- **AND** only physical occurrences are added
 
-#### Scenario: Table cell lacks displayed geometry
+#### Scenario: Renderer repeats a header
 
-- **WHEN** a canonical table cell has verified logical identity and page Evidence but no safe displayed-page box
-- **THEN** its cell anchor remains valid without a bounding box
+- **WHEN** the renderer adds a header to make a body-only fragment readable
+- **THEN** no source location or anchor occurrence is created for that rendering
 
-### Requirement: Evidence Anchor identity is preprocessing-generation scoped
+### Requirement: Fragment cells map to logical root cells
 
-Evidence Anchor IDs SHALL be deterministic within the combination of source content hash and preprocessing identity. Every anchor reference SHALL carry or resolve through the v2 `preprocess_id`. The service SHALL NOT promise stable anchor IDs across changed parser policy or OCR output.
+Every `FragmentCell` SHALL contain fragment-local `row` and `col`, target `logical_row` and `logical_col`, and optional `bbox`. Each target SHALL resolve one logical root cell containing `row`, `col`, `text`, optional `role`, `rowspan`, and `colspan`. Covered coordinates SHALL NOT have independent logical cells, fragment cells, locations, or anchors.
 
-#### Scenario: Duplicate tasks reuse one generation
+#### Scenario: Merged cell spans covered positions
 
-- **WHEN** two tasks use identical source bytes and preprocessing identity
-- **THEN** they expose identical block, table, and Evidence Anchor IDs
+- **WHEN** a root logical cell spans multiple grid positions
+- **THEN** producer occurrences map to the root coordinate
+- **AND** covered positions receive no independent cell anchor
 
-#### Scenario: Converter policy changes
+### Requirement: Page-scoped geometry remains optional and local
 
-- **WHEN** the same source bytes are rebuilt under a changed converter-policy revision
-- **THEN** the new v2 generation has a distinct preprocessing identity
-- **AND** its anchor namespace is not treated as interchangeable with the prior generation
+Every fragment cell SHALL inherit its physical page from its containing fragment and MAY retain a `BoundingBox` valid on that page. Missing geometry SHALL remain absent and SHALL NOT be copied from another occurrence or page. A logical cell MAY therefore have multiple page-scoped fragment cells with partial geometry.
+
+#### Scenario: Geometry exists for only one occurrence
+
+- **WHEN** a repeated logical header cell is observed on two pages but only one occurrence has verified geometry
+- **THEN** that box is retained on its own occurrence
+- **AND** the other occurrence has no fabricated box
+
+### Requirement: EvidenceIndex contains deterministic block and root-cell anchors
+
+Version 2 SHALL publish one `BlockAnchor` per anchorable textual block and one `TableCellAnchor` per canonical logical root cell. `BlockAnchor` SHALL contain only `anchor_id` and `block_id`; `block_id` SHALL resolve exactly one anchorable block, whose `page_number` and exact canonical `char_span` supply the anchor's physical page and span without duplication. The span's offset units remain an implementation gate. `TableCellAnchor` SHALL contain `anchor_id`, `table_id`, logical `row` and `col`, and ordered `locations`. Each location SHALL contain only `fragment_id`, fragment-local `row`, and fragment-local `col`, and SHALL resolve exactly one `FragmentCell`; page and optional geometry SHALL resolve through that fragment cell rather than being duplicated in the anchor. Source text SHALL come from referenced canonical content. IDs SHALL be deterministic only within `content_sha256 + preprocess_id`.
+
+#### Scenario: Text block is anchored
+
+- **WHEN** an anchorable textual block is published
+- **THEN** its `BlockAnchor.block_id` resolves that block's verified physical page and exact canonical character span
+
+#### Scenario: Logical cell lacks geometry
+
+- **WHEN** a logical root cell and its page occurrence are verified but no box is safe
+- **THEN** its cell anchor remains valid without geometry
+
+### Requirement: Canonical anchors remain parser facts
+
+Model-returned pages, snippets, or block selections SHALL NOT create or alter canonical block, fragment, logical-cell, or anchor facts.
+
+#### Scenario: Model proposes different Evidence
+
+- **WHEN** a model proposal disagrees with deterministic parser facts
+- **THEN** the canonical parser facts remain unchanged
+
+### Requirement: Later implementation gates remain explicit
+
+The character-offset versus UTF-8-byte-offset convention and completed task-local v1 migration SHALL be resolved before their dependent v2 production tasks. Package scope, quota, deterministic metadata, and archive behavior SHALL be specified only in a separate future OpenSpec change. This design correction SHALL NOT imply a choice for any of them.
+
+#### Scenario: Production implementation reaches a deferred gate
+
+- **WHEN** an implementation task depends on a deferred v2 or package decision
+- **THEN** that task remains blocked until the decision is explicitly specified and tested
 
 ### Requirement: Version 2 is PDF-specific
 
-This contract SHALL accept only PDF Source Documents and SHALL retain physical-page semantics as a mandatory invariant. Support for non-paginated or other source formats SHALL require a later profile or contract decision.
+This contract SHALL accept only PDF Source Documents and SHALL retain physical-page semantics as mandatory.
 
 #### Scenario: Non-PDF source is submitted
 
-- **WHEN** a client submits a non-PDF Source Document to the v2 ingestion endpoint
-- **THEN** ingestion rejects it using the existing client-safe source-type error
+- **WHEN** a client submits a non-PDF Source Document to v2 ingestion
+- **THEN** ingestion rejects it with a client-safe source-type error

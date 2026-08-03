@@ -89,6 +89,21 @@ class TestDocTagsToMarkdown(unittest.TestCase):
         self.assertIn("| Name | Age |", result.page_spans[1].text)
         self.assertIn("| Bob | 41 |", result.page_spans[1].text)
 
+    def test_doctags_continuation_targets_last_preceding_table(self):
+        result = convert_doctags_to_markdown(
+            "<doctag>"
+            "<otsl><ched>N ummer<ched>Type<nl><fcel>26-3<fcel>A</otsl>"
+            "<otsl><ched>Fundnummer<ched>Type<nl><fcel>26-1<fcel>B</otsl>"
+            "</doctag><page_break><doctag>"
+            "<otsl><fcel>26-11<fcel>C</otsl>"
+            "</doctag>"
+        )
+
+        self.assertEqual(result.markdown.count("| N ummer | Type |"), 1)
+        self.assertEqual(result.markdown.count("| Fundnummer | Type |"), 2)
+        self.assertIn("| 26-11 | C |", result.page_spans[1].text)
+        self.assertNotIn("N ummer", result.page_spans[1].text)
+
     def test_page_header_between_split_table_fragments_is_furniture(self):
         result = convert_doctags_to_markdown(
             "<otsl><ched>Name<ched>Age<nl><fcel>Ada<fcel>37</otsl>"
