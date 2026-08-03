@@ -10,7 +10,8 @@
     "db:init": "prisma-next db init",
     "db:update": "prisma-next db update",
     "db:verify": "prisma-next db verify",
-    "db:migrate": "prisma-next migrate"
+    "db:migrate": "prisma-next migrate",
+    "db:studio": "set -a && . ./.env && set +a && npx prisma@dev studio --url \"$DATABASE_URL\""
   },
   "keywords": [],
   "author": "",
