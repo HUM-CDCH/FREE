@@ -57,7 +57,7 @@ A structured value or attribute that can appear in an extraction schema.
 _Avoid_: property, column, metadata
 
 **Extraction Schema**:
-A researcher-approved structure that belongs to a single source document and describes which entities and fields FREE should extract.
+A researcher-approved structure that belongs to at least a ProjectContext and describes which entities and fields FREE should extract.
 _Avoid_: template, extraction target, target list
 
 **Extraction**:
