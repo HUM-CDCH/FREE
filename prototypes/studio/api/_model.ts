@@ -37,7 +37,10 @@ export { json, parseTemperature, type FormValue } from './_http.js'
 const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 const NON_THINKING_TEMPERATURE = 0.2
 const EVIDENCE_FIELD_INSTRUCTION =
-  'For every evidence field in the template, set "snippet" to a short verbatim excerpt from the document that contains the value, and set "page" to the 1-based index of the page or image where the value appears. Never leave "snippet" or "page" as null.'
+  'Each object in the template carries an "_evidence" object keyed by that same object\'s field names. ' +
+  'For every key listed there, set "snippet" to a short verbatim excerpt from the document containing that field\'s value, ' +
+  'and set "page" to the 1-based index of the page or image where it appears. ' +
+  'Do not add "_evidence" keys the template does not list, and do not nest values inside "_evidence".'
 
 export type ExtractModelInput = {
   readonly document: DocumentInput

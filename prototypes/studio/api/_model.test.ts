@@ -64,7 +64,7 @@ afterEach(() => {
 describe('extractWithModel', () => {
   it('preserves raw NuExtract transport fields and mirrored evidence', async () => {
     const request = stubOllamaResponse(
-      '{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}',
+      '{"grave":[{"name":"Grave 1","_evidence":{"name":{"snippet":"Grave 1","page":1}}}]}',
     )
     const result = await extractWithModel(
       { document, template: { grave: [{ name: 'verbatim-string' }] } },
@@ -88,6 +88,9 @@ describe('extractWithModel', () => {
       options: { temperature: 0.2 },
     })
     expect(body).not.toHaveProperty('chat_template_kwargs')
+    // The template must keep plain scalar leaves; evidence rides in a sibling object.
+    expect(body.prompt).toContain('"name": "verbatim-string"')
+    expect(body.prompt).toContain('"_evidence"')
     const inspector = await getLlmInspector().json() as { traces: LlmTrace[] }
     expect(inspector.traces[0]).toMatchObject({
       operation: 'extraction',
@@ -102,7 +105,7 @@ describe('extractWithModel', () => {
 
   it('preserves a path-prefixed Ollama server base for raw generation', async () => {
     const request = stubOllamaResponse(
-      '{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}',
+      '{"grave":[{"name":"Grave 1","_evidence":{"name":{"snippet":"Grave 1","page":1}}}]}',
     )
     await extractWithModel(
       { document, template: { grave: [{ name: 'verbatim-string' }] } },
@@ -131,7 +134,7 @@ describe('extractWithModel', () => {
     const request = vi.fn().mockRejectedValue(new Error('raw transport must not run'))
     vi.stubGlobal('fetch', request)
     generateTextMock.mockResolvedValue({
-      text: '{"grave":[{"name":{"value":"Grave 1","snippet":"Grave 1","page":1}}]}',
+      text: '{"grave":[{"name":"Grave 1","_evidence":{"name":{"snippet":"Grave 1","page":1}}}]}',
     })
     const result = await extractWithModel(
       { document, template: { grave: [{ name: 'verbatim-string' }] } },
