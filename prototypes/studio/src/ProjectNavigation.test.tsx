@@ -127,4 +127,33 @@ describe('Project Context navigation', () => {
       expect(location.pathname).toBe(`/projects/${projectContextId}`),
     )
   })
+
+  it('retries a failed Project Context list request', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: {
+              code: 'persistence_unavailable',
+              message: 'Project Context storage is unavailable.',
+            },
+          },
+          { status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(Response.json({ projectContexts: [project] }))
+    vi.stubGlobal('fetch', fetch)
+
+    render(
+      <ProjectNavigationProvider>
+        <ProjectRoutes />
+      </ProjectNavigationProvider>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    expect(
+      await screen.findByRole('button', { name: project.name }),
+    ).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
 })

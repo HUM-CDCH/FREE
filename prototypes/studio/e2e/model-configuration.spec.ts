@@ -3,30 +3,65 @@ import { expect, test, type Page } from '@playwright/test'
 const providers = [
   ['ollama', 'Ollama', 'http', 'http://127.0.0.1:11434', 'optional', true],
   ['openai', 'OpenAI', 'http', 'https://api.openai.com/v1', 'managed', false],
-  ['anthropic', 'Anthropic', 'http', 'https://api.anthropic.com/v1', 'managed', false],
-  ['google', 'Google', 'http', 'https://generativelanguage.googleapis.com/v1beta', 'managed', false],
+  [
+    'anthropic',
+    'Anthropic',
+    'http',
+    'https://api.anthropic.com/v1',
+    'managed',
+    false,
+  ],
+  [
+    'google',
+    'Google',
+    'http',
+    'https://generativelanguage.googleapis.com/v1beta',
+    'managed',
+    false,
+  ],
   ['codex-cli', 'Codex CLI', 'cli', null, 'external', false],
   ['claude-code', 'Claude Code', 'cli', null, 'external', false],
   ['openai-compatible', 'OpenAI-compatible', 'http', null, 'optional', false],
-].map(([kind, label, transport, defaultBaseUrl, authentication, supportsNuextractRaw]) => ({
-  kind,
-  label,
-  transport,
-  defaultBaseUrl,
-  authentication,
-  supportsNuextractRaw,
-}))
+].map(
+  ([
+    kind,
+    label,
+    transport,
+    defaultBaseUrl,
+    authentication,
+    supportsNuextractRaw,
+  ]) => ({
+    kind,
+    label,
+    transport,
+    defaultBaseUrl,
+    authentication,
+    supportsNuextractRaw,
+  }),
+)
 
 type Config = {
-  connections: { id: string; name: string; provider: string; baseUrl: string | null }[]
+  connections: {
+    id: string
+    name: string
+    provider: string
+    baseUrl: string | null
+  }[]
   routes: {
-    extraction: { connectionId: string; modelId: string; nuextractRaw?: true } | null
+    extraction: {
+      connectionId: string
+      modelId: string
+      nuextractRaw?: true
+    } | null
     interaction: { connectionId: string; modelId: string } | null
   }
 }
 
 async function mockConfiguration(page: Page) {
-  let config: Config = { connections: [], routes: { extraction: null, interaction: null } }
+  let config: Config = {
+    connections: [],
+    routes: { extraction: null, interaction: null },
+  }
   let probes = 0
   let putFailure = false
   let putDelay = 0
@@ -49,15 +84,26 @@ async function mockConfiguration(page: Page) {
       if (putFailure) {
         await route.fulfill({
           status: 503,
-          json: { error: { code: 'keyring_unavailable', message: 'The credential store is locked.' } },
+          json: {
+            error: {
+              code: 'keyring_unavailable',
+              message: 'The credential store is locked.',
+            },
+          },
         })
         return
       }
-      const body = request.postDataJSON() as { config: Config; credentials?: Record<string, string | null> }
+      const body = request.postDataJSON() as {
+        config: Config
+        credentials?: Record<string, string | null>
+      }
       config = body.config
       const credentialStates = Object.fromEntries(
         config.connections
-          .filter(({ provider }) => !provider.endsWith('-cli') && provider !== 'claude-code')
+          .filter(
+            ({ provider }) =>
+              !provider.endsWith('-cli') && provider !== 'claude-code',
+          )
           .map(({ id }) => [id, body.credentials?.[id] ? 'present' : 'absent']),
       )
       await route.fulfill({ json: { config, credentialStates } })
@@ -75,8 +121,12 @@ async function mockConfiguration(page: Page) {
         json: {
           checkedAt: '2026-07-25T00:00:00.000Z',
           status: probeStatus,
-          message: connected ? 'Connected. 1 model available.' : 'Provider is offline.',
-          catalog: connected ? [{ id: 'suggested-model', label: 'Suggested model' }] : [],
+          message: connected
+            ? 'Connected. 1 model available.'
+            : 'Provider is offline.',
+          catalog: connected
+            ? [{ id: 'suggested-model', label: 'Suggested model' }]
+            : [],
         },
       })
       return
@@ -86,46 +136,72 @@ async function mockConfiguration(page: Page) {
   return {
     config: () => config,
     probes: () => probes,
-    setPutFailure: (value: boolean) => { putFailure = value },
-    setPutDelay: (value: number) => { putDelay = value },
-    setProbeStatus: (value: 'connected' | 'unreachable') => { probeStatus = value },
-    setProbeDelay: (value: number) => { probeDelay = value },
+    setPutFailure: (value: boolean) => {
+      putFailure = value
+    },
+    setPutDelay: (value: number) => {
+      putDelay = value
+    },
+    setProbeStatus: (value: 'connected' | 'unreachable') => {
+      probeStatus = value
+    },
+    setProbeDelay: (value: number) => {
+      probeDelay = value
+    },
   }
 }
 
-test('Single model saves, reloads, and checks without probing on open or Apply', async ({ page }) => {
+test('Single model saves, reloads, and checks without probing on open or Apply', async ({
+  page,
+}) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await page.goto('/studio')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await expect(page.getByText('No Model Connections yet.')).toBeVisible()
   expect(state.probes()).toBe(0)
 
   await page.getByRole('button', { name: '+ New connection' }).click()
-  await page.getByLabel('Provider base URL').fill('http://127.0.0.1:11434/custom')
+  await page
+    .getByLabel('Provider base URL')
+    .fill('http://127.0.0.1:11434/custom')
   await expect.poll(state.probes).toBe(1)
   await expect(page.getByText('Connected. 1 model available.')).toBeVisible()
-  await page.getByLabel('Single model connection').selectOption({ label: 'Ollama' })
+  await page
+    .getByLabel('Single model connection')
+    .selectOption({ label: 'Ollama' })
   await page.getByLabel('Single model ID').fill('manual-model-id')
   await page.getByRole('button', { name: 'Apply' }).click()
 
-  expect(state.config().routes.extraction).toEqual(state.config().routes.interaction)
-  expect(state.config().routes.extraction).toMatchObject({ modelId: 'manual-model-id' })
+  expect(state.config().routes.extraction).toEqual(
+    state.config().routes.interaction,
+  )
+  expect(state.config().routes.extraction).toMatchObject({
+    modelId: 'manual-model-id',
+  })
   expect(state.config().routes.extraction).not.toHaveProperty('nuextractRaw')
   expect(state.probes()).toBe(1)
 
   await page.getByRole('button', { name: 'Close Model Connections' }).click()
   await page.getByRole('button', { name: 'Configure providers' }).click()
-  await expect(page.getByLabel('Single model ID')).toHaveValue('manual-model-id')
+  await expect(page.getByLabel('Single model ID')).toHaveValue(
+    'manual-model-id',
+  )
   expect(state.probes()).toBe(1)
 })
 
-test('probe scheduling and refresh share one supersession path', async ({ page }) => {
+test('probe scheduling and refresh share one supersession path', async ({
+  page,
+}) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await page.goto('/studio')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
-  await page.getByLabel('Provider base URL').fill('http://localhost:11434/first')
-  await page.getByLabel('Provider base URL').fill('http://localhost:11434/latest')
+  await page
+    .getByLabel('Provider base URL')
+    .fill('http://localhost:11434/first')
+  await page
+    .getByLabel('Provider base URL')
+    .fill('http://localhost:11434/latest')
   await page.getByRole('button', { name: 'Refresh models' }).click()
 
   await expect.poll(state.probes).toBe(1)
@@ -133,7 +209,9 @@ test('probe scheduling and refresh share one supersession path', async ({ page }
   expect(state.probes()).toBe(1)
 })
 
-test('removing a connection disposes its pending and late probe state', async ({ page }) => {
+test('removing a connection disposes its pending and late probe state', async ({
+  page,
+}) => {
   // Every new connection reuses one ID, so disposal must survive same-ID recreation.
   await page.addInitScript(() => {
     Object.defineProperty(Crypto.prototype, 'randomUUID', {
@@ -143,7 +221,7 @@ test('removing a connection disposes its pending and late probe state', async ({
   })
   const state = await mockConfiguration(page)
   state.setProbeDelay(150)
-  await page.goto('/')
+  await page.goto('/studio')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await page.getByRole('button', { name: 'Delete Ollama' }).click()
@@ -161,68 +239,107 @@ test('removing a connection disposes its pending and late probe state', async ({
   await expect(page.getByText('Connected. 1 model available.')).toBeHidden()
 })
 
-test('Capability Routes save mixed exact targets and Ollama-only raw mode', async ({ page }) => {
+test('Capability Routes save mixed exact targets and Ollama-only raw mode', async ({
+  page,
+}) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await page.goto('/studio')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await page.getByLabel('New connection provider').selectOption('openai')
   await page.getByRole('button', { name: '+ New connection' }).click()
-  await page.locator('article').nth(1).getByLabel('API credential').fill('transient-secret')
+  await page
+    .locator('article')
+    .nth(1)
+    .getByLabel('API credential')
+    .fill('transient-secret')
   await page.getByRole('button', { name: 'Capability Routes' }).click()
 
-  await page.getByLabel('Extraction & Schema Suggestion connection').selectOption({ label: 'Ollama' })
-  await page.getByLabel('Extraction & Schema Suggestion model ID').fill('nuextract-manual')
+  await page
+    .getByLabel('Extraction & Schema Suggestion connection')
+    .selectOption({ label: 'Ollama' })
+  await page
+    .getByLabel('Extraction & Schema Suggestion model ID')
+    .fill('nuextract-manual')
   await page.getByLabel('Use raw NuExtract protocol').check()
-  await page.getByLabel('Chat & Extraction Schema editing connection').selectOption({ label: 'OpenAI' })
-  await page.getByLabel('Chat & Extraction Schema editing model ID').fill('gpt-manual')
+  await page
+    .getByLabel('Chat & Extraction Schema editing connection')
+    .selectOption({ label: 'OpenAI' })
+  await page
+    .getByLabel('Chat & Extraction Schema editing model ID')
+    .fill('gpt-manual')
   await page.getByRole('button', { name: 'Apply' }).click()
-  await expect(page.locator('article').nth(1).getByLabel('API credential')).toHaveValue('')
-  await expect(page.locator('article').nth(1).getByLabel('API credential')).toHaveAttribute(
-    'placeholder',
-    'Stored credential will be preserved',
-  )
+  await expect(
+    page.locator('article').nth(1).getByLabel('API credential'),
+  ).toHaveValue('')
+  await expect(
+    page.locator('article').nth(1).getByLabel('API credential'),
+  ).toHaveAttribute('placeholder', 'Stored credential will be preserved')
 
   const saved = state.config()
-  expect(saved.routes.extraction).toMatchObject({ modelId: 'nuextract-manual', nuextractRaw: true })
+  expect(saved.routes.extraction).toMatchObject({
+    modelId: 'nuextract-manual',
+    nuextractRaw: true,
+  })
   expect(saved.routes.interaction).toMatchObject({ modelId: 'gpt-manual' })
-  expect(saved.routes.extraction?.connectionId).not.toBe(saved.routes.interaction?.connectionId)
+  expect(saved.routes.extraction?.connectionId).not.toBe(
+    saved.routes.interaction?.connectionId,
+  )
 
   const probesBeforeReload = state.probes()
   await page.getByRole('button', { name: 'Close Model Connections' }).click()
   await page.getByRole('button', { name: 'Configure providers' }).click()
-  await expect(page.getByLabel('Extraction & Schema Suggestion model ID')).toHaveValue('nuextract-manual')
-  await expect(page.getByLabel('Chat & Extraction Schema editing model ID')).toHaveValue('gpt-manual')
+  await expect(
+    page.getByLabel('Extraction & Schema Suggestion model ID'),
+  ).toHaveValue('nuextract-manual')
+  await expect(
+    page.getByLabel('Chat & Extraction Schema editing model ID'),
+  ).toHaveValue('gpt-manual')
   expect(state.probes()).toBe(probesBeforeReload)
 })
 
-test('a draft provider change probes again, drops raw NuExtract, and locks once saved', async ({ page }) => {
+test('a draft provider change probes again, drops raw NuExtract, and locks once saved', async ({
+  page,
+}) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await page.goto('/studio')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await expect.poll(state.probes).toBe(1)
 
-  await page.locator('article').first().getByLabel('API credential').fill('transient-secret')
+  await page
+    .locator('article')
+    .first()
+    .getByLabel('API credential')
+    .fill('transient-secret')
   await page.getByRole('button', { name: 'Capability Routes' }).click()
-  await page.getByLabel('Extraction & Schema Suggestion connection').selectOption({ label: 'Ollama' })
+  await page
+    .getByLabel('Extraction & Schema Suggestion connection')
+    .selectOption({ label: 'Ollama' })
   await page.getByLabel('Use raw NuExtract protocol').check()
 
   await page.getByLabel('Ollama provider').selectOption('claude-code')
   await expect.poll(state.probes).toBe(2)
   await expect(page.getByLabel('Use raw NuExtract protocol')).toBeHidden()
 
-  await page.getByLabel('Extraction & Schema Suggestion model ID').fill('claude-manual')
+  await page
+    .getByLabel('Extraction & Schema Suggestion model ID')
+    .fill('claude-manual')
   await page.getByRole('button', { name: 'Apply' }).click()
   await expect(page.getByLabel('Claude Code provider')).toBeHidden()
-  expect(state.config().connections[0]).toMatchObject({ provider: 'claude-code', baseUrl: null })
+  expect(state.config().connections[0]).toMatchObject({
+    provider: 'claude-code',
+    baseUrl: null,
+  })
   expect(state.config().routes.extraction).not.toHaveProperty('nuextractRaw')
 })
 
-test('probe failures do not gate retryable offline Apply and pending state', async ({ page }) => {
+test('probe failures do not gate retryable offline Apply and pending state', async ({
+  page,
+}) => {
   const state = await mockConfiguration(page)
   state.setProbeStatus('unreachable')
-  await page.goto('/')
+  await page.goto('/studio')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   // A connection FREE manages no credential for yet is not a broken keyring.
@@ -230,12 +347,16 @@ test('probe failures do not gate retryable offline Apply and pending state', asy
   await expect(page.getByText('Provider is offline.')).toBeVisible()
   await page.getByRole('button', { name: 'Refresh models' }).click()
   await expect.poll(state.probes).toBe(2)
-  await page.getByLabel('Single model connection').selectOption({ label: 'Ollama' })
+  await page
+    .getByLabel('Single model connection')
+    .selectOption({ label: 'Ollama' })
   await page.getByLabel('Single model ID').fill('offline-model')
 
   state.setPutFailure(true)
   await page.getByRole('button', { name: 'Apply' }).click()
-  await expect(page.getByRole('alert')).toContainText('keyring_unavailable: The credential store is locked.')
+  await expect(page.getByRole('alert')).toContainText(
+    'keyring_unavailable: The credential store is locked.',
+  )
   await expect(page.getByLabel('Single model ID')).toHaveValue('offline-model')
 
   state.setPutFailure(false)
@@ -243,18 +364,27 @@ test('probe failures do not gate retryable offline Apply and pending state', asy
   await page.getByRole('button', { name: 'Apply' }).click()
   await expect(page.getByRole('button', { name: 'Apply' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Apply' })).toBeEnabled()
-  expect(state.config().routes.extraction).toMatchObject({ modelId: 'offline-model' })
+  expect(state.config().routes.extraction).toMatchObject({
+    modelId: 'offline-model',
+  })
 })
 
-test('corrupt saved configuration renders the stable backend error', async ({ page }) => {
+test('corrupt saved configuration renders the stable backend error', async ({
+  page,
+}) => {
   await page.route('http://127.0.0.1:8000/**', (route) => route.abort())
   await page.route('**/api/model_config', (route) =>
     route.fulfill({
       status: 409,
-      json: { error: { code: 'invalid_model_config', message: 'Saved model configuration is invalid.' } },
+      json: {
+        error: {
+          code: 'invalid_model_config',
+          message: 'Saved model configuration is invalid.',
+        },
+      },
     }),
   )
-  await page.goto('/')
+  await page.goto('/studio')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await expect(page.getByRole('alert')).toContainText(
     'invalid_model_config: Saved model configuration is invalid.',

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createProjectStore } from '../../../packages/db/src/project-store.js'
 import {
+  projectContextChooserResponseSchema,
+  projectContextListResponseSchema,
+} from '../shared/projectContext.contract.js'
+import {
   DEMO_PROJECT_ID,
   projectContextFixture,
 } from './project_contexts.fixture.js'
@@ -13,13 +17,18 @@ describe('Project Context routes', () => {
       new Request('http://test/api/project-contexts?limit=1'),
     )
     expect(list.headers.get('cache-control')).toBe('no-store')
-    await expect(list.json()).resolves.toMatchObject({
+    const listBody = await list.json()
+    expect(projectContextListResponseSchema.parse(listBody)).toMatchObject({
       projectContexts: [{ projectContextId: DEMO_PROJECT_ID }],
     })
     const chooser = await GET(
       new Request(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`),
     )
-    await expect(chooser.json()).resolves.toMatchObject({
+    expect(chooser.headers.get('cache-control')).toBe('no-store')
+    const chooserBody = await chooser.json()
+    expect(
+      projectContextChooserResponseSchema.parse(chooserBody),
+    ).toMatchObject({
       sourceDocuments: [{ name: 'Beretning_Ellekilde_8_13.pdf' }],
     })
     const invalid = await GET(
