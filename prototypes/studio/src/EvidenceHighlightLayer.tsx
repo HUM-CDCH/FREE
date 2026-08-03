@@ -7,7 +7,6 @@ import type { BoundingBox, EvidenceAnchor, ParsedTable } from './parsedDocument'
 import { resolveTableCellMatches, computeOccurrenceIndices } from './tableCellMatch'
 import type { TableCellMatch } from './tableCellMatch'
 import { findMarkdownAnchorMatch } from './markdownAnchorMatch'
-import { findValueRects } from './evidenceTextSearch'
 import type { PageRects } from './evidenceTextSearch'
 
 // ── table-cell coordinate lookup ────────────────────────────────────────────────
@@ -51,10 +50,8 @@ function rectWithinPage(rect: DOMRect, viewport: PageViewportScale): boolean {
   )
 }
 
-// Table-cell coordinate lookup, tried before the text search above (see
-// design.md decision 6 and evidence-highlight-layer spec). Returns null on any
-// inconclusive step so the caller falls back to findValueRects unchanged. The
-// match itself is resolved up front for every highlight at once (see
+// Table-cell coordinate lookup. The match itself is resolved up front for every
+// highlight at once (see
 // resolveTableCellMatches) rather than per-field here, so that a record's
 // fields can be kept on the same source table when disambiguation is
 // otherwise inconclusive.
@@ -73,10 +70,8 @@ async function findTableCellRects(
   return { pageNumber: match.pageNumber, rects: [rect] }
 }
 
-// Anchor-based lookup, tried after the table-cell tier and before the PDF
-// text-search fallback (see design.md decision 6 and evidence-highlight-layer
-// spec). Returns null whenever no anchor covers the snippet, so the caller
-// falls back to findValueRects unchanged.
+// Anchor-based lookup, tried after the table-cell tier. A missing anchor is an
+// unverifiable location, so no highlight is drawn.
 async function findAnchorRects(
   pdfViewer: PDFViewer,
   markdown: string | null,
@@ -161,7 +156,8 @@ export default function EvidenceHighlightLayer({
     return () => { observer.disconnect() }
   }, [containerEl])
 
-  // Main effect: search PDF for each highlight, build position cache, draw progressively.
+  // Main effect: resolve verified coordinates for each highlight, build position
+  // cache, and draw progressively.
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
@@ -196,8 +192,7 @@ export default function EvidenceHighlightLayer({
         const occurrenceIndex = occurrenceIndices.get(h) ?? null
         const found =
           (await findTableCellRects(pdfViewer, tableMatches.get(h) ?? null)) ??
-          (await findAnchorRects(pdfViewer, markdown, anchors, h, occurrenceIndex)) ??
-          (await findValueRects(pdfViewer, h.value, h.snippet, h.hintPage, occurrenceIndex))
+          (await findAnchorRects(pdfViewer, markdown, anchors, h, occurrenceIndex))
         if (!found) continue
 
         const pageEl = containerEl.querySelector(
