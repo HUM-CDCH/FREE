@@ -16,6 +16,8 @@ export type TableCell = {
 export type ParsedTable = {
   tableId: string
   pageNumber: number
+  canonicalMarkdownStart: number | null
+  canonicalMarkdownEnd: number | null
   cells: TableCell[]
 }
 
@@ -69,7 +71,17 @@ export function parseParsedTables(value: unknown): ParsedTable[] {
       continue
     }
     const cells = Array.isArray(entry.cells) ? entry.cells.map(parseTableCell).filter((c): c is TableCell => c !== null) : []
-    tables.push({ tableId: entry.table_id, pageNumber: entry.page_number, cells })
+    const start = entry.canonical_markdown_start
+    const end = entry.canonical_markdown_end
+    const hasCanonicalSpan =
+      typeof start === 'number' && typeof end === 'number' && start >= 0 && end >= start
+    tables.push({
+      tableId: entry.table_id,
+      pageNumber: entry.page_number,
+      canonicalMarkdownStart: hasCanonicalSpan ? start : null,
+      canonicalMarkdownEnd: hasCanonicalSpan ? end : null,
+      cells,
+    })
   }
   return tables
 }

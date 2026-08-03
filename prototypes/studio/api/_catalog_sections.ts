@@ -19,6 +19,7 @@ export type MarkdownSection = {
   readonly headingText: string
   readonly body: string
   readonly startOffset: number
+  readonly endOffset: number
 }
 
 export type ExtractionStrategy = 'catalog' | 'article'
@@ -109,10 +110,12 @@ export function splitMarkdownByHeadings(markdown: string): readonly MarkdownSect
   return boundaries.map((match, i) => {
     const start = match.index ?? 0
     const end = i + 1 < boundaries.length ? (boundaries[i + 1].index ?? markdown.length) : markdown.length
+    const body = markdown.slice(start, end).trim()
     return {
       headingText: match[1].trim(),
-      body: markdown.slice(start, end).trim(),
+      body,
       startOffset: start,
+      endOffset: start + body.length,
     }
   })
 }
@@ -138,6 +141,15 @@ export function pageForOffset(markdown: string, offset: number): number {
     idx = head.indexOf(PAGE_BREAK, idx + PAGE_BREAK.length)
   }
   return count + 1
+}
+
+export function pageRangeForOffsets(markdown: string, startOffset: number, endOffset: number): {
+  readonly startPage: number
+  readonly endPage: number
+} {
+  const startPage = pageForOffset(markdown, startOffset)
+  const finalOffset = Math.max(startOffset, endOffset - 1)
+  return { startPage, endPage: pageForOffset(markdown, finalOffset) }
 }
 
 // A model scoped to one section's text has no way to know its absolute page

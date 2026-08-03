@@ -45,7 +45,7 @@ describe('extractWithModel', () => {
 
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
     expect(result.evidence).toEqual({
-      grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: null, column_header: null } }],
+      grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: null, column_header: null, source_scope: { segment_id: 'article:0', markdown_start: 0, markdown_end: 7, start_page: 1, end_page: 1 } } }],
     })
   })
 
@@ -105,7 +105,7 @@ describe('extractWithModel', () => {
     expect(body).toContain('column_header')
     expect(result.evidence).toEqual({
       grave: [
-        { name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: 'Row 1', column_header: 'Name' } },
+        { name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: 'Row 1', column_header: 'Name', source_scope: { segment_id: 'article:0', markdown_start: 0, markdown_end: 7, start_page: 1, end_page: 1 } } },
       ],
     })
   })
@@ -155,8 +155,8 @@ describe('extractWithModel', () => {
     // true absolute page (1 and 2, split by the "---" page break).
     expect(result.evidence).toEqual({
       entries: [
-        { name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: null, column_header: null } },
-        { name: { value: 'Grave 2', snippet: 'Grave 2', page: 2, row_header: null, column_header: null } },
+        { name: { value: 'Grave 1', snippet: 'Grave 1', page: 1, row_header: null, column_header: null, source_scope: { segment_id: 'catalog:0', markdown_start: 0, markdown_end: 25, start_page: 1, end_page: 1 } } },
+        { name: { value: 'Grave 2', snippet: 'Grave 2', page: 2, row_header: null, column_header: null, source_scope: { segment_id: 'catalog:1', markdown_start: 27, markdown_end: 47, start_page: 2, end_page: 2 } } },
       ],
     })
   })
@@ -199,8 +199,8 @@ describe('extractWithModel', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(result.evidence).toEqual({
       entries: [
-        { name: { value: '8-1', snippet: '8-1', page: 1, row_header: '8-1', column_header: 'Nummer' } },
-        { name: { value: 'Grave 2', snippet: 'Grave 2', page: 1, row_header: null, column_header: null } },
+        { name: { value: '8-1', snippet: '8-1', page: 1, row_header: '8-1', column_header: 'Nummer', source_scope: { segment_id: 'catalog:0', markdown_start: 0, markdown_end: 74, start_page: 1, end_page: 1 } } },
+        { name: { value: 'Grave 2', snippet: 'Grave 2', page: 1, row_header: null, column_header: null, source_scope: { segment_id: 'catalog:1', markdown_start: 76, markdown_end: 134, start_page: 1, end_page: 1 } } },
       ],
     })
   })
@@ -225,6 +225,9 @@ describe('extractWithModel', () => {
     })
 
     expect(result.result).toEqual({ entries: [{ name: 'Grave 1' }] })
+    expect(result.evidence).toMatchObject({
+      entries: [{ name: { source_scope: { segment_id: 'catalog:0', markdown_start: 0, start_page: 1 } } }],
+    })
   })
 
   it('falls back to a single whole-document call when the markdown has no recurring heading pattern', async () => {

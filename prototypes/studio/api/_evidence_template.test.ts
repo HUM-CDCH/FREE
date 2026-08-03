@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template'
+import { attachEvidenceSourceScope, splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template'
 
 describe('wrapTemplateWithEvidence', () => {
   it('wraps every scalar extraction schema field with inline evidence fields', () => {
@@ -73,6 +73,21 @@ describe('wrapTemplateWithEvidence', () => {
 })
 
 describe('splitEvidenceResult', () => {
+  it('attaches parser-derived scope to nested evidence without changing result values', () => {
+    const split = splitEvidenceResult({ grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 2 } }] })
+
+    expect(attachEvidenceSourceScope(split.evidence, {
+      segment_id: 'catalog:3',
+      markdown_start: 10,
+      markdown_end: 30,
+      start_page: 2,
+      end_page: 2,
+    })).toEqual({
+      grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 2, row_header: null, column_header: null, source_scope: { segment_id: 'catalog:3', markdown_start: 10, markdown_end: 30, start_page: 2, end_page: 2 } } }],
+    })
+    expect(split.result).toEqual({ grave: [{ name: 'Grave 1' }] })
+  })
+
   it('returns a clean extraction result and mirrored evidence leaves', () => {
     const extracted = {
       grave: [

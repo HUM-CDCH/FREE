@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Spec: Schema Node Persistence
+
+## Purpose
+
+Defines how the Studio frontend stores schemas as stable `SchemaNode[]` trees and derives plain template JSON only at API boundaries.
+
+## Requirements
 
 ### Requirement: SchemaNode is the canonical schema representation
 

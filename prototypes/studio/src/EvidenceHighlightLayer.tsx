@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
-import { buildHighlights, PALETTE } from './evidenceHighlights'
-import type { Highlight } from './evidenceHighlights'
+import { buildHighlights, coalescePaintRects, PALETTE, resolvedInTraversalOrder } from './evidenceHighlights'
+import type { CachedHighlightEntry, EvidenceSourceScope, Highlight } from './evidenceHighlights'
 import { isRecord } from './template'
 import type { BoundingBox, EvidenceAnchor, ParsedTable } from './parsedDocument'
+import { buildSegmentGeometryIndex } from './segmentGeometry'
 import { resolveTableCellMatches, computeOccurrenceIndices } from './tableCellMatch'
 import type { TableCellMatch } from './tableCellMatch'
-import { findMarkdownAnchorMatch } from './markdownAnchorMatch'
+import { findScopedMarkdownAnchorMatch } from './markdownAnchorMatch'
 import type { PageRects } from './evidenceTextSearch'
 
 // ── table-cell coordinate lookup ────────────────────────────────────────────────
 
 type PageViewportScale = { scale: number; width: number; height: number }
+type ViewportCache = Map<number, Promise<PageViewportScale | null>>
 
 // Cheaper than getPageTextData when only the scale factor is needed (no text content).
 async function getPageViewportScale(pdfViewer: PDFViewer, pageNumber: number): Promise<PageViewportScale | null> {
@@ -23,6 +25,18 @@ async function getPageViewportScale(pdfViewer: PDFViewer, pageNumber: number): P
   const CSS_UNITS = 96.0 / 72.0
   const viewport = pdfPage.getViewport({ scale: pdfViewer.currentScale * CSS_UNITS })
   return { scale: viewport.scale, width: viewport.width, height: viewport.height }
+}
+
+function getCachedViewport(
+  pdfViewer: PDFViewer,
+  pageNumber: number,
+  cache: ViewportCache,
+): Promise<PageViewportScale | null> {
+  const existing = cache.get(pageNumber)
+  if (existing) return existing
+  const pending = getPageViewportScale(pdfViewer, pageNumber)
+  cache.set(pageNumber, pending)
+  return pending
 }
 
 // BoundingBox is PDF points, top-left origin, in the same displayed/post-rotation
@@ -58,16 +72,17 @@ function rectWithinPage(rect: DOMRect, viewport: PageViewportScale): boolean {
 async function findTableCellRects(
   pdfViewer: PDFViewer,
   match: TableCellMatch | null,
-): Promise<PageRects | null> {
+  viewportCache: ViewportCache,
+): Promise<PageRects[] | null> {
   if (!match) return null
 
-  const viewport = await getPageViewportScale(pdfViewer, match.pageNumber)
+  const viewport = await getCachedViewport(pdfViewer, match.pageNumber, viewportCache)
   if (!viewport) return null
 
   const rect = bboxToRect(match.bbox, viewport.scale)
   if (!rectWithinPage(rect, viewport)) return null
 
-  return { pageNumber: match.pageNumber, rects: [rect] }
+  return [{ pageNumber: match.pageNumber, rects: [rect] }]
 }
 
 // Anchor-based lookup, tried after the table-cell tier. A missing anchor is an
@@ -77,34 +92,76 @@ async function findAnchorRects(
   markdown: string | null,
   anchors: EvidenceAnchor[],
   highlight: Highlight,
-  occurrenceIndex: number | null,
-): Promise<PageRects | null> {
+  viewportCache: ViewportCache,
+): Promise<PageRects[] | null> {
   if (!markdown || anchors.length === 0) return null
 
-  const match = findMarkdownAnchorMatch(markdown, anchors, highlight.snippet, highlight.hintPage, occurrenceIndex)
+  if (!highlight.sourceScope) return null
+  const primaryTerm =
+    highlight.matchStrategy === 'result-primary' ? highlight.value : highlight.snippet
+  const fallbackSnippet =
+    highlight.matchStrategy === 'result-primary' ? highlight.snippet : null
+  const match = findScopedMarkdownAnchorMatch(
+    markdown,
+    anchors,
+    primaryTerm,
+    fallbackSnippet,
+    highlight.sourceScope,
+  )
   if (!match) return null
 
-  const viewport = await getPageViewportScale(pdfViewer, match.page)
-  if (!viewport) return null
-
-  const rect = bboxToRect(match.bbox, viewport.scale)
-  if (!rectWithinPage(rect, viewport)) return null
-
-  return { pageNumber: match.page, rects: [rect] }
+  const fragments = await Promise.all(match.fragments.map(async (fragment) => {
+    const viewport = await getCachedViewport(pdfViewer, fragment.page, viewportCache)
+    if (!viewport) return null
+    const rect = bboxToRect(fragment.bbox, viewport.scale)
+    return rectWithinPage(rect, viewport) ? { pageNumber: fragment.page, rects: [rect] } : null
+  }))
+  const found = fragments.filter((fragment): fragment is PageRects => fragment !== null)
+  return found.length > 0 ? found : null
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
 
-type CachedEntry = {
-  highlight: Highlight
-  pageNumber: number
-  rects: DOMRect[]
-  pageTop: number
-  pageLeft: number
+type CachedEntry = CachedHighlightEntry
+
+function drawCachedEntries(
+  ctx: CanvasRenderingContext2D,
+  entries: readonly CachedEntry[],
+  focusPath: string[] | null,
+): void {
+  for (const { entry, rect } of coalescePaintRects(entries, focusPath)) {
+    const isActive = focusPath !== null && pathsEqual(entry.highlight.path, focusPath)
+    const dimmed = focusPath !== null && !isActive
+    ctx.save()
+    ctx.globalAlpha = isActive ? 0.75 : dimmed ? 0.15 : 0.4
+    ctx.fillStyle = entry.highlight.color
+    ctx.fillRect(entry.pageLeft + rect.x - 1, entry.pageTop + rect.y - 2, rect.width + 2, rect.height + 2)
+    ctx.restore()
+  }
 }
 
 function pathsEqual(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i])
+}
+
+function scopeKey(scope: EvidenceSourceScope): string {
+  return scope.segmentId
+}
+
+async function resolveWithConcurrency<T>(
+  items: readonly T[],
+  limit: number,
+  resolve: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0
+  async function worker(): Promise<void> {
+    for (;;) {
+      const index = next++
+      if (index >= items.length) return
+      await resolve(items[index])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
 }
 
 type Props = {
@@ -156,73 +213,92 @@ export default function EvidenceHighlightLayer({
     return () => { observer.disconnect() }
   }, [containerEl])
 
-  // Main effect: resolve verified coordinates for each highlight, build position
-  // cache, and draw progressively.
+  // Main effect: resolve each source scope independently, then cache and draw
+  // in result order so asynchronous completion cannot reorder highlights.
   useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
     const schemaKeys = isRecord(schemaTemplateRef.current) ? Object.keys(schemaTemplateRef.current) : []
     const fieldColorMap: Record<string, string> = {}
     schemaKeys.forEach((k, i) => { fieldColorMap[k] = PALETTE[i % PALETTE.length] })
-    const highlights = buildHighlights(result, evidence, fieldColorMap)
+    const highlights = buildHighlights(result, evidence, fieldColorMap, schemaTemplateRef.current).filter(
+      (highlight): highlight is Highlight & { sourceScope: EvidenceSourceScope } => highlight.sourceScope !== null,
+    )
     if (highlights.length === 0) return
     const occurrenceIndices = computeOccurrenceIndices(highlights)
-    const tableMatches = resolveTableCellMatches(tables, highlights, occurrenceIndices)
 
     cachedEntriesRef.current = []
     let cancelled = false
 
     async function render() {
-      const canvas = canvasRef.current
-      if (!canvas || !pdfViewer || !containerEl) return
+      const viewer = pdfViewer
+      if (!viewer) return
+      const viewportCache: ViewportCache = new Map()
+      const foundByHighlight = new Map<Highlight, PageRects[] | null>()
+      const tableMatches = new Map<Highlight, TableCellMatch | null>()
+      const groups = new Map<string, Array<Highlight & { sourceScope: EvidenceSourceScope }>>()
+      for (const highlight of highlights) {
+        const key = scopeKey(highlight.sourceScope)
+        const group = groups.get(key) ?? []
+        group.push(highlight)
+        groups.set(key, group)
+      }
+      const geometryIndex = buildSegmentGeometryIndex(
+        anchors,
+        tables,
+        [...groups.values()].map((group) => group[0].sourceScope),
+      )
 
+      await resolveWithConcurrency([...groups.values()], 6, async (group) => {
+        const geometry = geometryIndex.get(group[0].sourceScope.segmentId)
+        if (!geometry) return
+        const scopedMatches = resolveTableCellMatches(
+          geometry.tables,
+          group,
+          occurrenceIndices,
+        )
+        for (const highlight of group) {
+          tableMatches.set(highlight, scopedMatches.get(highlight) ?? null)
+        }
+        await Promise.all(group.map(async (highlight) => {
+          const found =
+            (await findTableCellRects(viewer, tableMatches.get(highlight) ?? null, viewportCache)) ??
+            (await findAnchorRects(viewer, markdown, geometry.anchors, highlight, viewportCache))
+          foundByHighlight.set(highlight, found)
+        }))
+      })
+      if (cancelled) return
+
+      const canvas = canvasRef.current
+      if (!canvas || !containerEl) return
       const { scrollWidth, scrollHeight } = containerEl
       canvas.width = scrollWidth
       canvas.height = scrollHeight
-
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-
       const containerRect = containerEl.getBoundingClientRect()
+      const entries: CachedEntry[] = []
 
-      for (const h of highlights) {
-        if (cancelled) return
-
-        const occurrenceIndex = occurrenceIndices.get(h) ?? null
-        const found =
-          (await findTableCellRects(pdfViewer, tableMatches.get(h) ?? null)) ??
-          (await findAnchorRects(pdfViewer, markdown, anchors, h, occurrenceIndex))
+      for (const h of resolvedInTraversalOrder(highlights, foundByHighlight)) {
+        const found = foundByHighlight.get(h)
         if (!found) continue
-
-        const pageEl = containerEl.querySelector(
-          `.page[data-page-number="${found.pageNumber}"]`
-        ) as HTMLElement | null
-        if (!pageEl) continue
-
-        const pageRect = pageEl.getBoundingClientRect()
-        const pageTop = pageRect.top - containerRect.top + containerEl.scrollTop + pageEl.clientTop
-        const pageLeft = pageRect.left - containerRect.left + containerEl.scrollLeft + pageEl.clientLeft
-
-        if (!cancelled) {
-          cachedEntriesRef.current.push({ highlight: h, pageNumber: found.pageNumber, rects: found.rects, pageTop, pageLeft })
+        for (const fragment of found) {
+          const pageEl = containerEl.querySelector(
+            `.page[data-page-number="${fragment.pageNumber}"]`
+          ) as HTMLElement | null
+          if (!pageEl) continue
+          const pageRect = pageEl.getBoundingClientRect()
+          const pageTop = pageRect.top - containerRect.top + containerEl.scrollTop + pageEl.clientTop
+          const pageLeft = pageRect.left - containerRect.left + containerEl.scrollLeft + pageEl.clientLeft
+          entries.push({ highlight: h, pageNumber: fragment.pageNumber, rects: fragment.rects, pageTop, pageLeft })
         }
-        if (cancelled) return
-
-        const activeFv = focusPathRef.current
-        const isActive = activeFv !== null && pathsEqual(h.path, activeFv)
-        const dimmed = activeFv !== null && !isActive
-
-        ctx.save()
-        ctx.globalAlpha = isActive ? 0.75 : dimmed ? 0.15 : 0.4
-        ctx.fillStyle = h.color
-        for (const rect of found.rects) {
-          ctx.fillRect(pageLeft + rect.x - 1, pageTop + rect.y - 2, rect.width + 2, rect.height + 2)
-        }
-        ctx.restore()
       }
 
-      if (!cancelled) setCacheVersion((v: number) => v + 1)
+      if (cancelled) return
+      cachedEntriesRef.current = entries
+      drawCachedEntries(ctx, entries, focusPathRef.current)
+      setCacheVersion((v: number) => v + 1)
     }
 
     void render()
@@ -249,17 +325,7 @@ export default function EvidenceHighlightLayer({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    for (const entry of entries) {
-      const isActive = focusPath !== null && pathsEqual(entry.highlight.path, focusPath)
-      const dimmed = focusPath !== null && !isActive
-      ctx.save()
-      ctx.globalAlpha = isActive ? 0.75 : dimmed ? 0.15 : 0.4
-      ctx.fillStyle = entry.highlight.color
-      for (const rect of entry.rects) {
-        ctx.fillRect(entry.pageLeft + rect.x - 1, entry.pageTop + rect.y - 2, rect.width + 2, rect.height + 2)
-      }
-      ctx.restore()
-    }
+    drawCachedEntries(ctx, entries, focusPath)
   }, [focusPath, cacheVersion, containerEl])
 
   if (!result) return null

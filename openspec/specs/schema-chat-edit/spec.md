@@ -1,5 +1,9 @@
-## ADDED Requirements
+# Spec: Schema Chat Edit
 
+## Purpose
+
+Defines how schema chat requests produce structured schema-edit operations and how pending edits are presented before the researcher commits them.
+## Requirements
 ### Requirement: Chat instruction produces an op list, not a replacement schema
 
 When the researcher types an instruction in the schema chat, the system SHALL call `/api/edit_schema` and receive a structured list of field operations. The system SHALL NOT call `/api/generate_schema` for chat-initiated edits.
@@ -53,11 +57,13 @@ The frontend SHALL apply each op in the returned list to the current `SchemaNode
 
 ### Requirement: Pending-diff card shows changes before commit
 
-After ops are applied the system SHALL compute a diff between the old and new `SchemaNode[]` and present it to the researcher as a pending-diff card with Apply and Discard actions.
+After ops are applied the system SHALL display the diff inline in the schema tree (see `schema-inline-diff` spec) and present Apply and Discard actions in a sticky action bar at the bottom of the chat column. The system SHALL NOT show a separate diff card listing text lines inside the chat scroll area.
 
 #### Scenario: Researcher reviews and applies changes
 
 - **WHEN** the op list produces one or more changes
-- **THEN** the pending-diff card is shown listing each changed field with a sign (`+`, `−`, `~`)
-- **AND** clicking Apply updates the schema and closes the card
-- **AND** clicking Discard closes the card without modifying the schema
+- **THEN** the schema tree shows the diff inline with colour-annotated nodes
+- **AND** a sticky action bar appears at the bottom of the chat column with "Apply changes" and "Discard" buttons
+- **AND** clicking Apply commits the new schema, removes the diff overlay, and hides the action bar
+- **AND** clicking Discard reverts the tree to its pre-edit state and hides the action bar
+

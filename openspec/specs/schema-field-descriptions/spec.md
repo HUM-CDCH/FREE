@@ -1,11 +1,8 @@
-# Spec: Schema Field Descriptions
+# schema-field-descriptions Specification
 
 ## Purpose
-
-Defines how humanities researchers attach free-text descriptions to group-level schema nodes (objects and arrays) in the Schema Panel. Descriptions are stored in the UI state, displayed and edited via an ℹ icon in the fields view and via `_description` keys in the editable JSON view, and compiled into the extraction instructions slot when running extraction — keeping the template JSON clean.
-
+TBD - created by archiving change schema-field-descriptions. Update Purpose after archive.
 ## Requirements
-
 ### Requirement: Group nodes carry an optional description
 
 `SchemaNode` SHALL include an optional `description?: string` property. Only nodes with `children` (group nodes — objects and arrays) may have a description. Leaf nodes (no `children`) SHALL NOT expose any description UI or storage.
@@ -117,3 +114,4 @@ When extraction is run, the frontend SHALL compile all non-empty group descripti
 
 - **WHEN** a nested group node (e.g. `parent.child`) has a description
 - **THEN** the compiled instructions line uses the full dot-separated path as the label
+

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
-import { buildHighlights } from './evidenceHighlights'
+import {
+  buildHighlights,
+  coalescePaintRects,
+  resolvedInTraversalOrder,
+  type CachedHighlightEntry,
+  type Highlight,
+} from './evidenceHighlights'
 import {
   findValueRects,
   rectsForQuery,
@@ -73,53 +79,116 @@ function fakePdfViewer(pages: Record<number, readonly string[]>): PDFViewer {
 }
 
 describe('buildHighlights', () => {
-  it('falls back to direct result search for leaves without evidence', () => {
+  it('keeps resolved highlights in result traversal order after out-of-order completion', () => {
+    const first = { path: ['records', '0', 'name'] }
+    const second = { path: ['records', '1', 'name'] }
+    const resolved = new Map([[second, { pageNumber: 2 }], [first, { pageNumber: 1 }]])
+
+    expect(resolvedInTraversalOrder([first, second], resolved)).toEqual([first, second])
+  })
+
+  it('selects match strategy from the schema and keeps non-string primitive evidence', () => {
     const result = {
       title: 'Anchored title',
-      author: 'Searchable author',
+      summary: 'Normalized title',
+      count: 5,
+      published: true,
+      missing: 'Searchable author',
     }
     const evidence = {
-      title: { value: 'Anchored title', snippet: 'Anchored title appears here', page: 2 },
+      title: { value: 'Anchored title', snippet: 'Anchored title appears here', page: 2, source_scope: { segment_id: 'article:0', markdown_start: 0, markdown_end: 40, start_page: 2, end_page: 2 } },
+      summary: { value: 'Normalized title', snippet: 'Original heading wording', page: 2, source_scope: { segment_id: 'article:0', markdown_start: 0, markdown_end: 40, start_page: 2, end_page: 2 } },
+      count: { value: 5, snippet: 'There were 5 finds', page: 2, source_scope: { segment_id: 'article:0', markdown_start: 0, markdown_end: 40, start_page: 2, end_page: 2 } },
+      published: { value: true, snippet: 'Published: yes', page: 2, source_scope: { segment_id: 'article:0', markdown_start: 0, markdown_end: 40, start_page: 2, end_page: 2 } },
     }
 
-    expect(buildHighlights(result, evidence, { title: 'yellow', author: 'blue' })).toEqual([
-      {
-        value: 'Anchored title',
-        snippet: 'Anchored title appears here',
-        hintPage: 2,
-        rowHeader: null,
-        columnHeader: null,
-        color: 'yellow',
-        path: ['title'],
-      },
-      {
-        value: 'Searchable author',
-        snippet: null,
-        hintPage: null,
-        rowHeader: null,
-        columnHeader: null,
-        color: 'blue',
-        path: ['author'],
-      },
+    expect(buildHighlights(
+      result,
+      evidence,
+      { title: 'yellow', summary: 'blue', count: 'green', published: 'red', missing: 'gray' },
+      { title: 'verbatim-string', summary: 'string', count: 'number', published: 'boolean', missing: 'verbatim-string' },
+    )).toMatchObject([
+      { value: 'Anchored title', matchStrategy: 'result-primary', path: ['title'] },
+      { value: 'Normalized title', matchStrategy: 'snippet-primary', path: ['summary'] },
+      { value: '5', matchStrategy: 'snippet-primary', path: ['count'] },
+      { value: 'true', matchStrategy: 'snippet-primary', path: ['published'] },
     ])
   })
 
   it('carries row_header/column_header hints into the highlight', () => {
     const result = { records: [{ count: '5' }] }
     const evidence = {
-      records: [{ count: { value: '5', snippet: '5', page: 1, row_header: 'Grave 1', column_header: 'Count' } }],
+      records: [{
+        count: {
+          value: '5',
+          snippet: '5',
+          page: 1,
+          row_header: 'Grave 1',
+          column_header: 'Count',
+          source_scope: { segment_id: 'catalog:0', markdown_start: 0, markdown_end: 10, start_page: 1, end_page: 1 },
+        },
+      }],
     }
 
-    expect(buildHighlights(result, evidence, { count: 'yellow' })).toEqual([
+    expect(buildHighlights(result, evidence, { count: 'yellow' }, { records: [{ count: 'number' }] })).toMatchObject([
       {
         value: '5',
         snippet: '5',
         hintPage: 1,
         rowHeader: 'Grave 1',
         columnHeader: 'Count',
+        sourceScope: { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: 10, startPage: 1, endPage: 1 },
+        matchStrategy: 'snippet-primary',
         color: 'yellow',
         path: ['records', '0', 'count'],
       },
+    ])
+  })
+
+  it('omits malformed source scopes', () => {
+    expect(buildHighlights(
+      { title: 'Report' },
+      { title: { value: 'Report', snippet: 'Report', page: 1, source_scope: { markdown_start: -1 } } },
+      { title: 'yellow' },
+      { title: 'verbatim-string' },
+    )).toEqual([])
+  })
+})
+
+function testHighlight(path: string[], color = 'yellow'): Highlight {
+  return {
+    value: 'value', snippet: 'snippet', hintPage: 1, rowHeader: null, columnHeader: null,
+    sourceScope: { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: 10, startPage: 1, endPage: 1 },
+    matchStrategy: 'result-primary', color, path,
+  }
+}
+
+function cachedEntry(path: string[], color = 'yellow'): CachedHighlightEntry {
+  return {
+    highlight: testHighlight(path, color),
+    pageNumber: 1,
+    rects: [new DOMRect(10, 20, 30, 40)],
+    pageTop: 100,
+    pageLeft: 50,
+  }
+}
+
+describe('coalescePaintRects', () => {
+  it('paints coincident same-color geometry once', () => {
+    const first = cachedEntry(['records', '0', 'name'])
+    const duplicate = cachedEntry(['records', '1', 'name'])
+
+    expect(coalescePaintRects([first, duplicate], null)).toEqual([
+      { entry: first, rect: first.rects[0] },
+    ])
+  })
+
+  it('keeps the focused logical entry when it shares geometry', () => {
+    const first = cachedEntry(['records', '0', 'name'])
+    const focused = cachedEntry(['records', '1', 'name'])
+
+    expect(coalescePaintRects([first, focused], focused.highlight.path)).toEqual([
+      { entry: focused, rect: focused.rects[0] },
     ])
   })
 })

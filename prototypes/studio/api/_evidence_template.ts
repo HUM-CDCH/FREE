@@ -3,6 +3,14 @@ type SplitEvidence = {
   readonly evidence: unknown
 }
 
+export type EvidenceSourceScope = {
+  readonly segment_id: string
+  readonly markdown_start: number
+  readonly markdown_end: number
+  readonly start_page: number
+  readonly end_page: number
+}
+
 export function wrapTemplateWithEvidence(template: unknown, hasTables = false): unknown {
   if (!isRecord(template)) {
     return template
@@ -17,7 +25,7 @@ export function splitEvidenceResult(input: Record<string, unknown>): {
   const result: Record<string, unknown> = {}
   const evidence: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(input)) {
-    if (key === '_description' || key === '_strategy') continue // schema/routing metadata, not an extracted value
+    if (key === '_description' || key === '_strategy' || key === 'source_scope') continue // schema/routing metadata, not an extracted value
     const split = splitNode(value)
     result[key] = split.result
     if (split.evidence !== null) {
@@ -83,7 +91,7 @@ function splitNode(node: unknown): SplitEvidence {
     const result: Record<string, unknown> = {}
     const evidence: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(node)) {
-      if (key === '_description' || key === '_strategy') continue // schema/routing metadata, not an extracted value
+      if (key === '_description' || key === '_strategy' || key === 'source_scope') continue // schema/routing metadata, not an extracted value
       const split = splitNode(value)
       result[key] = split.result
       if (split.evidence !== null) {
@@ -94,6 +102,23 @@ function splitNode(node: unknown): SplitEvidence {
   }
 
   return { result: node, evidence: null }
+}
+
+// Scope comes from the section sent to the model, never from model output. Keep
+// it on every usable evidence leaf so result/evidence paths stay mirrored.
+export function attachEvidenceSourceScope(evidence: unknown, sourceScope: EvidenceSourceScope): unknown {
+  if (Array.isArray(evidence)) {
+    return evidence.map((item) => attachEvidenceSourceScope(item, sourceScope))
+  }
+  if (!isRecord(evidence)) {
+    return evidence
+  }
+  if (isInlineEvidence(evidence)) {
+    return { ...evidence, source_scope: sourceScope }
+  }
+  return Object.fromEntries(
+    Object.entries(evidence).map(([key, value]) => [key, attachEvidenceSourceScope(value, sourceScope)]),
+  )
 }
 
 function isInlineEvidence(

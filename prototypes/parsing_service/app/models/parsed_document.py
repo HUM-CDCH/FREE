@@ -213,6 +213,8 @@ class ParsedTable(BaseModel):
     cols: int | None = Field(default=None, ge=0)
     cells: list[TableCell] = Field(default_factory=list)
     markdown_view: str | None = None
+    canonical_markdown_start: int | None = Field(default=None, ge=0)
+    canonical_markdown_end: int | None = Field(default=None, ge=0)
 
 
 class ParsedPage(BaseModel):

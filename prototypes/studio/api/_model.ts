@@ -13,7 +13,7 @@ import type { Annotation, AnnotationMode, DocumentInput } from './_document.js'
 import { documentFileParts, type DocumentFilePart } from './_pdf.js'
 import { schemaPrompt } from './_schema.js'
 import { RequestError } from './_http.js'
-import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template.js'
+import { attachEvidenceSourceScope, splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template.js'
 import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output.js'
 import { extractionRenderer, resolveModel } from './_provider.js'
 import {
@@ -21,6 +21,7 @@ import {
   getExtractionStrategy,
   isEmptyResult,
   offsetPageNumbers,
+  pageRangeForOffsets,
   pageForOffset,
   sectionContainsTable,
   splitMarkdownByHeadings,
@@ -205,10 +206,20 @@ export async function extractWithModel({
   })
   const parsed = await parseExtractionResult(generated.response, evidenceTemplate)
   const split = splitEvidenceResult(parsed)
+  const evidence =
+    split.evidence && document.markdown
+      ? attachEvidenceSourceScope(split.evidence, {
+          segment_id: 'article:0',
+          markdown_start: 0,
+          markdown_end: document.markdown.length,
+          start_page: pageRangeForOffsets(document.markdown, 0, document.markdown.length).startPage,
+          end_page: pageRangeForOffsets(document.markdown, 0, document.markdown.length).endPage,
+        }) as Record<string, unknown>
+      : split.evidence
 
   return {
     result: split.result,
-    evidence: split.evidence,
+    evidence,
     raw: generated.response,
     reasoning: null,
     pages: documentParts.pages ?? document.pages,
@@ -287,7 +298,7 @@ async function runSectionedExtraction({
   readonly raw: string
 }> {
   const perSection = await runWithConcurrencyLimit(
-    sections.map((section) => async () => {
+    sections.map((section, sectionIndex) => async () => {
       const sectionHasTables = sectionContainsTable(section.body)
       const itemEvidenceTemplate = wrapTemplateWithEvidence(itemTemplate, sectionHasTables)
       const sectionInstructions = sectionHasTables
@@ -302,10 +313,20 @@ async function runSectionedExtraction({
       const parsed = await parseExtractionResult(generated.response, itemEvidenceTemplate)
       const split = splitEvidenceResult(parsed)
       const pageOffset = pageForOffset(fullMarkdown, section.startOffset) - 1
+      const pageRange = pageRangeForOffsets(fullMarkdown, section.startOffset, section.endOffset)
       return {
         result: split.result,
         evidence: split.evidence
-          ? (offsetPageNumbers(split.evidence, pageOffset) as Record<string, unknown>)
+          ? (attachEvidenceSourceScope(
+              offsetPageNumbers(split.evidence, pageOffset),
+              {
+                segment_id: `catalog:${sectionIndex}`,
+                markdown_start: section.startOffset,
+                markdown_end: section.endOffset,
+                start_page: pageRange.startPage,
+                end_page: pageRange.endPage,
+              },
+            ) as Record<string, unknown>)
           : null,
         raw: generated.response,
       }

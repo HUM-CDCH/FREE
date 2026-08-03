@@ -32,6 +32,7 @@ from app.models.parsed_document import (
 from app.models.parser import CANONICAL_OCR_DPI, MAX_INGESTION_PAGES
 from app.parsing.adapters.pymupdf_inspect import PdfInspection, inspect_pdf
 from app.parsing.normalize import read_text
+from app.parsing.table_markdown_links import link_tables_to_canonical_markdown
 from app.parsing.render import (
     DEFAULT_MAX_RENDER_PAGE_PIXELS,
     DEFAULT_MAX_RENDER_TOTAL_PIXELS,
@@ -804,7 +805,11 @@ def build_parsed_document(
         docling_tables,
     )
     parser_runs.append(parser_run_from_table_output(table_output, content_sha256))
-    tables = list(table_output.tables)
+    tables = link_tables_to_canonical_markdown(
+        table_output.tables,
+        llm_markdown,
+        llm_spans,
+    )
     table_parser_by_page: dict[int, str] = {}
     for table in tables:
         current = table_parser_by_page.get(table.page_number)

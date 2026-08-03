@@ -7,7 +7,7 @@ function cell(partial: Partial<TableCell> & Pick<TableCell, 'row' | 'col' | 'tex
 }
 
 function table(tableId: string, pageNumber: number, cells: TableCell[]): ParsedTable {
-  return { tableId, pageNumber, cells }
+  return { tableId, pageNumber, canonicalMarkdownStart: null, canonicalMarkdownEnd: null, cells }
 }
 
 // Two-row grave table sharing the value "5" in a single "Count" column.
@@ -154,6 +154,37 @@ describe('findTableCellMatch', () => {
 })
 
 describe('resolveTableCellMatches', () => {
+  it('restricts table candidates to a highlight source scope page range', () => {
+    const first = table('first', 1, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 0, y0: 0, x1: 1, y1: 1 } })])
+    const second = table('second', 2, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 2, y0: 2, x1: 3, y1: 3 } })])
+    const highlights = [{ path: ['records', '1', 'count'], value: '5', rowHeader: null, columnHeader: null, hintPage: null, sourceScope: { segmentId: 'catalog:1', markdownStart: 20, markdownEnd: 40, startPage: 2, endPage: 2 } }]
+    const matches = resolveTableCellMatches([first, second], highlights, computeOccurrenceIndices(highlights))
+
+    expect(matches.get(highlights[0])).toEqual({ pageNumber: 2, bbox: { x0: 2, y0: 2, x1: 3, y1: 3 } })
+  })
+
+  it('does not use a model page hint to select among scoped tables', () => {
+    const first = table('first', 1, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 0, y0: 0, x1: 1, y1: 1 } })])
+    const second = table('second', 2, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 2, y0: 2, x1: 3, y1: 3 } })])
+    const highlights = [{
+      path: ['records', '1', 'count'],
+      value: '5',
+      rowHeader: null,
+      columnHeader: null,
+      hintPage: 2,
+      sourceScope: { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: 40, startPage: 1, endPage: 2 },
+    }]
+
+    expect(resolveTableCellMatches(
+      [first, second],
+      highlights,
+      computeOccurrenceIndices(highlights),
+    ).get(highlights[0])).toEqual({
+      pageNumber: 1,
+      bbox: { x0: 0, y0: 0, x1: 1, y1: 1 },
+    })
+  })
+
   // Two structurally identical tables (e.g. one per grave) that each have a
   // "flint" cell — the kind of cross-table duplicate that a flattened
   // `records[]` array (one record per table) commonly produces.
