@@ -5,18 +5,14 @@ parsing.
 
 ## Installation
 
-Install the normal CPU OCR fallback for local development:
+From the workspace root, install the normal CPU development environment:
 
 ```bash
-uv sync --extra ocr-cpu
+pnpm install
 ```
 
-CUDA hosts can instead use `uv sync --extra ocr-gpu`. The extras conflict by
-design; select exactly one. Runtime commands use `uv run --no-sync`, so they do
-not silently replace the selected profile. From the workspace root,
-`pnpm install:cpu` and `pnpm install:gpu` select the same profiles explicitly.
-Without either extra, Docling still runs and a task that needs PaddleOCR reports
-the stable `ocr_fallback_unavailable` diagnostic.
+CUDA hosts can instead use `pnpm install:gpu`. Runtime commands use
+`uv run --no-sync`, so they do not silently replace the selected profile.
 
 ## Canonical ingestion pipeline
 
