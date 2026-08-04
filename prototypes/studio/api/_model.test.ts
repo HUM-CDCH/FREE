@@ -44,15 +44,28 @@ const generalTarget: ExecutionTarget = {
   temperatureSupported: false,
 }
 
-function stubOllamaResponse(response: string) {
-  const request = vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ response }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    }),
-  )
+function stubOllamaResponses(...generations: readonly {
+  readonly response: string
+  readonly doneReason?: string
+}[]) {
+  const request = vi.fn()
+  for (const generation of generations) {
+    request.mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        response: generation.response,
+        done_reason: generation.doneReason ?? 'stop',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+  }
   vi.stubGlobal('fetch', request)
   return request
+}
+
+function stubOllamaResponse(response: string, doneReason = 'stop') {
+  return stubOllamaResponses({ response, doneReason })
 }
 
 afterEach(() => {
@@ -75,6 +88,7 @@ describe('extractWithModel', () => {
     expect(result.evidence).toEqual({
       grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1 } }],
     })
+    expect(request).toHaveBeenCalledOnce()
     expect(request).toHaveBeenCalledWith('http://127.0.0.1:11434/api/generate', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: 'Bearer secret' },
@@ -101,6 +115,37 @@ describe('extractWithModel', () => {
     expect(inspector.traces[0].request).toContain('【task】structured')
     expect(inspector.traces[0].request).not.toContain('Bearer secret')
     expect(inspector.traces[0].response).toContain('Grave 1')
+  })
+
+  it.each([
+    ['invalid JSON object', '[]', 'stop'],
+    ['length stop', '{"grave":[{"name":"Repeated"}]}', 'length'],
+  ])('retries %s once without evidence', async (_case, firstResponse, doneReason) => {
+    const request = stubOllamaResponses(
+      { response: firstResponse, doneReason },
+      { response: '{"grave":[{"name":"Grave 1"}]}', doneReason: 'stop' },
+    )
+    const result = await extractWithModel(
+      {
+        document,
+        template: { grave: [{ name: 'verbatim-string' }] },
+        instruction: 'Keep exact names.',
+      },
+      rawTarget,
+    )
+
+    expect(request).toHaveBeenCalledTimes(2)
+    const firstBody = JSON.parse(request.mock.calls[0][1].body as string)
+    const secondBody = JSON.parse(request.mock.calls[1][1].body as string)
+    expect(firstBody.prompt).toContain('"_evidence"')
+    expect(secondBody.prompt).not.toContain('"_evidence"')
+    expect(secondBody.prompt).not.toContain('Each object in the template carries')
+    expect(secondBody.prompt).toContain('Keep exact names.')
+    expect(result).toMatchObject({
+      result: { grave: [{ name: 'Grave 1' }] },
+      evidence: null,
+      raw: '{"grave":[{"name":"Grave 1"}]}',
+    })
   })
 
   it('preserves a path-prefixed Ollama server base for raw generation', async () => {

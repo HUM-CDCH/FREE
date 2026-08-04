@@ -41,7 +41,40 @@ type DropTarget =
   | { type: 'slot'; parentId: string | null; index: number }
   | { type: 'group'; id: string; name: string }
 
-type FieldEditing = { id: string; name: string; type: string }
+type FieldEditing = { id: string; name: string; type: string; allowedValuesText: string }
+
+/**
+ * Fewer than two values is a scalar array to the model, not a closed set, so the
+ * field stays an ordinary one until a second value is typed.
+ */
+function parseAllowedValues(text: string): string[] | undefined {
+  const values = [...new Set(text.split(',').map(value => value.trim()).filter(Boolean))]
+  return values.length >= 2 ? values : undefined
+}
+
+function editedField(node: SchemaNode, name: string, editing: FieldEditing): SchemaNode {
+  const allowedValues = parseAllowedValues(editing.allowedValuesText)
+  const out: SchemaNode = { ...node, name, type: allowedValues ? 'string' : editing.type }
+  if (allowedValues) out.allowedValues = allowedValues
+  else delete out.allowedValues
+  return out
+}
+
+function editingOf(node: SchemaNode): FieldEditing {
+  return { id: node.id, name: node.name, type: node.type, allowedValuesText: node.allowedValues?.join(', ') ?? '' }
+}
+
+function AllowedValuesBadge({ node }: { node: SchemaNode }) {
+  if (!node.allowedValues) return null
+  return (
+    <span
+      className="min-w-0 shrink truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted"
+      title={`Allowed values: ${node.allowedValues.join(', ')}`}
+    >
+      {node.allowedValues.join(' | ')}
+    </span>
+  )
+}
 
 type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
@@ -256,6 +289,16 @@ function FieldEditForm({ editing, onChange, onSave, onCancel }: {
         onChange={e => onChange({ ...editing, name: e.target.value })}
         onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
       />
+      {editing.type !== 'object' && editing.type !== 'array' && (
+        <input
+          aria-label="Allowed values"
+          className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-xs text-ink outline-none focus-visible:border-accent"
+          value={editing.allowedValuesText}
+          placeholder="allowed values (2+, comma-separated)"
+          onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
+          onChange={e => onChange({ ...editing, allowedValuesText: e.target.value })}
+        />
+      )}
       <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
       <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✗</button>
     </div>
@@ -560,8 +603,8 @@ function SchemaPanel({
     const newNodes = nodesRef.current.map(n => {
       if (n.id === editing.id) {
         // Task 5.2 – convert type/children
-        const out: SchemaNode = { ...n, name, type: editing.type }
-        if (editing.type === 'object' || editing.type === 'array') {
+        const out = editedField(n, name, editing)
+        if (out.type === 'object' || out.type === 'array') {
           if (!out.children) out.children = []
         } else {
           delete out.children
@@ -569,7 +612,7 @@ function SchemaPanel({
         return out
       }
       if (n.children) {
-        return { ...n, children: n.children.map(c => (c.id === editing.id ? { ...c, name, type: editing.type } : c)) }
+        return { ...n, children: n.children.map(c => (c.id === editing.id ? editedField(c, name, editing) : c)) }
       }
       return n
     })
@@ -626,7 +669,7 @@ function SchemaPanel({
     setNodes(newNodes)
     onNodesChange(newNodes, '✎ Schema updated')
     setView('fields')
-    setEditing({ id, name, type: 'verbatim-string' })
+    setEditing({ id, name, type: 'verbatim-string', allowedValuesText: '' })
   }
 
   // const SUGGESTIONS = [
@@ -764,6 +807,7 @@ function SchemaPanel({
               </span>
             )}
             <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${diffText}`}>{node.name}</span>
+            <AllowedValuesBadge node={node} />
             {intoGroup && !isDiff && (
               <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
                 into {node.name}
@@ -790,7 +834,7 @@ function SchemaPanel({
                 type="button"
                 title={`Edit ${node.name}`}
                 disabled={editDisabled}
-                onClick={() => setEditing({ id: node.id, name: node.name, type: node.type })}
+                onClick={() => setEditing(editingOf(node))}
               >
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
               </button>
@@ -874,6 +918,7 @@ function SchemaPanel({
               </span>
             )}
             <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${diffText}`}>{child.name}</span>
+            <AllowedValuesBadge node={child} />
             {isGroup && !isDiff && (
               <span
                 className="shrink-0 flex items-center text-ink-faint hover:text-accent cursor-pointer transition-colors"
@@ -910,7 +955,7 @@ function SchemaPanel({
                 type="button"
                 title={`Edit ${child.name}`}
                 disabled={editDisabled}
-                onClick={() => setEditing({ id: child.id, name: child.name, type: child.type })}
+                onClick={() => setEditing(editingOf(child))}
               >
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
               </button>

@@ -15,6 +15,8 @@ export function schemaPrompt(annotations: readonly Annotation[], mode: Annotatio
 
 Generate a compact JSON extraction schema for this source document. Return an object named "template". Field values should be simple type labels such as "verbatim-string", "string", "date", "number", "integer", "boolean", nested objects, or arrays.
 
+When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "sex": ["mand", "kvinde", "ukendt"].
+
 Annotations:
 ${annotationText}`
 }

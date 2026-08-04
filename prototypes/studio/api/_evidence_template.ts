@@ -1,3 +1,5 @@
+import { isAllowedValues } from '../shared/allowedValues.js'
+
 // Evidence rides alongside the Extraction Schema as one `_evidence` object per
 // schema object, keyed by that object's own field names. Wrapping each leaf as
 // {value, snippet, page} instead removes every plain scalar from the template,
@@ -51,7 +53,9 @@ function wrapSchema(node: unknown): unknown {
   for (const [key, value] of Object.entries(node)) {
     wrapped[key] = wrapSchema(value)
     if (key.startsWith('_')) continue
-    if (isScalarLeaf(value)) {
+    // A closed set is answered with one value, so it takes a scalar slot even
+    // though the template writes it as an array.
+    if (isScalarLeaf(value) || isAllowedValues(value)) {
       evidence[key] = evidenceSlot()
     } else if (isScalarArray(value)) {
       evidence[key] = [evidenceSlot()]

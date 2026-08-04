@@ -26,6 +26,13 @@ describe('wrapTemplateWithEvidence', () => {
     })
   })
 
+  it('gives a closed-set field a scalar evidence slot, not a parallel array', () => {
+    expect(wrapTemplateWithEvidence({ koen: ['mand', 'kvinde', 'ukendt'] })).toEqual({
+      koen: ['mand', 'kvinde', 'ukendt'],
+      _evidence: { koen: { snippet: 'string', page: 'number' } },
+    })
+  })
+
   it('declares a parallel evidence array for scalar arrays and leaves object arrays to recursion', () => {
     expect(wrapTemplateWithEvidence({ film: ['verbatim-string'], finds: [{ id: 'string' }] })).toEqual({
       film: ['verbatim-string'],
