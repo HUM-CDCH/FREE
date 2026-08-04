@@ -163,6 +163,10 @@ export default function AppFrame({ route, onNavigate }: AppFrameProps) {
 
   return (
     <main className="flex h-dvh overflow-hidden bg-canvas text-ink">
+      {/* React 19 hoists this into <head>; no title-sync effect needed. */}
+      <title>
+        {workspace ? `FREE Studio — ${workspace.filename}` : 'FREE Studio'}
+      </title>
       <div
         style={{ width: effectiveNavWidth }}
         className="flex shrink-0 flex-col border-r border-line bg-surface"
