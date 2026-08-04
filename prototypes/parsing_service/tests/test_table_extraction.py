@@ -332,6 +332,54 @@ class TestExtractTables(unittest.TestCase):
             "| Label | Value |\n| --- | --- |\n| Missing | NaN |",
         )
 
+    def test_headerless_docling_continuation_inherits_prior_table_header(self):
+        inventory = [
+            _inventory_for_rows(
+                [
+                    ["Fundnummer", "Beskrivelse", "Bemærkninger"],
+                    ["26-1", "Keramik", "Lille skår"],
+                    ["26-10", "Keramik", "Hank"],
+                ],
+                page=4,
+            ),
+            _inventory_for_rows(
+                [
+                    ["26-11", "Keramik", "Fragmenter af ornamenteret skår. Niv. 6"],
+                    ["26-15", "Keramik", "Niv. 6"],
+                ],
+                page=5,
+                cell_bboxes={(0, 0): (10.0, 20.0, 70.0, 45.0)},
+            ),
+        ]
+        with patch(
+            "app.parsing.table_extraction.importlib.import_module",
+            side_effect=ModuleNotFoundError("camelot"),
+        ):
+            output = extract_tables(
+                source_pdf=Path("source.pdf"),
+                content_sha256="a" * 64,
+                page_heights_pt={4: 200.0, 5: 200.0},
+                docling_tables=inventory,
+            )
+
+        continuation = output.tables[1]
+        by_pos = {(cell.row, cell.col): cell for cell in continuation.cells}
+        self.assertEqual((continuation.rows, continuation.cols), (3, 3))
+        self.assertEqual(
+            continuation.markdown_view,
+            "| Fundnummer | Beskrivelse | Bemærkninger |\n"
+            "| --- | --- | --- |\n"
+            "| 26-11 | Keramik | Fragmenter af ornamenteret skår. Niv. 6 |\n"
+            "| 26-15 | Keramik | Niv. 6 |",
+        )
+        self.assertEqual(by_pos[(0, 0)].role, "header")
+        self.assertEqual(by_pos[(0, 1)].text, "Beskrivelse")
+        self.assertEqual(by_pos[(1, 0)].role, "row_header")
+        self.assertEqual(
+            by_pos[(1, 0)].bbox,
+            BoundingBox(x0=10.0, y0=20.0, x1=70.0, y1=45.0),
+        )
+
     def test_docling_inventory_is_complete_when_camelot_is_unavailable(self):
         inventory = [
             {

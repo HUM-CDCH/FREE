@@ -68,10 +68,10 @@
     },
     {
       "cols": 3,
-      "first_column": ["26-11", "26-15", "26-16", "26-17", "26-23", "26-25", "26-26", "26-27"],
-      "header_rows": [],
+      "first_column": ["Fundnummer", "26-11", "26-15", "26-16", "26-17", "26-23", "26-25", "26-26", "26-27"],
+      "header_rows": [0],
       "page_number": 5,
-      "rows": 8,
+      "rows": 9,
       "source_parser": "docling_table",
       "table_id": "p05_t01"
     },

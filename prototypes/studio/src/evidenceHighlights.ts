@@ -17,6 +17,11 @@ export type EvidenceSourceScope = {
   endPage: number
 }
 
+export type CanonicalSpan = {
+  markdownStart: number
+  markdownEnd: number
+}
+
 export type MatchStrategy = 'result-primary' | 'snippet-primary'
 
 export type Highlight = {
@@ -26,6 +31,7 @@ export type Highlight = {
   rowHeader: string | null
   columnHeader: string | null
   sourceScope: EvidenceSourceScope | null
+  canonicalSpan: CanonicalSpan | null
   matchStrategy: MatchStrategy
   color: string
   path: string[]
@@ -124,6 +130,43 @@ function primitiveText(value: unknown): string | null {
   return null
 }
 
+function findUniqueScopedSpan(
+  markdown: string | null | undefined,
+  term: string | null,
+  scope: EvidenceSourceScope,
+): CanonicalSpan | null {
+  if (!markdown || !term) return null
+  const scopeStart = Math.max(0, scope.markdownStart)
+  const scopeEnd = Math.min(markdown.length, scope.markdownEnd)
+  const spans: CanonicalSpan[] = []
+  let from = scopeStart
+  for (;;) {
+    const start = markdown.indexOf(term, from)
+    const end = start + term.length
+    if (start === -1 || end > scopeEnd) break
+    spans.push({ markdownStart: start, markdownEnd: end })
+    if (spans.length > 1) return null
+    from = end
+  }
+  return spans[0] ?? null
+}
+
+function canonicalSpanFromEvidence(
+  markdown: string | null | undefined,
+  value: string,
+  snippet: string,
+  matchStrategy: MatchStrategy,
+  scope: EvidenceSourceScope,
+): CanonicalSpan | null {
+  const primaryTerm = matchStrategy === 'result-primary' ? value : snippet
+  const primary = findUniqueScopedSpan(markdown, primaryTerm, scope)
+  if (primary) return primary
+
+  const secondaryTerm = primaryTerm === value ? snippet : value
+  if (secondaryTerm === primaryTerm) return null
+  return findUniqueScopedSpan(markdown, secondaryTerm, scope)
+}
+
 function schemaArrayItem(schema: unknown): unknown {
   return Array.isArray(schema) ? schema[0] : undefined
 }
@@ -135,6 +178,7 @@ function collectEvidenceLeaf(
   color: string,
   path: string[],
   out: Highlight[],
+  markdown?: string | null,
 ): boolean {
   if (
     isRecord(node) &&
@@ -144,6 +188,10 @@ function collectEvidenceLeaf(
     const s = node.snippet.trim()
     const sourceScope = sourceScopeFromEvidence(node)
     if (v && s && sourceScope) {
+      const matchStrategy =
+        typeof resultValue === 'string' && schema === 'verbatim-string'
+          ? 'result-primary'
+          : 'snippet-primary'
       out.push({
         value: v,
         snippet: s,
@@ -151,10 +199,8 @@ function collectEvidenceLeaf(
         rowHeader: typeof node.row_header === 'string' && node.row_header.trim() ? node.row_header : null,
         columnHeader: typeof node.column_header === 'string' && node.column_header.trim() ? node.column_header : null,
         sourceScope,
-        matchStrategy:
-          typeof resultValue === 'string' && schema === 'verbatim-string'
-            ? 'result-primary'
-            : 'snippet-primary',
+        canonicalSpan: canonicalSpanFromEvidence(markdown, v, s, matchStrategy, sourceScope),
+        matchStrategy,
         color,
         path,
       })
@@ -171,20 +217,21 @@ function collectHighlightLeaves(
   color: string,
   path: string[],
   out: Highlight[],
+  markdown?: string | null,
 ): void {
-  if (collectEvidenceLeaf(resultNode, evidenceNode, schemaNode, color, path, out)) return
+  if (collectEvidenceLeaf(resultNode, evidenceNode, schemaNode, color, path, out, markdown)) return
 
   if (Array.isArray(resultNode)) {
     const evidenceItems = Array.isArray(evidenceNode) ? evidenceNode : []
     const itemSchema = schemaArrayItem(schemaNode)
     for (let i = 0; i < resultNode.length; i++) {
-      collectHighlightLeaves(resultNode[i], evidenceItems[i], itemSchema, color, [...path, String(i)], out)
+      collectHighlightLeaves(resultNode[i], evidenceItems[i], itemSchema, color, [...path, String(i)], out, markdown)
     }
   } else if (isRecord(resultNode)) {
     const evidenceRecord = isRecord(evidenceNode) ? evidenceNode : {}
     const schemaRecord = isRecord(schemaNode) ? schemaNode : {}
     for (const [key, value] of Object.entries(resultNode)) {
-      collectHighlightLeaves(value, evidenceRecord[key], schemaRecord[key], color, [...path, key], out)
+      collectHighlightLeaves(value, evidenceRecord[key], schemaRecord[key], color, [...path, key], out, markdown)
     }
   }
 }
@@ -194,6 +241,7 @@ export function buildHighlights(
   evidence: unknown,
   fieldColorMap?: Record<string, string>,
   schemaTemplate?: unknown,
+  markdown?: string | null,
 ): Highlight[] {
   const out: Highlight[] = []
 
@@ -214,7 +262,7 @@ export function buildHighlights(
       for (const [key, value] of Object.entries(rec)) {
         const color = fieldColorMap?.[key] ?? PALETTE[i % PALETTE.length]
         const fieldSchema = isRecord(recordSchema) ? recordSchema[key] : undefined
-        collectHighlightLeaves(value, (evidenceRec as Record<string, unknown>)[key], fieldSchema, color, ['records', String(r), key], out)
+        collectHighlightLeaves(value, (evidenceRec as Record<string, unknown>)[key], fieldSchema, color, ['records', String(r), key], out, markdown)
         i++
       }
     }
@@ -227,7 +275,7 @@ export function buildHighlights(
   for (const [key, value] of Object.entries(result)) {
     const color = fieldColorMap?.[key] ?? PALETTE[i % PALETTE.length]
     const fieldSchema = isRecord(schemaTemplate) ? schemaTemplate[key] : undefined
-    collectHighlightLeaves(value, evidenceRecord[key], fieldSchema, color, [key], out)
+    collectHighlightLeaves(value, evidenceRecord[key], fieldSchema, color, [key], out, markdown)
     i++
   }
   return out

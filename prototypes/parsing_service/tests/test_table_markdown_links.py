@@ -24,3 +24,20 @@ class TestTableMarkdownLinks(unittest.TestCase):
             [table], markdown, [PageMarkdownSpan(1, markdown, 0, len(markdown))]
         )
         self.assertIsNone(linked[0].canonical_markdown_start)
+
+    def test_links_continuation_view_after_header_inheritance(self):
+        view = (
+            "| Fundnummer | Beskrivelse | Bemærkninger |\n"
+            "| --- | --- | --- |\n"
+            "| 26-11 | Keramik | Fragmenter af ornamenteret skår. Niv. 6 |\n"
+            "| 26-15 | Keramik | Niv. 6 |"
+        )
+        markdown = f"# Grav 26\n\n---\n\n{view}\n\n# Grav 28"
+        table = ParsedTable(table_id="p05_t01", page_number=5, markdown_view=view)
+
+        linked = link_tables_to_canonical_markdown(
+            [table], markdown, [PageMarkdownSpan(5, markdown, 0, len(markdown))]
+        )
+
+        self.assertEqual(linked[0].canonical_markdown_start, markdown.index(view))
+        self.assertEqual(linked[0].canonical_markdown_end, markdown.index(view) + len(view))

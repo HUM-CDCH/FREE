@@ -679,6 +679,74 @@ def _deduplicate_tables(tables: list[ParsedTable]) -> list[ParsedTable]:
     return kept
 
 
+def _header_row_texts(table: ParsedTable) -> list[str] | None:
+    matrix = _parsed_table_matrix(table)
+    if not matrix:
+        return None
+    header_rows = {cell.row for cell in table.cells if cell.role == "header"}
+    if header_rows != {0}:
+        return None
+    header = matrix[0]
+    return header if _is_header_like_row(header) else None
+
+
+def _has_explicit_header(table: ParsedTable) -> bool:
+    return _header_row_texts(table) is not None
+
+
+def _is_continuation_table(table: ParsedTable) -> bool:
+    if _has_explicit_header(table) or not table.cells:
+        return False
+    matrix = _parsed_table_matrix(table)
+    return bool(matrix and _is_table_data_row(matrix[0]))
+
+
+def _inherit_continuation_headers(tables: Sequence[ParsedTable]) -> list[ParsedTable]:
+    ordered = sorted(
+        tables,
+        key=lambda table: (
+            table.page_number,
+            table.bbox.y0 if table.bbox is not None else math.inf,
+            table.bbox.x0 if table.bbox is not None else math.inf,
+        ),
+    )
+    prior_headers_by_cols: dict[int, list[str]] = {}
+    result: list[ParsedTable] = []
+    for table in ordered:
+        if _is_continuation_table(table) and table.cols in prior_headers_by_cols:
+            header = prior_headers_by_cols[table.cols]
+            header_cells = [
+                TableCell(row=0, col=col, text=text, role="header")
+                for col, text in enumerate(header)
+                if text
+            ]
+            shifted_cells = [
+                cell.model_copy(
+                    update={
+                        "row": cell.row + 1,
+                        "role": "row_header"
+                        if cell.col == 0 and cell.text
+                        else cell.role,
+                    }
+                )
+                for cell in table.cells
+            ]
+            table = table.model_copy(
+                update={
+                    "rows": (table.rows or 0) + 1,
+                    "cells": header_cells + shifted_cells,
+                    "markdown_view": _markdown_view(
+                        [header] + _parsed_table_matrix(table), [0]
+                    ),
+                }
+            )
+        result.append(table)
+        header = _header_row_texts(table)
+        if header is not None and table.cols is not None:
+            prior_headers_by_cols[table.cols] = header
+    return result
+
+
 def _assign_table_ids(tables: list[ParsedTable]) -> list[ParsedTable]:
     counters: dict[int, int] = {}
     ordered = sorted(
@@ -967,7 +1035,9 @@ def extract_tables(
                 page_rotations=rotations,
                 warnings=warnings,
             )
-        tables = _assign_table_ids(_deduplicate_tables(reconciled))
+        tables = _assign_table_ids(
+            _deduplicate_tables(_inherit_continuation_headers(reconciled))
+        )
         return TableExtractionOutput(
             parser=TABLE_PIPELINE_NAME,
             status="success",
@@ -997,11 +1067,13 @@ def extract_tables(
 
     if camelot_succeeded:
         tables = _assign_table_ids(
-            _camelot_tables(
-                found,
-                page_heights_pt=page_heights_pt,
-                page_rotations=rotations,
-                warnings=warnings,
+            _inherit_continuation_headers(
+                _camelot_tables(
+                    found,
+                    page_heights_pt=page_heights_pt,
+                    page_rotations=rotations,
+                    warnings=warnings,
+                )
             )
         )
         return TableExtractionOutput(

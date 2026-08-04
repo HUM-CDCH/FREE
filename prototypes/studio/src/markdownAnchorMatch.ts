@@ -1,5 +1,5 @@
 import type { BoundingBox, EvidenceAnchor } from './parsedDocument'
-import type { EvidenceSourceScope } from './evidenceHighlights'
+import type { CanonicalSpan, EvidenceSourceScope } from './evidenceHighlights'
 
 export type AnchorFragment = { page: number; bbox: BoundingBox }
 export type AnchorMatch = { fragments: AnchorFragment[] }
@@ -12,6 +12,18 @@ const MIN_CANDIDATE_TOKENS = 3
 
 type TokenSpan = { token: string; start: number; end: number }
 type RawRange = { start: number; end: number }
+
+function anchorsFullyContainedInScope(
+  anchors: readonly EvidenceAnchor[],
+  scopeStart: number,
+  scopeEnd: number,
+): EvidenceAnchor[] {
+  return anchors.filter(
+    (anchor) =>
+      anchor.markdownStart >= scopeStart &&
+      anchor.markdownEnd <= scopeEnd,
+  )
+}
 
 export function normalizeTolerantText(text: string): string {
   return text
@@ -161,7 +173,7 @@ export function findTolerantScopedMarkdownAnchorMatch(
 ): AnchorMatch | null {
   const scopeStart = Math.max(0, sourceScope.markdownStart)
   const scopeEnd = Math.min(markdown.length, sourceScope.markdownEnd)
-  const scopedAnchors = anchors.filter((anchor) => anchor.markdownStart < scopeEnd && anchor.markdownEnd > scopeStart)
+  const scopedAnchors = anchorsFullyContainedInScope(anchors, scopeStart, scopeEnd)
 
   for (const candidate of candidateFragments(snippet, value)) {
     const range = findUniqueTolerantScopedRange(markdown, candidate, sourceScope)
@@ -201,6 +213,27 @@ function resolveOccurrence(anchors: EvidenceAnchor[], start: number, end: number
   return { fragments }
 }
 
+export function findCanonicalSpanAnchorMatch(
+  markdown: string,
+  anchors: EvidenceAnchor[],
+  canonicalSpan: CanonicalSpan | null,
+  sourceScope: EvidenceSourceScope,
+): AnchorMatch | null {
+  if (!canonicalSpan || anchors.length === 0) return null
+  const scopeStart = Math.max(0, sourceScope.markdownStart)
+  const scopeEnd = Math.min(markdown.length, sourceScope.markdownEnd)
+  const { markdownStart, markdownEnd } = canonicalSpan
+  if (
+    markdownStart < scopeStart ||
+    markdownEnd > scopeEnd ||
+    markdownEnd <= markdownStart ||
+    markdownEnd > markdown.length
+  ) return null
+
+  const scopedAnchors = anchorsFullyContainedInScope(anchors, scopeStart, scopeEnd)
+  return resolveOccurrence(scopedAnchors, markdownStart, markdownEnd)
+}
+
 // Anchor-based lookup tier (see design.md / evidence-anchor-index spec): finds
 // a field's snippet in the canonical Markdown already fetched for the open
 // document, then resolves the anchor(s) covering that character range. Only
@@ -228,7 +261,7 @@ export function findMarkdownAnchorMatch(
   const scopeStart = sourceScope ? Math.max(0, sourceScope.markdownStart) : 0
   const scopeEnd = sourceScope ? Math.min(markdown.length, sourceScope.markdownEnd) : markdown.length
   const scopedAnchors = sourceScope
-    ? anchors.filter((anchor) => anchor.markdownStart < scopeEnd && anchor.markdownEnd > scopeStart)
+    ? anchorsFullyContainedInScope(anchors, scopeStart, scopeEnd)
     : anchors
   let from = scopeStart
   for (;;) {

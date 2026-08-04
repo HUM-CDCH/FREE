@@ -148,6 +148,43 @@ describe('buildHighlights', () => {
     ])
   })
 
+  it('adds canonicalSpan when the primary term occurs exactly once inside sourceScope', () => {
+    const markdown = 'Intro. Anchored title appears here. Tail.'
+    const start = markdown.indexOf('Anchored title')
+    const result = { title: 'Anchored title' }
+    const evidence = {
+      title: {
+        value: 'Anchored title',
+        snippet: 'Anchored title appears here',
+        page: 1,
+        source_scope: { segment_id: 'article:0', markdown_start: 0, markdown_end: markdown.length, start_page: 1, end_page: 1 },
+      },
+    }
+
+    expect(buildHighlights(result, evidence, { title: 'yellow' }, { title: 'verbatim-string' }, markdown)).toMatchObject([
+      {
+        canonicalSpan: { markdownStart: start, markdownEnd: start + 'Anchored title'.length },
+      },
+    ])
+  })
+
+  it('leaves canonicalSpan null when the scoped occurrence is ambiguous', () => {
+    const markdown = 'Repeated phrase. Repeated phrase.'
+    const result = { title: 'Repeated phrase' }
+    const evidence = {
+      title: {
+        value: 'Repeated phrase',
+        snippet: 'Repeated phrase',
+        page: 1,
+        source_scope: { segment_id: 'article:0', markdown_start: 0, markdown_end: markdown.length, start_page: 1, end_page: 1 },
+      },
+    }
+
+    expect(buildHighlights(result, evidence, { title: 'yellow' }, { title: 'verbatim-string' }, markdown)).toMatchObject([
+      { canonicalSpan: null },
+    ])
+  })
+
   it('omits malformed source scopes', () => {
     expect(buildHighlights(
       { title: 'Report' },
@@ -162,6 +199,7 @@ function testHighlight(path: string[], color = 'yellow'): Highlight {
   return {
     value: 'value', snippet: 'snippet', hintPage: 1, rowHeader: null, columnHeader: null,
     sourceScope: { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: 10, startPage: 1, endPage: 1 },
+    canonicalSpan: null,
     matchStrategy: 'result-primary', color, path,
   }
 }

@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { buildSegmentGeometryIndex } from './segmentGeometry'
-import type { ParsedTable } from './parsedDocument'
+import type { EvidenceAnchor, ParsedTable } from './parsedDocument'
 
 function table(id: string, pageNumber: number, start: number, end: number): ParsedTable {
   return { tableId: id, pageNumber, canonicalMarkdownStart: start, canonicalMarkdownEnd: end, cells: [] }
+}
+
+function anchor(markdownStart: number, markdownEnd: number): EvidenceAnchor {
+  return { markdownStart, markdownEnd, page: 1, bbox: { x0: 0, y0: 0, x1: 10, y1: 10 } }
 }
 
 describe('buildSegmentGeometryIndex', () => {
@@ -31,5 +35,23 @@ describe('buildSegmentGeometryIndex', () => {
       { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: 20, startPage: 1, endPage: 1 },
     ])
     expect(index.get('catalog:0')?.tables).toEqual([])
+  })
+
+  it('does not assign anchors that cross a segment boundary', () => {
+    const index = buildSegmentGeometryIndex(
+      [
+        anchor(5, 15),
+        anchor(18, 28),
+        anchor(25, 35),
+      ],
+      [],
+      [
+        { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: 20, startPage: 1, endPage: 1 },
+        { segmentId: 'catalog:1', markdownStart: 20, markdownEnd: 40, startPage: 1, endPage: 1 },
+      ],
+    )
+
+    expect(index.get('catalog:0')?.anchors.map((item) => [item.markdownStart, item.markdownEnd])).toEqual([[5, 15]])
+    expect(index.get('catalog:1')?.anchors.map((item) => [item.markdownStart, item.markdownEnd])).toEqual([[25, 35]])
   })
 })

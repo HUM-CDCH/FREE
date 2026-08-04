@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   candidateFragments,
+  findCanonicalSpanAnchorMatch,
   findMarkdownAnchorMatch,
   findScopedMarkdownAnchorMatch,
   findUniqueTolerantScopedRange,
@@ -143,7 +144,7 @@ describe('findMarkdownAnchorMatch', () => {
     })).toBeNull()
   })
 
-  it('uses an overlapping anchor when the term is inside scope but the block crosses a scope boundary', () => {
+  it('rejects an overlapping anchor when its block crosses a scope boundary', () => {
     const markdown = 'Previous segment tail. Datering: Yngre romersk jernalder (?)'
     const term = 'Datering: Yngre romersk jernalder (?)'
     const termStart = markdown.indexOf(term)
@@ -162,10 +163,10 @@ describe('findMarkdownAnchorMatch', () => {
       markdownEnd: markdown.length,
       startPage: 5,
       endPage: 5,
-    })).toEqual({ fragments: [{ page: 5, bbox: { x0: 5, y0: 6, x1: 50, y1: 16 } }] })
+    })).toBeNull()
   })
 
-  it('does not use a scoped anchor that does not overlap the source scope', () => {
+  it('does not use a scoped anchor that is not contained in the source scope', () => {
     const markdown = 'Datering: Yngre romersk jernalder (?)'
     const anchors = [
       anchor({
@@ -245,5 +246,38 @@ describe('findMarkdownAnchorMatch', () => {
 
   it('does not produce tolerant candidates for table-like snippets', () => {
     expect(candidateFragments('| 26-15 | Keramik | Niv. 6 |', 'Keramik')).toEqual([])
+  })
+
+  it('resolves a canonical span directly without searching duplicate snippet text', () => {
+    const snippet = 'Grave 8 contained pottery'
+    const markdown = `${snippet}. Later ${snippet}.`
+    const secondStart = markdown.lastIndexOf(snippet)
+    const scope = { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: markdown.length, startPage: 1, endPage: 1 }
+    const anchors = [
+      anchor({ markdownStart: 0, markdownEnd: snippet.length, page: 1, bbox: { x0: 0, y0: 0, x1: 10, y1: 10 } }),
+      anchor({ markdownStart: secondStart, markdownEnd: secondStart + snippet.length, page: 1, bbox: { x0: 20, y0: 20, x1: 30, y1: 30 } }),
+    ]
+
+    expect(findCanonicalSpanAnchorMatch(markdown, anchors, {
+      markdownStart: secondStart,
+      markdownEnd: secondStart + snippet.length,
+    }, scope)).toEqual({ fragments: [{ page: 1, bbox: { x0: 20, y0: 20, x1: 30, y1: 30 } }] })
+  })
+
+  it('rejects canonical spans outside the source scope', () => {
+    const markdown = 'First occurrence. Second occurrence.'
+    const secondStart = markdown.indexOf('Second')
+    const anchors = [anchor({ markdownStart: secondStart, markdownEnd: markdown.length, page: 1 })]
+
+    expect(findCanonicalSpanAnchorMatch(markdown, anchors, {
+      markdownStart: secondStart,
+      markdownEnd: markdown.length,
+    }, {
+      segmentId: 'catalog:0',
+      markdownStart: 0,
+      markdownEnd: secondStart - 1,
+      startPage: 1,
+      endPage: 1,
+    })).toBeNull()
   })
 })

@@ -14,8 +14,8 @@ function anchorsInScope(
 ): EvidenceAnchor[] {
   return anchors.filter(
     (anchor) =>
-      anchor.markdownStart < scope.markdownEnd &&
-      anchor.markdownEnd > scope.markdownStart,
+      anchor.markdownStart >= scope.markdownStart &&
+      anchor.markdownEnd <= scope.markdownEnd,
   )
 }
 

@@ -39,6 +39,7 @@ function highlight(scope: EvidenceSourceScope, rowHeader: string): Highlight & {
     rowHeader,
     columnHeader: 'Count',
     sourceScope: scope,
+    canonicalSpan: null,
     matchStrategy: 'snippet-primary',
     color: 'rgba(148, 203, 236, 0.55)',
   }

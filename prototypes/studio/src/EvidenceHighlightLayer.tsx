@@ -8,7 +8,12 @@ import { buildSegmentGeometryIndex } from './segmentGeometry'
 import type { SegmentGeometry } from './segmentGeometry'
 import { resolveTableCellMatches, computeOccurrenceIndices } from './tableCellMatch'
 import type { TableCellMatch } from './tableCellMatch'
-import { candidateFragments, findScopedMarkdownAnchorMatch, findUniqueTolerantScopedRange } from './markdownAnchorMatch'
+import {
+  candidateFragments,
+  findCanonicalSpanAnchorMatch,
+  findScopedMarkdownAnchorMatch,
+  findUniqueTolerantScopedRange,
+} from './markdownAnchorMatch'
 import { getPageTextData, rectsForQuery, searchValueAnchoredBySnippet } from './evidenceTextSearch'
 import type { PageRects } from './evidenceTextSearch'
 
@@ -99,11 +104,17 @@ async function findAnchorRects(
   if (!markdown || anchors.length === 0) return null
 
   if (!highlight.sourceScope) return null
+  const spanMatch = findCanonicalSpanAnchorMatch(
+    markdown,
+    anchors,
+    highlight.canonicalSpan,
+    highlight.sourceScope,
+  )
   const primaryTerm =
     highlight.matchStrategy === 'result-primary' ? highlight.value : highlight.snippet
   const fallbackSnippet =
     highlight.matchStrategy === 'result-primary' ? highlight.snippet : null
-  const match = findScopedMarkdownAnchorMatch(
+  const match = spanMatch ?? findScopedMarkdownAnchorMatch(
     markdown,
     anchors,
     primaryTerm,
@@ -371,6 +382,7 @@ declare global {
         rowHeader: string | null
         columnHeader: string | null
         sourceScope: EvidenceSourceScope | null
+        canonicalSpan: { markdownStart: number; markdownEnd: number } | null
         tableMatch: TableCellMatch | null
         resolvedBy: HighlightResolver | null
         pageNumber: number
@@ -386,6 +398,7 @@ declare global {
         rowHeader: string | null
         columnHeader: string | null
         sourceScope: EvidenceSourceScope | null
+        canonicalSpan: { markdownStart: number; markdownEnd: number } | null
         tableMatch: TableCellMatch | null
         ownedTableIds: string[]
         ownedAnchorCount: number
@@ -496,7 +509,7 @@ export default function EvidenceHighlightLayer({
     const schemaKeys = isRecord(schemaTemplateRef.current) ? Object.keys(schemaTemplateRef.current) : []
     const fieldColorMap: Record<string, string> = {}
     schemaKeys.forEach((k, i) => { fieldColorMap[k] = PALETTE[i % PALETTE.length] })
-    const highlights = buildHighlights(result, evidence, fieldColorMap, schemaTemplateRef.current).filter(
+    const highlights = buildHighlights(result, evidence, fieldColorMap, schemaTemplateRef.current, markdown).filter(
       (highlight): highlight is Highlight & { sourceScope: EvidenceSourceScope } => highlight.sourceScope !== null,
     )
     if (highlights.length === 0) return
@@ -596,6 +609,7 @@ export default function EvidenceHighlightLayer({
           rowHeader: entry.highlight.rowHeader,
           columnHeader: entry.highlight.columnHeader,
           sourceScope: entry.highlight.sourceScope,
+          canonicalSpan: entry.highlight.canonicalSpan,
           tableMatch: tableMatches.get(entry.highlight) ?? null,
           resolvedBy: resolvedByHighlight.get(entry.highlight) ?? null,
           pageNumber: entry.pageNumber,
@@ -620,6 +634,7 @@ export default function EvidenceHighlightLayer({
               rowHeader: highlight.rowHeader,
               columnHeader: highlight.columnHeader,
               sourceScope: highlight.sourceScope,
+              canonicalSpan: highlight.canonicalSpan,
               tableMatch: tableMatches.get(highlight) ?? null,
               ownedTableIds: geometry?.tables.map((table) => table.tableId) ?? [],
               ownedAnchorCount: geometry?.anchors.length ?? 0,
