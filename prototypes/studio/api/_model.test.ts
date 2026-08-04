@@ -7,6 +7,7 @@ import {
   streamChatWithModel,
 } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
+import { FIELD_TYPES } from '../shared/allowedValues.js'
 import {
   DELETE as clearLlmInspector,
   GET as getLlmInspector,
@@ -224,6 +225,21 @@ describe('generateSchemaWithModel', () => {
 })
 
 describe('interactive model operations', () => {
+  it('uses the shared field types for schema edits', async () => {
+    generateTextMock.mockResolvedValue({
+      text: JSON.stringify([
+        ...FIELD_TYPES.map((type) => ({ op: 'add', name: type, type })),
+        { op: 'add', name: 'unsupported', type: 'unsupported' },
+      ]),
+    })
+
+    const ops = await editSchemaWithModel({}, 'Add fields', null, undefined, generalTarget)
+    const prompt = generateTextMock.mock.calls[0][0].messages[0].content
+
+    expect(prompt).toContain(`"type":"${FIELD_TYPES.join('|')}"`)
+    expect(ops.map((op) => 'type' in op ? op.type : undefined)).toEqual(FIELD_TYPES)
+  })
+
   it('adds Source Markdown to schema editing only when supplied', async () => {
     generateTextMock.mockResolvedValue({ text: '[]' })
     await editSchemaWithModel({}, 'No changes', null, undefined, generalTarget)

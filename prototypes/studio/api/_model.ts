@@ -17,7 +17,7 @@ import {
   asModelOperationError,
   boundedUpstreamDetail,
 } from './_http.js'
-import { applyAllowedValues } from '../shared/allowedValues.js'
+import { applyAllowedValues, FIELD_TYPES } from '../shared/allowedValues.js'
 import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template.js'
 import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
@@ -380,19 +380,22 @@ export function renderNuExtractPrompt({
   return { prompt, images }
 }
 
+const fieldTypeSchema = z.enum(FIELD_TYPES)
+type FieldType = z.infer<typeof fieldTypeSchema>
+
 export type EditSchemaOp =
-  | { op: 'add'; name: string; type: string; parentName?: string }
+  | { op: 'add'; name: string; type: FieldType; parentName?: string }
   | { op: 'remove'; name: string; parentName?: string }
-  | { op: 'patch'; name: string; newName?: string; type?: string; parentName?: string }
+  | { op: 'patch'; name: string; newName?: string; type?: FieldType; parentName?: string }
 
 const editSchemaOpSchema = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('add'), name: z.string(), type: z.string(), parentName: z.string().optional() }),
+  z.object({ op: z.literal('add'), name: z.string(), type: fieldTypeSchema, parentName: z.string().optional() }),
   z.object({ op: z.literal('remove'), name: z.string(), parentName: z.string().optional() }),
   z.object({
     op: z.literal('patch'),
     name: z.string(),
     newName: z.string().optional(),
-    type: z.string().optional(),
+    type: fieldTypeSchema.optional(),
     parentName: z.string().optional(),
   }),
 ])
@@ -422,7 +425,7 @@ Researcher instruction: "${instruction}"
 
 Return ONLY a JSON array of operations. No explanation, no markdown fences, no extra text.
 Each operation must be one of:
-  {"op":"add","name":"fieldName","type":"string|number|boolean|object|array","parentName":"optionalParent"}
+  {"op":"add","name":"fieldName","type":"${FIELD_TYPES.join('|')}","parentName":"optionalParent"}
   {"op":"remove","name":"fieldName","parentName":"optionalParent"}
   {"op":"patch","name":"fieldName","newName":"optionalNewName","type":"optionalNewType","parentName":"optionalParent"}
 
