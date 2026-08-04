@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { findMarkdownAnchorMatch, findScopedMarkdownAnchorMatch } from './markdownAnchorMatch'
+import {
+  candidateFragments,
+  findMarkdownAnchorMatch,
+  findScopedMarkdownAnchorMatch,
+  findUniqueTolerantScopedRange,
+} from './markdownAnchorMatch'
 import type { EvidenceAnchor } from './parsedDocument'
 
 function anchor(partial: Partial<EvidenceAnchor> & Pick<EvidenceAnchor, 'markdownStart' | 'markdownEnd'>): EvidenceAnchor {
@@ -199,5 +204,46 @@ describe('findMarkdownAnchorMatch', () => {
 
     expect(findScopedMarkdownAnchorMatch(markdown, anchors, 'pottery assemblage', 'Grave 8 contains pottery', scope))
       .toEqual({ fragments: [{ page: 1, bbox: { x0: 0, y0: 0, x1: 10, y1: 10 } }] })
+  })
+
+  it('uses a label-trimmed tolerant snippet when punctuation makes exact matching fail', () => {
+    const markdown = 'Skelet: Der var bevaret et stykke af underkæben med 3 tænder heraf en godt bevaret kindtand beliggende i graven.'
+    const scope = { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: markdown.length, startPage: 1, endPage: 1 }
+    const anchors = [anchor({ markdownStart: 0, markdownEnd: markdown.length, bbox: { x0: 2, y0: 3, x1: 40, y1: 12 } })]
+
+    expect(findScopedMarkdownAnchorMatch(
+      markdown,
+      anchors,
+      'Skelet: Der var bevaret et stykke af underkæben med 3 tænder heraf en godt bevaret kindtand.',
+      null,
+      scope,
+      'Der var bevaret et stykke af underkæben med 3 tænder',
+    )).toEqual({ fragments: [{ page: 1, bbox: { x0: 2, y0: 3, x1: 40, y1: 12 } }] })
+  })
+
+  it('uses an ellipsis fragment as a tolerant candidate', () => {
+    const markdown = 'Nedgravningen målte ca. 2 m x 1 m og var senere ca. 1,4 m x 0,6 m.'
+    const scope = { segmentId: 'catalog:5', markdownStart: 0, markdownEnd: markdown.length, startPage: 5, endPage: 5 }
+    const anchors = [anchor({ markdownStart: 0, markdownEnd: markdown.length, bbox: { x0: 4, y0: 5, x1: 60, y1: 20 } })]
+
+    expect(findScopedMarkdownAnchorMatch(
+      markdown,
+      anchors,
+      'Nedgravningen målte ca. 2 m x 1 m ... ca. 1,4 m x 0,6 m.',
+      null,
+      scope,
+      'ca. 1,4 m x 0,6 m',
+    )).toEqual({ fragments: [{ page: 1, bbox: { x0: 4, y0: 5, x1: 60, y1: 20 } }] })
+  })
+
+  it('rejects duplicate tolerant candidates inside the source scope', () => {
+    const markdown = 'Gravudstyr: en bronzefibel blev fundet. Senere omtales en bronzefibel blev fundet igen.'
+    const scope = { segmentId: 'catalog:6', markdownStart: 0, markdownEnd: markdown.length, startPage: 6, endPage: 6 }
+
+    expect(findUniqueTolerantScopedRange(markdown, 'en bronzefibel blev fundet', scope)).toBeNull()
+  })
+
+  it('does not produce tolerant candidates for table-like snippets', () => {
+    expect(candidateFragments('| 26-15 | Keramik | Niv. 6 |', 'Keramik')).toEqual([])
   })
 })

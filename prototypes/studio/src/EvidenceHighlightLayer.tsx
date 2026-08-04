@@ -8,7 +8,7 @@ import { buildSegmentGeometryIndex } from './segmentGeometry'
 import type { SegmentGeometry } from './segmentGeometry'
 import { resolveTableCellMatches, computeOccurrenceIndices } from './tableCellMatch'
 import type { TableCellMatch } from './tableCellMatch'
-import { findScopedMarkdownAnchorMatch } from './markdownAnchorMatch'
+import { candidateFragments, findScopedMarkdownAnchorMatch, findUniqueTolerantScopedRange } from './markdownAnchorMatch'
 import { getPageTextData, rectsForQuery, searchValueAnchoredBySnippet } from './evidenceTextSearch'
 import type { PageRects } from './evidenceTextSearch'
 
@@ -109,6 +109,7 @@ async function findAnchorRects(
     primaryTerm,
     fallbackSnippet,
     highlight.sourceScope,
+    highlight.value,
   )
   if (!match) return null
 
@@ -130,6 +131,10 @@ function isTableLikeEvidence(highlight: Highlight): boolean {
   )
 }
 
+export function canUseScopedHintPageTextFallback(highlight: Highlight): boolean {
+  return highlight.sourceScope !== null && highlight.hintPage !== null && !isTableLikeEvidence(highlight)
+}
+
 function uniqueScopedOccurrence(
   markdown: string | null,
   term: string | null,
@@ -148,34 +153,48 @@ async function findScopedHintPageTextRects(
   highlight: Highlight,
   occurrenceIndex: number | null,
 ): Promise<PageRects[] | null> {
-  if (!highlight.sourceScope || highlight.hintPage === null || isTableLikeEvidence(highlight)) {
+  if (!canUseScopedHintPageTextFallback(highlight)) {
     return null
   }
+  const scope = highlight.sourceScope
+  const hintPage = highlight.hintPage
+  if (!scope || hintPage === null) return null
 
   const primaryTerm =
     highlight.matchStrategy === 'result-primary' ? highlight.value : highlight.snippet
   const fallbackSnippet =
     highlight.matchStrategy === 'result-primary' ? highlight.snippet : null
-  const data = await getPageTextData(pdfViewer, highlight.hintPage)
+  const data = await getPageTextData(pdfViewer, hintPage)
   if (!data) return null
 
-  if (uniqueScopedOccurrence(markdown, primaryTerm, highlight.sourceScope)) {
+  if (uniqueScopedOccurrence(markdown, primaryTerm, scope)) {
     const rects = highlight.matchStrategy === 'snippet-primary'
       ? searchValueAnchoredBySnippet(data, primaryTerm ?? '', highlight.value, occurrenceIndex)
       : rectsForQuery(data, primaryTerm ?? '', occurrenceIndex)
     if (rects.length > 0) {
-      return [{ pageNumber: highlight.hintPage, rects }]
+      return [{ pageNumber: hintPage, rects }]
     }
   }
 
   if (
     fallbackSnippet &&
     fallbackSnippet !== primaryTerm &&
-    uniqueScopedOccurrence(markdown, fallbackSnippet, highlight.sourceScope)
+    uniqueScopedOccurrence(markdown, fallbackSnippet, scope)
   ) {
     const rects = searchValueAnchoredBySnippet(data, fallbackSnippet, highlight.value, occurrenceIndex)
     if (rects.length > 0) {
-      return [{ pageNumber: highlight.hintPage, rects }]
+      return [{ pageNumber: hintPage, rects }]
+    }
+  }
+
+  const tolerantSnippet = fallbackSnippet ?? primaryTerm
+  for (const candidate of candidateFragments(tolerantSnippet, highlight.value)) {
+    if (!markdown || !findUniqueTolerantScopedRange(markdown, candidate, scope)) {
+      continue
+    }
+    const rects = searchValueAnchoredBySnippet(data, candidate, highlight.value, occurrenceIndex)
+    if (rects.length > 0) {
+      return [{ pageNumber: hintPage, rects }]
     }
   }
 

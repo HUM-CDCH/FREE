@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import {
+  canUseScopedHintPageTextFallback,
+} from './EvidenceHighlightLayer'
+import {
   buildHighlights,
   coalescePaintRects,
   resolvedInTraversalOrder,
@@ -162,6 +165,27 @@ function testHighlight(path: string[], color = 'yellow'): Highlight {
     matchStrategy: 'result-primary', color, path,
   }
 }
+
+describe('scoped hint-page text fallback guard', () => {
+  it('refuses to run without a hint page', () => {
+    expect(canUseScopedHintPageTextFallback({
+      ...testHighlight(['description']),
+      hintPage: null,
+    })).toBe(false)
+  })
+
+  it('refuses table-like evidence', () => {
+    expect(canUseScopedHintPageTextFallback({
+      ...testHighlight(['finds', '0', 'description']),
+      snippet: '| 26-15 | Keramik | Niv. 6 |',
+    })).toBe(false)
+    expect(canUseScopedHintPageTextFallback({
+      ...testHighlight(['finds', '0', 'description']),
+      rowHeader: '26-15',
+      columnHeader: 'Beskrivelse',
+    })).toBe(false)
+  })
+})
 
 function cachedEntry(path: string[], color = 'yellow'): CachedHighlightEntry {
   return {

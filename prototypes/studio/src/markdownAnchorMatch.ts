@@ -4,6 +4,174 @@ import type { EvidenceSourceScope } from './evidenceHighlights'
 export type AnchorFragment = { page: number; bbox: BoundingBox }
 export type AnchorMatch = { fragments: AnchorFragment[] }
 
+const DASH_VARIANTS_RE = /[‐‑‒–—―−]/g
+const COMBINING_MARKS_RE = /\p{M}/gu
+const TOKEN_RE = /[\p{L}\p{N}%-]+/gu
+const MIN_CANDIDATE_CHARS = 18
+const MIN_CANDIDATE_TOKENS = 3
+
+type TokenSpan = { token: string; start: number; end: number }
+type RawRange = { start: number; end: number }
+
+export function normalizeTolerantText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(COMBINING_MARKS_RE, '')
+    .replace(DASH_VARIANTS_RE, '-')
+    .replace(/[^\p{L}\p{N}%-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function tokenizeWithRawSpans(text: string, offset = 0): TokenSpan[] {
+  const tokens: TokenSpan[] = []
+  for (const match of text.matchAll(TOKEN_RE)) {
+    const raw = match[0]
+    const token = normalizeTolerantText(raw)
+    if (!token) continue
+    tokens.push({
+      token,
+      start: offset + (match.index ?? 0),
+      end: offset + (match.index ?? 0) + raw.length,
+    })
+  }
+  return tokens
+}
+
+function tokenSimilarity(a: string, b: string): number {
+  const maxLen = Math.max(a.length, b.length)
+  if (maxLen === 0) return 1
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i)
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      )
+    }
+    previous = current
+  }
+  return 1 - previous[b.length] / maxLen
+}
+
+function tokensMatch(a: string, b: string): boolean {
+  if (!a || !b) return false
+  if (a === b) return true
+  if (Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a))) return true
+  if (a.replace(/o/g, '0') === b.replace(/o/g, '0')) return true
+  if (Math.min(a.length, b.length) >= 4 && tokenSimilarity(a, b) >= 0.7) return true
+  return false
+}
+
+function usefulCandidate(value: string): string | null {
+  const normalized = normalizeTolerantText(value)
+  if (!normalized) return null
+  const tokenCount = normalized.split(' ').filter(Boolean).length
+  if (normalized.length < MIN_CANDIDATE_CHARS || tokenCount < MIN_CANDIDATE_TOKENS) return null
+  return value.trim()
+}
+
+export function candidateFragments(snippet: string | null, value: string | null): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+
+  function add(candidate: string | null | undefined): void {
+    if (!candidate) return
+    const useful = usefulCandidate(candidate)
+    if (!useful) return
+    const key = normalizeTolerantText(useful)
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(useful)
+  }
+
+  const source = snippet?.trim() ?? ''
+  if (!source || source.startsWith('|')) return []
+
+  add(source)
+
+  const label = source.match(/^[^.!?\n|:]{2,40}:\s+(.+)$/u)
+  if (label) add(label[1])
+
+  if (source.includes('...')) {
+    for (const part of source.split(/\s*\.\.\.\s*/u)) add(part)
+  }
+
+  for (const sentence of source.split(/(?<=[.!?;])\s+/u)) add(sentence)
+
+  if (value) {
+    const valueNorm = normalizeTolerantText(value)
+    const sourceNorm = normalizeTolerantText(source)
+    const valueIndex = valueNorm ? sourceNorm.indexOf(valueNorm) : -1
+    if (valueIndex !== -1) {
+      add(value)
+      const words = source.split(/\s+/u)
+      for (let i = 0; i < words.length; i++) {
+        for (let j = i + MIN_CANDIDATE_TOKENS; j <= words.length; j++) {
+          const fragment = words.slice(i, j).join(' ')
+          if (normalizeTolerantText(fragment).includes(valueNorm)) add(fragment)
+        }
+      }
+    }
+  }
+
+  return out
+}
+
+export function findUniqueTolerantScopedRange(
+  markdown: string,
+  candidate: string,
+  scope: EvidenceSourceScope,
+): RawRange | null {
+  const scopeStart = Math.max(0, scope.markdownStart)
+  const scopeEnd = Math.min(markdown.length, scope.markdownEnd)
+  const scopeTokens = tokenizeWithRawSpans(markdown.slice(scopeStart, scopeEnd), scopeStart)
+  const candidateTokens = tokenizeWithRawSpans(candidate)
+  if (candidateTokens.length < MIN_CANDIDATE_TOKENS) return null
+
+  const ranges: RawRange[] = []
+  for (let i = 0; i <= scopeTokens.length - candidateTokens.length; i++) {
+    let matched = true
+    for (let j = 0; j < candidateTokens.length; j++) {
+      if (!tokensMatch(scopeTokens[i + j].token, candidateTokens[j].token)) {
+        matched = false
+        break
+      }
+    }
+    if (matched) {
+      ranges.push({
+        start: scopeTokens[i].start,
+        end: scopeTokens[i + candidateTokens.length - 1].end,
+      })
+      if (ranges.length > 1) return null
+    }
+  }
+  return ranges[0] ?? null
+}
+
+export function findTolerantScopedMarkdownAnchorMatch(
+  markdown: string,
+  anchors: EvidenceAnchor[],
+  value: string | null,
+  snippet: string | null,
+  sourceScope: EvidenceSourceScope,
+): AnchorMatch | null {
+  const scopeStart = Math.max(0, sourceScope.markdownStart)
+  const scopeEnd = Math.min(markdown.length, sourceScope.markdownEnd)
+  const scopedAnchors = anchors.filter((anchor) => anchor.markdownStart < scopeEnd && anchor.markdownEnd > scopeStart)
+
+  for (const candidate of candidateFragments(snippet, value)) {
+    const range = findUniqueTolerantScopedRange(markdown, candidate, sourceScope)
+    if (!range) continue
+    const match = resolveOccurrence(scopedAnchors, range.start, range.end)
+    if (match) return match
+  }
+  return null
+}
+
 // Resolves the anchor(s) covering one occurrence of the snippet (a character
 // range in `markdown`) to one unioned bbox per PDF page, or null when no
 // anchor covers it. This keeps a cross-page source match deterministic.
@@ -88,6 +256,7 @@ export function findScopedMarkdownAnchorMatch(
   primaryTerm: string | null,
   fallbackSnippet: string | null,
   sourceScope: EvidenceSourceScope,
+  tolerantValue: string | null = primaryTerm,
 ): AnchorMatch | null {
   const primary = findMarkdownAnchorMatch(
     markdown,
@@ -98,13 +267,23 @@ export function findScopedMarkdownAnchorMatch(
     sourceScope,
   )
   if (primary) return primary
-  if (!fallbackSnippet || fallbackSnippet === primaryTerm) return null
-  return findMarkdownAnchorMatch(
+  if (fallbackSnippet && fallbackSnippet !== primaryTerm) {
+    const fallback = findMarkdownAnchorMatch(
+      markdown,
+      anchors,
+      fallbackSnippet,
+      null,
+      null,
+      sourceScope,
+    )
+    if (fallback) return fallback
+  }
+
+  return findTolerantScopedMarkdownAnchorMatch(
     markdown,
     anchors,
-    fallbackSnippet,
-    null,
-    null,
+    tolerantValue,
+    fallbackSnippet ?? primaryTerm,
     sourceScope,
   )
 }
