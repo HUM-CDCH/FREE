@@ -48,6 +48,24 @@ export function json(data: unknown, init?: ResponseInit): Response {
   return Response.json(data, init)
 }
 
+/** Persisted research state is never cached by the browser. */
+export const noStore = { 'Cache-Control': 'no-store' }
+
+/** One sanitized failure for every unreadable persisted read. */
+export function persistenceUnavailable(
+  cause: unknown,
+  message = 'Project Context storage is unavailable.',
+): ApiError {
+  return new ApiError(503, 'persistence_unavailable', message, { cause })
+}
+
+/** A failed persisted read must not be cached either. */
+export function noStoreError(error: unknown): Response {
+  const response = apiErrorResponse(error)
+  response.headers.set('Cache-Control', noStore['Cache-Control'])
+  return response
+}
+
 export function apiErrorResponse(error: unknown): Response {
   const mapped =
     error instanceof ApiError

@@ -27,6 +27,12 @@ ocr-gpu = ["paddleocr>=3.7.0", "paddlex[ocr]>=3.7.0", "paddlepaddle-gpu==3.2.2"]
 
 [tool.uv]
 conflicts = [[{ extra = "ocr-cpu" }, { extra = "ocr-gpu" }]]
+# rapidocr wants opencv-python, camelot-py wants opencv-python-headless. Both own
+# site-packages/cv2/, so uninstalling either strips the shared cv2/__init__.py and
+# leaves cv2 an empty namespace package. Keep headless as the only provider.
+# ponytail: the ocr-* extras pull opencv-contrib-python (paddlex) — same collision,
+# override it too if those extras ever get installed.
+override-dependencies = ["opencv-python; python_version < '3'"]
 
 [[tool.uv.index]]
 name = "paddlepaddle-cuda"

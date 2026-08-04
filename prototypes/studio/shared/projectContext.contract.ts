@@ -35,10 +35,108 @@ export const projectContextWithDocumentsResponseSchema = z
   .strict()
 export const projectContextErrorSchema = z
   .object({
-    code: z.enum(['invalid_request', 'not_found', 'persistence_unavailable']),
+    code: z.enum([
+      'invalid_request',
+      'not_found',
+      'persistence_unavailable',
+      'source_artifact_unavailable',
+    ]),
     message: z.string(),
   })
   .strict()
 export const projectContextErrorResponseSchema = z
   .object({ error: projectContextErrorSchema })
+  .strict()
+
+const revisionNumber = z.number().int().positive()
+
+/**
+ * Annotations project only what Studio needs to reopen. Geometry, offsets, and
+ * anchor internals stay in the parsed-document resource.
+ */
+export const annotationSchema = z
+  .object({
+    annotationId: canonicalUuidSchema,
+    evidenceAnchorId: z.string(),
+    text: z.string(),
+    pageNumber: revisionNumber,
+  })
+  .strict()
+
+/** Same-origin resources pinned to the exact reopened representation. */
+export const sourceRepresentationResourcesSchema = z
+  .object({
+    sourcePdfUrl: z.string(),
+    markdownUrl: z.string(),
+    parsedDocumentUrl: z.string(),
+  })
+  .strict()
+
+export const extractionSchema = z.discriminatedUnion('outcome', [
+  z
+    .object({
+      extractionId: canonicalUuidSchema,
+      createdAt: timestamp,
+      outcome: z.literal('succeeded'),
+      result: z.json(),
+      evidence: z.json().nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      extractionId: canonicalUuidSchema,
+      createdAt: timestamp,
+      outcome: z.literal('failed'),
+      failure: z.object({ code: z.string(), message: z.string() }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      extractionId: canonicalUuidSchema,
+      createdAt: timestamp,
+      outcome: z.literal('cancelled'),
+    })
+    .strict(),
+])
+
+export const documentReopenResponseSchema = z
+  .object({
+    projectContext: projectContextSummarySchema,
+    sourceDocument: sourceDocumentSummarySchema,
+    sourceRepresentation: z
+      .object({
+        sourceRepresentationId: canonicalUuidSchema,
+        revisionNumber,
+        resources: sourceRepresentationResourcesSchema,
+      })
+      .strict(),
+    annotationSet: z
+      .object({
+        annotationSetId: canonicalUuidSchema,
+        revisionNumber,
+        annotations: z.array(annotationSchema),
+      })
+      .strict()
+      .nullable(),
+    extractionSchema: z
+      .object({
+        extractionSchemaId: canonicalUuidSchema,
+        revisionNumber,
+        template: z.json(),
+      })
+      .strict()
+      .nullable(),
+    extraction: extractionSchema.nullable(),
+  })
+  .strict()
+
+/** The parsed document the browser may read: content only, no provenance. */
+export const parsedDocumentResourceSchema = z
+  .object({
+    schemaVersion: z.string(),
+    pageCount: revisionNumber,
+    pages: z.array(
+      z.object({ page: revisionNumber, text: z.string() }).strict(),
+    ),
+  })
   .strict()

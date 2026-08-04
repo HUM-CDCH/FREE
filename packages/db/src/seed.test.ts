@@ -1,6 +1,52 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { exampleProjects, seedExampleProjects } from './seed.js'
+import { exampleProjects, seedExampleProjects, type Ingest } from './seed.js'
+
+type Row = Record<string, unknown>
+
+/** An in-memory stand-in for the three tables the seed writes. */
+function fakeDatabase() {
+  const created: Record<string, Row[]> = {
+    ProjectContext: [],
+    SourceDocument: [],
+    SourceRepresentationRevision: [],
+  }
+  const table = (name: string) => ({
+    first: async ({ id }: { id: string }) =>
+      created[name].find((row) => row.id === id) ?? null,
+    create: async (row: Row) => {
+      created[name].push(row)
+      return row
+    },
+  })
+  return {
+    created,
+    orm: {
+      public: {
+        ProjectContext: table('ProjectContext'),
+        SourceDocument: table('SourceDocument'),
+        SourceRepresentationRevision: table('SourceRepresentationRevision'),
+      },
+    },
+  }
+}
+
+function fakeIngest() {
+  const filenames: string[] = []
+  const ingest: Ingest = async (pdf, filename) => {
+    assert.ok(pdf.byteLength > 0, 'the example PDF bytes reach ingestion')
+    filenames.push(filename)
+    return {
+      artifactReference: `task-${filenames.length}`,
+      artifactSha256: 'a'.repeat(64),
+      contractVersion: 'parsed_document.v1',
+      preprocessId: `sha256:${'b'.repeat(64)}`,
+      parserName: 'docling_pdf',
+      parserVersion: '2.0.0',
+    }
+  }
+  return { filenames, ingest }
+}
 
 describe('example database seed', () => {
   it('puts every example PDF in two projects without duplicating rows', async () => {
@@ -14,45 +60,117 @@ describe('example database seed', () => {
       ],
     )
 
-    const projectIds = new Set<string>()
-    const documentIds = new Set<string>()
-    const createdProjects: unknown[] = []
-    const createdDocuments: unknown[] = []
-    const database = {
-      orm: {
-        public: {
-          ProjectContext: {
-            first: async ({ id }: { id: string }) =>
-              projectIds.has(id) ? { id } : null,
-            create: async (row: { id: string }) => {
-              projectIds.add(row.id)
-              createdProjects.push(row)
-              return row
-            },
-          },
-          SourceDocument: {
-            first: async ({ id }: { id: string }) =>
-              documentIds.has(id) ? { id } : null,
-            create: async (row: { id: string }) => {
-              documentIds.add(row.id)
-              createdDocuments.push(row)
-              return row
-            },
-          },
-        },
+    const database = fakeDatabase()
+    const { ingest, filenames } = fakeIngest()
+
+    const first = await seedExampleProjects(database as never, ingest)
+    const second = await seedExampleProjects(database as never, ingest)
+
+    assert.deepEqual(first, {
+      projectsCreated: 2,
+      documentsCreated: 3,
+      representationsCreated: 3,
+      representationFailures: [],
+    })
+    assert.deepEqual(second, {
+      projectsCreated: 0,
+      documentsCreated: 0,
+      representationsCreated: 0,
+      representationFailures: [],
+    })
+    assert.equal(database.created.ProjectContext.length, 2)
+    assert.equal(database.created.SourceDocument.length, 3)
+    for (const row of database.created.SourceDocument) {
+      assert.match(row.contentSha256 as string, /^[a-f0-9]{64}$/)
+    }
+    // An immutable representation is ingested once, never on a re-seed.
+    assert.equal(filenames.length, 3)
+  })
+
+  it('pins every seeded Source Document to a reopenable representation', async () => {
+    const database = fakeDatabase()
+    const { ingest } = fakeIngest()
+
+    await seedExampleProjects(database as never, ingest)
+
+    const representations = database.created.SourceRepresentationRevision
+    assert.equal(representations.length, 3)
+    assert.deepEqual(representations[0], {
+      id: '51000000-0000-4000-8002-000000000001',
+      sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+      revisionNumber: 1,
+      artifactReference: 'task-1',
+      artifactSha256: 'a'.repeat(64),
+      contractVersion: 'parsed_document.v1',
+      preprocessId: `sha256:${'b'.repeat(64)}`,
+      parserName: 'docling_pdf',
+      parserVersion: '2.0.0',
+    })
+    assert.deepEqual(
+      representations.map((row) => row.sourceDocumentId),
+      exampleProjects.flatMap((project) =>
+        project.documents.map((document) => document.sourceDocumentId),
+      ),
+    )
+  })
+
+  it('still seeds navigation when the Parsing Service is unavailable', async () => {
+    const database = fakeDatabase()
+
+    const result = await seedExampleProjects(database as never, null)
+
+    assert.deepEqual(result, {
+      projectsCreated: 2,
+      documentsCreated: 3,
+      representationsCreated: 0,
+      representationFailures: [],
+    })
+    assert.equal(database.created.SourceRepresentationRevision.length, 0)
+  })
+
+  it('keeps seeding when one example cannot be ingested', async () => {
+    const database = fakeDatabase()
+    const { ingest } = fakeIngest()
+    const unparseable: Ingest = async (pdf, filename) =>
+      filename === '1790-06-17-1.pdf'
+        ? Promise.reject(new Error('Parsing failed: ocr_fallback_failed.'))
+        : ingest(pdf, filename)
+
+    const result = await seedExampleProjects(database as never, unparseable)
+
+    assert.equal(result.documentsCreated, 3)
+    assert.equal(result.representationsCreated, 2)
+    assert.deepEqual(result.representationFailures, [
+      {
+        filename: '1790-06-17-1.pdf',
+        reason: 'Parsing failed: ocr_fallback_failed.',
       },
-    }
+    ])
+    // The failed one keeps its Source Document and can be ingested later.
+    assert.equal(database.created.SourceDocument.length, 3)
+    assert.deepEqual(
+      database.created.SourceRepresentationRevision.map(
+        (row) => row.sourceDocumentId,
+      ),
+      [
+        '51000000-0000-4000-8001-000000000001',
+        '51000000-0000-4000-8001-000000000003',
+      ],
+    )
+  })
 
-    await seedExampleProjects(database as never)
-    await seedExampleProjects(database as never)
+  it('adds the missing representations when the Parsing Service returns', async () => {
+    const database = fakeDatabase()
+    const { ingest } = fakeIngest()
 
-    assert.equal(createdProjects.length, 2)
-    assert.equal(createdDocuments.length, 3)
-    for (const row of createdDocuments) {
-      assert.match(
-        (row as { contentSha256: string }).contentSha256,
-        /^[a-f0-9]{64}$/,
-      )
-    }
+    await seedExampleProjects(database as never, null)
+    const result = await seedExampleProjects(database as never, ingest)
+
+    assert.deepEqual(result, {
+      projectsCreated: 0,
+      documentsCreated: 0,
+      representationsCreated: 3,
+      representationFailures: [],
+    })
   })
 })

@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { z } from 'zod'
-import {
+import type {
   projectContextErrorSchema,
-  type projectContextSummarySchema,
-  type projectContextWithDocumentsResponseSchema,
+  projectContextSummarySchema,
+  projectContextWithDocumentsResponseSchema,
 } from '../shared/projectContext.contract'
 import type { Route } from './projectNavigation'
 import {
   getProjectContextWithDocuments,
   listProjectContexts,
+  toFailure as failure,
 } from './projectContexts'
 
 type ProjectContext = z.output<typeof projectContextSummarySchema>
@@ -20,15 +21,6 @@ export type ProjectBranch =
   | { status: 'loading' }
   | { status: 'error'; failure: Failure }
   | { status: 'ready'; detail: ProjectContextDetail }
-
-function failure(error: unknown): Failure {
-  const parsed = projectContextErrorSchema.safeParse(error)
-  if (parsed.success) return parsed.data
-  return {
-    code: 'persistence_unavailable',
-    message: 'Project Context storage is unavailable.',
-  }
-}
 
 export function useRailTree(route: Route) {
   const [projects, setProjects] = useState<ProjectContext[]>([])
@@ -117,6 +109,15 @@ export function useRailTree(route: Route) {
     route.kind === 'project' || route.kind === 'document'
       ? route.projectContextId
       : null
+  const routedBranch = routedProjectContextId
+    ? branches[routedProjectContextId]
+    : undefined
+  const routedDocumentContained =
+    route.kind === 'document' && routedBranch?.status === 'ready'
+      ? routedBranch.detail.sourceDocuments.some(
+          (document) => document.sourceDocumentId === route.sourceDocumentId,
+        )
+      : null
   useEffect(() => {
     if (routedProjectContextId) loadBranch(routedProjectContextId)
   }, [loadBranch, routedProjectContextId])
@@ -160,6 +161,7 @@ export function useRailTree(route: Route) {
     activeProjectContextId: routedProjectContextId,
     activeSourceDocumentId:
       route.kind === 'document' ? route.sourceDocumentId : null,
+    routedDocumentContained,
     toggle,
     retryList,
     retryBranch: (projectContextId: string) => loadBranch(projectContextId, true),

@@ -13,6 +13,7 @@ type UseExtractionOptions = {
   indexing: boolean
   onComplete: (isRerun: boolean) => void
   onError: (message: string) => void
+  initialState?: ExtractionState
 }
 
 export type ExtractionController = ReturnType<typeof useExtraction>
@@ -25,8 +26,9 @@ export function useExtraction({
   indexing,
   onComplete,
   onError,
+  initialState = { status: 'idle' },
 }: UseExtractionOptions) {
-  const [state, setState] = useState<ExtractionState>({ status: 'idle' })
+  const [state, setState] = useState<ExtractionState>(initialState)
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => () => abortRef.current?.abort(), [])

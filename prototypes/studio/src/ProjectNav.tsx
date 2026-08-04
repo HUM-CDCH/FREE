@@ -198,14 +198,16 @@ function ProjectNav({
                               }`}
                               type="button"
                               aria-current={documentActive ? 'page' : undefined}
-                              onClick={() =>
+                              onClick={() => {
+                                // Reopening the open Source Document would push a
+                                // duplicate history entry and re-read it.
+                                if (documentActive) return
                                 onNavigate({
                                   kind: 'document',
                                   projectContextId: project.projectContextId,
-                                  sourceDocumentId:
-                                    document.sourceDocumentId,
+                                  sourceDocumentId: document.sourceDocumentId,
                                 })
-                              }
+                              }}
                             >
                               {document.name}
                             </button>

@@ -11,17 +11,22 @@ import { ApiError, apiErrorResponse } from './api/_http.js'
 // unreachable; handlers themselves declare which methods they export.
 const API_ROUTE = /^\/api\/([a-z][a-z_]*)$/
 
+// Parameterized resources cannot be named by their pathname, so they are the one
+// explicit table; every other route stays discoverable from `api/`. Each pattern
+// only picks the module — the handler owns its exact grammar and answers 404.
+const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^\/api\/project-contexts\/[^/]+\/source-documents\//, 'document_reopen'],
+  [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
+  [/^\/api\/source-representations\//, 'source_representations'],
+]
+
 /**
  * `api/` is the route list, so an unknown path is a 404 rather than a module
  * load failure. Avoids a second hand-maintained table of handler names.
  */
 export function apiHandlerName(pathname: string, root: string): string | null {
-  if (
-    pathname === '/api/project-contexts' ||
-    /^\/api\/project-contexts\/[^/]+$/.test(pathname)
-  ) {
-    return 'project_contexts'
-  }
+  const parameterized = PARAMETERIZED.find(([route]) => route.test(pathname))
+  if (parameterized) return parameterized[1]
   const name = API_ROUTE.exec(pathname)?.[1]
   return name && existsSync(join(root, 'api', `${name}.ts`)) ? name : null
 }

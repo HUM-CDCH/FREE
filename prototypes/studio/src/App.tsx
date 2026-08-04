@@ -18,6 +18,8 @@ import { Button } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
+import type { DocumentSnapshot } from './projectContexts'
+import type { ExtractionState } from './extraction'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -97,12 +99,34 @@ export type DocumentWorkspaceProps = {
   pdfUrl: string
   filename: string
   markdownUrl: string | null
+  annotationSet: DocumentSnapshot['annotationSet']
+  extractionSchema: DocumentSnapshot['extractionSchema']
+  persistedExtraction: DocumentSnapshot['extraction']
+  /** Only the loader sees a retained resource fail; reported once, on open. */
+  onInitialResourceLoadFailure?: () => void
+}
+
+function reopenedExtractionState(
+  extraction: DocumentSnapshot['extraction'],
+): ExtractionState {
+  if (!extraction || extraction.outcome === 'cancelled') return { status: 'idle' }
+  if (extraction.outcome === 'failed')
+    return { status: 'error', message: extraction.failure.message }
+  return {
+    status: 'ready',
+    result: extraction.result,
+    evidence: extraction.evidence,
+  }
 }
 
 export function DocumentWorkspace({
   pdfUrl,
   filename,
   markdownUrl,
+  annotationSet,
+  extractionSchema,
+  persistedExtraction,
+  onInitialResourceLoadFailure,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
@@ -110,9 +134,26 @@ export function DocumentWorkspace({
   const annotationManagerRef = useRef<AnnotationEditorUIManager | null>(null)
   const templateAbortRef = useRef<AbortController | null>(null)
   const toastTimerRef = useRef<number | undefined>(undefined)
-  const [annotationItems, setAnnotationItems] = useState<AnnotationSetItem[]>([])
+  const restoredAnnotations = (annotationSet?.annotations ?? []).map(
+    ({ annotationId, text, pageNumber }) => ({
+      id: annotationId,
+      label: text,
+      pageNumber,
+    }),
+  )
+  const [annotationItems, setAnnotationItems] = useState<AnnotationSetItem[]>(
+    restoredAnnotations,
+  )
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
-  const [templateState, setTemplateState] = useState<TemplateState>({ status: 'idle' })
+  const [templateState, setTemplateState] = useState<TemplateState>(() =>
+    extractionSchema
+      ? {
+          status: 'ready',
+          nodes: templateToNodes(extractionSchema.template),
+          inputsKey: annotationInputsKey(restoredAnnotations, 'hints'),
+        }
+      : { status: 'idle' },
+  )
   const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
@@ -184,7 +225,6 @@ export function DocumentWorkspace({
     pdfViewerRef.current = pdfViewer
     setActivePdfViewer(pdfViewer)
     annotationManagerRef.current = null
-    setAnnotationItems([])
     setLoadState({ status: 'loading' })
 
     const syncHighlightEditor = (editor: AnnotationEditor) => {
@@ -260,6 +300,7 @@ export function DocumentWorkspace({
           status: 'error',
           message: error instanceof Error ? error.message : 'Unable to load the PDF.',
         })
+        onInitialResourceLoadFailure?.()
       }
     }
 
@@ -278,7 +319,7 @@ export function DocumentWorkspace({
       abortController.abort()
       void loadingTask.destroy()
     }
-  }, [pdfSource])
+  }, [onInitialResourceLoadFailure, pdfSource])
 
   // Index the source document via the parsing service as soon as it is opened.
   // Kept separate from the viewer effect so a finished parse never re-loads the
@@ -317,16 +358,23 @@ export function DocumentWorkspace({
           status: 'error',
           message: error instanceof Error ? error.message : 'Document indexing failed.',
         })
+        if (markdownUrl) onInitialResourceLoadFailure?.()
       }
     })()
 
     return () => abortController.abort()
-  }, [markdownUrl, pdfSource])
+  }, [markdownUrl, onInitialResourceLoadFailure, pdfSource])
 
+  // A reopened annotation has no pdf.js editor yet — its highlight is not
+  // recreated in the viewer — so both handlers fall back to the recorded page
+  // and the set itself. ponytail: the fallback goes away once reopening
+  // rebuilds the editors from the retained anchors.
   function selectAnnotationItem(id: string) {
     const manager = annotationManagerRef.current
     const editor = manager?.getEditor(id)
     if (!manager || !editor) {
+      const pageNumber = annotationItems.find((item) => item.id === id)?.pageNumber
+      if (pageNumber) pdfViewerRef.current?.scrollPageIntoView({ pageNumber })
       return
     }
 
@@ -341,7 +389,10 @@ export function DocumentWorkspace({
   }
 
   function removeAnnotationItem(id: string) {
-    annotationManagerRef.current?.getEditor(id)?.remove()
+    const editor = annotationManagerRef.current?.getEditor(id)
+    // Removing an editor prunes the set through the patched `removeEditor`.
+    if (editor) editor.remove()
+    else setAnnotationItems((items) => items.filter((item) => item.id !== id))
   }
 
   useEffect(
@@ -466,6 +517,7 @@ export function DocumentWorkspace({
     schemaReady,
     markdown: documentMarkdown,
     indexing,
+    initialState: reopenedExtractionState(persistedExtraction),
     onComplete: (isRerun) => {
       setRailTab('results')
       setFocusPath(null)

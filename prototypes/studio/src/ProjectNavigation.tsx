@@ -1,12 +1,13 @@
 import { createActorContext } from '@xstate/react'
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import AppFrame from './AppFrame'
 import {
   browserNavigationDeps,
   navigationMachine,
   parseRoute,
 } from './projectNavigation'
+import { useRailTree } from './useRailTree'
 
 const Navigation = createActorContext(navigationMachine)
 
@@ -32,7 +33,29 @@ export function ProjectNavigationProvider({
 
 export function ProjectRoutes() {
   const actor = Navigation.useActorRef()
-  const route = Navigation.useSelector((snapshot) => snapshot.context.route)
+  const snapshot = Navigation.useSelector((state) => state)
+  const { route, snapshot: openDocument, failure } = snapshot.context
+  const tree = useRailTree(route)
+  const routedBranch =
+    route.kind === 'document' ? tree.branches[route.projectContextId] : undefined
+  const opening =
+    snapshot.matches('opening') ||
+    (snapshot.matches('routing') &&
+      route.kind === 'document' &&
+      routedBranch?.status !== 'error')
+  const onInitialResourceLoadFailure = useCallback(
+    () => actor.send({ type: 'RESOURCE_FAILED' }),
+    [actor],
+  )
+
+  useEffect(() => {
+    if (route.kind !== 'document' || tree.routedDocumentContained === null) return
+    actor.send({
+      type: tree.routedDocumentContained
+        ? 'DOCUMENT_CONTAINED'
+        : 'DOCUMENT_NOT_CONTAINED',
+    })
+  }, [actor, route, tree.routedDocumentContained])
 
   useEffect(() => {
     const changed = () =>
@@ -47,9 +70,15 @@ export function ProjectRoutes() {
   return (
     <AppFrame
       route={route}
+      tree={tree}
+      openDocument={openDocument}
+      opening={opening}
+      failure={failure}
       onNavigate={(nextRoute) =>
         actor.send({ type: 'NAVIGATE', route: nextRoute })
       }
+      onRetry={() => actor.send({ type: 'RETRY' })}
+      onInitialResourceLoadFailure={onInitialResourceLoadFailure}
     />
   )
 }

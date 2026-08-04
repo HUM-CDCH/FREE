@@ -1,12 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import historicalPdfUrl from '../../../examples/1790-06-17-1.pdf?url'
-import ellekildePdfUrl from '../../../examples/Beretning_Ellekilde_8_13.pdf?url'
-import collagenPdfUrl from '../../../examples/Zhang et al. 2024 - Properties of skin collagen from southern catfish (Silurus meridionalis) fed with raw and cooked food.pdf?url'
 import ProjectNav from './ProjectNav'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import type { NavigableRoute, Route } from './projectNavigation'
-import { EmptyState } from './ui'
-import { useRailTree, type ProjectBranch } from './useRailTree'
+import type { DocumentSnapshot } from './projectContexts'
+import type { projectContextErrorSchema } from '../shared/projectContext.contract'
+import type { z } from 'zod'
+import { Button, EmptyState } from './ui'
+import type { ProjectBranch, RailTree } from './useRailTree'
 
 const collapsedWidth = 46
 const navMin = 150
@@ -14,29 +14,40 @@ const navMax = 400
 const clampNavWidth = (width: number) =>
   Math.min(navMax, Math.max(navMin, width))
 
+type Failure = z.output<typeof projectContextErrorSchema>
+
 type AppFrameProps = {
   route: Route
+  tree: RailTree
+  openDocument: DocumentSnapshot | null
+  opening: boolean
+  failure: Failure | null
   onNavigate: (route: NavigableRoute) => void
+  onRetry: () => void
+  onInitialResourceLoadFailure: () => void
 }
 
 type DevDocument = { pdfUrl: string; filename: string }
 const DocumentWorkspace = lazy(() => import('./App'))
-// ponytail: seeded demo IDs point at bundled assets; replace this lookup when
-// durable Source Document artifact reads land.
-const seededPdfUrls: Readonly<Record<string, string>> = {
-  '51000000-0000-4000-8001-000000000001': ellekildePdfUrl,
-  '51000000-0000-4000-8001-000000000002': historicalPdfUrl,
-  '51000000-0000-4000-8001-000000000003': collagenPdfUrl,
-}
 
-function EmptyWorkspace({ route, branch }: {
+function EmptyWorkspace({
+  route,
+  branch,
+  routedDocumentContained,
+  failure,
+  onRetry,
+}: {
   route: Route
   branch: ProjectBranch | undefined
+  routedDocumentContained: boolean | null
+  failure: Failure | null
+  onRetry: () => void
 }) {
   let title = 'No Project Context open'
   let description =
     'Choose a Project Context in the rail to browse its Source Documents.'
   let tone: 'neutral' | 'danger' = 'neutral'
+  let retry = false
 
   if (route.kind === 'badReference') {
     title = 'That Project Context reference is invalid'
@@ -63,6 +74,21 @@ function EmptyWorkspace({ route, branch }: {
           : 'Could not load this Project Context'
       description = branch.failure.message
       tone = 'danger'
+    } else if (routedDocumentContained === false) {
+      title = 'That Source Document is not in this Project Context'
+      description = 'Choose one of its Source Documents in the rail.'
+      tone = 'danger'
+    } else if (route.kind === 'document' && failure) {
+      // Only unavailability can recover; a missing snapshot or a rejected
+      // reference stays failed however often it is read again.
+      retry =
+        failure.code === 'persistence_unavailable' ||
+        failure.code === 'source_artifact_unavailable'
+      title = retry
+        ? 'That Source Document could not be opened'
+        : 'That Source Document cannot be reopened'
+      description = failure.message
+      tone = 'danger'
     } else {
       title = 'No Source Document open'
       description =
@@ -73,7 +99,7 @@ function EmptyWorkspace({ route, branch }: {
   return (
     <div className="flex h-full flex-col">
       <div className="h-14 shrink-0 border-b border-line bg-surface" />
-      <div className="flex min-h-0 flex-1 items-center justify-center p-8">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-8">
         <EmptyState
           className="max-w-sm bg-surface"
           icon="▢"
@@ -81,20 +107,31 @@ function EmptyWorkspace({ route, branch }: {
           description={description}
           tone={tone}
         />
+        {retry && (
+          <Button variant="secondary" size="md" onClick={onRetry}>
+            Try again
+          </Button>
+        )}
       </div>
     </div>
   )
 }
 
-export default function AppFrame({ route, onNavigate }: AppFrameProps) {
+export default function AppFrame({
+  route,
+  tree,
+  openDocument,
+  opening,
+  failure,
+  onNavigate,
+  onRetry,
+  onInitialResourceLoadFailure,
+}: AppFrameProps) {
   const [navOpen, setNavOpen] = useState(true)
   const [navWidth, setNavWidth] = useState(212)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [providersOpen, setProvidersOpen] = useState(false)
   const [devDocument, setDevDocument] = useState<DevDocument | null>(null)
-  // A dev-picked Source Document has no durable identity to mark active.
-  const railRoute = devDocument ? ({ kind: 'root' } as const) : route
-  const tree = useRailTree(railRoute)
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth)
@@ -128,22 +165,42 @@ export default function AppFrame({ route, onNavigate }: AppFrameProps) {
   const branch = routedProjectContextId
     ? tree.branches[routedProjectContextId]
     : undefined
-  const seededPdfUrl =
-    route.kind === 'document' ? seededPdfUrls[route.sourceDocumentId] : undefined
-  const routedDocument =
-    route.kind === 'document' && branch?.status === 'ready'
-      ? branch.detail.sourceDocuments.find(
-          (document) => document.sourceDocumentId === route.sourceDocumentId,
-        )
-      : undefined
-  const seededDocument =
-    seededPdfUrl && routedDocument
-      ? {
-          pdfUrl: seededPdfUrl,
-          filename: routedDocument.name,
-        }
-      : null
-  const openDocument = devDocument ?? seededDocument
+
+  // Selection stays on the Source Document that is actually open; the requested
+  // one becomes active only once it has opened.
+  let activeProjectContextId = tree.activeProjectContextId
+  let activeSourceDocumentId = tree.activeSourceDocumentId
+  if (devDocument) {
+    activeProjectContextId = null
+    activeSourceDocumentId = null
+  } else if (opening) {
+    activeSourceDocumentId =
+      openDocument?.sourceDocument.sourceDocumentId ?? null
+  }
+  const railTree = {
+    ...tree,
+    activeProjectContextId,
+    activeSourceDocumentId,
+  }
+  // Durable hydration: the PDF, its name, and its Markdown all come from the
+  // reopened representation. Rail state, PDF position, focus, and drafts do not.
+  const reopened = openDocument && {
+    pdfUrl: openDocument.sourceRepresentation.resources.sourcePdfUrl,
+    filename: openDocument.sourceDocument.name,
+    markdownUrl: openDocument.sourceRepresentation.resources.markdownUrl,
+    annotationSet: openDocument.annotationSet,
+    extractionSchema: openDocument.extractionSchema,
+    persistedExtraction: openDocument.extraction,
+  }
+  const workspace = devDocument
+    ? {
+        ...devDocument,
+        markdownUrl: null,
+        annotationSet: null,
+        extractionSchema: null,
+        persistedExtraction: null,
+      }
+    : reopened
 
   function startResize(event: React.MouseEvent) {
     event.preventDefault()
@@ -189,7 +246,7 @@ export default function AppFrame({ route, onNavigate }: AppFrameProps) {
         </div>
         <aside className="min-h-0 flex-1" aria-label="Project navigation">
           <ProjectNav
-            tree={tree}
+            tree={railTree}
             open={effectiveNavOpen}
             onToggle={() => setNavOpen((open) => !open)}
             onNavigate={(nextRoute) => {
@@ -227,17 +284,47 @@ export default function AppFrame({ route, onNavigate }: AppFrameProps) {
           }}
         />
       )}
-      <section className="min-h-0 min-w-0 flex-1" aria-label="Studio workspace">
-        {openDocument ? (
-          <Suspense fallback={<div aria-busy="true">Opening Source Document…</div>}>
+      <section
+        className="relative min-h-0 min-w-0 flex-1"
+        aria-label="Source Document"
+      >
+        {workspace ? (
+          <Suspense
+            fallback={
+              <div aria-busy="true">Loading Source Document…</div>
+            }
+          >
+            {/* Keyed so a different Source Document starts with no carried-over
+                annotations, schema draft, focus, or scroll position. */}
             <DocumentWorkspace
-              pdfUrl={openDocument.pdfUrl}
-              filename={openDocument.filename}
-              markdownUrl={null}
+              key={workspace.pdfUrl}
+              {...workspace}
+              onInitialResourceLoadFailure={
+                devDocument ? undefined : onInitialResourceLoadFailure
+              }
             />
           </Suspense>
         ) : (
-          <EmptyWorkspace route={route} branch={branch} />
+          <EmptyWorkspace
+            route={route}
+            branch={branch}
+            routedDocumentContained={tree.routedDocumentContained}
+            failure={failure}
+            onRetry={onRetry}
+          />
+        )}
+        {opening && (
+          <div
+            // The whole column dims so the previous Source Document stays
+            // readable-in-place but unusable while the next one opens.
+            className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/70 backdrop-blur-[1px]"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <p className="rounded-full border border-line bg-surface px-4 py-1.5 text-xs font-medium text-ink-muted shadow-sm">
+              Opening Source Document…
+            </p>
+          </div>
         )}
       </section>
       {providersOpen && (

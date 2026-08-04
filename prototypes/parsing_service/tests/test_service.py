@@ -443,6 +443,55 @@ class TestService(unittest.TestCase):
                     source_path, output_dir, dpi=72, max_page_pixels=10
                 )
 
+    def test_source_pdf_route_serves_the_retained_upload_with_ranges(self):
+        task_id, _, _ = self._create_completed_task(
+            PDF_BYTES,
+            params={"source_name": "report.pdf"},
+            source_path="source.pdf",
+        )
+
+        response = self.client.get(f"/tasks/{task_id}/source")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("content-type"), "application/pdf")
+        self.assertEqual(response.content, PDF_BYTES)
+        self.assertEqual(response.headers.get("accept-ranges"), "bytes")
+
+        head = self.client.head(f"/tasks/{task_id}/source")
+        self.assertEqual(head.status_code, 200)
+        self.assertEqual(head.content, b"")
+        self.assertEqual(
+            head.headers.get("content-length"), str(len(PDF_BYTES))
+        )
+
+        partial = self.client.get(
+            f"/tasks/{task_id}/source", headers={"Range": "bytes=0-3"}
+        )
+        self.assertEqual(partial.status_code, 206)
+        self.assertEqual(partial.content, PDF_BYTES[:4])
+        self.assertEqual(
+            partial.headers.get("content-range"), f"bytes 0-3/{len(PDF_BYTES)}"
+        )
+
+        unsatisfiable = self.client.get(
+            f"/tasks/{task_id}/source",
+            headers={"Range": f"bytes={len(PDF_BYTES) + 10}-"},
+        )
+        self.assertEqual(unsatisfiable.status_code, 416)
+
+    def test_source_pdf_route_reports_a_missing_retained_upload(self):
+        task_id, _, _ = self._create_completed_task(
+            PDF_BYTES, params={"source_name": "report.pdf"}
+        )
+
+        response = self.client.get(f"/tasks/{task_id}/source")
+        self.assertEqual(response.status_code, 404)
+
+        missing = self.client.get(f"/tasks/{uuid.uuid4()}/source")
+        self.assertEqual(missing.status_code, 404)
+
+        invalid = self.client.get("/tasks/not-a-uuid/source")
+        self.assertEqual(invalid.status_code, 400)
+
     def test_get_nonexistent_and_invalid_tasks(self):
         response = self.client.get(f"/tasks/{uuid.uuid4()}")
         self.assertEqual(response.status_code, 404)

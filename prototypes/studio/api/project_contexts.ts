@@ -1,20 +1,15 @@
-import { ApiError, apiErrorResponse, json } from './_http.js'
+import {
+  ApiError,
+  noStoreError,
+  json,
+  noStore,
+  persistenceUnavailable,
+} from './_http.js'
 import {
   createProjectStore,
   type ProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
-
-const noStore = { 'Cache-Control': 'no-store' }
-
-function unavailable(cause: unknown): ApiError {
-  return new ApiError(
-    503,
-    'persistence_unavailable',
-    'Project Context storage is unavailable.',
-    { cause },
-  )
-}
 
 function limit(url: URL): number {
   const value = url.searchParams.get('limit') ?? '20'
@@ -33,7 +28,10 @@ function projectId(pathname: string): string | null {
 }
 
 export function createGetProjectContexts(
-  store: ProjectStore = createProjectStore(),
+  store: Pick<
+    ProjectStore,
+    'listProjectContexts' | 'getProjectContextWithDocuments'
+  > = createProjectStore(),
 ) {
   return async function getProjectContexts(
     request: Request,
@@ -45,7 +43,7 @@ export function createGetProjectContexts(
         const projectContexts = await store
           .listProjectContexts(limit(url))
           .catch((cause) => {
-            throw unavailable(cause)
+            throw persistenceUnavailable(cause)
           })
         return json({ projectContexts }, { headers: noStore })
       }
@@ -58,15 +56,13 @@ export function createGetProjectContexts(
       const projectContext = await store
         .getProjectContextWithDocuments(id)
         .catch((cause) => {
-          throw unavailable(cause)
+          throw persistenceUnavailable(cause)
         })
       if (!projectContext)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
       return json(projectContext, { headers: noStore })
     } catch (error) {
-      const response = apiErrorResponse(error)
-      response.headers.set('Cache-Control', 'no-store')
-      return response
+      return noStoreError(error)
     }
   }
 }
