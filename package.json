@@ -2,17 +2,23 @@
   "name": "free-root",
   "private": true,
   "scripts": {
-    "postinstall": "pnpm --recursive --if-present install:python",
-    "install:cpu": "pnpm --filter parsing-service install:python:cpu",
+    "postinstall": "pnpm db:generate && pnpm --recursive --if-present install:python",
+    "db:generate": "pnpm --filter db contract:emit",
+    "db:seed": "pnpm --filter db db:seed",
     "install:gpu": "pnpm --filter parsing-service install:python:gpu",
     "start": "pnpm dev",
-    "predev": "lsof -ti tcp:8000 | xargs kill -9 2>/dev/null || true",
+    "predev": "pnpm db:generate",
     "dev": "pnpm --recursive --parallel dev",
-    "dev:cpu": "pnpm install:cpu && pnpm dev",
     "dev:gpu": "pnpm install:gpu && pnpm dev",
     "test": "pnpm --recursive test",
-    "test:cpu": "pnpm install:cpu && pnpm test",
     "test:gpu": "pnpm install:gpu && pnpm test",
-    "build": "pnpm --filter studio build"
+    "prebuild": "pnpm db:generate",
+    "build": "pnpm --filter studio build",
+    "architecture:dev": "likec4 dev",
+    "architecture:check": "likec4 validate",
+    "architecture:build": "likec4 build -o artifacts/architecture/site --use-hash-history"
+  },
+  "devDependencies": {
+    "likec4": "^1.59.2"
   }
 }

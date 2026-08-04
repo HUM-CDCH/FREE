@@ -39,9 +39,10 @@ _PAGE_FOOTER = re.compile(r"<page_footer>(.*?)</page_footer>", re.DOTALL)
 _PAGE_HEADER = re.compile(r"<page_header>(.*?)</page_header>", re.DOTALL)
 _DOCTAG_WRAPPER = re.compile(r"</?doctag>")
 _PAGE_SENTINEL = "\ue000FREE_PAGE_BREAK\ue001"
-_CELL_WITH_TEXT = {"ched", "rhed", "srow", "fcel"}
-_CELL_WITHOUT_TEXT = {"ecel", "lcel", "ucel", "xcel"}
-_CELL_TOKEN_PATTERN = re.compile(r"<(ched|rhed|srow|fcel|ecel|lcel|ucel|xcel)>")
+_LIST_MARKERS = {"ordered_list": "1.", "unordered_list": "-"}
+_CELL_TOKEN_PATTERN = re.compile(
+    r"<(?:ched|rhed|srow|fcel|ecel|lcel|ucel|xcel)>"
+)
 _TABLE_RESTART = "\ue000FREE_TABLE_RESTART\ue001"
 _REMAINING_STRUCTURAL_TAGS = re.compile(
     r"</?(?:otsl|ched|rhed|srow|fcel|ecel|lcel|ucel|xcel|nl)>"
@@ -77,17 +78,14 @@ def _numbered_heading_level(text: str) -> int | None:
 def _parse_otsl_row(row: str) -> list[str]:
     """Split on known OTSL tokens without treating source ``<`` as markup."""
     matches = list(_CELL_TOKEN_PATTERN.finditer(row))
-    cells: list[str] = []
-    for index, match in enumerate(matches):
-        token = match.group(1)
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(row)
-        content = row[match.end() : end].strip()
-        if token in _CELL_WITH_TEXT:
-            cells.append(content)
-        elif token in _CELL_WITHOUT_TEXT:
-            # Preserve unexpected content rather than silently discarding it.
-            cells.append(content)
-    return cells
+    if not matches:
+        return []
+    boundaries = [match.start() for match in matches[1:]]
+    boundaries.append(len(row))
+    return [
+        row[match.end() : boundary].strip()
+        for match, boundary in zip(matches, boundaries, strict=True)
+    ]
 
 
 def _row_uses_header(raw_row: str) -> bool:
@@ -102,13 +100,19 @@ def _md_table_row(cells: list[str]) -> str:
 class _OtslTableBuf:
     """One logical Markdown table assembled from physical-page fragments."""
 
-    caption_prefix: str = ""
-    header_cells: list[str] = field(default_factory=list)
-    body_entries: list[list[str] | str] = field(default_factory=list)
+    caption_prefix: str
+    header_cells: list[str]
+    body_entries: list[list[str] | str]
+
+    @classmethod
+    def from_rows(cls, caption: str, rows: list[list[str]]) -> _OtslTableBuf:
+        return cls(
+            caption_prefix=caption,
+            header_cells=rows[0],
+            body_entries=[*rows[1:]],
+        )
 
     def render(self) -> str:
-        if not self.header_cells:
-            return self.caption_prefix
         rows = [entry for entry in self.body_entries if isinstance(entry, list)]
         column_count = max(
             len(self.header_cells),
@@ -131,17 +135,16 @@ class _OtslTableBuf:
 
 def _otsl_inner_rows(inner: str) -> tuple[str, list[str], list[list[str]]]:
     inner = strip_doctag_locations(inner)
-    caption_line = ""
     caption_match = _CAPTION_BLOCK.search(inner)
-    if caption_match:
-        caption = _escape_md_cell(caption_match.group(1))
-        if caption:
-            caption_line = f"\n*{caption}*\n"
-        inner = _CAPTION_BLOCK.sub("", inner)
-
-    candidates = [row.strip() for row in inner.split("<nl>") if row.strip()]
-    parsed = [(raw, _parse_otsl_row(raw)) for raw in candidates]
-    parsed = [(raw, cells) for raw, cells in parsed if cells]
+    caption = _escape_md_cell(caption_match.group(1)) if caption_match else ""
+    caption_line = f"\n*{caption}*\n" if caption else ""
+    inner = _CAPTION_BLOCK.sub("", inner)
+    parsed = [
+        (raw, cells)
+        for candidate in inner.split("<nl>")
+        if (raw := candidate.strip())
+        if (cells := _parse_otsl_row(raw))
+    ]
     return (
         caption_line,
         [raw for raw, _ in parsed],
@@ -149,124 +152,149 @@ def _otsl_inner_rows(inner: str) -> tuple[str, list[str], list[list[str]]]:
     )
 
 
-def _between_otsl_mergeable(doc: str, previous_end: int, next_start: int) -> bool:
-    """Merge only fragments separated by a real physical page boundary."""
-    between = doc[previous_end:next_start]
-    if _PAGE_SENTINEL not in between:
-        return False
-    stripped = _PAGE_FOOTER.sub("", between)
-    stripped = _PAGE_HEADER.sub("", stripped)
-    stripped = _DOCTAG_WRAPPER.sub("", stripped)
-    stripped = stripped.replace(_PAGE_SENTINEL, "")
-    stripped = strip_doctag_locations(stripped)
-    return not stripped.strip()
+@dataclass(frozen=True)
+class _OtslFragment:
+    start: int
+    end: int
+    caption: str
+    rows: list[list[str]]
+    starts_with_header: bool
 
-
-def _interstitial_table_entries(
-    value: str,
-    previous_end: int,
-    next_start: int,
-    *,
-    drop_page_footers: bool,
-) -> list[str]:
-    between = value[previous_end:next_start]
-    token_pattern = re.compile(
-        rf"{re.escape(_PAGE_SENTINEL)}|<page_footer>(.*?)</page_footer>",
-        re.DOTALL,
-    )
-    entries: list[str] = []
-    for match in token_pattern.finditer(between):
-        if match.group(0) == _PAGE_SENTINEL:
-            entries.append(_PAGE_SENTINEL)
-        elif not drop_page_footers:
-            footer = _escape_md_cell(match.group(1) or "")
-            if footer:
-                entries.extend(("", f"*{footer}*", ""))
-    entries.append(_TABLE_RESTART)
-    return entries
-
-
-def _replace_otsl_blocks_merged(value: str, *, drop_page_footers: bool) -> str:
-    """Render OTSL tables and merge body-only fragments across page breaks."""
-    matches = list(_OTSL_BLOCK.finditer(value))
-    if not matches:
-        return value
-
-    output: list[str] = []
-    position = 0
-    buffer: _OtslTableBuf | None = None
-
-    for index, match in enumerate(matches):
+    @classmethod
+    def from_match(cls, match: re.Match[str]) -> _OtslFragment:
         caption, raw_rows, rows = _otsl_inner_rows(match.group(1))
-        if not rows:
-            if buffer is not None:
-                output.append(buffer.render())
-                buffer = None
-            # Preserve both preceding text and the unsupported OTSL block. Silent
-            # deletion is worse than leaving diagnostic source markup in the view.
-            output.append(value[position : match.end()])
-            position = match.end()
-            continue
-
-        first_is_header = bool(raw_rows) and _row_uses_header(raw_rows[0])
-        merge = (
-            buffer is not None
-            and not first_is_header
-            and not caption.strip()
-            and index > 0
-            and _between_otsl_mergeable(value, matches[index - 1].end(), match.start())
+        starts_with_header = (
+            _row_uses_header(raw_rows[0]) if raw_rows else False
+        )
+        return cls(
+            start=match.start(),
+            end=match.end(),
+            caption=caption,
+            rows=rows,
+            starts_with_header=starts_with_header,
         )
 
-        if buffer is not None and not merge:
-            output.append(buffer.render())
-            buffer = None
 
-        if not merge:
-            output.append(value[position : match.start()])
+@dataclass
+class _OtslRenderer:
+    value: str
+    page_sentinel: str
+    drop_page_footers: bool
+    output: list[str] = field(default_factory=list, init=False)
+    position: int = field(default=0, init=False)
+    previous_end: int | None = field(default=None, init=False)
+    buffer: _OtslTableBuf | None = field(default=None, init=False)
+    interstitial_tokens: re.Pattern[str] = field(init=False)
 
-        if first_is_header:
-            header, body = rows[0], rows[1:]
-            column_count = max(len(header), max((len(row) for row in body), default=0))
-            normalized_header = header + [""] * (column_count - len(header))
-            body_entries: list[list[str] | str] = []
-            body_entries.extend(body)
-            buffer = _OtslTableBuf(
-                caption_prefix=caption,
-                header_cells=normalized_header,
-                body_entries=body_entries,
-            )
-        elif merge and buffer is not None:
-            buffer.body_entries.extend(
-                _interstitial_table_entries(
-                    value,
-                    matches[index - 1].end(),
-                    match.start(),
-                    drop_page_footers=drop_page_footers,
-                )
-            )
-            buffer.body_entries.extend(rows)
+    def __post_init__(self) -> None:
+        self.interstitial_tokens = re.compile(
+            rf"{re.escape(self.page_sentinel)}|"
+            r"<page_footer>(.*?)</page_footer>",
+            re.DOTALL,
+        )
+
+    def render(self) -> str:
+        for match in _OTSL_BLOCK.finditer(self.value):
+            self._consume(_OtslFragment.from_match(match))
+            self.previous_end = match.end()
+        self._flush()
+        self.output.append(self.value[self.position :])
+        return "".join(self.output)
+
+    def _consume(self, fragment: _OtslFragment) -> None:
+        if not fragment.rows:
+            self._preserve_unsupported(fragment)
+            return
+        merge_target = self._merge_target(fragment)
+        if merge_target is None:
+            self._start(fragment)
         else:
-            column_count = max(len(row) for row in rows)
-            normalized_rows = [row + [""] * (column_count - len(row)) for row in rows]
-            header, body = normalized_rows[0], normalized_rows[1:]
-            output.append(
-                caption
-                + "\n".join(
-                    [
-                        _md_table_row(header),
-                        "| " + " | ".join("---" for _ in header) + " |",
-                        *(_md_table_row(row) for row in body),
-                    ]
-                )
-                + "\n"
-            )
+            self._merge(merge_target, fragment)
+        self.position = fragment.end
 
-        position = match.end()
+    def _preserve_unsupported(self, fragment: _OtslFragment) -> None:
+        self._flush()
+        self.output.append(self.value[self.position : fragment.end])
+        self.position = fragment.end
 
-    if buffer is not None:
-        output.append(buffer.render())
-    output.append(value[position:])
-    return "".join(output)
+    def _merge_target(
+        self, fragment: _OtslFragment
+    ) -> tuple[_OtslTableBuf, int] | None:
+        buffer = self.buffer
+        previous_end = self.previous_end
+        target = None
+        if buffer is not None and previous_end is not None:
+            may_continue = not fragment.starts_with_header and not fragment.caption
+            if may_continue and self._between_mergeable(previous_end, fragment.start):
+                target = (buffer, previous_end)
+        return target
+
+    def _between_mergeable(self, previous_end: int, next_start: int) -> bool:
+        between = self.value[previous_end:next_start]
+        if self.page_sentinel not in between:
+            return False
+        stripped = _PAGE_FOOTER.sub("", between)
+        stripped = _PAGE_HEADER.sub("", stripped)
+        stripped = _DOCTAG_WRAPPER.sub("", stripped)
+        stripped = stripped.replace(self.page_sentinel, "")
+        stripped = strip_doctag_locations(stripped)
+        return not stripped.strip()
+
+    def _start(self, fragment: _OtslFragment) -> None:
+        self._flush()
+        self.output.append(self.value[self.position : fragment.start])
+        table = _OtslTableBuf.from_rows(fragment.caption, fragment.rows)
+        if fragment.starts_with_header:
+            self.buffer = table
+        else:
+            self.output.append(table.render())
+
+    def _merge(
+        self,
+        target: tuple[_OtslTableBuf, int],
+        fragment: _OtslFragment,
+    ) -> None:
+        buffer, previous_end = target
+        buffer.body_entries.extend(
+            self._interstitial_entries(previous_end, fragment.start)
+        )
+        buffer.body_entries.extend(fragment.rows)
+
+    def _interstitial_entries(
+        self, previous_end: int, next_start: int
+    ) -> list[str]:
+        between = self.value[previous_end:next_start]
+        entries: list[str] = []
+        for match in self.interstitial_tokens.finditer(between):
+            entries.extend(self._interstitial_token(match))
+        entries.append(_TABLE_RESTART)
+        return entries
+
+    def _interstitial_token(self, match: re.Match[str]) -> list[str]:
+        if match.group(0) == self.page_sentinel:
+            return [self.page_sentinel]
+        if self.drop_page_footers:
+            return []
+        footer = _escape_md_cell(match.group(1) or "")
+        if not footer:
+            return []
+        return ["", f"*{footer}*", ""]
+
+    def _flush(self) -> None:
+        if self.buffer is None:
+            return
+        self.output.append(self.buffer.render())
+        self.buffer = None
+
+
+def _replace_otsl_blocks_merged(
+    value: str,
+    *,
+    drop_page_footers: bool,
+    page_sentinel: str,
+) -> str:
+    """Render OTSL tables and merge body-only fragments across page breaks."""
+    return _OtslRenderer(value, page_sentinel, drop_page_footers).render()
 
 
 @dataclass(frozen=True)
@@ -299,31 +327,42 @@ class DocTagsMarkdownResult:
     anchors: tuple[MarkdownAnchor, ...] = ()
 
 
-def _render_lists(value: str) -> str:
-    output: list[str] = []
-    list_types: list[str] = []
-    position = 0
+@dataclass
+class _ListRenderer:
+    value: str
+    list_types: list[str] = field(default_factory=list)
 
-    for match in _LIST_TAG.finditer(value):
-        output.append(value[position : match.start()])
+    def render(self) -> str:
+        return _LIST_TAG.sub(self._render_tag, self.value)
+
+    def _render_tag(self, match: re.Match[str]) -> str:
         closing, tag = match.groups()
-        if tag in {"ordered_list", "unordered_list"}:
-            if closing:
-                if len(list_types) == 1:
-                    output.append("\n\n")
-                if list_types:
-                    list_types.pop()
-            else:
-                list_types.append(tag)
-        elif not closing and list_types:
-            wraps_nested_list = _LIST_CONTAINER_START.match(value, match.end())
-            if not wraps_nested_list:
-                marker = "1." if list_types[-1] == "ordered_list" else "-"
-                output.append(f"\n{'   ' * (len(list_types) - 1)}{marker} ")
-        position = match.end()
+        if tag == "list_item":
+            return self._render_item(closing, match.end())
+        return self._render_container(closing, tag)
 
-    output.append(value[position:])
-    return "".join(output)
+    def _render_container(self, closing: str | None, tag: str) -> str:
+        if not closing:
+            self.list_types.append(tag)
+            return ""
+        separator = "\n\n" if len(self.list_types) == 1 else ""
+        del self.list_types[-1:]
+        return separator
+
+    def _render_item(self, closing: str | None, end: int) -> str:
+        if closing:
+            return ""
+        if not self.list_types:
+            return ""
+        if _LIST_CONTAINER_START.match(self.value, end):
+            return ""
+        marker = _LIST_MARKERS[self.list_types[-1]]
+        indent = "   " * (len(self.list_types) - 1)
+        return f"\n{indent}{marker} "
+
+
+def _render_lists(value: str) -> str:
+    return _ListRenderer(value).render()
 
 
 def compose_page_markdown(page_texts: list[str]) -> DocTagsMarkdownResult:
@@ -492,6 +531,97 @@ def _resolve_anchors(
     return cleaned_markdown, cleaned_spans, tuple(anchors)
 
 
+def _unique_token(value: str, token: str, extension: str) -> str:
+    while token in value:
+        token += extension
+    return token
+
+
+@dataclass
+class _SemanticBlockRenderer:
+    sentinel: str
+    blocks: list[str] = field(default_factory=list)
+
+    def protect(self, value: str) -> str:
+        value = _CODE_BLOCK.sub(self._protect_code, value)
+        return _FORMULA_BLOCK.sub(self._protect_formula, value)
+
+    def _protect_code(self, match: re.Match[str]) -> str:
+        source = _CODE_LANGUAGE_TOKEN.sub("", match.group(1))
+        longest_run = max(
+            (len(run) for run in re.findall(r"`+", source)),
+            default=0,
+        )
+        fence = "`" * max(3, longest_run + 1)
+        return self._placeholder(f"{fence}\n{source}\n{fence}")
+
+    def _protect_formula(self, match: re.Match[str]) -> str:
+        source = match.group(1)
+        return self._placeholder(f"$$\n{source}\n$$")
+
+    def _placeholder(self, rendered: str) -> str:
+        self.blocks.append(rendered)
+        index = len(self.blocks) - 1
+        return f"\n\n{self.sentinel}{index}{self.sentinel}\n\n"
+
+    def restore(self, value: str) -> str:
+        placeholder = re.compile(
+            rf"{re.escape(self.sentinel)}(\d+){re.escape(self.sentinel)}"
+        )
+        return placeholder.sub(
+            lambda match: self.blocks[int(match.group(1))],
+            value,
+        )
+
+
+def _render_footer(match: re.Match[str]) -> str:
+    return "\n*" + _escape_md_cell(match.group(1)) + "*\n"
+
+
+def _render_page_furniture(value: str, *, drop_page_footers: bool) -> str:
+    if drop_page_footers:
+        value = _PAGE_FOOTER.sub("", value)
+    else:
+        value = _PAGE_FOOTER.sub(_render_footer, value)
+    return _PAGE_HEADER.sub("", value)
+
+
+def _render_section(match: re.Match[str]) -> str:
+    level = min(max(int(match.group(1)), 1), 6)
+    text = match.group(2)
+    numbered_level = _numbered_heading_level(text)
+    if numbered_level is not None:
+        level = numbered_level
+    return f"\n\n{'#' * level} {_escape_md_cell(text)}\n\n"
+
+
+def _render_title(match: re.Match[str]) -> str:
+    return f"\n\n# {_escape_md_cell(match.group(1))}\n\n"
+
+
+def _render_text(match: re.Match[str]) -> str:
+    return "\n\n" + match.group(1).strip() + "\n\n"
+
+
+def _render_caption(match: re.Match[str]) -> str:
+    return f"\n\n> {match.group(1).strip()}\n\n"
+
+
+def _render_content_tags(value: str) -> str:
+    value = _SECTION_HDR.sub(_render_section, value)
+    value = _TITLE_BLOCK.sub(_render_title, value)
+    value = _TEXT_BLOCK.sub(_render_text, value)
+    value = _CAPTION_BLOCK.sub(_render_caption, value)
+    return _render_lists(value)
+
+
+def _remove_structural_tags(value: str) -> str:
+    value = _DOCTAG_WRAPPER.sub("", value)
+    value = _TRANSPARENT_WRAPPERS.sub("", value)
+    value = _REMAINING_STRUCTURAL_TAGS.sub("", value)
+    return re.sub(r"\n{3,}", "\n\n", value)
+
+
 def convert_doctags_to_markdown(
     doctags: str,
     *,
@@ -515,81 +645,24 @@ def convert_doctags_to_markdown(
     value, raw_anchor_boxes = _sentinelize_anchor_locations(
         raw, anchor_sentinel_base, anchor_sentinel_end
     )
-    protected_blocks: list[str] = []
-    semantic_sentinel = "\ue002"
-    while semantic_sentinel in value:
-        semantic_sentinel += "\ue002"
-    page_sentinel = _PAGE_SENTINEL
-    while page_sentinel in value:
-        page_sentinel += "\ue000"
+    semantic_sentinel = _unique_token(value, "\ue002", "\ue002")
+    page_sentinel = _unique_token(value, _PAGE_SENTINEL, "\ue000")
+    semantic_blocks = _SemanticBlockRenderer(semantic_sentinel)
 
-    def protect_block(match: re.Match[str]) -> str:
-        source = match.group(1)
-        if match.re is _CODE_BLOCK:
-            source = _CODE_LANGUAGE_TOKEN.sub("", source)
-            longest_run = max(
-                (len(run) for run in re.findall(r"`+", source)), default=0
-            )
-            fence = "`" * max(3, longest_run + 1)
-            rendered = f"{fence}\n{source}\n{fence}"
-        else:
-            rendered = f"$$\n{source}\n$$"
-        protected_blocks.append(rendered)
-        index = len(protected_blocks) - 1
-        return f"\n\n{semantic_sentinel}{index}{semantic_sentinel}\n\n"
-
-    value = _CODE_BLOCK.sub(protect_block, value)
-    value = _FORMULA_BLOCK.sub(protect_block, value)
+    value = semantic_blocks.protect(value)
     value = _PAGE_BREAK.sub(page_sentinel, value)
     value = _replace_otsl_blocks_merged(
         value,
         drop_page_footers=drop_page_footers,
+        page_sentinel=page_sentinel,
     )
-
-    if drop_page_footers:
-        value = _PAGE_FOOTER.sub("", value)
-    else:
-        value = _PAGE_FOOTER.sub(
-            lambda match: "\n*" + _escape_md_cell(match.group(1)) + "*\n",
-            value,
-        )
-    value = _PAGE_HEADER.sub("", value)
-
-    def render_section(match: re.Match[str]) -> str:
-        try:
-            level = min(max(int(match.group(1)), 1), 6)
-        except (TypeError, ValueError):
-            level = 1
-        text = match.group(2)
-        numbered_level = _numbered_heading_level(text)
-        if numbered_level is not None:
-            level = numbered_level
-        return f"\n\n{'#' * level} {_escape_md_cell(text)}\n\n"
-
-    value = _SECTION_HDR.sub(render_section, value)
-    value = _TITLE_BLOCK.sub(
-        lambda match: f"\n\n# {_escape_md_cell(match.group(1))}\n\n", value
+    value = _render_page_furniture(
+        value,
+        drop_page_footers=drop_page_footers,
     )
-    value = _TEXT_BLOCK.sub(
-        lambda match: "\n\n" + match.group(1).strip() + "\n\n", value
-    )
-    value = _CAPTION_BLOCK.sub(
-        lambda match: f"\n\n> {match.group(1).strip()}\n\n", value
-    )
-    value = _render_lists(value)
-    value = _DOCTAG_WRAPPER.sub("", value)
-    value = _TRANSPARENT_WRAPPERS.sub("", value)
-    value = _REMAINING_STRUCTURAL_TAGS.sub("", value)
-    value = re.sub(r"\n{3,}", "\n\n", value)
-    if protected_blocks:
-        rendered_by_index = {
-            str(index): rendered for index, rendered in enumerate(protected_blocks)
-        }
-        placeholder = re.compile(
-            rf"{re.escape(semantic_sentinel)}(\d+){re.escape(semantic_sentinel)}"
-        )
-        value = placeholder.sub(lambda match: rendered_by_index[match[1]], value)
-
+    value = _render_content_tags(value)
+    value = _remove_structural_tags(value)
+    value = semantic_blocks.restore(value)
     composed = compose_page_markdown(value.split(page_sentinel))
     cleaned_markdown, cleaned_spans, anchors = _resolve_anchors(
         composed.markdown,
@@ -600,7 +673,9 @@ def convert_doctags_to_markdown(
         page_dims or {},
     )
     return DocTagsMarkdownResult(
-        markdown=cleaned_markdown, page_spans=cleaned_spans, anchors=anchors
+        markdown=cleaned_markdown,
+        page_spans=cleaned_spans,
+        anchors=anchors,
     )
 
 
@@ -609,6 +684,17 @@ def doctags_to_markdown(doctags: str, *, drop_page_footers: bool = True) -> str:
     return convert_doctags_to_markdown(
         doctags, drop_page_footers=drop_page_footers
     ).markdown
+
+
+def _page_markdown_span(page: int, raw_chunk: str, offset: int) -> PageMarkdownSpan:
+    text = raw_chunk.strip()
+    start = offset + len(raw_chunk) - len(raw_chunk.lstrip())
+    return PageMarkdownSpan(
+        page=page,
+        text=text,
+        llm_markdown_start=start,
+        llm_markdown_end=start + len(text),
+    )
 
 
 def llm_markdown_page_spans(llm_markdown: str) -> list[PageMarkdownSpan]:
@@ -626,30 +712,12 @@ def llm_markdown_page_spans(llm_markdown: str) -> list[PageMarkdownSpan]:
     page = 1
     for match in separator.finditer(llm_markdown):
         raw_chunk = llm_markdown[cursor : match.start()]
-        text = raw_chunk.strip()
-        start = cursor + (len(raw_chunk) - len(raw_chunk.lstrip()))
-        spans.append(
-            PageMarkdownSpan(
-                page=page,
-                text=text,
-                llm_markdown_start=start,
-                llm_markdown_end=start + len(text),
-            )
-        )
+        spans.append(_page_markdown_span(page, raw_chunk, cursor))
         cursor = match.end()
         page += 1
 
     raw_chunk = llm_markdown[cursor:]
-    text = raw_chunk.strip()
-    start = cursor + (len(raw_chunk) - len(raw_chunk.lstrip()))
-    spans.append(
-        PageMarkdownSpan(
-            page=page,
-            text=text,
-            llm_markdown_start=start,
-            llm_markdown_end=start + len(text),
-        )
-    )
+    spans.append(_page_markdown_span(page, raw_chunk, cursor))
     return spans
 
 

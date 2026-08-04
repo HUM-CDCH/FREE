@@ -1,84 +1,45 @@
 import {
-  extractWithModel,
-  json,
-  modelError,
-  parseDocument,
-  parseTemperature,
-  RequestError,
-} from './_model'
-import {
-  findPrimaryArrayKey,
-  getExtractionStrategy,
-  pageRangeForOffsets,
-  splitMarkdownByHeadings,
-} from './_catalog_sections'
+  ApiError,
+  apiErrorResponse,
+  assertFormFields,
+  parseFormRequest,
+  type FormValue,
+} from './_http.js'
+import { extractWithModel, json, parseDocument, parseTemperature } from './_model.js'
+
+const FIELDS = ['file', 'document_markdown', 'template', 'instruction', 'temperature', 'has_tables'] as const
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const form = await request.formData()
-    const template = parseTemplate(form.get('template'))
-    const instruction = stringValue(form.get('instruction'))
-    const document = await parseDocument(form)
+    const form = await parseFormRequest(request)
+    assertFormFields(form, FIELDS)
     const result = await extractWithModel({
-      document,
-      template,
-      instruction,
+      document: await parseDocument(form),
+      template: parseTemplate(form.get('template')),
+      instruction: optionalString(form.get('instruction'), 'instruction'),
       temperature: parseTemperature(form.get('temperature')),
       hasTables: form.get('has_tables') === 'true',
     })
-
-    const debug = buildExtractDebug(document.markdown, template)
-    return json(debug ? { ...result, debug } : result)
+    return json(result)
   } catch (error) {
-    return modelError(error)
+    return apiErrorResponse(error)
   }
 }
 
-function buildExtractDebug(markdown: string | null, template: unknown): unknown | null {
-  if (!markdown) {
-    return null
-  }
-
-  const strategy = getExtractionStrategy(template)
-  const arrayKey = strategy === 'catalog' ? findPrimaryArrayKey(template) : null
-  const sections = arrayKey ? splitMarkdownByHeadings(markdown) : []
-  return {
-    document_markdown: {
-      length: markdown.length,
-      exact_page_breaks: (markdown.match(/\n\n---\n\n/g) ?? []).length,
-      loose_page_breaks: (markdown.match(/^[ \t]*---[ \t]*$/gm) ?? []).length,
-      first_exact_page_break_index: markdown.indexOf('\n\n---\n\n'),
-      first_loose_page_break_index: markdown.search(/^[ \t]*---[ \t]*$/m),
-    },
-    sectioning: {
-      strategy,
-      array_key: arrayKey,
-      section_count: sections.length,
-      sections: sections.map((section, index) => {
-        const pageRange = pageRangeForOffsets(markdown, section.startOffset, section.endOffset)
-        return {
-          index,
-          heading_text: section.headingText,
-          start_offset: section.startOffset,
-          end_offset: section.endOffset,
-          start_page: pageRange.startPage,
-          end_page: pageRange.endPage,
-        }
-      }),
-    },
-  }
-}
-
-function parseTemplate(value: FormDataEntryValue | null): unknown {
-  if (value === null || value === '') {
-    return {}
-  }
+function parseTemplate(value: FormValue | null): unknown {
+  if (value === null || value === '') return {}
   if (typeof value !== 'string') {
-    throw new RequestError(400, 'template must be JSON')
+    throw new ApiError(400, 'invalid_request', 'template must be JSON')
   }
-  return JSON.parse(value)
+  try {
+    return JSON.parse(value)
+  } catch (cause) {
+    throw new ApiError(400, 'invalid_request', 'template must be valid JSON', { cause })
+  }
 }
 
-function stringValue(value: FormDataEntryValue | null): string | undefined {
-  return typeof value === 'string' && value.trim() ? value : undefined
+function optionalString(value: FormValue | null, name: string): string | undefined {
+  if (value === null || (typeof value === 'string' && value.trim() === '')) return undefined
+  if (typeof value !== 'string') throw new ApiError(400, 'invalid_request', `${name} must be text`)
+  return value
 }

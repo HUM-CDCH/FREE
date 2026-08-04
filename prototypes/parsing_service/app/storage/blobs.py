@@ -10,6 +10,9 @@ from contextlib import suppress
 from pathlib import Path
 
 from app.storage import paths
+from app.storage._generation_pruning import (
+    prune_orphan_document_generations as _prune_orphan_document_generations,
+)
 from app.storage.atomic_json import read_json
 from app.storage.hashing import compute_sha256
 
@@ -32,7 +35,7 @@ def referenced_source_hashes(
         return set()
 
     hashes: set[str] = set()
-    for metadata_path in base.glob("*/metadata.json"):
+    for metadata_path in base.glob(f"*/{paths.METADATA_FILENAME}"):
         try:
             metadata = read_json(metadata_path)
         except ValueError:
@@ -124,44 +127,6 @@ def _document_store(
     )
 
 
-def _iter_string_values(value):
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for item in value.values():
-            yield from _iter_string_values(item)
-    elif isinstance(value, list):
-        for item in value:
-            yield from _iter_string_values(item)
-
-
-def _referenced_generation_dirs(
-    *,
-    data_dir: Path,
-    document_store: Path,
-) -> set[Path]:
-    manifests = list(document_store.glob("*/parsed_document.json"))
-    manifests.extend(data_dir.glob("*/parsed_document.json"))
-    referenced: set[Path] = set()
-    for manifest in manifests:
-        try:
-            payload = read_json(manifest)
-        except ValueError:
-            continue
-        for value in _iter_string_values(payload):
-            candidate = (paths.SERVICE_ROOT / value).resolve()
-            try:
-                relative = candidate.relative_to(document_store.resolve())
-            except ValueError:
-                continue
-            parts = relative.parts
-            if len(parts) >= 3 and parts[1] == "generations":
-                referenced.add(
-                    (document_store / parts[0] / parts[1] / parts[2]).resolve()
-                )
-    return referenced
-
-
 def prune_orphan_document_generations(
     *,
     data_dir: str | os.PathLike[str] | None = None,
@@ -172,38 +137,10 @@ def prune_orphan_document_generations(
     tasks = Path(data_dir) if data_dir is not None else paths.DEFAULT_DATA_DIR
     if not base.exists():
         return 0
-    referenced = _referenced_generation_dirs(
+    return _prune_orphan_document_generations(
         data_dir=tasks,
         document_store=base,
     )
-    removed = 0
-    for document_dir in base.iterdir():
-        if not document_dir.is_dir() or not paths.is_sha256_hex(document_dir.name):
-            continue
-        pending = document_dir / ".pending"
-        if pending.exists():
-            for generation in list(pending.iterdir()):
-                if generation.is_dir():
-                    try:
-                        shutil.rmtree(generation)
-                    except OSError:
-                        if generation.exists():
-                            continue
-                    if not generation.exists():
-                        removed += 1
-        generations = document_dir / "generations"
-        if not generations.exists():
-            continue
-        for generation in list(generations.iterdir()):
-            if generation.is_dir() and generation.resolve() not in referenced:
-                try:
-                    shutil.rmtree(generation)
-                except OSError:
-                    if generation.exists():
-                        continue
-                if not generation.exists():
-                    removed += 1
-    return removed
 
 
 def _document_mtime(document_dir: Path) -> float:

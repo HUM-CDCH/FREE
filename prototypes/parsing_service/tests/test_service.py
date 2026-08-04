@@ -33,6 +33,7 @@ from app.storage import paths
 from app.storage.paths import DEFAULT_DATA_DIR, DEFAULT_DOCUMENT_STORE_DIR
 from app.workers import parse_worker
 from main import app
+from tests.storage_test_support import isolated_storage
 
 DATA_DIR = str(DEFAULT_DATA_DIR)
 DOCUMENT_STORE_DIR = str(DEFAULT_DOCUMENT_STORE_DIR)
@@ -66,12 +67,8 @@ class BodyReadingAsgiApp:
         await send({"type": "http.response.body", "body": b""})
 
 
-async def run_asgi_request(
-    application, *, headers=(), messages=None, method="POST", path="/tasks"
-):
-    pending = list(
-        messages or [{"type": "http.request", "body": b"", "more_body": False}]
-    )
+async def run_asgi_request(application, *, headers=(), path="/tasks"):
+    pending = [{"type": "http.request", "body": b"", "more_body": False}]
     sent = []
 
     async def receive():
@@ -86,7 +83,7 @@ async def run_asgi_request(
         "type": "http",
         "asgi": {"version": "3.0", "spec_version": "2.3"},
         "http_version": "1.1",
-        "method": method,
+        "method": "POST",
         "scheme": "http",
         "path": path,
         "raw_path": path.encode("ascii"),
@@ -198,18 +195,9 @@ class FakeDoclingDocument:
 
 class TestService(unittest.TestCase):
     def setUp(self):
-        self._storage_tmp = tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT)
-        root = Path(self._storage_tmp.name)
-        self._original_storage_paths = (
-            paths.DEFAULT_DATA_DIR,
-            paths.DEFAULT_SOURCE_STORE_DIR,
-            paths.DEFAULT_DOCUMENT_STORE_DIR,
-            parse_worker.DEFAULT_DATA_DIR,
-        )
-        paths.DEFAULT_DATA_DIR = root / "tasks"
-        paths.DEFAULT_SOURCE_STORE_DIR = root / "sources"
-        paths.DEFAULT_DOCUMENT_STORE_DIR = root / "documents"
-        parse_worker.DEFAULT_DATA_DIR = paths.DEFAULT_DATA_DIR
+        self._storage = isolated_storage()
+        self._storage.__enter__()
+        self.addCleanup(self._storage.__exit__, None, None, None)
         global DATA_DIR, DOCUMENT_STORE_DIR
         DATA_DIR = str(paths.DEFAULT_DATA_DIR)
         DOCUMENT_STORE_DIR = str(paths.DEFAULT_DOCUMENT_STORE_DIR)
@@ -263,6 +251,34 @@ class TestService(unittest.TestCase):
             self.fail(f"Could not read test JSON {path}: {exc}")
             return {}
 
+    def _create_completed_task(
+        self,
+        source: bytes,
+        *,
+        params: dict[str, str],
+        source_path: str | None = None,
+    ) -> tuple[str, str, str]:
+        task_id = str(uuid.uuid4())
+        task_dir = os.path.join(DATA_DIR, task_id)
+        self._mkdir(task_dir)
+        content_hash = hashlib.sha256(source).hexdigest()
+        metadata = {
+            "task_id": task_id,
+            "document_id": content_hash,
+            "content_sha256": content_hash,
+            "status": "completed",
+            "created_at": "2026-06-23T00:00:00Z",
+            "updated_at": "2026-06-23T00:00:00Z",
+            "params": params,
+            "stats": {},
+            "error": None,
+        }
+        if source_path is not None:
+            metadata["source_path"] = source_path
+            self._write_bytes(os.path.join(task_dir, source_path), source)
+        save_metadata(task_id, metadata)
+        return task_id, task_dir, content_hash
+
     def _fake_docling_document(self, source_path):
         with fitz.open(source_path) as document:
             return FakeDoclingDocument(document.page_count)
@@ -271,13 +287,6 @@ class TestService(unittest.TestCase):
         self._table_patcher.stop()
         self._docling_patcher.stop()
         self.client.close()
-        (
-            paths.DEFAULT_DATA_DIR,
-            paths.DEFAULT_SOURCE_STORE_DIR,
-            paths.DEFAULT_DOCUMENT_STORE_DIR,
-            parse_worker.DEFAULT_DATA_DIR,
-        ) = self._original_storage_paths
-        self._storage_tmp.cleanup()
 
     def test_status_endpoint(self):
         response = self.client.get("/status")
@@ -323,9 +332,9 @@ class TestService(unittest.TestCase):
                 side_effect=PermissionError("shared store unavailable"),
             ),
             self.assertRaisesRegex(PermissionError, "shared store unavailable"),
-            self.client,
+            self.client as client,
         ):
-            pass
+            client.get("/status")
 
     def test_root_ui_describes_canonical_docling_doctags(self):
         response = self.client.get("/")
@@ -678,23 +687,14 @@ class TestService(unittest.TestCase):
         self.assertEqual(list(destination.parent.glob(".staged.pdf.*.tmp")), [])
 
     def test_get_task_markdown_and_document_endpoints(self):
-        task_id = str(uuid.uuid4())
-        task_dir = os.path.join(DATA_DIR, task_id)
-        self._mkdir(task_dir)
-
-        content_hash = hashlib.sha256(PDF_BYTES).hexdigest()
-        metadata = {
-            "task_id": task_id,
-            "document_id": content_hash,
-            "content_sha256": content_hash,
-            "status": "completed",
-            "created_at": "2026-06-23T00:00:00Z",
-            "updated_at": "2026-06-23T00:00:00Z",
-            "params": {"pipeline": "all", "device": "cpu", "source_name": "test.pdf"},
-            "stats": {},
-            "error": None,
-        }
-        save_metadata(task_id, metadata)
+        task_id, task_dir, content_hash = self._create_completed_task(
+            PDF_BYTES,
+            params={
+                "pipeline": "all",
+                "device": "cpu",
+                "source_name": "test.pdf",
+            },
+        )
 
         output_dir = os.path.join(task_dir, "output", "test_doc")
         docling_pdf_dir = os.path.join(output_dir, "docling_pdf")
@@ -795,30 +795,15 @@ class TestService(unittest.TestCase):
         self.assertEqual(alias_response.json(), document)
 
     def test_fallback_document_preserves_page_markers_and_spans(self):
-        task_id = str(uuid.uuid4())
-        task_dir = os.path.join(DATA_DIR, task_id)
-        self._mkdir(task_dir)
-        content_hash = hashlib.sha256(TWO_PAGE_PDF_BYTES).hexdigest()
-        save_metadata(
-            task_id,
-            {
-                "task_id": task_id,
-                "document_id": content_hash,
-                "content_sha256": content_hash,
-                "source_path": "source.pdf",
-                "status": "completed",
-                "created_at": "2026-06-23T00:00:00Z",
-                "updated_at": "2026-06-23T00:00:00Z",
-                "params": {
-                    "pipeline": "all",
-                    "device": "cpu",
-                    "source_name": "test.pdf",
-                },
-                "stats": {},
-                "error": None,
+        task_id, task_dir, _ = self._create_completed_task(
+            TWO_PAGE_PDF_BYTES,
+            params={
+                "pipeline": "all",
+                "device": "cpu",
+                "source_name": "test.pdf",
             },
+            source_path="source.pdf",
         )
-        self._write_bytes(os.path.join(task_dir, "source.pdf"), TWO_PAGE_PDF_BYTES)
 
         output_dir = os.path.join(task_dir, "output", "test_doc")
         docling_pdf_dir = os.path.join(output_dir, "docling_pdf")
@@ -874,30 +859,15 @@ class TestService(unittest.TestCase):
         )
 
     def test_two_page_pdf_produces_two_page_parsed_document(self):
-        task_id = str(uuid.uuid4())
-        task_dir = os.path.join(DATA_DIR, task_id)
-        self._mkdir(task_dir)
-        content_hash = hashlib.sha256(TWO_PAGE_PDF_BYTES).hexdigest()
-        save_metadata(
-            task_id,
-            {
-                "task_id": task_id,
-                "document_id": content_hash,
-                "content_sha256": content_hash,
-                "source_path": "source.pdf",
-                "status": "completed",
-                "created_at": "2026-06-23T00:00:00Z",
-                "updated_at": "2026-06-23T00:00:00Z",
-                "params": {
-                    "pipeline": "docling_pdf",
-                    "device": "cpu",
-                    "source_name": "two-page.pdf",
-                },
-                "stats": {},
-                "error": None,
+        task_id, task_dir, _ = self._create_completed_task(
+            TWO_PAGE_PDF_BYTES,
+            params={
+                "pipeline": "docling_pdf",
+                "device": "cpu",
+                "source_name": "two-page.pdf",
             },
+            source_path="source.pdf",
         )
-        self._write_bytes(os.path.join(task_dir, "source.pdf"), TWO_PAGE_PDF_BYTES)
         output_dir = os.path.join(task_dir, "output", "source")
         docling_pdf_dir = os.path.join(output_dir, "docling_pdf")
         self._mkdir(docling_pdf_dir)

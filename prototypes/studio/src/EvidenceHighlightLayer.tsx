@@ -476,10 +476,7 @@ export default function EvidenceHighlightLayer({
   anchors = [],
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const schemaTemplateRef = useRef(schemaTemplate)
-  schemaTemplateRef.current = schemaTemplate
   const focusPathRef = useRef<string[] | null>(null)
-  focusPathRef.current = focusPath
   const cachedEntriesRef = useRef<CachedEntry[]>([])
   const [scale, setScale] = useState(1)
   const [containerVersion, setContainerVersion] = useState(0)
@@ -504,12 +501,16 @@ export default function EvidenceHighlightLayer({
   // Main effect: resolve each source scope independently, then cache and draw
   // in result order so asynchronous completion cannot reorder highlights.
   useEffect(() => {
+    focusPathRef.current = focusPath
+  }, [focusPath])
+
+  useEffect(() => {
     if (!pdfViewer || !result || !containerEl || !isRecord(result)) return
 
-    const schemaKeys = isRecord(schemaTemplateRef.current) ? Object.keys(schemaTemplateRef.current) : []
+    const schemaKeys = isRecord(schemaTemplate) ? Object.keys(schemaTemplate) : []
     const fieldColorMap: Record<string, string> = {}
     schemaKeys.forEach((k, i) => { fieldColorMap[k] = PALETTE[i % PALETTE.length] })
-    const highlights = buildHighlights(result, evidence, fieldColorMap, schemaTemplateRef.current, markdown).filter(
+    const highlights = buildHighlights(result, evidence, fieldColorMap, schemaTemplate, markdown).filter(
       (highlight): highlight is Highlight & { sourceScope: EvidenceSourceScope } => highlight.sourceScope !== null,
     )
     if (highlights.length === 0) return
@@ -649,7 +650,7 @@ export default function EvidenceHighlightLayer({
 
     void render()
     return () => { cancelled = true }
-  }, [pdfViewer, result, evidence, containerEl, scale, containerVersion, tables, markdown, anchors])
+  }, [pdfViewer, result, evidence, schemaTemplate, containerEl, scale, containerVersion, tables, markdown, anchors])
 
   // Focus effect: scroll to active value and redraw from cache (no PDF search).
   useEffect(() => {

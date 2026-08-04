@@ -38,7 +38,11 @@ class TestOperabilityContracts(unittest.TestCase):
         self.assertTrue(conflicts)
 
         scripts = _load_json(SERVICE_ROOT / "package.json")["scripts"]
-        self.assertIn("--extra ocr-cpu", scripts["install:python:cpu"])
+        self.assertIn("--extra ocr-cpu", scripts["install:python"])
+        self.assertIn(
+            "--reinstall-package nvidia-cusparselt-cu13",
+            scripts["install:python"],
+        )
         self.assertIn("--extra ocr-gpu", scripts["install:python:gpu"])
         self.assertIn("--no-sync", scripts["dev"])
         self.assertIn("--no-sync", scripts["test"])
@@ -46,7 +50,7 @@ class TestOperabilityContracts(unittest.TestCase):
         self.assertNotIn("--extra", scripts["test"])
 
         workspace_scripts = _load_json(WORKSPACE_ROOT / "package.json")["scripts"]
-        self.assertIn("install:cpu", workspace_scripts)
+        self.assertNotIn("install:cpu", workspace_scripts)
         self.assertIn("install:gpu", workspace_scripts)
 
 

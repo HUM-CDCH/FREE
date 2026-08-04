@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import datetime
 import importlib
 import math
-import re
-import unicodedata
+from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -16,23 +14,24 @@ from app.models.parsed_document import (
     ArbitrationResult,
     ArtifactManifest,
     BoundingBox,
-    CharSpan,
     DocumentMetadata,
     EvidenceIndex,
     InputProfile,
-    PageDecision,
-    PageQuality,
     ParsedDocument,
-    ParsedPage,
     ParserRun,
     PreprocessingMetadata,
     SourceInfo,
-    TextViews,
 )
 from app.models.parser import CANONICAL_OCR_DPI, MAX_INGESTION_PAGES
 from app.parsing.adapters.pymupdf_inspect import PdfInspection, inspect_pdf
 from app.parsing.normalize import read_text
-from app.parsing.table_markdown_links import link_tables_to_canonical_markdown
+from app.parsing.page_resolution import (
+    _PageViewResult,
+    _docling_arbitration,
+    _merge_page_fallback_text,
+    _pages_and_views_from_llm_markdown,
+    _pages_requiring_fallback,
+)
 from app.parsing.render import (
     DEFAULT_MAX_RENDER_PAGE_PIXELS,
     DEFAULT_MAX_RENDER_TOTAL_PIXELS,
@@ -48,6 +47,7 @@ from app.storage.paths import (
     service_relative_ref,
     task_dir_for,
 )
+from app.timing import utc_now
 
 PREPROCESS_PROFILE = "production_default"
 
@@ -68,8 +68,71 @@ class CanonicalIngestionError(RuntimeError):
         self.parser_runs = list(parser_runs or [])
 
 
-def _utc_now() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+@dataclass(frozen=True)
+class _CanonicalTextRequest:
+    source_path: Path
+    content_sha256: str
+    inspection: PdfInspection
+    docling_output: Any
+    params: dict[str, Any]
+    artifact_root: Path | None
+    parser_runs: tuple[ParserRun, ...]
+
+
+@dataclass(frozen=True)
+class _CanonicalTextResolution:
+    doc_tags_simplified: str
+    llm_markdown: str
+    docling_spans: tuple[Any, ...]
+    llm_spans: tuple[Any, ...]
+    parser_by_page: dict[int, str]
+    ocr_output: Any | None
+    ocr_parser_run: ParserRun | None
+    ocr_blocks_by_page: dict[int, list[dict[str, Any]]]
+    page_mapping_verified: bool
+    unresolved_pages: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class _DoclingTextSource:
+    markdown: str
+    spans: tuple[Any, ...]
+    page_mapping_verified: bool
+
+
+@dataclass(frozen=True)
+class _BuildContext:
+    task_id: str
+    task_dir: Path
+    metadata: dict[str, Any]
+    content_sha256: str
+    params: dict[str, Any]
+    source_name: Any
+    source_path: Path
+    artifact_root: Path | None
+    started_at: Any
+
+
+@dataclass(frozen=True)
+class _InspectionResult:
+    inspection: PdfInspection
+    artifact_ref: str
+    parser_run: ParserRun
+
+
+@dataclass(frozen=True)
+class _ParsingResult:
+    docling_output: Any
+    docling_run: ParserRun
+    text: _CanonicalTextResolution
+    parser_runs: tuple[ParserRun, ...]
+
+
+@dataclass(frozen=True)
+class _TableResolution:
+    tables: list[Any]
+    parser_run: ParserRun
+    parser_by_page: dict[int, str]
 
 
 def package_version(package_name: str) -> str | None:
@@ -176,25 +239,19 @@ def _run_docling_ingestion(
     )
 
 
-def _compose_page_markdown(page_texts: list[str]) -> Any:
-    module = importlib.import_module("app.parsing.doctags_to_markdown")
-    return module.compose_page_markdown(page_texts)
-
-
 def _run_ocr_fallback(
     source_path: Path,
     content_sha256: str,
     page_numbers: list[int],
-    dpi: int,
     device: str,
-    artifact_root: Path | None = None,
+    artifact_root: Path | None,
 ) -> Any:
     module = importlib.import_module("app.parsing.ocr_fallback")
     return module.run_paddleocr_fallback(
         source_pdf=source_path,
         content_sha256=content_sha256,
         page_numbers=page_numbers,
-        dpi=dpi,
+        dpi=CANONICAL_OCR_DPI,
         device=device,
         artifact_root=artifact_root,
     )
@@ -296,303 +353,6 @@ def parser_run_from_table_output(output: Any, content_sha256: str) -> ParserRun:
     )
 
 
-def _garbled_text_score(text: str) -> float:
-    if not text:
-        return 1.0
-    suspicious = sum(
-        1
-        for character in text
-        if character == "\ufffd"
-        or (unicodedata.category(character) == "Cc" and character not in "\n\r\t")
-    )
-    non_space = [character for character in text if not character.isspace()]
-    alphanumeric = sum(character.isalnum() for character in non_space)
-    low_alphanumeric = (
-        max(0.0, 0.35 - (alphanumeric / len(non_space))) if non_space else 0.35
-    )
-    repeated_runs = len(re.findall(r"(.)\1{7,}", text))
-    return min(
-        1.0,
-        (suspicious / len(text)) * 4 + low_alphanumeric + min(0.5, repeated_runs * 0.1),
-    )
-
-
-def _quality_for_text(
-    text: str, warnings: list[str], ocr_confidence: float | None = None
-) -> PageQuality:
-    return PageQuality(
-        char_count=len(text),
-        word_count=len(text.split()),
-        ocr_confidence=ocr_confidence,
-        garbled_text_score=_garbled_text_score(text),
-        warnings=warnings,
-    )
-
-
-def _pages_and_views_from_llm_markdown(
-    *,
-    llm_markdown: str,
-    llm_spans: list[Any] | tuple[Any, ...],
-    selected_parser: str,
-    inspection: PdfInspection,
-    parser_by_page: dict[int, str],
-    doc_tags_simplified: str | None = None,
-    doc_tags_spans: list[Any] | tuple[Any, ...] = (),
-    page_mapping_verified: bool = True,
-    ocr_blocks_by_page: dict[int, list[dict[str, Any]]] | None = None,
-) -> tuple[list[ParsedPage], TextViews]:
-    ocr_blocks_by_page = ocr_blocks_by_page or {}
-    if not page_mapping_verified:
-        pages = [
-            ParsedPage(
-                page=page.page,
-                width_pt=page.width_pt,
-                height_pt=page.height_pt,
-                rotation=page.rotation,
-                selected_parser=None,
-                text="",
-                markdown=None,
-                char_span=None,
-                quality=_quality_for_text(
-                    "",
-                    [*page.warnings, "physical_page_mapping_unavailable"],
-                ),
-            )
-            for page in inspection.pages
-        ]
-        return pages, TextViews(
-            plain_text=llm_markdown,
-            page_marked_text=(
-                f"[DOCUMENT]\n{llm_markdown}" if llm_markdown else "[DOCUMENT]\n"
-            ),
-            markdown=llm_markdown,
-            llm_markdown=llm_markdown,
-            doc_tags_simplified=doc_tags_simplified,
-        )
-
-    spans = list(llm_spans)
-    span_by_page = {span.page: span for span in spans}
-    doctag_span_by_page = {span.page: span for span in doc_tags_spans}
-    inspected_pages = list(inspection.pages)
-    page_count = max(
-        inspection.page_count,
-        max((span.page for span in spans), default=0),
-    )
-
-    pages: list[ParsedPage] = []
-    marked_chunks: list[str] = []
-    marked_cursor = 0
-    for page_number in range(1, page_count + 1):
-        span = span_by_page.get(page_number)
-        text = span.text if span is not None else ""
-        inspected = (
-            inspected_pages[page_number - 1]
-            if page_number <= len(inspected_pages)
-            else None
-        )
-        if marked_chunks:
-            marked_chunks.append("\n\n")
-            marked_cursor += 2
-        marker = f"[PAGE {page_number}]\n"
-        marked_chunks.append(marker)
-        marked_cursor += len(marker)
-        page_marked_start = marked_cursor
-        marked_chunks.append(text)
-        marked_cursor += len(text)
-        page_marked_end = marked_cursor
-
-        llm_start = span.llm_markdown_start if span is not None else len(llm_markdown)
-        llm_end = span.llm_markdown_end if span is not None else len(llm_markdown)
-        doctag_span = doctag_span_by_page.get(page_number)
-        warnings = list(getattr(inspected, "warnings", []) if inspected else [])
-        if span is None:
-            warnings.append("Canonical parsing did not provide a physical page span.")
-        blocks = ocr_blocks_by_page.get(page_number, [])
-        ocr_confidence = (
-            round(sum(block["confidence"] for block in blocks) / len(blocks), 4)
-            if blocks
-            else None
-        )
-        pages.append(
-            ParsedPage(
-                page=page_number,
-                width_pt=getattr(inspected, "width_pt", None),
-                height_pt=getattr(inspected, "height_pt", None),
-                rotation=getattr(inspected, "rotation", None),
-                selected_parser=parser_by_page.get(page_number, selected_parser),
-                text=text,
-                markdown=text,
-                char_span=CharSpan(
-                    plain_text_start=llm_start,
-                    plain_text_end=llm_end,
-                    page_marked_text_start=page_marked_start,
-                    page_marked_text_end=page_marked_end,
-                    llm_markdown_start=llm_start,
-                    llm_markdown_end=llm_end,
-                    doc_tags_simplified_start=(
-                        doctag_span.llm_markdown_start if doctag_span else None
-                    ),
-                    doc_tags_simplified_end=(
-                        doctag_span.llm_markdown_end if doctag_span else None
-                    ),
-                ),
-                quality=_quality_for_text(
-                    text, warnings, ocr_confidence=ocr_confidence
-                ),
-                blocks=blocks,
-            )
-        )
-
-    return pages, TextViews(
-        plain_text=llm_markdown,
-        page_marked_text="".join(marked_chunks),
-        markdown=llm_markdown,
-        llm_markdown=llm_markdown,
-        doc_tags_simplified=doc_tags_simplified,
-    )
-
-
-def _pages_requiring_fallback(
-    docling_spans: list[Any] | tuple[Any, ...], inspection: PdfInspection
-) -> list[int]:
-    span_by_page = {span.page: span for span in docling_spans}
-    fallback_pages: list[int] = []
-    for page_number in range(1, inspection.page_count + 1):
-        span = span_by_page.get(page_number)
-        doctag_text = span.text.strip() if span is not None else ""
-        inspected_page = inspection.pages[page_number - 1]
-        native_text = inspected_page.native_text.strip()
-        # Unknown visual inventories still require OCR; only a fully inspected
-        # empty page is safe to preserve as an intentional blank.
-        verified_blank = (
-            span is not None
-            and not doctag_text
-            and not native_text
-            and inspected_page.image_count == 0
-            and inspected_page.drawing_count == 0
-        )
-        if verified_blank:
-            continue
-        garbled_score = _garbled_text_score(doctag_text)
-        clearly_low_quality = (
-            len(doctag_text) < 32 and len(native_text) >= 200
-        ) or garbled_score >= 0.25
-        if not doctag_text or clearly_low_quality:
-            fallback_pages.append(page_number)
-    return fallback_pages
-
-
-def _merge_page_fallback_text(
-    *,
-    docling_spans: list[Any] | tuple[Any, ...],
-    inspection: PdfInspection,
-    fallback_pages: list[int],
-    ocr_output: Any | None,
-) -> tuple[
-    str, tuple[Any, ...], dict[int, str], list[int], dict[int, list[dict[str, Any]]]
-]:
-    span_by_page = {span.page: span for span in docling_spans}
-    parser_by_page: dict[int, str] = {}
-    page_texts: list[str] = []
-    unresolved_pages: list[int] = []
-    ocr_blocks_by_page: dict[int, list[dict[str, Any]]] = {}
-    fallback_set = set(fallback_pages)
-
-    for page_number in range(1, inspection.page_count + 1):
-        span = span_by_page.get(page_number)
-        text = span.text.strip() if span is not None else ""
-        parser = "docling_doctags"
-        if page_number in fallback_set:
-            ocr_completed_page = False
-            ocr_text = ""
-            if ocr_output is not None and ocr_output.status == "success":
-                ocr_completed_page = page_number in ocr_output.pages
-                if ocr_completed_page:
-                    ocr_text = str(ocr_output.pages.get(page_number) or "").strip()
-            if ocr_text:
-                text = ocr_text
-                parser = "paddleocr_fallback"
-                lines = getattr(ocr_output, "page_lines", {}).get(page_number)
-                if lines:
-                    ocr_blocks_by_page[page_number] = lines
-            elif ocr_completed_page and not text:
-                # The OCR adapter processed the page and confirmed it is blank.
-                parser = "paddleocr_fallback"
-            elif not text:
-                unresolved_pages.append(page_number)
-        parser_by_page[page_number] = parser
-        page_texts.append(text)
-
-    composed = _compose_page_markdown(page_texts)
-    return (
-        composed.markdown,
-        tuple(composed.page_spans),
-        parser_by_page,
-        unresolved_pages,
-        ocr_blocks_by_page,
-    )
-
-
-def _resolve_evidence_anchors(
-    *,
-    docling_anchors: tuple[Any, ...],
-    docling_spans: list[Any] | tuple[Any, ...],
-    llm_spans: tuple[Any, ...],
-    parser_by_page: dict[int, str],
-) -> list[Anchor]:
-    """Keep each anchor whose page's text survived into `llm_markdown`
-    unchanged, remapping its offsets to that page's new position; drop only
-    the anchors on pages OCR fallback actually replaced.
-
-    Anchors are resolved against `doc_tags_simplified` (Docling's own
-    Markdown). OCR page-fallback/merging can produce a different final
-    `llm_markdown` — but `compose_page_markdown` (used to build both strings)
-    is a pure function of its per-page text list with a fixed separator, so a
-    page whose own text is unchanged between the two compositions sits at a
-    purely additive offset shift (from other pages' fallback text having a
-    different length), not a rewritten one. Only pages whose text was
-    actually replaced by OCR lose their anchors — every other page keeps
-    exact, page-scoped evidence locations instead of the whole document
-    losing anchors over one unrelated scanned page.
-    """
-    docling_span_by_page = {span.page: span for span in docling_spans}
-    llm_span_by_page = {span.page: span for span in llm_spans}
-
-    resolved: list[Anchor] = []
-    for anchor in docling_anchors:
-        if parser_by_page.get(anchor.page) != "docling_doctags":
-            continue
-        docling_span = docling_span_by_page.get(anchor.page)
-        llm_span = llm_span_by_page.get(anchor.page)
-        if docling_span is None or llm_span is None:
-            continue
-
-        shift = llm_span.llm_markdown_start - docling_span.llm_markdown_start
-        new_start = anchor.markdown_start + shift
-        new_end = anchor.markdown_end + shift
-        if new_start < llm_span.llm_markdown_start or new_end > llm_span.llm_markdown_end:
-            # Defensive: the shifted range should stay inside this page's own
-            # span; if it doesn't, something about this page's composition
-            # isn't the pure text-preserving case this remap assumes — drop
-            # rather than publish a possibly-misaligned anchor.
-            continue
-
-        resolved.append(
-            Anchor(
-                markdown_start=new_start,
-                markdown_end=new_end,
-                page=anchor.page,
-                bbox=BoundingBox(
-                    x0=anchor.bbox[0],
-                    y0=anchor.bbox[1],
-                    x1=anchor.bbox[2],
-                    y1=anchor.bbox[3],
-                ),
-            )
-        )
-    return resolved
-
-
 def _write_final_llm_markdown(
     content_sha256: str,
     llm_markdown: str,
@@ -606,60 +366,466 @@ def _write_final_llm_markdown(
     return service_relative_ref(final_path)
 
 
-def _docling_arbitration(
-    inspection: PdfInspection,
-    docling_run: ParserRun,
-    parser_by_page: dict[int, str],
-    *,
-    page_mapping_verified: bool = True,
-    table_pages: frozenset[int] = frozenset(),
-    table_parser_by_page: dict[int, str] | None = None,
-) -> ArbitrationResult:
-    page_decisions: list[PageDecision] = []
-    for page in range(1, inspection.page_count + 1):
-        selected_parser = parser_by_page.get(page, "docling_doctags")
-        fallback_used = selected_parser != "docling_doctags"
-        scores = {"docling_doctags": 1.0 if not fallback_used else 0.0}
-        if fallback_used:
-            scores[selected_parser] = 1.0
-        page_decisions.append(
-            PageDecision(
-                page=page,
-                selected_text_parser=selected_parser,
-                selected_layout_parser=(
-                    "docling_doctags" if docling_run.status == "success" else None
-                ),
-                selected_table_parser=(
-                    (table_parser_by_page or {}).get(page)
-                    or ("camelot_stream" if page in table_pages else None)
-                    or ("docling_doctags" if docling_run.status == "success" else None)
-                ),
-                fallback_used=fallback_used,
-                reason=(
-                    "document_level_mapping_unavailable"
-                    if not page_mapping_verified
-                    else (
-                        "docling_doctags_primary"
-                        if not fallback_used
-                        else f"{selected_parser}_page_fallback"
-                    )
-                ),
-                scores=scores,
-            )
+def _docling_text_source(request: _CanonicalTextRequest) -> _DoclingTextSource:
+    output = request.docling_output
+    runner_markdown = getattr(output, "llm_markdown", None)
+    return _DoclingTextSource(
+        markdown=(
+            runner_markdown
+            if isinstance(runner_markdown, str)
+            else _read_service_text(output.llm_markdown_ref).removesuffix("\n")
+        ),
+        spans=tuple(getattr(output, "page_spans", ()) or ()),
+        page_mapping_verified=bool(getattr(output, "page_mapping_verified", False)),
+    )
+
+
+def _document_level_text_resolution(
+    request: _CanonicalTextRequest,
+    source: _DoclingTextSource,
+) -> _CanonicalTextResolution:
+    parser_by_page = dict.fromkeys(
+        range(1, request.inspection.page_count + 1),
+        "docling_doctags",
+    )
+    return _CanonicalTextResolution(
+        doc_tags_simplified=source.markdown,
+        llm_markdown=source.markdown,
+        docling_spans=source.spans,
+        llm_spans=(),
+        parser_by_page=parser_by_page,
+        ocr_output=None,
+        ocr_parser_run=None,
+        ocr_blocks_by_page={},
+        page_mapping_verified=False,
+        unresolved_pages=(),
+    )
+
+
+def _mapped_text_resolution(
+    request: _CanonicalTextRequest,
+    source: _DoclingTextSource,
+) -> _CanonicalTextResolution:
+    page_count = request.inspection.page_count
+    fallback_pages = _pages_requiring_fallback(source.spans, request.inspection)
+    ocr_output = None
+    ocr_parser_run = None
+    if fallback_pages:
+        ocr_output = _run_ocr_fallback(
+            request.source_path,
+            request.content_sha256,
+            fallback_pages,
+            str(request.params.get("resolved_ocr_device") or "cpu"),
+            request.artifact_root,
+        )
+        ocr_parser_run = parser_run_from_ocr_output(
+            ocr_output,
+            request.content_sha256,
+        )
+    merged = _merge_page_fallback_text(
+        docling_spans=source.spans,
+        inspection=request.inspection,
+        fallback_pages=fallback_pages,
+        ocr_output=ocr_output,
+    )
+    return _CanonicalTextResolution(
+        doc_tags_simplified=source.markdown,
+        docling_spans=source.spans,
+        llm_markdown=merged.llm_markdown,
+        llm_spans=merged.llm_spans,
+        parser_by_page=merged.parser_by_page,
+        ocr_output=ocr_output,
+        ocr_parser_run=ocr_parser_run,
+        ocr_blocks_by_page=merged.ocr_blocks_by_page,
+        page_mapping_verified=(
+            {span.page for span in merged.llm_spans}
+            == set(range(1, page_count + 1))
+            and len(merged.llm_spans) == page_count
+        ),
+        unresolved_pages=tuple(merged.unresolved_pages),
+    )
+
+
+def _validate_text_resolution(
+    request: _CanonicalTextRequest,
+    resolution: _CanonicalTextResolution,
+) -> None:
+    parser_runs = list(request.parser_runs)
+    if resolution.ocr_parser_run is not None:
+        parser_runs.append(resolution.ocr_parser_run)
+    if resolution.unresolved_pages:
+        page_list = ", ".join(str(page) for page in resolution.unresolved_pages)
+        raise CanonicalIngestionError(
+            getattr(resolution.ocr_output, "error", None)
+            or "canonical_page_unresolved",
+            f"Canonical parsing could not resolve page(s): {page_list}.",
+            parser_runs=parser_runs,
+        )
+    if resolution.page_mapping_verified:
+        usable = any(span.text.strip() for span in resolution.llm_spans)
+    else:
+        usable = bool(resolution.llm_markdown.strip())
+    if not usable:
+        raise CanonicalIngestionError(
+            "canonical_text_unavailable",
+            "No parser produced usable canonical document text.",
+            parser_runs=parser_runs,
         )
 
-    selected = set(parser_by_page.values())
-    primary_parser = (
-        "docling_doctags" if "docling_doctags" in selected else "paddleocr_fallback"
+
+def _resolve_canonical_text(
+    request: _CanonicalTextRequest,
+) -> _CanonicalTextResolution:
+    """Resolve page-safe canonical text, using OCR only for verified page gaps."""
+    source = _docling_text_source(request)
+    # Keep document-level text, but never invent page provenance when the
+    # installed exporter cannot prove page identity.
+    if not source.page_mapping_verified and source.markdown.strip():
+        resolution = _document_level_text_resolution(request, source)
+    else:
+        resolution = _mapped_text_resolution(request, source)
+    _validate_text_resolution(request, resolution)
+    return resolution
+
+
+def _build_context(
+    task_id: str,
+    source_path: Path | None,
+    artifact_root: Path | None,
+) -> _BuildContext:
+    task_dir = task_dir_for(task_id)
+    metadata = load_task_metadata(task_dir)
+    content_sha256 = metadata.get("content_sha256")
+    if not isinstance(content_sha256, str) or not content_sha256:
+        raise ValueError("Task metadata is missing required content_sha256.")
+    params = dict(metadata.get("params", {}))
+    return _BuildContext(
+        task_id=task_id,
+        task_dir=task_dir,
+        metadata=metadata,
+        content_sha256=content_sha256,
+        params=params,
+        source_name=params.get("source_name", SOURCE_FILENAME),
+        source_path=source_path or task_dir / SOURCE_FILENAME,
+        artifact_root=artifact_root,
+        started_at=metadata.get("created_at") or utc_now(),
     )
-    return ArbitrationResult(
-        primary_document_parser=primary_parser,
-        strategy=(
-            "docling_primary_ocr_page_fallback"
-            if page_mapping_verified
-            else "docling_document_level_mapping_unavailable"
+
+
+def _inspect_source(context: _BuildContext) -> _InspectionResult:
+    inspection = inspect_pdf(
+        context.source_path,
+        max_pages=MAX_INGESTION_PAGES,
+        render_dpi=CANONICAL_OCR_DPI,
+        max_page_pixels=DEFAULT_MAX_RENDER_PAGE_PIXELS,
+        max_total_pixels=DEFAULT_MAX_RENDER_TOTAL_PIXELS,
+    )
+    artifact_ref = write_inspection_artifact(
+        context.content_sha256,
+        inspection,
+        artifact_root=context.artifact_root,
+    )
+    parser_run = parser_run_from_inspection(
+        inspection,
+        context.content_sha256,
+        artifact_ref,
+    )
+    try:
+        validate_inspection_for_ingestion(inspection)
+    except ValueError as exc:
+        raise CanonicalIngestionError(
+            "pdf_preflight_failed",
+            str(exc),
+            parser_runs=[parser_run],
+        ) from exc
+    return _InspectionResult(
+        inspection=inspection,
+        artifact_ref=artifact_ref,
+        parser_run=parser_run,
+    )
+
+
+def _run_canonical_parsers(
+    context: _BuildContext,
+    inspected: _InspectionResult,
+) -> _ParsingResult:
+    docling_output = _run_docling_ingestion(
+        context.source_path,
+        context.content_sha256,
+        list(range(1, inspected.inspection.page_count + 1)),
+        context.artifact_root,
+        page_dims={
+            page.page: (page.width_pt, page.height_pt)
+            for page in inspected.inspection.pages
+        },
+    )
+    docling_run = parser_run_from_docling_output(
+        docling_output,
+        context.content_sha256,
+    )
+    parser_runs = (inspected.parser_run, docling_run)
+    text = _resolve_canonical_text(
+        _CanonicalTextRequest(
+            source_path=context.source_path,
+            content_sha256=context.content_sha256,
+            inspection=inspected.inspection,
+            docling_output=docling_output,
+            params=context.params,
+            artifact_root=context.artifact_root,
+            parser_runs=parser_runs,
+        )
+    )
+    if text.ocr_parser_run is not None:
+        parser_runs = (*parser_runs, text.ocr_parser_run)
+    return _ParsingResult(
+        docling_output=docling_output,
+        docling_run=docling_run,
+        text=text,
+        parser_runs=parser_runs,
+    )
+
+
+def _table_parsers_by_page(tables: list[Any]) -> dict[int, str]:
+    parser_by_page: dict[int, str] = {}
+    for table in tables:
+        current = parser_by_page.get(table.page_number)
+        if current is None:
+            parser_by_page[table.page_number] = table.source_parser or "unknown"
+        elif current != table.source_parser:
+            parser_by_page[table.page_number] = "table_reconciled"
+    return parser_by_page
+
+
+def _extract_document_tables(
+    context: _BuildContext,
+    inspected: _InspectionResult,
+    parsing: _ParsingResult,
+) -> _TableResolution:
+    inspection = inspected.inspection
+    docling_tables = tuple(
+        getattr(parsing.docling_output, "table_inventory", ()) or ()
+    )
+    output = _run_table_extraction(
+        context.source_path,
+        context.content_sha256,
+        {page.page: page.height_pt for page in inspection.pages},
+        {page.page: page.rotation for page in inspection.pages},
+        docling_tables,
+    )
+    tables = list(output.tables)
+    return _TableResolution(
+        tables=tables,
+        parser_run=parser_run_from_table_output(
+            output,
+            context.content_sha256,
         ),
-        page_decisions=page_decisions,
+        parser_by_page=_table_parsers_by_page(tables),
+    )
+
+
+def _final_markdown_ref(
+    context: _BuildContext,
+    parsing: _ParsingResult,
+) -> str | None:
+    text = parsing.text
+    if text.llm_markdown == text.doc_tags_simplified:
+        return parsing.docling_output.llm_markdown_ref
+    return _write_final_llm_markdown(
+        context.content_sha256,
+        text.llm_markdown,
+        artifact_root=context.artifact_root,
+    )
+
+
+def _arbitrate_parsers(
+    inspected: _InspectionResult,
+    parsing: _ParsingResult,
+    tables: _TableResolution,
+) -> ArbitrationResult:
+    return _docling_arbitration(
+        inspection=inspected.inspection,
+        docling_run=parsing.docling_run,
+        parser_by_page=parsing.text.parser_by_page,
+        page_mapping_verified=parsing.text.page_mapping_verified,
+        table_pages=frozenset(table.page_number for table in tables.tables),
+        table_parser_by_page=tables.parser_by_page,
+    )
+
+
+def _assemble_pages(
+    inspected: _InspectionResult,
+    parsing: _ParsingResult,
+    arbitration: ArbitrationResult,
+) -> _PageViewResult:
+    text = parsing.text
+    return _pages_and_views_from_llm_markdown(
+        llm_markdown=text.llm_markdown,
+        llm_spans=text.llm_spans,
+        selected_parser=arbitration.primary_document_parser,
+        inspection=inspected.inspection,
+        parser_by_page=text.parser_by_page,
+        doc_tags_simplified=text.doc_tags_simplified or None,
+        doc_tags_spans=text.docling_spans,
+        page_mapping_verified=text.page_mapping_verified,
+        ocr_blocks_by_page=text.ocr_blocks_by_page,
+    )
+
+
+def _resolve_evidence_anchors(parsing: _ParsingResult) -> list[Anchor]:
+    """Remap Docling anchors after page-level OCR fallback."""
+    text = parsing.text
+    docling_span_by_page = {span.page: span for span in text.docling_spans}
+    llm_span_by_page = {span.page: span for span in text.llm_spans}
+
+    anchors: list[Anchor] = []
+    for anchor in tuple(getattr(parsing.docling_output, "anchors", ()) or ()):
+        if text.parser_by_page.get(anchor.page) != "docling_doctags":
+            continue
+        docling_span = docling_span_by_page.get(anchor.page)
+        llm_span = llm_span_by_page.get(anchor.page)
+        if docling_span is None or llm_span is None:
+            continue
+
+        shift = llm_span.llm_markdown_start - docling_span.llm_markdown_start
+        markdown_start = anchor.markdown_start + shift
+        markdown_end = anchor.markdown_end + shift
+        if (
+            markdown_start < llm_span.llm_markdown_start
+            or markdown_end > llm_span.llm_markdown_end
+        ):
+            continue
+
+        anchors.append(
+            Anchor(
+                markdown_start=markdown_start,
+                markdown_end=markdown_end,
+                page=anchor.page,
+                bbox=BoundingBox(
+                    x0=anchor.bbox[0],
+                    y0=anchor.bbox[1],
+                    x1=anchor.bbox[2],
+                    y1=anchor.bbox[3],
+                ),
+            )
+        )
+    return anchors
+
+
+def _evidence_index(parsing: _ParsingResult) -> EvidenceIndex:
+    return EvidenceIndex(anchors=_resolve_evidence_anchors(parsing))
+
+
+def _source_kind(metadata: dict[str, Any]) -> str:
+    source_kind = metadata.get("source_kind")
+    if source_kind:
+        return cast(str, source_kind)
+    if metadata.get("submitted_url"):
+        return "url"
+    return "upload"
+
+
+def _source_byte_size(source_path: Path) -> int | None:
+    if not source_path.exists():
+        return None
+    return source_path.stat().st_size
+
+
+def _document_metadata(
+    context: _BuildContext,
+    inspection: PdfInspection,
+) -> DocumentMetadata:
+    return DocumentMetadata(
+        document_id=document_id_from_hash(context.content_sha256),
+        content_sha256=context.content_sha256,
+        source=SourceInfo(
+            kind=_source_kind(context.metadata),
+            original_filename=context.source_name,
+            submitted_url=context.metadata.get("submitted_url"),
+            byte_size=_source_byte_size(context.source_path),
+        ),
+        created_at=context.started_at,
+        page_count=inspection.page_count,
+        is_encrypted=inspection.is_encrypted,
+        input_profile=InputProfile(
+            has_text_layer=any(page.char_count > 0 for page in inspection.pages)
+        ),
+    )
+
+
+def _parser_warnings(parser_runs: list[ParserRun]) -> list[str]:
+    warnings = [
+        f"{run.parser}: {run.error}"
+        for run in parser_runs
+        if run.status == "failed"
+    ]
+    for run in parser_runs:
+        warnings.extend(run.warnings)
+    return warnings
+
+
+def _preprocessing_metadata(
+    context: _BuildContext,
+    parser_runs: list[ParserRun],
+) -> PreprocessingMetadata:
+    config_hash = preprocessing_config_hash(context.metadata)
+    warnings = _parser_warnings(parser_runs)
+    return PreprocessingMetadata(
+        preprocess_id=preprocess_id_from_hashes(
+            context.content_sha256,
+            config_hash,
+        ),
+        profile=PREPROCESS_PROFILE,
+        config_hash=config_hash,
+        service_version=package_version("parsing_service"),
+        started_at=context.started_at,
+        finished_at=utc_now(),
+        status="completed_with_warnings" if warnings else "completed",
+        warnings=warnings,
+    )
+
+
+def _debug_artifact_refs(
+    inspected: _InspectionResult,
+    parsing: _ParsingResult,
+    final_llm_markdown_ref: str | None,
+) -> list[str]:
+    output = parsing.docling_output
+    return [
+        ref
+        for ref in (
+            inspected.artifact_ref,
+            output.raw_docling_json_ref,
+            output.raw_doctags_ref,
+            output.aggregate_doctags_ref,
+            output.llm_markdown_ref,
+            final_llm_markdown_ref,
+            output.markdown_ref,
+            parsing.docling_run.output_ref,
+            getattr(parsing.text.ocr_output, "output_ref", None),
+        )
+        if ref
+    ]
+
+
+def _artifact_manifest(
+    context: _BuildContext,
+    inspected: _InspectionResult,
+    parsing: _ParsingResult,
+    final_llm_markdown_ref: str | None,
+) -> ArtifactManifest:
+    canonical_path = canonical_parsed_document_path(context.content_sha256)
+    return ArtifactManifest(
+        source_ref=context.metadata.get("source_store_path"),
+        parsed_json_ref=f"data/tasks/{context.task_id}/parsed_document.json",
+        canonical_parsed_json_ref=service_relative_ref(canonical_path),
+        raw_docling_json_ref=parsing.docling_output.raw_docling_json_ref,
+        raw_doctags_ref=parsing.docling_output.raw_doctags_ref,
+        llm_markdown_ref=final_llm_markdown_ref,
+        debug_refs=_debug_artifact_refs(
+            inspected,
+            parsing,
+            final_llm_markdown_ref,
+        ),
     )
 
 
@@ -669,260 +835,27 @@ def build_parsed_document(
     source_path: Path | None = None,
     artifact_root: Path | None = None,
 ) -> ParsedDocument:
-    task_dir = task_dir_for(task_id)
-    metadata = load_task_metadata(task_dir)
-    content_sha256 = metadata.get("content_sha256")
-    if not isinstance(content_sha256, str) or not content_sha256:
-        raise ValueError("Task metadata is missing required content_sha256.")
-    params = dict(metadata.get("params", {}))
-    source_name = params.get("source_name", SOURCE_FILENAME)
-    source_path = source_path or task_dir / SOURCE_FILENAME
-
-    started_at = metadata.get("created_at") or _utc_now()
-    inspection = inspect_pdf(
-        source_path,
-        max_pages=MAX_INGESTION_PAGES,
-        render_dpi=CANONICAL_OCR_DPI,
-        max_page_pixels=DEFAULT_MAX_RENDER_PAGE_PIXELS,
-        max_total_pixels=DEFAULT_MAX_RENDER_TOTAL_PIXELS,
-    )
-    inspection_ref = write_inspection_artifact(
-        content_sha256,
-        inspection,
-        artifact_root=artifact_root,
-    )
-    inspection_run = parser_run_from_inspection(
-        inspection,
-        content_sha256,
-        inspection_ref,
-    )
-    try:
-        validate_inspection_for_ingestion(inspection)
-    except ValueError as exc:
-        raise CanonicalIngestionError(
-            "pdf_preflight_failed",
-            str(exc),
-            parser_runs=[inspection_run],
-        ) from exc
-
-    docling_output = _run_docling_ingestion(
-        source_path,
-        content_sha256,
-        list(range(1, inspection.page_count + 1)),
-        artifact_root,
-        page_dims={page.page: (page.width_pt, page.height_pt) for page in inspection.pages},
-    )
-    parser_runs = [
-        inspection_run,
-        parser_run_from_docling_output(docling_output, content_sha256),
-    ]
-    docling_run = parser_runs[1]
-    runner_markdown = getattr(docling_output, "llm_markdown", None)
-    doc_tags_simplified = (
-        runner_markdown
-        if isinstance(runner_markdown, str)
-        else _read_service_text(docling_output.llm_markdown_ref).removesuffix("\n")
-    )
-    docling_spans = list(getattr(docling_output, "page_spans", ()) or ())
-    docling_tables = tuple(getattr(docling_output, "table_inventory", ()) or ())
-    docling_anchors = tuple(getattr(docling_output, "anchors", ()) or ())
-    page_mapping_verified = bool(
-        getattr(docling_output, "page_mapping_verified", False)
-    )
-    canonical_page_mapping_verified = page_mapping_verified
-
-    ocr_output = None
-    if doc_tags_simplified.strip() and not page_mapping_verified:
-        # Keep document-level text, but never invent page provenance or mix it
-        # with page OCR when the installed exporter cannot prove page identity.
-        fallback_pages: list[int] = []
-        llm_markdown = doc_tags_simplified
-        llm_spans: tuple[Any, ...] = ()
-        parser_by_page = dict.fromkeys(
-            range(1, inspection.page_count + 1),
-            "docling_doctags",
-        )
-        unresolved_pages: list[int] = []
-        ocr_blocks_by_page: dict[int, list[dict[str, Any]]] = {}
-    else:
-        fallback_pages = _pages_requiring_fallback(docling_spans, inspection)
-        if fallback_pages:
-            ocr_output = _run_ocr_fallback(
-                source_path,
-                content_sha256,
-                fallback_pages,
-                CANONICAL_OCR_DPI,
-                str(params.get("resolved_ocr_device") or "cpu"),
-                artifact_root,
-            )
-            parser_runs.append(parser_run_from_ocr_output(ocr_output, content_sha256))
-
-        (
-            llm_markdown,
-            llm_spans,
-            parser_by_page,
-            unresolved_pages,
-            ocr_blocks_by_page,
-        ) = _merge_page_fallback_text(
-            docling_spans=docling_spans,
-            inspection=inspection,
-            fallback_pages=fallback_pages,
-            ocr_output=ocr_output,
-        )
-        canonical_page_mapping_verified = len(llm_spans) == inspection.page_count and {
-            span.page for span in llm_spans
-        } == set(range(1, inspection.page_count + 1))
-
-    if unresolved_pages:
-        page_list = ", ".join(str(page) for page in unresolved_pages)
-        error_code = (
-            ocr_output.error
-            if ocr_output is not None and ocr_output.error
-            else "canonical_page_unresolved"
-        )
-        raise CanonicalIngestionError(
-            error_code,
-            f"Canonical parsing could not resolve page(s): {page_list}.",
-            parser_runs=parser_runs,
-        )
-    has_usable_text = (
-        any(span.text.strip() for span in llm_spans)
-        if canonical_page_mapping_verified
-        else bool(llm_markdown.strip())
-    )
-    if not has_usable_text:
-        raise CanonicalIngestionError(
-            "canonical_text_unavailable",
-            "No parser produced usable canonical document text.",
-            parser_runs=parser_runs,
-        )
-
-    table_output = _run_table_extraction(
-        source_path,
-        content_sha256,
-        {page.page: page.height_pt for page in inspection.pages},
-        {page.page: page.rotation for page in inspection.pages},
-        docling_tables,
-    )
-    parser_runs.append(parser_run_from_table_output(table_output, content_sha256))
-    tables = link_tables_to_canonical_markdown(
-        table_output.tables,
-        llm_markdown,
-        llm_spans,
-    )
-    table_parser_by_page: dict[int, str] = {}
-    for table in tables:
-        current = table_parser_by_page.get(table.page_number)
-        if current is None:
-            table_parser_by_page[table.page_number] = table.source_parser or "unknown"
-        elif current != table.source_parser:
-            table_parser_by_page[table.page_number] = "table_reconciled"
-
-    final_llm_markdown_ref = docling_output.llm_markdown_ref
-    if llm_markdown != doc_tags_simplified:
-        final_llm_markdown_ref = _write_final_llm_markdown(
-            content_sha256,
-            llm_markdown,
-            artifact_root=artifact_root,
-        )
-
-    arbitration = _docling_arbitration(
-        inspection,
-        docling_run,
-        parser_by_page,
-        page_mapping_verified=canonical_page_mapping_verified,
-        table_pages=frozenset(table.page_number for table in tables),
-        table_parser_by_page=table_parser_by_page,
-    )
-    pages, text_views = _pages_and_views_from_llm_markdown(
-        llm_markdown=llm_markdown,
-        llm_spans=llm_spans,
-        selected_parser=arbitration.primary_document_parser,
-        inspection=inspection,
-        parser_by_page=parser_by_page,
-        doc_tags_simplified=doc_tags_simplified or None,
-        doc_tags_spans=docling_spans,
-        page_mapping_verified=canonical_page_mapping_verified,
-        ocr_blocks_by_page=ocr_blocks_by_page,
-    )
-
-    submitted_url = metadata.get("submitted_url")
-    source_kind = metadata.get("source_kind") or ("url" if submitted_url else "upload")
-    byte_size = source_path.stat().st_size if source_path.exists() else None
-    document_metadata = DocumentMetadata(
-        document_id=document_id_from_hash(content_sha256),
-        content_sha256=content_sha256,
-        source=SourceInfo(
-            kind=source_kind,
-            original_filename=source_name,
-            submitted_url=submitted_url,
-            byte_size=byte_size,
-        ),
-        created_at=started_at,
-        page_count=inspection.page_count,
-        is_encrypted=inspection.is_encrypted,
-        input_profile=InputProfile(
-            has_text_layer=any(page.char_count > 0 for page in inspection.pages)
-        ),
-    )
-
-    config_hash = preprocessing_config_hash(metadata)
-    warnings = [
-        f"{run.parser}: {run.error}" for run in parser_runs if run.status == "failed"
-    ]
-    for run in parser_runs:
-        warnings.extend(run.warnings)
-    preprocessing = PreprocessingMetadata(
-        preprocess_id=preprocess_id_from_hashes(content_sha256, config_hash),
-        profile=PREPROCESS_PROFILE,
-        config_hash=config_hash,
-        service_version=package_version("parsing_service"),
-        started_at=started_at,
-        finished_at=_utc_now(),
-        status="completed_with_warnings" if warnings else "completed",
-        warnings=warnings,
-    )
-
-    canonical_path = canonical_parsed_document_path(content_sha256)
-    artifacts = ArtifactManifest(
-        source_ref=metadata.get("source_store_path"),
-        parsed_json_ref=f"data/tasks/{task_id}/parsed_document.json",
-        canonical_parsed_json_ref=service_relative_ref(canonical_path),
-        raw_docling_json_ref=docling_output.raw_docling_json_ref,
-        raw_doctags_ref=docling_output.raw_doctags_ref,
-        llm_markdown_ref=final_llm_markdown_ref,
-        debug_refs=[
-            ref
-            for ref in (
-                inspection_ref,
-                docling_output.raw_docling_json_ref,
-                docling_output.raw_doctags_ref,
-                docling_output.aggregate_doctags_ref,
-                docling_output.llm_markdown_ref,
-                final_llm_markdown_ref,
-                docling_output.markdown_ref,
-                docling_run.output_ref,
-                getattr(ocr_output, "output_ref", None),
-            )
-            if ref
-        ],
-    )
-
-    evidence_anchors = _resolve_evidence_anchors(
-        docling_anchors=docling_anchors,
-        docling_spans=docling_spans,
-        llm_spans=llm_spans,
-        parser_by_page=parser_by_page,
-    )
-
+    context = _build_context(task_id, source_path, artifact_root)
+    inspected = _inspect_source(context)
+    parsing = _run_canonical_parsers(context, inspected)
+    tables = _extract_document_tables(context, inspected, parsing)
+    parser_runs = [*parsing.parser_runs, tables.parser_run]
+    final_llm_markdown_ref = _final_markdown_ref(context, parsing)
+    arbitration = _arbitrate_parsers(inspected, parsing, tables)
+    pages = _assemble_pages(inspected, parsing, arbitration)
     return ParsedDocument(
-        document=document_metadata,
-        preprocessing=preprocessing,
-        artifacts=artifacts,
+        document=_document_metadata(context, inspected.inspection),
+        preprocessing=_preprocessing_metadata(context, parser_runs),
+        artifacts=_artifact_manifest(
+            context,
+            inspected,
+            parsing,
+            final_llm_markdown_ref,
+        ),
         parser_runs=parser_runs,
         arbitration=arbitration,
-        text_views=text_views,
-        pages=pages,
-        tables=tables,
-        evidence_index=EvidenceIndex(anchors=evidence_anchors),
+        text_views=pages.text_views,
+        pages=pages.pages,
+        tables=tables.tables,
+        evidence_index=_evidence_index(parsing),
     )

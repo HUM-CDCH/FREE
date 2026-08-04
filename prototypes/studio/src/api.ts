@@ -60,12 +60,9 @@ export function decodeExtractDone(data: unknown): ExtractDone {
 
 async function readErrorDetail(response: Response): Promise<string> {
   const body = await response.json().catch(() => null)
-  const detail = isRecord(body) ? body.detail : null
-  if (typeof detail === 'string') {
-    return detail
-  }
-  if (isRecord(detail) && typeof detail.message === 'string') {
-    return detail.message
+  const error = isRecord(body) && isRecord(body.error) ? body.error : null
+  if (error && typeof error.code === 'string' && typeof error.message === 'string') {
+    return `${error.code}: ${error.message}`
   }
   return ''
 }
@@ -127,7 +124,9 @@ export async function parseDocumentToMarkdown(
     if (meta.status === 'failed') {
       throw new Error(meta.error || 'Document parsing failed')
     }
-    await new Promise((resolve) => setTimeout(resolve, PARSE_POLL_MS))
+    const { promise, resolve } = Promise.withResolvers<void>()
+    setTimeout(resolve, PARSE_POLL_MS)
+    await promise
   }
 
   const md = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}/markdown`, { signal })
@@ -229,10 +228,12 @@ function decodeSchemaOps(data: unknown): SchemaOp[] {
 export async function requestSchemaEdit(
   nodes: SchemaNode[],
   instruction: string,
+  documentMarkdown: string | null,
   signal?: AbortSignal,
 ): Promise<SchemaOp[]> {
   const form = new FormData()
   form.append('current_template', JSON.stringify(nodesToTemplate(nodes)))
   form.append('instruction', instruction)
+  if (documentMarkdown !== null) form.append('document_markdown', documentMarkdown)
   return postForm('/edit_schema', form, decodeSchemaOps, signal)
 }

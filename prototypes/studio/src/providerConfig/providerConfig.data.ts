@@ -1,34 +1,134 @@
-export const API_PROVIDERS = {
-	openai: { name: "OpenAI", defaultUrl: "https://api.openai.com/v1", models: [{ id: "gpt-4o", label: "GPT-4o" }, { id: "gpt-4o-mini", label: "GPT-4o mini" }, { id: "o3", label: "o3" }] },
-	anthropic: { name: "Anthropic", defaultUrl: "https://api.anthropic.com", models: [{ id: "claude-sonnet-4", label: "Claude Sonnet 4" }, { id: "claude-opus-4", label: "Claude Opus 4" }, { id: "claude-haiku-3-5", label: "Claude Haiku 3.5" }] },
-	google: { name: "Google", defaultUrl: "https://generativelanguage.googleapis.com", models: [{ id: "gemini-2-5-pro", label: "Gemini 2.5 Pro" }, { id: "gemini-2-5-flash", label: "Gemini 2.5 Flash" }, { id: "gemma-2", label: "Gemma 2" }] },
-} as const;
+import {
+  apiErrorBodySchema,
+  getModelConfigResponseSchema,
+  modelConfigStateSchema,
+  probeResultSchema,
+  type CredentialActions,
+  type GetModelConfigResponse,
+  type ModelConfig,
+  type ModelConfigState,
+  type ModelConnection,
+  type ProbeResult,
+  type RouteKey,
+  validationDetailsSchema,
+} from '../../shared/modelConfig.contract'
 
-export const CONNECTION_KINDS = {
-	ollama: { name: "Ollama server", tagline: "Local or self-hosted", defaultUrl: "http://localhost:11434", models: [{ id: "nuextract", label: "NuExtract 2.0" }, { id: "gemma-2-9b", label: "Gemma 2 · 9B" }, { id: "llama-3.1-8b", label: "Llama 3.1 · 8B" }, { id: "qwen-2.5-7b", label: "Qwen 2.5 · 7B" }] },
-	api: { name: "API provider", tagline: "OpenAI · Anthropic · Google", models: [] },
-	codex: { name: "codex-cli", tagline: "Local agent harness", models: [{ id: "gpt-5-codex", label: "gpt-5-codex" }] },
-	claudecode: { name: "Claude Code", tagline: "Local agent harness", models: [{ id: "claude-code-sonnet", label: "Sonnet (via CLI)" }] },
-} as const;
+export const ROUTABLE_TASKS: readonly {
+  key: RouteKey
+  label: string
+  description: string
+}[] = [
+  {
+    key: 'extraction',
+    label: 'Extraction & Schema Suggestion',
+    description: 'Runs over every Source Document',
+  },
+  {
+    key: 'interaction',
+    label: 'Chat & Extraction Schema editing',
+    description: 'Interactive, conversational',
+  },
+]
 
-export type ApiProviderKey = keyof typeof API_PROVIDERS;
-export type ConnectionKind = keyof typeof CONNECTION_KINDS;
-export type Connection = { id: string; kind: ConnectionKind; apiProvider?: ApiProviderKey; name: string; baseUrl: string; apiKey: string; reachable: boolean };
-export type Draft = Omit<Connection, "id" | "reachable">;
-export type TaskId = "ext" | "chat";
-export type Route = { connectionId: string | null; model: string | null };
+export class ModelConfigApiError extends Error {
+  readonly status: number
+  readonly code: string
+  readonly details: unknown
 
-export const ROUTABLE_TASKS: { id: TaskId; label: string; sub: string }[] = [
-	{ id: "ext", label: "Extraction & Schema Suggestion", sub: "Runs over every Source Document" },
-	{ id: "chat", label: "Chat & Extraction Schema editing", sub: "Interactive, conversational" },
-];
+  constructor(status: number, code: string, message: string, details?: unknown) {
+    super(message)
+    this.name = 'ModelConfigApiError'
+    this.status = status
+    this.code = code
+    this.details = details
+  }
+}
 
-export const INITIAL_CONNECTIONS: Connection[] = [
-	{ id: "c1", kind: "ollama", name: "Local Ollama", baseUrl: "http://localhost:11434", apiKey: "", reachable: true },
-	{ id: "c2", kind: "api", apiProvider: "openai", name: "OpenAI (lab key)", baseUrl: "https://api.openai.com/v1", apiKey: "sk-live-…", reachable: true },
-];
+/**
+ * The one renderable form of a failed configuration or probe request. Validation
+ * issues are included because they name the offending field, which `code` and
+ * `message` alone never do: an empty model ID would otherwise read only as
+ * `invalid_request: The request is invalid.`
+ */
+export function apiErrorText(error: unknown): string {
+  if (!(error instanceof ModelConfigApiError)) {
+    return 'unexpected_failure: An unexpected failure occurred.'
+  }
+  const details = validationDetailsSchema.safeParse(error.details)
+  const lines = [`${error.code}: ${error.message}`]
+  if (details.success) {
+    lines.push(...details.data.issues.map(({ path, message }) => `${path}: ${message}`))
+    if (details.data.truncated) lines.push('Further issues were omitted.')
+  }
+  return lines.join('\n')
+}
 
-export const INITIAL_ROUTES: Record<TaskId, Route> = {
-	ext: { connectionId: "c1", model: "nuextract" },
-	chat: { connectionId: "c2", model: "gpt-4o" },
-};
+async function responseJson(response: Response): Promise<unknown> {
+  try {
+    return await response.json()
+  } catch (cause) {
+    throw new ModelConfigApiError(response.status || 500, 'invalid_response', 'Studio returned invalid JSON.', cause)
+  }
+}
+
+async function checkedJson(response: Response): Promise<unknown> {
+  const data = await responseJson(response)
+  if (response.ok) return data
+  const parsed = apiErrorBodySchema.safeParse(data)
+  if (parsed.success) {
+    throw new ModelConfigApiError(
+      response.status,
+      parsed.data.error.code,
+      parsed.data.error.message,
+      parsed.data.error.details,
+    )
+  }
+  throw new ModelConfigApiError(response.status, 'invalid_response', `Studio request failed (${response.status}).`)
+}
+
+export async function getModelConfig(signal?: AbortSignal): Promise<GetModelConfigResponse> {
+  const parsed = getModelConfigResponseSchema.safeParse(await checkedJson(await fetch('/api/model_config', { signal })))
+  if (!parsed.success) throw new ModelConfigApiError(500, 'invalid_response', 'Studio returned invalid model configuration state.')
+  return parsed.data
+}
+
+export async function putModelConfig(
+  config: ModelConfig,
+  credentials: CredentialActions,
+  signal?: AbortSignal,
+): Promise<ModelConfigState> {
+  const parsed = modelConfigStateSchema.safeParse(
+    await checkedJson(
+      await fetch('/api/model_config', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ config, ...(Object.keys(credentials).length ? { credentials } : {}) }),
+        signal,
+      }),
+    ),
+  )
+  if (!parsed.success) throw new ModelConfigApiError(500, 'invalid_response', 'Studio returned invalid saved state.')
+  return parsed.data
+}
+
+export async function probeModelConnection(
+  connection: ModelConnection,
+  options: { credential?: string | null; signal?: AbortSignal } = {},
+): Promise<ProbeResult> {
+  const body = {
+    connection,
+    ...(Object.hasOwn(options, 'credential') ? { credential: options.credential } : {}),
+  }
+  const parsed = probeResultSchema.safeParse(
+    await checkedJson(
+      await fetch('/api/model_probe', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: options.signal,
+      }),
+    ),
+  )
+  if (!parsed.success) throw new ModelConfigApiError(500, 'invalid_response', 'Studio returned an invalid probe result.')
+  return parsed.data
+}

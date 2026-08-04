@@ -48,7 +48,7 @@ describe('requestExtraction', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ detail: 'Model endpoint error: boom' }), {
+        new Response(JSON.stringify({ error: { code: 'model_operation_failed', message: 'Model endpoint error.' } }), {
           status: 502,
           headers: { 'content-type': 'application/json' },
         }),
@@ -56,7 +56,7 @@ describe('requestExtraction', () => {
     )
 
     await expect(requestExtraction(new Blob(['pdf']), 'report.pdf', {})).rejects.toThrow(
-      'Model endpoint error: boom',
+      'model_operation_failed: Model endpoint error.',
     )
   })
 })

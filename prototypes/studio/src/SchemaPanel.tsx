@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { requestSchemaEdit } from './api'
-import type { ExtractionStrategy } from './api'
+import type { AnnotationsMode, ExtractionStrategy } from './api'
 import { applyOps } from './schemaOps'
 import { countTemplateFields, isRecord } from './template'
 import { type SchemaNode, mkId, templateToNodes, nodesToTemplate } from './schemaNode'
@@ -30,7 +30,10 @@ type SchemaPanelProps = {
   history: SchemaHistoryEntry[]
   extractionStrategy: ExtractionStrategy
   onExtractionStrategyChange: (strategy: ExtractionStrategy) => void
-  documentFileName: string | null
+  annotationCount: number
+  annotationsMode: AnnotationsMode
+  onAnnotationsModeChange: (mode: AnnotationsMode) => void
+  documentMarkdown: string | null
 }
 
 type DragState = {
@@ -291,6 +294,17 @@ function WorkingIndicator() {
 const genBtnCls =
   'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted'
 
+function AnnotationsModeToggle({ mode, onChange }: { mode: AnnotationsMode; onChange: (mode: AnnotationsMode) => void }) {
+  const seg = (active: boolean) =>
+    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
+  return (
+    <div className="flex shrink-0 overflow-hidden rounded-md border border-line" role="group" aria-label="How highlights shape the schema">
+      <button className={seg(mode === 'hints')} type="button" aria-pressed={mode === 'hints'} onClick={() => onChange('hints')}>Hints</button>
+      <button className={seg(mode === 'fields')} type="button" aria-pressed={mode === 'fields'} onClick={() => onChange('fields')}>Fields</button>
+    </div>
+  )
+}
+
 // Task 5.1 – FieldEditForm (id-based, not path-based)
 function FieldEditForm({ editing, onChange, onSave, onCancel }: {
   editing: FieldEditing
@@ -370,7 +384,10 @@ function SchemaPanel({
   history,
   extractionStrategy,
   onExtractionStrategyChange,
-  documentFileName,
+  annotationCount,
+  annotationsMode,
+  onAnnotationsModeChange,
+  documentMarkdown,
 }: SchemaPanelProps) {
   // ── render state ──
   const [nodes, setNodes] = useState<SchemaNode[]>([])
@@ -562,7 +579,6 @@ function SchemaPanel({
       window.removeEventListener('mouseup', onUp)
       stopScroll()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Task 2.3 – drag start ──
@@ -652,7 +668,8 @@ function SchemaPanel({
   function toggleSelected(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -704,7 +721,7 @@ function SchemaPanel({
     chatAbortRef.current = controller
 
     try {
-      const ops = await requestSchemaEdit(nodesRef.current, userMsg, controller.signal)
+      const ops = await requestSchemaEdit(nodesRef.current, userMsg, documentMarkdown, controller.signal)
       const newNodes = applyOps(nodesRef.current, ops)
       const { displayNodes, diffMap } = buildDiffPreview(nodesRef.current, newNodes)
       if (diffMap.size === 0) {
@@ -947,7 +964,12 @@ function SchemaPanel({
 
     const toggleExpand = (e: React.MouseEvent) => {
       e.stopPropagation()
-      setExpandedIds(s => { const ns = new Set(s); ns.has(child.id) ? ns.delete(child.id) : ns.add(child.id); return ns })
+      setExpandedIds(s => {
+        const ns = new Set(s)
+        if (ns.has(child.id)) ns.delete(child.id)
+        else ns.add(child.id)
+        return ns
+      })
     }
 
     return (
@@ -1067,7 +1089,9 @@ function SchemaPanel({
       <header className="flex shrink-0 flex-col gap-1.5 border-b border-line px-4 py-2.5">
         <div className="min-w-0">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">Extraction Schema</h2>
-          <p className="truncate font-mono text-[13px] font-medium text-ink">{documentFileName ?? 'No document open'}</p>
+          <p className="truncate font-mono text-[13px] font-medium text-ink">
+            {extractionStrategy === 'catalog' ? 'Catalog schema' : 'Article schema'}
+          </p>
         </div>
         <div className="flex shrink-0 items-center justify-between gap-2">
           {/* Chosen before generation — it shapes the generation prompt itself
@@ -1099,6 +1123,12 @@ function SchemaPanel({
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
               FREE produces the extraction schema from the document with the extraction model.
             </p>
+            {annotationCount > 0 && (
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <span className="text-[11px] text-ink-faint">Use highlights as</span>
+                <AnnotationsModeToggle mode={annotationsMode} onChange={onAnnotationsModeChange} />
+              </div>
+            )}
             <button className={`${genBtnCls} mt-3`} type="button" onClick={onGenerate}>Generate schema</button>
           </div>
         )}
@@ -1376,6 +1406,7 @@ function SchemaPanel({
         </p>
         {ready && (
           <div className="flex shrink-0 items-center gap-2">
+            {annotationCount > 0 && <AnnotationsModeToggle mode={annotationsMode} onChange={onAnnotationsModeChange} />}
             <button className={genBtnCls} type="button" onClick={onGenerate}>Regenerate</button>
           </div>
         )}

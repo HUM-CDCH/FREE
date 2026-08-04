@@ -1,20 +1,15 @@
 <!-- markdownlint-disable MD013 -->
 
-# Model multi-page tables as one logical table
+# Model continued page-local table fragments as one logical table
 
-FREE will represent a table that continues across physical pages as one logical
-table with page-scoped Evidence, rather than as unrelated page-local tables or a
-first-page-only table. This belongs in `parsed_document.v2` after a real Docling
-fixture proves the required shape; version 1 will retain text and structure but
-suppress misleading geometry and warn when it detects multi-page Evidence. The
-single logical identity preserves table meaning and avoids forcing downstream
-extraction to reconstruct continuation relationships, while page-scoped
-Evidence keeps every cell or fragment grounded in its physical page. The dependent [`publish-parsed-document-v2`](../../openspec/changes/publish-parsed-document-v2/proposal.md) change specifies the surrounding contract but leaves the exact page-fragment fields blocked until that fixture is inspected.
+Docling emits table items local to one physical page. It does not emit one multi-page `TableItem`. FREE will therefore begin with ordered page-local fragments and may group fragments into one logical table only through conservative deterministic continuation detection. No extraction model or other LLM participates in continuation detection.
 
-The logical table is also the sole semantic table authority used to render
-canonical Markdown. Docling supplies canonical content, structure, roles, and
-proven spans. Camelot may add missing geometry only after an exact semantic
-match, or act as an explicitly attributed fallback when no Docling inventory is
-available. Content, structure, and geometry attribution remain separate so a
-geometry-only enrichment cannot claim ownership of table meaning; parser
-conflicts remain diagnostics rather than competing canonical tables.
+A continuation is admitted only when all of these conditions hold: the fragments are on consecutive physical pages; their DocTags slots are adjacent after ignoring page furniture; each slot has a unique page-local inventory match (with slot ambiguity represented by that page's `unplaced_content`); columns and structure are compatible; caption and header state are compatible; and no narrative content interrupts the boundary. Definite incompatibility simply preserves separate page-local logical tables. Multiple plausible continuation mappings preserve separate tables and publish a stable continuation-ambiguity diagnostic rather than guessing.
+
+A grouped table has one generation-scoped logical `table_id` and an ordered list of page-local fragments. Every fragment has a deterministic `fragment_id`, physical page, producer order or slot identity, and explicit mappings from observed fragment cells to logical root-cell coordinates. A merged logical cell has one root coordinate; positions covered by its row or column span have neither an independent logical cell nor an independent anchor.
+
+A producer-observed repeated header maps to the existing logical header cells and adds page-scoped physical locations to those cells; it does not create logical data rows. A header repeated only by FREE's Markdown renderer is presentation metadata and creates no source location. Fragment and cell geometry is optional, page-scoped, and interpretable only with that page's geometry metadata; absent geometry is never copied from another page.
+
+Each verified table slot renders its page-local fragment at its physical position while all fragments reference the same logical table. This preserves page markers and reading order without pretending that one Markdown table can cross an HTML page marker. Docling remains semantic authority within observed fragments, and Camelot remains limited to verified geometry enrichment or an explicitly attributed no-inventory fallback. FREE owns cross-fragment continuation and logical mapping. Model-selected pages and snippets are proposed Evidence only; deterministic parser facts own canonical fragment, cell, and block anchors.
+
+This corrects the earlier fixture gate. The real producer behavior and the existing continuation-looking Beretning golden disprove the premise behind closed `harden-canonical-parsing-service` tasks 2.5 and 2.6; v2 is not blocked on finding an impossible producer-level multi-page table object. Compact fixtures instead freeze the observed page-local shape and positive, negative, and ambiguous continuation signals. The dependent [`publish-parsed-document-v2`](../../openspec/changes/publish-parsed-document-v2/proposal.md) change freezes the full contract before production implementation.

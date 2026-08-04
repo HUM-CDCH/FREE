@@ -1,12 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
-import pdfUrl from '../../../examples/Beretning_Ellekilde_8_13.pdf?url'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 import type { AnnotationSetItem } from './AnnotationSidebar'
-import ProjectNav from './ProjectNav'
-import { ACTIVE_DOC } from './ProjectNav'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
@@ -20,8 +17,6 @@ import type { AnnotationsMode, ExtractionStrategy } from './api'
 import type { ParsedTable, EvidenceAnchor } from './parsedDocument'
 import { useExtraction } from './useExtraction'
 import EvidenceHighlightLayer from './EvidenceHighlightLayer'
-import ProviderConfigPage from './providerConfig/ProviderConfigPage'
-import GearIcon from './GearIcon'
 import { Button } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
@@ -30,15 +25,10 @@ import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/edito
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
 const COLLAPSED_WIDTH = 46
-const NAV_MIN = 150
-const NAV_MAX = 400
 const RAIL_MIN = 264
 const RAIL_MAX = 560
 const ANNOTATION_HIGHLIGHT_COLORS = 'annotation=#FFF066'
 
-// Mirrors the target check in pdf.js's free-highlight pointerdown handler
-// (AnnotationEditorLayer #textLayerPointerDown): the text-layer background
-// and its non-text children.
 function isFreeHighlightTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) {
     return false
@@ -58,14 +48,18 @@ function isFreeHighlightTarget(target: EventTarget | null) {
   )
 }
 
+function isEditableTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') !== null
+  )
+}
+
 type LoadState =
   | { status: 'loading' }
   | { status: 'ready'; pageCount: number }
   | { status: 'error'; message: string }
 
-// The parsing service's Markdown index of the current document, built on upload.
-// `tables` is best-effort table cell geometry (see design.md) — an empty array
-// means either the document has no tables or the geometry fetch failed/was skipped.
 type DocIndex =
   | { status: 'parsing'; sourceKey: string | null }
   | { status: 'ready'; sourceKey: string; markdown: string; tables: ParsedTable[]; anchors: EvidenceAnchor[] }
@@ -73,6 +67,14 @@ type DocIndex =
 
 function pdfSourceKey(source: { url: string; filename: string } | null) {
   return source ? `${source.url}\n${source.filename}` : null
+}
+
+async function readMarkdown(url: string, signal: AbortSignal): Promise<string> {
+  const response = await fetch(url, { signal })
+  if (!response.ok) {
+    throw new Error(`Could not fetch Source Document Markdown (HTTP ${response.status}).`)
+  }
+  return response.text()
 }
 
 function getHighlightLabel(editor: AnnotationEditor) {
@@ -83,8 +85,6 @@ function isHighlightEditor(editor: AnnotationEditor) {
   return editor.editorType === 'highlight' || editor.div?.getAttribute('role') === 'mark'
 }
 
-// Mode only shapes the request when annotations are sent (see requestSchema),
-// so an empty set keys to '' regardless of mode.
 function annotationInputsKey(items: AnnotationSetItem[], mode: AnnotationsMode) {
   if (items.length === 0) {
     return ''
@@ -92,7 +92,17 @@ function annotationInputsKey(items: AnnotationSetItem[], mode: AnnotationsMode) 
   return [mode, ...items.map((item) => item.id).sort()].join('\n')
 }
 
-function App() {
+export type DocumentWorkspaceProps = {
+  pdfUrl: string
+  filename: string
+  markdownUrl: string | null
+}
+
+export function DocumentWorkspace({
+  pdfUrl,
+  filename,
+  markdownUrl,
+}: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
   const pdfViewerRef = useRef<PDFViewer | null>(null)
@@ -104,33 +114,22 @@ function App() {
   const [templateState, setTemplateState] = useState<TemplateState>({ status: 'idle' })
   const [schemaHistory, setSchemaHistory] = useState<SchemaHistoryEntry[]>(() => loadSchemaHistory())
   const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
-  // Chosen before schema generation (it shapes the generation prompt — see
-  // schemaPrompt's catalog-vs-article guidance) and carried through to
-  // extraction afterward, so it must NOT reset when generation completes.
-  // Defaults to 'article' (never auto-section) rather than inferring, and
-  // resets only when a new PDF is opened, since the choice is bound to the
-  // current document/schema, not persisted anywhere.
   const [extractionStrategy, setExtractionStrategy] = useState<ExtractionStrategy>('article')
-  const [navOpen, setNavOpen] = useState(true)
-  const [navWidth, setNavWidth] = useState(212)
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
-  const [providersOpen, setProvidersOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
   const [activePdfViewer, setActivePdfViewer] = useState<PDFViewer | null>(null)
   const [focusPath, setFocusPath] = useState<string[] | null>(null)
-  const [pdfSource, setPdfSource] = useState<{ url: string; filename: string } | null>({
-    url: pdfUrl,
-    filename: ACTIVE_DOC,
-  })
+  const pdfSource = useMemo(
+    () => ({ url: pdfUrl, filename }),
+    [filename, pdfUrl],
+  )
   const [docIndex, setDocIndex] = useState<DocIndex>(() => ({
     status: 'parsing',
-    sourceKey: pdfSourceKey({ url: pdfUrl, filename: ACTIVE_DOC }),
+    sourceKey: pdfSourceKey({ url: pdfUrl, filename }),
   }))
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const currentSourceKey = pdfSourceKey(pdfSource)
   const docIndexMatchesCurrent = docIndex.sourceKey === currentSourceKey
@@ -149,42 +148,6 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const onResize = () => setViewportWidth(window.innerWidth)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-
-  useEffect(() => {
-    if (!providersOpen) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setProvidersOpen(false)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [providersOpen])
-
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
-    // A completed request from the outgoing document must never repopulate
-    // this document's schema.
-    templateAbortRef.current?.abort()
-    templateAbortRef.current = null
-    if (pdfSource?.url.startsWith('blob:')) {
-      URL.revokeObjectURL(pdfSource.url)
-    }
-    const nextPdfSource = { url: URL.createObjectURL(file), filename: file.name }
-    setPdfSource(nextPdfSource)
-    setDocIndex({ status: 'parsing', sourceKey: pdfSourceKey(nextPdfSource) })
-    setAnnotationItems([])
-    setTemplateState({ status: 'idle' })
-    setSchemaHistory(clearSchemaHistory())
-    setExtractionStrategy('article')
-    event.target.value = ''
-  }
-
-  useEffect(() => {
-    if (!pdfSource) return
     const container = containerRef.current
     const viewer = viewerRef.current
     if (!container || !viewer) {
@@ -203,17 +166,11 @@ function App() {
       annotationEditorHighlightColors: ANNOTATION_HIGHLIGHT_COLORS,
     }
 
-    // pdfjs-dist 6 supports abortSignal at runtime, but its PDFViewerOptions type omits it.
-    const abortableViewerOptions = {
+    const pdfViewer = new PDFViewer({
       ...viewerOptions,
       abortSignal: abortController.signal,
-    }
+    } as PDFViewerOptions & { abortSignal: AbortSignal })
 
-    const pdfViewer = new PDFViewer(abortableViewerOptions)
-
-    // pdf.js starts a free (rectangular) highlight from pointerdown on blank
-    // text-layer areas; intercept those during capture, before its own
-    // text-layer listener, so only text selections can create highlights.
     container.addEventListener(
       'pointerdown',
       (event) => {
@@ -265,9 +222,6 @@ function App() {
       setAnnotationItems((items) => items.filter((item) => item.id !== editor.id))
     }
 
-    // pdf.js has no public event for editor add/remove (annotationStorage's
-    // onAnnotationEditor only reports the type string), so wrap the manager's
-    // methods to keep the sidebar in sync.
     const onAnnotationEditorUIManager = ({ uiManager }: { uiManager: AnnotationEditorUIManager }) => {
       annotationManagerRef.current = uiManager
 
@@ -275,7 +229,6 @@ function App() {
 
       uiManager.addEditor = (editor) => {
         addEditor.call(uiManager, editor)
-        // The editor's div and aria-label are populated after addEditor returns.
         queueMicrotask(() => syncHighlightEditor(editor))
       }
 
@@ -315,7 +268,6 @@ function App() {
       pdfViewerRef.current = null
       setActivePdfViewer(null)
       annotationManagerRef.current = null
-      // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
         pdfViewer,
         null,
@@ -325,11 +277,16 @@ function App() {
     }
   }, [pdfSource])
 
-  // Index the source document via the parsing service as soon as it is opened.
-  // Kept separate from the viewer effect so a finished parse never re-loads the
-  // PDF or clears annotations.
   useEffect(() => {
-    if (!pdfSource) return
+    templateAbortRef.current?.abort()
+    templateAbortRef.current = null
+    setAnnotationItems([])
+    setTemplateState({ status: 'idle' })
+    setSchemaHistory(clearSchemaHistory())
+    setExtractionStrategy('article')
+  }, [currentSourceKey])
+
+  useEffect(() => {
     const abortController = new AbortController()
     const sourceKey = pdfSourceKey(pdfSource)
 
@@ -337,13 +294,17 @@ function App() {
       setDocIndex({ status: 'parsing', sourceKey })
       try {
         const devTaskId = import.meta.env.VITE_DEV_TASK_ID as string | undefined
-        let taskId: string
         let markdown: string
-        if (devTaskId) {
+        let taskId: string | null = null
+
+        if (markdownUrl) {
+          markdown = await readMarkdown(markdownUrl, abortController.signal)
+        } else if (devTaskId) {
           taskId = devTaskId
-          markdown = await fetch(
+          markdown = await readMarkdown(
             `${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`,
-          ).then((r) => r.text())
+            abortController.signal,
+          )
         } else {
           const parsed = await parseDocumentToMarkdown(
             await (await fetch(pdfSource.url, { signal: abortController.signal })).blob(),
@@ -353,12 +314,13 @@ function App() {
           taskId = parsed.taskId
           markdown = parsed.markdown
         }
-        const { tables, anchors } = await fetchParsedDocumentExtras(taskId, abortController.signal).catch(() => ({
-          tables: [],
-          anchors: [],
-        }))
+
+        const extras = taskId
+          ? await fetchParsedDocumentExtras(taskId, abortController.signal).catch(() => ({ tables: [], anchors: [] }))
+          : { tables: [], anchors: [] }
+
         if (!abortController.signal.aborted) {
-          setDocIndex({ status: 'ready', sourceKey: sourceKey!, markdown, tables, anchors })
+          setDocIndex({ status: 'ready', sourceKey: sourceKey!, markdown, ...extras })
         }
       } catch (error) {
         if (abortController.signal.aborted) return
@@ -371,7 +333,7 @@ function App() {
     })()
 
     return () => abortController.abort()
-  }, [pdfSource])
+  }, [markdownUrl, pdfSource])
 
   function selectAnnotationItem(id: string) {
     const manager = annotationManagerRef.current
@@ -408,15 +370,9 @@ function App() {
     toastTimerRef.current = window.setTimeout(() => setToast(null), 2600)
   }
 
-  // `strategy` defaults to current state for the normal "Generate"/"Regenerate"
-  // button, but callers reacting to a just-changed strategy (see
-  // handleExtractionStrategyChange) pass the new value explicitly — React
-  // state updates aren't visible in this closure until the next render, so
-  // relying on `extractionStrategy` alone would still send the stale choice.
   async function generateSchema(strategy: ExtractionStrategy = extractionStrategy) {
-    if (!pdfSource) return
     if (indexing) {
-      showToast('Document is still being indexed…')
+      showToast('Document is still being indexed...')
       return
     }
     templateAbortRef.current?.abort()
@@ -436,7 +392,7 @@ function App() {
       if (!abortController.signal.aborted) {
         const nodes = templateToNodes(template)
         setTemplateState({ status: 'ready', nodes, inputsKey })
-        setSchemaHistory(appendSchemaHistoryEntry(clearSchemaHistory(), nodes, '✦ Schema generated'))
+        setSchemaHistory(appendSchemaHistoryEntry(clearSchemaHistory(), nodes, 'Schema generated'))
       }
     } catch (error) {
       if (abortController.signal.aborted) {
@@ -449,21 +405,38 @@ function App() {
     }
   }
 
-  // Switching Catalog/Article reshapes the schema-generation guidance itself
-  // (see schemaPrompt), so a schema already generated under the old strategy
-  // no longer matches — regenerate automatically rather than leaving a
-  // stale/mismatched schema in place. Nothing to regenerate from 'idle' (the
-  // researcher hasn't generated anything yet), so just record the choice.
   function handleExtractionStrategyChange(strategy: ExtractionStrategy) {
     setExtractionStrategy(strategy)
     if (templateState.status !== 'idle') {
-      showToast(`↻ Regenerating schema for ${strategy === 'catalog' ? 'Catalog' : 'Article'}…`)
+      showToast(`Regenerating schema for ${strategy === 'catalog' ? 'Catalog' : 'Article'}...`)
       void generateSchema(strategy)
     }
   }
 
   function handleValueClick(path: string[]) {
     setFocusPath(path)
+  }
+
+  function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
+    if (
+      isEditableTarget(event.target) ||
+      (event.type !== 'paste' && !window.getSelection()?.isCollapsed)
+    ) {
+      event.stopPropagation()
+      return
+    }
+    if (event.type === 'paste' && event.clipboardData.types.includes('application/pdfjs')) return
+    if (event.type !== 'paste' && event.target instanceof Element && event.target.closest('.pdfViewer')) return
+    event.stopPropagation()
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    if (!isEditableTarget(event.target)) return
+    const modifier = event.ctrlKey || event.metaKey
+    const key = event.key.toLowerCase()
+    if (['backspace', 'delete'].includes(key) || (modifier && ['a', 'z', 'y'].includes(key))) {
+      event.stopPropagation()
+    }
   }
 
   function changeNodes(nodes: SchemaNode[], message: string) {
@@ -474,17 +447,13 @@ function App() {
     setSchemaHistory((history) => appendSchemaHistoryEntry(history, nodes, message))
   }
 
-  function startResize(event: React.MouseEvent, side: 'nav' | 'rail') {
+  function startResize(event: React.MouseEvent) {
     event.preventDefault()
     const startX = event.clientX
-    const startWidth = side === 'nav' ? navWidth : railWidth
+    const startWidth = railWidth
     const onMove = (moveEvent: MouseEvent) => {
       const dx = moveEvent.clientX - startX
-      if (side === 'nav') {
-        setNavWidth(Math.min(NAV_MAX, Math.max(NAV_MIN, startWidth + dx)))
-      } else {
-        setRailWidth(Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx)))
-      }
+      setRailWidth(Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx)))
     }
     const onUp = () => {
       window.removeEventListener('mousemove', onMove)
@@ -504,23 +473,14 @@ function App() {
 
   const schemaReady = templateState.status === 'ready'
   const schemaTemplate = templateState.status === 'ready' ? nodesToTemplate(templateState.nodes) : null
-
-  const schemaFieldCount =
-    templateState.status === 'ready' ? countTemplateFields(schemaTemplate) : 0
+  const schemaFieldCount = templateState.status === 'ready' ? countTemplateFields(schemaTemplate) : 0
 
   const schemaStale =
     templateState.status === 'ready' &&
     templateState.inputsKey !== annotationInputsKey(annotationItems, annotationsMode)
 
-  const compactLayout = viewportWidth < 860
-  const effectiveNavOpen = navOpen && !compactLayout
   const effectiveRailOpen = railOpen
-  const effectiveNavWidth = effectiveNavOpen ? navWidth : COLLAPSED_WIDTH
-  const effectiveRailWidth = effectiveRailOpen
-    ? compactLayout
-      ? Math.max(RAIL_MIN, viewportWidth - effectiveNavWidth)
-      : railWidth
-    : COLLAPSED_WIDTH
+  const effectiveRailWidth = effectiveRailOpen ? railWidth : COLLAPSED_WIDTH
 
   const extraction = useExtraction({
     pdfSource,
@@ -535,21 +495,21 @@ function App() {
       setFocusPath(null)
       showToast(
         isRerun
-          ? '↻ Re-run complete — view the JSON in the Results tab'
-          : '✓ Extraction complete — view the JSON in the Results tab',
+          ? 'Re-run complete - view the JSON in the Results tab'
+          : 'Extraction complete - view the JSON in the Results tab',
       )
     },
     onError: () => {
       setRailTab('results')
-      showToast('Extraction failed — see details in Results')
+      showToast('Extraction failed - see details in Results')
     },
   })
 
-  let runLabel = '▶ Run extraction'
+  let runLabel = 'Run extraction'
   if (extraction.state.status === 'running') {
-    runLabel = 'Running…'
+    runLabel = 'Running...'
   } else if (extraction.hasResults) {
-    runLabel = '↻ Re-run extraction'
+    runLabel = 'Re-run extraction'
   }
 
   const hintText =
@@ -562,41 +522,20 @@ function App() {
           : 'Open the Schema tab to generate the extraction schema for this document'
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden bg-canvas text-ink">
-      <header className="relative z-10 flex shrink-0 items-stretch border-b border-line bg-surface">
-        <div
-          style={{ width: effectiveNavWidth }}
-          className={`flex shrink-0 items-center gap-2.5 border-r border-line ${
-            effectiveNavOpen ? 'justify-start px-4' : 'justify-center px-2'
-          }`}
-        >
-          <img src="/free-logo.png" alt="" className="size-7.5 shrink-0 object-contain" />
-          {effectiveNavOpen && <h1 className="text-[17px] font-extrabold tracking-[0.06em]">FREE</h1>}
-        </div>
+    <div
+      className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-canvas text-ink"
+      onCopy={handleClipboard}
+      onCut={handleClipboard}
+      onPaste={handleClipboard}
+      onKeyDown={handleKeyDown}
+    >
+      <header className="relative z-10 flex h-14 shrink-0 items-stretch border-b border-line bg-surface">
         <div className="flex min-w-0 flex-1 items-center gap-3 px-5 py-2.5">
-          {pdfSource ? (
-            <p className="min-w-0 truncate text-[13px] text-ink-muted">
-              <span className="font-semibold text-ink">{pdfSource.filename}</span>
-            </p>
-          ) : (
-            <p className="text-[13px] text-ink-faint">No source document open</p>
-          )}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="shrink-0 rounded border border-line bg-surface px-2 py-1 text-xs text-ink-muted transition-colors hover:border-accent/50 hover:text-accent"
-          >
-            {pdfSource ? 'Switch PDF' : 'Open PDF'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,application/pdf"
-            className="sr-only"
-            onChange={handleFileChange}
-          />
+          <p className="min-w-0 truncate text-[13px] text-ink-muted">
+            <span className="font-semibold text-ink">{pdfSource.filename}</span>
+          </p>
           {indexing && (
-            <span className="shrink-0 text-xs font-medium text-ink-muted">Indexing document…</span>
+            <span className="shrink-0 text-xs font-medium text-ink-muted">Indexing document...</span>
           )}
           {docIndex.status === 'error' && (
             <span className="shrink-0 text-xs font-medium text-danger" title={docIndex.message}>
@@ -609,8 +548,8 @@ function App() {
             className={`hidden w-fit shrink-0 items-center gap-2 rounded-full border border-line bg-surface-muted py-1 pl-2.5 pr-3 text-xs font-medium text-ink-muted sm:inline-flex ${statusStyles[loadState.status].text ?? ''}`}
           >
             <span aria-hidden="true" className={`size-1.5 rounded-full ${statusStyles[loadState.status].dot}`} />
-            {loadState.status === 'loading' && 'Loading PDF…'}
-            {loadState.status === 'ready' && `${loadState.pageCount} pages · text highlights only`}
+            {loadState.status === 'loading' && 'Loading PDF...'}
+            {loadState.status === 'ready' && `${loadState.pageCount} pages - text highlights only`}
             {loadState.status === 'error' && loadState.message}
           </p>
           <Button
@@ -622,34 +561,9 @@ function App() {
           >
             {runLabel}
           </Button>
-          <Button
-            variant="pill"
-            size="sm"
-            type="button"
-            onClick={() => setProvidersOpen(true)}
-            aria-label="Configure providers"
-            title="Configure providers"
-            className="ml-1 size-8 p-0 text-ink-muted"
-          >
-            <GearIcon />
-          </Button>
         </div>
       </header>
       <div className="flex min-h-0 flex-1">
-        <aside
-          style={{ width: effectiveNavWidth }}
-          className="min-h-0 shrink-0 border-r border-line bg-surface"
-          aria-label="Project navigation"
-        >
-          <ProjectNav open={effectiveNavOpen} onToggle={() => setNavOpen((open) => !open)} onToast={showToast} />
-        </aside>
-        {effectiveNavOpen && (
-          <div
-            className="z-5 -ml-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
-            title="Drag to resize"
-            onMouseDown={(event) => startResize(event, 'nav')}
-          />
-        )}
         <section className="relative min-h-0 min-w-0 flex-1" aria-label="PDF document">
           <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
             <div className="pdfViewer" ref={setViewerNode} />
@@ -673,22 +587,10 @@ function App() {
                   className="animate-spin-slow size-8.5 rounded-full border-[3px] border-line border-t-accent"
                 />
                 <p className="font-mono text-[13px] font-semibold text-ink">
-                  Extracting structured results…
+                  Extracting structured results...
                 </p>
                 <p className="text-xs text-ink-muted">Applying the schema across the document</p>
               </div>
-            </div>
-          )}
-          {!pdfSource && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-canvas">
-              <p className="text-sm text-ink-muted">Open a source document to get started</p>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="cursor-pointer rounded-lg border border-line bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-accent/50 hover:text-accent"
-              >
-                Open PDF
-              </button>
             </div>
           )}
           {toast && (
@@ -705,16 +607,16 @@ function App() {
             </p>
           </div>
         </section>
-        {effectiveRailOpen && !compactLayout && (
+        {effectiveRailOpen && (
           <div
-            className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft"
+            className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[859px]:hidden"
             title="Drag to resize"
-            onMouseDown={(event) => startResize(event, 'rail')}
+            onMouseDown={startResize}
           />
         )}
         <aside
           style={{ width: effectiveRailWidth }}
-          className="min-h-0 shrink-0 border-l border-line bg-surface"
+          className="min-h-0 shrink-0 border-l border-line bg-surface max-[859px]:!w-[calc(100vw-46px)]"
           aria-label="Annotations, chat and schema"
         >
           <RightRail
@@ -738,7 +640,6 @@ function App() {
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
-            pdfSource={pdfSource}
             documentMarkdown={documentMarkdown}
             onValueClick={handleValueClick}
             focusPath={focusPath}
@@ -746,21 +647,8 @@ function App() {
           />
         </aside>
       </div>
-      {providersOpen && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-ink/55 px-4 py-10 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Provider configuration"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setProvidersOpen(false)
-          }}
-        >
-          <ProviderConfigPage onClose={() => setProvidersOpen(false)} />
-        </div>
-      )}
-    </main>
+    </div>
   )
 }
 
-export default App
+export default DocumentWorkspace

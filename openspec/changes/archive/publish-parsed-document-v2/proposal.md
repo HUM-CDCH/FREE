@@ -4,54 +4,52 @@
 
 ## Why
 
-`parsed_document.v1` safely publishes canonical Markdown, page spans, and page-local tables, but its text, table, and Evidence representations are parallel views that can drift and it cannot represent one logical table with page-scoped Evidence across physical pages. After `harden-canonical-parsing-service` proves the real Docling multi-page table payload, FREE needs a versioned PDF-ingestion contract whose content, tables, Markdown, and Evidence Anchors derive from one canonical source representation and can leave the retention-bound parsing cache as a portable package.
+`parsed_document.v1` publishes canonical Markdown, page spans, and page-local tables, but its parallel text, table, and Evidence views can drift. Real Docling inspection also corrected an earlier design premise: continued tables arrive as page-local table items, not one multi-page `TableItem`. FREE needs a frozen v2 contract that can conservatively group those observations into one logical table while retaining page-scoped physical Evidence.
 
 ## What Changes
 
-- **BREAKING** Replace `parsed_document.v1` with `parsed_document.v2` on both document routes; no legacy projection, compatibility shim, or version negotiation is introduced because FREE is not yet in production.
-- Require verified physical-page mapping for every successful v2 PDF ingestion.
-- Introduce a typed, ordered, schema-agnostic content stream containing parser-observed headings, paragraphs, generic text, lists, code, formulas, captions, table references, and page boundaries.
-- Make the content stream authoritative for canonical Markdown, page spans, table placement, and a typed `EvidenceIndex`.
-- Establish one semantic table authority: Docling supplies canonical table content, structure, roles, and proven spans; Camelot may only enrich missing geometry for an exact semantic match or act as an explicitly attributed fallback when no Docling inventory exists.
-- Render canonical Markdown tables from the final canonical `ParsedTable` objects so Markdown and typed cells cannot disagree; do not publish an independently authoritative Camelot table appendix.
-- Record content, structure, and geometry parser attribution separately instead of overloading one `source_parser`, and publish stable diagnostics when DocTags placement, Docling inventory, or Camelot candidates disagree.
-- Represent a table continuing across physical pages as one logical table with page-scoped Evidence, as decided by ADR 0004; freeze the exact fragment fields only after the real Docling fixture from the hardening change is inspected.
-- Publish block and table-cell Evidence Anchors scoped to the source hash and preprocessing generation; logical anchors remain valid when visual geometry is unavailable.
-- Emit explicit physical-page markers in canonical Markdown and retain exact character spans against the emitted bytes.
-- Keep valid tables with unverifiable reading-order placement in page-local `unplaced_content` rather than inventing an inline position.
-- Produce a deterministic canonical ZIP containing the original Source Document, `parsed_document.v2`, canonical Markdown, and a digest manifest with package-relative references.
-- Exclude raw Docling, DocTags, inspection, and other parser diagnostics from the portable package; they remain retention-bound internal artifacts.
+- **BREAKING** Replace `parsed_document.v1` with `parsed_document.v2` on both document routes after the later production phase; no compatibility projection or negotiation is planned before production.
+- Publish a typed, ordered, physical-page-scoped content stream as the authority for Markdown, page spans, placement, tables, and typed Evidence Anchors.
+- Treat Docling table items as page-local fragments. Group them only through deterministic continuation detection; no LLM infers table continuation.
+- Require consecutive pages, adjacent DocTags slots across page furniture, unique page-local slot/inventory matches, compatible columns/structure, compatible caption/header state, and no narrative interruption for a continuation.
+- Preserve ambiguous candidates as separate page-local tables, place slot-ambiguous tables in page-local `unplaced_content`, and publish stable typed diagnostics.
+- Freeze block anchors, logical tables, ordered fragment identities, fragment-cell-to-logical-cell mappings, page-scoped optional geometry, table-reference blocks, and cell anchors.
+- Map observed repeated headers to existing logical header cells as additional physical locations; renderer-generated repeated headers have no source location.
+- Give each merged logical cell one root coordinate and anchor; covered coordinates have no independent anchor.
+- Render unplaced table fragments from the same canonical tables in an explicitly labelled appendix at the end of their physical page, without inventing reading order.
+- Keep Docling authoritative for observed fragment semantics. Camelot may only enrich verified missing geometry or provide an attributed fallback when Docling inventory is absent.
+- Freeze `<!-- FREE:PAGE n -->` as the canonical 1-based page marker. A source collision fails with a stable error; source text is never silently escaped or altered.
+- Treat model-returned pages and snippets as proposed Evidence. Deterministic parser facts remain authoritative for canonical block, fragment, and cell anchors.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `parsed-document-v2`: the versioned PDF-ingestion contract for canonical content blocks, synchronized Markdown and tables, physical-page identity, and typed Evidence Anchors.
-- `canonical-ingestion-package`: the deterministic portable package that transfers the original Source Document and canonical ingestion result out of the parsing cache.
+- `parsed-document-v2`: canonical semantic blocks, logical tables over page-local fragments, physical-page identity, and typed Evidence Anchors.
 
 ### Modified Capabilities
 
-None. This change depends on the still-active `harden-canonical-parsing-service` change and introduces its own v2 capabilities rather than widening that change's v1 hardening scope.
+None. This correction freezes design and tests only; it does not implement v2 production behavior, routes, packages, or Studio orchestration.
 
 ## Impact
 
-- `prototypes/parsing_service/app/models/parsed_document.py` and the parsing normalization/orchestration pipeline.
-- DocTags conversion, OCR page fallback, canonical table arbitration, Markdown rendering, manifests, cache identity, and generation publication.
-- `GET /tasks/{id}/document`, its `/parsed-document` alias, `GET /tasks/{id}/markdown`, and `GET /tasks/{id}/download`.
-- Backend schema, DocTags table-slot conversion, Docling/Camelot reconciliation, parser attribution, table-disagreement diagnostics, Evidence, archive, cache, golden, and real-Docling tests.
-- `docs/parsing-service.md`, `docs/parsing-quality.md`, ADR 0004, and a new v2 authority-model ADR.
+This design gate updates the v2 OpenSpec artifacts, ADR 0004, a focused DocTags regression, and Ollama probe evidence. Later implementation may affect parsing models, normalization, rendering, routes, and Studio, but none of those production surfaces change here.
 
-## Dependencies
+## Dependencies and deferred implementation gates
 
-- `harden-canonical-parsing-service` task 2.5 MUST produce or check in a small real Docling fixture demonstrating one logical table with Evidence on multiple physical pages.
-- Its parsing-fidelity and deterministic-text requirements MUST land before v2 implementation begins.
-- The exact v2 multi-page table fragment fields remain blocked until that fixture is inspected.
+The parsing-fidelity work in `harden-canonical-parsing-service` remains prerequisite. Its tasks 2.5 and 2.6 were closed because real Docling disproved their assumed producer-level multi-page table object; that impossible fixture is no longer a dependency.
+
+These later-phase issues remain explicit implementation gates and are not resolved by this correction:
+
+- whether public character spans count Unicode characters or UTF-8 bytes;
+- the package quota conflict, in a separate future package change;
+- deterministic package metadata details, in that separate change;
+- completed task-local v1 migration behavior.
 
 ## Non-goals
 
-- Model calls, prompt construction, schema suggestion, hierarchical record detection, or Extraction Result policy.
+- Any v2 production models, parsing behavior, routes, packages, or Studio orchestration.
+- LLM-based continuation inference or model authority over canonical anchors.
+- Schema suggestion, hierarchical record detection, or Extraction Result policy.
 - Persisting Project Contexts, annotations, extraction schemas, extractions, or review decisions.
-- Turning `parsing_service` into a durable Source Document repository; it remains a processor and rebuildable cache.
-- Supporting non-PDF Source Documents in v2.
-- Canonical figure/image blocks or visual interpretation; captions remain textual blocks and the original Source Document remains in the package.
-- Exporting raw parser diagnostics in the canonical package.
+- Supporting non-PDF sources or canonical figure/image interpretation.

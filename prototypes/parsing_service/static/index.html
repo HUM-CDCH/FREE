@@ -348,10 +348,8 @@
         gap: 12px;
       }
 
-      .btn-outline {
-        background: transparent;
-        border: 1px solid var(--primary);
-        color: var(--text);
+      .btn-outline,
+      .btn-primary-small {
         padding: 10px 20px;
         border-radius: 10px;
         font-family: inherit;
@@ -361,6 +359,12 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
+      }
+
+      .btn-outline {
+        background: transparent;
+        border: 1px solid var(--primary);
+        color: var(--text);
       }
 
       .btn-outline:hover {
@@ -372,15 +376,6 @@
         background: var(--primary);
         border: none;
         color: #fff;
-        padding: 10px 20px;
-        border-radius: 10px;
-        font-family: inherit;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
         box-shadow: 0 4px 12px var(--primary-glow);
       }
 

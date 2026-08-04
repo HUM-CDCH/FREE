@@ -31,4 +31,7 @@ ds-bundle/
 *.njsproj
 *.sln
 *.sw?
-.vercel
+
+# Playwright output
+test-results/
+playwright-report/

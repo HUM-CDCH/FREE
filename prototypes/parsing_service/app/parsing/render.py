@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import math
 import os
+from collections.abc import Sequence
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any, cast
 
 import pypdfium2 as pdfium  # type: ignore[import-not-found]
@@ -15,126 +17,114 @@ DEFAULT_MAX_RENDER_TOTAL_PIXELS = 250_000_000
 MAX_RENDER_DPI = 300
 
 
-def validate_pdf_render_budget(
-    pdf,
+@dataclass(frozen=True)
+class _RenderBudget:
+    max_pages: int = DEFAULT_MAX_RENDER_PAGES
+    max_page_pixels: int = DEFAULT_MAX_RENDER_PAGE_PIXELS
+    max_total_pixels: int = DEFAULT_MAX_RENDER_TOTAL_PIXELS
+    page_numbers: list[int] | None = None
+
+
+def _selected_page_indexes(
+    pdf: Any,
+    page_numbers: list[int] | None,
+) -> Sequence[int]:
+    document_page_count = len(pdf)
+    if page_numbers is None:
+        return range(document_page_count)
+    if len(page_numbers) != len(set(page_numbers)):
+        raise ValueError("PDF page selections must be unique.")
+    if any(not 1 <= page <= document_page_count for page in page_numbers):
+        raise ValueError("PDF page selection is outside the document range.")
+    return [page - 1 for page in page_numbers]
+
+
+def _page_pixel_count(pdf: Any, index: int, scale: float) -> int:
+    page = pdf.get_page(index)
+    try:
+        width_pt, height_pt = cast(Any, page).get_size()
+    finally:
+        with suppress(Exception):
+            cast(Any, page).close()
+    return math.ceil(width_pt * scale) * math.ceil(height_pt * scale)
+
+
+def _validate_render_budget(
+    pdf: Any,
     dpi: int,
-    *,
-    max_pages: int = DEFAULT_MAX_RENDER_PAGES,
-    max_page_pixels: int = DEFAULT_MAX_RENDER_PAGE_PIXELS,
-    max_total_pixels: int = DEFAULT_MAX_RENDER_TOTAL_PIXELS,
-    page_numbers: list[int] | None = None,
-) -> None:
-    if page_numbers is not None:
-        if len(page_numbers) != len(set(page_numbers)):
-            raise ValueError("PDF page selections must be unique.")
-        if any(page < 1 or page > len(pdf) for page in page_numbers):
-            raise ValueError("PDF page selection is outside the document range.")
-        selected_indexes = [page - 1 for page in page_numbers]
-    else:
-        selected_indexes = list(range(len(pdf)))
+    budget: _RenderBudget,
+) -> Sequence[int]:
+    """Validate a document against the limits and return the pages to render."""
+    selected_indexes = _selected_page_indexes(pdf, budget.page_numbers)
     page_count = len(selected_indexes)
-    if page_count > max_pages:
+    if page_count > budget.max_pages:
         raise ValueError(
-            f"PDF has too many pages to render: {page_count} > {max_pages}."
+            f"PDF has too many pages to render: {page_count} > {budget.max_pages}."
         )
 
     scale = dpi / 72.0
     total_pixels = 0
     for index in selected_indexes:
-        page = pdf.get_page(index)
-        try:
-            width_pt, height_pt = cast(Any, page).get_size()
-        finally:
-            with suppress(Exception):
-                cast(Any, page).close()
-        page_pixels = math.ceil(width_pt * scale) * math.ceil(height_pt * scale)
-        if page_pixels > max_page_pixels:
+        page_pixels = _page_pixel_count(pdf, index, scale)
+        if page_pixels > budget.max_page_pixels:
             raise ValueError(
                 f"PDF page {index + 1} is too large to render: "
-                f"{page_pixels} pixels > {max_page_pixels}."
+                f"{page_pixels} pixels > {budget.max_page_pixels}."
             )
         total_pixels += page_pixels
-        if total_pixels > max_total_pixels:
+        if total_pixels > budget.max_total_pixels:
             raise ValueError(
-                f"PDF render budget exceeded: {total_pixels} pixels > {max_total_pixels}."
+                "PDF render budget exceeded: "
+                f"{total_pixels} pixels > {budget.max_total_pixels}."
             )
+    return selected_indexes
+
+
+def _render_pdf_page(pdf: Any, index: int, output_dir: str, dpi: int) -> str:
+    page = pdf.get_page(index)
+    bitmap = None
+    pil_image = None
+    try:
+        bitmap = cast(Any, page).render(
+            scale=dpi / 72.0,
+            rotation=0,
+            fill_color=(255, 255, 255, 255),
+        )
+        pil_image = bitmap.to_pil()
+        image_path = os.path.join(output_dir, f"page_{index + 1:02d}.png")
+        pil_image.save(image_path)
+        return os.path.abspath(image_path)
+    finally:
+        for resource in (pil_image, bitmap, page):
+            if resource is not None:
+                with suppress(Exception):
+                    cast(Any, resource).close()
 
 
 def convert_pdf_to_images(
     pdf_path: str,
     output_dir: str,
     dpi: int = 150,
-    *,
-    max_pages: int = DEFAULT_MAX_RENDER_PAGES,
-    max_page_pixels: int = DEFAULT_MAX_RENDER_PAGE_PIXELS,
-    max_total_pixels: int = DEFAULT_MAX_RENDER_TOTAL_PIXELS,
-    page_numbers: list[int] | None = None,
+    **options: Any,
 ) -> list[str]:
-    """
-    Converts a PDF file into a sequence of PNG images (one per page).
-
-    Args:
-        pdf_path: Path to the input PDF file.
-        output_dir: Directory where the output images will be saved.
-        dpi: Dots Per Inch for rendering resolution (default 150).
-
-    Returns:
-        List of absolute file paths to the generated images.
-    """
+    """Convert selected PDF pages to PNG images."""
+    budget = _RenderBudget(**options)
     if dpi < 1:
         raise ValueError("dpi must be greater than zero.")
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
-
     try:
         os.makedirs(output_dir, exist_ok=True)
     except OSError as exc:
-        raise OSError(f"Could not create image output directory: {output_dir}") from exc
-    scale = dpi / 72.0
+        raise OSError(
+            f"Could not create image output directory: {output_dir}"
+        ) from exc
 
     pdf = pdfium.PdfDocument(pdf_path)
-    image_paths = []
-
     try:
-        validate_pdf_render_budget(
-            pdf,
-            dpi,
-            max_pages=max_pages,
-            max_page_pixels=max_page_pixels,
-            max_total_pixels=max_total_pixels,
-            page_numbers=page_numbers,
-        )
-        selected_indexes = (
-            [page - 1 for page in page_numbers]
-            if page_numbers is not None
-            else list(range(len(pdf)))
-        )
-        for i in selected_indexes:
-            page = pdf.get_page(i)
-            bitmap = None
-            pil_image = None
-            try:
-                bitmap = cast(Any, page).render(
-                    scale=scale,
-                    rotation=0,
-                    fill_color=(255, 255, 255, 255),
-                )
-                pil_image = bitmap.to_pil()
-
-                filename = f"page_{i + 1:02d}.png"
-                image_path = os.path.join(output_dir, filename)
-                pil_image.save(image_path)
-                image_paths.append(os.path.abspath(image_path))
-            finally:
-                if pil_image is not None:
-                    with suppress(Exception):
-                        pil_image.close()
-                if bitmap is not None:
-                    with suppress(Exception):
-                        bitmap.close()
-                with suppress(Exception):
-                    cast(Any, page).close()
+        return [
+            _render_pdf_page(pdf, index, output_dir, dpi)
+            for index in _validate_render_budget(pdf, dpi, budget)
+        ]
     finally:
         pdf.close()
-
-    return image_paths

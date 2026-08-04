@@ -1,6 +1,6 @@
 import { cascadeRepairText } from 'ai-sdk-ollama'
 import { z } from 'zod'
-import { RequestError } from './_http'
+import { ApiError } from './_http.js'
 
 const templateEnvelopeSchema = z.object({
   template: z.record(z.string(), z.unknown()),
@@ -39,7 +39,7 @@ export async function parseUnknownJson(text: string, message: string): Promise<u
   }
 
   if (parsed.error instanceof SyntaxError) {
-    throw new RequestError(502, message, text)
+    throw new ApiError(502, 'invalid_model_output', message, { cause: parsed.error })
   }
   throw parsed.error
 }
@@ -47,7 +47,7 @@ export async function parseUnknownJson(text: string, message: string): Promise<u
 async function parseJsonObject(text: string, message: string): Promise<Record<string, unknown>> {
   const parsed = await parseUnknownJson(text.replace(/<think>[\s\S]*?<\/think>/, '').trim(), message)
   if (!isRecord(parsed)) {
-    throw new RequestError(502, message, text)
+    throw new ApiError(502, 'invalid_model_output', message)
   }
   return parsed
 }

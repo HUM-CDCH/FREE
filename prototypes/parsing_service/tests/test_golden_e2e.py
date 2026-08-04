@@ -13,7 +13,6 @@ import json
 import math
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -21,9 +20,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.testclient import TestClient
 
-from app.storage import paths
-from app.workers import parse_worker
 from main import app
+from tests.storage_test_support import isolated_storage
 
 SOURCE_PDF = (
     Path(__file__).resolve().parents[3] / "examples" / "Beretning_Ellekilde_8_13.pdf"
@@ -122,60 +120,101 @@ def _bbox_overlap_ratio(first: dict | None, second: dict | None) -> float:
     return intersection / max(1e-9, min(first_area, second_area))
 
 
+_FORBIDDEN_TABLE_PROSE = (
+    "Antropologisk kunne",
+    "Tolkning: Jordfæstegrav",
+    "Skeletdelene er nummereret",
+)
+
+
+def _assert_cell_coverage(
+    test: unittest.TestCase,
+    table_id: str,
+    cell: dict,
+    occupied: dict[tuple[int, int], tuple[int, int]],
+) -> None:
+    row, col = _integer(cell["row"]), _integer(cell["col"])
+    for covered_row in range(row, row + _integer(cell.get("rowspan", 1))):
+        for covered_col in range(col, col + _integer(cell.get("colspan", 1))):
+            position = (covered_row, covered_col)
+            test.assertNotIn(
+                position,
+                occupied,
+                f"overlapping spans in {table_id}: {position}",
+            )
+            occupied[position] = (row, col)
+
+
+def _assert_table_cells(
+    test: unittest.TestCase,
+    table: dict,
+    page: dict,
+) -> list[str]:
+    occupied: dict[tuple[int, int], tuple[int, int]] = {}
+    texts: list[str] = []
+    for cell in table["cells"]:
+        texts.append(str(cell["text"]).strip())
+        cell_bbox = cell.get("bbox")
+        if cell_bbox is not None:
+            _assert_bbox_inside_page(test, cell_bbox, page)
+        _assert_cell_coverage(test, table["table_id"], cell, occupied)
+    return texts
+
+
+def _assert_unique_table(
+    test: unittest.TestCase,
+    table: dict,
+    texts: list[str],
+    fingerprints: dict[tuple[int, tuple[str, ...]], list[dict | None]],
+) -> None:
+    fingerprint = (_integer(table["page_number"]), tuple(texts))
+    table_bbox = table.get("bbox")
+    for prior_bbox in fingerprints.get(fingerprint, []):
+        test.assertLess(
+            _bbox_overlap_ratio(prior_bbox, table_bbox),
+            0.8,
+            f"overlapping duplicate table content: {table['table_id']}",
+        )
+    fingerprints.setdefault(fingerprint, []).append(table_bbox)
+
+
+def _assert_table_markdown(test: unittest.TestCase, table: dict) -> None:
+    markdown_lines = (table.get("markdown_view") or "").splitlines()
+    test.assertGreaterEqual(len(markdown_lines), 2, table["table_id"])
+    test.assertTrue(
+        all(
+            part.strip() == "---"
+            for part in markdown_lines[1].strip("| ").split("|")
+        ),
+        table["table_id"],
+    )
+
+
+def _assert_table_invariants(
+    test: unittest.TestCase,
+    table: dict,
+    page: dict,
+    fingerprints: dict[tuple[int, tuple[str, ...]], list[dict | None]],
+) -> None:
+    table_bbox = table.get("bbox")
+    if table_bbox is not None:
+        _assert_bbox_inside_page(test, table_bbox, page)
+
+    texts = _assert_table_cells(test, table, page)
+    joined = "\n".join(texts)
+    for phrase in _FORBIDDEN_TABLE_PROSE:
+        test.assertNotIn(phrase, joined, table["table_id"])
+    _assert_unique_table(test, table, texts, fingerprints)
+    _assert_table_markdown(test, table)
+
+
 def assert_semantic_invariants(test: unittest.TestCase, parsed: dict) -> None:
     pages = {_integer(page["page"]): page for page in parsed["pages"]}
     fingerprints: dict[tuple[int, tuple[str, ...]], list[dict | None]] = {}
-    forbidden_prose = (
-        "Antropologisk kunne",
-        "Tolkning: Jordfæstegrav",
-        "Skeletdelene er nummereret",
-    )
-
     test.assertTrue(parsed["tables"], "canonical tables must not silently disappear")
     for table in parsed["tables"]:
         page = pages[_integer(table["page_number"])]
-        if table.get("bbox") is not None:
-            _assert_bbox_inside_page(test, table["bbox"], page)
-
-        occupied: dict[tuple[int, int], tuple[int, int]] = {}
-        texts: list[str] = []
-        for cell in table["cells"]:
-            row, col = _integer(cell["row"]), _integer(cell["col"])
-            texts.append(str(cell["text"]).strip())
-            if cell.get("bbox") is not None:
-                _assert_bbox_inside_page(test, cell["bbox"], page)
-            for covered_row in range(row, row + _integer(cell.get("rowspan", 1))):
-                for covered_col in range(col, col + _integer(cell.get("colspan", 1))):
-                    position = (covered_row, covered_col)
-                    test.assertNotIn(
-                        position,
-                        occupied,
-                        f"overlapping spans in {table['table_id']}: {position}",
-                    )
-                    occupied[position] = (row, col)
-
-        joined = "\n".join(texts)
-        for phrase in forbidden_prose:
-            test.assertNotIn(phrase, joined, table["table_id"])
-        fingerprint = (_integer(table["page_number"]), tuple(texts))
-        table_bbox = table.get("bbox")
-        for prior_bbox in fingerprints.get(fingerprint, []):
-            test.assertLess(
-                _bbox_overlap_ratio(prior_bbox, table_bbox),
-                0.8,
-                f"overlapping duplicate table content: {table['table_id']}",
-            )
-        fingerprints.setdefault(fingerprint, []).append(table_bbox)
-
-        markdown_lines = (table.get("markdown_view") or "").splitlines()
-        test.assertGreaterEqual(len(markdown_lines), 2, table["table_id"])
-        test.assertTrue(
-            all(
-                part.strip() == "---"
-                for part in markdown_lines[1].strip("| ").split("|")
-            ),
-            table["table_id"],
-        )
+        _assert_table_invariants(test, table, page, fingerprints)
 
 
 class TestSemanticInvariants(unittest.TestCase):
@@ -222,29 +261,13 @@ class TestSemanticInvariants(unittest.TestCase):
 )
 class TestGoldenE2E(unittest.TestCase):
     def setUp(self):
-        self._storage_tmp = tempfile.TemporaryDirectory(dir=paths.SERVICE_ROOT)
-        root = Path(self._storage_tmp.name)
-        self._original_storage_paths = (
-            paths.DEFAULT_DATA_DIR,
-            paths.DEFAULT_SOURCE_STORE_DIR,
-            paths.DEFAULT_DOCUMENT_STORE_DIR,
-            parse_worker.DEFAULT_DATA_DIR,
-        )
-        paths.DEFAULT_DATA_DIR = root / "tasks"
-        paths.DEFAULT_SOURCE_STORE_DIR = root / "sources"
-        paths.DEFAULT_DOCUMENT_STORE_DIR = root / "documents"
-        parse_worker.DEFAULT_DATA_DIR = paths.DEFAULT_DATA_DIR
+        self._storage = isolated_storage()
+        self._storage.__enter__()
+        self.addCleanup(self._storage.__exit__, None, None, None)
         self.client = TestClient(app)
 
     def tearDown(self):
         self.client.close()
-        (
-            paths.DEFAULT_DATA_DIR,
-            paths.DEFAULT_SOURCE_STORE_DIR,
-            paths.DEFAULT_DOCUMENT_STORE_DIR,
-            parse_worker.DEFAULT_DATA_DIR,
-        ) = self._original_storage_paths
-        self._storage_tmp.cleanup()
 
     def test_parsed_document_matches_semantic_oracle(self):
         response = self.client.post(

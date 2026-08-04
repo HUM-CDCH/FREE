@@ -2,65 +2,59 @@
 
 # Tasks: publish-parsed-document-v2
 
-## 1. Resolve the fixture-gated table schema
+## 1. Correct and freeze the table design gate
 
-- [ ] 1.1 Confirm `harden-canonical-parsing-service` parsing-fidelity tasks, especially the real multi-page Docling table fixture, are complete before starting v2 implementation
-- [ ] 1.2 Inspect the fixture's table, cell, provenance, page, and geometry payloads through the actual Docling producer boundary
-- [ ] 1.3 Add failing contract tests for one logical table spanning pages, page-scoped Evidence, partial geometry, and merged logical cells
-- [ ] 1.4 Freeze the exact v2 table fragment and cell-location fields in the model, specification, design, and ADR 0004; remove the blocked open question
-- [ ] 1.5 Run `openspec validate publish-parsed-document-v2 --strict` after the fixture-driven contract update and do not continue until it passes
+- [x] 1.1 Confirm through the real producer boundary that Docling exports page-local table items rather than one multi-page `TableItem`; record that hardening tasks 2.5/2.6 closed because their premise was disproven
+- [x] 1.2 Inspect current deterministic DocTags continuation behavior and the continuation-looking `Beretning_Ellekilde_8_13` golden facts
+- [x] 1.3 Freeze logical tables, ordered fragments, unique slot matching, continuation conditions, repeated-header behavior, fragment-cell mappings, merged-cell roots, page geometry, table-reference blocks, anchors, and ambiguity behavior in the spec/design/ADR
+- [x] 1.4 Reproduce focused NuExtract probes using Studio's exact raw structured prompt shape and record bounded evidence for page markers, block IDs, and deterministic downstream range handling
+- [x] 1.5 Add a focused regression for existing DocTags continuation targeting without claiming v2 inventory coverage
+- [x] 1.6 Run `openspec validate publish-parsed-document-v2 --strict`
 
 ## 2. Introduce the v2 canonical models
 
-- [ ] 2.1 Add `parsed_document.v2` Pydantic models for semantic content blocks, page-local ordered and unplaced content, logical tables, page-scoped table Evidence, typed Evidence Anchors, and separate table content/structure/geometry parser attribution
-- [ ] 2.2 Define deterministic block, table, and anchor IDs scoped to `content_sha256 + preprocess_id`; add duplicate-task and changed-policy tests
-- [ ] 2.3 Add model invariants for physical-page coverage, reference integrity, unique IDs, optional verified geometry, logical table spans, and package-relative artifact refs
-- [ ] 2.4 Remove the untyped `EvidenceIndex.anchors: list[dict[str, Any]]` placeholder in favor of the discriminated v2 anchor union
-- [ ] 2.5 Reject non-PDF inputs and document-level unverified page mapping under the v2 contract with stable client-safe errors
+- [ ] 2.1 Add `parsed_document.v2` Pydantic models for semantic blocks, page-local ordered/unplaced content, logical tables, ordered fragments, fragment-cell mappings, page geometry, typed diagnostics, and typed Evidence Anchors
+- [ ] 2.2 Define deterministic generation-scoped block, table, fragment, and anchor IDs; test duplicate tasks and changed preprocessing policy
+- [ ] 2.3 Implement the frozen block-anchor, table, fragment, fragment-cell, reference, and cell-anchor fields without adding redundant page/span data, fragment order, or anchor geometry
+- [ ] 2.4 Enforce array-authoritative fragment order, reference integrity, unique IDs, optional page-valid v1-compatible geometry, root-only merged cells, and logical spans
+- [ ] 2.5 Replace the untyped `EvidenceIndex` placeholder with block anchors that resolve page/span through blocks and root-cell anchors whose locations reference fragment-local root cells
+- [ ] 2.6 Reject non-PDF input and unverified physical-page mapping with stable client-safe errors
 
-## 3. Build the canonical semantic content stream
+## 3. Build deterministic page-local table canonicalization
 
-- [ ] 3.1 Extend DocTags conversion to emit parser-observed heading, paragraph, list, code, formula, caption, table-slot, and page-boundary intermediate blocks while preserving exact source text
-- [ ] 3.2 Convert OCR fallback output into ordered generic text blocks unless semantic structure is explicitly proven; retain page and optional geometry provenance
-- [ ] 3.3 Match DocTags table slots to final canonical logical tables using producer identity or exact normalized content/structure plus physical page, producer order, Evidence, and safe geometry without guessing ambiguous placement
-- [ ] 3.4 Put valid fallback-only, mismatched, ambiguous, or otherwise unplaceable table refs in page-local `unplaced_content`; emit stable placement-disagreement diagnostics instead of silently substituting an inline table
-- [ ] 3.5 Preserve captions as text blocks while leaving figure IDs, crops, and visual interpretation out of v2
-- [ ] 3.6 Add focused fixtures for minified content, lists, code, formulas, captions, OCR generic text, inline tables, unplaced tables, blank pages, and rotated pages
-- [ ] 3.7 Refactor table canonicalization behind one module: keep Docling semantics authoritative, accept Camelot only for exact-match monotonic geometry enrichment or explicit no-inventory fallback, and retain rejected candidates as internal diagnostics
-- [ ] 3.8 Add conflict regressions for matrix, role, span, geometry, repeated-table, unmatched-candidate, and incomplete-Docling-inventory cases; verify no conflict creates a second canonical table
+- [ ] 3.1 Emit parser-observed semantic blocks, table slots, and page boundaries while preserving source text
+- [ ] 3.2 Match every DocTags slot against page-local inventory by producer identity or exact normalized content/structure; route non-unique matches to that page's `unplaced_content`
+- [ ] 3.3 Admit continuation only for consecutive pages, adjacent slots across furniture, unique bidirectional matching, compatible columns/structure/caption/header state, and no narrative interruption
+- [ ] 3.4 Map observed repeated headers to existing logical header roots as additional physical occurrences; reject ambiguous mappings and give renderer-generated headers no source occurrence
+- [ ] 3.5 Map merged cells to one logical root coordinate and prohibit anchors for covered positions
+- [ ] 3.6 Emit `table_continuation_ambiguous` only for multiple plausible mappings; keep definitely incompatible fragments separate without that diagnostic and use placement diagnostics for slot ambiguity
+- [ ] 3.7 Keep Docling fragment semantics authoritative; permit Camelot only for exact-match monotonic geometry enrichment or attributed no-inventory fallback
+- [ ] 3.8 Add positive and negative fixtures for body-only continuation, observed repeated headers, captions, incompatible columns/spans, narrative interruption, non-consecutive pages, multiple candidates, unplaced slots, partial geometry, and rotations
 
-## 4. Derive synchronized Markdown, tables, pages, and anchors
+## 4. Derive synchronized Markdown, pages, tables, and anchors
 
-- [ ] 4.1 Render each inline and unplaced table's Markdown from the final Docling-authoritative `ParsedTable` matrix rather than from an independent OTSL or Camelot representation; do not publish a second canonical Camelot appendix
-- [ ] 4.2 Render canonical Markdown from the final block stream with one reserved explicit marker per physical page and deterministic UTF-8/LF bytes
-- [ ] 4.3 Compute page and block `CharSpan` values against the exact final Markdown while excluding renderer page markers from source-text Evidence
-- [ ] 4.4 Build one typed text anchor per anchorable textual block and one typed cell anchor per canonical logical cell, retaining verified geometry only where available
-- [ ] 4.5 Add publication validation that re-renders table Markdown from typed cells, slices every text span, resolves every ref, verifies parser-role attribution, and rejects any inconsistency before canonical commit
-- [ ] 4.6 Bump the schema/converter-policy preprocessing identity so every v1 or pre-stream cache entry rebuilds
+- [ ] 4.1 Render inline table-reference blocks at their ordered positions and unplaced references in a deterministic labelled appendix at the end of their physical page; derive both from the final logical table and fragment mapping
+- [ ] 4.2 Emit exactly one `<!-- FREE:PAGE n -->` marker per page with deterministic UTF-8/LF output
+- [ ] 4.3 Fail with stable `reserved_page_marker_collision` when source text matches the reserved marker grammar; never rewrite source text
+- [ ] 4.4 Resolve the deferred character-offset versus UTF-8-byte-offset gate, then compute exact page/block spans under the chosen convention
+- [ ] 4.5 Build deterministic block anchors that resolve page/span through their blocks and root-cell anchors that resolve physical locations through fragment-local root cells
+- [ ] 4.6 Validate all block and table references, fragment mappings, root-only anchors, repeated-header occurrences, page geometry, inline and unplaced table rendering, and exact spans before commit
+- [ ] 4.7 Bump schema/converter-policy preprocessing identity so v1 and pre-stream cache entries cannot be served as v2
 
-## 5. Implement the deterministic canonical package
+## 5. Switch public document routes and migration behavior
 
-- [ ] 5.1 Freeze the package schema and fixed ZIP layout for `manifest.json`, `source.pdf`, `parsed_document.json`, and `artifacts/document.llm.md`
-- [ ] 5.2 Implement package-relative canonical artifact references shared by route JSON and the packaged v2 document without leaking service-owned paths
-- [ ] 5.3 Build a package manifest containing package/schema versions, source hash, preprocess ID, and path/media-type/size/SHA-256 for every non-manifest entry
-- [ ] 5.4 Generate uncompressed `ZIP_STORED` entries with fixed order, DOS-epoch timestamps, permissions, UTF-8 names, and safe normalized paths; validate missing, extra, duplicate, traversal, size, and digest cases
-- [ ] 5.5 Include the original Source Document and required canonical artifacts while proving raw Docling, DocTags, inspection, task metadata, and parser diagnostics are never exported
-- [ ] 5.6 Reuse the hardened task-lock-through-response and archive quota behavior; remove temporary packages on every failure/cancellation path
-- [ ] 5.7 Add byte-for-byte repeatability tests for the same generation and package validation tests independent of parsing-service storage paths
+- [ ] 5.1 Resolve the deferred completed task-local v1 migration gate
+- [ ] 5.2 Make both document routes return the same v2 contract with no projection or version negotiation
+- [ ] 5.3 Keep the Markdown route byte-identical to the v2 canonical artifact
+- [ ] 5.4 Verify cleanup remains retention-bound and introduces no durable repository semantics
 
-## 6. Switch public routes and cache behavior
+Package format, quota, metadata, archive-route behavior, and package tests belong to a separate future OpenSpec change.
 
-- [ ] 6.1 Make both `GET /tasks/{id}/document` and `/parsed-document` return the same v2 contract with no v1 projection or version negotiation
-- [ ] 6.2 Keep `GET /tasks/{id}/markdown` byte-for-byte aligned with the canonical Markdown packaged and referenced by v2
-- [ ] 6.3 Replace the task-shaped archive response with the canonical package while preserving completed-task guards and structured 409 behavior
-- [ ] 6.4 Treat v1 canonical entries as cache misses and rebuild from the content-addressed source; test that mixed v1/v2 generations are never served as equivalent
-- [ ] 6.5 Verify task, source, and document cleanup remain retention-bound after package delivery and add no durable pin/repository semantics
+## 6. Verification and documentation
 
-## 7. Verification and documentation
-
-- [ ] 7.1 Extend the semantic golden oracle with v2 block order, explicit page markers, synchronized table rendering, page-scoped multi-page Evidence, and stable anchor facts
-- [ ] 7.2 Add adversarial invariants for repeated text, absent geometry, rotated pages, unplaced tables, DocTags/Docling/Camelot disagreement, misleading parser attribution, table/Markdown disagreement, invalid spans, unsafe refs, and incomplete page mapping
-- [ ] 7.3 Run focused model/storage/archive tests, `uv run --no-sync python -m unittest discover -s tests`, `RUN_GOLDEN_E2E=1`, `RUN_DOCLING_INTEGRATION=1`, and Python diagnostics
-- [ ] 7.4 Update `docs/parsing-service.md`, `docs/parsing-quality.md`, the parsing-service README, and architecture drawing with the v2 authority model, PDF-only scope, explicit page guarantee, EvidenceIndex, and package lifecycle
-- [ ] 7.5 Record the canonical-content-stream decision in ADR 0005 and update ADR 0004 with the fixture-proven table shape
-- [ ] 7.6 Validate OpenSpec artifacts, Markdown, links, package examples, and `git diff --check` before implementation completion and archival
+- [ ] 6.1 Extend semantic goldens with block order, explicit page markers, fragment rendering, logical table identity, page-scoped occurrences, and stable anchors
+- [ ] 6.2 Add adversarial invariants for repeated text/headings, absent geometry, rotations, unplaced tables, parser disagreement, invalid mappings/spans, and source marker collisions
+- [ ] 6.3 Run focused tests, the complete backend suite, golden E2E, real Docling integration, and diagnostics
+- [ ] 6.4 Update parsing-service and Studio documentation only when their production behavior changes
+- [ ] 6.5 Record the canonical-content-stream decision in ADR 0005
+- [ ] 6.6 Validate OpenSpec, Markdown, links, examples, and `git diff --check` before implementation completion and archival

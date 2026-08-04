@@ -39,7 +39,7 @@ class TaskRequestLimitMiddleware:
             if len(values) == 1:
                 try:
                     content_length = int(values[0].decode("ascii"))
-                except (UnicodeDecodeError, ValueError):
+                except ValueError:
                     content_length = None
         if content_length is not None and content_length > self.max_bytes:
             response = JSONResponse(
