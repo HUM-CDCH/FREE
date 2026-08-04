@@ -5,9 +5,11 @@ import type { CachedHighlightEntry, EvidenceSourceScope, Highlight } from './evi
 import { isRecord } from './template'
 import type { BoundingBox, EvidenceAnchor, ParsedTable } from './parsedDocument'
 import { buildSegmentGeometryIndex } from './segmentGeometry'
+import type { SegmentGeometry } from './segmentGeometry'
 import { resolveTableCellMatches, computeOccurrenceIndices } from './tableCellMatch'
 import type { TableCellMatch } from './tableCellMatch'
 import { findScopedMarkdownAnchorMatch } from './markdownAnchorMatch'
+import { getPageTextData, rectsForQuery, searchValueAnchoredBySnippet } from './evidenceTextSearch'
 import type { PageRects } from './evidenceTextSearch'
 
 // ── table-cell coordinate lookup ────────────────────────────────────────────────
@@ -120,9 +122,224 @@ async function findAnchorRects(
   return found.length > 0 ? found : null
 }
 
+function isTableLikeEvidence(highlight: Highlight): boolean {
+  return (
+    highlight.rowHeader !== null ||
+    highlight.columnHeader !== null ||
+    (highlight.snippet?.trim().startsWith('|') ?? false)
+  )
+}
+
+function uniqueScopedOccurrence(
+  markdown: string | null,
+  term: string | null,
+  scope: EvidenceSourceScope,
+): boolean {
+  if (!markdown || !term) return false
+  return occurrenceStarts(markdown, term, scope).length === 1
+}
+
+// Narrow prose-only recovery path for documents with anchor gaps: the canonical
+// Markdown must prove the term belongs to this source scope, then the PDF text
+// layer is searched only on the evidence hint page.
+async function findScopedHintPageTextRects(
+  pdfViewer: PDFViewer,
+  markdown: string | null,
+  highlight: Highlight,
+  occurrenceIndex: number | null,
+): Promise<PageRects[] | null> {
+  if (!highlight.sourceScope || highlight.hintPage === null || isTableLikeEvidence(highlight)) {
+    return null
+  }
+
+  const primaryTerm =
+    highlight.matchStrategy === 'result-primary' ? highlight.value : highlight.snippet
+  const fallbackSnippet =
+    highlight.matchStrategy === 'result-primary' ? highlight.snippet : null
+  const data = await getPageTextData(pdfViewer, highlight.hintPage)
+  if (!data) return null
+
+  if (uniqueScopedOccurrence(markdown, primaryTerm, highlight.sourceScope)) {
+    const rects = highlight.matchStrategy === 'snippet-primary'
+      ? searchValueAnchoredBySnippet(data, primaryTerm ?? '', highlight.value, occurrenceIndex)
+      : rectsForQuery(data, primaryTerm ?? '', occurrenceIndex)
+    if (rects.length > 0) {
+      return [{ pageNumber: highlight.hintPage, rects }]
+    }
+  }
+
+  if (
+    fallbackSnippet &&
+    fallbackSnippet !== primaryTerm &&
+    uniqueScopedOccurrence(markdown, fallbackSnippet, highlight.sourceScope)
+  ) {
+    const rects = searchValueAnchoredBySnippet(data, fallbackSnippet, highlight.value, occurrenceIndex)
+    if (rects.length > 0) {
+      return [{ pageNumber: highlight.hintPage, rects }]
+    }
+  }
+
+  return null
+}
+
 // ── component ─────────────────────────────────────────────────────────────────
 
 type CachedEntry = CachedHighlightEntry
+type HighlightResolver = 'table' | 'anchor' | 'hint-page-text'
+
+type AnchorTermDiagnosis = {
+  term: string | null
+  exactOccurrences: number
+  coveredOccurrences: number
+  scopeExcludedCoveredOccurrences: number
+  reason:
+    | 'anchor_match'
+    | 'no_markdown'
+    | 'no_term'
+    | 'no_segment_anchors'
+    | 'exact_term_not_found_in_scope'
+    | 'exact_term_has_no_anchor_coverage'
+    | 'only_scope_excluded_anchor_coverage'
+    | 'multiple_scoped_anchor_matches'
+}
+
+function anchorsOverlappingScope(
+  anchors: readonly EvidenceAnchor[],
+  scope: EvidenceSourceScope,
+): EvidenceAnchor[] {
+  return anchors.filter(
+    (anchor) =>
+      anchor.markdownStart < scope.markdownEnd &&
+      anchor.markdownEnd > scope.markdownStart,
+  )
+}
+
+function occurrenceStarts(
+  markdown: string,
+  term: string,
+  scope: EvidenceSourceScope,
+): number[] {
+  const starts: number[] = []
+  if (!term) return starts
+  let from = scope.markdownStart
+  for (;;) {
+    const start = markdown.indexOf(term, from)
+    const end = start + term.length
+    if (start === -1 || end > scope.markdownEnd) break
+    starts.push(start)
+    from = end
+  }
+  return starts
+}
+
+function anchorsCoveringRange(
+  anchors: readonly EvidenceAnchor[],
+  start: number,
+  end: number,
+): EvidenceAnchor[] {
+  return anchors.filter((anchor) => anchor.markdownStart < end && anchor.markdownEnd > start)
+}
+
+function diagnoseAnchorTerm(
+  markdown: string | null,
+  anchors: readonly EvidenceAnchor[],
+  term: string | null,
+  scope: EvidenceSourceScope,
+): AnchorTermDiagnosis {
+  if (!markdown) {
+    return {
+      term,
+      exactOccurrences: 0,
+      coveredOccurrences: 0,
+      scopeExcludedCoveredOccurrences: 0,
+      reason: 'no_markdown',
+    }
+  }
+  if (!term) {
+    return {
+      term,
+      exactOccurrences: 0,
+      coveredOccurrences: 0,
+      scopeExcludedCoveredOccurrences: 0,
+      reason: 'no_term',
+    }
+  }
+  if (anchors.length === 0) {
+    return {
+      term,
+      exactOccurrences: 0,
+      coveredOccurrences: 0,
+      scopeExcludedCoveredOccurrences: 0,
+      reason: 'no_segment_anchors',
+    }
+  }
+
+  const starts = occurrenceStarts(markdown, term, scope)
+  const scopedAnchors = anchorsOverlappingScope(anchors, scope)
+  let coveredOccurrences = 0
+  let scopeExcludedCoveredOccurrences = 0
+  for (const start of starts) {
+    const end = start + term.length
+    if (anchorsCoveringRange(scopedAnchors, start, end).length > 0) {
+      coveredOccurrences += 1
+    } else if (anchorsCoveringRange(anchors, start, end).length > 0) {
+      scopeExcludedCoveredOccurrences += 1
+    }
+  }
+
+  let reason: AnchorTermDiagnosis['reason'] = 'anchor_match'
+  if (starts.length === 0) {
+    reason = 'exact_term_not_found_in_scope'
+  } else if (coveredOccurrences === 0 && scopeExcludedCoveredOccurrences > 0) {
+    reason = 'only_scope_excluded_anchor_coverage'
+  } else if (coveredOccurrences === 0) {
+    reason = 'exact_term_has_no_anchor_coverage'
+  } else if (coveredOccurrences > 1) {
+    reason = 'multiple_scoped_anchor_matches'
+  }
+
+  return {
+    term,
+    exactOccurrences: starts.length,
+    coveredOccurrences,
+    scopeExcludedCoveredOccurrences,
+    reason,
+  }
+}
+
+function anchorDiagnostics(
+  markdown: string | null,
+  anchors: readonly EvidenceAnchor[],
+  highlight: Highlight,
+): {
+  primary: AnchorTermDiagnosis
+  fallback: AnchorTermDiagnosis | null
+} {
+  const scope = highlight.sourceScope
+  const primaryTerm =
+    highlight.matchStrategy === 'result-primary' ? highlight.value : highlight.snippet
+  const fallbackSnippet =
+    highlight.matchStrategy === 'result-primary' ? highlight.snippet : null
+  if (!scope) {
+    return {
+      primary: {
+        term: primaryTerm,
+        exactOccurrences: 0,
+        coveredOccurrences: 0,
+        scopeExcludedCoveredOccurrences: 0,
+        reason: 'exact_term_not_found_in_scope',
+      },
+      fallback: null,
+    }
+  }
+  return {
+    primary: diagnoseAnchorTerm(markdown, anchors, primaryTerm, scope),
+    fallback:
+      fallbackSnippet && fallbackSnippet !== primaryTerm
+        ? diagnoseAnchorTerm(markdown, anchors, fallbackSnippet, scope)
+        : null,
+  }
+}
 
 declare global {
   interface Window {
@@ -136,10 +353,27 @@ declare global {
         columnHeader: string | null
         sourceScope: EvidenceSourceScope | null
         tableMatch: TableCellMatch | null
+        resolvedBy: HighlightResolver | null
         pageNumber: number
         pageTop: number
         pageLeft: number
         rects: Array<{ x: number; y: number; width: number; height: number }>
+      }>
+      misses: Array<{
+        path: string
+        value: string
+        snippet: string | null
+        hintPage: number | null
+        rowHeader: string | null
+        columnHeader: string | null
+        sourceScope: EvidenceSourceScope | null
+        tableMatch: TableCellMatch | null
+        ownedTableIds: string[]
+        ownedAnchorCount: number
+        anchorDiagnosis: {
+          primary: AnchorTermDiagnosis
+          fallback: AnchorTermDiagnosis | null
+        }
       }>
       canvas: { width: number; height: number }
     }
@@ -258,6 +492,8 @@ export default function EvidenceHighlightLayer({
       const viewportCache: ViewportCache = new Map()
       const foundByHighlight = new Map<Highlight, PageRects[] | null>()
       const tableMatches = new Map<Highlight, TableCellMatch | null>()
+      const resolvedByHighlight = new Map<Highlight, HighlightResolver | null>()
+      const geometryByHighlight = new Map<Highlight, SegmentGeometry>()
       const groups = new Map<string, Array<Highlight & { sourceScope: EvidenceSourceScope }>>()
       for (const highlight of highlights) {
         const key = scopeKey(highlight.sourceScope)
@@ -274,6 +510,9 @@ export default function EvidenceHighlightLayer({
       await resolveWithConcurrency([...groups.values()], 6, async (group) => {
         const geometry = geometryIndex.get(group[0].sourceScope.segmentId)
         if (!geometry) return
+        for (const highlight of group) {
+          geometryByHighlight.set(highlight, geometry)
+        }
         const scopedMatches = resolveTableCellMatches(
           geometry.tables,
           group,
@@ -283,9 +522,19 @@ export default function EvidenceHighlightLayer({
           tableMatches.set(highlight, scopedMatches.get(highlight) ?? null)
         }
         await Promise.all(group.map(async (highlight) => {
-          const found =
-            (await findTableCellRects(viewer, tableMatches.get(highlight) ?? null, viewportCache)) ??
-            (await findAnchorRects(viewer, markdown, geometry.anchors, highlight, viewportCache))
+          const occurrenceIndex = occurrenceIndices.get(highlight) ?? null
+          const tableRects = await findTableCellRects(viewer, tableMatches.get(highlight) ?? null, viewportCache)
+          const anchorRects = tableRects
+            ? null
+            : await findAnchorRects(viewer, markdown, geometry.anchors, highlight, viewportCache)
+          const textRects = tableRects || anchorRects
+            ? null
+            : await findScopedHintPageTextRects(viewer, markdown, highlight, occurrenceIndex)
+          const found = tableRects ?? anchorRects ?? textRects
+          resolvedByHighlight.set(
+            highlight,
+            tableRects ? 'table' : anchorRects ? 'anchor' : textRects ? 'hint-page-text' : null,
+          )
           foundByHighlight.set(highlight, found)
         }))
       })
@@ -329,6 +578,7 @@ export default function EvidenceHighlightLayer({
           columnHeader: entry.highlight.columnHeader,
           sourceScope: entry.highlight.sourceScope,
           tableMatch: tableMatches.get(entry.highlight) ?? null,
+          resolvedBy: resolvedByHighlight.get(entry.highlight) ?? null,
           pageNumber: entry.pageNumber,
           pageTop: entry.pageTop,
           pageLeft: entry.pageLeft,
@@ -339,6 +589,24 @@ export default function EvidenceHighlightLayer({
             height: rect.height,
           })),
         })),
+        misses: highlights
+          .filter((highlight) => foundByHighlight.get(highlight) == null)
+          .map((highlight) => {
+            const geometry = geometryByHighlight.get(highlight)
+            return {
+              path: highlight.path.join('.'),
+              value: highlight.value,
+              snippet: highlight.snippet,
+              hintPage: highlight.hintPage,
+              rowHeader: highlight.rowHeader,
+              columnHeader: highlight.columnHeader,
+              sourceScope: highlight.sourceScope,
+              tableMatch: tableMatches.get(highlight) ?? null,
+              ownedTableIds: geometry?.tables.map((table) => table.tableId) ?? [],
+              ownedAnchorCount: geometry?.anchors.length ?? 0,
+              anchorDiagnosis: anchorDiagnostics(markdown, geometry?.anchors ?? [], highlight),
+            }
+          }),
         canvas: { width: canvas.width, height: canvas.height },
       }
       drawCachedEntries(ctx, entries, focusPathRef.current)

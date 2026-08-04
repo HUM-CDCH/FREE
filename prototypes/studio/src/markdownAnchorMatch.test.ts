@@ -138,6 +138,48 @@ describe('findMarkdownAnchorMatch', () => {
     })).toBeNull()
   })
 
+  it('uses an overlapping anchor when the term is inside scope but the block crosses a scope boundary', () => {
+    const markdown = 'Previous segment tail. Datering: Yngre romersk jernalder (?)'
+    const term = 'Datering: Yngre romersk jernalder (?)'
+    const termStart = markdown.indexOf(term)
+    const anchors = [
+      anchor({
+        markdownStart: 0,
+        markdownEnd: markdown.length,
+        page: 5,
+        bbox: { x0: 5, y0: 6, x1: 50, y1: 16 },
+      }),
+    ]
+
+    expect(findMarkdownAnchorMatch(markdown, anchors, term, null, null, {
+      segmentId: 'catalog:4',
+      markdownStart: termStart,
+      markdownEnd: markdown.length,
+      startPage: 5,
+      endPage: 5,
+    })).toEqual({ fragments: [{ page: 5, bbox: { x0: 5, y0: 6, x1: 50, y1: 16 } }] })
+  })
+
+  it('does not use a scoped anchor that does not overlap the source scope', () => {
+    const markdown = 'Datering: Yngre romersk jernalder (?)'
+    const anchors = [
+      anchor({
+        markdownStart: 0,
+        markdownEnd: 10,
+        page: 5,
+        bbox: { x0: 5, y0: 6, x1: 50, y1: 16 },
+      }),
+    ]
+
+    expect(findMarkdownAnchorMatch(markdown, anchors, 'jernalder', null, null, {
+      segmentId: 'catalog:4',
+      markdownStart: 20,
+      markdownEnd: markdown.length,
+      startPage: 5,
+      endPage: 5,
+    })).toBeNull()
+  })
+
   it('uses a unique result value before its broader evidence snippet', () => {
     const markdown = 'Grave 8 contains pottery and a bronze pin.'
     const scope = { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: markdown.length, startPage: 1, endPage: 1 }

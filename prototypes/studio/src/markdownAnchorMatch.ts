@@ -60,7 +60,7 @@ export function findMarkdownAnchorMatch(
   const scopeStart = sourceScope ? Math.max(0, sourceScope.markdownStart) : 0
   const scopeEnd = sourceScope ? Math.min(markdown.length, sourceScope.markdownEnd) : markdown.length
   const scopedAnchors = sourceScope
-    ? anchors.filter((anchor) => anchor.markdownStart >= scopeStart && anchor.markdownEnd <= scopeEnd)
+    ? anchors.filter((anchor) => anchor.markdownStart < scopeEnd && anchor.markdownEnd > scopeStart)
     : anchors
   let from = scopeStart
   for (;;) {
