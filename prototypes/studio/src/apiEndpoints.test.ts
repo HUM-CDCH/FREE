@@ -58,6 +58,28 @@ describe('Vercel API endpoints', () => {
     })
   })
 
+  it('normalizes CRLF document_markdown before extraction', async () => {
+    vi.mocked(extractWithModel).mockResolvedValue({
+      result: { title: 'Report' },
+      evidence: null,
+      raw: '{}',
+      reasoning: null,
+      pages: null,
+    })
+    const form = new FormData()
+    form.append('document_markdown', '# Grave 1\r\n\r\n---\r\n\r\n# Grave 2\r\n')
+    form.append('template', JSON.stringify({ _strategy: 'catalog', records: [{ title: 'string' }] }))
+
+    const response = await extractPost(
+      new Request('http://local.test/api/extract', { method: 'POST', body: form }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(vi.mocked(extractWithModel).mock.calls[0][0].document.markdown).toBe(
+      '# Grave 1\n\n---\n\n# Grave 2\n',
+    )
+  })
+
   it('POST /api/generate_schema returns the documented JSON shape', async () => {
     vi.mocked(generateSchemaWithModel).mockResolvedValue({
       template: { title: 'verbatim-string' },

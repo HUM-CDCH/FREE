@@ -124,6 +124,28 @@ async function findAnchorRects(
 
 type CachedEntry = CachedHighlightEntry
 
+declare global {
+  interface Window {
+    __FREE_HIGHLIGHT_LAYER_DEBUG__?: {
+      entries: Array<{
+        path: string
+        value: string
+        snippet: string | null
+        hintPage: number | null
+        rowHeader: string | null
+        columnHeader: string | null
+        sourceScope: EvidenceSourceScope | null
+        tableMatch: TableCellMatch | null
+        pageNumber: number
+        pageTop: number
+        pageLeft: number
+        rects: Array<{ x: number; y: number; width: number; height: number }>
+      }>
+      canvas: { width: number; height: number }
+    }
+  }
+}
+
 function drawCachedEntries(
   ctx: CanvasRenderingContext2D,
   entries: readonly CachedEntry[],
@@ -297,6 +319,28 @@ export default function EvidenceHighlightLayer({
 
       if (cancelled) return
       cachedEntriesRef.current = entries
+      window.__FREE_HIGHLIGHT_LAYER_DEBUG__ = {
+        entries: entries.map((entry) => ({
+          path: entry.highlight.path.join('.'),
+          value: entry.highlight.value,
+          snippet: entry.highlight.snippet,
+          hintPage: entry.highlight.hintPage,
+          rowHeader: entry.highlight.rowHeader,
+          columnHeader: entry.highlight.columnHeader,
+          sourceScope: entry.highlight.sourceScope,
+          tableMatch: tableMatches.get(entry.highlight) ?? null,
+          pageNumber: entry.pageNumber,
+          pageTop: entry.pageTop,
+          pageLeft: entry.pageLeft,
+          rects: entry.rects.map((rect) => ({
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+          })),
+        })),
+        canvas: { width: canvas.width, height: canvas.height },
+      }
       drawCachedEntries(ctx, entries, focusPathRef.current)
       setCacheVersion((v: number) => v + 1)
     }

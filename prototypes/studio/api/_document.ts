@@ -53,7 +53,8 @@ export function parseAnnotationMode(value: FormDataEntryValue | null): Annotatio
 export async function parseDocument(form: FormData): Promise<DocumentInput> {
   const file = form.get('file')
   const markdownEntry = form.get('document_markdown')
-  const markdown = typeof markdownEntry === 'string' && markdownEntry.trim() ? markdownEntry : null
+  const markdown =
+    typeof markdownEntry === 'string' && markdownEntry.trim() ? normalizeMarkdownNewlines(markdownEntry) : null
 
   // Markdown-only: no file to validate or rasterise.
   if (!(file instanceof File)) {
@@ -69,6 +70,10 @@ export async function parseDocument(form: FormData): Promise<DocumentInput> {
   }
 
   return { file: new File([file], file.name, { type: mediaType }), pages: null, markdown }
+}
+
+function normalizeMarkdownNewlines(value: string): string {
+  return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 }
 
 function mediaTypeFromName(name: string): string {

@@ -57,7 +57,8 @@ export function useExtraction({
   const [state, setState] = useState<ExtractionState>({ status: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
 
-  useEffect(() => () => abortRef.current?.abort(), [])
+  // Abort results tied to the outgoing PDF when the source changes.
+  useEffect(() => () => abortRef.current?.abort(), [pdfSource])
 
   const hasResults = state.status === 'ready'
   const canRun = Boolean(pdfSource) && schemaReady && state.status !== 'running' && !indexing

@@ -414,7 +414,7 @@ async function generateWithGenericJsonPrompt({
     const model = resolveModel()
     const generated = await generateText({
       model,
-      output: Output.json(),
+      // output: Output.json(),
       instructions,
       messages: [
         {

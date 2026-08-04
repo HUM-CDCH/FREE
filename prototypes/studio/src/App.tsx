@@ -157,6 +157,10 @@ function App() {
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
+    // A completed request from the outgoing document must never repopulate
+    // this document's schema.
+    templateAbortRef.current?.abort()
+    templateAbortRef.current = null
     if (pdfSource?.url.startsWith('blob:')) {
       URL.revokeObjectURL(pdfSource.url)
     }

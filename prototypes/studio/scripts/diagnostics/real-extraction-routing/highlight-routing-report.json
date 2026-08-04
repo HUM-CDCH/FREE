@@ -1,0 +1,829 @@
+{
+  "parsedDocumentPath": "/Users/yishi/Desktop/FREE/prototypes/parsing_service/data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/parsed_document.json",
+  "template": {
+    "_strategy": "catalog",
+    "records": [
+      {
+        "grav_id": "verbatim-string",
+        "table_number": "verbatim-string",
+        "table_description": "verbatim-string",
+        "table_notes": "verbatim-string"
+      }
+    ]
+  },
+  "summary": {
+    "parsedTables": 14,
+    "linkedTables": 13,
+    "records": 7,
+    "highlights": 28,
+    "segments": 7,
+    "highlightsWithOwnedTables": 28,
+    "matchedHighlights": 13,
+    "unmatchedHighlights": 15
+  },
+  "segments": [
+    {
+      "segmentId": "catalog:0",
+      "ownedTables": [
+        {
+          "tableId": "p01_t01",
+          "pageNumber": 1,
+          "canonicalMarkdownStart": 1338,
+          "canonicalMarkdownEnd": 1518
+        },
+        {
+          "tableId": "p01_t02",
+          "pageNumber": 1,
+          "canonicalMarkdownStart": 1810,
+          "canonicalMarkdownEnd": 1901
+        }
+      ]
+    },
+    {
+      "segmentId": "catalog:1",
+      "ownedTables": [
+        {
+          "tableId": "p02_t01",
+          "pageNumber": 2,
+          "canonicalMarkdownStart": 4273,
+          "canonicalMarkdownEnd": 4830
+        }
+      ]
+    },
+    {
+      "segmentId": "catalog:2",
+      "ownedTables": [
+        {
+          "tableId": "p03_t01",
+          "pageNumber": 3,
+          "canonicalMarkdownStart": 7376,
+          "canonicalMarkdownEnd": 7700
+        },
+        {
+          "tableId": "p03_t02",
+          "pageNumber": 3,
+          "canonicalMarkdownStart": 8252,
+          "canonicalMarkdownEnd": 9020
+        }
+      ]
+    },
+    {
+      "segmentId": "catalog:3",
+      "ownedTables": [
+        {
+          "tableId": "p04_t01",
+          "pageNumber": 4,
+          "canonicalMarkdownStart": 11056,
+          "canonicalMarkdownEnd": 11705
+        },
+        {
+          "tableId": "p04_t02",
+          "pageNumber": 4,
+          "canonicalMarkdownStart": 12165,
+          "canonicalMarkdownEnd": 12613
+        }
+      ]
+    },
+    {
+      "segmentId": "catalog:4",
+      "ownedTables": [
+        {
+          "tableId": "p05_t02",
+          "pageNumber": 5,
+          "canonicalMarkdownStart": 13896,
+          "canonicalMarkdownEnd": 14009
+        },
+        {
+          "tableId": "p05_t03",
+          "pageNumber": 5,
+          "canonicalMarkdownStart": 14206,
+          "canonicalMarkdownEnd": 14311
+        }
+      ]
+    },
+    {
+      "segmentId": "catalog:5",
+      "ownedTables": [
+        {
+          "tableId": "p05_t04",
+          "pageNumber": 5,
+          "canonicalMarkdownStart": 15062,
+          "canonicalMarkdownEnd": 15185
+        },
+        {
+          "tableId": "p06_t01",
+          "pageNumber": 6,
+          "canonicalMarkdownStart": 15192,
+          "canonicalMarkdownEnd": 15351
+        },
+        {
+          "tableId": "p06_t02",
+          "pageNumber": 6,
+          "canonicalMarkdownStart": 15561,
+          "canonicalMarkdownEnd": 15780
+        }
+      ]
+    },
+    {
+      "segmentId": "catalog:6",
+      "ownedTables": [
+        {
+          "tableId": "p06_t03",
+          "pageNumber": 6,
+          "canonicalMarkdownStart": 17587,
+          "canonicalMarkdownEnd": 17687
+        }
+      ]
+    }
+  ],
+  "highlights": [
+    {
+      "path": "records.0.grav_id",
+      "value": "Grav 8",
+      "snippet": "# Grav 8",
+      "hintPage": 1,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:0",
+        "markdownStart": 0,
+        "markdownEnd": 1971,
+        "startPage": 1,
+        "endPage": 1
+      },
+      "ownedTableIds": [
+        "p01_t01",
+        "p01_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.0.table_number",
+      "value": "8",
+      "snippet": "Fundliste grav 8",
+      "hintPage": 1,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:0",
+        "markdownStart": 0,
+        "markdownEnd": 1971,
+        "startPage": 1,
+        "endPage": 1
+      },
+      "ownedTableIds": [
+        "p01_t01",
+        "p01_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.0.table_description",
+      "value": "Fundliste grav 8",
+      "snippet": "Fundliste grav 8",
+      "hintPage": 1,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:0",
+        "markdownStart": 0,
+        "markdownEnd": 1971,
+        "startPage": 1,
+        "endPage": 1
+      },
+      "ownedTableIds": [
+        "p01_t01",
+        "p01_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.0.table_notes",
+      "value": "jernspænde",
+      "snippet": "| 8-2 | Jern | jernspænde |",
+      "hintPage": 1,
+      "rowHeader": "8-2",
+      "columnHeader": "Bemærkninger",
+      "sourceScope": {
+        "segmentId": "catalog:0",
+        "markdownStart": 0,
+        "markdownEnd": 1971,
+        "startPage": 1,
+        "endPage": 1
+      },
+      "ownedTableIds": [
+        "p01_t01",
+        "p01_t02"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 1,
+        "bbox": {
+          "x0": 262.028516140864,
+          "y0": 462.53993671289606,
+          "x1": 307.84950261971215,
+          "y1": 470.79740102522766
+        }
+      }
+    },
+    {
+      "path": "records.1.grav_id",
+      "value": "Grav 13",
+      "snippet": "# Grav 13",
+      "hintPage": 1,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:1",
+        "markdownStart": 1973,
+        "markdownEnd": 5044,
+        "startPage": 1,
+        "endPage": 2
+      },
+      "ownedTableIds": [
+        "p02_t01"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.1.table_number",
+      "value": "13-1; 13-2; 13-3; 13-4; 13-5; 13-6; 13-7; 13-8",
+      "snippet": "| 13-1 | Del af lårben | Meget fragmenteret |",
+      "hintPage": 2,
+      "rowHeader": null,
+      "columnHeader": "N ummer",
+      "sourceScope": {
+        "segmentId": "catalog:1",
+        "markdownStart": 1973,
+        "markdownEnd": 5044,
+        "startPage": 1,
+        "endPage": 2
+      },
+      "ownedTableIds": [
+        "p02_t01"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 2,
+        "bbox": {
+          "x0": 80.486807008,
+          "y0": 261.19821703289597,
+          "x1": 98.90455453110398,
+          "y1": 269.45568134522773
+        }
+      }
+    },
+    {
+      "path": "records.1.table_description",
+      "value": "Del af lårben; Del af lårben; Knoglefragment; Dele af fingerknogler; Overarm; Rester af ribben og nøgleben; Tænder, del af kæbe og kranie; Knoglefragment",
+      "snippet": "| 13-7 | Tænder, del af kæbe og kranie | Meget fragmenteret, taget op i præparat |",
+      "hintPage": 2,
+      "rowHeader": "13-7",
+      "columnHeader": "Beskrivelse",
+      "sourceScope": {
+        "segmentId": "catalog:1",
+        "markdownStart": 1973,
+        "markdownEnd": 5044,
+        "startPage": 1,
+        "endPage": 2
+      },
+      "ownedTableIds": [
+        "p02_t01"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 2,
+        "bbox": {
+          "x0": 129.03355988233596,
+          "y0": 261.19821703289597,
+          "x1": 181.52087743523205,
+          "y1": 269.45568134522773
+        }
+      }
+    },
+    {
+      "path": "records.1.table_notes",
+      "value": "Meget fragmenteret; ; Måske del af bækkenet, udgår som følge af dårlig bevaring.; 4 forskellige, udgår som følge af dårlig bevaring.; Meget fragmenteret; Meget fragmenteret, udgår som følge af dårlig bevaring.; Meget fragmenteret, taget op i præparat;",
+      "snippet": "| 13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. |",
+      "hintPage": 2,
+      "rowHeader": "13-3",
+      "columnHeader": "Bemærkninger",
+      "sourceScope": {
+        "segmentId": "catalog:1",
+        "markdownStart": 1973,
+        "markdownEnd": 5044,
+        "startPage": 1,
+        "endPage": 2
+      },
+      "ownedTableIds": [
+        "p02_t01"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 2,
+        "bbox": {
+          "x0": 265.1612451730241,
+          "y0": 261.19821703289597,
+          "x1": 344.7706913351681,
+          "y1": 269.45568134522773
+        }
+      }
+    },
+    {
+      "path": "records.2.grav_id",
+      "value": "Grav 24",
+      "snippet": "# Grav 24",
+      "hintPage": 2,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:2",
+        "markdownStart": 5046,
+        "markdownEnd": 9170,
+        "startPage": 2,
+        "endPage": 3
+      },
+      "ownedTableIds": [
+        "p03_t01",
+        "p03_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.2.table_number",
+      "value": "24",
+      "snippet": "Fundliste grav 24:",
+      "hintPage": 3,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:2",
+        "markdownStart": 5046,
+        "markdownEnd": 9170,
+        "startPage": 2,
+        "endPage": 3
+      },
+      "ownedTableIds": [
+        "p03_t01",
+        "p03_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.2.table_description",
+      "value": "Fundliste grav 24",
+      "snippet": "Fundliste grav 24:",
+      "hintPage": 3,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:2",
+        "markdownStart": 5046,
+        "markdownEnd": 9170,
+        "startPage": 2,
+        "endPage": 3
+      },
+      "ownedTableIds": [
+        "p03_t01",
+        "p03_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.2.table_notes",
+      "value": "| Fundnummer | Beskrivelse | Bemærkninger |",
+      "snippet": "| Fundnummer | Beskrivelse | Bemærkninger |",
+      "hintPage": 3,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:2",
+        "markdownStart": 5046,
+        "markdownEnd": 9170,
+        "startPage": 2,
+        "endPage": 3
+      },
+      "ownedTableIds": [
+        "p03_t01",
+        "p03_t02"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 3,
+        "bbox": {
+          "x0": 151.8633774514112,
+          "y0": 217.80276736889596,
+          "x1": 200.43522946382726,
+          "y1": 226.0602316812276
+        }
+      }
+    },
+    {
+      "path": "records.3.grav_id",
+      "value": "Grav 26",
+      "snippet": "# Grav 26",
+      "hintPage": 3,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:3",
+        "markdownStart": 9172,
+        "markdownEnd": 13220,
+        "startPage": 3,
+        "endPage": 5
+      },
+      "ownedTableIds": [
+        "p04_t01",
+        "p04_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.3.table_number",
+      "value": "Fundliste grav 26",
+      "snippet": "# Fundliste grav 26",
+      "hintPage": 3,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:3",
+        "markdownStart": 9172,
+        "markdownEnd": 13220,
+        "startPage": 3,
+        "endPage": 5
+      },
+      "ownedTableIds": [
+        "p04_t01",
+        "p04_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.3.table_description",
+      "value": "Fundnummer | Beskrivelse | Bemærkninger",
+      "snippet": "| Fundnummer | Beskrivelse | Bemærkninger |",
+      "hintPage": 3,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:3",
+        "markdownStart": 9172,
+        "markdownEnd": 13220,
+        "startPage": 3,
+        "endPage": 5
+      },
+      "ownedTableIds": [
+        "p04_t01",
+        "p04_t02"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 4,
+        "bbox": {
+          "x0": 151.8513316938496,
+          "y0": 306.129788808896,
+          "x1": 200.43623525806723,
+          "y1": 314.3872531212277
+        }
+      }
+    },
+    {
+      "path": "records.3.table_notes",
+      "value": "Tolkning: Jordfæstegrav. Vurderet på baggrund af perlerne fra graven kan der være tale om en kvindegrav.",
+      "snippet": "Tolkning: Jordfæstegrav. Vurderet på baggrund af perlerne fra graven kan der være tale om en kvindegrav.",
+      "hintPage": 3,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:3",
+        "markdownStart": 9172,
+        "markdownEnd": 13220,
+        "startPage": 3,
+        "endPage": 5
+      },
+      "ownedTableIds": [
+        "p04_t01",
+        "p04_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.4.grav_id",
+      "value": "Grav 28",
+      "snippet": "# Grav 28",
+      "hintPage": 5,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:4",
+        "markdownStart": 13222,
+        "markdownEnd": 14375,
+        "startPage": 5,
+        "endPage": 5
+      },
+      "ownedTableIds": [
+        "p05_t02",
+        "p05_t03"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.4.table_number",
+      "value": "28-1",
+      "snippet": "| 28-1 | Knogle - lårben | Lå ikke på gravens bund |",
+      "hintPage": 5,
+      "rowHeader": "28-1",
+      "columnHeader": "N ummer",
+      "sourceScope": {
+        "segmentId": "catalog:4",
+        "markdownStart": 13222,
+        "markdownEnd": 14375,
+        "startPage": 5,
+        "endPage": 5
+      },
+      "ownedTableIds": [
+        "p05_t02",
+        "p05_t03"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 5,
+        "bbox": {
+          "x0": 80.541668512,
+          "y0": 433.29875508089606,
+          "x1": 98.9804993110912,
+          "y1": 441.55621939322765
+        }
+      }
+    },
+    {
+      "path": "records.4.table_description",
+      "value": "Knogle - lårben",
+      "snippet": "| 28-1 | Knogle - lårben | Lå ikke på gravens bund |",
+      "hintPage": 5,
+      "rowHeader": "28-1",
+      "columnHeader": "Beskrivelse",
+      "sourceScope": {
+        "segmentId": "catalog:4",
+        "markdownStart": 13222,
+        "markdownEnd": 14375,
+        "startPage": 5,
+        "endPage": 5
+      },
+      "ownedTableIds": [
+        "p05_t02",
+        "p05_t03"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 5,
+        "bbox": {
+          "x0": 151.8232206592,
+          "y0": 433.29875508089606,
+          "x1": 216.6372269059455,
+          "y1": 441.55621939322765
+        }
+      }
+    },
+    {
+      "path": "records.4.table_notes",
+      "value": "Lå ikke på gravens bund",
+      "snippet": "| 28-1 | Knogle - lårben | Lå ikke på gravens bund |",
+      "hintPage": 5,
+      "rowHeader": "28-1",
+      "columnHeader": "Bemærkninger",
+      "sourceScope": {
+        "segmentId": "catalog:4",
+        "markdownStart": 13222,
+        "markdownEnd": 14375,
+        "startPage": 5,
+        "endPage": 5
+      },
+      "ownedTableIds": [
+        "p05_t02",
+        "p05_t03"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 5,
+        "bbox": {
+          "x0": 287.91476319105266,
+          "y0": 433.29875508089606,
+          "x1": 386.8194227435772,
+          "y1": 441.55621939322765
+        }
+      }
+    },
+    {
+      "path": "records.5.grav_id",
+      "value": "Grav 30",
+      "snippet": "# Grav 30",
+      "hintPage": 5,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:5",
+        "markdownStart": 14377,
+        "markdownEnd": 15970,
+        "startPage": 5,
+        "endPage": 6
+      },
+      "ownedTableIds": [
+        "p05_t04",
+        "p06_t01",
+        "p06_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.5.table_number",
+      "value": "30",
+      "snippet": "Fundliste til grav 30:",
+      "hintPage": 5,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:5",
+        "markdownStart": 14377,
+        "markdownEnd": 15970,
+        "startPage": 5,
+        "endPage": 6
+      },
+      "ownedTableIds": [
+        "p05_t04",
+        "p06_t01",
+        "p06_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.5.table_description",
+      "value": "Fundliste til grav 30",
+      "snippet": "Fundliste til grav 30:",
+      "hintPage": 5,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:5",
+        "markdownStart": 14377,
+        "markdownEnd": 15970,
+        "startPage": 5,
+        "endPage": 6
+      },
+      "ownedTableIds": [
+        "p05_t04",
+        "p06_t01",
+        "p06_t02"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.5.table_notes",
+      "value": "6 stk.; Fra hund; Fundet ved afrensning",
+      "snippet": "| 30-2 | Lerkarskår | 6 stk. |\n| 30-5 | Dyretand | Fra hund |\n| 30-7 | Keramikskår | Fundet ved afrensning |",
+      "hintPage": 5,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:5",
+        "markdownStart": 14377,
+        "markdownEnd": 15970,
+        "startPage": 5,
+        "endPage": 6
+      },
+      "ownedTableIds": [
+        "p05_t04",
+        "p06_t01",
+        "p06_t02"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 6,
+        "bbox": {
+          "x0": 287.91778788864,
+          "y0": 152.9016081368959,
+          "x1": 377.8831384225918,
+          "y1": 161.15907244922766
+        }
+      }
+    },
+    {
+      "path": "records.6.grav_id",
+      "value": "Grav 31",
+      "snippet": "# Grav 31",
+      "hintPage": 6,
+      "rowHeader": null,
+      "columnHeader": null,
+      "sourceScope": {
+        "segmentId": "catalog:6",
+        "markdownStart": 15972,
+        "markdownEnd": 18441,
+        "startPage": 6,
+        "endPage": 6
+      },
+      "ownedTableIds": [
+        "p06_t03"
+      ],
+      "matched": false,
+      "match": null
+    },
+    {
+      "path": "records.6.table_number",
+      "value": "31-7",
+      "snippet": "| 31-7 | Tandemalje | Dårligt bevaret |",
+      "hintPage": 6,
+      "rowHeader": "31-7",
+      "columnHeader": "N ummer",
+      "sourceScope": {
+        "segmentId": "catalog:6",
+        "markdownStart": 15972,
+        "markdownEnd": 18441,
+        "startPage": 6,
+        "endPage": 6
+      },
+      "ownedTableIds": [
+        "p06_t03"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 6,
+        "bbox": {
+          "x0": 80.541668512,
+          "y0": 595.5790839128961,
+          "x1": 98.974475517952,
+          "y1": 603.8365482252277
+        }
+      }
+    },
+    {
+      "path": "records.6.table_description",
+      "value": "Tandemalje",
+      "snippet": "| 31-7 | Tandemalje | Dårligt bevaret |",
+      "hintPage": 6,
+      "rowHeader": "31-7",
+      "columnHeader": "Beskrivelse",
+      "sourceScope": {
+        "segmentId": "catalog:6",
+        "markdownStart": 15972,
+        "markdownEnd": 18441,
+        "startPage": 6,
+        "endPage": 6
+      },
+      "ownedTableIds": [
+        "p06_t03"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 6,
+        "bbox": {
+          "x0": 190.767043304128,
+          "y0": 595.5790839128961,
+          "x1": 238.15421599916795,
+          "y1": 603.8365482252277
+        }
+      }
+    },
+    {
+      "path": "records.6.table_notes",
+      "value": "Dårligt bevaret",
+      "snippet": "| 31-7 | Tandemalje | Dårligt bevaret |",
+      "hintPage": 6,
+      "rowHeader": "31-7",
+      "columnHeader": "Bemærkninger",
+      "sourceScope": {
+        "segmentId": "catalog:6",
+        "markdownStart": 15972,
+        "markdownEnd": 18441,
+        "startPage": 6,
+        "endPage": 6
+      },
+      "ownedTableIds": [
+        "p06_t03"
+      ],
+      "matched": true,
+      "match": {
+        "pageNumber": 6,
+        "bbox": {
+          "x0": 320.2886354521599,
+          "y0": 595.5790839128961,
+          "x1": 380.9281530534401,
+          "y1": 603.8365482252277
+        }
+      }
+    }
+  ]
+}

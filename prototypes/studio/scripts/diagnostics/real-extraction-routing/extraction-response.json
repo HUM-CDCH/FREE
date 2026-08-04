@@ -1,0 +1,461 @@
+{
+  "result": {
+    "records": [
+      {
+        "grav_id": "Grav 8",
+        "table_number": "8",
+        "table_description": "Fundliste grav 8",
+        "table_notes": "jernspænde"
+      },
+      {
+        "grav_id": "Grav 13",
+        "table_number": "13-1; 13-2; 13-3; 13-4; 13-5; 13-6; 13-7; 13-8",
+        "table_description": "Del af lårben; Del af lårben; Knoglefragment; Dele af fingerknogler; Overarm; Rester af ribben og nøgleben; Tænder, del af kæbe og kranie; Knoglefragment",
+        "table_notes": "Meget fragmenteret; ; Måske del af bækkenet, udgår som følge af dårlig bevaring.; 4 forskellige, udgår som følge af dårlig bevaring.; Meget fragmenteret; Meget fragmenteret, udgår som følge af dårlig bevaring.; Meget fragmenteret, taget op i præparat; "
+      },
+      {
+        "grav_id": "Grav 24",
+        "table_number": "24",
+        "table_description": "Fundliste grav 24",
+        "table_notes": "| Fundnummer | Beskrivelse | Bemærkninger |"
+      },
+      {
+        "grav_id": "Grav 26",
+        "table_number": "Fundliste grav 26",
+        "table_description": "Fundnummer | Beskrivelse | Bemærkninger",
+        "table_notes": "Tolkning: Jordfæstegrav. Vurderet på baggrund af perlerne fra graven kan der være tale om en kvindegrav."
+      },
+      {
+        "grav_id": "Grav 28",
+        "table_number": "28-1",
+        "table_description": "Knogle - lårben",
+        "table_notes": "Lå ikke på gravens bund"
+      },
+      {
+        "grav_id": "Grav 30",
+        "table_number": "30",
+        "table_description": "Fundliste til grav 30",
+        "table_notes": "6 stk.; Fra hund; Fundet ved afrensning"
+      },
+      {
+        "grav_id": "Grav 31",
+        "table_number": "31-7",
+        "table_description": "Tandemalje",
+        "table_notes": "Dårligt bevaret"
+      }
+    ]
+  },
+  "evidence": {
+    "records": [
+      {
+        "grav_id": {
+          "snippet": "# Grav 8",
+          "page": 1,
+          "value": "Grav 8",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:0",
+            "markdown_start": 0,
+            "markdown_end": 1971,
+            "start_page": 1,
+            "end_page": 1
+          }
+        },
+        "table_number": {
+          "snippet": "Fundliste grav 8",
+          "page": 1,
+          "value": "8",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:0",
+            "markdown_start": 0,
+            "markdown_end": 1971,
+            "start_page": 1,
+            "end_page": 1
+          }
+        },
+        "table_description": {
+          "snippet": "Fundliste grav 8",
+          "page": 1,
+          "value": "Fundliste grav 8",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:0",
+            "markdown_start": 0,
+            "markdown_end": 1971,
+            "start_page": 1,
+            "end_page": 1
+          }
+        },
+        "table_notes": {
+          "snippet": "| 8-2 | Jern | jernspænde |",
+          "page": 1,
+          "value": "jernspænde",
+          "row_header": "8-2",
+          "column_header": "Bemærkninger",
+          "source_scope": {
+            "segment_id": "catalog:0",
+            "markdown_start": 0,
+            "markdown_end": 1971,
+            "start_page": 1,
+            "end_page": 1
+          }
+        }
+      },
+      {
+        "grav_id": {
+          "snippet": "# Grav 13",
+          "page": 1,
+          "value": "Grav 13",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:1",
+            "markdown_start": 1973,
+            "markdown_end": 5044,
+            "start_page": 1,
+            "end_page": 2
+          }
+        },
+        "table_number": {
+          "snippet": "| 13-1 | Del af lårben | Meget fragmenteret |",
+          "page": 2,
+          "value": "13-1; 13-2; 13-3; 13-4; 13-5; 13-6; 13-7; 13-8",
+          "row_header": null,
+          "column_header": "N ummer",
+          "source_scope": {
+            "segment_id": "catalog:1",
+            "markdown_start": 1973,
+            "markdown_end": 5044,
+            "start_page": 1,
+            "end_page": 2
+          }
+        },
+        "table_description": {
+          "snippet": "| 13-7 | Tænder, del af kæbe og kranie | Meget fragmenteret, taget op i præparat |",
+          "page": 2,
+          "value": "Del af lårben; Del af lårben; Knoglefragment; Dele af fingerknogler; Overarm; Rester af ribben og nøgleben; Tænder, del af kæbe og kranie; Knoglefragment",
+          "row_header": "13-7",
+          "column_header": "Beskrivelse",
+          "source_scope": {
+            "segment_id": "catalog:1",
+            "markdown_start": 1973,
+            "markdown_end": 5044,
+            "start_page": 1,
+            "end_page": 2
+          }
+        },
+        "table_notes": {
+          "snippet": "| 13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. |",
+          "page": 2,
+          "value": "Meget fragmenteret; ; Måske del af bækkenet, udgår som følge af dårlig bevaring.; 4 forskellige, udgår som følge af dårlig bevaring.; Meget fragmenteret; Meget fragmenteret, udgår som følge af dårlig bevaring.; Meget fragmenteret, taget op i præparat; ",
+          "row_header": "13-3",
+          "column_header": "Bemærkninger",
+          "source_scope": {
+            "segment_id": "catalog:1",
+            "markdown_start": 1973,
+            "markdown_end": 5044,
+            "start_page": 1,
+            "end_page": 2
+          }
+        }
+      },
+      {
+        "grav_id": {
+          "snippet": "# Grav 24",
+          "page": 2,
+          "value": "Grav 24",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:2",
+            "markdown_start": 5046,
+            "markdown_end": 9170,
+            "start_page": 2,
+            "end_page": 3
+          }
+        },
+        "table_number": {
+          "snippet": "Fundliste grav 24:",
+          "page": 3,
+          "value": "24",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:2",
+            "markdown_start": 5046,
+            "markdown_end": 9170,
+            "start_page": 2,
+            "end_page": 3
+          }
+        },
+        "table_description": {
+          "snippet": "Fundliste grav 24:",
+          "page": 3,
+          "value": "Fundliste grav 24",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:2",
+            "markdown_start": 5046,
+            "markdown_end": 9170,
+            "start_page": 2,
+            "end_page": 3
+          }
+        },
+        "table_notes": {
+          "snippet": "| Fundnummer | Beskrivelse | Bemærkninger |",
+          "page": 3,
+          "value": "| Fundnummer | Beskrivelse | Bemærkninger |",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:2",
+            "markdown_start": 5046,
+            "markdown_end": 9170,
+            "start_page": 2,
+            "end_page": 3
+          }
+        }
+      },
+      {
+        "grav_id": {
+          "snippet": "# Grav 26",
+          "page": 3,
+          "value": "Grav 26",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:3",
+            "markdown_start": 9172,
+            "markdown_end": 13220,
+            "start_page": 3,
+            "end_page": 5
+          }
+        },
+        "table_number": {
+          "snippet": "# Fundliste grav 26",
+          "page": 3,
+          "value": "Fundliste grav 26",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:3",
+            "markdown_start": 9172,
+            "markdown_end": 13220,
+            "start_page": 3,
+            "end_page": 5
+          }
+        },
+        "table_description": {
+          "snippet": "| Fundnummer | Beskrivelse | Bemærkninger |",
+          "page": 3,
+          "value": "Fundnummer | Beskrivelse | Bemærkninger",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:3",
+            "markdown_start": 9172,
+            "markdown_end": 13220,
+            "start_page": 3,
+            "end_page": 5
+          }
+        },
+        "table_notes": {
+          "snippet": "Tolkning: Jordfæstegrav. Vurderet på baggrund af perlerne fra graven kan der være tale om en kvindegrav.",
+          "page": 3,
+          "value": "Tolkning: Jordfæstegrav. Vurderet på baggrund af perlerne fra graven kan der være tale om en kvindegrav.",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:3",
+            "markdown_start": 9172,
+            "markdown_end": 13220,
+            "start_page": 3,
+            "end_page": 5
+          }
+        }
+      },
+      {
+        "grav_id": {
+          "snippet": "# Grav 28",
+          "page": 5,
+          "value": "Grav 28",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:4",
+            "markdown_start": 13222,
+            "markdown_end": 14375,
+            "start_page": 5,
+            "end_page": 5
+          }
+        },
+        "table_number": {
+          "snippet": "| 28-1 | Knogle - lårben | Lå ikke på gravens bund |",
+          "page": 5,
+          "value": "28-1",
+          "row_header": "28-1",
+          "column_header": "N ummer",
+          "source_scope": {
+            "segment_id": "catalog:4",
+            "markdown_start": 13222,
+            "markdown_end": 14375,
+            "start_page": 5,
+            "end_page": 5
+          }
+        },
+        "table_description": {
+          "snippet": "| 28-1 | Knogle - lårben | Lå ikke på gravens bund |",
+          "page": 5,
+          "value": "Knogle - lårben",
+          "row_header": "28-1",
+          "column_header": "Beskrivelse",
+          "source_scope": {
+            "segment_id": "catalog:4",
+            "markdown_start": 13222,
+            "markdown_end": 14375,
+            "start_page": 5,
+            "end_page": 5
+          }
+        },
+        "table_notes": {
+          "snippet": "| 28-1 | Knogle - lårben | Lå ikke på gravens bund |",
+          "page": 5,
+          "value": "Lå ikke på gravens bund",
+          "row_header": "28-1",
+          "column_header": "Bemærkninger",
+          "source_scope": {
+            "segment_id": "catalog:4",
+            "markdown_start": 13222,
+            "markdown_end": 14375,
+            "start_page": 5,
+            "end_page": 5
+          }
+        }
+      },
+      {
+        "grav_id": {
+          "snippet": "# Grav 30",
+          "page": 5,
+          "value": "Grav 30",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:5",
+            "markdown_start": 14377,
+            "markdown_end": 15970,
+            "start_page": 5,
+            "end_page": 6
+          }
+        },
+        "table_number": {
+          "snippet": "Fundliste til grav 30:",
+          "page": 5,
+          "value": "30",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:5",
+            "markdown_start": 14377,
+            "markdown_end": 15970,
+            "start_page": 5,
+            "end_page": 6
+          }
+        },
+        "table_description": {
+          "snippet": "Fundliste til grav 30:",
+          "page": 5,
+          "value": "Fundliste til grav 30",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:5",
+            "markdown_start": 14377,
+            "markdown_end": 15970,
+            "start_page": 5,
+            "end_page": 6
+          }
+        },
+        "table_notes": {
+          "snippet": "| 30-2 | Lerkarskår | 6 stk. |\n| 30-5 | Dyretand | Fra hund |\n| 30-7 | Keramikskår | Fundet ved afrensning |",
+          "page": 5,
+          "value": "6 stk.; Fra hund; Fundet ved afrensning",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:5",
+            "markdown_start": 14377,
+            "markdown_end": 15970,
+            "start_page": 5,
+            "end_page": 6
+          }
+        }
+      },
+      {
+        "grav_id": {
+          "snippet": "# Grav 31",
+          "page": 6,
+          "value": "Grav 31",
+          "row_header": null,
+          "column_header": null,
+          "source_scope": {
+            "segment_id": "catalog:6",
+            "markdown_start": 15972,
+            "markdown_end": 18441,
+            "start_page": 6,
+            "end_page": 6
+          }
+        },
+        "table_number": {
+          "snippet": "| 31-7 | Tandemalje | Dårligt bevaret |",
+          "page": 6,
+          "value": "31-7",
+          "row_header": "31-7",
+          "column_header": "N ummer",
+          "source_scope": {
+            "segment_id": "catalog:6",
+            "markdown_start": 15972,
+            "markdown_end": 18441,
+            "start_page": 6,
+            "end_page": 6
+          }
+        },
+        "table_description": {
+          "snippet": "| 31-7 | Tandemalje | Dårligt bevaret |",
+          "page": 6,
+          "value": "Tandemalje",
+          "row_header": "31-7",
+          "column_header": "Beskrivelse",
+          "source_scope": {
+            "segment_id": "catalog:6",
+            "markdown_start": 15972,
+            "markdown_end": 18441,
+            "start_page": 6,
+            "end_page": 6
+          }
+        },
+        "table_notes": {
+          "snippet": "| 31-7 | Tandemalje | Dårligt bevaret |",
+          "page": 6,
+          "value": "Dårligt bevaret",
+          "row_header": "31-7",
+          "column_header": "Bemærkninger",
+          "source_scope": {
+            "segment_id": "catalog:6",
+            "markdown_start": 15972,
+            "markdown_end": 18441,
+            "start_page": 6,
+            "end_page": 6
+          }
+        }
+      }
+    ]
+  },
+  "raw": "{\"grav_id\":{\"value\":\"Grav 8\",\"snippet\":\"# Grav 8\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_number\":{\"value\":\"8\",\"snippet\":\"Fundliste grav 8\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_description\":{\"value\":\"Fundliste grav 8\",\"snippet\":\"Fundliste grav 8\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_notes\":{\"value\":\"jernspænde\",\"snippet\":\"| 8-2 | Jern | jernspænde |\",\"page\":1,\"row_header\":\"8-2\",\"column_header\":\"Bemærkninger\"}}\n\n{\"grav_id\":{\"value\":\"Grav 13\",\"snippet\":\"# Grav 13\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_number\":{\"value\":\"13-1; 13-2; 13-3; 13-4; 13-5; 13-6; 13-7; 13-8\",\"snippet\":\"| 13-1 | Del af lårben | Meget fragmenteret |\",\"page\":2,\"row_header\":\"\",\"column_header\":\"N ummer\"},\"table_description\":{\"value\":\"Del af lårben; Del af lårben; Knoglefragment; Dele af fingerknogler; Overarm; Rester af ribben og nøgleben; Tænder, del af kæbe og kranie; Knoglefragment\",\"snippet\":\"| 13-7 | Tænder, del af kæbe og kranie | Meget fragmenteret, taget op i præparat |\",\"page\":2,\"row_header\":\"13-7\",\"column_header\":\"Beskrivelse\"},\"table_notes\":{\"value\":\"Meget fragmenteret; ; Måske del af bækkenet, udgår som følge af dårlig bevaring.; 4 forskellige, udgår som følge af dårlig bevaring.; Meget fragmenteret; Meget fragmenteret, udgår som følge af dårlig bevaring.; Meget fragmenteret, taget op i præparat; \",\"snippet\":\"| 13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. |\",\"page\":2,\"row_header\":\"13-3\",\"column_header\":\"Bemærkninger\"}}\n\n{\"grav_id\":{\"value\":\"Grav 24\",\"snippet\":\"# Grav 24\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_number\":{\"value\":\"24\",\"snippet\":\"Fundliste grav 24:\",\"page\":2,\"row_header\":\"\",\"column_header\":\"\"},\"table_description\":{\"value\":\"Fundliste grav 24\",\"snippet\":\"Fundliste grav 24:\",\"page\":2,\"row_header\":\"\",\"column_header\":\"\"},\"table_notes\":{\"value\":\"| Fundnummer | Beskrivelse | Bemærkninger |\",\"snippet\":\"| Fundnummer | Beskrivelse | Bemærkninger |\",\"page\":2,\"row_header\":\"\",\"column_header\":\"\"}}\n\n{\"grav_id\":{\"value\":\"Grav 26\",\"snippet\":\"# Grav 26\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_number\":{\"value\":\"Fundliste grav 26\",\"snippet\":\"# Fundliste grav 26\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_description\":{\"value\":\"Fundnummer | Beskrivelse | Bemærkninger\",\"snippet\":\"| Fundnummer | Beskrivelse | Bemærkninger |\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_notes\":{\"value\":\"Tolkning: Jordfæstegrav. Vurderet på baggrund af perlerne fra graven kan der være tale om en kvindegrav.\",\"snippet\":\"Tolkning: Jordfæstegrav. Vurderet på baggrund af perlerne fra graven kan der være tale om en kvindegrav.\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"}}\n\n{\"grav_id\":{\"value\":\"Grav 28\",\"snippet\":\"# Grav 28\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_number\":{\"value\":\"28-1\",\"snippet\":\"| 28-1 | Knogle - lårben | Lå ikke på gravens bund |\",\"page\":1,\"row_header\":\"28-1\",\"column_header\":\"N ummer\"},\"table_description\":{\"value\":\"Knogle - lårben\",\"snippet\":\"| 28-1 | Knogle - lårben | Lå ikke på gravens bund |\",\"page\":1,\"row_header\":\"28-1\",\"column_header\":\"Beskrivelse\"},\"table_notes\":{\"value\":\"Lå ikke på gravens bund\",\"snippet\":\"| 28-1 | Knogle - lårben | Lå ikke på gravens bund |\",\"page\":1,\"row_header\":\"28-1\",\"column_header\":\"Bemærkninger\"}}\n\n{\"grav_id\":{\"value\":\"Grav 30\",\"snippet\":\"# Grav 30\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_number\":{\"value\":\"30\",\"snippet\":\"Fundliste til grav 30:\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_description\":{\"value\":\"Fundliste til grav 30\",\"snippet\":\"Fundliste til grav 30:\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_notes\":{\"value\":\"6 stk.; Fra hund; Fundet ved afrensning\",\"snippet\":\"| 30-2 | Lerkarskår | 6 stk. |\\n| 30-5 | Dyretand | Fra hund |\\n| 30-7 | Keramikskår | Fundet ved afrensning |\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"}}\n\n{\"grav_id\":{\"value\":\"Grav 31\",\"snippet\":\"# Grav 31\",\"page\":1,\"row_header\":\"\",\"column_header\":\"\"},\"table_number\":{\"value\":\"31-7\",\"snippet\":\"| 31-7 | Tandemalje | Dårligt bevaret |\",\"page\":1,\"row_header\":\"31-7\",\"column_header\":\"N ummer\"},\"table_description\":{\"value\":\"Tandemalje\",\"snippet\":\"| 31-7 | Tandemalje | Dårligt bevaret |\",\"page\":1,\"row_header\":\"31-7\",\"column_header\":\"Beskrivelse\"},\"table_notes\":{\"value\":\"Dårligt bevaret\",\"snippet\":\"| 31-7 | Tandemalje | Dårligt bevaret |\",\"page\":1,\"row_header\":\"31-7\",\"column_header\":\"Bemærkninger\"}}",
+  "reasoning": null,
+  "pages": null
+}
