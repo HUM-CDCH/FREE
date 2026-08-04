@@ -9,6 +9,10 @@ const COMBINING_MARKS_RE = /\p{M}/gu
 const TOKEN_RE = /[\p{L}\p{N}%-]+/gu
 const MIN_CANDIDATE_CHARS = 18
 const MIN_CANDIDATE_TOKENS = 3
+const MAX_ANCHOR_TEXT_EXPANSION_RATIO = 3
+const MAX_ANCHOR_TEXT_EXPANSION_CHARS = 80
+const SHORT_RANGE_CHAR_LIMIT = 20
+const SHORT_RANGE_MAX_ANCHOR_CHARS = 24
 
 type TokenSpan = { token: string; start: number; end: number }
 type RawRange = { start: number; end: number }
@@ -188,7 +192,17 @@ export function findTolerantScopedMarkdownAnchorMatch(
 // range in `markdown`) to one unioned bbox per PDF page, or null when no
 // anchor covers it. This keeps a cross-page source match deterministic.
 function resolveOccurrence(anchors: EvidenceAnchor[], start: number, end: number): AnchorMatch | null {
-  const covering = anchors.filter((a) => a.markdownStart < end && a.markdownEnd > start)
+  const rangeLength = end - start
+  const maxAnchorLength = rangeLength < SHORT_RANGE_CHAR_LIMIT
+    ? Math.max(rangeLength * MAX_ANCHOR_TEXT_EXPANSION_RATIO, SHORT_RANGE_MAX_ANCHOR_CHARS)
+    : Math.max(
+      rangeLength * MAX_ANCHOR_TEXT_EXPANSION_RATIO,
+      rangeLength + MAX_ANCHOR_TEXT_EXPANSION_CHARS,
+    )
+  const covering = anchors.filter((a) => {
+    if (a.markdownStart >= end || a.markdownEnd <= start) return false
+    return a.markdownEnd - a.markdownStart <= maxAnchorLength
+  })
   if (covering.length === 0) return null
   const byPage = new Map<number, EvidenceAnchor[]>()
   for (const anchor of covering) {

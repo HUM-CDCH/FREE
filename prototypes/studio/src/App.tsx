@@ -67,9 +67,13 @@ type LoadState =
 // `tables` is best-effort table cell geometry (see design.md) — an empty array
 // means either the document has no tables or the geometry fetch failed/was skipped.
 type DocIndex =
-  | { status: 'parsing' }
-  | { status: 'ready'; markdown: string; tables: ParsedTable[]; anchors: EvidenceAnchor[] }
-  | { status: 'error'; message: string }
+  | { status: 'parsing'; sourceKey: string | null }
+  | { status: 'ready'; sourceKey: string; markdown: string; tables: ParsedTable[]; anchors: EvidenceAnchor[] }
+  | { status: 'error'; sourceKey: string | null; message: string }
+
+function pdfSourceKey(source: { url: string; filename: string } | null) {
+  return source ? `${source.url}\n${source.filename}` : null
+}
 
 function getHighlightLabel(editor: AnnotationEditor) {
   return editor.div?.getAttribute('aria-label')?.replace(/\s+/g, ' ').trim() ?? ''
@@ -99,7 +103,7 @@ function App() {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [templateState, setTemplateState] = useState<TemplateState>({ status: 'idle' })
   const [schemaHistory, setSchemaHistory] = useState<SchemaHistoryEntry[]>(() => loadSchemaHistory())
-  const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('fields')
+  const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
   // Chosen before schema generation (it shapes the generation prompt — see
   // schemaPrompt's catalog-vs-article guidance) and carried through to
   // extraction afterward, so it must NOT reset when generation completes.
@@ -122,13 +126,18 @@ function App() {
     url: pdfUrl,
     filename: ACTIVE_DOC,
   })
-  const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
+  const [docIndex, setDocIndex] = useState<DocIndex>(() => ({
+    status: 'parsing',
+    sourceKey: pdfSourceKey({ url: pdfUrl, filename: ACTIVE_DOC }),
+  }))
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const indexing = docIndex.status === 'parsing'
-  const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
-  const documentTables = docIndex.status === 'ready' ? docIndex.tables : []
-  const documentAnchors = docIndex.status === 'ready' ? docIndex.anchors : []
+  const currentSourceKey = pdfSourceKey(pdfSource)
+  const docIndexMatchesCurrent = docIndex.sourceKey === currentSourceKey
+  const indexing = !docIndexMatchesCurrent || docIndex.status === 'parsing'
+  const documentMarkdown = docIndexMatchesCurrent && docIndex.status === 'ready' ? docIndex.markdown : null
+  const documentTables = docIndexMatchesCurrent && docIndex.status === 'ready' ? docIndex.tables : []
+  const documentAnchors = docIndexMatchesCurrent && docIndex.status === 'ready' ? docIndex.anchors : []
 
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
@@ -164,7 +173,9 @@ function App() {
     if (pdfSource?.url.startsWith('blob:')) {
       URL.revokeObjectURL(pdfSource.url)
     }
-    setPdfSource({ url: URL.createObjectURL(file), filename: file.name })
+    const nextPdfSource = { url: URL.createObjectURL(file), filename: file.name }
+    setPdfSource(nextPdfSource)
+    setDocIndex({ status: 'parsing', sourceKey: pdfSourceKey(nextPdfSource) })
     setAnnotationItems([])
     setTemplateState({ status: 'idle' })
     setSchemaHistory(clearSchemaHistory())
@@ -320,9 +331,10 @@ function App() {
   useEffect(() => {
     if (!pdfSource) return
     const abortController = new AbortController()
+    const sourceKey = pdfSourceKey(pdfSource)
 
     void (async () => {
-      setDocIndex({ status: 'parsing' })
+      setDocIndex({ status: 'parsing', sourceKey })
       try {
         const devTaskId = import.meta.env.VITE_DEV_TASK_ID as string | undefined
         let taskId: string
@@ -346,12 +358,13 @@ function App() {
           anchors: [],
         }))
         if (!abortController.signal.aborted) {
-          setDocIndex({ status: 'ready', markdown, tables, anchors })
+          setDocIndex({ status: 'ready', sourceKey: sourceKey!, markdown, tables, anchors })
         }
       } catch (error) {
         if (abortController.signal.aborted) return
         setDocIndex({
           status: 'error',
+          sourceKey,
           message: error instanceof Error ? error.message : 'Document indexing failed.',
         })
       }
@@ -449,7 +462,7 @@ function App() {
     }
   }
 
-  function handleValueClick(path: string[], _value: string) {
+  function handleValueClick(path: string[]) {
     setFocusPath(path)
   }
 

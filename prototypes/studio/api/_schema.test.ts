@@ -38,4 +38,28 @@ describe('schemaPrompt', () => {
     expect(prompt).not.toContain('This document is a Catalog')
     expect(prompt).not.toContain('If the document repeats a structural unit')
   })
+
+  it('guides unannotated article schemas toward scientific article structure', () => {
+    const prompt = schemaPrompt([], 'hints', 'article')
+
+    expect(prompt).toContain('If the source document is a scientific article')
+    expect(prompt).toContain('title, authors, abstract, keywords')
+    expect(prompt).toContain('sections array')
+    expect(prompt).toContain('heading level')
+  })
+
+  it('does not force scientific article structure when annotations define the goal', () => {
+    const prompt = schemaPrompt([{ text: 'Grave 1', pageNumber: 1 }], 'hints', 'article')
+
+    expect(prompt).not.toContain('If the source document is a scientific article')
+    expect(prompt).toContain('If the document repeats a structural unit')
+  })
+
+  it('treats fields mode with no annotations as whole-document hints', () => {
+    const prompt = schemaPrompt([], 'fields', 'article')
+
+    expect(prompt).toContain('infer the compact schema from the whole document')
+    expect(prompt).not.toContain('the rest of the Source Document has been withheld')
+    expect(prompt).toContain('No annotations were supplied.')
+  })
 })

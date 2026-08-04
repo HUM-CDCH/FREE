@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { requestExtraction } from './api'
 import type { ExtractionStrategy } from './api'
 import type { ExtractionState } from './extraction'
@@ -56,9 +56,14 @@ export function useExtraction({
 }: UseExtractionOptions) {
   const [state, setState] = useState<ExtractionState>({ status: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
+  const templateKey = useMemo(() => JSON.stringify(template ?? null), [template])
 
   // Abort results tied to the outgoing PDF when the source changes.
   useEffect(() => () => abortRef.current?.abort(), [pdfSource])
+  useEffect(() => {
+    abortRef.current?.abort()
+    setState({ status: 'idle' })
+  }, [pdfSource?.url, markdown, templateKey, schemaReady, extractionStrategy])
 
   const hasResults = state.status === 'ready'
   const canRun = Boolean(pdfSource) && schemaReady && state.status !== 'running' && !indexing

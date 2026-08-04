@@ -25,6 +25,7 @@ _SECTION_HDR = re.compile(
     r"<section_header_level_(\d+)>(.*?)</section_header_level_\1>",
     re.DOTALL,
 )
+_NUMBERED_HEADING = re.compile(r"^\s*(\d+(?:\.\d+){0,5})\.?(?=\s+\S)")
 _TEXT_BLOCK = re.compile(r"<text>(.*?)</text>", re.DOTALL)
 _TITLE_BLOCK = re.compile(r"<title>(.*?)</title>", re.DOTALL)
 _CAPTION_BLOCK = re.compile(r"<caption>(.*?)</caption>", re.DOTALL)
@@ -63,6 +64,14 @@ def _escape_md_cell(value: str) -> str:
         .replace("|", "\\|")
         .strip()
     )
+
+
+def _numbered_heading_level(text: str) -> int | None:
+    """Infer scientific-article heading depth from leading numbering only."""
+    match = _NUMBERED_HEADING.match(strip_doctag_locations(text))
+    if not match:
+        return None
+    return min(match.group(1).count(".") + 1, 6)
 
 
 def _parse_otsl_row(row: str) -> list[str]:
@@ -551,7 +560,11 @@ def convert_doctags_to_markdown(
             level = min(max(int(match.group(1)), 1), 6)
         except (TypeError, ValueError):
             level = 1
-        return f"\n\n{'#' * level} {_escape_md_cell(match.group(2))}\n\n"
+        text = match.group(2)
+        numbered_level = _numbered_heading_level(text)
+        if numbered_level is not None:
+            level = numbered_level
+        return f"\n\n{'#' * level} {_escape_md_cell(text)}\n\n"
 
     value = _SECTION_HDR.sub(render_section, value)
     value = _TITLE_BLOCK.sub(

@@ -19,6 +19,29 @@ class TestDocTagsToMarkdown(unittest.TestCase):
         )
         self.assertEqual(out, "## Findings")
 
+    def test_numbered_scientific_headings_correct_docling_level(self):
+        out = doctags_to_markdown(
+            "<doctag>"
+            "<section_header_level_1>2. Materials and Methods</section_header_level_1>"
+            "<section_header_level_1>2.1. Sample Collection</section_header_level_1>"
+            "<section_header_level_1>2.1.3. Assay Details</section_header_level_1>"
+            "</doctag>"
+        )
+
+        self.assertEqual(
+            out,
+            "# 2. Materials and Methods\n\n"
+            "## 2.1. Sample Collection\n\n"
+            "### 2.1.3. Assay Details",
+        )
+
+    def test_non_numbered_catalog_headings_keep_docling_level(self):
+        out = doctags_to_markdown(
+            "<doctag><section_header_level_1>Grav 8</section_header_level_1></doctag>"
+        )
+
+        self.assertEqual(out, "# Grav 8")
+
     def test_text_blocks(self):
         out = doctags_to_markdown("<doctag><text> Alpha body. </text></doctag>")
         self.assertEqual(out, "Alpha body.")

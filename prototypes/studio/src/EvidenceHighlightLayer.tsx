@@ -556,16 +556,16 @@ export default function EvidenceHighlightLayer({
         await Promise.all(group.map(async (highlight) => {
           const occurrenceIndex = occurrenceIndices.get(highlight) ?? null
           const tableRects = await findTableCellRects(viewer, tableMatches.get(highlight) ?? null, viewportCache)
-          const anchorRects = tableRects
-            ? null
-            : await findAnchorRects(viewer, markdown, geometry.anchors, highlight, viewportCache)
-          const textRects = tableRects || anchorRects
+          const textRects = tableRects
             ? null
             : await findScopedHintPageTextRects(viewer, markdown, highlight, occurrenceIndex)
-          const found = tableRects ?? anchorRects ?? textRects
+          const anchorRects = tableRects || textRects
+            ? null
+            : await findAnchorRects(viewer, markdown, geometry.anchors, highlight, viewportCache)
+          const found = tableRects ?? textRects ?? anchorRects
           resolvedByHighlight.set(
             highlight,
-            tableRects ? 'table' : anchorRects ? 'anchor' : textRects ? 'hint-page-text' : null,
+            tableRects ? 'table' : textRects ? 'hint-page-text' : anchorRects ? 'anchor' : null,
           )
           foundByHighlight.set(highlight, found)
         }))

@@ -264,6 +264,42 @@ describe('findMarkdownAnchorMatch', () => {
     }, scope)).toEqual({ fragments: [{ page: 1, bbox: { x0: 20, y0: 20, x1: 30, y1: 30 } }] })
   })
 
+  it('rejects a coarse anchor that would paint a whole block for a short canonical span', () => {
+    const markdown = 'Name: Jean. A long OCR paragraph continues with many unrelated words and fields.'
+    const start = markdown.indexOf('Jean')
+    const scope = { segmentId: 'notice:0', markdownStart: 0, markdownEnd: markdown.length, startPage: 1, endPage: 1 }
+    const anchors = [
+      anchor({
+        markdownStart: 0,
+        markdownEnd: markdown.length,
+        bbox: { x0: 1, y0: 2, x1: 300, y1: 120 },
+      }),
+    ]
+
+    expect(findCanonicalSpanAnchorMatch(markdown, anchors, {
+      markdownStart: start,
+      markdownEnd: start + 'Jean'.length,
+    }, scope)).toBeNull()
+  })
+
+  it('keeps a precise anchor for a short canonical span', () => {
+    const markdown = 'Name: Jean. Tail.'
+    const start = markdown.indexOf('Jean')
+    const scope = { segmentId: 'notice:0', markdownStart: 0, markdownEnd: markdown.length, startPage: 1, endPage: 1 }
+    const anchors = [
+      anchor({
+        markdownStart: start,
+        markdownEnd: start + 'Jean'.length,
+        bbox: { x0: 10, y0: 20, x1: 30, y1: 30 },
+      }),
+    ]
+
+    expect(findCanonicalSpanAnchorMatch(markdown, anchors, {
+      markdownStart: start,
+      markdownEnd: start + 'Jean'.length,
+    }, scope)).toEqual({ fragments: [{ page: 1, bbox: { x0: 10, y0: 20, x1: 30, y1: 30 } }] })
+  })
+
   it('rejects canonical spans outside the source scope', () => {
     const markdown = 'First occurrence. Second occurrence.'
     const secondStart = markdown.indexOf('Second')
