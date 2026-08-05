@@ -3,6 +3,7 @@ import type { PDFViewer } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import {
   canUseScopedHintPageTextFallback,
 } from './EvidenceHighlightLayer'
+import { isTableEvidence } from './tableEvidence'
 import {
   buildHighlights,
   coalescePaintRects,
@@ -222,6 +223,94 @@ describe('scoped hint-page text fallback guard', () => {
       rowHeader: '26-15',
       columnHeader: 'Beskrivelse',
     })).toBe(false)
+  })
+})
+
+describe('isTableEvidence', () => {
+  const scope = (markdown: string) => ({
+    segmentId: 'catalog:0',
+    markdownStart: 0,
+    markdownEnd: markdown.length,
+    startPage: 1,
+    endPage: 1,
+  })
+
+  it('keeps explicit header and pipe-prefixed evidence in the table tier', () => {
+    const markdown = '# Grav 8\n\n| Fundnr | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 8-2 | Jern | jernspænde |\n'
+
+    expect(isTableEvidence(
+      { ...testHighlight(['records', '0', 'notes']), rowHeader: '8-2', columnHeader: 'Bemærkninger', sourceScope: scope(markdown) },
+      markdown,
+    )).toBe(true)
+    expect(isTableEvidence(
+      { ...testHighlight(['records', '0', 'notes']), snippet: '| 8-2 | Jern | jernspænde |', sourceScope: scope(markdown) },
+      markdown,
+    )).toBe(true)
+  })
+
+  it('refuses prose evidence whose value also recurs in a table', () => {
+    const markdown = [
+      '# Grav 31',
+      '',
+      '| Fundnr | Beskrivelse | Bemærkninger |',
+      '| --- | --- | --- |',
+      '| 31-7 | Tandemalje | Dårligt bevaret |',
+      '',
+      'Fundet blev beskrevet som 31-7 i rapporten.',
+    ].join('\n')
+
+    expect(isTableEvidence(
+      {
+        ...testHighlight(['records', '6', 'notes']),
+        snippet: 'Fundet blev beskrevet som 31-7 i rapporten.',
+        sourceScope: scope(markdown),
+      },
+      markdown,
+    )).toBe(false)
+  })
+
+  it('classifies a bare continuation-table cell as table evidence via its snippet location', () => {
+    const markdown = [
+      '# Grav 13',
+      '',
+      '| Fundnr | Beskrivelse | Bemærkninger |',
+      '| --- | --- | --- |',
+      '| 13-1 | Del af lårben | Meget fragmenteret |',
+    ].join('\n')
+
+    expect(isTableEvidence(
+      {
+        ...testHighlight(['records', '1', 'notes']),
+        snippet: 'Meget fragmenteret',
+        rowHeader: null,
+        columnHeader: null,
+        sourceScope: scope(markdown),
+      },
+      markdown,
+    )).toBe(true)
+  })
+
+  it('refuses a snippet that occurs both on a table row and in prose', () => {
+    const markdown = [
+      '# Grav 31',
+      '',
+      '| Fundnr | Beskrivelse | Bemærkninger |',
+      '| --- | --- | --- |',
+      '| 31-7 | Tandemalje | Dårligt bevaret |',
+      '',
+      'Dårligt bevaret materiale blev noteret.',
+    ].join('\n')
+
+    expect(isTableEvidence(
+      {
+        ...testHighlight(['records', '6', 'notes']),
+        snippet: 'Dårligt bevaret',
+        rowHeader: null,
+        columnHeader: null,
+        sourceScope: scope(markdown),
+      },
+      markdown,
+    )).toBe(false)
   })
 })
 

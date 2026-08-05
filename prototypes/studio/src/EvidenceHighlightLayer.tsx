@@ -8,6 +8,7 @@ import { buildSegmentGeometryIndex } from './segmentGeometry'
 import type { SegmentGeometry } from './segmentGeometry'
 import { resolveTableCellMatches, computeOccurrenceIndices } from './tableCellMatch'
 import type { TableCellMatch } from './tableCellMatch'
+import { isTableEvidence, isTableLikeEvidence } from './tableEvidence'
 import {
   candidateFragments,
   findCanonicalSpanAnchorMatch,
@@ -132,14 +133,6 @@ async function findAnchorRects(
   }))
   const found = fragments.filter((fragment): fragment is PageRects => fragment !== null)
   return found.length > 0 ? found : null
-}
-
-function isTableLikeEvidence(highlight: Highlight): boolean {
-  return (
-    highlight.rowHeader !== null ||
-    highlight.columnHeader !== null ||
-    (highlight.snippet?.trim().startsWith('|') ?? false)
-  )
 }
 
 export function canUseScopedHintPageTextFallback(highlight: Highlight): boolean {
@@ -546,9 +539,12 @@ export default function EvidenceHighlightLayer({
         for (const highlight of group) {
           geometryByHighlight.set(highlight, geometry)
         }
+        const tableEvidence = new Set(
+          group.filter((highlight) => isTableEvidence(highlight, markdown)),
+        )
         const scopedMatches = resolveTableCellMatches(
           geometry.tables,
-          group,
+          group.filter((highlight) => tableEvidence.has(highlight)),
           occurrenceIndices,
         )
         for (const highlight of group) {
@@ -556,7 +552,9 @@ export default function EvidenceHighlightLayer({
         }
         await Promise.all(group.map(async (highlight) => {
           const occurrenceIndex = occurrenceIndices.get(highlight) ?? null
-          const tableRects = await findTableCellRects(viewer, tableMatches.get(highlight) ?? null, viewportCache)
+          const tableRects = tableEvidence.has(highlight)
+            ? await findTableCellRects(viewer, tableMatches.get(highlight) ?? null, viewportCache)
+            : null
           const textRects = tableRects
             ? null
             : await findScopedHintPageTextRects(viewer, markdown, highlight, occurrenceIndex)
