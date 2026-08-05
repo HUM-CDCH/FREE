@@ -1,9 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AnnotationsMode } from './api'
 import { requestSchemaEdit } from './api'
-import { applyOps } from './schemaOps'
 import { countTemplateFields, isRecord } from './template'
-import { type SchemaNode, mkId, templateToNodes, nodesToTemplate } from './schemaNode'
+import {
+  countSchemaMetadata,
+  type SchemaMetadataCount,
+  type SchemaNode,
+  mkId,
+  nodesToTemplate,
+  templateToNodes,
+} from '../shared/schemaNode'
+import {
+  deriveSchemaProposal,
+  replaySchemaChanges,
+  type Change,
+  type DerivedProposal,
+  type ReplayOutcome,
+} from './schemaChanges'
 
 // ────────────────────────────────────────────────────────────────────────────
 // Exported types (App.tsx depends on TemplateState)
@@ -76,14 +89,54 @@ function AllowedValuesBadge({ node }: { node: SchemaNode }) {
   )
 }
 
+function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
+  if (outcome === 'rejected') return (
+    <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 text-[9px] font-semibold text-ink-muted">
+      Rejected
+    </span>
+  )
+  if (!change?.reason && !change?.note) return null
+  const text = change.reason ? (outcome === 'conflict' ? 'Conflict' : 'Unresolved') : 'Note'
+  return (
+    <span
+      className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${change.reason ? 'bg-danger-soft text-danger' : 'bg-amber-100 text-amber-800'}`}
+      title={change.reason ?? change.note}
+    >
+      {text}
+    </span>
+  )
+}
+
+function AcceptanceControl({ id, name, accepted, onChange }: {
+  id: string
+  name: string
+  accepted: boolean
+  onChange: (id: string) => void
+}) {
+  return (
+    <label className="flex shrink-0 cursor-pointer items-center gap-1 text-[10px] font-semibold text-ink-muted">
+      <input
+        type="checkbox"
+        className="cursor-pointer accent-accent"
+        aria-label={`Accept change to ${name}`}
+        checked={accepted}
+        onChange={() => onChange(id)}
+      />
+      Accept
+    </label>
+  )
+}
+
 type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
-type NodeDiffStatus = 'added' | 'removed'
+type PendingChange = DerivedProposal & { metadata: SchemaMetadataCount; original: SchemaNode[] }
 
-type PendingChange = {
-  newNodes: SchemaNode[]
-  displayNodes: SchemaNode[]
-  diffMap: Map<string, NodeDiffStatus>
+function metadataReachText({ descriptions, allowedValues }: SchemaMetadataCount): string | null {
+  const parts = [
+    descriptions && `${descriptions} description${descriptions === 1 ? '' : 's'}`,
+    allowedValues && `${allowedValues} allowed-value list${allowedValues === 1 ? '' : 's'}`,
+  ].filter(Boolean)
+  return parts.length ? `${parts.join(' and ')} were not changed — chat edits don't change these.` : null
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -91,74 +144,6 @@ type PendingChange = {
 // ────────────────────────────────────────────────────────────────────────────
 
 
-
-// ────────────────────────────────────────────────────────────────────────────
-// Diff computation (task 7.3)
-// ────────────────────────────────────────────────────────────────────────────
-
-function collectIds(nodes: SchemaNode[], out = new Map<string, SchemaNode>()): Map<string, SchemaNode> {
-  for (const n of nodes) {
-    out.set(n.id, n)
-    if (n.children) collectIds(n.children, out)
-  }
-  return out
-}
-
-function buildDiffPreview(
-  oldNodes: SchemaNode[],
-  newNodes: SchemaNode[],
-): { displayNodes: SchemaNode[]; diffMap: Map<string, NodeDiffStatus> } {
-  const oldById = collectIds(oldNodes)
-  const newById = collectIds(newNodes)
-  const diffMap = new Map<string, NodeDiffStatus>()
-  // ghost nodes: old versions of modified nodes, shown in red above the new version
-  const ghostMap = new Map<string, SchemaNode>()
-
-  for (const [id, newNode] of newById) {
-    const oldNode = oldById.get(id)
-    if (!oldNode) {
-      diffMap.set(id, 'added')
-    } else if (oldNode.name !== newNode.name || oldNode.type !== newNode.type) {
-      // split into ghost (old, red) + actual (new, green)
-      const ghostId = `${id}-ghost`
-      ghostMap.set(ghostId, { id: ghostId, name: oldNode.name, type: oldNode.type })
-      diffMap.set(ghostId, 'removed')
-      diffMap.set(id, 'added')
-    }
-  }
-  for (const id of oldById.keys()) {
-    if (!newById.has(id)) diffMap.set(id, 'removed')
-  }
-
-  function mergeLevel(newLevel: SchemaNode[], oldLevel: SchemaNode[]): SchemaNode[] {
-    const result: SchemaNode[] = []
-    let newIdx = 0
-    for (let oi = 0; oi < oldLevel.length; oi++) {
-      const oldNode = oldLevel[oi]
-      if (diffMap.get(oldNode.id) === 'removed') {
-        // truly removed — inject at original position
-        result.push(oldNode)
-      } else {
-        // node present in newLevel (unmodified or modified/added)
-        while (newIdx < newLevel.length && newLevel[newIdx].id !== oldNode.id) {
-          result.push(newLevel[newIdx++])
-        }
-        if (newIdx < newLevel.length && newLevel[newIdx].id === oldNode.id) {
-          const n = newLevel[newIdx++]
-          // for modified nodes, inject old ghost immediately before the new version
-          const ghostId = `${n.id}-ghost`
-          if (ghostMap.has(ghostId)) result.push(ghostMap.get(ghostId)!)
-          result.push(n.children ? { ...n, children: mergeLevel(n.children, oldNode.children ?? []) } : n)
-        }
-      }
-    }
-    while (newIdx < newLevel.length) result.push(newLevel[newIdx++])
-    return result
-  }
-
-  const displayNodes = diffMap.size === 0 ? newNodes : mergeLevel(newNodes, oldNodes)
-  return { displayNodes, diffMap }
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Node tree helpers (tasks 2.5, 3.4)
@@ -373,6 +358,7 @@ function SchemaPanel({
     { role: 'assistant', text: "Edit through drag and drop, or describe a change. I'll show a diff to review first." },
   ])
   const [pending, setPending] = useState<PendingChange | null>(null)
+  const [acceptedChangeIds, setAcceptedChangeIds] = useState<Set<string>>(new Set())
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const chatAbortRef = useRef<AbortController | null>(null)
@@ -414,6 +400,7 @@ function SchemaPanel({
       nodesRef.current = state.nodes
       setEditing(null)
       setPending(null)
+      setAcceptedChangeIds(new Set())
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputsKey])
@@ -690,13 +677,18 @@ function SchemaPanel({
     chatAbortRef.current = controller
 
     try {
-      const ops = await requestSchemaEdit(nodesRef.current, userMsg, documentMarkdown, controller.signal)
-      const newNodes = applyOps(nodesRef.current, ops)
-      const { displayNodes, diffMap } = buildDiffPreview(nodesRef.current, newNodes)
-      if (diffMap.size === 0) {
-        setChat(c => [...c, { role: 'assistant', text: 'No changes needed — the schema already matches your request.' }])
+      const response = await requestSchemaEdit(nodesRef.current, userMsg, documentMarkdown, controller.signal)
+      if (response.status === 'refused' || response.status === 'failed') {
+        setChat(c => [...c, { role: 'assistant', text: `${response.status === 'refused' ? 'Request refused' : 'Request failed'}: ${response.message}` }])
       } else {
-        setPending({ newNodes, displayNodes, diffMap })
+        const original = nodesRef.current
+        const proposal = deriveSchemaProposal(original, response)
+        if (proposal.changes.length === 0 && proposal.issues.length === 0) {
+          setChat(c => [...c, { role: 'assistant', text: 'Proposal checked every field: 0 changes proposed.' }])
+        } else {
+          setAcceptedChangeIds(new Set(proposal.changes.map(({ id }) => id)))
+          setPending({ ...proposal, metadata: countSchemaMetadata(original), original })
+        }
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -717,17 +709,29 @@ function SchemaPanel({
   // Task 8.2 – apply pending
   function applyPending() {
     if (!pending) return
-    nodesRef.current = pending.newNodes
-    setNodes(pending.newNodes)
-    onNodesChange(pending.newNodes, '✦ Schema updated via chat')
+    const applied = replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds).nodes
+    nodesRef.current = applied
+    setNodes(applied)
+    onNodesChange(applied, '✦ Schema updated via chat')
     setChat(c => [...c, { role: 'assistant', text: '✓ Schema changes applied.' }])
     setPending(null)
+    setAcceptedChangeIds(new Set())
   }
 
   // Task 8.3 – discard
   function discardPending() {
     setChat(c => [...c, { role: 'assistant', text: 'Okay — discarded, no changes made.' }])
     setPending(null)
+    setAcceptedChangeIds(new Set())
+  }
+
+  function toggleChangeAccepted(id: string) {
+    setAcceptedChangeIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   // function pickSuggestion(s: (typeof SUGGESTIONS)[number]) {
@@ -765,6 +769,14 @@ function SchemaPanel({
 
   // Task 8.4 – disable chat input while pending
   const chatBlocked = !!pending || chatLoading
+  const replay = pending ? replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds) : null
+  const proposalCounts = pending ? {
+    accepted: acceptedChangeIds.size,
+    rejected: pending.changes.length - acceptedChangeIds.size,
+    applied: [...replay!.outcomes.values()].filter((outcome) => outcome === 'applied').length,
+    unresolved: [...replay!.outcomes.values()].filter((outcome) => outcome === 'unresolved').length,
+    conflicts: [...replay!.outcomes.values()].filter((outcome) => outcome === 'conflict').length,
+  } : null
 
   // const activeSuggs = SUGGESTIONS.filter(s => !usedSuggs.includes(s.id))
 
@@ -780,10 +792,11 @@ function SchemaPanel({
     const isDragging = dragging?.id === node.id
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === node.id
     const isEditing = editing?.id === node.id
-    const diffStatus = pending?.diffMap.get(node.id) ?? null
+    const change = pending?.changes.find((item) => item.id === node.id)
+    const diffStatus = change?.kind ?? null
     const isDiff = diffStatus !== null
-    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : ''
-    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : 'text-ink'
+    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-amber-100' : ''
+    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : diffStatus === 'modified' ? 'text-amber-800' : 'text-ink'
 
     return (
       <div key={node.id}>
@@ -807,13 +820,16 @@ function SchemaPanel({
               </span>
             )}
             <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${diffText}`}>{node.name}</span>
+            <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 font-mono text-[9px] text-ink-muted">{node.type}</span>
             <AllowedValuesBadge node={node} />
+            <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
             {intoGroup && !isDiff && (
               <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
                 into {node.name}
               </span>
             )}
             <span className="min-w-0 flex-1" />
+            {change && <AcceptanceControl id={change.id} name={node.name} accepted={acceptedChangeIds.has(change.id)} onChange={toggleChangeAccepted} />}
             {!isDiff && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
@@ -881,10 +897,11 @@ function SchemaPanel({
     const isGroup = child.children !== undefined
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === child.id
     const isExpanded = expandedIds.has(child.id) || intoGroup
-    const diffStatus = pending?.diffMap.get(child.id) ?? null
+    const change = pending?.changes.find((item) => item.id === child.id)
+    const diffStatus = change?.kind ?? null
     const isDiff = diffStatus !== null
-    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : ''
-    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : 'text-ink'
+    const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-amber-100' : ''
+    const diffText = diffStatus === 'added' ? 'text-green' : diffStatus === 'removed' ? 'text-danger line-through' : diffStatus === 'modified' ? 'text-amber-800' : 'text-ink'
 
     const toggleExpand = (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -918,7 +935,9 @@ function SchemaPanel({
               </span>
             )}
             <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${diffText}`}>{child.name}</span>
+            <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 font-mono text-[9px] text-ink-muted">{child.type}</span>
             <AllowedValuesBadge node={child} />
+            <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
             {isGroup && !isDiff && (
               <span
                 className="shrink-0 flex items-center text-ink-faint hover:text-accent cursor-pointer transition-colors"
@@ -935,6 +954,7 @@ function SchemaPanel({
               </span>
             )}
             <span className="min-w-0 flex-1" />
+            {change && <AcceptanceControl id={change.id} name={child.name} accepted={acceptedChangeIds.has(change.id)} onChange={toggleChangeAccepted} />}
             {!isDiff && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
@@ -1132,7 +1152,7 @@ function SchemaPanel({
               </div>
             )}
             <div className="flex flex-col">
-              {(pending ? pending.displayNodes : nodes).map((node, i) => renderRootField(node, i))}
+              {(pending ? pending.reviewNodes : nodes).map((node, i) => renderRootField(node, i))}
               {/* final root slot */}
               <div className={slotCls(null, nodes.length)} onMouseEnter={() => setSlotTarget(null, nodes.length)} />
             </div>
@@ -1170,21 +1190,32 @@ function SchemaPanel({
 
           {/* Apply / Discard action bar — sticky, outside scroll area */}
           {pending && (
-            <div className="shrink-0 flex items-center gap-2 border-t border-line px-3.5 py-2.5">
-              <button
-                className="cursor-pointer rounded-md border border-accent bg-accent px-3.5 py-1.5 font-sans text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108"
-                type="button"
-                onClick={applyPending}
-              >
-                Apply changes
-              </button>
-              <button
-                className="cursor-pointer rounded-md border border-line-strong bg-surface px-3 py-1.5 font-sans text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
-                type="button"
-                onClick={discardPending}
-              >
-                Discard
-              </button>
+            <div className="shrink-0 border-t border-line px-3.5 py-2.5">
+              <div className="mb-2 text-[10px] leading-relaxed text-ink-muted" data-testid="schema-proposal-summary">
+                <p>{proposalCounts!.accepted} accepted · {proposalCounts!.rejected} rejected</p>
+                <p>{proposalCounts!.applied} applied · {proposalCounts!.unresolved} unresolved · {proposalCounts!.conflicts} conflicts</p>
+                {(['missing', 'invalid', 'unknown-key'] as const).map((kind) => {
+                  const count = pending.issues.filter((issue) => issue.kind === kind).length
+                  return count ? <p key={kind}>{count} {kind}</p> : null
+                })}
+                {metadataReachText(pending.metadata) && <p>{metadataReachText(pending.metadata)}</p>}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  className="cursor-pointer rounded-md border border-accent bg-accent px-3.5 py-1.5 font-sans text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108"
+                  type="button"
+                  onClick={applyPending}
+                >
+                  Apply changes
+                </button>
+                <button
+                  className="cursor-pointer rounded-md border border-line-strong bg-surface px-3 py-1.5 font-sans text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
+                  type="button"
+                  onClick={discardPending}
+                >
+                  Discard
+                </button>
+              </div>
             </div>
           )}
 

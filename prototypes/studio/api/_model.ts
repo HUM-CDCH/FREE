@@ -17,9 +17,9 @@ import {
   asModelOperationError,
   boundedUpstreamDetail,
 } from './_http.js'
-import { applyAllowedValues, FIELD_TYPES } from '../shared/allowedValues.js'
+import { applyAllowedValues } from '../shared/allowedValues.js'
 import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template.js'
-import { parseExtractionResult, parseTemplate, parseUnknownJson } from './_model_output.js'
+import { parseExtractionResult, parseTemplate } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
 import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'
 import {
@@ -380,79 +380,29 @@ export function renderNuExtractPrompt({
   return { prompt, images }
 }
 
-const fieldTypeSchema = z.enum(FIELD_TYPES)
-type FieldType = z.infer<typeof fieldTypeSchema>
-
-export type EditSchemaOp =
-  | { op: 'add'; name: string; type: FieldType; parentName?: string }
-  | { op: 'remove'; name: string; parentName?: string }
-  | { op: 'patch'; name: string; newName?: string; type?: FieldType; parentName?: string }
-
-const editSchemaOpSchema = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('add'), name: z.string(), type: fieldTypeSchema, parentName: z.string().optional() }),
-  z.object({ op: z.literal('remove'), name: z.string(), parentName: z.string().optional() }),
-  z.object({
-    op: z.literal('patch'),
-    name: z.string(),
-    newName: z.string().optional(),
-    type: fieldTypeSchema.optional(),
-    parentName: z.string().optional(),
-  }),
-])
-
-export async function editSchemaWithModel(
-  currentTemplate: unknown,
-  instruction: string,
-  documentMarkdown: string | null,
+export async function generateSchemaEditJson(
+  prompt: string,
   temperature?: number,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
-): Promise<EditSchemaOp[]> {
+): Promise<{ text: string }> {
   const resolved = await operationTarget('schema-edit', temperature, target, dependencies)
   if (resolved.profile !== 'general') {
     throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
   }
-  const sourceContext =
-    documentMarkdown === null
-      ? ''
-      : `\n\nSource Document Markdown:\n${documentMarkdown}\nEnd Source Document Markdown`
-  const prompt = `You are a schema editing assistant for humanities researchers.
-
-Current extraction schema (JSON):
-${JSON.stringify(currentTemplate, null, 2)}${sourceContext}
-
-Researcher instruction: "${instruction}"
-
-Return ONLY a JSON array of operations. No explanation, no markdown fences, no extra text.
-Each operation must be one of:
-  {"op":"add","name":"fieldName","type":"${FIELD_TYPES.join('|')}","parentName":"optionalParent"}
-  {"op":"remove","name":"fieldName","parentName":"optionalParent"}
-  {"op":"patch","name":"fieldName","newName":"optionalNewName","type":"optionalNewType","parentName":"optionalParent"}
-
-Rules:
-- Only change what the researcher explicitly asked for
-- Use parentName when the same field name exists at multiple nesting levels
-- Omit parentName when the field is uniquely named
-- Return [] if no changes are needed`
-
-  let text: string
   try {
     const result = await generateText({
       model: resolved.model,
+      output: Output.json(),
+      reasoning: 'none',
       messages: [{ role: 'user', content: prompt }],
       ...(temperature === undefined ? {} : { temperature }),
     })
-    text = result.text.replace(/```(?:json)?|```/g, '').trim()
+    if (result.finishReason === 'length') {
+      throw new ApiError(502, 'invalid_model_output', 'Schema edit model output was truncated.')
+    }
+    return { text: result.text.replace(/```(?:json)?|```/g, '').trim() }
   } catch (error) {
     throw asModelOperationError(error)
   }
-  const parsed = await parseUnknownJson(text, 'Edit schema model returned invalid JSON.')
-  if (!Array.isArray(parsed)) return []
-
-  const ops: EditSchemaOp[] = []
-  for (const item of parsed) {
-    const validated = editSchemaOpSchema.safeParse(item)
-    if (validated.success) ops.push(validated.data)
-  }
-  return ops
 }
