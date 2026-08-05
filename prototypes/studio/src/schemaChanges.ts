@@ -136,6 +136,28 @@ export function replaySchemaChanges(
   changes: readonly Change[],
   acceptedIds: ReadonlySet<string>,
 ): ReplayResult {
+  const blockedIds = new Set<string>()
+  // Validate the final accepted namespace so swaps stay atomic while collisions are rejected.
+  while (true) {
+    const replayed = replaySchemaChangesOnce(original, changes, acceptedIds, blockedIds)
+    const duplicateIds = duplicateSiblingIds(replayed.nodes)
+    const newlyBlocked = changes.filter((change) =>
+      acceptedIds.has(change.id) &&
+      !blockedIds.has(change.id) &&
+      duplicateIds.has(change.id) &&
+      changesFieldName(change),
+    )
+    if (newlyBlocked.length === 0) return replayed
+    for (const change of newlyBlocked) blockedIds.add(change.id)
+  }
+}
+
+function replaySchemaChangesOnce(
+  original: readonly SchemaNode[],
+  changes: readonly Change[],
+  acceptedIds: ReadonlySet<string>,
+  blockedIds: ReadonlySet<string>,
+): ReplayResult {
   let nodes = original.map(cloneNode)
   const outcomes = new Map<string, ReplayOutcome>()
 
@@ -144,7 +166,7 @@ export function replaySchemaChanges(
       outcomes.set(change.id, 'rejected')
       continue
     }
-    if (change.outcome === 'unresolved') {
+    if (change.outcome === 'unresolved' || blockedIds.has(change.id)) {
       outcomes.set(change.id, 'unresolved')
       continue
     }
@@ -167,6 +189,30 @@ export function replaySchemaChanges(
   }
 
   return { nodes, outcomes }
+}
+
+function duplicateSiblingIds(nodes: readonly SchemaNode[]): Set<string> {
+  const duplicates = new Set<string>()
+  const visit = (level: readonly SchemaNode[]) => {
+    const byName = new Map<string, SchemaNode[]>()
+    for (const node of level) {
+      const matches = byName.get(node.name)
+      if (matches) matches.push(node)
+      else byName.set(node.name, [node])
+      if (node.children) visit(node.children)
+    }
+    for (const matches of byName.values()) {
+      if (matches.length > 1) for (const node of matches) duplicates.add(node.id)
+    }
+  }
+  visit(nodes)
+  return duplicates
+}
+
+function changesFieldName(change: Change): boolean {
+  return change.kind === 'added' || (
+    change.kind === 'modified' && change.before?.name !== change.after?.name
+  )
 }
 
 function insertAdditionAtPath(

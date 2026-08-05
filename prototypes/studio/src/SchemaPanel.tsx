@@ -95,8 +95,16 @@ function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?
       Rejected
     </span>
   )
+  if (outcome === 'unresolved') return (
+    <span
+      className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
+      title={change?.reason}
+    >
+      Unresolved
+    </span>
+  )
   if (!change?.reason && !change?.note) return null
-  const text = change.reason ? (outcome === 'conflict' ? 'Conflict' : 'Unresolved') : 'Note'
+  const text = change.reason ? 'Conflict' : 'Note'
   return (
     <span
       className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${change.reason ? 'bg-danger-soft text-danger' : 'bg-amber-100 text-amber-800'}`}

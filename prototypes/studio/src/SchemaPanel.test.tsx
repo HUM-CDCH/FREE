@@ -18,9 +18,9 @@ const nodes: SchemaNode[] = [
   { id: 'gender', name: 'gender', type: 'string', allowedValues: ['woman', 'man'] },
 ]
 
-function renderPanel(onNodesChange = vi.fn()) {
+function renderPanel(onNodesChange = vi.fn(), initialNodes = nodes) {
   render(<SchemaPanel
-    state={{ status: 'ready', nodes, inputsKey: 'test' }}
+    state={{ status: 'ready', nodes: initialNodes, inputsKey: 'test' }}
     stale={false}
     onGenerate={vi.fn()}
     onNodesChange={onNodesChange}
@@ -47,6 +47,32 @@ afterEach(() => {
 })
 
 describe('SchemaPanel schema proposal review', () => {
+  it('does not apply a rename that collides with an existing sibling', async () => {
+    const original: SchemaNode[] = [
+      { id: 'surname', name: 'surname', type: 'string' },
+      { id: 'name', name: 'name', type: 'string' },
+    ]
+    const onNodesChange = renderPanel(vi.fn(), original)
+    await send({
+      status: 'proposed',
+      fields: {
+        surname: { name: 'name', type: 'string', removed: false },
+        name: { name: 'name', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    })
+
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('0 applied · 1 unresolved')
+    expect(screen.getByText('Unresolved')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+
+    expect(onNodesChange).toHaveBeenCalledWith(original, '✦ Schema updated via chat')
+    fireEvent.click(screen.getByRole('button', { name: 'JSON' }))
+    expect(screen.getByText(/"surname": "string"/)).toBeInTheDocument()
+    expect(screen.getByText(/"name": "string"/)).toBeInTheDocument()
+  })
+
   it('shows one row per node, mixed counts, metadata reach, and applies atomically', async () => {
     const onNodesChange = renderPanel()
     const input = await send({

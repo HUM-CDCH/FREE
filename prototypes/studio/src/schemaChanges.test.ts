@@ -132,6 +132,25 @@ describe('deriveSchemaProposal', () => {
     }])
   })
 
+  it('validates sibling names after applying the accepted changes atomically', () => {
+    const original: SchemaNode[] = [
+      { id: 'first', name: 'first', type: 'string' },
+      { id: 'last', name: 'last', type: 'string' },
+    ]
+    const proposal = deriveSchemaProposal(original, proposed({
+      first: { name: 'last', type: 'string', removed: false },
+      last: { name: 'first', type: 'string', removed: false },
+    }))
+
+    expect(replaySchemaChanges(original, proposal.changes, new Set(['first', 'last'])).nodes).toEqual([
+      { ...original[0], name: 'last' },
+      { ...original[1], name: 'first' },
+    ])
+    const partial = replaySchemaChanges(original, proposal.changes, new Set(['last']))
+    expect(partial.nodes).toEqual(original)
+    expect(partial.outcomes.get('last')).toBe('unresolved')
+  })
+
   it('replays additions by resolved parent id and reports rejected dependencies', () => {
     const original: SchemaNode[] = [{ id: 'group', name: 'group', type: 'object', children: [] }]
     const proposal = deriveSchemaProposal(original, proposed(
