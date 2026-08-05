@@ -163,7 +163,7 @@ describe('deriveSchemaProposal', () => {
     }])
   })
 
-  it('rejects a selective rename that collides with a sibling left unchanged', () => {
+  it('applies a sibling swap atomically and blocks a partial selection', () => {
     const original: SchemaNode[] = [
       { id: 'a', name: 'first', type: 'string' },
       { id: 'b', name: 'second', type: 'string' },
@@ -173,15 +173,19 @@ describe('deriveSchemaProposal', () => {
       second: { name: 'first', type: 'string', removed: false },
     }))
 
+    expect(replaySchemaChanges(original, proposal.changes, new Set(['a', 'b'])).nodes).toEqual([
+      { ...original[0], name: 'second' },
+      { ...original[1], name: 'first' },
+    ])
     const replayed = replaySchemaChanges(original, proposal.changes, new Set(['a']))
 
     expect(replayed.nodes).toEqual(original)
-    expect(replayed.outcomes.get('a')).toBe('conflict')
+    expect(replayed.outcomes.get('a')).toBe('unresolved')
     expect(replayed.appliedCount).toBe(0)
     expect(replayed.hasChanges).toBe(false)
   })
 
-  it('preserves a valid retype when its selective rename collides', () => {
+  it('blocks a combined rename and retype when its rename cannot materialise', () => {
     const original: SchemaNode[] = [
       { id: 'a', name: 'first', type: 'string' },
       { id: 'b', name: 'second', type: 'string' },
@@ -193,12 +197,10 @@ describe('deriveSchemaProposal', () => {
 
     const replayed = replaySchemaChanges(original, proposal.changes, new Set(['a']))
 
-    expect(replayed.nodes).toEqual([
-      { id: 'a', name: 'first', type: 'number' },
-      original[1],
-    ])
-    expect(replayed.outcomes.get('a')).toBe('conflict')
-    expect(replayed.appliedCount).toBe(1)
+    expect(replayed.nodes).toEqual(original)
+    expect(replayed.outcomes.get('a')).toBe('unresolved')
+    expect(replayed.appliedCount).toBe(0)
+    expect(replayed.hasChanges).toBe(false)
   })
 
   it('replays additions by resolved parent id and reports rejected dependencies', () => {

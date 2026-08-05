@@ -113,19 +113,28 @@ function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?
       Rejected
     </span>
   )
+  if (outcome === 'unresolved') return (
+    <span
+      className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
+      title={change?.outcome === 'unresolved'
+        ? change.reason
+        : 'This accepted change depends on another review decision that is not currently accepted.'}
+    >
+      Unresolved
+    </span>
+  )
   if (!change?.reason && !change?.note) {
-    if (outcome !== 'conflict' && outcome !== 'unresolved') return null
-    const text = outcome === 'conflict' ? 'Conflict' : 'Unresolved'
-    const title = outcome === 'conflict'
-      ? 'This accepted change conflicts with another review decision; only its non-conflicting parts will apply.'
-      : 'This accepted change depends on another review decision that is not currently accepted.'
+    if (outcome !== 'conflict') return null
     return (
-      <span className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger" title={title}>
-        {text}
+      <span
+        className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
+        title="This proposal conflicts with a schema invariant."
+      >
+        Conflict
       </span>
     )
   }
-  const text = change.reason ? (outcome === 'conflict' ? 'Conflict' : 'Unresolved') : 'Note'
+  const text = change.reason ? 'Conflict' : 'Note'
   return (
     <span
       className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${change.reason ? 'bg-danger-soft text-danger' : 'bg-amber-100 text-amber-800'}`}

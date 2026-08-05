@@ -224,11 +224,23 @@ describe('generateSchemaWithModel', () => {
 })
 
 describe('interactive model operations', () => {
-  it.each(['prompt', 'native'] as const)('requests bounded JSON with reasoning disabled on a %s route', async (jsonOutput) => {
+  it('uses prompted JSON without structured output on a prompt route', async () => {
     generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
-    const target = { ...generalTarget, jsonOutput }
 
-    await generateSchemaEditJson('schema prompt', undefined, target)
+    const result = await generateSchemaEditJson('schema prompt', undefined, generalTarget)
+
+    expect(generateTextMock.mock.calls[0][0]).toMatchObject({
+      reasoning: 'none',
+      messages: [{ role: 'user', content: 'schema prompt' }],
+    })
+    expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('output')
+    expect(result.text).toBe('{"fields":{},"additions":[]}')
+  })
+
+  it('requests bounded JSON with reasoning disabled on a native route', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
+
+    await generateSchemaEditJson('schema prompt', undefined, { ...generalTarget, jsonOutput: 'native' })
 
     expect(generateTextMock.mock.calls[0][0]).toMatchObject({
       output: expect.anything(),

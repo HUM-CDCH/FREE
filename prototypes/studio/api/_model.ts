@@ -393,7 +393,7 @@ export async function generateSchemaEditJson(
   try {
     const result = await generateText({
       model: resolved.model,
-      output: Output.json(),
+      ...(resolved.jsonOutput === 'native' ? { output: Output.json() } : {}),
       reasoning: 'none',
       messages: [{ role: 'user', content: prompt }],
       ...(temperature === undefined ? {} : { temperature }),

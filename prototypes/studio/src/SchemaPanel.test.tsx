@@ -163,6 +163,32 @@ describe('SchemaPanel schema proposal review', () => {
     expect(onNodesChange).not.toHaveBeenCalled()
   })
 
+  it('does not apply a rename that collides with an existing sibling', async () => {
+    const original: SchemaNode[] = [
+      { id: 'surname', name: 'surname', type: 'string' },
+      { id: 'name', name: 'name', type: 'string' },
+    ]
+    const onNodesChange = renderPanel(vi.fn(), original)
+    await send({
+      status: 'proposed',
+      fields: {
+        surname: { name: 'name', type: 'string', removed: false },
+        name: { name: 'name', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    })
+
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('0 applied · 0 unresolved · 1 conflicts')
+    expect(screen.getByText('Conflict')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
+
+    expect(onNodesChange).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'JSON' }))
+    expect(screen.getByText(/"surname": "string"/)).toBeInTheDocument()
+    expect(screen.getByText(/"name": "string"/)).toBeInTheDocument()
+  })
+
   it('shows one row per node, mixed counts, metadata reach, and applies atomically', async () => {
     const onNodesChange = renderPanel()
     const input = await send({
@@ -199,7 +225,7 @@ describe('SchemaPanel schema proposal review', () => {
     ])
   })
 
-  it('explains a conflict created by selective acceptance', async () => {
+  it('explains an unresolved change created by selective acceptance', async () => {
     renderPanel()
     await send({
       status: 'proposed',
@@ -213,10 +239,10 @@ describe('SchemaPanel schema proposal review', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Accept change to title' }))
 
-    expect(screen.getByText('Conflict')).toHaveAttribute('title', expect.stringContaining('review decision'))
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 applied')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 conflicts')
-    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeEnabled()
+    expect(screen.getByText('Unresolved')).toHaveAttribute('title', expect.stringContaining('review decision'))
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('0 applied')
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 unresolved')
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
   })
 
   it('gives an added group and child independent decisions', async () => {
