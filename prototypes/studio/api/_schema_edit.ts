@@ -12,29 +12,45 @@ import {
   enumerateFieldPaths,
   type SchemaNode,
 } from '../shared/schemaNode.js'
-import { FIELD_TYPES } from '../shared/allowedValues.js'
+import {
+  FIELD_TYPES,
+  NON_STRING_SCALAR_FIELD_TYPES,
+  SCALAR_FIELD_TYPES,
+  isAllowedValues,
+  type ScalarFieldType,
+} from '../shared/allowedValues.js'
 import { parseUnknownJson } from './_model_output.js'
 import { generateSchemaEditJson } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
+import { ApiError } from './_http.js'
 
-const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() => z.object({
+const nodeBaseShape = {
   id: z.string().min(1),
   name: z.string().trim().min(1),
-  type: z.enum(FIELD_TYPES),
-  allowedValues: z.array(z.string().min(1)).min(2).optional(),
   description: z.string().min(1).optional(),
-  children: z.array(schemaNodeSchema).optional(),
-}).strict().superRefine((node, context) => {
-  if (node.allowedValues && node.type !== 'string') {
-    context.addIssue({ code: 'custom', message: 'allowedValues require type string' })
-  }
-  if (node.children !== undefined && node.type !== 'object' && node.type !== 'array') {
-    context.addIssue({ code: 'custom', message: 'children require a container type' })
-  }
-  if (node.type === 'object' && node.children === undefined) {
-    context.addIssue({ code: 'custom', message: 'object nodes require children' })
-  }
-}))
+}
+
+const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() => z.union([
+  z.object({
+    ...nodeBaseShape,
+    type: z.literal('string'),
+    allowedValues: z.array(z.string()).refine(isAllowedValues).optional(),
+  }).strict(),
+  z.object({
+    ...nodeBaseShape,
+    type: z.enum(NON_STRING_SCALAR_FIELD_TYPES),
+  }).strict(),
+  z.object({
+    ...nodeBaseShape,
+    type: z.literal('array'),
+    itemType: z.enum(SCALAR_FIELD_TYPES),
+  }).strict(),
+  z.object({
+    ...nodeBaseShape,
+    type: z.enum(['object', 'array']),
+    children: z.array(schemaNodeSchema),
+  }).strict(),
+]))
 
 const modelEnvelopeSchema = z.object({
   fields: z.record(z.string(), z.unknown()),
@@ -75,7 +91,7 @@ export async function proposeSchemaEdit(
 
   try {
     const initial = await readEnvelope(await generate(
-      schemaEditPrompt(fields.map(({ key, node }) => ({ key, name: node.name, type: node.type })), instruction, documentMarkdown),
+      schemaEditPrompt(fields.map(({ key, node }) => toPromptField(key, node)), instruction, documentMarkdown),
       options.temperature,
       options.target,
     ))
@@ -89,13 +105,14 @@ export async function proposeSchemaEdit(
         const retryKeys = [...unresolved.keys()]
         const retryExpected = new Map(retryKeys.map((key) => [key, expected.get(key)!]))
         const retry = await readEnvelope(await generate(
-          retryPrompt(retryKeys.map((key) => ({ key, name: expected.get(key)!.node.name, type: expected.get(key)!.node.type })), instruction),
+          retryPrompt(retryKeys.map((key) => toPromptField(key, expected.get(key)!.node)), instruction),
           options.temperature,
           options.target,
         ))
         unknownIssues.push(...unknownFieldIssues(retry.fields, retryExpected))
         unresolved = validateExpected(retry.fields, retryExpected, accepted)
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiError) throw error
         // The validated first-pass subset remains a useful partial proposal.
       }
     }
@@ -108,7 +125,8 @@ export async function proposeSchemaEdit(
       return { status: 'failed', message: 'The model returned no usable schema proposal entries.' }
     }
     return { status: 'proposed', fields: Object.fromEntries(accepted), additions, issues }
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError) throw error
     return { status: 'failed', message: 'Schema edit generation failed.' }
   }
 }
@@ -153,7 +171,29 @@ function validatedAdditions(raw: unknown, issues: SchemaEditIssue[]): SchemaAddi
   return additions
 }
 
-type PromptField = { key: string; name: string; type: string }
+type PromptField =
+  | { key: string; name: string; type: Exclude<SchemaNode['type'], 'array'> }
+  | { key: string; name: string; type: 'array'; itemType: ScalarFieldType | null }
+
+type PromptFieldValue =
+  | { name: string; type: Exclude<SchemaNode['type'], 'array'> }
+  | { name: string; type: 'array'; itemType: ScalarFieldType | null }
+
+function toPromptField(key: string, node: SchemaNode): PromptField {
+  if (node.type !== 'array') return { key, name: node.name, type: node.type }
+  return {
+    key,
+    name: node.name,
+    type: node.type,
+    itemType: node.children === undefined ? node.itemType : null,
+  }
+}
+
+function promptFieldValue(field: PromptField): PromptFieldValue {
+  return field.type === 'array'
+    ? { name: field.name, type: field.type, itemType: field.itemType }
+    : { name: field.name, type: field.type }
+}
 
 function schemaEditPrompt(fields: readonly PromptField[], instruction: string, markdown: string | null): string {
   const source = markdown === null ? '' : `\n\nSOURCE DOCUMENT MARKDOWN:\n${markdown}\nEND SOURCE DOCUMENT MARKDOWN`
@@ -161,14 +201,15 @@ function schemaEditPrompt(fields: readonly PromptField[], instruction: string, m
 
 Researcher instruction: ${JSON.stringify(instruction)}
 Existing fields, keyed by opaque identifiers that must be echoed exactly:
-${JSON.stringify(Object.fromEntries(fields.map((field) => [field.key, { name: field.name, type: field.type }])), null, 2)}${source}
+${JSON.stringify(Object.fromEntries(fields.map((field) => [field.key, promptFieldValue(field)])), null, 2)}${source}
 
 Return one JSON object:
-{"fields":{"opaque.key":{"name":"field_name","type":"${FIELD_TYPES.join('|')}","removed":false}},"additions":[{"path":["post_edit_parent","new_field"],"type":"string"}]}
+{"fields":{"opaque.key":{"name":"field_name","type":"${FIELD_TYPES.join('|')}","removed":false}},"additions":[{"path":["post_edit_parent","new_field"],"type":"array","itemType":"date"}]}
 
 Rules:
 - fields must contain every supplied opaque key exactly once, including unchanged and removed fields
-- name and type are the only editable properties
+- name, type, and array itemType are the only editable properties
+- every array field and addition requires itemType: a scalar type (${SCALAR_FIELD_TYPES.join('|')}) for a repeating scalar, or null for repeating records
 - removed is true only for a removed existing field
 - additions use full structural paths in the post-edit namespace
 - return JSON only`
@@ -178,6 +219,6 @@ function retryPrompt(fields: readonly PromptField[], instruction: string): strin
   return `Repair only the missing or invalid field entries for this FREE schema edit.
 Researcher instruction: ${JSON.stringify(instruction)}
 Required opaque keys and current values:
-${JSON.stringify(Object.fromEntries(fields.map((field) => [field.key, { name: field.name, type: field.type }])), null, 2)}
-Return {"fields":{...},"additions":[]} with every listed key exactly once. Use name, type (${FIELD_TYPES.join('|')}), and removed. JSON only.`
+${JSON.stringify(Object.fromEntries(fields.map((field) => [field.key, promptFieldValue(field)])), null, 2)}
+Return {"fields":{...},"additions":[]} with every listed key exactly once. Use name, type (${FIELD_TYPES.join('|')}), removed, and itemType for arrays (scalar type or null for records). JSON only.`
 }

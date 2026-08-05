@@ -1,17 +1,33 @@
 import { z } from 'zod'
-import { FIELD_TYPES } from './allowedValues.js'
+import { SCALAR_FIELD_TYPES } from './allowedValues.js'
 
-export const fieldEditSchema = z.object({
+const NON_ARRAY_FIELD_TYPES = [...SCALAR_FIELD_TYPES, 'object'] as const
+
+const fieldEditBase = {
   name: z.string().trim().min(1),
-  type: z.enum(FIELD_TYPES),
   removed: z.boolean(),
-}).strict()
+}
+
+export const fieldEditSchema = z.union([
+  z.object({ ...fieldEditBase, type: z.enum(NON_ARRAY_FIELD_TYPES) }).strict(),
+  z.object({
+    ...fieldEditBase,
+    type: z.literal('array'),
+    itemType: z.enum(SCALAR_FIELD_TYPES).nullable(),
+  }).strict(),
+])
 export type FieldEdit = z.infer<typeof fieldEditSchema>
 
-export const schemaAdditionSchema = z.object({
-  path: z.array(z.string().trim().min(1)).min(1),
-  type: z.enum(FIELD_TYPES),
-}).strict()
+const additionBase = { path: z.array(z.string().trim().min(1)).min(1) }
+
+export const schemaAdditionSchema = z.union([
+  z.object({ ...additionBase, type: z.enum(NON_ARRAY_FIELD_TYPES) }).strict(),
+  z.object({
+    ...additionBase,
+    type: z.literal('array'),
+    itemType: z.enum(SCALAR_FIELD_TYPES).nullable(),
+  }).strict(),
+])
 export type SchemaAddition = z.infer<typeof schemaAdditionSchema>
 
 export const schemaEditIssueSchema = z.object({

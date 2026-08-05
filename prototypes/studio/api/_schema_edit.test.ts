@@ -1,12 +1,40 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SchemaNode } from '../shared/schemaNode'
-import { proposeSchemaEdit } from './_schema_edit'
+import { ApiError } from './_http'
+import { parseSchemaNodes, proposeSchemaEdit } from './_schema_edit'
 
 const nodes: SchemaNode[] = [
   { id: 'group', name: 'group', type: 'object', children: [{ id: 'child', name: 'child', type: 'string' }] },
 ]
 
 describe('proposeSchemaEdit', () => {
+  it('accepts a typed repeating scalar field from the browser', () => {
+    const repeatingDates = [{ id: 'dates', name: 'dates', type: 'array', itemType: 'date' }]
+
+    expect(parseSchemaNodes(repeatingDates)).toEqual(repeatingDates)
+    expect(() => parseSchemaNodes([{ id: 'dates', name: 'dates', type: 'array' }])).toThrow()
+    expect(() => parseSchemaNodes([
+      { id: 'count', name: 'count', type: 'number', allowedValues: ['one', 'two'] },
+    ])).toThrow()
+    expect(() => parseSchemaNodes([
+      { id: 'kind', name: 'kind', type: 'string', allowedValues: ['string', 'date'] },
+    ])).toThrow()
+  })
+
+  it('accepts an explicit item type for a new repeating scalar field', async () => {
+    const generate = vi.fn().mockResolvedValue(JSON.stringify({
+      fields: {},
+      additions: [{ path: ['dates'], type: 'array', itemType: 'date' }],
+    }))
+
+    await expect(proposeSchemaEdit([], 'add a list of dates', null, { generate })).resolves.toEqual({
+      status: 'proposed',
+      fields: {},
+      additions: [{ path: ['dates'], type: 'array', itemType: 'date' }],
+      issues: [],
+    })
+  })
+
   it('refuses duplicate keys before calling the model', async () => {
     const generate = vi.fn()
     const response = await proposeSchemaEdit([
@@ -94,5 +122,13 @@ describe('proposeSchemaEdit', () => {
   it.each(['[]', '{"fields":"wrong"}', 'not json'])('fails unusable output %s', async (text) => {
     const response = await proposeSchemaEdit(nodes, 'change', null, { generate: vi.fn().mockResolvedValue(text) })
     expect(response).toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
+  })
+
+  it('preserves operational model errors for the HTTP adapter', async () => {
+    const error = new ApiError(409, 'invalid_model_config', 'The Interaction Route is not configured.')
+
+    await expect(proposeSchemaEdit(nodes, 'change', null, {
+      generate: vi.fn().mockRejectedValue(error),
+    })).rejects.toBe(error)
   })
 })

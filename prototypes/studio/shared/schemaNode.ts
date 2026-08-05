@@ -1,13 +1,16 @@
-import { isAllowedValues } from './allowedValues.js'
+import { isAllowedValues, isScalarFieldType, type ScalarFieldType } from './allowedValues.js'
 
-export type SchemaNode = {
+type SchemaNodeBase = {
   id: string
   name: string
-  type: string
-  allowedValues?: string[]
   description?: string
-  children?: SchemaNode[]
 }
+
+export type SchemaNode =
+  | (SchemaNodeBase & { type: 'string'; allowedValues?: string[]; itemType?: never; children?: never })
+  | (SchemaNodeBase & { type: Exclude<ScalarFieldType, 'string'>; allowedValues?: never; itemType?: never; children?: never })
+  | (SchemaNodeBase & { type: 'array'; itemType: ScalarFieldType; allowedValues?: never; children?: never })
+  | (SchemaNodeBase & { type: 'object' | 'array'; children: SchemaNode[]; allowedValues?: never; itemType?: never })
 
 export type EnumeratedField = {
   id: string
@@ -38,19 +41,20 @@ export function templateToNodes(value: unknown): SchemaNode[] {
         if (isAllowedValues(child)) {
           return { id: mkId(), name, type: 'string', allowedValues: child }
         }
-        return { id: mkId(), name, type: 'array' }
+        return { id: mkId(), name, type: 'array', itemType: isScalarFieldType(first) ? first : 'string' }
       }
       if (isRecord(child)) {
         const description = typeof child._description === 'string' ? child._description : undefined
         return { id: mkId(), name, type: 'object', children: templateToNodes(child), ...(description && { description }) }
       }
-      return { id: mkId(), name, type: String(child) }
+      return { id: mkId(), name, type: isScalarFieldType(child) ? child : 'string' }
     })
 }
 
 export function nodesToTemplate(nodes: readonly SchemaNode[]): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const node of nodes) {
+    if (Object.hasOwn(out, node.name)) throw new Error(`Duplicate field name: ${node.name}`)
     if (node.children !== undefined) {
       const children = nodesToTemplate(node.children)
       const group = node.description ? { _description: node.description, ...children } : children
@@ -58,7 +62,7 @@ export function nodesToTemplate(nodes: readonly SchemaNode[]): Record<string, un
     } else if (node.allowedValues) {
       out[node.name] = node.allowedValues
     } else {
-      out[node.name] = node.type === 'array' ? ['string'] : node.type
+      out[node.name] = node.type === 'array' ? [node.itemType] : node.type
     }
   }
   return out

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
-import type { SchemaNode } from '../shared/schemaNode'
+import { nodesToTemplate, type SchemaNode } from '../shared/schemaNode'
 import SchemaPanel from './SchemaPanel'
 
 const { requestSchemaEdit } = vi.hoisted(() => ({ requestSchemaEdit: vi.fn() }))
@@ -18,9 +18,9 @@ const nodes: SchemaNode[] = [
   { id: 'gender', name: 'gender', type: 'string', allowedValues: ['woman', 'man'] },
 ]
 
-function renderPanel(onNodesChange = vi.fn()) {
+function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes) {
   render(<SchemaPanel
-    state={{ status: 'ready', nodes, inputsKey: 'test' }}
+    state={{ status: 'ready', nodes: panelNodes, inputsKey: 'test' }}
     stale={false}
     onGenerate={vi.fn()}
     onNodesChange={onNodesChange}
@@ -47,6 +47,122 @@ afterEach(() => {
 })
 
 describe('SchemaPanel schema proposal review', () => {
+  it('applies an inline edit at arbitrary nesting depth', () => {
+    const onNodesChange = renderPanel(vi.fn(), [{
+      id: 'root',
+      name: 'root',
+      type: 'object',
+      children: [{
+        id: 'group',
+        name: 'group',
+        type: 'object',
+        children: [{ id: 'leaf', name: 'leaf', type: 'string' }],
+      }],
+    }])
+
+    fireEvent.click(screen.getByText('group').parentElement!.querySelector('polygon')!.closest('span')!)
+    fireEvent.click(screen.getByTitle('Edit leaf'))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'renamed leaf' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onNodesChange.mock.calls[0][0][0].children[0].children[0].name).toBe('renamed_leaf')
+    expect(screen.getByText('renamed_leaf')).toBeInTheDocument()
+  })
+
+  it('keeps an inline edit open when its name duplicates a sibling field', () => {
+    const onNodesChange = renderPanel()
+
+    fireEvent.click(screen.getByTitle('Edit title'))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'gender' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('A sibling field already uses “gender”.')
+    expect(screen.getByDisplayValue('gender')).toBeInTheDocument()
+    expect(onNodesChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps an existing closed set when replacement values are invalid', () => {
+    const onNodesChange = renderPanel()
+
+    fireEvent.click(screen.getByTitle('Edit gender'))
+    fireEvent.change(screen.getByLabelText('Allowed values'), { target: { value: 'string, date' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter at least two values that are not field-type names.')
+    expect(screen.getByDisplayValue('string, date')).toBeInTheDocument()
+    expect(onNodesChange).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['blank input clears it', '', undefined],
+    ['valid input replaces it', 'known, unknown', ['known', 'unknown']],
+  ])('%s for an existing closed set', (_case, value, allowedValues) => {
+    const onNodesChange = renderPanel()
+
+    fireEvent.click(screen.getByTitle('Edit gender'))
+    fireEvent.change(screen.getByLabelText('Allowed values'), { target: { value } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onNodesChange.mock.calls[0][0][1]).toEqual({
+      id: 'gender',
+      name: 'gender',
+      type: 'string',
+      ...(allowedValues && { allowedValues }),
+    })
+  })
+
+  it('preserves repetition when a field is dragged into a scalar array', async () => {
+    const onNodesChange = renderPanel(vi.fn(), [
+      { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const titleRow = screen.getByText('title').parentElement!
+    const datesRow = screen.getByText('dates').parentElement!
+
+    fireEvent.mouseDown(titleRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseEnter(datesRow)
+    fireEvent.mouseUp(window)
+
+    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
+    expect(nodesToTemplate(onNodesChange.mock.calls[0][0])).toEqual({
+      dates: [{ title: 'string' }],
+    })
+  })
+
+  it('shows the item shape when reviewing an array type change', async () => {
+    renderPanel(vi.fn(), [
+      { id: 'entries', name: 'entries', type: 'array', itemType: 'date' },
+    ])
+
+    await send({
+      status: 'proposed',
+      fields: {
+        entries: { name: 'entries', type: 'array', itemType: null, removed: false },
+      },
+      additions: [{ path: ['entries', 'label'], type: 'string' }],
+      issues: [],
+    })
+
+    expect(screen.getByText('array<date>')).toBeInTheDocument()
+    expect(screen.getByText('array<object>')).toBeInTheDocument()
+  })
+
+  it('rejects a drag that would duplicate a sibling field', async () => {
+    const onNodesChange = renderPanel(vi.fn(), [
+      { id: 'group', name: 'group', type: 'object', children: [{ id: 'nested-title', name: 'title', type: 'string' }] },
+      { id: 'root-title', name: 'title', type: 'string' },
+    ])
+    const titleRows = screen.getAllByText('title').map((label) => label.parentElement!)
+    const groupRow = screen.getByText('group').parentElement!
+
+    fireEvent.mouseDown(titleRows.at(-1)!.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseEnter(groupRow)
+    fireEvent.mouseUp(window)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot move field: a sibling field already uses “title”.')
+    expect(onNodesChange).not.toHaveBeenCalled()
+  })
+
   it('shows one row per node, mixed counts, metadata reach, and applies atomically', async () => {
     const onNodesChange = renderPanel()
     const input = await send({
@@ -59,19 +175,20 @@ describe('SchemaPanel schema proposal review', () => {
       issues: [{ kind: 'missing', key: 'unreturned' }],
     })
 
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 applied · 1 unresolved · 1 conflicts')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('3 accepted · 0 rejected')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 missing')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent("1 description and 1 allowed-value list were not changed — chat edits don't change these.")
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('2 applied · 1 unresolved · 1 conflicts')
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('2 accepted · 1 rejected')
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('missing: unreturned')
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('unknown-key: missing.child')
+    expect(screen.getByTestId('schema-proposal-summary')).not.toHaveTextContent('were not changed')
     expect(screen.getAllByText('heading')).toHaveLength(1)
-    expect(screen.queryByText('title')).not.toBeInTheDocument()
+    expect(screen.getAllByText('title')).toHaveLength(1)
     expect(input).toBeDisabled()
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Accept change to heading' }))
 
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('2 accepted · 1 rejected')
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 accepted · 2 rejected')
     expect(screen.getAllByText('heading')).toHaveLength(1)
-    expect(screen.queryByText('title')).not.toBeInTheDocument()
+    expect(screen.getAllByText('title')).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
 
@@ -80,6 +197,26 @@ describe('SchemaPanel schema proposal review', () => {
       nodes[0],
       { id: 'gender', name: 'sex', type: 'string', allowedValues: ['woman', 'man'] },
     ])
+  })
+
+  it('explains a conflict created by selective acceptance', async () => {
+    renderPanel()
+    await send({
+      status: 'proposed',
+      fields: {
+        title: { name: 'gender', type: 'number', removed: false },
+        gender: { name: 'title', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Accept change to title' }))
+
+    expect(screen.getByText('Conflict')).toHaveAttribute('title', expect.stringContaining('review decision'))
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 applied')
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 conflicts')
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeEnabled()
   })
 
   it('gives an added group and child independent decisions', async () => {
@@ -110,6 +247,108 @@ describe('SchemaPanel schema proposal review', () => {
     ])
   })
 
+  it('rejects dependent additions with their parent and disables a no-op apply', async () => {
+    const onNodesChange = renderPanel()
+    await send({
+      status: 'proposed',
+      fields: {
+        title: { name: 'title', type: 'string', removed: false },
+        gender: { name: 'gender', type: 'string', removed: false },
+      },
+      additions: [
+        { path: ['new_group'], type: 'object' },
+        { path: ['new_group', 'new_child'], type: 'string' },
+      ],
+      issues: [],
+    })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Accept change to new_group' }))
+
+    expect(screen.getByRole('checkbox', { name: 'Accept change to new_group' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Accept change to new_child' })).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
+    expect(onNodesChange).not.toHaveBeenCalled()
+  })
+
+  it('expands ancestors so a nested before-and-after change is visible', async () => {
+    renderPanel(vi.fn(), [{
+      id: 'root',
+      name: 'root',
+      type: 'object',
+      children: [{
+        id: 'group',
+        name: 'group',
+        type: 'object',
+        children: [{ id: 'leaf', name: 'leaf', type: 'string' }],
+      }],
+    }])
+
+    await send({
+      status: 'proposed',
+      fields: {
+        root: { name: 'root', type: 'object', removed: false },
+        'root.group': { name: 'group', type: 'object', removed: false },
+        'root.group.leaf': { name: 'renamed_leaf', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    })
+
+    expect(screen.getByText('leaf')).toBeInTheDocument()
+    expect(screen.getByText('renamed_leaf')).toBeInTheDocument()
+  })
+
+  it('reveals the contents and losses of a removed nested group', async () => {
+    renderPanel(vi.fn(), [{
+      id: 'root',
+      name: 'root',
+      type: 'object',
+      children: [{
+        id: 'group',
+        name: 'group',
+        type: 'object',
+        description: 'Research rule',
+        children: [{ id: 'leaf', name: 'leaf', type: 'string' }],
+      }],
+    }])
+
+    await send({
+      status: 'proposed',
+      fields: {
+        root: { name: 'root', type: 'object', removed: false },
+        'root.group': { name: 'group', type: 'object', removed: true },
+        'root.group.leaf': { name: 'leaf', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    })
+
+    expect(screen.getByText('leaf')).toBeInTheDocument()
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Removing this field also removes its description and its nested fields.')
+  })
+
+  it('shows nested fields that a container-to-scalar change will delete', async () => {
+    renderPanel(vi.fn(), [{
+      id: 'group',
+      name: 'group',
+      type: 'object',
+      children: [{ id: 'leaf', name: 'leaf', type: 'string' }],
+    }])
+
+    await send({
+      status: 'proposed',
+      fields: {
+        group: { name: 'group', type: 'string', removed: false },
+        'group.leaf': { name: 'leaf', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    })
+
+    expect(screen.getByText('leaf')).toBeInTheDocument()
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Retyping across the container boundary removed its nested fields.')
+  })
+
   it('discards the proposal without changing the schema', async () => {
     const onNodesChange = renderPanel()
     await send({
@@ -127,6 +366,36 @@ describe('SchemaPanel schema proposal review', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument())
     expect(screen.getByText('title')).toBeInTheDocument()
     expect(onNodesChange).not.toHaveBeenCalled()
+  })
+
+  it('discards a chat response when the schema changed while the request was running', async () => {
+    let resolveResponse!: (response: SchemaEditResponse) => void
+    requestSchemaEdit.mockReturnValueOnce(new Promise<SchemaEditResponse>((resolve) => {
+      resolveResponse = resolve
+    }))
+    const onNodesChange = renderPanel()
+    const chatInput = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(chatInput, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(chatInput, { key: 'Enter' })
+
+    fireEvent.click(screen.getByTitle('Edit title'))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'heading' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await act(async () => resolveResponse({
+      status: 'proposed',
+      fields: {
+        title: { name: 'title', type: 'string', removed: false },
+        gender: { name: 'gender', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    }))
+
+    expect(await screen.findByText('Schema changed while the request was running. Send the request again.')).toBeInTheDocument()
+    expect(screen.getByText('heading')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(onNodesChange.mock.calls[0][0]).toEqual([{ ...nodes[0], name: 'heading' }, nodes[1]])
   })
 
   it.each([

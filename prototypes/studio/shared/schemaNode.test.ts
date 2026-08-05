@@ -5,7 +5,12 @@ import {
   enumerateFieldPaths,
   nodesToTemplate,
   templateToNodes,
+  type SchemaNode,
 } from './schemaNode'
+
+// @ts-expect-error Closed-set values are valid only on string fields.
+const invalidClosedSetNode: SchemaNode = { id: 'count', name: 'count', type: 'number', allowedValues: ['one', 'two'] }
+void invalidClosedSetNode
 
 describe('SchemaNode conversion', () => {
   it('round-trips closed sets, repeating groups, and repeating string lists', () => {
@@ -24,6 +29,12 @@ describe('SchemaNode conversion', () => {
     expect(nodesToTemplate(nodes)).toEqual(template)
   })
 
+  it('round-trips a repeating scalar field without changing its item type', () => {
+    const template = { dates: ['date'] }
+
+    expect(nodesToTemplate(templateToNodes(template))).toEqual(template)
+  })
+
   it('enumerates nodes without exposing descriptions or allowed-value members', () => {
     const nodes = templateToNodes({
       place: { _description: 'Researcher-authored rule', region: ['north', 'south'] },
@@ -40,5 +51,14 @@ describe('SchemaNode conversion', () => {
     ]
 
     expect(duplicateFieldKeys(enumerateFieldPaths(duplicate))).toEqual(['same'])
+  })
+
+  it('refuses to serialize duplicate sibling field names', () => {
+    const duplicate = [
+      { id: 'a', name: 'same', type: 'string' },
+      { id: 'b', name: 'same', type: 'number' },
+    ]
+
+    expect(() => nodesToTemplate(duplicate)).toThrow('Duplicate field name: same')
   })
 })
