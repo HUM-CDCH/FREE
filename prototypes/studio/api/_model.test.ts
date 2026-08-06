@@ -1,13 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  editSchemaWithModel,
+  generateSchemaEditJson,
   extractWithModel,
   generateSchemaWithModel,
   renderNuExtractPrompt,
   streamChatWithModel,
 } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
-import { FIELD_TYPES } from '../shared/allowedValues.js'
 import {
   DELETE as clearLlmInspector,
   GET as getLlmInspector,
@@ -188,6 +187,11 @@ describe('extractWithModel', () => {
     )
     expect(request).not.toHaveBeenCalled()
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
+    const instructions = generateTextMock.mock.calls[0][0].instructions as string
+    expect(instructions).toContain('direct extracted values at their schema keys')
+    expect(instructions).toContain('evidence belongs only in the sibling _evidence objects')
+    expect(instructions).toContain('Never wrap a direct value')
+    expect(instructions).not.toContain('Each schema leaf is an evidence object')
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
   })
 })
@@ -225,28 +229,37 @@ describe('generateSchemaWithModel', () => {
 })
 
 describe('interactive model operations', () => {
-  it('uses the shared field types for schema edits', async () => {
-    generateTextMock.mockResolvedValue({
-      text: JSON.stringify([
-        ...FIELD_TYPES.map((type) => ({ op: 'add', name: type, type })),
-        { op: 'add', name: 'unsupported', type: 'unsupported' },
-      ]),
+  it('uses prompted JSON without structured output on a prompt route', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
+
+    const result = await generateSchemaEditJson('schema prompt', undefined, generalTarget)
+
+    expect(generateTextMock.mock.calls[0][0]).toMatchObject({
+      reasoning: 'none',
+      messages: [{ role: 'user', content: 'schema prompt' }],
     })
-
-    const ops = await editSchemaWithModel({}, 'Add fields', null, undefined, generalTarget)
-    const prompt = generateTextMock.mock.calls[0][0].messages[0].content
-
-    expect(prompt).toContain(`"type":"${FIELD_TYPES.join('|')}"`)
-    expect(ops.map((op) => 'type' in op ? op.type : undefined)).toEqual(FIELD_TYPES)
+    expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('output')
+    expect(result.text).toBe('{"fields":{},"additions":[]}')
   })
 
-  it('adds Source Markdown to schema editing only when supplied', async () => {
-    generateTextMock.mockResolvedValue({ text: '[]' })
-    await editSchemaWithModel({}, 'No changes', null, undefined, generalTarget)
-    expect(generateTextMock.mock.calls[0][0].messages[0].content).not.toContain('Source Document Markdown:')
+  it('requests bounded JSON with reasoning disabled on a native route', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"fields":{},"additions":[]}', finishReason: 'stop' })
 
-    await editSchemaWithModel({}, 'No changes', '# Report', undefined, generalTarget)
-    expect(generateTextMock.mock.calls[1][0].messages[0].content).toContain('Source Document Markdown:\n# Report')
+    await generateSchemaEditJson('schema prompt', undefined, { ...generalTarget, jsonOutput: 'native' })
+
+    expect(generateTextMock.mock.calls[0][0]).toMatchObject({
+      output: expect.anything(),
+      reasoning: 'none',
+      messages: [{ role: 'user', content: 'schema prompt' }],
+    })
+  })
+
+  it('rejects a length-truncated schema edit before parsing', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"fields":', finishReason: 'length' })
+
+    await expect(generateSchemaEditJson('schema prompt', undefined, generalTarget)).rejects.toMatchObject({
+      code: 'invalid_model_output',
+    })
   })
 
   it('sanitizes model errors after the chat stream is committed', async () => {

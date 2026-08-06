@@ -4,7 +4,7 @@ import { ApiError } from '../api/_http'
 import {
   extractWithModel,
   generateSchemaWithModel,
-  editSchemaWithModel,
+  generateSchemaEditJson,
   streamChatWithModel,
 } from '../api/_model'
 import { POST as chatPost } from '../api/chat'
@@ -19,7 +19,7 @@ vi.mock('../api/_model', async (importOriginal) => {
     ...actual,
     extractWithModel: vi.fn(),
     generateSchemaWithModel: vi.fn(),
-    editSchemaWithModel: vi.fn(),
+    generateSchemaEditJson: vi.fn(),
     streamChatWithModel: vi.fn(),
   }
 })
@@ -124,23 +124,26 @@ describe('Studio API endpoints', () => {
 
   it('keeps schema-edit client parsing strict while preserving null document context', async () => {
     const malformed = new FormData()
-    malformed.append('current_template', '{broken')
+    malformed.append('current_nodes', '{broken')
     malformed.append('instruction', 'Add title')
     const invalid = await editPost(
       new Request('http://local.test/api/edit_schema', { method: 'POST', body: malformed }),
     )
     expect(invalid.status).toBe(400)
-    expect(editSchemaWithModel).not.toHaveBeenCalled()
+    expect(generateSchemaEditJson).not.toHaveBeenCalled()
 
-    vi.mocked(editSchemaWithModel).mockResolvedValue([])
+    vi.mocked(generateSchemaEditJson).mockResolvedValue({
+      text: '{"fields":{},"additions":[]}',
+    })
     const valid = new FormData()
-    valid.append('current_template', '{}')
+    valid.append('current_nodes', '[]')
     valid.append('instruction', 'No changes')
     const response = await editPost(
       new Request('http://local.test/api/edit_schema', { method: 'POST', body: valid }),
     )
     expect(response.status).toBe(200)
-    expect(editSchemaWithModel).toHaveBeenCalledWith({}, 'No changes', null, undefined)
+    await expect(response.json()).resolves.toEqual({ status: 'proposed', fields: {}, additions: [], issues: [] })
+    expect(generateSchemaEditJson).toHaveBeenCalledOnce()
   })
 
   it('maps buffered and pre-stream failures to the stable envelope', async () => {
