@@ -1173,8 +1173,9 @@
             <div class="node">
               <h4>lifespan · cleanup_loop()</h4>
               <p>
-                Hourly sweep: task directories past the 24 h retention window
-                are removed (skipping locked ones); orphaned
+                Hourly sweep: unpublished task directories past the 24 h
+                retention window are removed (skipping locked ones); completed
+                tasks are retained indefinitely; orphaned
                 <span class="m">.pending/</span> builds and unreferenced blobs
                 are pruned.
               </p>
@@ -1652,7 +1653,9 @@ data/documents/
               <ul>
                 <li>
                   Inactive task directories older than 24 hours are removed only
-                  after acquiring their task lock.
+                  after acquiring their task lock, and only if the task never
+                  published: a completed task is the pinned artifact reference a
+                  consumer's own store keeps, so it never expires.
                 </li>
                 <li>
                   Source blobs named by remaining task metadata or a live lease
@@ -1711,6 +1714,8 @@ data/documents/
                   <td>
                     Aggregate accounting deduplicates hard links by inode. Task
                     ZIP inputs and generated archive are capped at 256 MiB.
+                    Completed tasks are retained until deleted, so the total is a
+                    real ceiling on retained Source Documents.
                   </td>
                 </tr>
                 <tr>

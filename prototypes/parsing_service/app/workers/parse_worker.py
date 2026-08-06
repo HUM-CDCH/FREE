@@ -352,8 +352,16 @@ def reconcile_interrupted_tasks() -> int:
     return reconciled
 
 
+def _completed(entry: Path) -> bool:
+    """A published task is retained; unreadable metadata is not a publication."""
+    try:
+        return load_task_metadata(entry).get("status") == "completed"
+    except (TaskNotFoundError, ValueError):
+        return False
+
+
 def _remove_expired_task(entry: Path, task_id: str, cutoff: float) -> bool:
-    if task_id in _ACTIVE_TASK_IDS:
+    if task_id in _ACTIVE_TASK_IDS or _completed(entry):
         return False
     modified = _task_modified_at(entry)
     if modified is None or modified >= cutoff:
@@ -379,7 +387,14 @@ def _prune_document_stores() -> None:
 
 
 def cleanup_once(*, now: float | None = None) -> int:
-    """Remove expired inactive tasks and prune unreferenced source stores."""
+    """Remove expired unpublished tasks and prune unreferenced source stores.
+
+    A completed task never expires: its `task_id` is the `artifactReference` a
+    consumer's own store pins for the life of the Source Representation, and the
+    retained artifacts are the only copy — nothing upstream can re-supply them.
+    The window therefore only reclaims tasks that never published (abandoned
+    uploads, failures, interrupted parses).
+    """
     current = time.time() if now is None else now
     cutoff = current - 24 * 3600
     data_path = Path(DEFAULT_DATA_DIR)

@@ -433,22 +433,27 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(orphan.exists())
             self.assertTrue(referenced.exists())
 
+    def _expired_task(self, status: str) -> Path:
+        task_id = str(uuid.uuid4())
+        task_dir = paths.task_dir_for(task_id)
+        task_dir.mkdir(parents=True)
+        save_task_metadata(
+            task_dir,
+            {
+                "task_id": task_id,
+                "content_sha256": "a" * 64,
+                "status": status,
+                "params": {"source_name": "source.pdf"},
+            },
+        )
+        old_time = 1.0
+        os.utime(task_dir / "metadata.json", (old_time, old_time))
+        return task_dir
+
     def test_cleanup_skips_locked_active_task(self):
         with isolated_storage():
-            task_id = str(uuid.uuid4())
-            task_dir = paths.task_dir_for(task_id)
-            task_dir.mkdir(parents=True)
-            save_task_metadata(
-                task_dir,
-                {
-                    "task_id": task_id,
-                    "content_sha256": "a" * 64,
-                    "status": "completed",
-                    "params": {"source_name": "source.pdf"},
-                },
-            )
-            old_time = 1.0
-            os.utime(task_dir / "metadata.json", (old_time, old_time))
+            task_dir = self._expired_task("failed")
+            task_id = task_dir.name
 
             lock = FileLock(str(paths.task_lock_path(task_id)))
             with lock:
@@ -463,6 +468,15 @@ class TestParseWorker(unittest.IsolatedAsyncioTestCase):
                 1,
             )
             self.assertFalse(task_dir.exists())
+
+    # A consumer's store pins the task_id for the life of the Source
+    # Representation, so a published task outlives the retention window.
+    def test_cleanup_retains_completed_task(self):
+        with isolated_storage():
+            task_dir = self._expired_task("completed")
+
+            self.assertEqual(parse_worker.cleanup_once(now=2 * 24 * 3600), 0)
+            self.assertTrue(task_dir.exists())
 
 
 if __name__ == "__main__":
