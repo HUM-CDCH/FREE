@@ -61,6 +61,4 @@
 
 - [x] 9.1 Verify TypeScript compiles without errors (`pnpm --filter studio build`)
 - [ ] 9.2 Manually test drag reorder at root level; drag into group; drag child out to root
-- [ ] 9.3 Manually test inline edit (rename + retype)
-- [ ] 9.4 Manually test chat suggestion chips → diff card → apply and discard
 - [ ] 9.5 Test auto-scroll by dragging a field with the schema list taller than the panel

@@ -1,8 +1,5 @@
-# schema-inline-diff Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change inline-diff-preview. Update Purpose after archive.
-## Requirements
 ### Requirement: Schema tree renders diff state inline
 When a pending chat edit exists, the schema tree SHALL project the immutable proposal with each affected node rendered once and annotated directly on its tree row. Added, removed, and modified nodes SHALL be keyed by their real or provisional node id; modified nodes SHALL use complete before and after data and SHALL NOT create ghost nodes. Changing acceptance SHALL update replay outcomes without changing which rows or proposed values are rendered.
 
@@ -45,4 +42,3 @@ While a pending change exists, nodes that carry a diff status (added, removed, o
 
 - **WHEN** a pending change exists but a given node has no diff status
 - **THEN** that node's edit and remove controls remain visible
-

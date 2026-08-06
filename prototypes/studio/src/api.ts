@@ -1,6 +1,6 @@
 import { isRecord } from './template'
-import { type SchemaNode, nodesToTemplate } from './schemaNode'
-import type { SchemaOp } from './schemaOps'
+import type { SchemaNode } from '../shared/schemaNode'
+import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 
 export const API_BASE = '/api'
 
@@ -185,11 +185,10 @@ export async function requestExtraction(
 //   return postForm('/markdown', form, decodeMarkdownDone, signal)
 // }
 
-function decodeSchemaOps(data: unknown): SchemaOp[] {
-  if (!isRecord(data) || !Array.isArray(data.ops)) {
-    throw new Error("edit_schema: response missing 'ops' — API contract drift?")
-  }
-  return data.ops as SchemaOp[]
+function decodeSchemaEdit(data: unknown): SchemaEditResponse {
+  const parsed = schemaEditResponseSchema.safeParse(data)
+  if (!parsed.success) throw new Error('edit_schema: invalid response — API contract drift?')
+  return parsed.data
 }
 
 export async function requestSchemaEdit(
@@ -197,10 +196,10 @@ export async function requestSchemaEdit(
   instruction: string,
   documentMarkdown: string | null,
   signal?: AbortSignal,
-): Promise<SchemaOp[]> {
+): Promise<SchemaEditResponse> {
   const form = new FormData()
-  form.append('current_template', JSON.stringify(nodesToTemplate(nodes)))
+  form.append('current_nodes', JSON.stringify(nodes))
   form.append('instruction', instruction)
   if (documentMarkdown !== null) form.append('document_markdown', documentMarkdown)
-  return postForm('/edit_schema', form, decodeSchemaOps, signal)
+  return postForm('/edit_schema', form, decodeSchemaEdit, signal)
 }
