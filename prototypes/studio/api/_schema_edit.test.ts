@@ -119,16 +119,70 @@ describe('proposeSchemaEdit', () => {
     })
   })
 
-  it.each(['[]', '{"fields":"wrong"}', 'not json'])('fails unusable output %s', async (text) => {
+  it.each(['', '[]', '{"fields":"wrong"}', 'not json'])('fails unusable output %s', async (text) => {
     const response = await proposeSchemaEdit(nodes, 'change', null, { generate: vi.fn().mockResolvedValue(text) })
     expect(response).toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
   })
 
-  it('preserves operational model errors for the HTTP adapter', async () => {
-    const error = new ApiError(409, 'invalid_model_config', 'The Interaction Route is not configured.')
+  it.each(['invalid_model_output', 'model_operation_failed'])('converts %s into a failed response', async (code) => {
+    const response = await proposeSchemaEdit(nodes, 'change', null, {
+      generate: vi.fn().mockRejectedValue(new ApiError(502, code, 'Model failure.')),
+    })
+
+    expect(response).toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
+  })
+
+  it.each([
+    [409, 'invalid_model_config'],
+    [503, 'keyring_unavailable'],
+    [409, 'unsupported_temperature'],
+    [500, 'unexpected_failure'],
+  ])('preserves non-model ApiError %s %s for the HTTP adapter', async (status, code) => {
+    const error = new ApiError(status, code, 'Operational failure.')
 
     await expect(proposeSchemaEdit(nodes, 'change', null, {
       generate: vi.fn().mockRejectedValue(error),
     })).rejects.toBe(error)
+  })
+
+  it('keeps a valid partial proposal when retry output is malformed', async () => {
+    const generate = vi.fn()
+      .mockResolvedValueOnce(JSON.stringify({
+        fields: { group: { name: 'renamed', type: 'object', removed: false } },
+        additions: [],
+      }))
+      .mockResolvedValueOnce('')
+
+    await expect(proposeSchemaEdit(nodes, 'rename group', null, { generate })).resolves.toEqual({
+      status: 'proposed',
+      fields: { group: { name: 'renamed', type: 'object', removed: false } },
+      additions: [],
+      issues: [{ kind: 'missing', key: 'group.child' }],
+    })
+  })
+
+  it('preserves an operational error from a retry', async () => {
+    const error = new ApiError(503, 'keyring_unavailable', 'Credential store unavailable.')
+    const generate = vi.fn()
+      .mockResolvedValueOnce(JSON.stringify({
+        fields: { group: { name: 'renamed', type: 'object', removed: false } },
+        additions: [],
+      }))
+      .mockRejectedValueOnce(error)
+
+    await expect(proposeSchemaEdit(nodes, 'rename group', null, { generate })).rejects.toBe(error)
+  })
+
+  it('instructs the model about complete independent edits and additions', async () => {
+    const generate = vi.fn().mockResolvedValue(JSON.stringify({ fields: {}, additions: [] }))
+    await proposeSchemaEdit([], 'add fields', null, { generate })
+    const prompt = generate.mock.calls[0][0]
+
+    expect(prompt).toContain('"new_scalar"')
+    expect(prompt).toContain('"new_dates"')
+    expect(prompt).toContain('additions must always be present; use []')
+    expect(prompt).toContain('treat each field property independently')
+    expect(prompt).toContain('itemType is allowed only when type is array')
+    expect(prompt).toContain('must not invent root path segments')
   })
 })

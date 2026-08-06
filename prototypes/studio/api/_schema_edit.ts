@@ -112,7 +112,7 @@ export async function proposeSchemaEdit(
         unknownIssues.push(...unknownFieldIssues(retry.fields, retryExpected))
         unresolved = validateExpected(retry.fields, retryExpected, accepted)
       } catch (error) {
-        if (error instanceof ApiError) throw error
+        if (error instanceof ApiError && !isModelProposalFailure(error)) throw error
         // The validated first-pass subset remains a useful partial proposal.
       }
     }
@@ -126,9 +126,13 @@ export async function proposeSchemaEdit(
     }
     return { status: 'proposed', fields: Object.fromEntries(accepted), additions, issues }
   } catch (error) {
-    if (error instanceof ApiError) throw error
+    if (error instanceof ApiError && !isModelProposalFailure(error)) throw error
     return { status: 'failed', message: 'Schema edit generation failed.' }
   }
+}
+
+function isModelProposalFailure(error: ApiError): boolean {
+  return error.code === 'invalid_model_output' || error.code === 'model_operation_failed'
 }
 
 async function readEnvelope(text: string): Promise<z.infer<typeof modelEnvelopeSchema>> {
@@ -204,14 +208,15 @@ Existing fields, keyed by opaque identifiers that must be echoed exactly:
 ${JSON.stringify(Object.fromEntries(fields.map((field) => [field.key, promptFieldValue(field)])), null, 2)}${source}
 
 Return one JSON object:
-{"fields":{"opaque.key":{"name":"field_name","type":"${FIELD_TYPES.join('|')}","removed":false}},"additions":[{"path":["post_edit_parent","new_field"],"type":"array","itemType":"date"}]}
+{"fields":{"opaque.key":{"name":"field_name","type":"${FIELD_TYPES.join('|')}","removed":false}},"additions":[{"path":["existing_parent","new_scalar"],"type":"string"},{"path":["existing_parent","new_dates"],"type":"array","itemType":"date"}]}
 
 Rules:
 - fields must contain every supplied opaque key exactly once, including unchanged and removed fields
-- name, type, and array itemType are the only editable properties
-- every array field and addition requires itemType: a scalar type (${SCALAR_FIELD_TYPES.join('|')}) for a repeating scalar, or null for repeating records
+- additions must always be present; use [] when no fields are added
+- treat each field property independently: unless explicitly told to remove that field use removed false; unless explicitly told to rename it preserve its supplied name; unless explicitly told to retype it preserve its supplied type and itemType
+- itemType is allowed only when type is array; every array field and array addition requires itemType: a scalar type (${SCALAR_FIELD_TYPES.join('|')}) for a repeating scalar, or null for repeating records
 - removed is true only for a removed existing field
-- additions use full structural paths in the post-edit namespace
+- additions use full structural paths in the post-edit namespace and must not invent root path segments that are not existing or explicitly added fields
 - return JSON only`
 }
 

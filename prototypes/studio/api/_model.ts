@@ -154,7 +154,8 @@ export async function extractWithModel(
     generated = await generateWithGenericJsonPrompt(resolved, {
       instructions:
         'Produce a source-grounded FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
-        'Each schema leaf is an evidence object with value, an exact source snippet, and a page number when available. ' +
+        'Keep direct extracted values at their schema keys; source evidence belongs only in the sibling _evidence objects. ' +
+        'Never wrap a direct value in an object such as {"value":...}. ' +
         'Return only one JSON object with no Markdown or commentary.',
       request,
       documentParts: documentParts.parts,

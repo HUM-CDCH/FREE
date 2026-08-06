@@ -5,6 +5,7 @@ import { countTemplateFields, isRecord } from './template'
 import { isAllowedValues, type FieldType } from '../shared/allowedValues'
 import {
   duplicateFieldKeys,
+  countSchemaMetadata,
   enumerateFieldPaths,
   type SchemaNode,
   mkId,
@@ -797,7 +798,7 @@ function SchemaPanel({
         if (proposal.changes.length === 0 && proposal.issues.length === 0) {
           setChat(c => [...c, { role: 'assistant', text: 'Proposal checked every field: 0 changes proposed.' }])
         } else {
-          setAcceptedChangeIds(new Set(proposal.changes.filter(({ outcome }) => outcome !== 'unresolved').map(({ id }) => id)))
+          setAcceptedChangeIds(new Set(proposal.changes.map(({ id }) => id)))
           setPending({ ...proposal, original })
           const ancestors = ancestorIdsOf(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
           setExpandedIds((current) => new Set([...current, ...ancestors]))
@@ -886,6 +887,7 @@ function SchemaPanel({
   // Task 8.4 – disable chat input while pending
   const chatBlocked = !!pending || chatLoading
   const replay = pending ? replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds) : null
+  const metadataCounts = pending ? countSchemaMetadata(pending.original) : null
   const replayOutcomes = replay ? [...replay.outcomes.entries()] : []
   const proposalCounts = pending ? {
     accepted: acceptedChangeIds.size,
@@ -1327,6 +1329,9 @@ function SchemaPanel({
               <div className="mb-2 text-[10px] leading-relaxed text-ink-muted" data-testid="schema-proposal-summary">
                 <p>{proposalCounts!.accepted} accepted · {proposalCounts!.rejected} rejected</p>
                 <p>{proposalCounts!.applied} applied · {proposalCounts!.unresolved} unresolved · {proposalCounts!.conflicts} conflicts</p>
+                {metadataCounts && (metadataCounts.descriptions > 0 || metadataCounts.allowedValues > 0) && (
+                  <p>Metadata not directly editable by chat: {metadataCounts.descriptions} description{metadataCounts.descriptions === 1 ? '' : 's'} · {metadataCounts.allowedValues} allowed-value list{metadataCounts.allowedValues === 1 ? '' : 's'}</p>
+                )}
                 {pending.issues.map((issue, index) => <p key={`${issue.kind}-${issue.key}-${index}`}>{issue.kind}: {issue.key}</p>)}
                 {pending.changes.map((change) => change.note ? <p key={`note-${change.id}`}>{change.note}</p> : null)}
                 {pending.changes.map((change) => change.outcome === 'unresolved' && change.reason

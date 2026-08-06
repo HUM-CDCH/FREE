@@ -187,6 +187,11 @@ describe('extractWithModel', () => {
     )
     expect(request).not.toHaveBeenCalled()
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
+    const instructions = generateTextMock.mock.calls[0][0].instructions as string
+    expect(instructions).toContain('direct extracted values at their schema keys')
+    expect(instructions).toContain('evidence belongs only in the sibling _evidence objects')
+    expect(instructions).toContain('Never wrap a direct value')
+    expect(instructions).not.toContain('Each schema leaf is an evidence object')
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
   })
 })
