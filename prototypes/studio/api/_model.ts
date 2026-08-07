@@ -268,12 +268,13 @@ async function generateWithGenericJsonPrompt(
           ],
         },
       ],
+      reasoning: 'none',
       ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
     })
     return { response: generated.text }
   } catch (error) {
-    if (target.jsonOutput === 'native' && NoObjectGeneratedError.isInstance(error) && error.message) {
-      return { response: error.message }
+    if (target.jsonOutput === 'native' && NoObjectGeneratedError.isInstance(error) && error.text) {
+      return { response: error.text }
     }
     throw asModelOperationError(error)
   }

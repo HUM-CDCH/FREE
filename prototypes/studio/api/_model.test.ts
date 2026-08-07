@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { MockLanguageModelV4 } from 'ai/test'
 import {
   generateSchemaEditJson,
   extractWithModel,
@@ -42,6 +43,22 @@ const generalTarget: ExecutionTarget = {
   },
   jsonOutput: 'prompt',
   temperatureSupported: false,
+}
+
+function mockGeneration(text: string) {
+  return {
+    content: [{ type: 'text' as const, text }],
+    finishReason: { unified: 'stop' as const, raw: undefined },
+    usage: {
+      inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined },
+      outputTokens: { total: 20, text: 20, reasoning: undefined },
+    },
+    warnings: [],
+  }
+}
+
+function schemaRecord(schema: unknown): Record<string, unknown> {
+  return schema as Record<string, unknown>
 }
 
 function stubOllamaResponses(...generations: readonly {
@@ -187,12 +204,115 @@ describe('extractWithModel', () => {
     )
     expect(request).not.toHaveBeenCalled()
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
+    expect(generateTextMock.mock.calls[0][0]).toHaveProperty('reasoning', 'none')
     const instructions = generateTextMock.mock.calls[0][0].instructions as string
     expect(instructions).toContain('direct extracted values at their schema keys')
     expect(instructions).toContain('evidence belongs only in the sibling _evidence objects')
     expect(instructions).toContain('Never wrap a direct value')
     expect(instructions).not.toContain('Each schema leaf is an evidence object')
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
+  })
+
+  it('uses native JSON output and splits validated evidence', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const rawOutput = JSON.stringify({
+      records: [{
+        grave_number: 8,
+        skeleton: {
+          preservation: 'Jaw fragment',
+          parts: [{
+            number: '8-1',
+            description: 'Jaw and teeth',
+            _evidence: {
+              number: { snippet: '8-1', page: 1 },
+              description: { snippet: 'Jaw and teeth', page: 1 },
+            },
+          }],
+          _evidence: { preservation: { snippet: 'Jaw fragment', page: 1 } },
+        },
+        _evidence: { grave_number: { snippet: 'Grave 8', page: 1 } },
+      }],
+    })
+    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
+      async () => mockGeneration(rawOutput),
+    )
+    const target: ExecutionTarget = {
+      ...generalTarget,
+      model: new MockLanguageModelV4({ doGenerate }),
+      jsonOutput: 'native',
+    }
+    const result = await extractWithModel(
+      {
+        document,
+        template: {
+          records: [{
+            grave_number: 'integer',
+            skeleton: {
+              preservation: 'verbatim-string',
+              parts: [{ number: 'string', description: 'string' }],
+            },
+          }],
+        },
+      },
+      target,
+    )
+
+    const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
+      type?: string
+      schema?: unknown
+    } | undefined
+    expect(responseFormat).toEqual({ type: 'json' })
+    expect(result.result).toMatchObject({ records: [{ grave_number: 8 }] })
+    expect(result.raw).toBe(rawOutput)
+    expect(result.evidence).toMatchObject({
+      records: [{
+        grave_number: { value: 8, snippet: 'Grave 8', page: 1 },
+        skeleton: {
+          parts: [{ number: { value: '8-1', snippet: '8-1', page: 1 } }],
+        },
+      }],
+    })
+  })
+
+  it('repairs and preserves partial native extraction results', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
+      async () => mockGeneration('{"records":[{"grave_number":8}]} trailing'),
+    )
+    const target: ExecutionTarget = {
+      ...generalTarget,
+      model: new MockLanguageModelV4({ doGenerate }),
+      jsonOutput: 'native',
+    }
+
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const result = await extractWithModel({
+      document,
+      template: { records: [{ grave_number: 'integer', note: 'string' }] },
+    }, target)
+
+    expect(result.result).toEqual({ records: [{ grave_number: 8 }] })
+    expect(result.evidence).toBeNull()
+    expect(warning).toHaveBeenCalledOnce()
+    expect(doGenerate).toHaveBeenCalledOnce()
+  })
+
+  it('does not send a response schema to prompt-only providers', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
+      async () => mockGeneration(
+        '{"grave":[{"name":"Grave 1","_evidence":{"name":{"snippet":"Grave 1","page":1}}}]}',
+      ),
+    )
+    await extractWithModel(
+      { document, template: { grave: [{ name: 'verbatim-string' }] } },
+      { ...generalTarget, model: new MockLanguageModelV4({ doGenerate }) },
+    )
+
+    expect(schemaRecord(doGenerate.mock.calls[0][0]).responseFormat).toBeUndefined()
   })
 })
 

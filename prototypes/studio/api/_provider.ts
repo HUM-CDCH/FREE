@@ -440,7 +440,7 @@ export const providerTable = {
     defaultBaseUrl: null,
     authentication: 'external',
     supportsNuextractRaw: false,
-    jsonOutput: 'prompt',
+    jsonOutput: 'native',
     temperatureSupported: false,
     execution: ['general'],
     discover: discoverCodex,

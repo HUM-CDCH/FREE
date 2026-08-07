@@ -294,7 +294,7 @@ describe('resolveCapabilityRoute', () => {
     ['openai', 'https://api.openai.com/v1', 'native', true],
     ['anthropic', 'https://api.anthropic.com/v1', 'prompt', true],
     ['google', 'https://generativelanguage.googleapis.com/v1beta', 'native', true],
-    ['codex-cli', null, 'prompt', false],
+    ['codex-cli', null, 'native', false],
     ['claude-code', null, 'prompt', false],
     ['openai-compatible', 'https://gateway.example/v1', 'prompt', true],
   ] as const)('constructs the exact %s general target', async (provider, baseUrl, jsonOutput, temperatureSupported) => {
