@@ -26,7 +26,6 @@ const ROUTE =
 const storedAnnotationsSchema = z.array(annotationSchema.strip())
 const resultPayloadSchema = z.object({
   result: z.json(),
-  evidence: z.json().nullable().default(null),
 })
 const failureSchema = z.object({ code: z.string(), message: z.string() })
 
@@ -93,7 +92,7 @@ function reopenResponse(snapshot: DocumentReopenSnapshot) {
       resources: {
         sourcePdfUrl: resource('pdf'),
         markdownUrl: resource('markdown'),
-        parsedDocumentUrl: resource('parsed-document'),
+        parsedDocumentUrl: resource('source'),
       },
     },
     annotationSet:
@@ -110,6 +109,7 @@ function reopenResponse(snapshot: DocumentReopenSnapshot) {
       snapshot.extractionSchema &&
       {
         extractionSchemaId: snapshot.extractionSchema.extractionSchemaId,
+        schemaRevisionId: snapshot.extractionSchema.schemaRevisionId,
         revisionNumber: snapshot.extractionSchema.revisionNumber,
         template: snapshot.extractionSchema.schemaTree,
       },

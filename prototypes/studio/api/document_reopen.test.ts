@@ -24,6 +24,8 @@ const headRepresentationId = '51000000-0000-4000-8002-000000000002'
 const extractionSchemaId = '51000000-0000-4000-8003-000000000001'
 const staleSchemaRevisionId = '51000000-0000-4000-8004-000000000001'
 const headSchemaRevisionId = '51000000-0000-4000-8004-000000000002'
+const foreignExtractionSchemaId = '51000000-0000-4000-8003-000000000002'
+const foreignSchemaRevisionId = '51000000-0000-4000-8004-000000000003'
 
 const at = (minute: number) =>
   new Date(Date.UTC(2026, 6, 31, 12, minute, 0))
@@ -192,8 +194,19 @@ function seededTables(): Record<string, Row[]> {
     ],
     ExtractionSchema: [
       { id: extractionSchemaId, projectContextId, createdAt: at(6) },
+      {
+        id: foreignExtractionSchemaId,
+        projectContextId: otherProjectContextId,
+        createdAt: at(7),
+      },
     ],
     SchemaRevision: [
+      {
+        id: foreignSchemaRevisionId,
+        extractionSchemaId: foreignExtractionSchemaId,
+        revisionNumber: 1,
+        schemaTree: { foreign: 'verbatim-string' },
+      },
       {
         id: staleSchemaRevisionId,
         extractionSchemaId,
@@ -214,7 +227,7 @@ function seededTables(): Record<string, Row[]> {
         schemaRevisionId: headSchemaRevisionId,
         outcome: 'SUCCEEDED',
         createdAt: at(20),
-        resultPayload: { result: { wrong: 'representation' }, evidence: null },
+        resultPayload: { result: { wrong: 'representation' } },
         failure: null,
       },
       {
@@ -223,7 +236,7 @@ function seededTables(): Record<string, Row[]> {
         schemaRevisionId: staleSchemaRevisionId,
         outcome: 'SUCCEEDED',
         createdAt: at(21),
-        resultPayload: { result: { wrong: 'schema' }, evidence: null },
+        resultPayload: { result: { wrong: 'schema' } },
         failure: null,
       },
       {
@@ -232,7 +245,7 @@ function seededTables(): Record<string, Row[]> {
         schemaRevisionId: headSchemaRevisionId,
         outcome: 'SUCCEEDED',
         createdAt: at(9),
-        resultPayload: { result: { older: true }, evidence: null },
+        resultPayload: { result: { older: true } },
         failure: null,
       },
       {
@@ -241,7 +254,7 @@ function seededTables(): Record<string, Row[]> {
         schemaRevisionId: headSchemaRevisionId,
         outcome: 'SUCCEEDED',
         createdAt: at(10),
-        resultPayload: { result: { newest: true }, evidence: null },
+        resultPayload: { result: { newest: true } },
         failure: null,
       },
     ],
@@ -289,6 +302,7 @@ describe('getDocumentReopenSnapshot', () => {
       },
       extractionSchema: {
         extractionSchemaId,
+        schemaRevisionId: headSchemaRevisionId,
         revisionNumber: 2,
         schemaTree: { head: 'verbatim-string' },
       },
@@ -296,7 +310,7 @@ describe('getDocumentReopenSnapshot', () => {
         extractionId: 'extraction-compatible-newest',
         createdAt: at(10),
         outcome: 'SUCCEEDED',
-        resultPayload: { result: { newest: true }, evidence: null },
+        resultPayload: { result: { newest: true } },
         failure: null,
         reviewDecisions: [
           {
@@ -380,9 +394,11 @@ describe('persistReviewedExtraction', () => {
     const persisted = await store.persistReviewedExtraction(
       headRepresentationId,
       {
+        // Deliberately not the Schema head: the accepted Extraction keeps the
+        // revision it was produced with.
+        schemaRevisionId: staleSchemaRevisionId,
         resultPayload: {
           result: { number: '24-1' },
-          evidence: { number: ['anchor-number-24-1'] },
         },
         modelAttribution: { provider: 'fixture', model: 'accepted-output' },
         reviewDecisions: [
@@ -395,6 +411,10 @@ describe('persistReviewedExtraction', () => {
     )
 
     expect(persisted?.extractionId).toBe('Extraction-created-5')
+    expect(database.rows.Extraction.at(-1)).toMatchObject({
+      schemaRevisionId: staleSchemaRevisionId,
+      sourceRepresentationRevisionId: headRepresentationId,
+    })
     expect(database.writes.map((write) => write.table)).toEqual([
       'Extraction',
       'ReviewDecision',
@@ -405,6 +425,30 @@ describe('persistReviewedExtraction', () => {
       evidenceAnchorId: 'anchor-number-24-1',
       reviewedOccurrenceIds: ['occurrence-number-24-1'],
     })
+  })
+
+  it('writes nothing for a Schema Revision outside the Project Context', async () => {
+    const database = fakeDatabase(seededTables())
+    const store = createProjectStore(database as never)
+
+    for (const schemaRevisionId of [
+      foreignSchemaRevisionId,
+      '51000000-0000-4000-8004-0000000000ff',
+    ])
+      await expect(
+        store.persistReviewedExtraction(headRepresentationId, {
+          schemaRevisionId,
+          resultPayload: { result: { number: '24-1' } },
+          modelAttribution: { provider: 'fixture', model: 'accepted-output' },
+          reviewDecisions: [
+            {
+              evidenceAnchorId: 'anchor-number-24-1',
+              reviewedOccurrenceIds: ['occurrence-number-24-1'],
+            },
+          ],
+        }),
+      ).resolves.toBeNull()
+    expect(database.writes).toEqual([])
   })
 })
 
@@ -439,7 +483,7 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
         resources: {
           sourcePdfUrl: `/api/source-representations/${DEMO_REPRESENTATION_ID}/pdf`,
           markdownUrl: `/api/source-representations/${DEMO_REPRESENTATION_ID}/markdown`,
-          parsedDocumentUrl: `/api/source-representations/${DEMO_REPRESENTATION_ID}/parsed-document`,
+          parsedDocumentUrl: `/api/source-representations/${DEMO_REPRESENTATION_ID}/source`,
         },
       },
       annotationSet: null,
@@ -470,6 +514,7 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
       },
       extractionSchema: {
         extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
+        schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
         revisionNumber: 5,
         schemaTree: { site: 'verbatim-string' },
       },
@@ -477,7 +522,7 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
         extractionId: '00000000-0000-4000-8000-0000000000f1',
         createdAt: new Date('2026-07-31T13:00:00.000Z'),
         outcome: 'SUCCEEDED',
-        resultPayload: { result: { site: 'Ellekilde' }, evidence: null },
+        resultPayload: { result: { site: 'Ellekilde' } },
         failure: null,
         reviewDecisions: [
           {
@@ -511,7 +556,6 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
         outcome: 'succeeded',
         createdAt: '2026-07-31T13:00:00.000Z',
         result: { site: 'Ellekilde' },
-        evidence: null,
         reviewDecisions: [
           {
             evidenceAnchorId: 'anchor-7',

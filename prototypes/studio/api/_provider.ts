@@ -543,11 +543,17 @@ export async function probeConnection(
 }
 
 export type ModelOperation = 'extraction' | 'schema-suggestion' | 'chat' | 'schema-edit'
+/**
+ * What actually ran, as the persisted Extraction records it. Absent only for a
+ * target a caller constructed itself instead of resolving from a route.
+ */
+export type ModelAttribution = { provider: ProviderKind; modelId: string }
 export type GeneralExecutionTarget = {
   profile: 'general'
   model: LanguageModel
   jsonOutput: JsonOutputCapability
   temperatureSupported: boolean
+  attribution?: ModelAttribution
 }
 export type NuExtractRawExecutionTarget = {
   profile: 'nuextract-raw'
@@ -555,6 +561,7 @@ export type NuExtractRawExecutionTarget = {
   baseUrl: string
   authorization: string | null
   temperatureSupported: boolean
+  attribution?: ModelAttribution
 }
 export type ExecutionTarget = GeneralExecutionTarget | NuExtractRawExecutionTarget
 
@@ -621,6 +628,7 @@ export async function resolveCapabilityRoute(
       baseUrl: connection.baseUrl,
       authorization: credential === null ? null : `Bearer ${credential}`,
       temperatureSupported: true,
+      attribution: { provider: connection.provider, modelId: route.modelId },
     }
   }
   if (connection.baseUrl === null && entry.transport === 'http') {
@@ -638,5 +646,6 @@ export async function resolveCapabilityRoute(
     model,
     jsonOutput: entry.jsonOutput,
     temperatureSupported: entry.temperatureSupported,
+    attribution: { provider: connection.provider, modelId: route.modelId },
   }
 }

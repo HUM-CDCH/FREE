@@ -22,10 +22,18 @@ afterEach(() => vi.unstubAllGlobals())
 
 function readyController(): ExtractionController {
   return {
-    state: { status: 'ready', result: { title: 'Report' }, evidence: null },
+    state: { status: 'ready', result: { title: 'Report' } },
     canRun: true,
     hasResults: true,
     runExtraction: async () => {},
+    review: {
+      available: false,
+      canAccept: false,
+      saving: false,
+      reviewedExtractionId: null,
+      error: null,
+      accept: async () => {},
+    },
   }
 }
 
@@ -36,7 +44,7 @@ describe('requestExtraction', () => {
       'fetch',
       vi.fn().mockImplementation((_url: string, init: RequestInit) => {
         submittedTemplate = init.body instanceof FormData ? init.body.get('template') : null
-        return Promise.resolve(jsonResponse({ result: {}, evidence: null, reasoning: null, raw: '', pages: null }))
+        return Promise.resolve(jsonResponse({ result: {}, reasoning: null, raw: '', pages: null }))
       }),
     )
 
@@ -150,7 +158,7 @@ describe('parseDocumentToMarkdown', () => {
 describe('decoders', () => {
   it('fail loud when response contracts drift', () => {
     expect(() => decodeExtractDone({ raw: '{}' })).toThrow("extract: response missing 'result'")
-    expect(() => decodeExtractDone({ result: {}, raw: '{}' })).toThrow("extract: response missing 'evidence'")
+    expect(decodeExtractDone({ result: {}, raw: '{}' }).result).toEqual({})
     expect(() => decodeSchemaDone({ raw: '{}' })).toThrow("generate_schema: response missing 'template'")
   })
 })

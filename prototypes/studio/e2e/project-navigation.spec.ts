@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type {
   DocumentReopenSnapshot,
@@ -15,6 +16,10 @@ import {
 
 const sourcePdf = fileURLToPath(
   new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
+)
+const parsedDocument = await readFile(
+  fileURLToPath(new URL('../src/assets/parsed_document.v2.json', import.meta.url)),
+  'utf8',
 )
 
 const ELLEKILDE = DEMO_PROJECT_ID
@@ -77,6 +82,7 @@ const DURABLE = {
   },
   extractionSchema: {
     extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
+    schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
     revisionNumber: 4,
     schemaTree: { place: 'string' },
   },
@@ -84,7 +90,7 @@ const DURABLE = {
     extractionId: '00000000-0000-4000-8000-0000000000f1',
     createdAt: new Date('2026-08-01T08:00:00.000Z'),
     outcome: 'SUCCEEDED' as const,
-    resultPayload: { result: { place: 'Ellekilde' }, evidence: null },
+    resultPayload: { result: { place: 'Ellekilde' } },
     failure: null,
     reviewDecisions: [],
   },
@@ -239,6 +245,12 @@ async function stubStudio(
       return settle({
         path: sourcePdf,
         contentType: 'application/pdf',
+        headers: immutable,
+      })
+    if (pathname.endsWith('/source'))
+      return settle({
+        body: parsedDocument,
+        contentType: 'application/json',
         headers: immutable,
       })
     return settle({
@@ -417,7 +429,7 @@ test.describe('reopening a routed Source Document', () => {
     expect(Object.values(studio.snapshots[0].sourceRepresentation.resources)).toEqual([
       `/api/source-representations/${DEMO_REPRESENTATION_ID}/pdf`,
       `/api/source-representations/${DEMO_REPRESENTATION_ID}/markdown`,
-      `/api/source-representations/${DEMO_REPRESENTATION_ID}/parsed-document`,
+      `/api/source-representations/${DEMO_REPRESENTATION_ID}/source`,
     ])
     // And the two the workspace reads came from that revision, same-origin.
     expect(studio.requests).toContain(

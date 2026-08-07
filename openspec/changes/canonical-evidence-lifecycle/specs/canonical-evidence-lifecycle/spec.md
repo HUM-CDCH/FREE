@@ -73,3 +73,45 @@ suppressed without changing the resolved Evidence identity.
 - **WHEN** reopened canonical occurrences include valid geometry and invalid or
   rotated geometry
 - **THEN** valid geometry is highlighted and unsafe geometry is not rendered
+
+### Requirement: Review is an explicit action bound to what produced the result
+
+The researcher SHALL accept a successful Extraction Result through an explicit
+browser action that posts the result, the Schema Revision the extraction used,
+and one Review Decision per canonical Evidence Anchor the result cites. The
+action SHALL NOT be offered once the Extraction Schema in the browser is no
+longer that Schema Revision, and an anchor the Parsing Service did not publish
+SHALL NOT become a Review Decision.
+
+#### Scenario: Researcher accepts a result
+
+- **WHEN** the researcher accepts an Extraction Result citing canonical anchors
+- **THEN** the write carries the pinned Schema Revision and one Review Decision
+  per cited anchor, with that anchor's published occurrences reviewed
+
+### Requirement: The accepted Extraction keeps its Schema Revision
+
+A review write SHALL persist the Extraction against the Schema Revision the
+caller pinned, not the Schema head at write time, and SHALL reject a Schema
+Revision belonging to another Project Context without writing anything.
+
+#### Scenario: Schema head advanced after extraction
+
+- **WHEN** an accepted result pins a Schema Revision the head has moved past
+- **THEN** the Extraction is persisted against the pinned revision
+
+### Requirement: The model cites published Evidence, never its own
+
+An extraction SHALL read the canonical content of the pinned Source
+Representation with one citation label per published Evidence Anchor, and SHALL
+ask only for a value and the label it came from. A returned label SHALL resolve
+to its Evidence Anchor by exact lookup; a label the document never published
+SHALL resolve to no Evidence. Text matching against the PDF SHALL NOT be used
+to attach Evidence.
+
+#### Scenario: Model answers with an unpublished label
+
+- **WHEN** an extraction returns a citation label that is not in the pinned
+  generation
+- **THEN** that value keeps no Evidence Anchor and no Review Decision is offered
+  for it

@@ -23,7 +23,6 @@ import {
 } from './evidenceNavigation'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
-import EvidenceHighlightLayer from './EvidenceHighlightLayer'
 import { Button } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
@@ -120,6 +119,8 @@ function annotationInputsKey(items: AnnotationSetItem[], mode: AnnotationsMode) 
 export type DocumentWorkspaceProps = {
   pdfUrl: string
   filename: string
+  /** Null for a dev-opened local file, which has nothing durable to review against. */
+  sourceRepresentationId: string | null
   markdownUrl: string | null
   parsedDocumentUrl: string | null
   annotationSet: DocumentSnapshot['annotationSet']
@@ -138,13 +139,13 @@ function reopenedExtractionState(
   return {
     status: 'ready',
     result: extraction.result,
-    evidence: extraction.evidence,
   }
 }
 
 export function DocumentWorkspace({
   pdfUrl,
   filename,
+  sourceRepresentationId,
   markdownUrl,
   parsedDocumentUrl,
   annotationSet,
@@ -179,13 +180,15 @@ export function DocumentWorkspace({
       : { status: 'idle' },
   )
   const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
+  // An accepted result is bound to the Schema Revision it was produced with, so
+  // the pin is dropped as soon as the schema in the browser stops being it.
+  const [pinnedSchemaRevisionId, setPinnedSchemaRevisionId] = useState<
+    string | null
+  >(extractionSchema?.schemaRevisionId ?? null)
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
   const [toast, setToast] = useState<string | null>(null)
-  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
-  const [activePdfViewer, setActivePdfViewer] = useState<PDFViewer | null>(null)
-  const [focusPath, setFocusPath] = useState<string[] | null>(null)
   const pdfSource = useMemo(
     () => ({ url: pdfUrl, filename }),
     [filename, pdfUrl],
@@ -206,7 +209,6 @@ export function DocumentWorkspace({
 
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
-    setContainerEl(node)
   }, [])
 
   const setViewerNode = useCallback((node: HTMLDivElement | null) => {
@@ -256,7 +258,6 @@ export function DocumentWorkspace({
 
     const loadingTask = pdfjsLib.getDocument({ url: pdfSource.url })
     pdfViewerRef.current = pdfViewer
-    setActivePdfViewer(pdfViewer)
     annotationManagerRef.current = null
     setLoadState({ status: 'loading' })
 
@@ -342,7 +343,6 @@ export function DocumentWorkspace({
     return () => {
       eventBus.off('annotationeditoruimanager', onAnnotationEditorUIManager)
       pdfViewerRef.current = null
-      setActivePdfViewer(null)
       annotationManagerRef.current = null
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
@@ -502,6 +502,7 @@ export function DocumentWorkspace({
     const abortController = new AbortController()
     templateAbortRef.current = abortController
     const inputsKey = annotationInputsKey(annotationItems, annotationsMode)
+    setPinnedSchemaRevisionId(null)
     setTemplateState({ status: 'generating' })
 
     try {
@@ -523,10 +524,6 @@ export function DocumentWorkspace({
         message: error instanceof Error ? error.message : 'Schema generation failed.',
       })
     }
-  }
-
-  function handleValueClick(path: string[]) {
-    setFocusPath(path)
   }
 
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
@@ -552,6 +549,7 @@ export function DocumentWorkspace({
   }
 
   function changeNodes(nodes: SchemaNode[], message: string) {
+    setPinnedSchemaRevisionId(null)
     setTemplateState((state) =>
       state.status === 'ready' ? { ...state, nodes, edited: true } : state,
     )
@@ -602,9 +600,17 @@ export function DocumentWorkspace({
     markdown: documentMarkdown,
     indexing,
     initialState: reopenedExtractionState(persistedExtraction),
+    parsedDocument,
+    reviewTarget:
+      sourceRepresentationId && pinnedSchemaRevisionId
+        ? { sourceRepresentationId, schemaRevisionId: pinnedSchemaRevisionId }
+        : null,
+    persistedExtractionId:
+      persistedExtraction?.outcome === 'succeeded'
+        ? persistedExtraction.extractionId
+        : null,
     onComplete: (isRerun) => {
       setRailTab('results')
-      setFocusPath(null)
       showToast(
         isRerun
           ? '↻ Re-run complete — view the JSON in the Results tab'
@@ -679,14 +685,6 @@ export function DocumentWorkspace({
         <section className="relative min-h-0 min-w-0 flex-1" aria-label="PDF document">
           <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
             <div className="pdfViewer" ref={setViewerNode} />
-            <EvidenceHighlightLayer
-              pdfViewer={activePdfViewer}
-              result={extraction.state.status === 'ready' ? extraction.state.result : null}
-              evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
-              schemaTemplate={schemaTemplate}
-              containerEl={containerEl}
-              focusPath={focusPath}
-            />
           </div>
           {extraction.state.status === 'running' && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-canvas/85 backdrop-blur-[2px]">
@@ -746,9 +744,6 @@ export function DocumentWorkspace({
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
             documentMarkdown={documentMarkdown}
-            onValueClick={handleValueClick}
-            focusPath={focusPath}
-            onClearFocus={() => setFocusPath(null)}
             parsedDocument={parsedDocument}
             reviewedOccurrenceIdsByAnchor={reviewedOccurrenceIdsByAnchor}
             onSelectEvidence={selectEvidenceAnchor}

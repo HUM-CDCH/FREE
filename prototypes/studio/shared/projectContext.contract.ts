@@ -54,12 +54,12 @@ export const reviewDecisionSchema = z
   .object({
     reviewDecisionId: canonicalUuidSchema,
     evidenceAnchorId: z.string().min(1),
-    reviewedOccurrenceIds: z.array(z.string().min(1)).min(1),
+    reviewedOccurrenceIds: z.array(z.string().min(1)).default([]),
   })
   .strict()
 /**
  * Annotations project only what Studio needs to reopen. Geometry, offsets, and
- * anchor internals stay in the parsed-document resource.
+ * anchor internals stay in the source resource.
  */
 export const annotationSchema = z
   .object({
@@ -86,7 +86,6 @@ export const extractionSchema = z.discriminatedUnion('outcome', [
       createdAt: timestamp,
       outcome: z.literal('succeeded'),
       result: z.json(),
-      evidence: z.json().nullable(),
       reviewDecisions: z.array(reviewDecisionSchema),
     })
     .strict(),
@@ -129,6 +128,7 @@ export const documentReopenResponseSchema = z
     extractionSchema: z
       .object({
         extractionSchemaId: canonicalUuidSchema,
+        schemaRevisionId: canonicalUuidSchema,
         revisionNumber,
         template: z.json(),
       })

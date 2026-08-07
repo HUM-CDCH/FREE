@@ -17,10 +17,11 @@ import {
   canonicalUuidSchema,
 } from '../shared/projectContext.contract.js'
 import { decodeParsedDocument } from '../src/parsedDocument.js'
+import { resultAnchorIds } from '../shared/resultAnchors.js'
 import { z } from 'zod'
 
 const ROUTE =
-  /^\/api\/source-representations\/([^/]+)\/(pdf|markdown|parsed-document)$/
+  /^\/api\/source-representations\/([^/]+)\/(pdf|markdown|source)$/
 const REVIEW_ROUTE =
   /^\/api\/source-representations\/([^/]+)\/extraction-reviews$/
 const reviewDecisionInputSchema = z
@@ -28,14 +29,14 @@ const reviewDecisionInputSchema = z
     evidenceAnchorId: z.string().min(1),
     reviewedOccurrenceIds: z
       .array(z.string().min(1))
-      .min(1)
-      .refine((ids) => new Set(ids).size === ids.length),
+      .refine((ids) => new Set(ids).size === ids.length)
+      .default([]),
   })
   .strict()
 const reviewedExtractionSchema = z
   .object({
+    schemaRevisionId: canonicalUuidSchema,
     result: z.json(),
-    evidence: z.json().nullable(),
     modelAttribution: z.json(),
     reviewDecisions: z.array(reviewDecisionInputSchema).min(1),
   })
@@ -55,7 +56,7 @@ const PARSING_SERVICE =
 const ARTIFACTS: Record<string, { upstream: string; mediaType: string }> = {
   pdf: { upstream: 'pdf', mediaType: 'application/pdf' },
   markdown: { upstream: 'markdown', mediaType: 'text/markdown; charset=utf-8' },
-  'parsed-document': { upstream: 'source', mediaType: 'application/json' },
+  source: { upstream: 'source', mediaType: 'application/json' },
 }
 /** Representation-pinned artifacts are immutable, and private to this researcher. */
 const IMMUTABLE = { 'Cache-Control': 'private, max-age=31536000, immutable' }
@@ -87,9 +88,9 @@ export function createSourceRepresentationResource(
     const response = await fetchArtifact(
       `${PARSING_SERVICE}/tasks/${descriptor.artifactReference}/${ARTIFACTS[artifact].upstream}`,
       {
-        // The projection needs the body, so a parsed-document HEAD still reads it.
+        // Validation needs the body, so a source HEAD still reads it.
         method:
-          request.method === 'HEAD' && artifact !== 'parsed-document'
+          request.method === 'HEAD' && artifact !== 'source'
             ? 'HEAD'
             : 'GET',
         headers,
@@ -140,7 +141,7 @@ export function createSourceRepresentationResource(
       // and must not be announced. `Content-Range` still carries the full length.
       if (response.status === 416) headers.delete('Content-Length')
 
-      if (artifact === 'parsed-document') {
+      if (artifact === 'source') {
         const body = JSON.stringify(
           await response
             .json()
@@ -197,6 +198,7 @@ export function createPersistReviewedExtraction(
           'The reviewed Extraction payload is invalid.',
         )
       const input = parsedInput.data
+      const referencedAnchors = resultAnchorIds(input.result)
       if (
         new Set(input.reviewDecisions.map((decision) => decision.evidenceAnchorId))
           .size !== input.reviewDecisions.length
@@ -243,6 +245,12 @@ export function createPersistReviewedExtraction(
         ]),
       )
       for (const decision of input.reviewDecisions) {
+        if (!referencedAnchors.has(decision.evidenceAnchorId))
+          throw new ApiError(
+            422,
+            'invalid_request',
+            'A ReviewDecision Evidence anchor is not referenced by the Extraction Result.',
+          )
         const owned = ownership.get(decision.evidenceAnchorId)
         if (
           !owned ||
@@ -259,7 +267,8 @@ export function createPersistReviewedExtraction(
 
       const persisted = await store
         .persistReviewedExtraction(sourceRepresentationId, {
-          resultPayload: { result: input.result, evidence: input.evidence },
+          schemaRevisionId: input.schemaRevisionId,
+          resultPayload: { result: input.result },
           modelAttribution: input.modelAttribution,
           reviewDecisions: input.reviewDecisions,
         })
@@ -270,7 +279,7 @@ export function createPersistReviewedExtraction(
         throw new ApiError(
           409,
           'invalid_request',
-          'The Source Representation has no current Extraction Schema.',
+          'That Schema Revision does not belong to this Source Representation’s Project Context.',
         )
       return json(
         {

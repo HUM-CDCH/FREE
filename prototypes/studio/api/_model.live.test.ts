@@ -64,42 +64,9 @@ function records(value: unknown): Array<Record<string, unknown>> {
 
 function assertCompleteExtraction(result: Awaited<ReturnType<typeof extractWithModel>>): void {
   const resultRecords = records(result.result)
-  const evidenceRecords = records(result.evidence)
   expect(resultRecords).toHaveLength(7)
   expect(resultRecords.map(({ grave_number }) => grave_number)).toEqual(EXPECTED_GRAVES)
-  expect(evidenceRecords).toHaveLength(7)
-  const evidenceGraveIds = evidenceRecords.map(({ grave_number }) =>
-    (grave_number as { value?: unknown })?.value,
-  )
-  console.info(JSON.stringify({
-    evidenceGraveIds,
-    firstEvidenceKeys: Object.keys(evidenceRecords[0]),
-    firstGraveNumberEvidence: evidenceRecords[0].grave_number,
-  }))
-  expect(evidenceRecords.every((record) => Object.keys(record).length > 0)).toBe(true)
-
-  const nestedParts = resultRecords.flatMap((record, recordIndex) => {
-    const resultParts = (record.skeleton as { parts?: unknown })?.parts
-    const evidenceParts = (evidenceRecords[recordIndex].skeleton as { parts?: unknown })?.parts
-    if (!Array.isArray(resultParts) || !Array.isArray(evidenceParts)) return []
-    expect(evidenceParts).toHaveLength(resultParts.length)
-    return resultParts.map((part, partIndex) => ({
-      result: part as Record<string, unknown>,
-      evidence: evidenceParts[partIndex] as Record<string, unknown> | null,
-    }))
-  })
-  const groundedPart = nestedParts.find(({ evidence }) => evidence?.number !== undefined)
-  expect(groundedPart).toBeDefined()
-  const numberEvidence = groundedPart?.evidence?.number as {
-    value?: unknown
-    snippet?: unknown
-    page?: unknown
-  }
-  expect(numberEvidence).toMatchObject({
-    value: groundedPart?.result.number,
-    snippet: expect.any(String),
-  })
-  expect(numberEvidence.page === null || typeof numberEvidence.page === 'number').toBe(true)
+  expect(result).not.toHaveProperty('evidence')
   expect(() => JSON.parse(result.raw)).not.toThrow()
 }
 

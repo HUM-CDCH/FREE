@@ -9,13 +9,14 @@ parse-to-render lifecycle proof before any further model sampling.
 
 - Reuse the v2 document returned by the Parsing Service without a v1 projection
   or `/parsed-document` compatibility path.
-- Persist a deterministic Extraction Result together with a Review Decision
-  whose `reviewedOccurrenceIds` belong to that result's canonical anchors.
+- Persist a fixed accepted Extraction Result together with a Review Decision
+  whose `reviewedOccurrenceIds` belong to canonical anchors referenced by that
+  result. Models do not generate a second Evidence tree.
 - Reopen the persisted result in a fresh browser session and resolve the same
   generation-scoped anchors.
 - Render valid page geometry and suppress invalid or rotated geometry.
-- Add one deterministic Playwright lifecycle test using the Ellekilde semantic
-  golden and a fixed accepted row `24-1` extraction response.
+- Add one deterministic intercepted browser fixture using the Ellekilde
+  semantic golden and a fixed accepted row `24-1` result.
 
 ## Capabilities
 

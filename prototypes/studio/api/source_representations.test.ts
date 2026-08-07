@@ -118,7 +118,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
   it('answers HEAD with the GET headers and no body', async () => {
     const { handler, calls } = resource()
 
-    for (const artifact of ['pdf', 'markdown', 'parsed-document']) {
+    for (const artifact of ['pdf', 'markdown', 'source']) {
       const response = await handler(
         new Request(url(artifact), { method: 'HEAD' }),
       )
@@ -139,7 +139,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     )
     await expect(markdown.text()).resolves.toBe('# Beretning')
 
-    const parsed = await handler(new Request(url('parsed-document')))
+    const parsed = await handler(new Request(url('source')))
     expect(parsed.headers.get('content-type')).toContain('application/json')
     expect(parsed.headers.get('cache-control')).toBe(IMMUTABLE)
     const body: unknown = await parsed.json()
@@ -223,7 +223,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
       source: () => Response.json({ schema_version: 'parsed_document.v1' }),
     })
 
-    const response = await handler(new Request(url('parsed-document')))
+    const response = await handler(new Request(url('source')))
 
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toMatchObject({
@@ -254,13 +254,19 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
 })
 
 describe('POST /api/source-representations/:id/extraction-reviews', () => {
-  const request = (reviewedOccurrenceIds: string[]) =>
+  const SCHEMA_REVISION_ID = '72000000-0000-4000-8004-000000000001'
+  const request = (
+    reviewedOccurrenceIds: string[],
+    result: unknown = {
+      number: { value: '24-1', anchor_id: 'bundled-anchor' },
+    },
+  ) =>
     new Request(url('extraction-reviews'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        result: { number: '24-1' },
-        evidence: { number: ['bundled-anchor'] },
+        schemaRevisionId: SCHEMA_REVISION_ID,
+        result,
         modelAttribution: { provider: 'fixture', model: 'accepted-output' },
         reviewDecisions: [
           { evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds },
@@ -293,8 +299,9 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
       DEMO_REPRESENTATION_ID,
       expect.objectContaining({
         resultPayload: {
-          result: { number: '24-1' },
-          evidence: { number: ['bundled-anchor'] },
+          result: {
+            number: { value: '24-1', anchor_id: 'bundled-anchor' },
+          },
         },
         reviewDecisions: [
           {
@@ -322,6 +329,27 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
     )
 
     const response = await handler(request(['not-owned']))
+
+    expect(response.status).toBe(422)
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('rejects an owned Evidence anchor absent from the Extraction Result', async () => {
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().fetchArtifact,
+    )
+
+    const response = await handler(request(['bundled-occurrence'], { number: '24-1' }))
 
     expect(response.status).toBe(422)
     expect(persistReviewedExtraction).not.toHaveBeenCalled()

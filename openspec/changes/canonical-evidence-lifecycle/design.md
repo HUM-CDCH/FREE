@@ -42,6 +42,13 @@ physical occurrences inspected by a researcher.
 6. One Playwright test uses the checked-in Ellekilde semantic golden plus the
    fixed accepted row `24-1` output. The raw model audit report is not a fixture
    or runtime dependency.
+7. The model reads the canonical content with a short citation label per
+   published anchor (`E1`, `E2`, …) rather than the 71-character anchor ID,
+   which a local model echoes back mangled. Labels resolve to anchor IDs by
+   exact lookup within the pinned generation, so an unpublished label yields no
+   Evidence and no text is ever matched back to the PDF.
+8. The browser posts the Schema Revision the extraction was produced with, and
+   the write pins it rather than reading a Schema head that may have advanced.
 
 ## Risks / Trade-offs
 

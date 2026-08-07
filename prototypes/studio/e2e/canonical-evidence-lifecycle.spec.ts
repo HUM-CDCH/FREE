@@ -14,6 +14,7 @@ const id = {
   document: '72000000-0000-4000-8001-000000000001',
   representation: '72000000-0000-4000-8002-000000000001',
   extraction: '72000000-0000-4000-8003-000000000001',
+  schemaRevision: '72000000-0000-4000-8005-000000000001',
 } as const
 
 const pdfPath = fileURLToPath(
@@ -312,7 +313,7 @@ async function installLifecycleFixture(page: Page, state: State) {
       return route.fulfill({ body: pdf, contentType: 'application/pdf' })
     if (path.endsWith('/markdown'))
       return route.fulfill({ body: '# Ellekilde\n\n24-1', contentType: 'text/markdown' })
-    if (path.endsWith('/parsed-document'))
+    if (path.endsWith('/source'))
       return route.fulfill({ json: parsedDocument })
     return route.fulfill({
       status: 404,
@@ -346,7 +347,7 @@ test('canonical Evidence survives persist, fresh reopen, and safe rendering @det
     reviewedOccurrenceIds: [anchor.producer_observations[0].occurrence_id],
   }))
   const status = await page.evaluate(
-    async ({ representation, result, decisions }) =>
+    async ({ representation, schemaRevision, result, decisions }) =>
       (
         await fetch(
           `/api/source-representations/${representation}/extraction-reviews`,
@@ -354,15 +355,20 @@ test('canonical Evidence survives persist, fresh reopen, and safe rendering @det
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
+              schemaRevisionId: schemaRevision,
               result,
-              evidence: result,
               modelAttribution: { provider: 'fixture', model: 'accepted-output' },
               reviewDecisions: decisions,
             }),
           },
         )
       ).status,
-    { representation: id.representation, result: accepted, decisions: reviewDecisions },
+    {
+      representation: id.representation,
+      schemaRevision: id.schemaRevision,
+      result: accepted,
+      decisions: reviewDecisions,
+    },
   )
   expect(status).toBe(201)
 

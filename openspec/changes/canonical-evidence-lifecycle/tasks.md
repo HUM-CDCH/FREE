@@ -1,7 +1,7 @@
 ## 1. Deterministic lifecycle test
 
-- [x] 1.1 Add one persistence Playwright flow using the Ellekilde semantic
-  golden and fixed accepted row `24-1`; do not depend on the raw audit report.
+- [x] 1.1 Add one deterministic intercepted browser fixture using the Ellekilde
+  semantic golden and fixed accepted row `24-1`.
 
 ## 2. Canonical document boundary
 
@@ -18,6 +18,8 @@
   write with reviewed-occurrence ownership validation.
 - [x] 3.2 Return Review Decision anchor selections from exact-revision reopen and
   verify them in a fresh browser session.
+- [x] 3.3 Wire an explicit browser review action that posts the accepted result
+  and the Schema Revision used for extraction.
 
 ## 4. Browser rendering
 
@@ -28,5 +30,12 @@
 
 - [x] 5.1 Run database, focused backend, Studio test/build, and deterministic
   Playwright checks.
-- [x] 5.2 Run one local-Ollama extraction through the completed lifecycle and
+- [x] 5.2 Pass canonical v2 source context to one local-Ollama extraction, return
+  canonical anchor IDs, and run it through real Vite/Prisma/browser persistence;
   report the exact model tag.
+  Model tag `hf.co/numind/NuExtract3-GGUF:latest` (Ollama, raw NuExtract route)
+  over `Beretning_Ellekilde_8_13.pdf` (328 canonical anchors, 6 pages): 33 of 33
+  cited labels resolved to published anchors, one Extraction and 33 Review
+  Decisions were written to PostgreSQL against the pinned Schema Revision, and a
+  fresh browser session reopened all 33 anchors — the one reviewed occurrence
+  with valid geometry rendered, the rest resolved without geometry.

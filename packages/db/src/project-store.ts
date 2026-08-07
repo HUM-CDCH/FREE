@@ -36,6 +36,7 @@ export type DocumentReopenSnapshot = {
   } | null
   extractionSchema: {
     extractionSchemaId: string
+    schemaRevisionId: string
     revisionNumber: number
     schemaTree: unknown
   } | null
@@ -54,6 +55,8 @@ export type DocumentReopenSnapshot = {
 }
 
 export type ReviewedExtractionInput = {
+  /** The exact Schema Revision the accepted Extraction was produced with. */
+  schemaRevisionId: string
   resultPayload: unknown
   modelAttribution: unknown
   reviewDecisions: Array<{
@@ -239,6 +242,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
             extractionSchema && schemaRevision
               ? {
                   extractionSchemaId: extractionSchema.id,
+                  schemaRevisionId: schemaRevision.id,
                   revisionNumber: schemaRevision.revisionNumber,
                   schemaTree: schemaRevision.schemaTree,
                 }
@@ -284,24 +288,21 @@ export function createProjectStore(database: Database = db): ProjectStore {
           'projectContextId',
         ).first({ id: representation.sourceDocumentId })
         if (!sourceDocument) return null
-        const extractionSchema = await orm.public.ExtractionSchema.where({
-          projectContextId: sourceDocument.projectContextId,
-        })
-          .select('id')
-          .orderBy([
-            (schema) => schema.createdAt.desc(),
-            (schema) => schema.id.desc(),
-          ])
-          .first()
-        const schemaRevision = extractionSchema
-          ? await orm.public.SchemaRevision.where({
-              extractionSchemaId: extractionSchema.id,
-            })
-              .select('id')
-              .orderBy((revision) => revision.revisionNumber.desc())
-              .first()
-          : null
+        // The write pins the Schema Revision the Extraction actually used; the
+        // head may already have advanced past it.
+        const schemaRevision = await orm.public.SchemaRevision.select(
+          'id',
+          'extractionSchemaId',
+        ).first({ id: input.schemaRevisionId })
         if (!schemaRevision) return null
+        const extractionSchema = await orm.public.ExtractionSchema.select(
+          'projectContextId',
+        ).first({ id: schemaRevision.extractionSchemaId })
+        if (
+          !extractionSchema ||
+          extractionSchema.projectContextId !== sourceDocument.projectContextId
+        )
+          return null
 
         const extraction = await orm.public.Extraction.create({
           schemaRevisionId: schemaRevision.id,

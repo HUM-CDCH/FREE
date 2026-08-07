@@ -18,7 +18,6 @@ import {
   boundedUpstreamDetail,
 } from './_http.js'
 import { applyAllowedValues } from '../shared/allowedValues.js'
-import { splitEvidenceResult, wrapTemplateWithEvidence } from './_evidence_template.js'
 import { parseExtractionResult, parseTemplate } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
 import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'
@@ -27,6 +26,7 @@ import {
   resolveCapabilityRoute,
   type ExecutionTarget,
   type GeneralExecutionTarget,
+  type ModelAttribution,
   type ModelOperation,
   type NuExtractRawExecutionTarget,
   type RouteResolverDependencies,
@@ -37,12 +37,6 @@ export { json, parseTemperature, type FormValue } from './_http.js'
 
 const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 const NON_THINKING_TEMPERATURE = 0.2
-const EVIDENCE_FIELD_INSTRUCTION =
-  'Each object in the template carries an "_evidence" object keyed by that same object\'s field names. ' +
-  'For every key listed there, set "snippet" to a short verbatim excerpt from the document containing that field\'s value, ' +
-  'and set "page" to the 1-based index of the page or image where it appears. ' +
-  'Do not add "_evidence" keys the template does not list, and do not nest values inside "_evidence".'
-
 export type ExtractModelInput = {
   readonly document: DocumentInput
   readonly template: unknown
@@ -128,83 +122,52 @@ export async function extractWithModel(
   dependencies: ModelDependencies = {},
 ): Promise<{
   readonly result: Record<string, unknown>
-  readonly evidence: Record<string, unknown> | null
   readonly raw: string
   readonly reasoning: null
   readonly pages: number | null
+  readonly modelAttribution: ModelAttribution | null
 }> {
   const resolved = await operationTarget('extraction', temperature, target, dependencies)
   const documentParts = await documentContentParts(document)
   const extractionTemplate = template ?? {}
-  const evidenceTemplate = wrapTemplateWithEvidence(extractionTemplate)
   const callerInstruction = instruction?.trim()
-  const instructions = callerInstruction
-    ? `${EVIDENCE_FIELD_INSTRUCTION}\n\n${callerInstruction}`
-    : EVIDENCE_FIELD_INSTRUCTION
-  let generated: { readonly response: string; readonly doneReason?: string | null }
+  let generated: { readonly response: string }
   let parsed: Record<string, unknown>
-  let resultTemplate = evidenceTemplate
-  let expectsEvidence = true
   if (resolved.profile === 'general') {
     const request = [
       'Extract information from the Source Document using this Extraction Schema:',
-      JSON.stringify(evidenceTemplate, null, 2),
-      `Additional extraction instruction:\n${instructions}`,
+      JSON.stringify(extractionTemplate, null, 2),
+      ...(callerInstruction
+        ? [`Additional extraction instruction:\n${callerInstruction}`]
+        : []),
     ].join('\n\n')
     generated = await generateWithGenericJsonPrompt(resolved, {
       instructions:
-        'Produce a source-grounded FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
-        'Keep direct extracted values at their schema keys; source evidence belongs only in the sibling _evidence objects. ' +
-        'Never wrap a direct value in an object such as {"value":...}. ' +
+        'Produce a FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
         'Return only one JSON object with no Markdown or commentary.',
       request,
       documentParts: documentParts.parts,
       temperature,
     })
-    parsed = await parseExtractionResult(generated.response, evidenceTemplate)
+    parsed = await parseExtractionResult(generated.response, extractionTemplate)
   } else {
     generated = await generateWithNuExtractRawPrompt('extraction', resolved, {
       mode: 'structured',
-      template: JSON.stringify(evidenceTemplate, null, 2),
-      instructions,
+      template: JSON.stringify(extractionTemplate, null, 2),
+      instructions: callerInstruction || null,
       documentParts: documentParts.parts,
       temperature,
     }, dependencies.fetch)
-    try {
-      if (generated.doneReason === 'length') {
-        throw new ApiError(502, 'invalid_model_output', 'Model stopped before completing the Extraction Result.')
-      }
-      parsed = await parseExtractionResult(generated.response, evidenceTemplate)
-    } catch (error) {
-      if (!(error instanceof ApiError && error.code === 'invalid_model_output')) throw error
-      generated = await generateWithNuExtractRawPrompt('extraction', resolved, {
-        mode: 'structured',
-        template: JSON.stringify(extractionTemplate, null, 2),
-        instructions: callerInstruction || null,
-        documentParts: documentParts.parts,
-        temperature,
-      }, dependencies.fetch)
-      if (generated.doneReason === 'length') {
-        throw new ApiError(502, 'invalid_model_output', 'Model stopped before completing the Extraction Result.')
-      }
-      parsed = await parseExtractionResult(generated.response, extractionTemplate)
-      resultTemplate = extractionTemplate
-      expectsEvidence = false
-    }
+    parsed = await parseExtractionResult(generated.response, extractionTemplate)
   }
-  // Before the split, so a one-item array answer is unwrapped while the evidence
-  // leaf still mirrors it — `buildHighlights` only follows a string value.
-  const normalized = applyAllowedValues(parsed, resultTemplate)
-  const split = expectsEvidence
-    ? splitEvidenceResult(normalized)
-    : { result: normalized, evidence: null }
+  const normalized = applyAllowedValues(parsed, extractionTemplate)
 
   return {
-    result: split.result,
-    evidence: split.evidence,
+    result: normalized,
     raw: generated.response,
     reasoning: null,
     pages: documentParts.pages ?? document.pages,
+    modelAttribution: resolved.attribution ?? null,
   }
 }
 
@@ -291,7 +254,7 @@ async function generateWithNuExtractRawPrompt(
     readonly temperature?: number
   },
   requestFetch: typeof fetch = fetch,
-): Promise<{ readonly response: string; readonly doneReason: string | null }> {
+): Promise<{ readonly response: string }> {
   const rendered = renderNuExtractPrompt(input)
   const url = appendProviderResource(target.baseUrl, 'api/generate')
   const requestBody = JSON.stringify({
@@ -339,12 +302,11 @@ async function generateWithNuExtractRawPrompt(
       cause: parsed.error,
     })
   }
-  return { response: parsed.data.response, doneReason: parsed.data.done_reason ?? null }
+  return { response: parsed.data.response }
 }
 
 const ollamaGenerateResponseSchema = z.object({
   response: z.string(),
-  done_reason: z.string().optional(),
 })
 
 export function renderNuExtractPrompt({

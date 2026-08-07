@@ -31,9 +31,6 @@ type RightRailProps = {
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
   documentMarkdown: string | null
-  onValueClick?: (path: string[], value: string) => void
-  focusPath?: string[] | null
-  onClearFocus?: () => void
   parsedDocument: ParsedDocumentV2 | null
   reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
@@ -70,9 +67,6 @@ function RightRail({
   onAnnotationsModeChange,
   extraction,
   documentMarkdown,
-  onValueClick,
-  focusPath,
-  onClearFocus,
   parsedDocument,
   reviewedOccurrenceIdsByAnchor,
   onSelectEvidence,
@@ -169,7 +163,7 @@ function RightRail({
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} documentMarkdown={documentMarkdown} onValueClick={onValueClick} focusPath={focusPath} onClearFocus={onClearFocus} />
+        <ResultsTab controller={extraction} schemaReady={schemaReady} documentMarkdown={documentMarkdown} />
       </div>
     </div>
   )

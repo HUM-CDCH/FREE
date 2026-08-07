@@ -9,9 +9,6 @@ type ResultsTabProps = {
   controller: ExtractionController
   schemaReady: boolean
   documentMarkdown: string | null
-  onValueClick?: (path: string[], value: string) => void
-  focusPath?: string[] | null
-  onClearFocus?: () => void
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -37,7 +34,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, documentMarkdown, onValueClick, focusPath, onClearFocus }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, documentMarkdown }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
   const stats = useMemo(() => (state.status === 'ready' ? resultStats(state.result) : null), [state])
@@ -131,9 +128,23 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onValueClick, f
                 ]}
               />
               <div className="flex gap-1.5">
-                {focusPath && onClearFocus && (
-                  <Button variant="secondary" size="sm" onClick={onClearFocus}>
-                    × Clear
+                {controller.review.available && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={!controller.review.canAccept}
+                    title={
+                      controller.review.reviewedExtractionId
+                        ? 'This result is already saved with its Review Decisions'
+                        : 'Save this result and its reviewed Evidence to the Source Representation'
+                    }
+                    onClick={() => void controller.review.accept()}
+                  >
+                    {controller.review.reviewedExtractionId
+                      ? 'Review saved'
+                      : controller.review.saving
+                        ? 'Saving…'
+                        : 'Accept result'}
                   </Button>
                 )}
                 <Button variant="secondary" size="sm" onClick={() => void controller.runExtraction()}>
@@ -147,6 +158,11 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onValueClick, f
                 </Button>
               </div>
             </div>
+            {controller.review.error && (
+              <p role="alert" className="mt-2 text-[11.5px] leading-snug text-danger">
+                {controller.review.error}
+              </p>
+            )}
           </div>
 
           {view === 'review' && (
@@ -195,7 +211,6 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onValueClick, f
                     name={displayName}
                     value={val}
                     path={[...navPath, pathKey]}
-                    onValueClick={onValueClick}
                     onNavigateTo={isRecord(val) || Array.isArray(val) ? navTo : undefined}
                     defaultExpanded={navPath.length === 0}
                     expandText={navPath.length > 0}

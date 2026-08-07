@@ -30,14 +30,12 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
     scrollPageIntoView = scrollPageIntoView
   },
 }))
-// Painting evidence needs a real canvas; hydrating the workspace does not.
-vi.mock('./EvidenceHighlightLayer', () => ({ default: () => null }))
-
 const reopened: DocumentWorkspaceProps = {
   pdfUrl: '/api/source-representations/rep/pdf',
   filename: 'Beretning.pdf',
+  sourceRepresentationId: '51000000-0000-4000-8002-000000000001',
   markdownUrl: '/api/source-representations/rep/markdown',
-  parsedDocumentUrl: '/api/source-representations/rep/parsed-document',
+  parsedDocumentUrl: '/api/source-representations/rep/source',
   annotationSet: {
     annotationSetId: '51000000-0000-4000-8003-000000000001',
     revisionNumber: 1,
@@ -52,6 +50,7 @@ const reopened: DocumentWorkspaceProps = {
   },
   extractionSchema: {
     extractionSchemaId: '51000000-0000-4000-8005-000000000001',
+    schemaRevisionId: '51000000-0000-4000-8005-000000000002',
     revisionNumber: 1,
     template: { place: 'string' },
   },
@@ -60,7 +59,6 @@ const reopened: DocumentWorkspaceProps = {
     createdAt: '2026-07-31T12:03:00.000Z',
     outcome: 'succeeded',
     result: { place: 'Ellekilde' },
-    evidence: null,
     reviewDecisions: [],
   },
 }
@@ -77,7 +75,7 @@ async function renderReopened() {
     'fetch',
     vi.fn((input: string | URL | Request) =>
       Promise.resolve(
-        String(input).endsWith('/parsed-document')
+        String(input).endsWith('/source')
           ? Response.json(parsedDocument)
           : new Response('# Beretning'),
       ),
@@ -103,6 +101,65 @@ describe('reopened Source Document workspace', () => {
     expect(
       screen.getByRole('button', { name: '↻ Re-run extraction' }),
     ).toBeInTheDocument()
+  })
+
+  it('posts the accepted result with its pinned Schema Revision and canonical Review Decisions', async () => {
+    const calls: Array<{ url: string; body: unknown }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (init?.body !== undefined)
+          calls.push({
+            url,
+            body:
+              typeof init.body === 'string' ? JSON.parse(init.body) : init.body,
+          })
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/api/extract'))
+          return Response.json({
+            // The model cites the label it was shown; the browser resolves it.
+            result: { number: { value: '24-1', anchor_id: 'E1' } },
+            raw: '{}',
+            reasoning: null,
+            pages: 1,
+            modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+          })
+        if (url.endsWith('/extraction-reviews'))
+          return Response.json(
+            { extractionId: '51000000-0000-4000-8006-000000000002' },
+            { status: 201 },
+          )
+        return new Response('# Beretning')
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+    const accept = await screen.findByRole('button', { name: 'Accept result' })
+    fireEvent.click(accept)
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Review saved' })).toBeDisabled(),
+    )
+    const review = calls.at(-1)!
+    expect(review.url).toContain(
+      `/api/source-representations/${reopened.sourceRepresentationId}/extraction-reviews`,
+    )
+    expect(review.body).toEqual({
+      schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+      result: { number: { value: '24-1', anchor_id: 'bundled-anchor' } },
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      reviewDecisions: [
+        {
+          evidenceAnchorId: 'bundled-anchor',
+          reviewedOccurrenceIds: ['bundled-occurrence'],
+        },
+      ],
+    })
   })
 
   it('keeps a restored annotation usable without a pdf.js editor', async () => {

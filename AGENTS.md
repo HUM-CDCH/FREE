@@ -54,9 +54,7 @@ pnpm db:seed                   # Seed the example Project Contexts and Source Do
 Documents own retained artifacts and can be reopened, so start the Parsing Service
 first. Without it the seed still writes the Project Contexts and Source Documents
 and says which ones cannot be reopened; re-run it once the service is up. Every
-row has a fixed identity. Re-running keeps reachable `parsed_document.v2`
-representations and atomically replaces stale ones through the running Parsing
-Service.
+row has a fixed identity, so re-running creates nothing new.
 
 Python services opt into root install by exposing an `install:python` script. Do not hardcode each service in the root `postinstall`; use the workspace-recursive hook.
 

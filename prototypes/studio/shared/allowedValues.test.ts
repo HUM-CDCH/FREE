@@ -79,22 +79,6 @@ describe('applyAllowedValues', () => {
     })
   })
 
-  it('leaves the evidence sibling untouched', () => {
-    const wrapped = {
-      koen: SEX,
-      _evidence: { koen: { snippet: 'string', page: 'number' } },
-    }
-    const extracted = {
-      koen: ['Mand'],
-      _evidence: { koen: { snippet: 'Grav 8, mand', page: 2 } },
-    }
-
-    expect(applyAllowedValues(extracted, wrapped)).toEqual({
-      koen: 'mand',
-      _evidence: { koen: { snippet: 'Grav 8, mand', page: 2 } },
-    })
-  })
-
   it('survives a result whose shape does not match the schema', () => {
     expect(applyAllowedValues({ koen: { unexpected: true } }, { koen: SEX })).toEqual({
       koen: { unexpected: true },

@@ -25,10 +25,11 @@ type TemplateOptions = {
 
 export type ExtractDone = {
   result: Record<string, unknown>
-  evidence: Record<string, unknown> | null
   reasoning: string | null
   raw: string
   pages: number | null
+  /** What produced this result, as the review write records it. */
+  modelAttribution: unknown
 }
 export type SchemaDone = { template: unknown; raw: string; pages: number | null }
 
@@ -42,9 +43,6 @@ export function decodeSchemaDone(data: unknown): SchemaDone {
 export function decodeExtractDone(data: unknown): ExtractDone {
   if (!isRecord(data) || !isRecord(data.result)) {
     throw new Error("extract: response missing 'result' — API contract drift?")
-  }
-  if (!('evidence' in data)) {
-    throw new Error("extract: response missing 'evidence' — API contract drift?")
   }
   return data as ExtractDone
 }
@@ -176,7 +174,7 @@ export async function requestExtraction(
   signal?: AbortSignal,
   markdown?: string | null,
   instruction?: string,
-): Promise<{ result: unknown; evidence: unknown }> {
+): Promise<{ result: unknown; modelAttribution: unknown }> {
   const form = new FormData()
   form.append('template', JSON.stringify(template ?? {}))
   if (markdown) {
@@ -187,7 +185,39 @@ export async function requestExtraction(
   if (instruction) form.append('instruction', instruction)
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
-  return { result: done.result, evidence: done.evidence }
+  return { result: done.result, modelAttribution: done.modelAttribution ?? null }
+}
+
+export type ExtractionReview = {
+  schemaRevisionId: string
+  result: unknown
+  modelAttribution: unknown
+  reviewDecisions: Array<{
+    evidenceAnchorId: string
+    reviewedOccurrenceIds: string[]
+  }>
+}
+
+/** The researcher's accepted Extraction Result and its canonical Review Decisions. */
+export async function postExtractionReview(
+  sourceRepresentationId: string,
+  review: ExtractionReview,
+  signal?: AbortSignal,
+): Promise<{ extractionId: string }> {
+  const response = await fetch(
+    `${API_BASE}/source-representations/${sourceRepresentationId}/extraction-reviews`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(review),
+      signal,
+    },
+  )
+  if (!response.ok) {
+    const detail = await readErrorDetail(response)
+    throw new Error(detail || `Saving the review failed (HTTP ${response.status})`)
+  }
+  return (await response.json()) as { extractionId: string }
 }
 
 // export async function requestMarkdown(

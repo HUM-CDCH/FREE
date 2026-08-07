@@ -187,6 +187,8 @@ export default function AppFrame({
   const reopened = openDocument && {
     pdfUrl: openDocument.sourceRepresentation.resources.sourcePdfUrl,
     filename: openDocument.sourceDocument.name,
+    sourceRepresentationId:
+      openDocument.sourceRepresentation.sourceRepresentationId,
     markdownUrl: openDocument.sourceRepresentation.resources.markdownUrl,
     parsedDocumentUrl:
       openDocument.sourceRepresentation.resources.parsedDocumentUrl,
@@ -197,6 +199,7 @@ export default function AppFrame({
   const workspace = devDocument
     ? {
         ...devDocument,
+        sourceRepresentationId: null,
         markdownUrl: null,
         parsedDocumentUrl: null,
         annotationSet: null,
