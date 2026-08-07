@@ -773,6 +773,7 @@ def _v2_logical_tables(
         TableParserAttribution,
         deterministic_anchor_id,
         deterministic_block_id,
+        deterministic_occurrence_id,
         deterministic_table_id,
     )
     from app.parsing.semantic_stream import derive_logical_table_groups
@@ -795,7 +796,7 @@ def _v2_logical_tables(
     )
     output: list[LogicalTable] = []
     table_id_by_observed_ref: dict[str, str] = {}
-    observations: dict[str, ProducerTableCellObservation] = {}
+    observations: dict[str, list[ProducerTableCellObservation]] = {}
     for group in groups:
         producer_refs = tuple(
             str(
@@ -830,6 +831,11 @@ def _v2_logical_tables(
                     content_sha256, preprocess_id, f"{table_id}:{cell_id}"
                 )
                 observation = ProducerTableCellObservation(
+                    occurrence_id=deterministic_occurrence_id(
+                        content_sha256,
+                        preprocess_id,
+                        f"{table_id}:{cell_id}:{producer_ref}:{fragment.page_number}:{cell.row}:{cell.col}",
+                    ),
                     page_number=fragment.page_number,
                     row_offset=cell.row,
                     column_offset=cell.col,
@@ -853,7 +859,7 @@ def _v2_logical_tables(
                         evidence_anchor_id=anchor_id,
                     )
                 )
-                observations[anchor_id] = observation
+                observations.setdefault(anchor_id, []).append(observation)
             cells.extend(fragment_cells)
             spans.append(
                 LogicalTablePageSpan(

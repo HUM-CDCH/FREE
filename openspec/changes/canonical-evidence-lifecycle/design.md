@@ -1,0 +1,52 @@
+## Context
+
+The Parsing Service publishes strict `parsed_document.v2`, while persisted
+Source Representations still expose a reduced v1-shaped projection. Extraction
+rows can carry canonical anchor IDs, but no durable Review Decision records the
+physical occurrences inspected by a researcher.
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- Carry the strict v2 document through the retained Source Representation.
+- Give every canonical occurrence a stable generation-scoped ID and one anchor
+  owner.
+- Persist a successful Extraction and its Review Decision atomically, then
+  reopen both against the same Source Representation Revision.
+- Render only geometry verified for an unrotated physical page.
+
+**Non-Goals:**
+
+- Re-running model stability experiments or adding provider behavior.
+- v1 projection, route aliases, migration, or copied location receipts.
+- A general review workflow beyond the one accepted lifecycle slice.
+
+## Decisions
+
+1. `parsed_document.v2` remains the only authority. Text anchors own one
+   occurrence; table-cell anchors own an ordered non-empty collection of
+   producer observations. Each occurrence has a deterministic ID unique within
+   the pinned generation. Page, text, and geometry remain derived fields.
+2. Studio proxies and decodes the complete strict v2 DTO. It does not manufacture
+   anchors or project pages into an alternate shape.
+3. A Review Decision belongs to one successful Extraction and stores an anchor
+   selection with optional `reviewedOccurrenceIds`. The write rejects duplicate,
+   unknown, or foreign occurrence IDs before the transaction commits.
+4. `ProjectStore` performs the Extraction and Review Decision write in one
+   transaction and returns them from the existing exact-revision reopen read.
+5. The browser resolver joins by pinned representation generation, anchor ID,
+   and owned occurrence ID. It highlights a bbox only when finite, ordered,
+   page-bounded, and on an unrotated page; otherwise identity remains resolved
+   and geometry is suppressed.
+6. One Playwright test uses the checked-in Ellekilde semantic golden plus the
+   fixed accepted row `24-1` output. The raw model audit report is not a fixture
+   or runtime dependency.
+
+## Risks / Trade-offs
+
+- **Contract churn in active v2 work** → replace the singular producer
+  observation now; no compatibility layer.
+- **A partially persisted review** → one database transaction owns both rows.
+- **Unsafe PDF coordinates** → fail closed on geometry while preserving exact
+  semantic identity.

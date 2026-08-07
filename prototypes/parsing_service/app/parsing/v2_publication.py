@@ -282,7 +282,10 @@ def build_evidence_index(
     *,
     content_sha256: str,
     preprocess_id: str,
-    producer_observations: Mapping[str, ProducerTableCellObservation] | None = None,
+    producer_observations: Mapping[
+        str, Sequence[ProducerTableCellObservation]
+    ]
+    | None = None,
 ) -> EvidenceIndex:
     """Build exactly one typed text or table-cell anchor per published value."""
     anchors: list[TextEvidenceAnchor | TableCellEvidenceAnchor] = []
@@ -293,6 +296,9 @@ def build_evidence_index(
         anchors.append(
             TextEvidenceAnchor(
                 anchor_id=_identity(content_sha256, preprocess_id, "text", block.block_id),
+                occurrence_id=_identity(
+                    content_sha256, preprocess_id, "text-occurrence", block.block_id
+                ),
                 content_sha256=content_sha256,
                 preprocess_id=preprocess_id,
                 block_id=block.block_id,
@@ -305,8 +311,8 @@ def build_evidence_index(
     observations = producer_observations or {}
     for table in tables:
         for cell in table.cells:
-            observation = observations.get(cell.evidence_anchor_id)
-            if observation is None:
+            cell_observations = observations.get(cell.evidence_anchor_id)
+            if not cell_observations:
                 raise ValueError("table_cell_evidence_incomplete")
             anchors.append(
                 TableCellEvidenceAnchor(
@@ -317,7 +323,7 @@ def build_evidence_index(
                     cell_id=cell.cell_id,
                     canonical_row=cell.row,
                     canonical_column=cell.column,
-                    producer_observation=observation,
+                    producer_observations=list(cell_observations),
                 )
             )
     return EvidenceIndex(anchors=anchors)

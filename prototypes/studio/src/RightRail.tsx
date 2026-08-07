@@ -35,6 +35,7 @@ type RightRailProps = {
   focusPath?: string[] | null
   onClearFocus?: () => void
   parsedDocument: ParsedDocumentV2 | null
+  reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
 }
 
@@ -73,6 +74,7 @@ function RightRail({
   focusPath,
   onClearFocus,
   parsedDocument,
+  reviewedOccurrenceIdsByAnchor,
   onSelectEvidence,
 }: RightRailProps) {
   if (!open) {
@@ -149,7 +151,7 @@ function RightRail({
         />
       </div>
       <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'evidence'}>
-        <EvidenceTab document={parsedDocument} onSelectAnchor={onSelectEvidence} />
+        <EvidenceTab document={parsedDocument} reviewedOccurrenceIdsByAnchor={reviewedOccurrenceIdsByAnchor} onSelectAnchor={onSelectEvidence} />
       </div>
       <div id="rail-panel-chat" aria-labelledby="rail-tab-chat" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'chat'}>
         <ChatTab documentMarkdown={documentMarkdown} />

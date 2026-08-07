@@ -10,6 +10,7 @@ const examplesDirectory = fileURLToPath(new URL('../../../examples/', import.met
 /** The same override Studio uses for the browser and its artifact routes. */
 const parsingService =
   process.env['VITE_PARSING_SERVICE_URL'] ?? 'http://127.0.0.1:8000'
+const contractVersion = 'parsed_document.v2'
 
 export const exampleProjects = [
   {
@@ -56,7 +57,8 @@ export type Ingest = (
   filename: string,
 ) => Promise<IngestedRepresentation>
 
-type SeedDatabase = Pick<typeof db, 'orm'>
+type SeedDatabase = Pick<typeof db, 'orm' | 'transaction'>
+type RetainedArtifacts = (artifactReference: string) => Promise<boolean>
 
 async function parsingServiceRequest(
   path: string,
@@ -66,6 +68,27 @@ async function parsingServiceRequest(
   if (!response.ok)
     throw new Error(`Parsing Service ${path} failed with HTTP ${response.status}.`)
   return response
+}
+
+async function retainedArtifactsAvailable(
+  artifactReference: string,
+): Promise<boolean> {
+  try {
+    for (const artifact of ['pdf', 'markdown']) {
+      const response = await parsingServiceRequest(
+        `/tasks/${encodeURIComponent(artifactReference)}/${artifact}`,
+      )
+      await response.body?.cancel()
+    }
+    const source = (await (
+      await parsingServiceRequest(
+        `/tasks/${encodeURIComponent(artifactReference)}/source`,
+      )
+    ).json()) as { schema_version?: unknown }
+    return source.schema_version === contractVersion
+  } catch {
+    return false
+  }
 }
 
 /** The seed cannot invent artifact provenance, so a missing field is fatal. */
@@ -129,10 +152,16 @@ export const ingestThroughParsingService: Ingest = async (pdf, filename) => {
   const parserVersion = document.parser_runs?.find(
     (run) => run.parser === parserName,
   )?.version
+  const parsedContractVersion = required(
+    document.schema_version,
+    'a contract version',
+  )
+  if (parsedContractVersion !== contractVersion)
+    throw new Error(`The parsed document is not ${contractVersion}.`)
   return {
     artifactReference: taskId,
     artifactSha256: createHash('sha256').update(body).digest('hex'),
-    contractVersion: required(document.schema_version, 'a contract version'),
+    contractVersion: parsedContractVersion,
     preprocessId: required(
       document.preprocessing?.preprocess_id,
       'a preprocessing identity',
@@ -153,11 +182,13 @@ export async function parsingServiceReachable(): Promise<boolean> {
 /**
  * Seeds the example Project Contexts, their Source Documents, and — when an
  * `ingest` is supplied — the Source Representation Revision each one reopens
- * from. Every step is keyed by a fixed identity, so re-running creates nothing.
+ * from. Fixed identities are reused while their retained v2 artifacts remain
+ * available; stale representations are replaced after successful re-ingestion.
  */
 export async function seedExampleProjects(
   database: SeedDatabase = db,
   ingest: Ingest | null = ingestThroughParsingService,
+  retained: RetainedArtifacts = retainedArtifactsAvailable,
 ) {
   let projectsCreated = 0
   let documentsCreated = 0
@@ -195,20 +226,33 @@ export async function seedExampleProjects(
       }
 
       if (!ingest) continue
-      // A representation is immutable: an existing one is never re-ingested, and
-      // deleting the row is how a researcher asks for fresh artifacts.
       const existingRepresentation =
         await database.orm.public.SourceRepresentationRevision.first({
           id: document.sourceRepresentationId,
         })
-      if (existingRepresentation) continue
+      if (
+        existingRepresentation?.contractVersion === contractVersion &&
+        (await retained(existingRepresentation.artifactReference))
+      )
+        continue
       try {
-        await database.orm.public.SourceRepresentationRevision.create({
+        const representation = {
           id: document.sourceRepresentationId,
           sourceDocumentId: document.sourceDocumentId,
           revisionNumber: 1,
           ...(await ingest(pdf, basename(document.filename))),
-        })
+        }
+        if (existingRepresentation)
+          await database.transaction(async ({ orm }) => {
+            await orm.public.SourceRepresentationRevision.where({
+              id: document.sourceRepresentationId,
+            }).delete()
+            await orm.public.SourceRepresentationRevision.create(representation)
+          })
+        else
+          await database.orm.public.SourceRepresentationRevision.create(
+            representation,
+          )
         representationsCreated += 1
       } catch (cause) {
         representationFailures.push({

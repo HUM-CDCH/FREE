@@ -102,6 +102,7 @@ function hydratedSnapshot() {
       outcome: 'succeeded',
       result: { place: 'Ellekilde' },
       evidence: null,
+      reviewDecisions: [],
     },
   }
 }

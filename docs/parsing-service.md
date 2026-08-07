@@ -28,7 +28,7 @@ an Evidence index.
 
 `MarkdownByteSpan` uses half-open UTF-8 byte offsets into the exact emitted
 Markdown bytes. Text anchors reference those spans. Each canonical table cell
-owns exactly one table-cell anchor with one producer observation; page spans do
+owns exactly one table-cell anchor with every producer occurrence; page spans do
 not duplicate anchor IDs.
 
 The public document and package JSON are identical portable data. Cache paths,

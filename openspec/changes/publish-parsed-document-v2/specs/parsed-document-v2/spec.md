@@ -24,8 +24,9 @@ V2 ingestion SHALL accept only an uploaded PDF and SHALL reject URL-source
 fields and non-PDF media types. The service SHALL expose only `/tasks`, task
 status, `/document`, `/markdown`, and `/download` routes.
 
-The route table contains no `/parsed-document` alias; clients use
-`/tasks/{id}/document`.
+`GET /tasks/{id}/document` and `GET /tasks/{id}/source` SHALL return the same
+strict v2 payload. The retained upload is served separately by
+`GET /tasks/{id}/pdf`. The route table contains no `/parsed-document` alias.
 
 #### Scenario: URL source is submitted
 
@@ -61,10 +62,12 @@ same page; known-but-unplaced tables SHALL be listed under that page's
 ### Requirement: Producer-backed table Evidence
 
 Each canonical table cell SHALL contain exactly one `evidence_anchor_id`.
-The matching table-cell anchor SHALL contain one producer observation with
-physical page, producer identity, page-local row/column offsets, observed spans,
-and optional geometry. Page spans SHALL contain only page/range/producer
-identity. Missing geometry is valid; missing producer observation is not.
+The matching table-cell anchor SHALL contain a non-empty ordered collection of
+producer observations with unique occurrence IDs, physical page, producer
+identity, page-local row/column offsets, observed spans, and optional geometry.
+Text anchors SHALL own one occurrence ID. No occurrence ID may be owned by two
+anchors. Page spans SHALL contain only page/range/producer identity. Missing
+geometry is valid; missing producer occurrence identity is not.
 
 #### Scenario: Cell Evidence is duplicated
 
@@ -134,4 +137,3 @@ fill, migrate, or rewrite legacy task fields.
 
 - **WHEN** a task lacks one of the required current upload fields
 - **THEN** reconciliation skips it without filling or migrating any field
-

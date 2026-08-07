@@ -34,6 +34,10 @@ const at = (minute: number) =>
  */
 function fakeDatabase(tables: Readonly<Record<string, Row[]>>) {
   const reads: Array<{ table: string; transactional: boolean }> = []
+  const writes: Array<{ table: string; transactional: boolean }> = []
+  const rows = Object.fromEntries(
+    Object.entries(tables).map(([table, values]) => [table, [...values]]),
+  ) as Record<string, Row[]>
   let depth = 0
 
   const orderingProbe = () =>
@@ -48,7 +52,8 @@ function fakeDatabase(tables: Readonly<Record<string, Row[]>>) {
     )
 
   const collection = (table: string) => {
-    let rows = tables[table] ?? []
+    const tableRows = (rows[table] ??= [])
+    let selectedRows = tableRows
     let orderings: Ordering[] = []
     let limit: number | undefined
     const compare = (left: Row, right: Row) => {
@@ -65,7 +70,7 @@ function fakeDatabase(tables: Readonly<Record<string, Row[]>>) {
     const query = {
       select: () => query,
       where(filter: Row) {
-        rows = rows.filter((row) =>
+        selectedRows = selectedRows.filter((row) =>
           Object.entries(filter).every(([key, value]) => row[key] === value),
         )
         return query
@@ -86,11 +91,21 @@ function fakeDatabase(tables: Readonly<Record<string, Row[]>>) {
       },
       async all() {
         reads.push({ table, transactional: depth > 0 })
-        return [...rows].sort(compare).slice(0, limit)
+        return [...selectedRows].sort(compare).slice(0, limit)
       },
       async first(filter?: Row) {
         if (filter) query.where(filter)
         return (await query.all())[0] ?? null
+      },
+      async create(input: Row) {
+        writes.push({ table, transactional: depth > 0 })
+        const row = {
+          id: `${table}-created-${tableRows.length + 1}`,
+          createdAt: at(30 + tableRows.length),
+          ...input,
+        }
+        tableRows.push(row)
+        return row
       },
     }
     return query
@@ -101,6 +116,8 @@ function fakeDatabase(tables: Readonly<Record<string, Row[]>>) {
   }
   return {
     reads,
+    writes,
+    rows,
     orm,
     async transaction<T>(run: (tx: { orm: typeof orm }) => PromiseLike<T>) {
       depth += 1
@@ -228,6 +245,14 @@ function seededTables(): Record<string, Row[]> {
         failure: null,
       },
     ],
+    ReviewDecision: [
+      {
+        id: '51000000-0000-4000-8007-000000000001',
+        extractionId: 'extraction-compatible-newest',
+        evidenceAnchorId: 'anchor-number-24-1',
+        reviewedOccurrenceIds: ['occurrence-number-24-1'],
+      },
+    ],
   }
 }
 
@@ -273,6 +298,13 @@ describe('getDocumentReopenSnapshot', () => {
         outcome: 'SUCCEEDED',
         resultPayload: { result: { newest: true }, evidence: null },
         failure: null,
+        reviewDecisions: [
+          {
+            reviewDecisionId: '51000000-0000-4000-8007-000000000001',
+            evidenceAnchorId: 'anchor-number-24-1',
+            reviewedOccurrenceIds: ['occurrence-number-24-1'],
+          },
+        ],
       },
     })
     expect(database.reads.length).toBeGreaterThan(1)
@@ -337,6 +369,42 @@ describe('getDocumentReopenSnapshot', () => {
     await expect(
       store.getSourceRepresentation(staleSchemaRevisionId),
     ).resolves.toBeNull()
+  })
+})
+
+describe('persistReviewedExtraction', () => {
+  it('writes the Extraction and its ReviewDecisions in one transaction', async () => {
+    const database = fakeDatabase(seededTables())
+    const store = createProjectStore(database as never)
+
+    const persisted = await store.persistReviewedExtraction(
+      headRepresentationId,
+      {
+        resultPayload: {
+          result: { number: '24-1' },
+          evidence: { number: ['anchor-number-24-1'] },
+        },
+        modelAttribution: { provider: 'fixture', model: 'accepted-output' },
+        reviewDecisions: [
+          {
+            evidenceAnchorId: 'anchor-number-24-1',
+            reviewedOccurrenceIds: ['occurrence-number-24-1'],
+          },
+        ],
+      },
+    )
+
+    expect(persisted?.extractionId).toBe('Extraction-created-5')
+    expect(database.writes.map((write) => write.table)).toEqual([
+      'Extraction',
+      'ReviewDecision',
+    ])
+    expect(database.writes.every((write) => write.transactional)).toBe(true)
+    expect(database.rows.ReviewDecision.at(-1)).toMatchObject({
+      extractionId: 'Extraction-created-5',
+      evidenceAnchorId: 'anchor-number-24-1',
+      reviewedOccurrenceIds: ['occurrence-number-24-1'],
+    })
   })
 })
 
@@ -411,6 +479,13 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
         outcome: 'SUCCEEDED',
         resultPayload: { result: { site: 'Ellekilde' }, evidence: null },
         failure: null,
+        reviewDecisions: [
+          {
+            reviewDecisionId: '00000000-0000-4000-8000-0000000000f2',
+            evidenceAnchorId: 'anchor-7',
+            reviewedOccurrenceIds: ['occurrence-7'],
+          },
+        ],
       },
     }
     const GET = createGetDocumentReopen({
@@ -437,6 +512,12 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
         createdAt: '2026-07-31T13:00:00.000Z',
         result: { site: 'Ellekilde' },
         evidence: null,
+        reviewDecisions: [
+          {
+            evidenceAnchorId: 'anchor-7',
+            reviewedOccurrenceIds: ['occurrence-7'],
+          },
+        ],
       },
     })
   })
@@ -459,6 +540,7 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
             outcome,
             resultPayload: null,
             failure,
+            reviewDecisions: [],
           },
         }
       },

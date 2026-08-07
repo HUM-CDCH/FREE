@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
+import parsedDocument from './assets/parsed_document.v2.json'
 
 const { scrollPageIntoView } = vi.hoisted(() => ({ scrollPageIntoView: vi.fn() }))
 
@@ -36,6 +37,7 @@ const reopened: DocumentWorkspaceProps = {
   pdfUrl: '/api/source-representations/rep/pdf',
   filename: 'Beretning.pdf',
   markdownUrl: '/api/source-representations/rep/markdown',
+  parsedDocumentUrl: '/api/source-representations/rep/parsed-document',
   annotationSet: {
     annotationSetId: '51000000-0000-4000-8003-000000000001',
     revisionNumber: 1,
@@ -59,6 +61,7 @@ const reopened: DocumentWorkspaceProps = {
     outcome: 'succeeded',
     result: { place: 'Ellekilde' },
     evidence: null,
+    reviewDecisions: [],
   },
 }
 
@@ -72,7 +75,13 @@ afterEach(() => {
 async function renderReopened() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => Promise.resolve(new Response('# Beretning'))),
+    vi.fn((input: string | URL | Request) =>
+      Promise.resolve(
+        String(input).endsWith('/parsed-document')
+          ? Response.json(parsedDocument)
+          : new Response('# Beretning'),
+      ),
+    ),
   )
   render(<DocumentWorkspace {...reopened} />)
   await waitFor(() =>

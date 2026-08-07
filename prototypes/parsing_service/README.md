@@ -46,6 +46,8 @@ parser input/output refs, and internal digests stay in the generation manifest.
 - `POST /tasks`
 - `GET /tasks/{task_id}`
 - `GET /tasks/{task_id}/document`
+- `GET /tasks/{task_id}/source` (the same `parsed_document.v2` payload)
+- `GET /tasks/{task_id}/pdf` (the retained upload)
 - `GET /tasks/{task_id}/markdown`
 - `GET /tasks/{task_id}/download`
 
@@ -56,7 +58,8 @@ There is no URL ingestion and no `/parsed-document` alias.
 - `app.models.parsed_document.ParsedDocument` is the sole public model.
 - Source is upload-only PDF.
 - `MarkdownByteSpan` is a half-open UTF-8 byte range into canonical Markdown.
-- Every canonical table cell has one producer-backed table-cell Evidence anchor.
+- Every canonical table cell has one Evidence anchor owning all producer
+  occurrences.
 - Page spans contain page/range/producer identity only.
 - Route JSON and packaged JSON are the same portable payload.
 - Package entries are `manifest.json`, `source.pdf`, `parsed_document.json`,

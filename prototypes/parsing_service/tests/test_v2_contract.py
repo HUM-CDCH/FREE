@@ -102,6 +102,7 @@ def _document(source: bytes = b"%PDF-1.7\n") -> ParsedDocument:
                     {
                         "kind": "text",
                         "anchor_id": "anchor-1",
+                        "occurrence_id": "occurrence-1",
                         "content_sha256": digest,
                         "preprocess_id": "sha256:policy",
                         "block_id": "block-1",
@@ -146,7 +147,18 @@ class ParsedDocumentV2ContractTests(unittest.TestCase):
         self.assertEqual(rendered.slice(span), text)
         self.assertEqual(span.end - span.start, len(text.encode("utf-8")))
 
-    def test_table_cell_has_one_anchor_without_nested_evidence_or_span_ids(self) -> None:
+    def test_occurrence_identity_has_one_anchor_owner(self) -> None:
+        payload = _document().model_dump(mode="json")
+        payload["evidence_index"]["anchors"].append(
+            {
+                **payload["evidence_index"]["anchors"][0],
+                "anchor_id": "anchor-2",
+            }
+        )
+        with self.assertRaisesRegex(ValidationError, "occurrence IDs must be unique"):
+            ParsedDocument.model_validate(payload)
+
+    def test_table_cell_has_one_anchor_with_owned_occurrences(self) -> None:
         sha = "a" * 64
         preprocess = "sha256:" + "b" * 64
         cell = CanonicalTableCell(
@@ -176,19 +188,22 @@ class ParsedDocumentV2ContractTests(unittest.TestCase):
             cell_id=cell.cell_id,
             canonical_row=0,
             canonical_column=0,
-            producer_observation={
-                "page_number": 1,
-                "producer_ref": "#/tables/1",
-                "row_offset": 0,
-                "column_offset": 0,
-                "row_span": 1,
-                "column_span": 1,
-                "bbox": None,
-            },
+            producer_observations=[
+                {
+                    "occurrence_id": "occurrence-1",
+                    "page_number": 1,
+                    "producer_ref": "#/tables/1",
+                    "row_offset": 0,
+                    "column_offset": 0,
+                    "row_span": 1,
+                    "column_span": 1,
+                    "bbox": None,
+                }
+            ],
         )
         self.assertNotIn("evidence", cell.model_dump())
         self.assertNotIn("evidence_anchor_ids", table.spans[0].model_dump())
-        self.assertEqual(anchor.producer_observation.page_number, 1)
+        self.assertEqual(anchor.producer_observations[0].page_number, 1)
 
     def test_reviewed_continuation_has_fail_closed_negative_cases(self) -> None:
         import importlib

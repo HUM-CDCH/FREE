@@ -41,6 +41,8 @@ cross-page table continuation without copying producer facts.
 - `POST /tasks`
 - `GET /tasks/{id}`
 - `GET /tasks/{id}/document`
+- `GET /tasks/{id}/source`
+- `GET /tasks/{id}/pdf`
 - `GET /tasks/{id}/markdown`
 - `GET /tasks/{id}/download`
 
@@ -49,4 +51,3 @@ cross-page table continuation without copying producer facts.
 This change does not add URL ingestion, non-PDF formats, persistence-domain
 models, model-provider configuration, extraction-result policy, or a PyMuPDF
 text fallback.
-

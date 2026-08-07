@@ -252,13 +252,14 @@ def assert_semantic_invariants(test: unittest.TestCase, parsed: dict) -> None:
             test.assertEqual(anchor["cell_id"], cell["cell_id"])
             test.assertEqual(anchor["canonical_row"], cell["row"])
             test.assertEqual(anchor["canonical_column"], cell["column"])
-            observation = anchor["producer_observation"]
-            if not isinstance(observation, dict):
+            observations = anchor["producer_observations"]
+            if not isinstance(observations, list) or not observations:
                 raise AssertionError(
-                    "table Evidence must retain one producer observation per cell"
+                    "table Evidence must retain producer occurrences per cell"
                 )
-            anchor_page = observation["page_number"]
-            test.assertIn(anchor_page, span_by_page)
+            for observation in observations:
+                test.assertIsInstance(observation.get("occurrence_id"), str)
+                test.assertIn(observation["page_number"], span_by_page)
     if not anchors:
         return
     reviewed = [
@@ -271,8 +272,11 @@ def assert_semantic_invariants(test: unittest.TestCase, parsed: dict) -> None:
     )
     test.assertEqual(reviewed[0]["continuation"], "derived_continuation")
     reviewed_anchor_pages = {
-        anchors[cell["evidence_anchor_id"]]["producer_observation"]["page_number"]
+        observation["page_number"]
         for cell in reviewed[0]["cells"]
+        for observation in anchors[cell["evidence_anchor_id"]][
+            "producer_observations"
+        ]
     }
     test.assertEqual(reviewed_anchor_pages, {4, 5})
     test.assertEqual(
@@ -354,9 +358,13 @@ class TestGoldenE2E(unittest.TestCase):
         status = self.client.get(f"/tasks/{task_id}").json()
         self.assertEqual(status["status"], "completed", status)
 
-        parsed_response = self.client.get(f"/tasks/{task_id}/parsed-document")
+        parsed_response = self.client.get(f"/tasks/{task_id}/source")
         self.assertEqual(parsed_response.status_code, 200, parsed_response.text)
         parsed = parsed_response.json()
+        self.assertEqual(
+            parsed,
+            self.client.get(f"/tasks/{task_id}/document").json(),
+        )
         assert_semantic_invariants(self, parsed)
 
         golden = _load_golden()

@@ -38,7 +38,7 @@ Each published cell has exactly one `TableCellEvidenceAnchor`:
 ```text
 kind, anchor_id, content_sha256, preprocess_id,
 logical_table_id, cell_id, canonical_row, canonical_column,
-producer_observation { page_number, producer_ref?, row_offset,
+producer_observations[] { occurrence_id, page_number, producer_ref?, row_offset,
   column_offset, row_span, column_span, bbox? }
 ```
 

@@ -188,6 +188,8 @@ export default function AppFrame({
     pdfUrl: openDocument.sourceRepresentation.resources.sourcePdfUrl,
     filename: openDocument.sourceDocument.name,
     markdownUrl: openDocument.sourceRepresentation.resources.markdownUrl,
+    parsedDocumentUrl:
+      openDocument.sourceRepresentation.resources.parsedDocumentUrl,
     annotationSet: openDocument.annotationSet,
     extractionSchema: openDocument.extractionSchema,
     persistedExtraction: openDocument.extraction,
@@ -196,6 +198,7 @@ export default function AppFrame({
     ? {
         ...devDocument,
         markdownUrl: null,
+        parsedDocumentUrl: null,
         annotationSet: null,
         extractionSchema: null,
         persistedExtraction: null,

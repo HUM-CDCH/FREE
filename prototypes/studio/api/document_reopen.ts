@@ -14,6 +14,7 @@ import {
   annotationSchema,
   canonicalUuidSchema,
   documentReopenResponseSchema,
+  reviewDecisionSchema,
 } from '../shared/projectContext.contract.js'
 import { z } from 'zod'
 
@@ -58,6 +59,13 @@ function extractionDto(extraction: DocumentReopenSnapshot['extraction']) {
     ...identity,
     outcome: 'succeeded' as const,
     ...durable(resultPayloadSchema, extraction.resultPayload),
+    reviewDecisions: extraction.reviewDecisions.map((decision) =>
+      durable(reviewDecisionSchema, {
+        reviewDecisionId: decision.reviewDecisionId,
+        evidenceAnchorId: decision.evidenceAnchorId,
+        reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+      }),
+    ),
   }
 }
 

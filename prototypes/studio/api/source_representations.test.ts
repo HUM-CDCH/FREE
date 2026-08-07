@@ -1,36 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
-import { parsedDocumentResourceSchema } from '../shared/projectContext.contract.js'
+import parsedDocument from '../src/assets/parsed_document.v2.json'
 import {
   DEMO_ARTIFACT_REFERENCE,
   DEMO_REPRESENTATION_ID,
   projectContextFixture,
 } from './project_contexts.fixture.js'
-import { createSourceRepresentationResource } from './source_representations.js'
+import {
+  createPersistReviewedExtraction,
+  createSourceRepresentationResource,
+} from './source_representations.js'
 
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37])
 const IMMUTABLE = 'private, max-age=31536000, immutable'
 
 const url = (artifact: string, id = DEMO_REPRESENTATION_ID) =>
   `http://test/api/source-representations/${id}/${artifact}`
-
-const parsedDocument = {
-  schema_version: 'parsed_document.v1',
-  document: {
-    document_id: `sha256:${'a'.repeat(64)}`,
-    content_sha256: 'a'.repeat(64),
-    source: { kind: 'upload', original_filename: 'report.pdf' },
-    created_at: '2026-01-01T00:00:00Z',
-    page_count: 2,
-  },
-  preprocessing: { preprocess_id: 'sha256:secret', config_hash: 'b'.repeat(64) },
-  artifacts: { llm_markdown_ref: 'data/documents/aaa/artifacts/markdown.md' },
-  parser_runs: [{ parser: 'docling_pdf', status: 'success' }],
-  text_views: { llm_markdown: '# Beretning' },
-  pages: [
-    { page: 1, text: 'Første side' },
-    { page: 2, text: 'Anden side' },
-  ],
-}
 
 /** Stands in for the Parsing Service's retained artifacts. */
 function upstream(
@@ -58,7 +42,7 @@ function upstream(
             'content-length': '11',
           },
         })
-      if (artifact === 'document') return Response.json(parsedDocument)
+      if (artifact === 'source') return Response.json(parsedDocument)
       const range = new Headers(init?.headers).get('range')
       if (range === 'bytes=0-3')
         return new Response(PDF_BYTES.slice(0, 4), {
@@ -159,18 +143,8 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     expect(parsed.headers.get('content-type')).toContain('application/json')
     expect(parsed.headers.get('cache-control')).toBe(IMMUTABLE)
     const body: unknown = await parsed.json()
-    expect(parsedDocumentResourceSchema.parse(body)).toEqual({
-      schemaVersion: 'parsed_document.v1',
-      pageCount: 2,
-      pages: [
-        { page: 1, text: 'Første side' },
-        { page: 2, text: 'Anden side' },
-      ],
-    })
-    // Storage paths, hashes, and parser diagnostics stay server-side.
-    expect(JSON.stringify(body)).not.toMatch(
-      /data\/documents|content_sha256|config_hash|docling|preprocess/i,
-    )
+    expect(body).toEqual(parsedDocument)
+    expect(JSON.stringify(body)).not.toMatch(/data\/documents|artifactReference/i)
   })
 
   it('does not use the parsed document hash as an artifact validator', async () => {
@@ -230,7 +204,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
       () => new Response('traceback: /srv/data/tasks', { status: 500 }),
     ],
   ])('bounds %s without exposing the upstream', async (_case, override) => {
-    const { handler } = resource({ source: override })
+    const { handler } = resource({ pdf: override })
 
     const response = await handler(new Request(url('pdf')))
 
@@ -246,7 +220,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
 
   it('bounds an unreadable parsed document', async () => {
     const { handler } = resource({
-      document: () => Response.json({ schema_version: 'parsed_document.v1' }),
+      source: () => Response.json({ schema_version: 'parsed_document.v1' }),
     })
 
     const response = await handler(new Request(url('parsed-document')))
@@ -276,5 +250,80 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
         message: 'Project Context storage is unavailable.',
       },
     })
+  })
+})
+
+describe('POST /api/source-representations/:id/extraction-reviews', () => {
+  const request = (reviewedOccurrenceIds: string[]) =>
+    new Request(url('extraction-reviews'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        result: { number: '24-1' },
+        evidence: { number: ['bundled-anchor'] },
+        modelAttribution: { provider: 'fixture', model: 'accepted-output' },
+        reviewDecisions: [
+          { evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds },
+        ],
+      }),
+    })
+
+  it('validates occurrence ownership before persisting the reviewed Extraction', async () => {
+    const persistReviewedExtraction = vi.fn(async () => ({
+      extractionId: '72000000-0000-4000-8003-000000000001',
+      createdAt: new Date('2026-08-07T00:02:00.000Z'),
+    }))
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().fetchArtifact,
+    )
+
+    const response = await handler(request(['bundled-occurrence']))
+
+    expect(response.status).toBe(201)
+    expect(persistReviewedExtraction).toHaveBeenCalledWith(
+      DEMO_REPRESENTATION_ID,
+      expect.objectContaining({
+        resultPayload: {
+          result: { number: '24-1' },
+          evidence: { number: ['bundled-anchor'] },
+        },
+        reviewDecisions: [
+          {
+            evidenceAnchorId: 'bundled-anchor',
+            reviewedOccurrenceIds: ['bundled-occurrence'],
+          },
+        ],
+      }),
+    )
+  })
+
+  it('rejects an occurrence owned by another or missing Evidence anchor', async () => {
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().fetchArtifact,
+    )
+
+    const response = await handler(request(['not-owned']))
+
+    expect(response.status).toBe(422)
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
   })
 })

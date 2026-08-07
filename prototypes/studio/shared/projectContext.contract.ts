@@ -50,6 +50,13 @@ export const projectContextErrorResponseSchema = z
 
 const revisionNumber = z.number().int().positive()
 
+export const reviewDecisionSchema = z
+  .object({
+    reviewDecisionId: canonicalUuidSchema,
+    evidenceAnchorId: z.string().min(1),
+    reviewedOccurrenceIds: z.array(z.string().min(1)).min(1),
+  })
+  .strict()
 /**
  * Annotations project only what Studio needs to reopen. Geometry, offsets, and
  * anchor internals stay in the parsed-document resource.
@@ -80,6 +87,7 @@ export const extractionSchema = z.discriminatedUnion('outcome', [
       outcome: z.literal('succeeded'),
       result: z.json(),
       evidence: z.json().nullable(),
+      reviewDecisions: z.array(reviewDecisionSchema),
     })
     .strict(),
   z
@@ -127,16 +135,5 @@ export const documentReopenResponseSchema = z
       .strict()
       .nullable(),
     extraction: extractionSchema.nullable(),
-  })
-  .strict()
-
-/** The parsed document the browser may read: content only, no provenance. */
-export const parsedDocumentResourceSchema = z
-  .object({
-    schemaVersion: z.string(),
-    pageCount: revisionNumber,
-    pages: z.array(
-      z.object({ page: revisionNumber, text: z.string() }).strict(),
-    ),
   })
   .strict()

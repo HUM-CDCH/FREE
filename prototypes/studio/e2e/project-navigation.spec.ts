@@ -86,6 +86,7 @@ const DURABLE = {
     outcome: 'SUCCEEDED' as const,
     resultPayload: { result: { place: 'Ellekilde' }, evidence: null },
     failure: null,
+    reviewDecisions: [],
   },
 } satisfies Pick<
   DocumentReopenSnapshot,
@@ -143,6 +144,9 @@ const base: ProjectStore = {
           artifactSha256: 'c'.repeat(64),
         }
       : null
+  },
+  async persistReviewedExtraction() {
+    return null
   },
 }
 

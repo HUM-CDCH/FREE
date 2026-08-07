@@ -19,7 +19,7 @@ artifact references, and internal digests.
 Acceptance evidence:
 
 - UTF-8 byte spans round-trip for Danish and non-BMP text;
-- one producer observation and one Evidence anchor exist per canonical table
+- every producer occurrence and one Evidence anchor exist per canonical table
   cell, with no nested or duplicated Evidence;
 - reviewed continuation admits the positive producer boundary and rejects
   narrative, caption, new-header, malformed, adjacency-only, and similarity-

@@ -45,7 +45,21 @@ export type DocumentReopenSnapshot = {
     outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
     resultPayload: unknown
     failure: unknown
+    reviewDecisions: Array<{
+      reviewDecisionId: string
+      evidenceAnchorId: string
+      reviewedOccurrenceIds: unknown
+    }>
   } | null
+}
+
+export type ReviewedExtractionInput = {
+  resultPayload: unknown
+  modelAttribution: unknown
+  reviewDecisions: Array<{
+    evidenceAnchorId: string
+    reviewedOccurrenceIds: string[]
+  }>
 }
 
 /** Server-only artifact descriptor; it never reaches browser code. */
@@ -54,7 +68,6 @@ export type SourceRepresentationArtifacts = {
   artifactSha256: string
 }
 
-/** Read-only Project Context and reopening seam; writes stay out of it. */
 export type ProjectStore = {
   listProjectContexts(limit: number): Promise<ProjectContextSummary[]>
   getProjectContextWithDocuments(projectContextId: string): Promise<{
@@ -68,6 +81,10 @@ export type ProjectStore = {
   getSourceRepresentation(
     sourceRepresentationId: string,
   ): Promise<SourceRepresentationArtifacts | null>
+  persistReviewedExtraction(
+    sourceRepresentationId: string,
+    input: ReviewedExtractionInput,
+  ): Promise<{ extractionId: string; createdAt: Date } | null>
 }
 
 export function createProjectStore(database: Database = db): ProjectStore {
@@ -186,6 +203,16 @@ export function createProjectStore(database: Database = db): ProjectStore {
               ])
               .first()
           : null
+        const reviewDecisions = extraction
+          ? await orm.public.ReviewDecision.where({ extractionId: extraction.id })
+              .select(
+                'id',
+                'evidenceAnchorId',
+                'reviewedOccurrenceIds',
+              )
+              .orderBy((decision) => decision.id.asc())
+              .all()
+          : []
 
         return {
           projectContext: {
@@ -222,6 +249,11 @@ export function createProjectStore(database: Database = db): ProjectStore {
             outcome: extraction.outcome,
             resultPayload: extraction.resultPayload,
             failure: extraction.failure,
+            reviewDecisions: reviewDecisions.map((decision) => ({
+              reviewDecisionId: decision.id,
+              evidenceAnchorId: decision.evidenceAnchorId,
+              reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+            })),
           },
         }
       })
@@ -239,6 +271,53 @@ export function createProjectStore(database: Database = db): ProjectStore {
           artifactSha256: row.artifactSha256,
         }
       )
+    },
+    async persistReviewedExtraction(sourceRepresentationId, input) {
+      return database.transaction(async ({ orm }) => {
+        const representation =
+          await orm.public.SourceRepresentationRevision.select(
+            'id',
+            'sourceDocumentId',
+          ).first({ id: sourceRepresentationId })
+        if (!representation) return null
+        const sourceDocument = await orm.public.SourceDocument.select(
+          'projectContextId',
+        ).first({ id: representation.sourceDocumentId })
+        if (!sourceDocument) return null
+        const extractionSchema = await orm.public.ExtractionSchema.where({
+          projectContextId: sourceDocument.projectContextId,
+        })
+          .select('id')
+          .orderBy([
+            (schema) => schema.createdAt.desc(),
+            (schema) => schema.id.desc(),
+          ])
+          .first()
+        const schemaRevision = extractionSchema
+          ? await orm.public.SchemaRevision.where({
+              extractionSchemaId: extractionSchema.id,
+            })
+              .select('id')
+              .orderBy((revision) => revision.revisionNumber.desc())
+              .first()
+          : null
+        if (!schemaRevision) return null
+
+        const extraction = await orm.public.Extraction.create({
+          schemaRevisionId: schemaRevision.id,
+          sourceRepresentationRevisionId: representation.id,
+          outcome: 'SUCCEEDED',
+          modelAttribution: input.modelAttribution,
+          resultPayload: input.resultPayload,
+        })
+        for (const decision of input.reviewDecisions)
+          await orm.public.ReviewDecision.create({
+            extractionId: extraction.id,
+            evidenceAnchorId: decision.evidenceAnchorId,
+            reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+          })
+        return { extractionId: extraction.id, createdAt: extraction.createdAt }
+      })
     },
   }
 }

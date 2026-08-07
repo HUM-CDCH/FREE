@@ -29,5 +29,5 @@
     {"kind": "paragraph", "block_id": "bundled-title", "page_number": 1, "parser": "bundled-fixture", "bbox": null, "markdown_span": {"start": 21, "end": 27}, "text": "Grav 8"}
   ],
   "tables": [],
-  "evidence_index": {"anchors": [{"kind": "text", "anchor_id": "bundled-anchor", "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "preprocess_id": "bundled-fixture", "block_id": "bundled-title", "page_number": 1, "markdown_span": {"start": 21, "end": 27}, "bbox": null}]}
+  "evidence_index": {"anchors": [{"kind": "text", "anchor_id": "bundled-anchor", "occurrence_id": "bundled-occurrence", "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "preprocess_id": "bundled-fixture", "block_id": "bundled-title", "page_number": 1, "markdown_span": {"start": 21, "end": 27}, "bbox": null}]}
 }

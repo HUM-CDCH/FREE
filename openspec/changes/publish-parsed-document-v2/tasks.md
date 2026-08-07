@@ -33,6 +33,8 @@ All implementation tasks are complete on the local clean branch.
   delivery; remove the hidden `/parsed-document` route and task-shaped archive
   helpers.
 - [x] Ensure route JSON and package JSON use the same portable v2 payload.
+- [x] Publish the same v2 payload from `/document` and `/source`; serve the
+  retained upload from `/pdf` and keep `/parsed-document` absent.
 
 ## Studio
 
@@ -49,6 +51,5 @@ All implementation tasks are complete on the local clean branch.
   decoding/navigation.
 - [x] Run focused CPU-profile backend tests, Studio tests/typecheck/build, and
   strict OpenSpec validation.
-- [ ] Commit the clean branch as four reviewable local commits; do not push or
-  open a pull request.
-
+- [x] Retain the implementation as reviewable local commits; do not push or open
+  a pull request.

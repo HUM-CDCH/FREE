@@ -67,6 +67,12 @@ def deterministic_anchor_id(content_sha256: str, preprocess_id: str, identity: s
     return deterministic_id("anchor", content_sha256, preprocess_id, identity)
 
 
+def deterministic_occurrence_id(
+    content_sha256: str, preprocess_id: str, identity: str
+) -> str:
+    return deterministic_id("occurrence", content_sha256, preprocess_id, identity)
+
+
 class MarkdownByteSpan(BaseModel):
     """Half-open UTF-8 byte offsets into emitted canonical Markdown."""
 
@@ -110,6 +116,7 @@ class TextEvidenceAnchor(BaseModel):
 
     kind: Literal["text"] = "text"
     anchor_id: str
+    occurrence_id: str
     content_sha256: str
     preprocess_id: str
     block_id: str
@@ -123,6 +130,7 @@ class ProducerTableCellObservation(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    occurrence_id: str
     page_number: int = Field(ge=1)
     producer_ref: str | None = None
     row_offset: int = Field(ge=0)
@@ -143,7 +151,7 @@ class TableCellEvidenceAnchor(BaseModel):
     cell_id: str
     canonical_row: int = Field(ge=0)
     canonical_column: int = Field(ge=0)
-    producer_observation: ProducerTableCellObservation
+    producer_observations: list[ProducerTableCellObservation] = Field(min_length=1)
 
 
 EvidenceAnchor = Annotated[
@@ -441,14 +449,28 @@ class ParsedDocument(BaseModel):
             raise ValueError("every v2 logical table must have a published placement")
 
         anchors_by_id: dict[str, EvidenceAnchor] = {}
+        occurrence_ids: set[str] = set()
         for anchor in self.evidence_index.anchors:
             if anchor.anchor_id in anchors_by_id:
                 raise ValueError("v2 Evidence Anchor IDs must be unique")
             if anchor.preprocess_id != self.preprocessing.preprocess_id or anchor.content_sha256 != self.document.content_sha256:
                 raise ValueError("v2 Evidence Anchor identity does not match the document")
-            anchor_page = anchor.page_number if isinstance(anchor, TextEvidenceAnchor) else anchor.producer_observation.page_number
-            if anchor_page not in expected_pages:
-                raise ValueError("v2 Evidence Anchor references an unknown physical page")
+            occurrences = (
+                [(anchor.occurrence_id, anchor.page_number)]
+                if isinstance(anchor, TextEvidenceAnchor)
+                else [
+                    (observation.occurrence_id, observation.page_number)
+                    for observation in anchor.producer_observations
+                ]
+            )
+            for occurrence_id, page_number in occurrences:
+                if occurrence_id in occurrence_ids:
+                    raise ValueError("v2 Evidence occurrence IDs must be unique")
+                if page_number not in expected_pages:
+                    raise ValueError(
+                        "v2 Evidence Anchor references an unknown physical page"
+                    )
+                occurrence_ids.add(occurrence_id)
             anchors_by_id[anchor.anchor_id] = anchor
 
         for anchor in self.evidence_index.anchors:
@@ -467,15 +489,26 @@ class ParsedDocument(BaseModel):
                     raise ValueError("v2 table Evidence Anchor references an unknown cell")
                 if anchor.canonical_row != cell.row or anchor.canonical_column != cell.column:
                     raise ValueError("v2 table Evidence Anchor canonical coordinates disagree")
-                observation = anchor.producer_observation
-                spans = [
-                    span for span in table.spans
-                    if span.page_number == observation.page_number
-                    and (span.producer_table_ref is None or span.producer_table_ref == observation.producer_ref)
-                    and (span.page_local_row_end is None or span.page_local_row_start <= observation.row_offset <= span.page_local_row_end)
-                ]
-                if len(spans) != 1:
-                    raise ValueError("v2 table Evidence Anchor must resolve to one page span")
+                for observation in anchor.producer_observations:
+                    spans = [
+                        span
+                        for span in table.spans
+                        if span.page_number == observation.page_number
+                        and (
+                            span.producer_table_ref is None
+                            or span.producer_table_ref == observation.producer_ref
+                        )
+                        and (
+                            span.page_local_row_end is None
+                            or span.page_local_row_start
+                            <= observation.row_offset
+                            <= span.page_local_row_end
+                        )
+                    ]
+                    if len(spans) != 1:
+                        raise ValueError(
+                            "v2 table Evidence occurrence must resolve to one page span"
+                        )
 
         expected_cell_anchors: set[str] = set()
         for table in self.tables:
@@ -508,7 +541,7 @@ assert_v2_source = validate_v2_source
 
 __all__ = [
     "SCHEMA_VERSION", "V2ContractError", "V2_PDF_REQUIRED_ERROR_CODE", "V2_PAGE_MAPPING_ERROR_CODE",
-    "deterministic_id", "deterministic_block_id", "deterministic_table_id", "deterministic_anchor_id",
+    "deterministic_id", "deterministic_block_id", "deterministic_table_id", "deterministic_anchor_id", "deterministic_occurrence_id",
     "MarkdownByteSpan", "PublicParserProvenance", "ParserDiagnostic", "ParserAttribution", "TableParserAttribution",
     "ContentBlock", "ContentBlockBase", "HeadingBlock", "ParagraphBlock", "TextBlock", "ListBlock", "CodeBlock",
     "FormulaBlock", "CaptionBlock", "TableReferenceBlock", "PageBreakBlock", "CanonicalTableCell",

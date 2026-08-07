@@ -15,6 +15,7 @@ Row/prose heuristics live in ``_table_matrix``; everything that produces a
 
 from __future__ import annotations
 
+import gc
 import importlib
 import logging
 import math
@@ -974,6 +975,10 @@ def extract_tables(
         # inventory. Keep candidate counts and diagnostics internal, but do
         # not publish Camelot-only canonical tables.
         camelot_candidates = _camelot_tables(found, extraction)
+        found_count = len(found)
+        # Camelot's parser graph can retain the PDF handle until cyclic GC.
+        del found
+        gc.collect()
         extraction.diagnostics.append(
             {
                 "code": "camelot_only_tables_excluded",
@@ -982,7 +987,7 @@ def extract_tables(
         )
         tables = []
         metrics = {
-            "tables_found": len(found),
+            "tables_found": found_count,
             "tables_kept": 0,
             "camelot_candidates": len(camelot_candidates),
         }

@@ -201,8 +201,20 @@ model Extraction {
   createdAt                      Timestamptz6                 @default(now())
   schemaRevision                 SchemaRevision               @relation(fields: [schemaRevisionId], references: [id], onDelete: Restrict)
   sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Restrict)
+  reviewDecisions                ReviewDecision[]
 
   @@index([schemaRevisionId])
   @@index([sourceRepresentationRevisionId])
+}
+
+model ReviewDecision {
+  id                    Uuid       @id @default(uuid())
+  extractionId          Uuid
+  evidenceAnchorId      String
+  reviewedOccurrenceIds Json
+  createdAt             Timestamptz6 @default(now())
+  extraction            Extraction @relation(fields: [extractionId], references: [id], onDelete: Restrict)
+
+  @@unique([extractionId, evidenceAnchorId])
 }
 

@@ -10,6 +10,18 @@ def test_legacy_parsed_document_alias_is_not_registered() -> None:
     assert response.status_code == 404
 
 
+def test_source_and_document_publish_the_same_v2_schema() -> None:
+    paths = app.openapi()["paths"]
+    source_schema = paths["/tasks/{task_id}/source"]["get"]["responses"]["200"][
+        "content"
+    ]["application/json"]["schema"]
+    document_schema = paths["/tasks/{task_id}/document"]["get"]["responses"][
+        "200"
+    ]["content"]["application/json"]["schema"]
+    assert source_schema == document_schema
+    assert "/tasks/{task_id}/parsed-document" not in paths
+
+
 def test_task_status_schema_does_not_publish_cache_references() -> None:
     fields = set(app.openapi()["components"]["schemas"]["TaskStatusResponse"]["properties"])
     assert "source_store_path" not in fields

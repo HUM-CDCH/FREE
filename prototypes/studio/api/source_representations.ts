@@ -1,6 +1,13 @@
 /// <reference types="vite/client" />
 
-import { ApiError, noStoreError, persistenceUnavailable } from './_http.js'
+import {
+  ApiError,
+  json,
+  noStore,
+  noStoreError,
+  parseJsonRequest,
+  persistenceUnavailable,
+} from './_http.js'
 import {
   createProjectStore,
   type ProjectStore,
@@ -8,12 +15,31 @@ import {
 } from '../../../packages/db/src/project-store.js'
 import {
   canonicalUuidSchema,
-  parsedDocumentResourceSchema,
 } from '../shared/projectContext.contract.js'
+import { decodeParsedDocument } from '../src/parsedDocument.js'
 import { z } from 'zod'
 
 const ROUTE =
   /^\/api\/source-representations\/([^/]+)\/(pdf|markdown|parsed-document)$/
+const REVIEW_ROUTE =
+  /^\/api\/source-representations\/([^/]+)\/extraction-reviews$/
+const reviewDecisionInputSchema = z
+  .object({
+    evidenceAnchorId: z.string().min(1),
+    reviewedOccurrenceIds: z
+      .array(z.string().min(1))
+      .min(1)
+      .refine((ids) => new Set(ids).size === ids.length),
+  })
+  .strict()
+const reviewedExtractionSchema = z
+  .object({
+    result: z.json(),
+    evidence: z.json().nullable(),
+    modelAttribution: z.json(),
+    reviewDecisions: z.array(reviewDecisionInputSchema).min(1),
+  })
+  .strict()
 
 /**
  * The Parsing Service retains every published artifact and `artifactReference`
@@ -22,13 +48,14 @@ const ROUTE =
  * override the browser uses (see src/api.ts).
  */
 const PARSING_SERVICE =
-  (import.meta.env.VITE_PARSING_SERVICE_URL as string | undefined) ??
+  (import.meta as ImportMeta & { env?: ImportMetaEnv }).env
+    ?.VITE_PARSING_SERVICE_URL ??
   'http://127.0.0.1:8000'
 /** Keyed by the path segment `ROUTE` allows, so no artifact name is unchecked. */
 const ARTIFACTS: Record<string, { upstream: string; mediaType: string }> = {
-  pdf: { upstream: 'source', mediaType: 'application/pdf' },
+  pdf: { upstream: 'pdf', mediaType: 'application/pdf' },
   markdown: { upstream: 'markdown', mediaType: 'text/markdown; charset=utf-8' },
-  'parsed-document': { upstream: 'document', mediaType: 'application/json' },
+  'parsed-document': { upstream: 'source', mediaType: 'application/json' },
 }
 /** Representation-pinned artifacts are immutable, and private to this researcher. */
 const IMMUTABLE = { 'Cache-Control': 'private, max-age=31536000, immutable' }
@@ -41,27 +68,6 @@ function artifactUnavailable(cause: unknown): ApiError {
     'The retained Source Document artifact is unavailable.',
     { cause },
   )
-}
-
-// Unknown keys are dropped, not rejected: the canonical parsed document carries
-// far more than the browser may read.
-const storedParsedDocumentSchema = z.object({
-  schema_version: z.string(),
-  document: z.object({ page_count: z.number().int() }),
-  pages: z.array(z.object({ page: z.number().int(), text: z.string() })),
-})
-
-/** Only content crosses into the browser: no refs, hashes, or parser diagnostics. */
-function parsedDocumentResource(
-  document: unknown,
-): z.output<typeof parsedDocumentResourceSchema> {
-  const stored = storedParsedDocumentSchema.safeParse(document)
-  if (!stored.success) throw artifactUnavailable(stored.error)
-  return {
-    schemaVersion: stored.data.schema_version,
-    pageCount: stored.data.document.page_count,
-    pages: stored.data.pages,
-  }
 }
 
 export function createSourceRepresentationResource(
@@ -136,11 +142,12 @@ export function createSourceRepresentationResource(
 
       if (artifact === 'parsed-document') {
         const body = JSON.stringify(
-          parsedDocumentResource(
-            await response.json().catch((cause: unknown) => {
+          await response
+            .json()
+            .then(decodeParsedDocument)
+            .catch((cause: unknown) => {
               throw artifactUnavailable(cause)
             }),
-          ),
         )
         headers.set('Content-Length', String(Buffer.byteLength(body)))
         return new Response(request.method === 'HEAD' ? null : body, { headers })
@@ -159,3 +166,123 @@ export function createSourceRepresentationResource(
 
 export const GET = createSourceRepresentationResource()
 export const HEAD = GET
+
+export function createPersistReviewedExtraction(
+  store: Pick<
+    ProjectStore,
+    'getSourceRepresentation' | 'persistReviewedExtraction'
+  > = createProjectStore(),
+  fetchArtifact: typeof fetch = fetch,
+) {
+  return async function persistReviewedExtraction(
+    request: Request,
+  ): Promise<Response> {
+    try {
+      const match = REVIEW_ROUTE.exec(new URL(request.url).pathname)
+      if (!match) throw new ApiError(404, 'not_found', 'API route not found.')
+      const sourceRepresentationId = match[1]
+      if (!canonicalUuidSchema.safeParse(sourceRepresentationId).success)
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'sourceRepresentationId must be a canonical lowercase UUID.',
+        )
+      const parsedInput = reviewedExtractionSchema.safeParse(
+        await parseJsonRequest(request),
+      )
+      if (!parsedInput.success)
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'The reviewed Extraction payload is invalid.',
+        )
+      const input = parsedInput.data
+      if (
+        new Set(input.reviewDecisions.map((decision) => decision.evidenceAnchorId))
+          .size !== input.reviewDecisions.length
+      )
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'Each Evidence anchor can have only one ReviewDecision.',
+        )
+
+      const descriptor = await store
+        .getSourceRepresentation(sourceRepresentationId)
+        .catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
+      if (!descriptor)
+        throw new ApiError(
+          404,
+          'not_found',
+          'That Source Representation was not found.',
+        )
+      const response = await fetchArtifact(
+        `${PARSING_SERVICE}/tasks/${descriptor.artifactReference}/source`,
+      ).catch((cause: unknown) => {
+        throw artifactUnavailable(cause)
+      })
+      if (!response.ok) throw artifactUnavailable(response.status)
+      const document = await response
+        .json()
+        .then(decodeParsedDocument)
+        .catch((cause: unknown) => {
+          throw artifactUnavailable(cause)
+        })
+      const ownership = new Map(
+        document.evidence_index.anchors.map((anchor) => [
+          anchor.anchor_id,
+          new Set(
+            anchor.kind === 'text'
+              ? [anchor.occurrence_id]
+              : anchor.producer_observations.map(
+                  (observation) => observation.occurrence_id,
+                ),
+          ),
+        ]),
+      )
+      for (const decision of input.reviewDecisions) {
+        const owned = ownership.get(decision.evidenceAnchorId)
+        if (
+          !owned ||
+          decision.reviewedOccurrenceIds.some(
+            (occurrenceId) => !owned.has(occurrenceId),
+          )
+        )
+          throw new ApiError(
+            422,
+            'invalid_request',
+            'A reviewed occurrence does not belong to its Evidence anchor.',
+          )
+      }
+
+      const persisted = await store
+        .persistReviewedExtraction(sourceRepresentationId, {
+          resultPayload: { result: input.result, evidence: input.evidence },
+          modelAttribution: input.modelAttribution,
+          reviewDecisions: input.reviewDecisions,
+        })
+        .catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
+      if (!persisted)
+        throw new ApiError(
+          409,
+          'invalid_request',
+          'The Source Representation has no current Extraction Schema.',
+        )
+      return json(
+        {
+          extractionId: persisted.extractionId,
+          createdAt: persisted.createdAt.toISOString(),
+        },
+        { status: 201, headers: noStore },
+      )
+    } catch (error) {
+      return noStoreError(error)
+    }
+  }
+}
+
+export const POST = createPersistReviewedExtraction()

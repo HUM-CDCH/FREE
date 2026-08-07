@@ -41,8 +41,9 @@ character indices.
 
 Text blocks receive one anchor with their page and byte span. Every canonical
 table cell receives one anchor containing derived logical row/column identity
-and one producer observation containing physical page, producer ref, page-local
-row/column offsets, spans, and optional geometry. Cells contain no nested
+and an ordered collection of producer occurrences containing stable occurrence
+ID, physical page, producer ref, page-local row/column offsets, spans, and
+optional geometry. Text anchors own one occurrence ID. Cells contain no nested
 Evidence; page spans contain no anchor-ID lists.
 
 Continuation is a typed evaluator over reviewed producer facts. It requires
@@ -66,4 +67,3 @@ Studio decodes exactly the v2 Zod shape. Evidence navigation groups text and
 table-cell anchors by physical page, displays top-level diagnostics separately,
 and uses producer observations for table-page navigation. Extraction-result
 Evidence remains a separate concern.
-

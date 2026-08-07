@@ -10,8 +10,17 @@ import type { TemplateState } from './SchemaPanel'
 import { type SchemaNode, nodesToTemplate, templateToNodes } from '../shared/schemaNode'
 import { countTemplateFields } from './template'
 import { requestSchema, parseDocument, fetchParsedDocument } from './api'
-import type { ParsedDocumentV2, ParsedEvidenceAnchor } from './parsedDocument'
-import { blockText, findTextLayerMatch, verifiedEvidenceBbox } from './evidenceNavigation'
+import {
+  decodeParsedDocument,
+  type ParsedDocumentV2,
+  type ParsedEvidenceAnchor,
+} from './parsedDocument'
+import {
+  anchorOccurrences,
+  blockText,
+  findTextLayerMatch,
+  verifiedEvidenceBbox,
+} from './evidenceNavigation'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
 import EvidenceHighlightLayer from './EvidenceHighlightLayer'
@@ -79,6 +88,18 @@ async function readMarkdown(url: string, signal: AbortSignal): Promise<string> {
   return response.text()
 }
 
+async function readParsedDocument(
+  url: string,
+  signal: AbortSignal,
+): Promise<ParsedDocumentV2> {
+  const response = await fetch(url, { signal })
+  if (!response.ok)
+    throw new Error(
+      `Could not fetch parsed Source Document (HTTP ${response.status}).`,
+    )
+  return decodeParsedDocument(await response.json())
+}
+
 function getHighlightLabel(editor: AnnotationEditor) {
   return editor.div?.getAttribute('aria-label')?.replace(/\s+/g, ' ').trim() ?? ''
 }
@@ -100,6 +121,7 @@ export type DocumentWorkspaceProps = {
   pdfUrl: string
   filename: string
   markdownUrl: string | null
+  parsedDocumentUrl: string | null
   annotationSet: DocumentSnapshot['annotationSet']
   extractionSchema: DocumentSnapshot['extractionSchema']
   persistedExtraction: DocumentSnapshot['extraction']
@@ -124,6 +146,7 @@ export function DocumentWorkspace({
   pdfUrl,
   filename,
   markdownUrl,
+  parsedDocumentUrl,
   annotationSet,
   extractionSchema,
   persistedExtraction,
@@ -172,6 +195,14 @@ export function DocumentWorkspace({
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
   const parsedDocument = docIndex.status === 'ready' ? docIndex.document : null
+  const reviewedOccurrenceIdsByAnchor = new Map(
+    persistedExtraction?.outcome === 'succeeded'
+      ? persistedExtraction.reviewDecisions.map((decision) => [
+          decision.evidenceAnchorId,
+          decision.reviewedOccurrenceIds,
+        ])
+      : [],
+  )
 
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
@@ -335,14 +366,11 @@ export function DocumentWorkspace({
         const devTaskId = import.meta.env.VITE_DEV_TASK_ID as
           | string
           | undefined
-        const parsed = markdownUrl
-          ? {
-              markdown: await readMarkdown(
-                markdownUrl,
-                abortController.signal,
-              ),
-              document: null,
-            }
+        const parsed = markdownUrl && parsedDocumentUrl
+          ? await Promise.all([
+              readMarkdown(markdownUrl, abortController.signal),
+              readParsedDocument(parsedDocumentUrl, abortController.signal),
+            ]).then(([markdown, document]) => ({ markdown, document }))
           : devTaskId
             ? await Promise.all([
                 readMarkdown(
@@ -374,35 +402,52 @@ export function DocumentWorkspace({
     })()
 
     return () => abortController.abort()
-  }, [markdownUrl, onInitialResourceLoadFailure, pdfSource])
+  }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl, pdfSource])
 
   function selectEvidenceAnchor(anchor: ParsedEvidenceAnchor) {
     const viewer = pdfViewerRef.current
-    if (!viewer) return
-    const pageNumber = anchor.kind === 'text' ? anchor.page_number : anchor.producer_observation.page_number
-    viewer.scrollPageIntoView({ pageNumber })
-    const page = containerRef.current?.querySelector(`.page[data-page-number="${pageNumber}"]`)
-    if (!(page instanceof HTMLElement)) return
-    page.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-    page.querySelector('.parsed-evidence-focus')?.remove()
-    const bbox = verifiedEvidenceBbox(anchor)
-    if (bbox) {
-      const pageMeta = parsedDocument?.pages.find((candidate) => candidate.page_number === pageNumber)
-      const width = typeof pageMeta?.width_pt === 'number' && pageMeta.width_pt > 0 ? pageMeta.width_pt : page.clientWidth
-      const height = typeof pageMeta?.height_pt === 'number' && pageMeta.height_pt > 0 ? pageMeta.height_pt : page.clientHeight
+    const container = containerRef.current
+    container
+      ?.querySelectorAll('.parsed-evidence-focus')
+      .forEach((focus) => focus.remove())
+    if (!viewer || !container || !parsedDocument) return
+    const reviewed = reviewedOccurrenceIdsByAnchor.get(anchor.anchor_id)
+    const occurrences = anchorOccurrences(anchor).filter(
+      (occurrence) => !reviewed || reviewed.includes(occurrence.occurrence_id),
+    )
+    const firstOccurrence = occurrences[0]
+    if (!firstOccurrence) return
+    viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
+    let firstFocus: HTMLElement | null = null
+    for (const occurrence of occurrences) {
+      const page = container.querySelector(
+        `.page[data-page-number="${occurrence.page_number}"]`,
+      )
+      if (!(page instanceof HTMLElement)) continue
+      const bbox = verifiedEvidenceBbox(parsedDocument, occurrence)
+      if (!bbox) continue
+      const pageMeta = parsedDocument.pages.find(
+        (candidate) => candidate.page_number === occurrence.page_number,
+      )!
       const focus = document.createElement('div')
       focus.className = 'parsed-evidence-focus'
+      focus.dataset.occurrenceId = occurrence.occurrence_id
       Object.assign(focus.style, {
-        position: 'absolute', left: `${bbox.x0 / width * 100}%`, top: `${bbox.y0 / height * 100}%`,
-        width: `${(bbox.x1 - bbox.x0) / width * 100}%`, height: `${(bbox.y1 - bbox.y0) / height * 100}%`,
+        position: 'absolute', left: `${bbox.x0 / pageMeta.width_pt! * 100}%`, top: `${bbox.y0 / pageMeta.height_pt! * 100}%`,
+        width: `${(bbox.x1 - bbox.x0) / pageMeta.width_pt! * 100}%`, height: `${(bbox.y1 - bbox.y0) / pageMeta.height_pt! * 100}%`,
         border: '2px solid #d97706', background: 'rgb(251 191 36 / 0.22)', pointerEvents: 'none', zIndex: '5',
       })
       if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
       page.append(focus)
-      focus.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-      return
+      firstFocus ??= focus
     }
-    if (anchor.kind === 'text' && parsedDocument) {
+    if (firstFocus) {
+      firstFocus.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+    } else if (anchor.kind === 'text') {
+      const page = container.querySelector(
+        `.page[data-page-number="${firstOccurrence.page_number}"]`,
+      )
+      if (!(page instanceof HTMLElement)) return
       const match = findTextLayerMatch(page, blockText(parsedDocument, anchor))
       match?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
     }
@@ -705,6 +750,7 @@ export function DocumentWorkspace({
             focusPath={focusPath}
             onClearFocus={() => setFocusPath(null)}
             parsedDocument={parsedDocument}
+            reviewedOccurrenceIdsByAnchor={reviewedOccurrenceIdsByAnchor}
             onSelectEvidence={selectEvidenceAnchor}
           />
         </aside>

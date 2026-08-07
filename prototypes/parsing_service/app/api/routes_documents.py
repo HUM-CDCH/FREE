@@ -43,7 +43,7 @@ def canonical_markdown(task_id: str) -> bytes:
 
 
 @router.api_route(
-    "/tasks/{task_id}/source",
+    "/tasks/{task_id}/pdf",
     methods=["GET", "HEAD"],
     response_class=FileResponse,
     responses={
@@ -55,7 +55,7 @@ def canonical_markdown(task_id: str) -> bytes:
         }
     },
 )
-async def get_task_source(task_id: str):
+async def get_task_pdf(task_id: str):
     """Serve the retained upload itself.
 
     Deliberately not `require_completed`: the source exists from task creation and
@@ -81,6 +81,7 @@ async def get_task_markdown(task_id: str):
     return MarkdownResponse(content=canonical_markdown(task_id))
 
 
+@router.get("/tasks/{task_id}/source", response_model=ParsedDocument)
 @router.get("/tasks/{task_id}/document", response_model=ParsedDocument)
 async def get_task_document(task_id: str):
     metadata = load_metadata(task_id)
