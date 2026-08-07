@@ -686,35 +686,14 @@ def _preprocessing_metadata(
     )
 
 
-def _reviewed_continuation_pairs(docling_output: Any) -> tuple[tuple[str, str], ...]:
-    """Admit only the checked-in producer review observation."""
-    from app.parsing.continuation import (
-        evaluate_reviewed_continuation,
-        reviewed_boundary_from_doctags,
-    )
-
-    records = tuple(getattr(docling_output, "producer_records", ()) or ())
-    doctags = str(getattr(docling_output, "canonical_doctags", "") or "")
-    if not records or not doctags:
-        return ()
-    pairs: list[tuple[str, str]] = []
-    for first, second in zip(records, records[1:], strict=False):
-        boundary = reviewed_boundary_from_doctags(doctags, (first, second))
-        if boundary is None:
-            continue
-        decision = evaluate_reviewed_continuation((first, second), boundary=boundary)
-        if decision.continue_table:
-            first_ref = first.get("self_ref")
-            second_ref = second.get("self_ref")
-            if isinstance(first_ref, str) and isinstance(second_ref, str):
-                pairs.append((first_ref, second_ref))
-    return tuple(pairs)
-
-
-def _reviewed_continuation_diagnostics(
+def _reviewed_continuations(
     docling_output: Any,
-) -> tuple[dict[str, Any], ...]:
-    """Retain producer-review decisions without turning them into heuristics."""
+) -> tuple[tuple[tuple[str, str], ...], tuple[dict[str, Any], ...]]:
+    """Review every producer boundary once, returning its pairs and diagnostics.
+
+    Admits only the checked-in producer review observation; the diagnostics
+    retain each decision without turning any of them into a heuristic.
+    """
     from app.parsing.continuation import (
         evaluate_reviewed_continuation,
         reviewed_boundary_from_doctags,
@@ -723,7 +702,8 @@ def _reviewed_continuation_diagnostics(
     records = tuple(getattr(docling_output, "producer_records", ()) or ())
     doctags = str(getattr(docling_output, "canonical_doctags", "") or "")
     if not records:
-        return ()
+        return (), ()
+    pairs: list[tuple[str, str]] = []
     diagnostics: list[dict[str, Any]] = []
     for first, second in zip(records, records[1:], strict=False):
         first_ref = first.get("self_ref")
@@ -740,6 +720,12 @@ def _reviewed_continuation_diagnostics(
                 (first, second), boundary=boundary
             )
             reason = decision.reason
+            if (
+                decision.continue_table
+                and isinstance(first_ref, str)
+                and isinstance(second_ref, str)
+            ):
+                pairs.append((first_ref, second_ref))
         diagnostics.append(
             {
                 "code": "continuation_reviewed"
@@ -754,7 +740,7 @@ def _reviewed_continuation_diagnostics(
                 "second_page": second.get("page_no"),
             }
         )
-    return tuple(diagnostics)
+    return tuple(pairs), tuple(diagnostics)
 
 
 def _v2_logical_tables(
@@ -818,55 +804,68 @@ def _v2_logical_tables(
                 # unreachable, and failing closed is preferable to inventing
                 # producer Evidence if a new table adapter bypasses it.
                 continue
-            if producer_ref is not None:
-                table_id_by_observed_ref[str(producer_ref)] = table_id
-            fragment_cells: list[CanonicalTableCell] = []
-            for cell_index, cell in enumerate(getattr(fragment, "cells", ()) or ()):
+            table_id_by_observed_ref[str(producer_ref)] = table_id
+            observed_root_rows = 0
+            prior_cells = tuple(cells)
+            for cell in getattr(fragment, "cells", ()) or ():
                 canonical_row = row_base + int(cell.row)
-                identity = f"{table_id}:cell:{canonical_row}:{cell.col}:{cell_index}"
-                cell_id = deterministic_block_id(
-                    content_sha256, preprocess_id, identity
-                )
-                anchor_id = deterministic_anchor_id(
-                    content_sha256, preprocess_id, f"{table_id}:{cell_id}"
-                )
-                observation = ProducerTableCellObservation(
-                    occurrence_id=deterministic_occurrence_id(
+                observed_root_rows = max(observed_root_rows, int(cell.row) + 1)
+                roots = [
+                    root
+                    for root in prior_cells
+                    if root.row < canonical_row
+                    and canonical_row + cell.rowspan <= root.row + root.rowspan
+                    and root.column <= cell.col
+                    and cell.col + cell.colspan <= root.column + root.colspan
+                ]
+                if len(roots) > 1:
+                    raise ValueError("continued_cell_root_ambiguous")
+                if roots:
+                    cell_id = roots[0].cell_id
+                    anchor_id = roots[0].evidence_anchor_id
+                else:
+                    cell_id = deterministic_block_id(
                         content_sha256,
                         preprocess_id,
-                        f"{table_id}:{cell_id}:{producer_ref}:{fragment.page_number}:{cell.row}:{cell.col}",
-                    ),
-                    page_number=fragment.page_number,
-                    row_offset=cell.row,
-                    column_offset=cell.col,
-                    producer_ref=str(producer_ref)
-                    if producer_ref is not None
-                    else None,
-                    row_span=cell.rowspan,
-                    column_span=cell.colspan,
-                    bbox=cell.bbox,
-                )
-                fragment_cells.append(
-                    CanonicalTableCell(
-                        cell_id=cell_id,
-                        row=canonical_row,
-                        column=cell.col,
-                        text=cell.text,
-                        role=cell.role,
-                        rowspan=cell.rowspan,
-                        colspan=cell.colspan,
+                        f"{table_id}:cell:{canonical_row}:{cell.col}",
+                    )
+                    anchor_id = deterministic_anchor_id(
+                        content_sha256, preprocess_id, f"{table_id}:{cell_id}"
+                    )
+                observations.setdefault(anchor_id, []).append(
+                    ProducerTableCellObservation(
+                        occurrence_id=deterministic_occurrence_id(
+                            content_sha256,
+                            preprocess_id,
+                            f"{table_id}:{cell_id}:{producer_ref}:{fragment.page_number}:{cell.row}:{cell.col}",
+                        ),
+                        page_number=fragment.page_number,
+                        row_offset=cell.row,
+                        column_offset=cell.col,
+                        producer_ref=str(producer_ref),
+                        row_span=cell.rowspan,
+                        column_span=cell.colspan,
                         bbox=cell.bbox,
-                        evidence_anchor_id=anchor_id,
                     )
                 )
-                observations.setdefault(anchor_id, []).append(observation)
-            cells.extend(fragment_cells)
+                if not roots:
+                    cells.append(
+                        CanonicalTableCell(
+                            cell_id=cell_id,
+                            row=canonical_row,
+                            column=cell.col,
+                            text=cell.text,
+                            role=cell.role,
+                            rowspan=cell.rowspan,
+                            colspan=cell.colspan,
+                            bbox=cell.bbox,
+                            evidence_anchor_id=anchor_id,
+                        )
+                    )
             spans.append(
                 LogicalTablePageSpan(
                     page_number=fragment.page_number,
-                    producer_table_ref=str(producer_ref)
-                    if producer_ref is not None
-                    else None,
+                    producer_table_ref=str(producer_ref),
                     page_local_row_start=0,
                     page_local_row_end=max(
                         (cell.row for cell in fragment.cells), default=0
@@ -874,7 +873,7 @@ def _v2_logical_tables(
                     page_local_col_count=fragment.cols,
                 )
             )
-            row_base += int(fragment.rows or 0)
+            row_base += max(int(fragment.rows or 0), observed_root_rows)
         first = group.fragments[0]
         parser = (
             getattr(first, "content_parser", None)
@@ -931,6 +930,7 @@ def build_parsed_document_v2(
         PublicPageDecision,
         PublicParserProvenance,
         PublicPreprocessingMetadata,
+        V2_PAGE_MAPPING_ERROR_CODE,
     )
     from app.parsing.semantic_stream import (
         doctags_to_intermediate_blocks,
@@ -954,8 +954,7 @@ def build_parsed_document_v2(
     content_sha256 = context.content_sha256
     preprocess = _preprocessing_metadata(context, parser_runs)
     preprocess_id = preprocess.preprocess_id
-    continuation_pairs = _reviewed_continuation_pairs(parsing.docling_output)
-    continuation_diagnostics = _reviewed_continuation_diagnostics(
+    continuation_pairs, continuation_diagnostics = _reviewed_continuations(
         parsing.docling_output
     )
     tables, observed_to_logical, observations = _v2_logical_tables(
@@ -1057,7 +1056,7 @@ def build_parsed_document_v2(
     ]
     if not parsing.text.page_mapping_verified:
         raise CanonicalIngestionError(
-            "v2_physical_page_mapping_unavailable",
+            V2_PAGE_MAPPING_ERROR_CODE,
             "physical-page mapping could not be verified",
             parser_runs=list(parser_runs),
         )

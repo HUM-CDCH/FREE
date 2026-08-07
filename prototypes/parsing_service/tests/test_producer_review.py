@@ -1,15 +1,12 @@
 import copy
-import importlib
 import json
-import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-evaluate_reviewed_continuation = importlib.import_module(
-    "producer_review"
-).evaluate_reviewed_continuation
+from app.parsing.continuation import (
+    ProducerReviewDecision,
+    evaluate_reviewed_continuation,
+)
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "producer_review_observations.json"
@@ -353,9 +350,8 @@ class TestProducerReview(unittest.TestCase):
         )
 
     def test_direct_decision_construction_freezes_records(self):
-        module = importlib.import_module("producer_review")
         records = [{"prov": [{"page_no": 1}]}]
-        decision = module.ProducerReviewDecision(
+        decision = ProducerReviewDecision(
             continue_table=False,
             records=records,
             following_content=[],

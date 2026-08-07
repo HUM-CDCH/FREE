@@ -26,6 +26,8 @@ describe('source-document Evidence navigation', () => {
     expect(verifiedEvidenceBbox(parsed, { ...anchor, bbox: { x0: 1, y0: 2, x1: Number.NaN, y1: 6 } })).toBeNull()
     expect(verifiedEvidenceBbox(parsed, { ...anchor, bbox: { x0: 1, y0: 2, x1: 11, y1: 6 } })).toBeNull()
     expect(verifiedEvidenceBbox({ pages: [{ page_number: 1, width_pt: 10, height_pt: 10, rotation: 90 }] } as never, anchor)).toBeNull()
+    // An unpublished rotation was never verified unrotated, so it is not safe.
+    expect(verifiedEvidenceBbox({ pages: [{ page_number: 1, width_pt: 10, height_pt: 10, rotation: null }] } as never, anchor)).toBeNull()
   })
 
   it('does not identify uploaded same-named PDFs as the bundled source', () => {

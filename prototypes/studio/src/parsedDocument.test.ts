@@ -26,4 +26,24 @@ describe('parsed_document.v2 decoder', () => {
     expect(() => decodeParsedDocument({ ...fixture, content_stream: [{ ...fixture.content_stream[0], char_span: fixture.content_stream[0].markdown_span }] })).toThrow()
     expect(() => decodeParsedDocument({ ...fixture, tables: [{ ...fixture.tables[0], cells: [{ ...fixture.tables[0].cells[0], col: 0 }] }] })).toThrow()
   })
+
+  // The Python model is the authority: an occurrence resolves to exactly one page
+  // span, and a bounded span constrains the row offset from both ends.
+  it('rejects a table occurrence that no page span, or more than one, resolves', () => {
+    const anchor = fixture.evidence_index.anchors[1]
+    const withObservation = (patch: Record<string, unknown>) => ({
+      ...fixture,
+      evidence_index: { anchors: [fixture.evidence_index.anchors[0], { ...anchor, producer_observations: [{ ...anchor.producer_observations![0], ...patch }] }] },
+    })
+    // Below the span's lower row bound.
+    expect(() => decodeParsedDocument({
+      ...withObservation({ row_offset: 0 }),
+      tables: [{ ...fixture.tables[0], spans: [{ ...fixture.tables[0].spans[0], page_local_row_start: 1, page_local_row_end: 3 }] }],
+    })).toThrow()
+    // Two spans on the page match the occurrence, so ownership is ambiguous.
+    expect(() => decodeParsedDocument({
+      ...fixture,
+      tables: [{ ...fixture.tables[0], spans: [fixture.tables[0].spans[0], { ...fixture.tables[0].spans[0], producer_table_ref: null }] }],
+    })).toThrow()
+  })
 })

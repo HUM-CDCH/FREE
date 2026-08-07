@@ -94,20 +94,6 @@ def rebind_parsed_document_for_task(
     )
 
 
-def generation_ref_from_artifact_ref(ref: str | None) -> str | None:
-    """Return the immutable generation root represented by an artifact ref."""
-    if not isinstance(ref, str):
-        return None
-    parts = Path(ref).parts
-    try:
-        index = parts.index("generations")
-        if index + 1 >= len(parts):
-            return None
-        return "/".join(parts[: index + 2])
-    except ValueError:
-        return None
-
-
 CANONICAL_GENERATION_POINTER_SCHEMA = "canonical-generation.v1"
 
 
@@ -206,31 +192,6 @@ def parsed_document_json_size(parsed_document: ParsedDocument) -> int:
     return json_payload_size(parsed_document.model_dump(mode="json"))
 
 
-def _rebase_value(value: Any, old_prefix: str, new_prefix: str) -> Any:
-    if isinstance(value, str):
-        if value == old_prefix or value.startswith(f"{old_prefix}/"):
-            return new_prefix + value[len(old_prefix) :]
-        return value
-    if isinstance(value, list):
-        return [_rebase_value(item, old_prefix, new_prefix) for item in value]
-    if isinstance(value, dict):
-        return {
-            key: _rebase_value(item, old_prefix, new_prefix)
-            for key, item in value.items()
-        }
-    return value
-
-
-def rebase_parsed_document_artifacts(
-    parsed_document: StoredParsedDocument,
-    old_root: Path,
-    new_root: Path,
-) -> StoredParsedDocument:
-    """Public v2 JSON contains no cache references, so rebasing is a no-op."""
-    _ = (old_root, new_root)
-    return parsed_document
-
-
 def _validate_canonical_identity(
     parsed_document: StoredParsedDocument,
     expected_sha256: str,
@@ -246,16 +207,7 @@ def _validate_canonical_identity(
         raise ValueError("Canonical preprocessing policy mismatch.")
 
 
-def _canonical_artifact_refs(parsed_document: StoredParsedDocument) -> set[str]:
-    _ = parsed_document
-    return set()
-
-
-def _validate_markdown_artifact_ref(
-    parsed_document: StoredParsedDocument,
-    document_root: Path,
-) -> None:
-    _ = document_root
+def _validate_markdown_artifact_ref(parsed_document: StoredParsedDocument) -> None:
     if parsed_document.artifacts.markdown_ref != "artifacts/document.llm.md":
         raise ValueError("Canonical Markdown artifact reference is invalid.")
 
@@ -272,8 +224,7 @@ def validate_canonical_document(
         expected_sha256,
         expected_config_hash,
     )
-    document_root = document_store_dir(expected_sha256).resolve()
-    _validate_markdown_artifact_ref(parsed_document, document_root)
+    _validate_markdown_artifact_ref(parsed_document)
     # Raw parser refs/digests live in the internal generation manifest, never
     # in the portable ParsedDocument.
 

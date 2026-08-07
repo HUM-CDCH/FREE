@@ -244,6 +244,12 @@ export function createPersistReviewedExtraction(
           ),
         ]),
       )
+      if ([...referencedAnchors].some((anchorId) => !ownership.has(anchorId)))
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'The Extraction Result cites Evidence this Source Representation did not publish.',
+        )
       for (const decision of input.reviewDecisions) {
         if (!referencedAnchors.has(decision.evidenceAnchorId))
           throw new ApiError(
@@ -264,6 +270,12 @@ export function createPersistReviewedExtraction(
             'A reviewed occurrence does not belong to its Evidence anchor.',
           )
       }
+      if (input.reviewDecisions.length !== referencedAnchors.size)
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'Every published Evidence anchor the Extraction Result cites requires one ReviewDecision.',
+        )
 
       const persisted = await store
         .persistReviewedExtraction(sourceRepresentationId, {

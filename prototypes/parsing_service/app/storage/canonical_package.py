@@ -123,9 +123,9 @@ def portable_document_json(document: Any) -> bytes:
     if schema != PARSED_DOCUMENT_SCHEMA_VERSION:
         raise PackageError("Canonical package requires parsed_document.v2.")
     try:
-        from app.models.parsed_document_v2 import ParsedDocumentV2
+        from app.models.parsed_document_v2 import ParsedDocument
 
-        ParsedDocumentV2.model_validate(data)
+        ParsedDocument.model_validate(data)
     except (ImportError, TypeError, ValueError) as exc:
         raise PackageError(
             "Canonical document does not satisfy parsed_document.v2."
@@ -162,29 +162,17 @@ def _markdown_bytes(markdown: str | bytes) -> bytes:
     return value.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
 
 
-def _document_value(data: Mapping[str, Any], *paths: tuple[str, ...]) -> Any:
-    for path in paths:
-        current: Any = data
-        for part in path:
-            if not isinstance(current, Mapping) or part not in current:
-                break
-            current = current[part]
-        else:
-            return current
-    return None
-
-
 def _identity(data: Mapping[str, Any]) -> tuple[str, str, str]:
     schema = data.get("schema_version")
-    source_hash = _document_value(
-        data,
-        ("document", "content_sha256"),
-        ("content_sha256",),
+    document = data.get("document")
+    preprocessing = data.get("preprocessing")
+    source_hash = (
+        document.get("content_sha256") if isinstance(document, Mapping) else None
     )
-    preprocess_id = _document_value(
-        data,
-        ("preprocessing", "preprocess_id"),
-        ("preprocess_id",),
+    preprocess_id = (
+        preprocessing.get("preprocess_id")
+        if isinstance(preprocessing, Mapping)
+        else None
     )
     if schema != PARSED_DOCUMENT_SCHEMA_VERSION:
         raise PackageError("Canonical package requires parsed_document.v2.")

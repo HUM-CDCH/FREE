@@ -5,7 +5,6 @@ import unittest
 from app.models.parsed_document import ParsedTable, TableCell
 from app.parsing.semantic_stream import (
     TableSlot,
-    convert_doctags_to_blocks,
     doctags_to_intermediate_blocks,
     derive_logical_table_groups,
     match_table_slot,
@@ -16,11 +15,11 @@ from app.parsing.semantic_stream import (
 
 class TestSemanticStream(unittest.TestCase):
     def test_doc_tags_emit_ordered_typed_blocks_and_page_boundary(self):
-        blocks = convert_doctags_to_blocks(
+        blocks = doctags_to_intermediate_blocks(
             "<doctag><section_header_level_2>Title</section_header_level_2>"
             "<text>Body &amp; exact</text><caption>Figure 1</caption></doctag>"
             "<page_break><doctag><code>print(1)</code><formula>x^2</formula></doctag>"
-        )
+        )[0]
         self.assertEqual(
             [(block.kind, block.page_number) for block in blocks],
             [("heading", 1), ("paragraph", 1), ("caption", 1), ("page_boundary", 1), ("code", 2), ("formula", 2)],
@@ -28,11 +27,11 @@ class TestSemanticStream(unittest.TestCase):
         self.assertEqual(blocks[1].text, "Body &amp; exact")
 
     def test_minified_lists_code_formula_caption_and_blank_page(self):
-        blocks = convert_doctags_to_blocks(
+        blocks = doctags_to_intermediate_blocks(
             "<unordered_list><list_item>A</list_item><list_item>B</list_item></unordered_list>"
             "<code>x</code><formula>x^2</formula><page_break><page_break>"
             "<caption>Caption</caption>"
-        )
+        )[0]
         self.assertEqual([block.kind for block in blocks], ["list", "code", "formula", "page_boundary", "page_boundary", "caption"])
         self.assertEqual(blocks[-1].page_number, 3)
 
@@ -80,7 +79,7 @@ class TestSemanticStream(unittest.TestCase):
         self.assertEqual(diagnostics, ())
 
     def test_matching_slot_requires_exact_content(self):
-        blocks = convert_doctags_to_blocks("<otsl><ched>Name</otsl>")
+        blocks = doctags_to_intermediate_blocks("<otsl><ched>Name</otsl>")[0]
         slot_id = next(block.table_slot for block in blocks if block.kind == "table_slot")
         table = ParsedTable(table_id="table-1", page_number=1, rows=1, cols=1, cells=[TableCell(row=0, col=0, text="Name", role="header")])
         matched, diagnostics = match_table_slot(TableSlot(1, 1, (("Name",),), (("header",),)), [table])

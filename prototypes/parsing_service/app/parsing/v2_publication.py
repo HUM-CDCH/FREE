@@ -6,6 +6,7 @@ import hashlib
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from app.models.parsed_document import ParsedTable
 from app.models.parsed_document_v2 import (
@@ -77,22 +78,30 @@ def _escape_table_cell(text: str) -> str:
     return text.replace("\\", "\\\\").replace("|", "\\|")
 
 
-def _internal_table_matrix(
-    table: ParsedTable,
+def _cell_matrix(
+    table: CanonicalTable,
 ) -> tuple[list[list[str]], dict[tuple[int, int], tuple[str | None, int, int]]]:
+    """Lay out either cell shape. The only difference is the column attribute:
+    an internal ``ParsedTable`` names it ``col``, a ``LogicalTable`` ``column``.
+    """
+
+    def column_of(cell: Any) -> int:
+        return cell.col if isinstance(table, ParsedTable) else cell.column
+
     rows = int(table.rows or 0)
     cols = int(table.cols or 0)
     if table.cells:
         rows = max(rows, max(cell.row + cell.rowspan for cell in table.cells))
-        cols = max(cols, max(cell.col + cell.colspan for cell in table.cells))
+        cols = max(cols, max(column_of(cell) + cell.colspan for cell in table.cells))
     matrix = [[""] * cols for _ in range(rows)]
     metadata: dict[tuple[int, int], tuple[str | None, int, int]] = {}
     occupied: set[tuple[int, int]] = set()
     for cell in table.cells:
+        column = column_of(cell)
         covered = {
             (row, col)
             for row in range(cell.row, cell.row + cell.rowspan)
-            for col in range(cell.col, cell.col + cell.colspan)
+            for col in range(column, column + cell.colspan)
         }
         if any(row >= rows or col >= cols for row, col in covered):
             raise ValueError("table_cell_span_out_of_bounds")
@@ -100,50 +109,16 @@ def _internal_table_matrix(
             raise ValueError("table_cell_span_overlap")
         occupied.update(covered)
         _check_marker_collision(cell.text)
-        matrix[cell.row][cell.col] = cell.text
-        metadata[(cell.row, cell.col)] = (cell.role, cell.rowspan, cell.colspan)
-    return matrix, metadata
-
-
-def _canonical_table_matrix(
-    table: LogicalTable,
-) -> tuple[list[list[str]], dict[tuple[int, int], tuple[str | None, int, int]]]:
-    rows = int(table.rows or 0)
-    cols = int(table.cols or 0)
-    if table.cells:
-        rows = max(rows, max(cell.row + cell.rowspan for cell in table.cells))
-        cols = max(cols, max(cell.column + cell.colspan for cell in table.cells))
-    matrix = [[""] * cols for _ in range(rows)]
-    metadata: dict[tuple[int, int], tuple[str | None, int, int]] = {}
-    occupied: set[tuple[int, int]] = set()
-    for cell in table.cells:
-        covered = {
-            (row, col)
-            for row in range(cell.row, cell.row + cell.rowspan)
-            for col in range(cell.column, cell.column + cell.colspan)
-        }
-        if any(row >= rows or col >= cols for row, col in covered):
-            raise ValueError("table_cell_span_out_of_bounds")
-        if occupied.intersection(covered):
-            raise ValueError("table_cell_span_overlap")
-        occupied.update(covered)
-        _check_marker_collision(cell.text)
-        matrix[cell.row][cell.column] = cell.text
-        metadata[(cell.row, cell.column)] = (
-            cell.role,
-            cell.rowspan,
-            cell.colspan,
-        )
+        matrix[cell.row][column] = cell.text
+        metadata[(cell.row, column)] = (cell.role, cell.rowspan, cell.colspan)
     return matrix, metadata
 
 
 def _table_matrix(
     table_or_matrix: CanonicalTable | Sequence[Sequence[str]],
 ) -> tuple[list[list[str]], dict[tuple[int, int], tuple[str | None, int, int]]]:
-    if isinstance(table_or_matrix, LogicalTable):
-        return _canonical_table_matrix(table_or_matrix)
-    if isinstance(table_or_matrix, ParsedTable):
-        return _internal_table_matrix(table_or_matrix)
+    if isinstance(table_or_matrix, (LogicalTable, ParsedTable)):
+        return _cell_matrix(table_or_matrix)
     matrix = [[str(cell) for cell in row] for row in table_or_matrix]
     width = max((len(row) for row in matrix), default=0)
     return [row + [""] * (width - len(row)) for row in matrix], {}

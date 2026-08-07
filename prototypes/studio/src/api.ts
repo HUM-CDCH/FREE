@@ -85,6 +85,9 @@ export async function fetchParsedDocument(taskId: string, signal?: AbortSignal):
   return decodeParsedDocument(await response.json())
 }
 
+// Starts a Docling parse job for a Source Document and resolves once done with both the
+// Markdown and the strict v2 document. check-then-delay polling so a job that
+// is already complete returns immediately.
 export async function parseDocument(
   file: Blob,
   fileName: string,
@@ -113,35 +116,6 @@ export async function parseDocument(
   ])
   if (!md.ok) throw new Error(`Could not fetch parsed Markdown (HTTP ${md.status})`)
   return { markdown: await md.text(), document }
-}
-
-// Starts a docling parse job on upload and resolves with its Markdown once done.
-// check-then-delay polling so a job that is already complete returns immediately.
-export async function parseDocumentToMarkdown(
-  file: Blob,
-  fileName: string,
-  signal?: AbortSignal,
-): Promise<string> {
-  const form = new FormData()
-  form.append('file', file, fileName)
-  form.append('pipeline', 'docling_pdf')
-  const started = await fetch(`${PARSING_SERVICE_BASE}/tasks`, { method: 'POST', body: form, signal })
-  if (!started.ok) throw new Error((await readErrorDetail(started)) || `Parsing service rejected the document (HTTP ${started.status})`)
-  const { task_id: taskId } = (await started.json()) as { task_id: string }
-  for (;;) {
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    const res = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}`, { signal })
-    if (!res.ok) throw new Error(`Parsing status check failed (HTTP ${res.status})`)
-    const meta = (await res.json()) as TaskStatus
-    if (meta.status === 'completed') break
-    if (meta.status === 'failed') throw new Error(meta.error || 'Document parsing failed')
-    const { promise, resolve } = Promise.withResolvers<void>()
-    setTimeout(resolve, PARSE_POLL_MS)
-    await promise
-  }
-  const markdown = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}/markdown`, { signal })
-  if (!markdown.ok) throw new Error(`Could not fetch parsed Markdown (HTTP ${markdown.status})`)
-  return markdown.text()
 }
 
 // ---------- request wrappers ----------

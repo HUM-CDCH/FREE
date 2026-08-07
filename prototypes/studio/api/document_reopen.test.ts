@@ -222,7 +222,7 @@ function seededTables(): Record<string, Row[]> {
     ],
     Extraction: [
       {
-        id: 'extraction-wrong-representation',
+        id: 'extraction-on-stale-representation',
         sourceRepresentationRevisionId: staleRepresentationId,
         schemaRevisionId: headSchemaRevisionId,
         outcome: 'SUCCEEDED',
@@ -231,16 +231,7 @@ function seededTables(): Record<string, Row[]> {
         failure: null,
       },
       {
-        id: 'extraction-wrong-schema-revision',
-        sourceRepresentationRevisionId: headRepresentationId,
-        schemaRevisionId: staleSchemaRevisionId,
-        outcome: 'SUCCEEDED',
-        createdAt: at(21),
-        resultPayload: { result: { wrong: 'schema' } },
-        failure: null,
-      },
-      {
-        id: 'extraction-compatible-older',
+        id: 'extraction-older',
         sourceRepresentationRevisionId: headRepresentationId,
         schemaRevisionId: headSchemaRevisionId,
         outcome: 'SUCCEEDED',
@@ -249,19 +240,30 @@ function seededTables(): Record<string, Row[]> {
         failure: null,
       },
       {
-        id: 'extraction-compatible-newest',
+        id: 'extraction-superseded',
         sourceRepresentationRevisionId: headRepresentationId,
         schemaRevisionId: headSchemaRevisionId,
         outcome: 'SUCCEEDED',
         createdAt: at(10),
-        resultPayload: { result: { newest: true } },
+        resultPayload: { result: { superseded: true } },
+        failure: null,
+      },
+      // The accepted Extraction pins the revision it was produced with, and the
+      // Schema head has since advanced past it. It must still reopen.
+      {
+        id: 'extraction-accepted-stale-schema',
+        sourceRepresentationRevisionId: headRepresentationId,
+        schemaRevisionId: staleSchemaRevisionId,
+        outcome: 'SUCCEEDED',
+        createdAt: at(21),
+        resultPayload: { result: { accepted: true } },
         failure: null,
       },
     ],
     ReviewDecision: [
       {
         id: '51000000-0000-4000-8007-000000000001',
-        extractionId: 'extraction-compatible-newest',
+        extractionId: 'extraction-accepted-stale-schema',
         evidenceAnchorId: 'anchor-number-24-1',
         reviewedOccurrenceIds: ['occurrence-number-24-1'],
       },
@@ -270,7 +272,7 @@ function seededTables(): Record<string, Row[]> {
 }
 
 describe('getDocumentReopenSnapshot', () => {
-  it('selects the head representation with its pinned annotations, schema head, and compatible Extraction in one transaction', async () => {
+  it('selects the head representation with its pinned annotations and newest Extraction with its pinned Schema Revision in one transaction', async () => {
     const database = fakeDatabase(seededTables())
     const store = createProjectStore(database as never)
 
@@ -302,15 +304,15 @@ describe('getDocumentReopenSnapshot', () => {
       },
       extractionSchema: {
         extractionSchemaId,
-        schemaRevisionId: headSchemaRevisionId,
-        revisionNumber: 2,
-        schemaTree: { head: 'verbatim-string' },
+        schemaRevisionId: staleSchemaRevisionId,
+        revisionNumber: 1,
+        schemaTree: { stale: 'verbatim-string' },
       },
       extraction: {
-        extractionId: 'extraction-compatible-newest',
-        createdAt: at(10),
+        extractionId: 'extraction-accepted-stale-schema',
+        createdAt: at(21),
         outcome: 'SUCCEEDED',
-        resultPayload: { result: { newest: true } },
+        resultPayload: { result: { accepted: true } },
         failure: null,
         reviewDecisions: [
           {
@@ -323,6 +325,34 @@ describe('getDocumentReopenSnapshot', () => {
     })
     expect(database.reads.length).toBeGreaterThan(1)
     expect(database.reads.every((read) => read.transactional)).toBe(true)
+  })
+
+  it('reopens the representation owning the newest accepted Extraction after the head advances', async () => {
+    const tables = seededTables()
+    tables.Extraction = tables.Extraction.filter(
+      (row) => row.id === 'extraction-on-stale-representation',
+    )
+    tables.ReviewDecision = [
+      {
+        id: '51000000-0000-4000-8007-000000000002',
+        extractionId: 'extraction-on-stale-representation',
+        evidenceAnchorId: 'anchor-number-24-1',
+        reviewedOccurrenceIds: ['occurrence-number-24-1'],
+      },
+    ]
+
+    const snapshot = await createProjectStore(
+      fakeDatabase(tables) as never,
+    ).getDocumentReopenSnapshot(projectContextId, sourceDocumentId)
+
+    expect(snapshot).toMatchObject({
+      sourceRepresentation: {
+        sourceRepresentationId: staleRepresentationId,
+        revisionNumber: 1,
+      },
+      annotationSet: { annotationSetId: 'annotation-pinned-to-stale' },
+      extraction: { extractionId: 'extraction-on-stale-representation' },
+    })
   })
 
   it('treats missing optional research state as a valid snapshot', async () => {

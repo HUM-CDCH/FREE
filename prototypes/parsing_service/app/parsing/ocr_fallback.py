@@ -22,7 +22,6 @@ from typing import Any
 
 from app.models.parser import CANONICAL_OCR_MODEL
 from app.parsing.render import convert_pdf_to_images
-from app.parsing.semantic_stream import ocr_pages_to_blocks
 from app.storage.atomic_json import write_text_atomic
 from app.storage.paths import document_artifacts_dir, service_relative_ref
 from app.timing import duration_ms, utc_now
@@ -46,7 +45,6 @@ class OcrFallbackOutput:
     duration_ms: int | None = None
     pages: dict[int, str] = field(default_factory=dict)
     page_lines: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
-    semantic_blocks: tuple[Any, ...] = ()
     output_ref: str | None = None
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
@@ -189,7 +187,6 @@ def run_paddleocr_fallback(**options: Any) -> OcrFallbackOutput:
             duration_ms=duration_ms(start),
             pages=pages,
             page_lines=page_lines,
-            semantic_blocks=ocr_pages_to_blocks(pages, page_lines),
             output_ref=service_relative_ref(index_path),
             warnings=warnings,
         )

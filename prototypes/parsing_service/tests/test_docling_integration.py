@@ -13,7 +13,7 @@ from pathlib import Path
 import fitz  # type: ignore[import-not-found]
 
 from app.parsing.docling_runner import _convert_document, run_docling_ingestion
-from app.parsing.orchestrator import _reviewed_continuation_pairs
+from app.parsing.orchestrator import _reviewed_continuations
 from app.storage.paths import SERVICE_ROOT
 from app.parsing.doctags_to_markdown import convert_doctags_to_markdown
 
@@ -51,13 +51,9 @@ class TestDoclingIntegration(unittest.TestCase):
                 physical_pages=list(range(1, 7)),
                 artifact_root=artifact_root,
             )
-            self.assertEqual(
-                _reviewed_continuation_pairs(output),
-                (("#/tables/6", "#/tables/7"),),
-            )
-            self.assertNotIn(
-                ("#/tables/10", "#/tables/11"), _reviewed_continuation_pairs(output)
-            )
+            pairs, _diagnostics = _reviewed_continuations(output)
+            self.assertEqual(pairs, (("#/tables/6", "#/tables/7"),))
+            self.assertNotIn(("#/tables/10", "#/tables/11"), pairs)
         finally:
             shutil.rmtree(artifact_root, ignore_errors=True)
 

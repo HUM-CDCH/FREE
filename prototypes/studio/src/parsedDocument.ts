@@ -90,7 +90,12 @@ export function decodeParsedDocument(data: unknown): ParsedDocumentV2 {
       const table = tables.get(anchor.logical_table_id)
       const cell = table?.cells.find((candidate) => candidate.cell_id === anchor.cell_id)
       if (!table || !cell || cell.evidence_anchor_id !== anchor.anchor_id || cell.row !== anchor.canonical_row || cell.column !== anchor.canonical_column) throw new Error('parsed_document.v2: table evidence reference is invalid')
-      for (const observation of anchor.producer_observations) if (!table.spans.some((span) => span.page_number === observation.page_number && (span.producer_table_ref === null || span.producer_table_ref === observation.producer_ref) && (span.page_local_row_end === null || observation.row_offset <= span.page_local_row_end))) throw new Error('parsed_document.v2: table evidence has no matching page span')
+      // Mirrors the Python authority exactly: an occurrence must resolve to one
+      // page span, and a bounded span constrains the row offset from both ends.
+      for (const observation of anchor.producer_observations) {
+        const spans = table.spans.filter((span) => span.page_number === observation.page_number && (span.producer_table_ref === null || span.producer_table_ref === observation.producer_ref) && (span.page_local_row_end === null || (span.page_local_row_start <= observation.row_offset && observation.row_offset <= span.page_local_row_end)))
+        if (spans.length !== 1) throw new Error('parsed_document.v2: table evidence occurrence must resolve to one page span')
+      }
     }
   }
   for (const table of parsed.tables) for (const cell of table.cells) if (anchors.get(cell.evidence_anchor_id)?.kind !== 'table_cell') throw new Error('parsed_document.v2: every table cell requires one evidence anchor')

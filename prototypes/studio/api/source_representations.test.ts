@@ -260,6 +260,9 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
     result: unknown = {
       number: { value: '24-1', anchor_id: 'bundled-anchor' },
     },
+    reviewDecisions = [
+      { evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds },
+    ],
   ) =>
     new Request(url('extraction-reviews'), {
       method: 'POST',
@@ -268,9 +271,7 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
         schemaRevisionId: SCHEMA_REVISION_ID,
         result,
         modelAttribution: { provider: 'fixture', model: 'accepted-output' },
-        reviewDecisions: [
-          { evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds },
-        ],
+        reviewDecisions,
       }),
     })
 
@@ -350,6 +351,83 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
     )
 
     const response = await handler(request(['bundled-occurrence'], { number: '24-1' }))
+
+    expect(response.status).toBe(422)
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a published cited anchor that carries no ReviewDecision', async () => {
+    const persistReviewedExtraction = vi.fn()
+    // A second published anchor the result also cites, with no decision for it.
+    const twoAnchors = {
+      ...parsedDocument,
+      content_stream: [
+        ...parsedDocument.content_stream,
+        { ...parsedDocument.content_stream[0], block_id: 'bundled-second' },
+      ],
+      pages: parsedDocument.pages.map((page, index) =>
+        index === 0
+          ? { ...page, ordered_content: [...page.ordered_content, 'bundled-second'] }
+          : page,
+      ),
+      evidence_index: {
+        anchors: [
+          ...parsedDocument.evidence_index.anchors,
+          {
+            ...parsedDocument.evidence_index.anchors[0],
+            anchor_id: 'bundled-anchor-2',
+            occurrence_id: 'bundled-occurrence-2',
+            block_id: 'bundled-second',
+          },
+        ],
+      },
+    }
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream({ source: () => Response.json(twoAnchors) }).fetchArtifact,
+    )
+
+    const response = await handler(
+      request(['bundled-occurrence'], {
+        number: { value: '24-1', anchor_id: 'bundled-anchor' },
+        place: { value: 'Ellekilde', anchor_id: 'bundled-anchor-2' },
+      }),
+    )
+
+    expect(response.status).toBe(422)
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unpublished cited anchor instead of persisting false Evidence', async () => {
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().fetchArtifact,
+    )
+
+    const response = await handler(
+      request(
+        [],
+        { number: { value: '24-1', anchor_id: 'model-invented-anchor' } },
+        [],
+      ),
+    )
 
     expect(response.status).toBe(422)
     expect(persistReviewedExtraction).not.toHaveBeenCalled()

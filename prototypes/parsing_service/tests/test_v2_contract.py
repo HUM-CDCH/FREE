@@ -206,9 +206,8 @@ class ParsedDocumentV2ContractTests(unittest.TestCase):
         self.assertEqual(anchor.producer_observations[0].page_number, 1)
 
     def test_reviewed_continuation_has_fail_closed_negative_cases(self) -> None:
-        import importlib
+        from app.parsing import continuation as review
 
-        review = importlib.import_module("producer_review")
         fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
         cases = {case["name"]: case for case in fixture["cases"]}
 

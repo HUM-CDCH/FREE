@@ -31,15 +31,6 @@ _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 _PDF_MEDIA_TYPES = frozenset({"application/pdf", "application/x-pdf"})
 
 
-class V2ContractError(ValueError):
-    """Stable client-safe admission or publication failure."""
-
-    def __init__(self, code: str, message: str) -> None:
-        self.code = code
-        self.public_message = message
-        super().__init__(f"{code}: {message}")
-
-
 def _require_identity(content_sha256: str, preprocess_id: str) -> None:
     if not _HASH_RE.fullmatch(content_sha256):
         raise ValueError("content_sha256 must be a lowercase SHA-256 digest")
@@ -523,30 +514,14 @@ class ParsedDocument(BaseModel):
         return self
 
 
-# Internal code and older focused tests can use this explicit name while the
-# public interface remains ``ParsedDocument`` in app.models.parsed_document.
-ParsedDocumentV2 = ParsedDocument
-
-
-def validate_v2_source(source: bytes | bytearray | memoryview | None = None, *, media_type: str | None = None, page_mapping_verified: bool = True) -> None:
-    normalized_type = (media_type or "").lower().split(";", 1)[0].strip()
-    is_pdf = bytes(source[:5]) == b"%PDF-" if source is not None else normalized_type in _PDF_MEDIA_TYPES
-    if not is_pdf or (normalized_type and normalized_type not in _PDF_MEDIA_TYPES):
-        raise V2ContractError(V2_PDF_REQUIRED_ERROR_CODE, "Source Document must be a PDF")
-    if not page_mapping_verified:
-        raise V2ContractError(V2_PAGE_MAPPING_ERROR_CODE, "physical-page mapping could not be verified")
-
-
-assert_v2_source = validate_v2_source
-
 __all__ = [
-    "SCHEMA_VERSION", "V2ContractError", "V2_PDF_REQUIRED_ERROR_CODE", "V2_PAGE_MAPPING_ERROR_CODE",
+    "SCHEMA_VERSION", "V2_PDF_REQUIRED_ERROR_CODE", "V2_PAGE_MAPPING_ERROR_CODE",
     "deterministic_id", "deterministic_block_id", "deterministic_table_id", "deterministic_anchor_id", "deterministic_occurrence_id",
     "MarkdownByteSpan", "PublicParserProvenance", "ParserDiagnostic", "ParserAttribution", "TableParserAttribution",
     "ContentBlock", "ContentBlockBase", "HeadingBlock", "ParagraphBlock", "TextBlock", "ListBlock", "CodeBlock",
     "FormulaBlock", "CaptionBlock", "TableReferenceBlock", "PageBreakBlock", "CanonicalTableCell",
     "LogicalTablePageSpan", "LogicalTable", "ParsedPageV2", "ArtifactManifestV2", "PublicPreprocessingMetadata",
     "PublicPageDecision", "PublicArbitrationResult",
-    "ParsedDocument", "ParsedDocumentV2", "EvidenceAnchor", "EvidenceIndex", "TextEvidenceAnchor",
-    "ProducerTableCellObservation", "TableCellEvidenceAnchor", "validate_v2_source", "assert_v2_source",
+    "ParsedDocument", "EvidenceAnchor", "EvidenceIndex", "TextEvidenceAnchor",
+    "ProducerTableCellObservation", "TableCellEvidenceAnchor",
 ]

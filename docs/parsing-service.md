@@ -42,8 +42,12 @@ entries: `manifest.json`, `source.pdf`, `parsed_document.json`, and
 - `POST /tasks`
 - `GET /tasks/{task_id}`
 - `GET /tasks/{task_id}/document`
+- `GET /tasks/{task_id}/source` — the same strict v2 payload as `/document`
 - `GET /tasks/{task_id}/markdown`
+- `GET /tasks/{task_id}/pdf` — the stored Source Document bytes
 - `GET /tasks/{task_id}/download`
+- `GET /` — local prototype control page, not the researcher-facing interface
+- `GET /status`
 
 The `/parsed-document` alias and URL-source branch are not part of the service.
 

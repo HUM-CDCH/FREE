@@ -41,13 +41,10 @@ export function verifiedEvidenceBbox(
   const page = document.pages.find(
     (candidate) => candidate.page_number === occurrence.page_number,
   )
-  const rotation = ((page?.rotation ?? 0) % 360 + 360) % 360
-  if (
-    rotation !== 0 ||
-    !page ||
-    !page.width_pt ||
-    !page.height_pt
-  ) return null
+  // An unverified rotation is not a zero rotation: without a published value the
+  // page could be rotated and the bbox would be drawn in the wrong space.
+  if (!page || page.rotation === null || !page.width_pt || !page.height_pt) return null
+  if (((page.rotation % 360) + 360) % 360 !== 0) return null
   const raw = occurrence.bbox
   if (!raw || typeof raw.x0 !== 'number' || typeof raw.y0 !== 'number' || typeof raw.x1 !== 'number' || typeof raw.y1 !== 'number') return null
   if (![raw.x0, raw.y0, raw.x1, raw.y1].every(Number.isFinite) || raw.x1 <= raw.x0 || raw.y1 <= raw.y0) return null

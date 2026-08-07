@@ -33,7 +33,6 @@ from app.storage.manifests import (
     preprocessing_config_hash,
     read_canonical_generation_ref,
     read_canonical_parsed_document,
-    rebase_parsed_document_artifacts,
     rebind_parsed_document_for_task,
     save_task_metadata,
     validate_canonical_document,
@@ -185,11 +184,6 @@ def _build_or_load_canonical(
                 write_json_atomic(
                     pending_artifacts / "generation-manifest.json",
                     built.generation_manifest,
-                )
-                parsed_document = rebase_parsed_document_artifacts(
-                    parsed_document,
-                    pending_dir,
-                    final_dir,
                 )
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(pending_dir, final_dir)

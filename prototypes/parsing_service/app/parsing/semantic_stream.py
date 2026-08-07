@@ -282,13 +282,6 @@ def _append_fragment(
         blocks.append(SemanticBlock("text", page, suffix, raw=fragment[cursor:]))
 
 
-def convert_doctags_to_blocks(
-    doctags: str, *, first_page: int = 1
-) -> tuple[SemanticBlock, ...]:
-    """Public convenience wrapper returning only the intermediate stream."""
-    return doctags_to_intermediate_blocks(doctags, first_page=first_page)[0]
-
-
 # Stable, source-scoped IDs.  These functions do not claim that a producer ref
 # is durable; it is merely part of the deterministic input namespace.
 def stable_stream_id(
@@ -601,25 +594,11 @@ def derive_logical_table_groups(
     )
 
 
-def canonicalize_logical_tables(
-    tables: Sequence[ParsedTable], *, continuation_pairs: Iterable[tuple[str, str]] = ()
-) -> tuple[ParsedTable, ...]:
-    """Compatibility view retaining page-local records.
-
-    Logical grouping is exposed by :func:`derive_logical_table_groups`; this
-    v1-shaped helper does not flatten cells and therefore cannot erase their
-    page-local Evidence.
-    """
-    derive_logical_table_groups(tables, continuation_pairs=continuation_pairs)
-    return tuple(tables)
-
-
 __all__ = [
     "SemanticBlock",
     "TableSlot",
     "PlacementDiagnostic",
     "PlacementResult",
-    "convert_doctags_to_blocks",
     "doctags_to_intermediate_blocks",
     "ocr_pages_to_blocks",
     "semantic_blocks_to_v2",
@@ -628,5 +607,4 @@ __all__ = [
     "place_table_slots",
     "derive_logical_table_groups",
     "LogicalTableGroup",
-    "canonicalize_logical_tables",
 ]
