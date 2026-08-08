@@ -9,7 +9,7 @@ dependencies = [
   "docling>=2.111.0",
   "fastapi[standard]>=0.139.0",
   "filelock>=3.20.3",
-  "opencv-contrib-python==4.10.0.84",
+  "opencv-contrib-python==4.12.0.88",
   "pymupdf>=1.24.0",
   "pypdfium2>=4.30.0",
 ]
@@ -29,6 +29,7 @@ ocr-gpu = ["paddleocr>=3.7.0", "paddlex[ocr]>=3.7.0", "paddlepaddle-gpu==3.2.2"]
 [tool.uv]
 conflicts = [[{ extra = "ocr-cpu" }, { extra = "ocr-gpu" }]]
 exclude-dependencies = ["opencv-python", "opencv-python-headless"]
+override-dependencies = ["opencv-contrib-python==4.12.0.88"]
 
 [[tool.uv.index]]
 name = "paddlepaddle-cuda"

@@ -21,7 +21,7 @@ The current one-call Extraction contract asks NuExtract to produce values and a 
 
 ### Modified Capabilities
 
-- `studio-model-operation-contract`: Clarifies that one user Extraction action may compose two buffered model operations while retaining stable per-operation success and failure envelopes.
+- `studio-model-operation-contract`: Clarifies that one researcher Extraction action may compose two buffered model operations while retaining stable per-operation success and failure envelopes.
 - `extraction-results-view`: Exposes extraction and grounding progress and keeps ungrounded values visible without creating PDF highlights or Review Decisions.
 
 ## Impact

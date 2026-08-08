@@ -57,16 +57,26 @@ VS Code tasks and launches should call pnpm workspace scripts from the repositor
 
 Per-prototype guidance loads with the directory: `prototypes/parsing_service/CLAUDE.md` and `prototypes/studio/CLAUDE.md`.
 
-## What the prototype does not yet have
+## Persistence boundaries
 
-FREE persists only model configuration: non-secret Model Connections and
-Capability Routes as `model-config.json` in the OS user config directory for
-`FREE Studio`, and FREE-managed credentials in the OS credential store.
+FREE persists Project Context and Source Document research state in PostgreSQL
+through `packages/db`. The explicit review action atomically stores a successful
+Extraction and its Review Decisions against pinned Source Representation and
+Schema Revisions.
 
-Nothing else persists. There are no `/annotations`, `/validations`, or
-`/documents/prepare` endpoints. Annotations are passed inline with each
-`/api/generate_schema` request. Adding a thin in-memory store (or SQLite) with
-these three endpoints is the next backend task.
+Each Source Representation owns a portable canonical ingestion package in the
+operating system's `FREE Studio` data directory. PostgreSQL stores its
+content-addressed package reference; Parsing Service task storage is only a
+processor cache and is never a durable Source Representation dependency.
+
+Model configuration remains separate: non-secret Model Connections and
+Capability Routes live in `model-config.json` in the OS user config directory
+for `FREE Studio`, while FREE-managed credentials use the OS credential store.
+
+Studio has no general write APIs for annotations, Schema Revisions,
+validations, or document preparation. Annotations are still passed inline with
+each `/api/generate_schema` request; seeded and accepted research state reopens
+through `ProjectStore`.
 
 ## Agent skills
 
