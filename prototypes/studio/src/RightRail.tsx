@@ -9,7 +9,7 @@ import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
 import EvidenceTab from './EvidenceTab'
-import type { ParsedDocumentV2, ParsedEvidenceAnchor } from './parsedDocument'
+import type { ParsedDocument, ParsedEvidenceAnchor } from './parsedDocument'
 
 export type RailTab = 'annot' | 'evidence' | 'chat' | 'schema' | 'results'
 
@@ -31,7 +31,7 @@ type RightRailProps = {
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
   documentMarkdown: string | null
-  parsedDocument: ParsedDocumentV2 | null
+  parsedDocument: ParsedDocument | null
   reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
 }

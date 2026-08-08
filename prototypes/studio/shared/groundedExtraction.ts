@@ -4,7 +4,7 @@ export const resultPathSchema = z
   .array(z.union([z.string(), z.number().int().nonnegative()]))
   .min(1)
 
-export type ResultPath = readonly (string | number)[]
+export type ResultPath = z.infer<typeof resultPathSchema>
 
 export const evidenceLinkSchema = z
   .object({
@@ -13,10 +13,7 @@ export const evidenceLinkSchema = z
   })
   .strict()
 
-export type EvidenceLink = {
-  resultPath: ResultPath
-  evidenceAnchorId: string
-}
+export type EvidenceLink = z.infer<typeof evidenceLinkSchema>
 
 export const cleanExtractionResultSchema = z.record(z.string(), z.json())
 
@@ -27,10 +24,9 @@ export const groundedModelAttributionSchema = z
   })
   .strict()
 
-export type GroundedModelAttribution = {
-  extraction: unknown
-  grounding: unknown
-}
+export type GroundedModelAttribution = z.infer<
+  typeof groundedModelAttributionSchema
+>
 
 export const groundedExtractionPayloadSchema = z
   .object({
@@ -39,10 +35,9 @@ export const groundedExtractionPayloadSchema = z
   })
   .strict()
 
-export type GroundedExtractionPayload = {
-  result: Record<string, unknown>
-  evidenceLinks: EvidenceLink[]
-}
+export type GroundedExtractionPayload = z.infer<
+  typeof groundedExtractionPayloadSchema
+>
 
 export function resultPathKey(path: ResultPath): string {
   return JSON.stringify(path)

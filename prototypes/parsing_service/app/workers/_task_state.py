@@ -6,8 +6,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from app.models.parsed_document import ParsedDocument
-from app.models.parsed_document_v2 import PublicParserProvenance
+from app.models.parsed_document_v2 import ParsedDocument, PublicParserProvenance
 from app.parsing.orchestrator import CanonicalIngestionError
 from app.storage.hashing import document_id_from_hash, preprocess_id_from_hashes
 from app.storage.manifests import preprocessing_config_hash

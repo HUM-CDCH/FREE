@@ -8,7 +8,6 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.models.parsed_document import ParsedTable
 from app.models.parsed_document_v2 import (
     ContentBlock,
     ContentBlockBase,
@@ -21,6 +20,7 @@ from app.models.parsed_document_v2 import (
     TextEvidenceAnchor,
     V2_GEOMETRY_ERROR_CODE,
 )
+from app.models.parser_output import ParsedTable
 
 PAGE_MARKER_RE = re.compile(r"^<!-- FREE:PAGE ([1-9][0-9]*) -->$")
 PAGE_MARKER_PREFIX = "<!-- FREE:PAGE "
@@ -33,14 +33,6 @@ class RenderedSpan:
 
     start: int
     end: int
-
-    @property
-    def markdown_start(self) -> int:
-        return self.start
-
-    @property
-    def markdown_end(self) -> int:
-        return self.end
 
 
 @dataclass(frozen=True)
@@ -56,10 +48,6 @@ class RenderedMarkdown:
     @property
     def utf8(self) -> bytes:
         return self.markdown.encode("utf-8")
-
-    @property
-    def bytes(self) -> bytes:
-        return self.utf8
 
     def slice(self, span: RenderedSpan) -> str:
         return self.utf8[span.start : span.end].decode("utf-8")
@@ -440,11 +428,6 @@ def validate_publication(
                 raise ValueError("table_cell_evidence_incomplete")
 
 
-def canonical_markdown_bytes(rendered: RenderedMarkdown) -> bytes:
-    """Return the exact UTF-8 bytes written to ``document.llm.md``."""
-    return _normalise_lf(rendered.markdown).encode("utf-8")
-
-
 __all__ = [
     "PAGE_MARKER_RE",
     "PAGE_MARKER_PREFIX",
@@ -452,7 +435,6 @@ __all__ = [
     "RenderedSpan",
     "apply_rendered_spans",
     "build_evidence_index",
-    "canonical_markdown_bytes",
     "render_canonical_markdown",
     "render_table_markdown",
     "validate_publication",

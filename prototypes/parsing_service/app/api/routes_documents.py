@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import FileResponse
 
 from app.api.deps import http_task_dir, load_metadata, require_completed
-from app.models.parsed_document import ParsedDocument
+from app.models.parsed_document_v2 import ParsedDocument
 from app.storage.manifests import read_committed_markdown, read_parsed_document
 from app.storage.paths import SOURCE_FILENAME
 
@@ -22,8 +22,7 @@ class MarkdownResponse(Response):
 def read_stored_parsed_document(task_id: str) -> ParsedDocument:
     task_dir = http_task_dir(task_id)
     try:
-        parsed = read_parsed_document(task_dir)
-        return parsed
+        return read_parsed_document(task_dir)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

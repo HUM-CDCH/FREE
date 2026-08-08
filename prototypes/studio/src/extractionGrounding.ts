@@ -1,5 +1,6 @@
 import type {
   EvidenceLink,
+  GroundedModelAttribution,
   ResultPath,
 } from '../shared/groundedExtraction'
 import { isPopulatedResultScalar } from '../shared/groundedExtraction'
@@ -8,7 +9,7 @@ import {
   canonicalAnchorInventory,
   type CanonicalAnchorInventoryEntry,
 } from './anchoredDocument'
-import type { ParsedDocumentV2 } from './parsedDocument'
+import type { ParsedDocument } from './parsedDocument'
 
 export type {
   EvidenceLink,
@@ -54,11 +55,11 @@ export type GroundingOutcome = {
 
 export type GroundingStageAttribution = {
   strategy: 'retrieval_batched'
-  batches: readonly {
+  batches: {
     resultPath: ResultPath | null
     candidateCount: number
     fallback: boolean
-    modelAttribution: unknown
+    modelAttribution: GroundedModelAttribution['grounding']
   }[]
 }
 
@@ -75,7 +76,7 @@ export type GroundingModelRequest = {
 
 export type GroundingModelResponse = {
   result: unknown
-  modelAttribution: unknown
+  modelAttribution: GroundedModelAttribution['grounding']
 }
 
 export type GroundingModelInvoker = (
@@ -83,7 +84,7 @@ export type GroundingModelInvoker = (
 ) => Promise<GroundingModelResponse>
 
 export type GroundExtractionInput = {
-  document: ParsedDocumentV2
+  document: ParsedDocument
   result: Record<string, unknown>
   signal?: AbortSignal
   invokeModel: GroundingModelInvoker

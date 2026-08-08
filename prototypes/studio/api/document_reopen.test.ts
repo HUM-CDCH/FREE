@@ -171,7 +171,7 @@ function seededTables(): Record<string, Row[]> {
         createdAt: at(5),
         artifactReference: 'head-artifact',
         artifactSha256: 'b'.repeat(64),
-        contractVersion: 'parsed_document.v1',
+        contractVersion: 'parsed_document.v2',
       },
       {
         id: staleRepresentationId,
@@ -180,7 +180,7 @@ function seededTables(): Record<string, Row[]> {
         createdAt: at(4),
         artifactReference: 'stale-artifact',
         artifactSha256: 'a'.repeat(64),
-        contractVersion: 'parsed_document.v1',
+        contractVersion: 'parsed_document.v2',
       },
     ],
     AnnotationSetRevision: [

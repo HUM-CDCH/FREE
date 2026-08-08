@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeParsedDocument, diagnosticsFor } from './parsedDocument'
+import { decodeParsedDocument } from './parsedDocument'
 
 const sha = 'a'.repeat(64)
 const fixture = {
@@ -17,7 +17,7 @@ describe('parsed_document.v2 decoder', () => {
   it('decodes the one canonical shape and typed diagnostics', () => {
     const document = decodeParsedDocument(fixture)
     expect(document.content_stream[0].kind).toBe('paragraph')
-    expect(diagnosticsFor(document)).toEqual([{ code: 'unplaced_table' }])
+    expect(document.diagnostics).toEqual([{ code: 'unplaced_table' }])
   })
 
   it('rejects removed aliases and v1 payloads', () => {

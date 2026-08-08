@@ -25,7 +25,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from app.models.parsed_document import BoundingBox, ParsedTable, TableCell
+from app.models.parsed_document_v2 import BoundingBox
+from app.models.parser_output import ParsedTable, TableCell
 from app.parsing._table_matrix import (
     _guess_header_rows,
     _is_header_like_row,

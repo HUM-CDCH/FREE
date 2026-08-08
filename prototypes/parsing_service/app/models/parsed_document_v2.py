@@ -16,20 +16,65 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.parsed_document import (
-    BoundingBox,
-    DocumentMetadata,
-    InputProfile,
-    ParserRun,
-    SourceInfo,
-)
-
 SCHEMA_VERSION = "parsed_document.v2"
 V2_PDF_REQUIRED_ERROR_CODE = "v2_source_not_pdf"
 V2_PAGE_MAPPING_ERROR_CODE = "v2_physical_page_mapping_unavailable"
 V2_GEOMETRY_ERROR_CODE = "v2_evidence_geometry_unavailable"
 _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 _PDF_MEDIA_TYPES = frozenset({"application/pdf", "application/x-pdf"})
+
+
+class BoundingBox(BaseModel):
+    """Finite positive-area geometry in displayed PDF-point page space."""
+
+    model_config = ConfigDict(frozen=True)
+
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+    @model_validator(mode="after")
+    def validate_geometry(self) -> BoundingBox:
+        if not all(
+            math.isfinite(value) for value in (self.x0, self.y0, self.x1, self.y1)
+        ):
+            raise ValueError("BoundingBox coordinates must be finite.")
+        if self.x0 >= self.x1 or self.y0 >= self.y1:
+            raise ValueError("BoundingBox must have positive area.")
+        return self
+
+
+class SourceInfo(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["upload"]
+    original_filename: str | None = None
+    media_type: str = "application/pdf"
+    byte_size: int | None = Field(default=None, ge=0)
+
+
+class InputProfile(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    file_kind: Literal["pdf"] = "pdf"
+    detected_mime: str = "application/pdf"
+    pdf_version: str | None = None
+    has_text_layer: bool | None = None
+    has_images: bool | None = None
+
+
+class DocumentMetadata(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    document_id: str
+    content_sha256: str
+    source: SourceInfo
+    created_at: str
+    page_count: int | None = Field(default=None, ge=0)
+    language_hints: list[str] = Field(default_factory=list)
+    is_encrypted: bool | None = None
+    input_profile: InputProfile = Field(default_factory=InputProfile)
 
 
 def _require_identity(content_sha256: str, preprocess_id: str) -> None:
@@ -536,6 +581,7 @@ class ParsedDocument(BaseModel):
 
 __all__ = [
     "SCHEMA_VERSION", "V2_PDF_REQUIRED_ERROR_CODE", "V2_PAGE_MAPPING_ERROR_CODE", "V2_GEOMETRY_ERROR_CODE",
+    "BoundingBox", "SourceInfo", "InputProfile", "DocumentMetadata",
     "deterministic_id", "deterministic_block_id", "deterministic_table_id", "deterministic_anchor_id", "deterministic_occurrence_id",
     "MarkdownByteSpan", "PublicParserProvenance", "ParserDiagnostic", "ParserAttribution", "TableParserAttribution",
     "ContentBlock", "ContentBlockBase", "HeadingBlock", "ParagraphBlock", "TextBlock", "ListBlock", "CodeBlock",

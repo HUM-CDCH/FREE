@@ -39,7 +39,6 @@ const parsedDocumentSchema = z.object({
   artifacts: artifactSchema, parser_runs: z.array(parserRunSchema), arbitration: z.record(z.string(), z.unknown()).nullable(), diagnostics: z.array(diagnosticSchema), content_stream: z.array(blockSchema), pages: z.array(pageSchema), tables: z.array(tableSchema), evidence_index: z.object({ anchors: z.array(anchorSchema) }).strict(),
 }).strict()
 
-export type JsonObject = Record<string, unknown>
 export type MarkdownSpan = z.infer<typeof byteSpanSchema>
 export type ParsedDocumentPage = z.infer<typeof pageSchema>
 export type ParsedContentBlock = z.infer<typeof blockSchema>
@@ -48,9 +47,9 @@ export type ProducerObservation = z.infer<typeof observationSchema>
 export type TableCellEvidenceAnchor = z.infer<typeof tableAnchorSchema>
 export type ParsedEvidenceAnchor = z.infer<typeof anchorSchema>
 export type ParsedLogicalTable = z.infer<typeof tableSchema>
-export type ParsedDocumentV2 = z.infer<typeof parsedDocumentSchema>
+export type ParsedDocument = z.infer<typeof parsedDocumentSchema>
 
-export function decodeParsedDocument(data: unknown): ParsedDocumentV2 {
+export function decodeParsedDocument(data: unknown): ParsedDocument {
   const parsed = parsedDocumentSchema.parse(data)
   const pages = new Map(parsed.pages.map((page) => [page.page_number, page]))
   if (pages.size !== parsed.page_count || [...pages.keys()].some((page) => page < 1 || page > parsed.page_count)) throw new Error('parsed_document.v2: pages must uniquely cover all physical pages')
@@ -105,7 +104,5 @@ export function decodeParsedDocument(data: unknown): ParsedDocumentV2 {
   return parsed
 }
 
-export function anchorPage(anchor: ParsedEvidenceAnchor): number { return anchor.kind === 'text' ? anchor.page_number : anchor.producer_observations[0].page_number }
-export function tableForAnchor(document: ParsedDocumentV2, anchor: TableCellEvidenceAnchor): ParsedLogicalTable | undefined { return document.tables.find((table) => table.table_id === anchor.logical_table_id) }
-export function blockForAnchor(document: ParsedDocumentV2, anchor: TextEvidenceAnchor): ParsedContentBlock | undefined { return document.content_stream.find((block) => block.block_id === anchor.block_id) }
-export function diagnosticsFor(document: ParsedDocumentV2): JsonObject[] { return document.diagnostics as JsonObject[] }
+export function tableForAnchor(document: ParsedDocument, anchor: TableCellEvidenceAnchor): ParsedLogicalTable | undefined { return document.tables.find((table) => table.table_id === anchor.logical_table_id) }
+export function blockForAnchor(document: ParsedDocument, anchor: TextEvidenceAnchor): ParsedContentBlock | undefined { return document.content_stream.find((block) => block.block_id === anchor.block_id) }

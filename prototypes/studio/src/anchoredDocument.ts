@@ -1,4 +1,4 @@
-import type { ParsedDocumentV2, ParsedLogicalTable } from './parsedDocument'
+import type { ParsedDocument, ParsedLogicalTable } from './parsedDocument'
 
 export type AnchoredSource = {
   /** The canonical content the model reads, each passage labelled. */
@@ -24,7 +24,7 @@ export type CanonicalAnchorInventoryEntry =
     }
 
 export function canonicalAnchorInventory(
-  document: ParsedDocumentV2,
+  document: ParsedDocument,
 ): readonly CanonicalAnchorInventoryEntry[] {
   const anchorByBlock = new Map(
     document.evidence_index.anchors.flatMap((anchor) =>
@@ -74,7 +74,7 @@ export function canonicalAnchorInventory(
 }
 
 function projectCanonicalSource(
-  document: ParsedDocumentV2,
+  document: ParsedDocument,
 ): string {
   const tables = new Map(document.tables.map((table) => [table.table_id, table]))
   const renderedTableIds = new Set<string>()
@@ -118,7 +118,7 @@ function projectCanonicalSource(
 }
 
 /** Canonical parser content for value extraction, without citation labels. */
-export function canonicalSource(document: ParsedDocumentV2): string {
+export function canonicalSource(document: ParsedDocument): string {
   return projectCanonicalSource(document)
 }
 
@@ -129,7 +129,7 @@ export function canonicalSource(document: ParsedDocumentV2): string {
  * set is resolved by exact lookup, never by matching text to the PDF.
  */
 export function anchoredSource(
-  document: ParsedDocumentV2,
+  document: ParsedDocument,
   selectedAnchorIds?: ReadonlySet<string>,
 ): AnchoredSource {
   const anchorIdByLabel = new Map<string, string>()

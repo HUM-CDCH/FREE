@@ -16,71 +16,53 @@ const IMMUTABLE = 'private, max-age=31536000, immutable'
 const url = (artifact: string, id = DEMO_REPRESENTATION_ID) =>
   `http://test/api/source-representations/${id}/${artifact}`
 
-/** Stands in for the Parsing Service's retained artifacts. */
+type Artifact = { bytes: Uint8Array; mediaType: string }
+
+/** Stands in for the Project Context-owned canonical package store. */
 function upstream(
-  overrides: Partial<Record<string, () => Response | Promise<Response>>> = {},
+  overrides: Partial<Record<string, () => Artifact | Promise<Artifact>>> = {},
 ) {
-  const calls: Array<{ url: string; method: string; headers: Headers }> = []
-  const fetchArtifact = vi.fn(
+  const calls: Array<{
+    artifactReference: string
+    artifact: string
+  }> = []
+  const readArtifact = vi.fn(
     async (
-      input: string | URL | Request,
-      init?: RequestInit,
-    ): Promise<Response> => {
-      const target = String(input)
-      const artifact = target.split('/').at(-1) ?? ''
+      descriptor: { artifactReference: string },
+      artifact: 'pdf' | 'markdown' | 'source',
+    ) => {
       calls.push({
-        url: target,
-        method: init?.method ?? 'GET',
-        headers: new Headers(init?.headers),
+        artifactReference: descriptor.artifactReference,
+        artifact,
       })
       const override = overrides[artifact]
       if (override) return override()
       if (artifact === 'markdown')
-        return new Response('# Beretning', {
-          headers: {
-            'content-type': 'text/markdown; charset=utf-8',
-            'content-length': '11',
-          },
-        })
-      if (artifact === 'source') return Response.json(parsedDocument)
-      const range = new Headers(init?.headers).get('range')
-      if (range === 'bytes=0-3')
-        return new Response(PDF_BYTES.slice(0, 4), {
-          status: 206,
-          headers: {
-            'content-type': 'application/pdf',
-            'content-range': 'bytes 0-3/8',
-            'content-length': '4',
-            'accept-ranges': 'bytes',
-          },
-        })
-      if (range === 'bytes=99-')
-        return new Response('Range Not Satisfiable', {
-          status: 416,
-          headers: { 'content-range': 'bytes */8', 'content-length': '21' },
-        })
-      return new Response(init?.method === 'HEAD' ? null : PDF_BYTES, {
-        headers: {
-          'content-type': 'application/pdf',
-          'content-length': '8',
-          'accept-ranges': 'bytes',
-        },
-      })
+        return {
+          bytes: new TextEncoder().encode('# Beretning'),
+          mediaType: 'text/markdown; charset=utf-8',
+        }
+      if (artifact === 'source')
+        return {
+          bytes: new TextEncoder().encode(JSON.stringify(parsedDocument)),
+          mediaType: 'application/json',
+        }
+      return { bytes: PDF_BYTES, mediaType: 'application/pdf' }
     },
   )
-  return { calls, fetchArtifact }
+  return { calls, readArtifact }
 }
 
 function resource(
-  overrides?: Partial<Record<string, () => Response | Promise<Response>>>,
+  overrides?: Partial<Record<string, () => Artifact | Promise<Artifact>>>,
 ) {
-  const { calls, fetchArtifact } = upstream(overrides)
+  const { calls, readArtifact } = upstream(overrides)
   return {
     calls,
-    fetchArtifact,
+    readArtifact,
     handler: createSourceRepresentationResource(
       projectContextFixture(),
-      fetchArtifact,
+      readArtifact,
     ),
   }
 }
@@ -96,7 +78,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     expect(full.headers.get('accept-ranges')).toBe('bytes')
     expect(full.headers.get('etag')).toBeNull()
     expect(new Uint8Array(await full.arrayBuffer())).toEqual(PDF_BYTES)
-    expect(calls[0].url).toContain(DEMO_ARTIFACT_REFERENCE)
+    expect(calls[0].artifactReference).toBe(DEMO_ARTIFACT_REFERENCE)
 
     const partial = await handler(
       new Request(url('pdf'), { headers: { range: 'bytes=0-3' } }),
@@ -104,7 +86,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     expect(partial.status).toBe(206)
     expect(partial.headers.get('content-range')).toBe('bytes 0-3/8')
     expect((await partial.arrayBuffer()).byteLength).toBe(4)
-    expect(calls[1].headers.get('range')).toBe('bytes=0-3')
+    expect(calls.at(-1)?.artifact).toBe('pdf')
 
     const unsatisfiable = await handler(
       new Request(url('pdf'), { headers: { range: 'bytes=99-' } }),
@@ -127,7 +109,11 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
       expect(response.headers.get('cache-control')).toBe(IMMUTABLE)
       expect(response.headers.get('content-length')).toBeTruthy()
     }
-    expect(calls.map((call) => call.method)).toEqual(['HEAD', 'HEAD', 'GET'])
+    expect(calls.map((call) => call.artifact)).toEqual([
+      'pdf',
+      'markdown',
+      'source',
+    ])
   })
 
   it('serves Markdown and an allow-listed parsed document', async () => {
@@ -166,8 +152,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     )
 
     expect(ranged.status).toBe(200)
-    expect(calls[1].headers.get('range')).toBeNull()
-    expect(calls[1].headers.get('if-range')).toBeNull()
+    expect(new Uint8Array(await ranged.arrayBuffer())).toEqual(PDF_BYTES)
   })
 
   it('bounds an unknown representation and a malformed identity', async () => {
@@ -191,7 +176,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
   it.each([
     [
       'a missing retained artifact',
-      () => new Response('task not found', { status: 404 }),
+      () => Promise.reject(new Error('package not found')),
     ],
     [
       'an unreachable Parsing Service',
@@ -201,7 +186,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     ],
     [
       'an unreadable retained artifact',
-      () => new Response('traceback: /srv/data/tasks', { status: 500 }),
+      () => Promise.reject(new Error('package integrity check failed')),
     ],
   ])('bounds %s without exposing the upstream', async (_case, override) => {
     const { handler } = resource({ pdf: override })
@@ -220,7 +205,12 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
 
   it('bounds an unreadable parsed document', async () => {
     const { handler } = resource({
-      source: () => Response.json({ schema_version: 'parsed_document.v1' }),
+      source: () => ({
+        bytes: new TextEncoder().encode(
+          JSON.stringify({ schema_version: 'parsed_document.v1' }),
+        ),
+        mediaType: 'application/json',
+      }),
     })
 
     const response = await handler(new Request(url('source')))
@@ -238,7 +228,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
           throw new Error('postgresql://secret@localhost/free')
         },
       },
-      upstream().fetchArtifact,
+      upstream().readArtifact,
     )
 
     const response = await handler(new Request(url('pdf')))
@@ -298,7 +288,7 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
         },
         persistReviewedExtraction,
       },
-      upstream().fetchArtifact,
+      upstream().readArtifact,
     )
 
     const response = await handler(request(['bundled-occurrence']))
@@ -339,7 +329,7 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
         },
         persistReviewedExtraction,
       },
-      upstream().fetchArtifact,
+      upstream().readArtifact,
     )
 
     const response = await handler(request(['not-owned']))
@@ -360,7 +350,7 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
         },
         persistReviewedExtraction,
       },
-      upstream().fetchArtifact,
+      upstream().readArtifact,
     )
 
     const response = await handler(
@@ -416,7 +406,12 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
         },
         persistReviewedExtraction,
       },
-      upstream({ source: () => Response.json(twoAnchors) }).fetchArtifact,
+      upstream({
+        source: () => ({
+          bytes: new TextEncoder().encode(JSON.stringify(twoAnchors)),
+          mediaType: 'application/json',
+        }),
+      }).readArtifact,
     )
 
     const response = await handler(
@@ -447,7 +442,7 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
         },
         persistReviewedExtraction,
       },
-      upstream().fetchArtifact,
+      upstream().readArtifact,
     )
 
     const response = await handler(
@@ -488,7 +483,7 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
         },
         persistReviewedExtraction,
       },
-      upstream().fetchArtifact,
+      upstream().readArtifact,
     )
 
     const response = await handler(
@@ -536,7 +531,7 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
         },
         persistReviewedExtraction,
       },
-      upstream().fetchArtifact,
+      upstream().readArtifact,
     )
 
     const response = await handler(

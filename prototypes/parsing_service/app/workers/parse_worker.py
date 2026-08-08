@@ -13,7 +13,7 @@ from typing import Any
 
 from filelock import FileLock, Timeout
 
-from app.models.parsed_document import ParsedDocument
+from app.models.parsed_document_v2 import ParsedDocument
 from app.parsing.orchestrator import (
     CanonicalIngestionError,
     build_canonical_generation,

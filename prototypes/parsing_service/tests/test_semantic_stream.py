@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.models.parsed_document import ParsedTable, TableCell
+from app.models.parser_output import ParsedTable, TableCell
 from app.parsing.semantic_stream import (
     TableSlot,
     doctags_to_intermediate_blocks,
@@ -35,6 +35,14 @@ class TestSemanticStream(unittest.TestCase):
         )[0]
         self.assertEqual([block.kind for block in blocks], ["list", "code", "formula", "page_boundary", "page_boundary", "caption"])
         self.assertEqual(blocks[-1].page_number, 3)
+
+    def test_picture_wrapper_is_not_published_as_text(self):
+        blocks = doctags_to_intermediate_blocks(
+            "<picture><loc_10><loc_20><loc_30><loc_40>"
+            "<caption><loc_10><loc_41><loc_30><loc_50>Figure 1</caption>"
+            "</picture>"
+        )[0]
+        self.assertEqual([(block.kind, block.text) for block in blocks], [("caption", "Figure 1")])
 
     def test_ocr_emits_one_block_per_line_with_unchanged_page_geometry(self):
         lines = {

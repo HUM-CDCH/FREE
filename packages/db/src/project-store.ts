@@ -1,3 +1,4 @@
+import type { CanonicalPackageDescriptor } from './artifact-store.js'
 import { db } from './prisma/db.js'
 
 type Database = Pick<typeof db, 'orm' | 'transaction'>
@@ -67,12 +68,6 @@ export type ReviewedExtractionInput = {
   }>
 }
 
-/** Server-only artifact descriptor; it never reaches browser code. */
-export type SourceRepresentationArtifacts = {
-  artifactReference: string
-  artifactSha256: string
-}
-
 export type ProjectStore = {
   listProjectContexts(limit: number): Promise<ProjectContextSummary[]>
   getProjectContextWithDocuments(projectContextId: string): Promise<{
@@ -85,7 +80,7 @@ export type ProjectStore = {
   ): Promise<DocumentReopenSnapshot | null>
   getSourceRepresentation(
     sourceRepresentationId: string,
-  ): Promise<SourceRepresentationArtifacts | null>
+  ): Promise<CanonicalPackageDescriptor | null>
   persistReviewedExtraction(
     sourceRepresentationId: string,
     input: ReviewedExtractionInput,

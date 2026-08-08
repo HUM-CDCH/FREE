@@ -11,14 +11,15 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from app.models.parsed_document import (
-    ArbitrationResult,
+from app.models.parsed_document_v2 import (
     DocumentMetadata,
     InputProfile,
-    ParserRun,
-    PreprocessingMetadata,
+    ParsedDocument,
+    PublicArbitrationResult,
+    PublicPreprocessingMetadata,
     SourceInfo,
 )
+from app.models.parser_output import ParserRun
 from app.models.parser import CANONICAL_OCR_DPI, MAX_INGESTION_PAGES
 from app.parsing.adapters.pymupdf_inspect import PdfInspection, inspect_pdf
 from app.parsing.normalize import read_text
@@ -625,7 +626,7 @@ def _arbitrate_parsers(
     inspected: _InspectionResult,
     parsing: _ParsingResult,
     tables: _TableResolution,
-) -> ArbitrationResult:
+) -> PublicArbitrationResult:
     return _docling_arbitration(
         inspection=inspected.inspection,
         docling_run=parsing.docling_run,
@@ -675,16 +676,15 @@ def _parser_warnings(parser_runs: list[ParserRun]) -> list[str]:
 def _preprocessing_metadata(
     context: _BuildContext,
     parser_runs: list[ParserRun],
-) -> PreprocessingMetadata:
+) -> PublicPreprocessingMetadata:
     config_hash = preprocessing_config_hash(context.metadata)
     warnings = _parser_warnings(parser_runs)
-    return PreprocessingMetadata(
+    return PublicPreprocessingMetadata(
         preprocess_id=preprocess_id_from_hashes(
             context.content_sha256,
             config_hash,
         ),
         profile=PREPROCESS_PROFILE,
-        config_hash=config_hash,
         service_version=package_version("parsing_service"),
         started_at=context.started_at,
         finished_at=utc_now(),
@@ -936,13 +936,9 @@ def build_parsed_document_v2(
     """
     from app.models.parsed_document_v2 import (
         ArtifactManifestV2,
-        ParsedDocument,
         ParsedPageV2,
         ParserDiagnostic,
-        PublicArbitrationResult,
-        PublicPageDecision,
         PublicParserProvenance,
-        PublicPreprocessingMetadata,
         V2_GEOMETRY_ERROR_CODE,
         V2_PAGE_MAPPING_ERROR_CODE,
     )
@@ -955,7 +951,6 @@ def build_parsed_document_v2(
     from app.parsing.v2_publication import (
         apply_rendered_spans,
         build_evidence_index,
-        canonical_markdown_bytes,
         render_canonical_markdown,
         validate_publication,
     )
@@ -1175,36 +1170,12 @@ def build_parsed_document_v2(
         artifact_root.mkdir(parents=True, exist_ok=True)
         write_text_atomic(
             artifact_root / "document.llm.md",
-            canonical_markdown_bytes(rendered).decode("utf-8"),
+            rendered.markdown,
         )
-    arbitration_internal = _arbitrate_parsers(inspected, parsing, tables_result)
-    arbitration = PublicArbitrationResult(
-        primary_document_parser=arbitration_internal.primary_document_parser,
-        strategy=arbitration_internal.strategy,
-        page_decisions=[
-            PublicPageDecision(
-                page_number=decision.page,
-                selected_text_parser=decision.selected_text_parser,
-                selected_layout_parser=decision.selected_layout_parser,
-                selected_table_parser=decision.selected_table_parser,
-                fallback_used=decision.fallback_used,
-                reason=decision.reason,
-                scores=decision.scores,
-            )
-            for decision in arbitration_internal.page_decisions
-        ],
-    )
+    arbitration = _arbitrate_parsers(inspected, parsing, tables_result)
     return ParsedDocument(
         document=_document_metadata(context, inspected.inspection),
-        preprocessing=PublicPreprocessingMetadata(
-            preprocess_id=preprocess.preprocess_id,
-            profile=preprocess.profile,
-            service_version=preprocess.service_version,
-            started_at=preprocess.started_at,
-            finished_at=preprocess.finished_at,
-            status=preprocess.status,
-            warnings=preprocess.warnings,
-        ),
+        preprocessing=preprocess,
         page_count=inspected.inspection.page_count,
         page_mapping_verified=True,
         artifacts=ArtifactManifestV2(),

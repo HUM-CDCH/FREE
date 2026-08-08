@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import Panel from './ui/Panel'
-import type { ParsedDocumentV2, ParsedEvidenceAnchor, TableCellEvidenceAnchor, TextEvidenceAnchor } from './parsedDocument'
-import { blockForAnchor, diagnosticsFor, tableForAnchor } from './parsedDocument'
+import type { ParsedDocument, ParsedEvidenceAnchor, TableCellEvidenceAnchor, TextEvidenceAnchor } from './parsedDocument'
+import { blockForAnchor, tableForAnchor } from './parsedDocument'
 
 function groupByPage(anchors: ParsedEvidenceAnchor[]) {
   const groups = new Map<number, ParsedEvidenceAnchor[]>()
@@ -16,7 +16,7 @@ function Detail({ children }: { children: ReactNode }) {
   return <span className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">{children}</span>
 }
 
-function TextAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: TextEvidenceAnchor; document: ParsedDocumentV2; onSelect: () => void; reviewedCount: number }) {
+function TextAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: TextEvidenceAnchor; document: ParsedDocument; onSelect: () => void; reviewedCount: number }) {
   const block = blockForAnchor(document, anchor)
   const blockText = block && ('text' in block ? block.text : block.kind === 'list' ? block.items.join(' ') : '')
   return (
@@ -35,7 +35,7 @@ function TextAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: Tex
   )
 }
 
-function TableAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: TableCellEvidenceAnchor; document: ParsedDocumentV2; onSelect: () => void; reviewedCount: number }) {
+function TableAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: TableCellEvidenceAnchor; document: ParsedDocument; onSelect: () => void; reviewedCount: number }) {
   const table = tableForAnchor(document, anchor)
   const observation = anchor.producer_observations[0]
   return (
@@ -56,13 +56,13 @@ function TableAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: Ta
   )
 }
 
-function EvidenceTab({ document, onSelectAnchor, reviewedOccurrenceIdsByAnchor = new Map() }: { document: ParsedDocumentV2 | null; onSelectAnchor: (anchor: ParsedEvidenceAnchor) => void; reviewedOccurrenceIdsByAnchor?: ReadonlyMap<string, readonly string[]> }) {
+function EvidenceTab({ document, onSelectAnchor, reviewedOccurrenceIdsByAnchor = new Map() }: { document: ParsedDocument | null; onSelectAnchor: (anchor: ParsedEvidenceAnchor) => void; reviewedOccurrenceIdsByAnchor?: ReadonlyMap<string, readonly string[]> }) {
   if (!document) {
     return <Panel><div className="rounded-xl border border-dashed border-line px-4 py-7 text-center"><p className="text-sm font-semibold text-ink">Source Evidence unavailable</p><p className="mt-1 text-xs leading-relaxed text-ink-muted">Complete parsing to inspect page-scoped Evidence anchors.</p></div></Panel>
   }
 
   const groups = groupByPage(document.evidence_index.anchors)
-  const diagnostics = diagnosticsFor(document)
+  const diagnostics = document.diagnostics
   const unplaced = document.pages.flatMap((page) => page.unplaced_content.map((tableId) => ({ page: page.page_number, tableId })))
   return (
     <Panel header={<div><h2 className="text-[13px] font-bold text-ink">Source Evidence</h2><p className="text-[11px] text-ink-muted">{document.evidence_index.anchors.length} anchors · {document.page_count} physical pages</p></div>}>

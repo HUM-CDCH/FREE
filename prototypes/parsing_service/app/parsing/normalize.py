@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app.models.parsed_document import (
+from app.models.parser_output import (
     CharSpan,
     PageQuality,
     ParsedPage,

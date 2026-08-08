@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from app.models.parsed_document import BoundingBox, ParsedTable, TableCell
-from app.models.parsed_document_v2 import V2_GEOMETRY_ERROR_CODE
+from app.models.parsed_document_v2 import BoundingBox, V2_GEOMETRY_ERROR_CODE
+from app.models.parser_output import ParsedTable, TableCell
 from app.parsing.orchestrator import CanonicalIngestionError, _v2_logical_tables
 
 

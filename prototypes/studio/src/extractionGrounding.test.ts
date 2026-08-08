@@ -5,12 +5,12 @@ import {
   InvalidGroundingResponseError,
   type GroundingModelInvoker,
 } from './extractionGrounding'
-import { decodeParsedDocument, type ParsedDocumentV2 } from './parsedDocument'
+import { decodeParsedDocument, type ParsedDocument } from './parsedDocument'
 
 const document = decodeParsedDocument(bundled)
 const firstAnchorId = document.evidence_index.anchors[0].anchor_id
 
-function documentWithRetrievalTable(): ParsedDocumentV2 {
+function documentWithRetrievalTable(): ParsedDocument {
   const tableId = 'retrieval-table'
   const rows = [
     ['Field', 'Value'],

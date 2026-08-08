@@ -14,8 +14,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from app.models.parsed_document import ParserRun
 from app.models.parsed_document_v2 import ParserDiagnostic
+from app.models.parser_output import ParserRun
 from app.parsing.adapters.pymupdf_inspect import PdfInspection, PdfPageInspection
 from app.parsing.orchestrator import _BuildContext, _extract_document_tables
 from app.parsing.table_extraction import TableExtractionOutput

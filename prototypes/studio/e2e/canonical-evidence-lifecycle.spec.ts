@@ -285,9 +285,13 @@ async function installLifecycleFixture(page: Page, state: State) {
   const store = lifecycleStore(state)
   const projectContexts = createGetProjectContexts(store)
   const reopen = createGetDocumentReopen(store)
+  const parsedSource = new TextEncoder().encode(JSON.stringify(parsedDocument))
   const persist = createPersistReviewedExtraction(
     store,
-    async () => Response.json(parsedDocument),
+    async () => ({
+      bytes: parsedSource,
+      mediaType: 'application/json',
+    }),
   )
   await page.route('**/api/**', async (route) => {
     const request = route.request()

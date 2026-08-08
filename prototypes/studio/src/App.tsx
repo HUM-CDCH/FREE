@@ -12,7 +12,7 @@ import { countTemplateFields } from './template'
 import { requestSchema, parseDocument, fetchParsedDocument } from './api'
 import {
   decodeParsedDocument,
-  type ParsedDocumentV2,
+  type ParsedDocument,
   type ParsedEvidenceAnchor,
 } from './parsedDocument'
 import {
@@ -73,7 +73,7 @@ type LoadState =
 // The parsing service's Markdown index of the current document, built on upload.
 type DocIndex =
   | { status: 'parsing' }
-  | { status: 'ready'; markdown: string; document: ParsedDocumentV2 | null }
+  | { status: 'ready'; markdown: string; document: ParsedDocument | null }
   | { status: 'error'; message: string }
 
 async function readMarkdown(url: string, signal: AbortSignal): Promise<string> {
@@ -88,7 +88,7 @@ async function readMarkdown(url: string, signal: AbortSignal): Promise<string> {
 async function readParsedDocument(
   url: string,
   signal: AbortSignal,
-): Promise<ParsedDocumentV2> {
+): Promise<ParsedDocument> {
   const response = await fetch(url, { signal })
   if (!response.ok)
     throw new Error(

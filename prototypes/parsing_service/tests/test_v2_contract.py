@@ -10,13 +10,13 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from app.models.parsed_document import ParsedDocument
 from app.models.parsed_document_v2 import (
     CanonicalTableCell,
     LogicalTable,
     LogicalTablePageSpan,
     ParagraphBlock,
     ParsedPageV2,
+    ParsedDocument,
     ParserAttribution,
     TableCellEvidenceAnchor,
     TableParserAttribution,

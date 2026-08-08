@@ -111,14 +111,9 @@ def _portable_document_data(document: Any) -> dict[str, Any]:
     return data
 
 
-def portable_document_payload(document: Any) -> dict[str, Any]:
-    """Return the route/package JSON payload with portable artifact refs."""
-    return _portable_document_data(document)
-
-
 def portable_document_json(document: Any) -> bytes:
     """Serialize a canonical document with package-relative references."""
-    data = portable_document_payload(document)
+    data = _portable_document_data(document)
     schema = data.get("schema_version")
     if schema != PARSED_DOCUMENT_SCHEMA_VERSION:
         raise PackageError("Canonical package requires parsed_document.v2.")

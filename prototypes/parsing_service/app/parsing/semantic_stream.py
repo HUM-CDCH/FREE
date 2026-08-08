@@ -14,7 +14,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from app.models.parsed_document import ParsedTable
+from app.models.parser_output import ParsedTable
 from app.parsing._table_matrix import _norm_cell
 
 _TAG_BLOCK = re.compile(
@@ -29,6 +29,7 @@ _LOC_GROUP = re.compile(
 )
 _DOCTAGS_GRID = 500
 _DOCTAG_WRAPPER = re.compile(r"</?doctag>")
+_PICTURE_WRAPPER = re.compile(r"</?picture>")
 _PAGE_FURNITURE = re.compile(
     r"<(?:page_header|page_footer)>.*?</(?:page_header|page_footer)>", re.DOTALL
 )
@@ -116,6 +117,7 @@ class LogicalTableGroup:
 def _clean(value: str) -> str:
     value = _LOC.sub("", value)
     value = _DOCTAG_WRAPPER.sub("", value)
+    value = _PICTURE_WRAPPER.sub("", value)
     return _PAGE_FURNITURE.sub("", value)
 
 

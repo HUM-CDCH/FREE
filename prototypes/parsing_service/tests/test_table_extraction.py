@@ -17,7 +17,8 @@ from docling_core.types.doc.base import (
 )
 import pandas
 
-from app.models.parsed_document import BoundingBox, ParsedTable
+from app.models.parsed_document_v2 import BoundingBox
+from app.models.parser_output import ParsedTable
 from app.parsing.docling_runner import _table_inventory
 from app.parsing.table_extraction import (
     BBoxTuple,

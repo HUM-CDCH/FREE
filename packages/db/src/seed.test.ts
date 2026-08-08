@@ -18,6 +18,12 @@ function fakeDatabase() {
       created[name].push(row)
       return row
     },
+    where: ({ id }: { id: string }) => ({
+      delete: async () => {
+        const index = created[name].findIndex((row) => row.id === id)
+        if (index >= 0) created[name].splice(index, 1)
+      },
+    }),
   })
   const orm = {
     public: {
@@ -29,6 +35,8 @@ function fakeDatabase() {
   return {
     created,
     orm,
+    transaction: async (work: (database: { orm: typeof orm }) => unknown) =>
+      work({ orm }),
   }
 }
 
@@ -65,7 +73,11 @@ describe('example database seed', () => {
     const { ingest, filenames } = fakeIngest()
 
     const first = await seedExampleProjects(database as never, ingest)
-    const second = await seedExampleProjects(database as never, ingest)
+    const second = await seedExampleProjects(
+      database as never,
+      ingest,
+      async () => true,
+    )
 
     assert.deepEqual(first, {
       projectsCreated: 2,
@@ -173,6 +185,48 @@ describe('example database seed', () => {
       representationsCreated: 3,
       representationFailures: [],
     })
+  })
+
+  it('replaces a stale task reference only after durable package ingestion succeeds', async () => {
+    const database = fakeDatabase()
+    const { ingest, filenames } = fakeIngest()
+
+    await seedExampleProjects(database as never, ingest)
+    const retained = async ({ artifactReference }: { artifactReference: string }) =>
+      artifactReference !== 'task-1'
+    const failed = await seedExampleProjects(
+      database as never,
+      async () => Promise.reject(new Error('Package transfer failed.')),
+      retained,
+    )
+
+    assert.equal(failed.representationsCreated, 0)
+    assert.equal(failed.representationFailures.length, 1)
+    assert.equal(
+      database.created.SourceRepresentationRevision.find(
+        (row) =>
+          row.id === '51000000-0000-4000-8002-000000000001',
+      )?.artifactReference,
+      'task-1',
+    )
+
+    const repaired = await seedExampleProjects(
+      database as never,
+      ingest,
+      retained,
+    )
+
+    assert.equal(repaired.representationsCreated, 1)
+    assert.deepEqual(repaired.representationFailures, [])
+    assert.equal(database.created.SourceRepresentationRevision.length, 3)
+    assert.equal(
+      database.created.SourceRepresentationRevision.find(
+        (row) =>
+          row.id === '51000000-0000-4000-8002-000000000001',
+      )?.artifactReference,
+      'task-4',
+    )
+    assert.equal(filenames.length, 4)
   })
 
 })

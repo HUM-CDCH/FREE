@@ -55,7 +55,8 @@ There is no URL ingestion and no `/parsed-document` alias.
 
 ## v2 contract highlights
 
-- `app.models.parsed_document.ParsedDocument` is the sole public model.
+- `app.models.parsed_document_v2.ParsedDocument` is the sole public model;
+  `parsed_document.v2` is the only accepted schema.
 - Source is upload-only PDF.
 - `MarkdownByteSpan` is a half-open UTF-8 byte range into canonical Markdown.
 - Every canonical table cell has one Evidence anchor owning all producer

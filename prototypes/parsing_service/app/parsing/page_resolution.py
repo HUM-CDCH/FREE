@@ -7,10 +7,9 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, NamedTuple
 
-from app.models.parsed_document import (
-    ArbitrationResult,
+from app.models.parsed_document_v2 import PublicArbitrationResult, PublicPageDecision
+from app.models.parser_output import (
     CharSpan,
-    PageDecision,
     PageQuality,
     ParsedPage,
     ParserRun,
@@ -320,7 +319,7 @@ def _page_decision(
     request: _ArbitrationRequest,
     page_number: int,
     layout_parser: str | None,
-) -> PageDecision:
+) -> PublicPageDecision:
     selected_parser = request.parser_by_page.get(page_number, _DOCLING)
     fallback_used = selected_parser != _DOCLING
     scores = {_DOCLING: 0.0 if fallback_used else 1.0}
@@ -332,8 +331,8 @@ def _page_decision(
         reason = f"{selected_parser}_page_fallback"
     else:
         reason = "docling_doctags_primary"
-    return PageDecision(
-        page=page_number,
+    return PublicPageDecision(
+        page_number=page_number,
         selected_text_parser=selected_parser,
         selected_layout_parser=layout_parser,
         selected_table_parser=(
@@ -347,10 +346,10 @@ def _page_decision(
     )
 
 
-def _docling_arbitration(**kwargs: Any) -> ArbitrationResult:
+def _docling_arbitration(**kwargs: Any) -> PublicArbitrationResult:
     request = _ArbitrationRequest(**kwargs)
     layout_parser = _DOCLING if request.docling_run.status == "success" else None
-    return ArbitrationResult(
+    return PublicArbitrationResult(
         primary_document_parser=(
             _DOCLING if _DOCLING in request.parser_by_page.values() else _OCR
         ),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import bundled from './assets/parsed_document.v2.json'
-import { decodeParsedDocument, type ParsedDocumentV2 } from './parsedDocument'
+import { decodeParsedDocument, type ParsedDocument } from './parsedDocument'
 import { anchoredSource, canonicalSource } from './anchoredDocument'
 
 describe('anchoredSource', () => {
@@ -22,7 +22,7 @@ describe('anchoredSource', () => {
     const document = decodeParsedDocument(bundled)
     const tableId = 'continued-table'
     const anchorId = 'continued-cell-anchor'
-    const continued: ParsedDocumentV2 = {
+    const continued: ParsedDocument = {
       ...document,
       pages: document.pages.map((page) =>
         page.page_number <= 2

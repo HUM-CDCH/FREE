@@ -1,6 +1,6 @@
 import type {
   ParsedEvidenceAnchor,
-  ParsedDocumentV2,
+  ParsedDocument,
   ProducerObservation,
   TextEvidenceAnchor,
 } from './parsedDocument'
@@ -17,7 +17,7 @@ export function anchorOccurrences(anchor: ParsedEvidenceAnchor): EvidenceOccurre
 }
 
 export function verifiedEvidenceBbox(
-  document: ParsedDocumentV2,
+  document: ParsedDocument,
   occurrence: EvidenceOccurrence,
 ): { x0: number; y0: number; x1: number; y1: number } | null {
   const page = document.pages.find(

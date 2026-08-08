@@ -1,7 +1,7 @@
 import { isRecord } from './template'
 import type { SchemaNode } from '../shared/schemaNode'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
-import { decodeParsedDocument, type ParsedDocumentV2 } from './parsedDocument'
+import { decodeParsedDocument, type ParsedDocument } from './parsedDocument'
 import type {
   GroundingModelRequest,
   GroundingModelResponse,
@@ -37,7 +37,7 @@ export type ExtractDone = {
   raw: string
   pages: number | null
   /** What produced this result, as the review write records it. */
-  modelAttribution: unknown
+  modelAttribution: GroundedModelAttribution['extraction']
 }
 export type SchemaDone = { template: unknown; raw: string; pages: number | null }
 
@@ -87,7 +87,7 @@ async function postForm<T>(
 
 type TaskStatus = { status: string; error?: string | null }
 
-export async function fetchParsedDocument(taskId: string, signal?: AbortSignal): Promise<ParsedDocumentV2> {
+export async function fetchParsedDocument(taskId: string, signal?: AbortSignal): Promise<ParsedDocument> {
   const response = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}/document`, { signal, headers: { accept: 'application/json' } })
   if (!response.ok) throw new Error(`Could not fetch parsed document (HTTP ${response.status})`)
   return decodeParsedDocument(await response.json())
@@ -100,7 +100,7 @@ export async function parseDocument(
   file: Blob,
   fileName: string,
   signal?: AbortSignal,
-): Promise<{ markdown: string; document: ParsedDocumentV2 }> {
+): Promise<{ markdown: string; document: ParsedDocument }> {
   const form = new FormData()
   form.append('file', file, fileName)
   form.append('pipeline', 'docling_pdf')
@@ -156,7 +156,10 @@ export async function requestExtraction(
   signal?: AbortSignal,
   markdown?: string | null,
   instruction?: string,
-): Promise<{ result: unknown; modelAttribution: unknown }> {
+): Promise<{
+  result: unknown
+  modelAttribution: GroundedModelAttribution['extraction']
+}> {
   const form = new FormData()
   form.append('template', JSON.stringify(template ?? {}))
   if (markdown) {

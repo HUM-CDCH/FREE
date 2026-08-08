@@ -7,9 +7,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 doctags_module = importlib.import_module("app.parsing.doctags_to_markdown")
-doctags_to_markdown = doctags_module.doctags_to_markdown
 convert_doctags_to_markdown = doctags_module.convert_doctags_to_markdown
-llm_markdown_page_spans = doctags_module.llm_markdown_page_spans
+
+
+def doctags_to_markdown(doctags: str, *, drop_page_footers: bool = True) -> str:
+    return convert_doctags_to_markdown(
+        doctags, drop_page_footers=drop_page_footers
+    ).markdown
 
 
 class TestDocTagsToMarkdown(unittest.TestCase):
@@ -257,21 +261,6 @@ class TestDocTagsToMarkdown(unittest.TestCase):
                 result.markdown[span.llm_markdown_start : span.llm_markdown_end],
                 span.text,
             )
-
-    def test_table_separator_is_not_a_page_break(self):
-        spans = llm_markdown_page_spans("| Name | Age |\n| --- | --- |\n| Ada | 37 |")
-        self.assertEqual(len(spans), 1)
-
-    def test_page_span_offsets_exclude_trimmed_whitespace(self):
-        markdown = "One  \n\n---\n\n  Two  "
-        spans = llm_markdown_page_spans(markdown)
-        self.assertEqual([span.text for span in spans], ["One", "Two"])
-        for span in spans:
-            self.assertEqual(
-                markdown[span.llm_markdown_start : span.llm_markdown_end],
-                span.text,
-            )
-
 
 if __name__ == "__main__":
     unittest.main()

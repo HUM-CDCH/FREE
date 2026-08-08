@@ -7,7 +7,7 @@ import {
 import type { ExtractionState } from './extraction'
 import { stripDescriptions, compileInstructions } from './template'
 import { anchorOccurrences } from './evidenceNavigation'
-import type { ParsedDocumentV2 } from './parsedDocument'
+import type { ParsedDocument } from './parsedDocument'
 import { groundExtraction } from './extractionGrounding'
 import { canonicalSource } from './anchoredDocument'
 import type {
@@ -36,7 +36,7 @@ type UseExtractionOptions = {
   onError: (message: string) => void
   initialState?: ExtractionState
   /** The canonical Evidence the model may cite and the review write validates. */
-  parsedDocument?: ParsedDocumentV2 | null
+  parsedDocument?: ParsedDocument | null
   /** Null while the result cannot be attributed to a durable review target. */
   reviewTarget?: ReviewTarget | null
   /** The Extraction this result was reopened from, if it is already persisted. */
@@ -46,7 +46,7 @@ type UseExtractionOptions = {
 export type ExtractionController = ReturnType<typeof useExtraction>
 
 function reviewDecisions(
-  document: ParsedDocumentV2,
+  document: ParsedDocument,
   evidenceLinks: readonly EvidenceLink[],
 ) {
   const anchors = new Map(
@@ -73,9 +73,9 @@ function reviewDecisions(
 }
 
 type GroundingContext = {
-  document: ParsedDocumentV2
+  document: ParsedDocument
   result: Record<string, unknown>
-  extractionAttribution: unknown
+  extractionAttribution: GroundedModelAttribution['extraction']
   isRerun: boolean
   reviewTarget: ReviewTarget | null
 }

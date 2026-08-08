@@ -3,6 +3,10 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  canonicalPackageStore,
+  type CanonicalPackageDescriptor,
+} from './artifact-store.js'
 import { db } from './prisma/db.js'
 
 const examplesDirectory = fileURLToPath(new URL('../../../examples/', import.meta.url))
@@ -57,7 +61,10 @@ export type Ingest = (
   filename: string,
 ) => Promise<IngestedRepresentation>
 
-type SeedDatabase = Pick<typeof db, 'orm'>
+type SeedDatabase = Pick<typeof db, 'orm' | 'transaction'>
+export type RetainedArtifacts = (
+  descriptor: CanonicalPackageDescriptor,
+) => Promise<boolean>
 
 async function parsingServiceRequest(
   path: string,
@@ -113,11 +120,16 @@ export const ingestThroughParsingService: Ingest = async (pdf, filename) => {
 
   await awaitCompletedTask(taskId, 10 * 60 * 1000)
 
-  // Hashed as served: this is the validator the artifact routes revalidate with.
-  const body = await (
-    await parsingServiceRequest(`/tasks/${taskId}/document`)
-  ).text()
-  const document = JSON.parse(body) as {
+  // Ownership crosses here: the Parsing Service task remains a disposable cache,
+  // while the Project Context keeps the portable canonical package.
+  const stored = await canonicalPackageStore.save(
+    new Uint8Array(
+      await (
+        await parsingServiceRequest(`/tasks/${taskId}/download`)
+      ).arrayBuffer(),
+    ),
+  )
+  const document = stored.document as {
     schema_version?: unknown
     preprocessing?: { preprocess_id?: unknown }
     arbitration?: { primary_document_parser?: unknown }
@@ -137,8 +149,8 @@ export const ingestThroughParsingService: Ingest = async (pdf, filename) => {
   if (parsedContractVersion !== contractVersion)
     throw new Error(`The parsed document is not ${contractVersion}.`)
   return {
-    artifactReference: taskId,
-    artifactSha256: createHash('sha256').update(body).digest('hex'),
+    artifactReference: stored.artifactReference,
+    artifactSha256: stored.artifactSha256,
     contractVersion: parsedContractVersion,
     preprocessId: required(
       document.preprocessing?.preprocess_id,
@@ -165,6 +177,8 @@ export async function parsingServiceReachable(): Promise<boolean> {
 export async function seedExampleProjects(
   database: SeedDatabase = db,
   ingest: Ingest | null = ingestThroughParsingService,
+  retained: RetainedArtifacts = (descriptor) =>
+    canonicalPackageStore.available(descriptor),
 ) {
   let projectsCreated = 0
   let documentsCreated = 0
@@ -206,7 +220,14 @@ export async function seedExampleProjects(
         await database.orm.public.SourceRepresentationRevision.first({
           id: document.sourceRepresentationId,
         })
-      if (existingRepresentation) continue
+      if (
+        existingRepresentation?.contractVersion === contractVersion &&
+        (await retained({
+          artifactReference: existingRepresentation.artifactReference,
+          artifactSha256: existingRepresentation.artifactSha256,
+        }))
+      )
+        continue
       try {
         const representation = {
           id: document.sourceRepresentationId,
@@ -214,9 +235,17 @@ export async function seedExampleProjects(
           revisionNumber: 1,
           ...(await ingest(pdf, basename(document.filename))),
         }
-        await database.orm.public.SourceRepresentationRevision.create(
-          representation,
-        )
+        if (existingRepresentation)
+          await database.transaction(async ({ orm }) => {
+            await orm.public.SourceRepresentationRevision.where({
+              id: document.sourceRepresentationId,
+            }).delete()
+            await orm.public.SourceRepresentationRevision.create(representation)
+          })
+        else
+          await database.orm.public.SourceRepresentationRevision.create(
+            representation,
+          )
         representationsCreated += 1
       } catch (cause) {
         representationFailures.push({
