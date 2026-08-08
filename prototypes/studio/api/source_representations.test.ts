@@ -258,11 +258,18 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
   const request = (
     reviewedOccurrenceIds: string[],
     result: unknown = {
-      number: { value: '24-1', anchor_id: 'bundled-anchor' },
+      number: '24-1',
     },
     reviewDecisions = [
       { evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds },
     ],
+    evidenceLinks = [
+      { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+    ],
+    modelAttribution: unknown = {
+      extraction: { provider: 'fixture', model: 'values-output' },
+      grounding: { provider: 'fixture', model: 'grounding-output' },
+    },
   ) =>
     new Request(url('extraction-reviews'), {
       method: 'POST',
@@ -270,7 +277,8 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
       body: JSON.stringify({
         schemaRevisionId: SCHEMA_REVISION_ID,
         result,
-        modelAttribution: { provider: 'fixture', model: 'accepted-output' },
+        evidenceLinks,
+        modelAttribution,
         reviewDecisions,
       }),
     })
@@ -300,9 +308,14 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
       DEMO_REPRESENTATION_ID,
       expect.objectContaining({
         resultPayload: {
-          result: {
-            number: { value: '24-1', anchor_id: 'bundled-anchor' },
-          },
+          result: { number: '24-1' },
+          evidenceLinks: [
+            { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          ],
+        },
+        modelAttribution: {
+          extraction: { provider: 'fixture', model: 'values-output' },
+          grounding: { provider: 'fixture', model: 'grounding-output' },
         },
         reviewDecisions: [
           {
@@ -335,7 +348,7 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
     expect(persistReviewedExtraction).not.toHaveBeenCalled()
   })
 
-  it('rejects an owned Evidence anchor absent from the Extraction Result', async () => {
+  it('rejects a ReviewDecision anchor absent from the Evidence links', async () => {
     const persistReviewedExtraction = vi.fn()
     const handler = createPersistReviewedExtraction(
       {
@@ -350,7 +363,18 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
       upstream().fetchArtifact,
     )
 
-    const response = await handler(request(['bundled-occurrence'], { number: '24-1' }))
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        { number: '24-1' },
+        [
+          {
+            evidenceAnchorId: 'different-anchor',
+            reviewedOccurrenceIds: [],
+          },
+        ],
+      ),
+    )
 
     expect(response.status).toBe(422)
     expect(persistReviewedExtraction).not.toHaveBeenCalled()
@@ -396,10 +420,15 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
     )
 
     const response = await handler(
-      request(['bundled-occurrence'], {
-        number: { value: '24-1', anchor_id: 'bundled-anchor' },
-        place: { value: 'Ellekilde', anchor_id: 'bundled-anchor-2' },
-      }),
+      request(
+        ['bundled-occurrence'],
+        { number: '24-1', place: 'Ellekilde' },
+        undefined,
+        [
+          { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          { resultPath: ['place'], evidenceAnchorId: 'bundled-anchor-2' },
+        ],
+      ),
     )
 
     expect(response.status).toBe(422)
@@ -424,12 +453,201 @@ describe('POST /api/source-representations/:id/extraction-reviews', () => {
     const response = await handler(
       request(
         [],
-        { number: { value: '24-1', anchor_id: 'model-invented-anchor' } },
-        [],
+        { number: '24-1' },
+        [
+          {
+            evidenceAnchorId: 'model-invented-anchor',
+            reviewedOccurrenceIds: [],
+          },
+        ],
+        [
+          {
+            resultPath: ['number'],
+            evidenceAnchorId: 'model-invented-anchor',
+          },
+        ],
       ),
     )
 
     expect(response.status).toBe(422)
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('persists clean abstained values without manufacturing another link or decision', async () => {
+    const persistReviewedExtraction = vi.fn(async () => ({
+      extractionId: '72000000-0000-4000-8003-000000000001',
+      createdAt: new Date('2026-08-07T00:02:00.000Z'),
+    }))
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().fetchArtifact,
+    )
+
+    const response = await handler(
+      request(['bundled-occurrence'], {
+        number: '24-1',
+        unattested: 'Visible but ungrounded',
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(persistReviewedExtraction).toHaveBeenCalledWith(
+      DEMO_REPRESENTATION_ID,
+      expect.objectContaining({
+        resultPayload: {
+          result: {
+            number: '24-1',
+            unattested: 'Visible but ungrounded',
+          },
+          evidenceLinks: [
+            { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          ],
+        },
+        reviewDecisions: [
+          {
+            evidenceAnchorId: 'bundled-anchor',
+            reviewedOccurrenceIds: ['bundled-occurrence'],
+          },
+        ],
+      }),
+    )
+  })
+
+  it('requires one ReviewDecision per distinct anchor rather than per linked value', async () => {
+    const persistReviewedExtraction = vi.fn(async () => ({
+      extractionId: '72000000-0000-4000-8003-000000000001',
+      createdAt: new Date('2026-08-07T00:02:00.000Z'),
+    }))
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().fetchArtifact,
+    )
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        { number: '24-1', repeated: '24-1' },
+        undefined,
+        [
+          { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          { resultPath: ['repeated'], evidenceAnchorId: 'bundled-anchor' },
+        ],
+      ),
+    )
+
+    expect(response.status).toBe(201)
+    expect(persistReviewedExtraction).toHaveBeenCalledWith(
+      DEMO_REPRESENTATION_ID,
+      expect.objectContaining({
+        reviewDecisions: [
+          {
+            evidenceAnchorId: 'bundled-anchor',
+            reviewedOccurrenceIds: ['bundled-occurrence'],
+          },
+        ],
+      }),
+    )
+  })
+
+  it('rejects duplicate result paths before reading or writing persistence', async () => {
+    const getSourceRepresentation = vi.fn()
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction({
+      getSourceRepresentation,
+      persistReviewedExtraction,
+    })
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        { number: '24-1' },
+        undefined,
+        [
+          { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          { resultPath: ['number'], evidenceAnchorId: 'another-anchor' },
+        ],
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(getSourceRepresentation).not.toHaveBeenCalled()
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('rejects the obsolete one-step model attribution contract', async () => {
+    const getSourceRepresentation = vi.fn()
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction({
+      getSourceRepresentation,
+      persistReviewedExtraction,
+    })
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        undefined,
+        undefined,
+        undefined,
+        { provider: 'fixture', model: 'combined-output' },
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(getSourceRepresentation).not.toHaveBeenCalled()
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'an absent path',
+      { number: '24-1' },
+      ['missing'],
+    ],
+    [
+      'a non-scalar path',
+      { record: { number: '24-1' } },
+      ['record'],
+    ],
+    [
+      'an abstained null value',
+      { number: null },
+      ['number'],
+    ],
+  ])('rejects a link to %s', async (_case, result, resultPath) => {
+    const getSourceRepresentation = vi.fn()
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction({
+      getSourceRepresentation,
+      persistReviewedExtraction,
+    })
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        result,
+        undefined,
+        [{ resultPath, evidenceAnchorId: 'bundled-anchor' }],
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(getSourceRepresentation).not.toHaveBeenCalled()
     expect(persistReviewedExtraction).not.toHaveBeenCalled()
   })
 })

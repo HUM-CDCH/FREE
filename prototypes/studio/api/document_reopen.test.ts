@@ -29,6 +29,13 @@ const foreignSchemaRevisionId = '51000000-0000-4000-8004-000000000003'
 
 const at = (minute: number) =>
   new Date(Date.UTC(2026, 6, 31, 12, minute, 0))
+const modelAttribution = {
+  extraction: { provider: 'fixture', model: 'values-output' },
+  grounding: { provider: 'fixture', model: 'grounding-output' },
+}
+const schemaNodes = (name: string) => [
+  { id: `node-${name}`, name, type: 'string' as const },
+]
 
 /**
  * An in-memory query engine, so selection is proven by the rows a read returns
@@ -205,19 +212,19 @@ function seededTables(): Record<string, Row[]> {
         id: foreignSchemaRevisionId,
         extractionSchemaId: foreignExtractionSchemaId,
         revisionNumber: 1,
-        schemaTree: { foreign: 'verbatim-string' },
+        schemaTree: schemaNodes('foreign'),
       },
       {
         id: staleSchemaRevisionId,
         extractionSchemaId,
         revisionNumber: 1,
-        schemaTree: { stale: 'verbatim-string' },
+        schemaTree: schemaNodes('stale'),
       },
       {
         id: headSchemaRevisionId,
         extractionSchemaId,
         revisionNumber: 2,
-        schemaTree: { head: 'verbatim-string' },
+        schemaTree: schemaNodes('head'),
       },
     ],
     Extraction: [
@@ -227,7 +234,13 @@ function seededTables(): Record<string, Row[]> {
         schemaRevisionId: headSchemaRevisionId,
         outcome: 'SUCCEEDED',
         createdAt: at(20),
-        resultPayload: { result: { wrong: 'representation' } },
+        modelAttribution,
+        resultPayload: {
+          result: { wrong: 'representation' },
+          evidenceLinks: [
+            { resultPath: ['wrong'], evidenceAnchorId: 'anchor-number-24-1' },
+          ],
+        },
         failure: null,
       },
       {
@@ -236,7 +249,13 @@ function seededTables(): Record<string, Row[]> {
         schemaRevisionId: headSchemaRevisionId,
         outcome: 'SUCCEEDED',
         createdAt: at(9),
-        resultPayload: { result: { older: true } },
+        modelAttribution,
+        resultPayload: {
+          result: { older: true },
+          evidenceLinks: [
+            { resultPath: ['older'], evidenceAnchorId: 'anchor-number-24-1' },
+          ],
+        },
         failure: null,
       },
       {
@@ -245,7 +264,16 @@ function seededTables(): Record<string, Row[]> {
         schemaRevisionId: headSchemaRevisionId,
         outcome: 'SUCCEEDED',
         createdAt: at(10),
-        resultPayload: { result: { superseded: true } },
+        modelAttribution,
+        resultPayload: {
+          result: { superseded: true },
+          evidenceLinks: [
+            {
+              resultPath: ['superseded'],
+              evidenceAnchorId: 'anchor-number-24-1',
+            },
+          ],
+        },
         failure: null,
       },
       // The accepted Extraction pins the revision it was produced with, and the
@@ -256,7 +284,13 @@ function seededTables(): Record<string, Row[]> {
         schemaRevisionId: staleSchemaRevisionId,
         outcome: 'SUCCEEDED',
         createdAt: at(21),
-        resultPayload: { result: { accepted: true } },
+        modelAttribution,
+        resultPayload: {
+          result: { accepted: true },
+          evidenceLinks: [
+            { resultPath: ['accepted'], evidenceAnchorId: 'anchor-number-24-1' },
+          ],
+        },
         failure: null,
       },
     ],
@@ -306,13 +340,19 @@ describe('getDocumentReopenSnapshot', () => {
         extractionSchemaId,
         schemaRevisionId: staleSchemaRevisionId,
         revisionNumber: 1,
-        schemaTree: { stale: 'verbatim-string' },
+        schemaTree: schemaNodes('stale'),
       },
       extraction: {
         extractionId: 'extraction-accepted-stale-schema',
         createdAt: at(21),
         outcome: 'SUCCEEDED',
-        resultPayload: { result: { accepted: true } },
+        modelAttribution,
+        resultPayload: {
+          result: { accepted: true },
+          evidenceLinks: [
+            { resultPath: ['accepted'], evidenceAnchorId: 'anchor-number-24-1' },
+          ],
+        },
         failure: null,
         reviewDecisions: [
           {
@@ -429,8 +469,14 @@ describe('persistReviewedExtraction', () => {
         schemaRevisionId: staleSchemaRevisionId,
         resultPayload: {
           result: { number: '24-1' },
+          evidenceLinks: [
+            {
+              resultPath: ['number'],
+              evidenceAnchorId: 'anchor-number-24-1',
+            },
+          ],
         },
-        modelAttribution: { provider: 'fixture', model: 'accepted-output' },
+        modelAttribution,
         reviewDecisions: [
           {
             evidenceAnchorId: 'anchor-number-24-1',
@@ -444,6 +490,16 @@ describe('persistReviewedExtraction', () => {
     expect(database.rows.Extraction.at(-1)).toMatchObject({
       schemaRevisionId: staleSchemaRevisionId,
       sourceRepresentationRevisionId: headRepresentationId,
+      modelAttribution,
+      resultPayload: {
+        result: { number: '24-1' },
+        evidenceLinks: [
+          {
+            resultPath: ['number'],
+            evidenceAnchorId: 'anchor-number-24-1',
+          },
+        ],
+      },
     })
     expect(database.writes.map((write) => write.table)).toEqual([
       'Extraction',
@@ -468,8 +524,16 @@ describe('persistReviewedExtraction', () => {
       await expect(
         store.persistReviewedExtraction(headRepresentationId, {
           schemaRevisionId,
-          resultPayload: { result: { number: '24-1' } },
-          modelAttribution: { provider: 'fixture', model: 'accepted-output' },
+          resultPayload: {
+            result: { number: '24-1' },
+            evidenceLinks: [
+              {
+                resultPath: ['number'],
+                evidenceAnchorId: 'anchor-number-24-1',
+              },
+            ],
+          },
+          modelAttribution,
           reviewDecisions: [
             {
               evidenceAnchorId: 'anchor-number-24-1',
@@ -546,13 +610,19 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
         extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
         schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
         revisionNumber: 5,
-        schemaTree: { site: 'verbatim-string' },
+        schemaTree: schemaNodes('site'),
       },
       extraction: {
         extractionId: '00000000-0000-4000-8000-0000000000f1',
         createdAt: new Date('2026-07-31T13:00:00.000Z'),
         outcome: 'SUCCEEDED',
-        resultPayload: { result: { site: 'Ellekilde' } },
+        modelAttribution,
+        resultPayload: {
+          result: { site: 'Ellekilde', unattested: 'Visible but ungrounded' },
+          evidenceLinks: [
+            { resultPath: ['site'], evidenceAnchorId: 'anchor-7' },
+          ],
+        },
         failure: null,
         reviewDecisions: [
           {
@@ -581,11 +651,15 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
         revisionNumber: 3,
         annotations: [{ evidenceAnchorId: 'anchor-7', pageNumber: 4 }],
       },
-      extractionSchema: { revisionNumber: 5, template: { site: 'verbatim-string' } },
+      extractionSchema: { revisionNumber: 5, schemaNodes: schemaNodes('site') },
       extraction: {
         outcome: 'succeeded',
         createdAt: '2026-07-31T13:00:00.000Z',
-        result: { site: 'Ellekilde' },
+        result: { site: 'Ellekilde', unattested: 'Visible but ungrounded' },
+        evidenceLinks: [
+          { resultPath: ['site'], evidenceAnchorId: 'anchor-7' },
+        ],
+        modelAttribution,
         reviewDecisions: [
           {
             evidenceAnchorId: 'anchor-7',
@@ -612,6 +686,7 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
             extractionId: '00000000-0000-4000-8000-0000000000f1',
             createdAt: new Date('2026-07-31T13:00:00.000Z'),
             outcome,
+            modelAttribution: null,
             resultPayload: null,
             failure,
             reviewDecisions: [],
@@ -682,6 +757,113 @@ describe('GET /api/project-contexts/:id/source-documents/:id/reopen', () => {
     )
     expect(integrity.status).toBe(503)
     await expect(integrity.json()).resolves.toMatchObject({
+      error: { code: 'persistence_unavailable' },
+    })
+  })
+
+  it('fails closed on an obsolete object-shaped stored schema', async () => {
+    const base = (await projectContextFixture().getDocumentReopenSnapshot(
+      DEMO_PROJECT_ID,
+      DEMO_DOCUMENT_ID,
+    ))!
+    const GET = createGetDocumentReopen({
+      async getDocumentReopenSnapshot() {
+        return {
+          ...base,
+          extractionSchema: {
+            extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
+            schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
+            revisionNumber: 1,
+            schemaTree: { place: 'string' },
+          },
+        }
+      },
+    })
+
+    const response = await GET(
+      new Request(reopenUrl(DEMO_PROJECT_ID, DEMO_DOCUMENT_ID)),
+    )
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'persistence_unavailable' },
+    })
+  })
+
+  it.each([
+    [
+      'the obsolete combined payload',
+      { result: { number: { value: '24-1', anchor_id: 'anchor-7' } } },
+      { provider: 'fixture', model: 'combined-output' },
+      [
+        {
+          reviewDecisionId: '00000000-0000-4000-8000-0000000000f2',
+          evidenceAnchorId: 'anchor-7',
+          reviewedOccurrenceIds: ['occurrence-7'],
+        },
+      ],
+    ],
+    [
+      'an invalid stored result path',
+      {
+        result: { number: '24-1' },
+        evidenceLinks: [
+          { resultPath: ['missing'], evidenceAnchorId: 'anchor-7' },
+        ],
+      },
+      modelAttribution,
+      [
+        {
+          reviewDecisionId: '00000000-0000-4000-8000-0000000000f2',
+          evidenceAnchorId: 'anchor-7',
+          reviewedOccurrenceIds: ['occurrence-7'],
+        },
+      ],
+    ],
+    [
+      'incomplete stored Review Decisions',
+      {
+        result: { number: '24-1' },
+        evidenceLinks: [
+          { resultPath: ['number'], evidenceAnchorId: 'anchor-7' },
+        ],
+      },
+      modelAttribution,
+      [],
+    ],
+  ])('fails closed when durable state contains %s', async (
+    _case,
+    resultPayload,
+    attribution,
+    reviewDecisions,
+  ) => {
+    const base = (await projectContextFixture().getDocumentReopenSnapshot(
+      DEMO_PROJECT_ID,
+      DEMO_DOCUMENT_ID,
+    ))!
+    const GET = createGetDocumentReopen({
+      async getDocumentReopenSnapshot() {
+        return {
+          ...base,
+          extraction: {
+            extractionId: '00000000-0000-4000-8000-0000000000f1',
+            createdAt: new Date('2026-07-31T13:00:00.000Z'),
+            outcome: 'SUCCEEDED',
+            resultPayload,
+            modelAttribution: attribution,
+            failure: null,
+            reviewDecisions,
+          },
+        }
+      },
+    })
+
+    const response = await GET(
+      new Request(reopenUrl(DEMO_PROJECT_ID, DEMO_DOCUMENT_ID)),
+    )
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({
       error: { code: 'persistence_unavailable' },
     })
   })

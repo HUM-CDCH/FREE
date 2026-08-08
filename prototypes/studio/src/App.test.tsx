@@ -52,13 +52,15 @@ const reopened: DocumentWorkspaceProps = {
     extractionSchemaId: '51000000-0000-4000-8005-000000000001',
     schemaRevisionId: '51000000-0000-4000-8005-000000000002',
     revisionNumber: 1,
-    template: { place: 'string' },
+    schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
   },
   persistedExtraction: {
     extractionId: '51000000-0000-4000-8006-000000000001',
     createdAt: '2026-07-31T12:03:00.000Z',
     outcome: 'succeeded',
     result: { place: 'Ellekilde' },
+    evidenceLinks: [],
+    modelAttribution: { extraction: null, grounding: null },
     reviewDecisions: [],
   },
 }
@@ -105,6 +107,7 @@ describe('reopened Source Document workspace', () => {
 
   it('posts the accepted result with its pinned Schema Revision and canonical Review Decisions', async () => {
     const calls: Array<{ url: string; body: unknown }> = []
+    let extractCalls = 0
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -116,15 +119,19 @@ describe('reopened Source Document workspace', () => {
               typeof init.body === 'string' ? JSON.parse(init.body) : init.body,
           })
         if (url.endsWith('/source')) return Response.json(parsedDocument)
-        if (url.endsWith('/api/extract'))
+        if (url.endsWith('/api/extract')) {
+          extractCalls += 1
           return Response.json({
-            // The model cites the label it was shown; the browser resolves it.
-            result: { number: { value: '24-1', anchor_id: 'E1' } },
+            result:
+              extractCalls === 1
+                ? { number: '24-1' }
+                : { links: { C1: 'E1' } },
             raw: '{}',
             reasoning: null,
             pages: 1,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
           })
+        }
         if (url.endsWith('/extraction-reviews'))
           return Response.json(
             { extractionId: '51000000-0000-4000-8006-000000000002' },
@@ -151,8 +158,30 @@ describe('reopened Source Document workspace', () => {
     )
     expect(review.body).toEqual({
       schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-      result: { number: { value: '24-1', anchor_id: 'bundled-anchor' } },
-      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      result: { number: '24-1' },
+      evidenceLinks: [
+        {
+          resultPath: ['number'],
+          evidenceAnchorId: 'bundled-anchor',
+        },
+      ],
+      modelAttribution: {
+        extraction: { provider: 'ollama', modelId: 'test-model' },
+        grounding: {
+          strategy: 'retrieval_batched',
+          batches: [
+            {
+              resultPath: null,
+              candidateCount: 1,
+              fallback: true,
+              modelAttribution: {
+                provider: 'ollama',
+                modelId: 'test-model',
+              },
+            },
+          ],
+        },
+      },
       reviewDecisions: [
         {
           evidenceAnchorId: 'bundled-anchor',

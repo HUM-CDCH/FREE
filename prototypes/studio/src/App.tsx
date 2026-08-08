@@ -137,6 +137,8 @@ function reopenedExtractionState(
   return {
     status: 'ready',
     result: extraction.result,
+    evidenceLinks: extraction.evidenceLinks,
+    groundingIssues: [],
   }
 }
 
@@ -172,7 +174,7 @@ export function DocumentWorkspace({
     extractionSchema
       ? {
           status: 'ready',
-          nodes: templateToNodes(extractionSchema.template),
+          nodes: extractionSchema.schemaNodes,
           inputsKey: annotationInputsKey(restoredAnnotations, 'hints'),
         }
       : { status: 'idle' },

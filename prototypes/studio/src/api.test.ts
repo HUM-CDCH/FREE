@@ -8,6 +8,7 @@ import {
   fetchParsedDocument,
   parseDocument,
   requestExtraction,
+  requestGrounding,
   requestSchema,
 } from './api'
 
@@ -40,10 +41,16 @@ function minimalParsedDocument() {
 
 function readyController(): ExtractionController {
   return {
-    state: { status: 'ready', result: { title: 'Report' } },
+    state: {
+      status: 'ready',
+      result: { title: 'Report' },
+      evidenceLinks: [],
+      groundingIssues: [],
+    },
     canRun: true,
     hasResults: true,
     runExtraction: async () => {},
+    retryGrounding: async () => {},
     review: {
       available: false,
       canAccept: false,
@@ -85,6 +92,50 @@ describe('requestExtraction', () => {
     await expect(requestExtraction(new Blob(['pdf']), 'report.pdf', {})).rejects.toThrow(
       'model_operation_failed: Model endpoint error.',
     )
+  })
+})
+
+describe('requestGrounding', () => {
+  it('posts the grounding protocol to the buffered provider-neutral route', async () => {
+    let submittedUrl = ''
+    const submittedForms: FormData[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init: RequestInit) => {
+        submittedUrl = url
+        if (init.body instanceof FormData) submittedForms.push(init.body)
+        return Promise.resolve(
+          jsonResponse({
+            result: { links: { C1: 'E2' } },
+            reasoning: null,
+            raw: '{"links":{"C1":"E2"}}',
+            pages: null,
+            modelAttribution: { provider: 'fixture', modelId: 'grounder' },
+          }),
+        )
+      }),
+    )
+
+    const done = await requestGrounding({
+      documentMarkdown: '[E2] Ellekilde',
+      template: { links: { C1: 'verbatim-string' } },
+      instruction: '[C1] $.site = "Ellekilde"',
+    })
+    const form = submittedForms[0]
+
+    expect(submittedUrl).toBe('/api/extract')
+    expect(form.get('document_markdown')).toBe('[E2] Ellekilde')
+    expect(form.get('template')).toBe(
+      '{"links":{"C1":"verbatim-string"}}',
+    )
+    expect(form.get('instruction')).toBe(
+      '[C1] $.site = "Ellekilde"',
+    )
+    expect(form.has('file')).toBe(false)
+    expect(done).toEqual({
+      result: { links: { C1: 'E2' } },
+      modelAttribution: { provider: 'fixture', modelId: 'grounder' },
+    })
   })
 })
 

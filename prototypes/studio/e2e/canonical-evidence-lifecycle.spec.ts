@@ -14,6 +14,7 @@ const id = {
   document: '72000000-0000-4000-8001-000000000001',
   representation: '72000000-0000-4000-8002-000000000001',
   extraction: '72000000-0000-4000-8003-000000000001',
+  extractionSchema: '72000000-0000-4000-8005-000000000002',
   schemaRevision: '72000000-0000-4000-8005-000000000001',
 } as const
 
@@ -27,27 +28,30 @@ const semanticGoldenPath = fileURLToPath(
   ),
 )
 
-const accepted = {
-  find_number: {
-    value: '24-1',
-    anchor_id:
-      'anchor_442f28492c1da6d8adda29faf541ed29ecfe5a8c36304aa584a147057b3188b8',
-  },
-  description: {
-    value: 'Lerkar, ornamenteret sortbrunt',
-    anchor_id:
-      'anchor_3f8b634336fd171fe4c4b258d5c189fb28e876e34e4a236b1aa8e102ec5c1a36',
-  },
-  remarks: {
-    value: 'Fundet stående på gravens bundlag, 30 cm dybde.',
-    anchor_id:
-      'anchor_8843344f881452f4eb509820cc92a44778ec08fad14d1069f02b77a3781e14e3',
-  },
+const groundedValues = {
+  find_number: '24-1',
+  description: 'Lerkar, ornamenteret sortbrunt',
+  remarks: 'Fundet stående på gravens bundlag, 30 cm dybde.',
 } as const
 
-const rowAnchors = Object.values(accepted).map((field, column) => ({
+const accepted = {
+  records: [
+    {
+      ...groundedValues,
+      unattested: 'Visible but ungrounded',
+    },
+  ],
+} as const
+
+const rowAnchorIds = [
+  'anchor_442f28492c1da6d8adda29faf541ed29ecfe5a8c36304aa584a147057b3188b8',
+  'anchor_3f8b634336fd171fe4c4b258d5c189fb28e876e34e4a236b1aa8e102ec5c1a36',
+  'anchor_8843344f881452f4eb509820cc92a44778ec08fad14d1069f02b77a3781e14e3',
+] as const
+
+const rowAnchors = Object.values(groundedValues).map((_, column) => ({
   kind: 'table_cell',
-  anchor_id: field.anchor_id,
+  anchor_id: rowAnchorIds[column],
   content_sha256: 'fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679',
   preprocess_id:
     'sha256:4e311f639c276f6da0d11f7289cdc015c7b3353495c469a1b4696f02e112ee4c',
@@ -58,7 +62,7 @@ const rowAnchors = Object.values(accepted).map((field, column) => ({
   canonical_column: column,
   producer_observations: [
     {
-      occurrence_id: `${field.anchor_id}@p3`,
+      occurrence_id: `${rowAnchorIds[column]}@p3`,
       page_number: 3,
       producer_ref: 'ellekilde-row-24-1',
       row_offset: 1,
@@ -157,7 +161,7 @@ const parsedDocument = {
         cell_id: anchor.cell_id,
         row: 1,
         column,
-        text: Object.values(accepted)[column].value,
+        text: Object.values(groundedValues)[column],
         role: null,
         rowspan: 1,
         colspan: 1,
@@ -184,12 +188,26 @@ const parsedDocument = {
   evidence_index: { anchors: [rotatedAnchor, ...rowAnchors] },
 }
 
-type State = { extraction: DocumentReopenSnapshot['extraction'] }
+type State = {
+  extraction: DocumentReopenSnapshot['extraction']
+  modelRequests: string[]
+}
 
 const createdAt = {
   project: new Date('2026-08-07T00:00:00.000Z'),
   document: new Date('2026-08-07T00:01:00.000Z'),
   extraction: new Date('2026-08-07T00:02:00.000Z'),
+}
+
+function evidenceLabelFor(requestBody: string, value: string): string {
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = new RegExp(
+    `\\[(E\\d+)\\]\\s+${escaped}(?=\\s*(?:\\||\\r?\\n))`,
+    'u',
+  ).exec(requestBody)
+  if (!match)
+    throw new Error(`Grounding request omitted the candidate for ${value}.`)
+  return match[1]
 }
 
 function lifecycleStore(state: State): ProjectStore {
@@ -224,7 +242,17 @@ function lifecycleStore(state: State): ProjectStore {
           createdAt: createdAt.document,
         },
         annotationSet: null,
-        extractionSchema: null,
+        extractionSchema: {
+          extractionSchemaId: id.extractionSchema,
+          schemaRevisionId: id.schemaRevision,
+          revisionNumber: 1,
+          schemaTree: [
+            { id: 'find-number', name: 'find_number', type: 'string' },
+            { id: 'description', name: 'description', type: 'string' },
+            { id: 'remarks', name: 'remarks', type: 'string' },
+            { id: 'unattested', name: 'unattested', type: 'string' },
+          ],
+        },
         extraction: state.extraction,
       }
     },
@@ -240,6 +268,7 @@ function lifecycleStore(state: State): ProjectStore {
         createdAt: createdAt.extraction,
         outcome: 'SUCCEEDED',
         resultPayload: input.resultPayload,
+        modelAttribution: input.modelAttribution,
         failure: null,
         reviewDecisions: input.reviewDecisions.map((decision, index) => ({
           reviewDecisionId: `72000000-0000-4000-8004-00000000000${index + 1}`,
@@ -285,6 +314,55 @@ async function installLifecycleFixture(page: Page, state: State) {
           }),
         ),
       )
+    if (path.endsWith('/extract')) {
+      state.modelRequests.push(request.postData() ?? '')
+      if (state.modelRequests.length === 1)
+        return route.fulfill({
+          json: {
+            result: accepted,
+            reasoning: null,
+            raw: JSON.stringify(accepted),
+            pages: null,
+            modelAttribution: {
+              provider: 'fixture',
+              modelId: 'frozen-values-output',
+            },
+          },
+        })
+      if (state.modelRequests.length === 2) {
+        const requestBody = state.modelRequests[1]
+        const [findNumber, description, remarks] = Object.values(
+          groundedValues,
+        ).map((value) => evidenceLabelFor(requestBody, value))
+        const links = {
+          C1: findNumber,
+          C2: description,
+          C3: remarks,
+          C4: 'NONE',
+        }
+        return route.fulfill({
+          json: {
+            result: { links },
+            reasoning: null,
+            raw: JSON.stringify({ links }),
+            pages: null,
+            modelAttribution: {
+              provider: 'fixture',
+              modelId: 'frozen-grounding-output',
+            },
+          },
+        })
+      }
+      return route.fulfill({
+        status: 500,
+        json: {
+          error: {
+            code: 'unexpected_model_call',
+            message: 'Only two model stages are expected.',
+          },
+        },
+      })
+    }
     if (path.endsWith('/pdf'))
       return route.fulfill({ body: pdf, contentType: 'application/pdf' })
     if (path.endsWith('/markdown'))
@@ -309,7 +387,7 @@ test('canonical Evidence survives persist, fresh reopen, and safe rendering @det
   expect(parsedDocument.schema_version).toBe(golden.schema_version)
   expect(parsedDocument.page_count).toBe(golden.page_count)
 
-  const state: State = { extraction: null }
+  const state: State = { extraction: null, modelRequests: [] }
   await installLifecycleFixture(page, state)
   await page.goto(
     `/projects/${id.project}/documents/${id.document}`,
@@ -318,35 +396,86 @@ test('canonical Evidence survives persist, fresh reopen, and safe rendering @det
     timeout: 15_000,
   })
 
+  const run = page.getByRole('button', { name: '▶ Run extraction' })
+  await expect(run).toBeEnabled()
+  await run.click()
+  await expect(page.getByRole('button', { name: 'Accept result' })).toBeVisible({
+    timeout: 15_000,
+  })
+
+  expect(state.modelRequests).toHaveLength(2)
+  expect(state.modelRequests[0]).toContain('"records"')
+  expect(state.modelRequests[0]).not.toContain('"links"')
+  expect(state.modelRequests[0]).not.toContain('anchor_id')
+  expect(state.modelRequests[0]).not.toContain('_evidence')
+  expect(state.modelRequests[1]).toContain('"links"')
+  expect(state.modelRequests[1]).toContain('C4')
+  expect(state.modelRequests[1]).toContain('NONE')
+
+  await page.getByRole('button', { name: 'Raw JSON' }).click()
+  await expect(page.getByText('Visible but ungrounded')).toBeVisible()
+  await expect(page.getByText('Grounded: 3')).toBeVisible()
+  await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Review', exact: true }).click()
+  await page.getByText('records', { exact: true }).click()
+  await page.getByText('Item 1', { exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: 'View Evidence for unattested' }),
+  ).toHaveCount(0)
+  await page
+    .getByRole('button', { name: 'View Evidence for find_number' })
+    .click()
+  await expect(
+    page.locator(
+      `.parsed-evidence-focus[data-occurrence-id="${rowAnchors[0].producer_observations[0].occurrence_id}"]`,
+    ),
+  ).toHaveCount(1)
+
   const reviewDecisions = rowAnchors.map((anchor) => ({
     evidenceAnchorId: anchor.anchor_id,
     reviewedOccurrenceIds: [anchor.producer_observations[0].occurrence_id],
   }))
-  const status = await page.evaluate(
-    async ({ representation, schemaRevision, result, decisions }) =>
-      (
-        await fetch(
-          `/api/source-representations/${representation}/extraction-reviews`,
-          {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              schemaRevisionId: schemaRevision,
-              result,
-              modelAttribution: { provider: 'fixture', model: 'accepted-output' },
-              reviewDecisions: decisions,
-            }),
-          },
-        )
-      ).status,
-    {
-      representation: id.representation,
-      schemaRevision: id.schemaRevision,
-      result: accepted,
-      decisions: reviewDecisions,
+  const evidenceLinks = Object.keys(groundedValues).map((field, index) => ({
+    resultPath: ['records', 0, field],
+    evidenceAnchorId: rowAnchors[index].anchor_id,
+  }))
+
+  await page.getByRole('button', { name: 'Accept result' }).click()
+  await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
+  const persisted = state.extraction
+  expect(persisted).not.toBeNull()
+  if (!persisted) throw new Error('The UI did not persist the accepted result.')
+  expect(persisted.resultPayload).toEqual({ result: accepted, evidenceLinks })
+  expect(persisted.modelAttribution).toEqual({
+    extraction: {
+      provider: 'fixture',
+      modelId: 'frozen-values-output',
     },
-  )
-  expect(status).toBe(201)
+    grounding: {
+      strategy: 'retrieval_batched',
+      batches: [
+        {
+          resultPath: ['records', 0],
+          candidateCount: 3,
+          fallback: false,
+          modelAttribution: {
+            provider: 'fixture',
+            modelId: 'frozen-grounding-output',
+          },
+        },
+      ],
+    },
+  })
+  expect(
+    persisted.reviewDecisions.map((decision) => ({
+      evidenceAnchorId: decision.evidenceAnchorId,
+      reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+    })),
+  ).toEqual(reviewDecisions)
+  expect(evidenceLinks).not.toContainEqual({
+    resultPath: ['records', 0, 'unattested'],
+    evidenceAnchorId: expect.any(String),
+  })
 
   await page.close()
   const reopenedContext = await browser.newContext()
@@ -358,6 +487,21 @@ test('canonical Evidence survives persist, fresh reopen, and safe rendering @det
   await expect(reopened.getByText('6 pages · text highlights only')).toBeVisible({
     timeout: 15_000,
   })
+  await reopened.getByRole('tab', { name: /Results/ }).click()
+  await reopened.getByRole('button', { name: 'Raw JSON' }).click()
+  await expect(reopened.getByText('Visible but ungrounded')).toBeVisible()
+  await expect(reopened.getByText('Grounded: 3')).toBeVisible()
+  await expect(reopened.getByRole('button', { name: 'Review saved' })).toBeVisible()
+  await expect(reopened.locator('.parsed-evidence-focus')).toHaveCount(0)
+  await reopened
+    .getByRole('button', { name: 'Review', exact: true })
+    .click()
+  await reopened.getByText('records', { exact: true }).click()
+  await reopened.getByText('Item 1', { exact: true }).click()
+  await expect(
+    reopened.getByRole('button', { name: 'View Evidence for unattested' }),
+  ).toHaveCount(0)
+  expect(state.modelRequests).toHaveLength(2)
   await reopened.getByRole('tab', { name: /Evidence/ }).click()
 
   for (const decision of reviewDecisions)

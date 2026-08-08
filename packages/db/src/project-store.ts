@@ -45,6 +45,7 @@ export type DocumentReopenSnapshot = {
     extractionId: string
     createdAt: Date
     outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+    modelAttribution: unknown
     resultPayload: unknown
     failure: unknown
     reviewDecisions: Array<{
@@ -177,6 +178,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
           createdAt: Date
           outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
           schemaRevisionId: string
+          modelAttribution: unknown
           resultPayload: unknown
           failure: unknown
         } | null = null
@@ -190,6 +192,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
               'createdAt',
               'outcome',
               'schemaRevisionId',
+              'modelAttribution',
               'resultPayload',
               'failure',
             )
@@ -310,6 +313,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
             extractionId: extraction.id,
             createdAt: extraction.createdAt,
             outcome: extraction.outcome,
+            modelAttribution: extraction.modelAttribution,
             resultPayload: extraction.resultPayload,
             failure: extraction.failure,
             reviewDecisions: reviewDecisions.map((decision) => ({

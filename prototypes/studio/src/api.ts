@@ -2,6 +2,14 @@ import { isRecord } from './template'
 import type { SchemaNode } from '../shared/schemaNode'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 import { decodeParsedDocument, type ParsedDocumentV2 } from './parsedDocument'
+import type {
+  GroundingModelRequest,
+  GroundingModelResponse,
+} from './extractionGrounding'
+import type {
+  EvidenceLink,
+  GroundedModelAttribution,
+} from '../shared/groundedExtraction'
 
 export const API_BASE = '/api'
 
@@ -162,10 +170,27 @@ export async function requestExtraction(
   return { result: done.result, modelAttribution: done.modelAttribution ?? null }
 }
 
+/** One buffered grounding operation over the provider-neutral model route. */
+export async function requestGrounding({
+  documentMarkdown,
+  template,
+  instruction,
+  signal,
+}: GroundingModelRequest): Promise<GroundingModelResponse> {
+  const form = new FormData()
+  form.append('template', JSON.stringify(template))
+  form.append('document_markdown', documentMarkdown)
+  form.append('instruction', instruction)
+
+  const done = await postForm('/extract', form, decodeExtractDone, signal)
+  return { result: done.result, modelAttribution: done.modelAttribution ?? null }
+}
+
 export type ExtractionReview = {
   schemaRevisionId: string
   result: unknown
-  modelAttribution: unknown
+  evidenceLinks: EvidenceLink[]
+  modelAttribution: GroundedModelAttribution
   reviewDecisions: Array<{
     evidenceAnchorId: string
     reviewedOccurrenceIds: string[]

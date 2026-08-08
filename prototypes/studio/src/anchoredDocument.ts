@@ -1,4 +1,3 @@
-import { isAllowedValues, isScalarFieldType } from '../shared/allowedValues'
 import type { ParsedDocumentV2, ParsedLogicalTable } from './parsedDocument'
 
 export type AnchoredSource = {
@@ -8,37 +7,92 @@ export type AnchoredSource = {
   anchorIdByLabel: ReadonlyMap<string, string>
 }
 
-/**
- * The Source Document as the model reads it: canonical content in page order,
- * each passage carrying a short citation label. Labels rather than raw anchor
- * IDs because a 71-character ID is echoed back mangled; a label from a closed
- * set is resolved by exact lookup, never by matching text to the PDF.
- */
-export function anchoredSource(document: ParsedDocumentV2): AnchoredSource {
-  const anchorIdByLabel = new Map<string, string>()
-  const label = (anchorId: string) => {
-    const next = `E${anchorIdByLabel.size + 1}`
-    anchorIdByLabel.set(next, anchorId)
-    return next
-  }
+export type CanonicalAnchorInventoryEntry =
+  | {
+      kind: 'text'
+      anchorId: string
+      text: string
+      page: number
+    }
+  | {
+      kind: 'table_cell'
+      anchorId: string
+      text: string
+      page: number
+      logicalTableId: string
+      row: number
+    }
+
+export function canonicalAnchorInventory(
+  document: ParsedDocumentV2,
+): readonly CanonicalAnchorInventoryEntry[] {
   const anchorByBlock = new Map(
     document.evidence_index.anchors.flatMap((anchor) =>
       anchor.kind === 'text' ? [[anchor.block_id, anchor.anchor_id] as const] : [],
     ),
   )
   const tables = new Map(document.tables.map((table) => [table.table_id, table]))
-  const lines: string[] = []
-  const tableLines = (table: ParsedLogicalTable | undefined) => {
+  const renderedTableIds = new Set<string>()
+  const entries: CanonicalAnchorInventoryEntry[] = []
+  const addTable = (tableId: string, page: number) => {
+    if (renderedTableIds.has(tableId)) return
+    renderedTableIds.add(tableId)
+    const table = tables.get(tableId)
     if (!table) return
-    lines.push(`### Table ${table.table_id}`)
-    const rows = new Map<number, string[]>()
     for (const cell of [...table.cells].sort(
       (left, right) => left.row - right.row || left.column - right.column,
     ))
+      entries.push({
+        kind: 'table_cell',
+        anchorId: cell.evidence_anchor_id,
+        text: cell.text,
+        page,
+        logicalTableId: tableId,
+        row: cell.row,
+      })
+  }
+
+  for (const page of document.pages) {
+    for (const blockId of page.ordered_content) {
+      const block = document.content_stream.find(
+        (candidate) => candidate.block_id === blockId,
+      )
+      if (!block) continue
+      if (block.kind === 'table') {
+        addTable(block.table_id, page.page_number)
+        continue
+      }
+      const text =
+        'text' in block ? block.text : block.kind === 'list' ? block.items.join('; ') : ''
+      const anchorId = anchorByBlock.get(blockId)
+      if (text.trim() && anchorId)
+        entries.push({ kind: 'text', anchorId, text, page: page.page_number })
+    }
+    for (const tableId of page.unplaced_content) addTable(tableId, page.page_number)
+  }
+  return entries
+}
+
+function projectCanonicalSource(
+  document: ParsedDocumentV2,
+): string {
+  const tables = new Map(document.tables.map((table) => [table.table_id, table]))
+  const renderedTableIds = new Set<string>()
+  const lines: string[] = []
+  const tableLines = (table: ParsedLogicalTable | undefined) => {
+    if (!table || renderedTableIds.has(table.table_id)) return
+    renderedTableIds.add(table.table_id)
+    const rows = new Map<number, string[]>()
+    for (const cell of [...table.cells].sort(
+      (left, right) => left.row - right.row || left.column - right.column,
+    )) {
       rows.set(cell.row, [
         ...(rows.get(cell.row) ?? []),
-        `[${label(cell.evidence_anchor_id)}] ${cell.text}`,
+        cell.text,
       ])
+    }
+    if (rows.size === 0) return
+    lines.push(`### Table ${table.table_id}`)
     for (const cells of rows.values()) lines.push(cells.join(' | '))
   }
 
@@ -55,56 +109,69 @@ export function anchoredSource(document: ParsedDocumentV2): AnchoredSource {
       }
       const text =
         'text' in block ? block.text : block.kind === 'list' ? block.items.join('; ') : ''
-      const anchorId = anchorByBlock.get(blockId)
-      if (!text.trim() || !anchorId) continue
-      lines.push(`[${label(anchorId)}] ${text}`)
+      if (!text.trim()) continue
+      lines.push(text)
     }
     for (const tableId of page.unplaced_content) tableLines(tables.get(tableId))
   }
+  return lines.join('\n')
+}
+
+/** Canonical parser content for value extraction, without citation labels. */
+export function canonicalSource(document: ParsedDocumentV2): string {
+  return projectCanonicalSource(document)
+}
+
+/**
+ * The Source Document as the model reads it: canonical content in page order,
+ * each passage carrying a short citation label. Labels rather than raw anchor
+ * IDs because a 71-character ID is echoed back mangled; a label from a closed
+ * set is resolved by exact lookup, never by matching text to the PDF.
+ */
+export function anchoredSource(
+  document: ParsedDocumentV2,
+  selectedAnchorIds?: ReadonlySet<string>,
+): AnchoredSource {
+  const anchorIdByLabel = new Map<string, string>()
+  const labelByAnchorId = new Map<string, string>()
+  const label = (anchorId: string) => {
+    const existing = labelByAnchorId.get(anchorId)
+    if (existing) return existing
+    const next = `E${anchorIdByLabel.size + 1}`
+    anchorIdByLabel.set(next, anchorId)
+    labelByAnchorId.set(anchorId, next)
+    return next
+  }
+  const lines: string[] = []
+  let lastPage: number | null = null
+  let lastTable: string | null = null
+  let lastRow: number | null = null
+  for (const entry of canonicalAnchorInventory(document)) {
+    if (selectedAnchorIds && !selectedAnchorIds.has(entry.anchorId)) continue
+    const rendered = `[${label(entry.anchorId)}] ${entry.text}`
+    if (entry.page !== lastPage) {
+      lines.push(`## Page ${entry.page}`)
+      lastPage = entry.page
+      lastTable = null
+      lastRow = null
+    }
+    if (entry.kind === 'table_cell') {
+      if (entry.logicalTableId !== lastTable) {
+        lines.push(`### Table ${entry.logicalTableId}`)
+        lastTable = entry.logicalTableId
+        lastRow = null
+      }
+      if (entry.row !== lastRow) {
+        lines.push(rendered)
+        lastRow = entry.row
+      } else {
+        lines[lines.length - 1] += ` | ${rendered}`
+      }
+      continue
+    }
+    lastTable = null
+    lastRow = null
+    lines.push(rendered)
+  }
   return { text: lines.join('\n'), anchorIdByLabel }
-}
-
-export const ANCHOR_CITATION_INSTRUCTION =
-  'Every field is an object with "value" and "anchor_id". Put the extracted ' +
-  'content in "value" and, in "anchor_id", the exact bracketed label (for ' +
-  'example E12) of the passage the value came from. Use only labels that ' +
-  'appear in the document, and add no snippets, page numbers, or coordinates.'
-
-/**
- * Rewrites each Extraction Schema leaf as `{ value, anchor_id }` so a cited
- * anchor rides beside the value it evidences instead of in a second tree.
- */
-export function wrapTemplateWithAnchors(template: unknown): unknown {
-  if (isAllowedValues(template) || isScalarFieldType(template))
-    return { value: template, anchor_id: 'verbatim-string' }
-  if (Array.isArray(template)) return template.map(wrapTemplateWithAnchors)
-  if (template && typeof template === 'object')
-    return Object.fromEntries(
-      Object.entries(template as Record<string, unknown>).map(([key, value]) => [
-        key,
-        wrapTemplateWithAnchors(value),
-      ]),
-    )
-  return { value: template, anchor_id: 'verbatim-string' }
-}
-
-/**
- * Replaces each cited label with the canonical Evidence Anchor ID it stands
- * for. A label the document never published resolves to no Evidence at all.
- */
-export function resolveResultAnchors(
-  result: unknown,
-  anchorIdByLabel: ReadonlyMap<string, string>,
-): unknown {
-  if (Array.isArray(result))
-    return result.map((item) => resolveResultAnchors(item, anchorIdByLabel))
-  if (!result || typeof result !== 'object') return result
-  return Object.fromEntries(
-    Object.entries(result as Record<string, unknown>).map(([key, value]) => [
-      key,
-      key === 'anchor_id' && typeof value === 'string'
-        ? (anchorIdByLabel.get(value.trim()) ?? null)
-        : resolveResultAnchors(value, anchorIdByLabel),
-    ]),
-  )
 }

@@ -14,9 +14,7 @@ import {
 } from '../shared/schemaNode.js'
 import {
   FIELD_TYPES,
-  NON_STRING_SCALAR_FIELD_TYPES,
   SCALAR_FIELD_TYPES,
-  isAllowedValues,
   type ScalarFieldType,
 } from '../shared/allowedValues.js'
 import { parseUnknownJson } from './_model_output.js'
@@ -24,42 +22,12 @@ import { generateSchemaEditJson } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
 import { ApiError } from './_http.js'
 
-const nodeBaseShape = {
-  id: z.string().min(1),
-  name: z.string().trim().min(1),
-  description: z.string().min(1).optional(),
-}
-
-const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() => z.union([
-  z.object({
-    ...nodeBaseShape,
-    type: z.literal('string'),
-    allowedValues: z.array(z.string()).refine(isAllowedValues).optional(),
-  }).strict(),
-  z.object({
-    ...nodeBaseShape,
-    type: z.enum(NON_STRING_SCALAR_FIELD_TYPES),
-  }).strict(),
-  z.object({
-    ...nodeBaseShape,
-    type: z.literal('array'),
-    itemType: z.enum(SCALAR_FIELD_TYPES),
-  }).strict(),
-  z.object({
-    ...nodeBaseShape,
-    type: z.enum(['object', 'array']),
-    children: z.array(schemaNodeSchema),
-  }).strict(),
-]))
-
 const modelEnvelopeSchema = z.object({
   fields: z.record(z.string(), z.unknown()),
   additions: z.unknown(),
 }).passthrough()
 
-export function parseSchemaNodes(value: unknown): SchemaNode[] {
-  return z.array(schemaNodeSchema).parse(value)
-}
+export { parseSchemaNodes } from '../shared/schemaNode.js'
 
 type Generate = (
   prompt: string,

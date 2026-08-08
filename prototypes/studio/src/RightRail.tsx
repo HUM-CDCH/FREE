@@ -163,7 +163,17 @@ function RightRail({
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} documentMarkdown={documentMarkdown} />
+        <ResultsTab
+          controller={extraction}
+          schemaReady={schemaReady}
+          documentMarkdown={documentMarkdown}
+          onSelectEvidence={(anchorId) => {
+            const anchor = parsedDocument?.evidence_index.anchors.find(
+              (candidate) => candidate.anchor_id === anchorId,
+            )
+            if (anchor) onSelectEvidence(anchor)
+          }}
+        />
       </div>
     </div>
   )

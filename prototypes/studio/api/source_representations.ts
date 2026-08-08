@@ -16,8 +16,13 @@ import {
 import {
   canonicalUuidSchema,
 } from '../shared/projectContext.contract.js'
+import {
+  cleanExtractionResultSchema,
+  evidenceLinkSchema,
+  evidenceLinksHaveUniqueScalarPaths,
+  groundedModelAttributionSchema,
+} from '../shared/groundedExtraction.js'
 import { decodeParsedDocument } from '../src/parsedDocument.js'
-import { resultAnchorIds } from '../shared/resultAnchors.js'
 import { z } from 'zod'
 
 const ROUTE =
@@ -36,8 +41,9 @@ const reviewDecisionInputSchema = z
 const reviewedExtractionSchema = z
   .object({
     schemaRevisionId: canonicalUuidSchema,
-    result: z.json(),
-    modelAttribution: z.json(),
+    result: cleanExtractionResultSchema,
+    evidenceLinks: z.array(evidenceLinkSchema).min(1),
+    modelAttribution: groundedModelAttributionSchema,
     reviewDecisions: z.array(reviewDecisionInputSchema).min(1),
   })
   .strict()
@@ -198,7 +204,15 @@ export function createPersistReviewedExtraction(
           'The reviewed Extraction payload is invalid.',
         )
       const input = parsedInput.data
-      const referencedAnchors = resultAnchorIds(input.result)
+      if (!evidenceLinksHaveUniqueScalarPaths(input.result, input.evidenceLinks))
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'Every Evidence link requires one unique populated scalar result path.',
+        )
+      const referencedAnchors = new Set(
+        input.evidenceLinks.map((link) => link.evidenceAnchorId),
+      )
       if (
         new Set(input.reviewDecisions.map((decision) => decision.evidenceAnchorId))
           .size !== input.reviewDecisions.length
@@ -280,7 +294,10 @@ export function createPersistReviewedExtraction(
       const persisted = await store
         .persistReviewedExtraction(sourceRepresentationId, {
           schemaRevisionId: input.schemaRevisionId,
-          resultPayload: { result: input.result },
+          resultPayload: {
+            result: input.result,
+            evidenceLinks: input.evidenceLinks,
+          },
           modelAttribution: input.modelAttribution,
           reviewDecisions: input.reviewDecisions,
         })

@@ -9,6 +9,7 @@ type ResultsTabProps = {
   controller: ExtractionController
   schemaReady: boolean
   documentMarkdown: string | null
+  onSelectEvidence?: (anchorId: string) => void
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -34,7 +35,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, documentMarkdown }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidence }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
   const stats = useMemo(() => (state.status === 'ready' ? resultStats(state.result) : null), [state])
@@ -52,7 +53,22 @@ function ResultsTab({ controller, schemaReady, documentMarkdown }: ResultsTabPro
     setForwardStack([])
   }
 
-  const displayResult = state.status === 'ready' ? state.result as Record<string, unknown> : null
+  const displayResult =
+    state.status === 'ready' || (state.status === 'running' && state.step === 'grounding')
+      ? state.result
+      : null
+  const evidenceAnchorIdByPath = useMemo(
+    () =>
+      new Map(
+        state.status === 'ready'
+          ? state.evidenceLinks.map((link) => [
+              JSON.stringify(link.resultPath.map(String)),
+              link.evidenceAnchorId,
+            ])
+          : [],
+      ),
+    [state],
+  )
 
   function navTo(newPath: string[]) {
     setBackStack(prev => [...prev, navPath])
@@ -114,6 +130,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown }: ResultsTabPro
               {summaryItem('Status', 'ready')}
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
+              {summaryItem('Grounded', state.evidenceLinks.length)}
               {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)}
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -161,6 +178,25 @@ function ResultsTab({ controller, schemaReady, documentMarkdown }: ResultsTabPro
             {controller.review.error && (
               <p role="alert" className="mt-2 text-[11.5px] leading-snug text-danger">
                 {controller.review.error}
+              </p>
+            )}
+            {state.groundingError && (
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-danger/40 px-3 py-2">
+                <p role="alert" className="text-[11.5px] leading-snug text-danger">
+                  Evidence grounding failed: {state.groundingError}
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void controller.retryGrounding()}
+                >
+                  Retry grounding
+                </Button>
+              </div>
+            )}
+            {!state.groundingError && state.groundingIssues.length > 0 && (
+              <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
+                {state.groundingIssues.length} value{state.groundingIssues.length === 1 ? '' : 's'} could not be grounded and will not create Evidence highlights.
               </p>
             )}
           </div>
@@ -214,6 +250,10 @@ function ResultsTab({ controller, schemaReady, documentMarkdown }: ResultsTabPro
                     onNavigateTo={isRecord(val) || Array.isArray(val) ? navTo : undefined}
                     defaultExpanded={navPath.length === 0}
                     expandText={navPath.length > 0}
+                    getEvidenceAnchorId={(path) =>
+                      evidenceAnchorIdByPath.get(JSON.stringify(path))
+                    }
+                    onSelectEvidence={onSelectEvidence}
                   />
                 ))}
               </div>
@@ -240,9 +280,26 @@ function ResultsTab({ controller, schemaReady, documentMarkdown }: ResultsTabPro
       )}
 
       {state.status === 'running' && (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-          <Spinner label="Extracting..." hint="This can take a while on large source documents." />
-        </div>
+        state.step === 'extraction' ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
+            <Spinner
+              label="Extracting values…"
+              hint="Applying the clean schema to the source document."
+            />
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
+              <Spinner
+                label="Grounding Evidence…"
+                hint="The extracted values below are ready; canonical Evidence links are still being resolved."
+              />
+            </div>
+            <pre className={preClasses} aria-label="Extracted values awaiting grounding">
+              {JSON.stringify(state.result, null, 2)}
+            </pre>
+          </div>
+        )
       )}
 
       {state.status === 'error' && (

@@ -1,4 +1,10 @@
 import { z } from 'zod'
+import {
+  cleanExtractionResultSchema,
+  evidenceLinkSchema,
+  groundedModelAttributionSchema,
+} from './groundedExtraction'
+import { schemaNodesSchema } from './schemaNode'
 
 export const canonicalUuidSchema = z
   .string()
@@ -85,7 +91,9 @@ export const extractionSchema = z.discriminatedUnion('outcome', [
       extractionId: canonicalUuidSchema,
       createdAt: timestamp,
       outcome: z.literal('succeeded'),
-      result: z.json(),
+      result: cleanExtractionResultSchema,
+      evidenceLinks: z.array(evidenceLinkSchema),
+      modelAttribution: groundedModelAttributionSchema,
       reviewDecisions: z.array(reviewDecisionSchema),
     })
     .strict(),
@@ -130,7 +138,7 @@ export const documentReopenResponseSchema = z
         extractionSchemaId: canonicalUuidSchema,
         schemaRevisionId: canonicalUuidSchema,
         revisionNumber,
-        template: z.json(),
+        schemaNodes: schemaNodesSchema,
       })
       .strict()
       .nullable(),
