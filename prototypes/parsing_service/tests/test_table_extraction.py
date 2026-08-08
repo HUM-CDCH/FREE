@@ -534,6 +534,16 @@ class TestExtractTables(unittest.TestCase):
             read_pdf.call_args.kwargs["table_areas"], ["10.0,150.0,190.0,100.0"]
         )
 
+    def test_inventory_enrichment_releases_camelot_parser_graph(self):
+        with patch("app.parsing.table_extraction.gc.collect") as collect:
+            _extract_with_fake_camelot(
+                [_FakeTable(SMALL_TABLE_ROWS, page=2)],
+                page_heights_pt={2: 200.0},
+                docling_tables=[_inventory_for_rows(SMALL_TABLE_ROWS)],
+            )
+
+        collect.assert_called_once_with()
+
     def test_camelot_replaces_docling_only_with_strict_geometry_improvement(self):
         rows = SMALL_TABLE_ROWS
         camelot_cell_bboxes = [row.copy() for row in ALIGNED_CAMELOT_CELL_BBOXES]

@@ -24,6 +24,10 @@ _TAG_BLOCK = re.compile(
 )
 _PAGE_BREAK = re.compile(r"<page_break>\s*")
 _LOC = re.compile(r"<loc_[^>]+>")
+_LOC_GROUP = re.compile(
+    r"<loc_(?P<x0>\d+)><loc_(?P<y0>\d+)><loc_(?P<x1>\d+)><loc_(?P<y1>\d+)>"
+)
+_DOCTAGS_GRID = 500
 _DOCTAG_WRAPPER = re.compile(r"</?doctag>")
 _PAGE_FURNITURE = re.compile(
     r"<(?:page_header|page_footer)>.*?</(?:page_header|page_footer)>", re.DOTALL
@@ -115,6 +119,34 @@ def _clean(value: str) -> str:
     return _PAGE_FURNITURE.sub("", value)
 
 
+def _doctags_geometry(
+    value: str, page_size: tuple[float, float] | None
+) -> dict[str, float] | None:
+    """Restore Docling's own top-left provenance tokens to page points."""
+    if page_size is None:
+        return None
+    width, height = page_size
+    if width <= 0 or height <= 0:
+        return None
+    boxes: list[tuple[float, float, float, float]] = []
+    for match in _LOC_GROUP.finditer(value):
+        raw = tuple(int(match.group(key)) for key in ("x0", "y0", "x1", "y1"))
+        x0 = raw[0] / _DOCTAGS_GRID * width
+        y0 = raw[1] / _DOCTAGS_GRID * height
+        x1 = width if raw[2] == _DOCTAGS_GRID - 1 else raw[2] / _DOCTAGS_GRID * width
+        y1 = height if raw[3] == _DOCTAGS_GRID - 1 else raw[3] / _DOCTAGS_GRID * height
+        if x1 > x0 and y1 > y0:
+            boxes.append((x0, y0, x1, y1))
+    if not boxes:
+        return None
+    return {
+        "x0": min(box[0] for box in boxes),
+        "y0": min(box[1] for box in boxes),
+        "x1": max(box[2] for box in boxes),
+        "y1": max(box[3] for box in boxes),
+    }
+
+
 def _table_rows(
     body: str,
 ) -> tuple[tuple[tuple[str, ...], tuple[str | None, ...]], ...]:
@@ -149,10 +181,14 @@ def _list_items(body: str) -> tuple[str, ...]:
 
 
 def _block_from_match(
-    match: re.Match[str], page: int, ordinal: int
+    match: re.Match[str],
+    page: int,
+    ordinal: int,
+    page_size: tuple[float, float] | None,
 ) -> tuple[SemanticBlock, TableSlot | None]:
     tag = match.group("tag")
     body = _clean(match.group("body"))
+    geometry = _doctags_geometry(match.group(0), page_size)
     if tag == "otsl":
         parsed_rows = _table_rows(body)
         slot = TableSlot(
@@ -163,24 +199,45 @@ def _block_from_match(
             raw=match.group(0),
         )
         return SemanticBlock(
-            "table_slot", page, table_slot=slot.slot_id, raw=match.group(0)
+            "table_slot",
+            page,
+            table_slot=slot.slot_id,
+            raw=match.group(0),
+            geometry=geometry,
         ), slot
     if tag.startswith("section_header_level_"):
         return SemanticBlock(
-            "heading", page, body, int(match.group("level")), raw=match.group(0)
+            "heading",
+            page,
+            body,
+            int(match.group("level")),
+            raw=match.group(0),
+            geometry=geometry,
         ), None
     if tag == "title":
-        return SemanticBlock("heading", page, body, 1, raw=match.group(0)), None
+        return SemanticBlock(
+            "heading", page, body, 1, raw=match.group(0), geometry=geometry
+        ), None
     if tag == "text":
-        return SemanticBlock("paragraph", page, body, raw=match.group(0)), None
+        return SemanticBlock(
+            "paragraph", page, body, raw=match.group(0), geometry=geometry
+        ), None
     if tag == "caption":
-        return SemanticBlock("caption", page, body, raw=match.group(0)), None
+        return SemanticBlock(
+            "caption", page, body, raw=match.group(0), geometry=geometry
+        ), None
     if tag == "code":
         return SemanticBlock(
-            "code", page, _CODE_TOKEN.sub("", body), raw=match.group(0)
+            "code",
+            page,
+            _CODE_TOKEN.sub("", body),
+            raw=match.group(0),
+            geometry=geometry,
         ), None
     if tag == "formula":
-        return SemanticBlock("formula", page, body, raw=match.group(0)), None
+        return SemanticBlock(
+            "formula", page, body, raw=match.group(0), geometry=geometry
+        ), None
     if tag in {"ordered_list", "unordered_list"}:
         return SemanticBlock(
             "list",
@@ -188,12 +245,16 @@ def _block_from_match(
             ordered=tag == "ordered_list",
             items=_list_items(body),
             raw=match.group(0),
+            geometry=geometry,
         ), None
     raise AssertionError(f"unsupported DocTags block: {tag}")
 
 
 def doctags_to_intermediate_blocks(
-    doctags: str, *, first_page: int = 1
+    doctags: str,
+    *,
+    first_page: int = 1,
+    page_sizes: Mapping[int, tuple[float, float]] | None = None,
 ) -> tuple[tuple[SemanticBlock, ...], tuple[TableSlot, ...]]:
     """Convert page-local DocTags into ordered semantic blocks.
 
@@ -205,16 +266,26 @@ def doctags_to_intermediate_blocks(
     blocks: list[SemanticBlock] = []
     slots: list[TableSlot] = []
     page = first_page
+    sizes = page_sizes or {}
     ordinal = 0
     cursor = 0
     for boundary in _PAGE_BREAK.finditer(value):
-        _append_fragment(value[cursor : boundary.start()], page, blocks, slots, ordinal)
+        _append_fragment(
+            value[cursor : boundary.start()],
+            page,
+            blocks,
+            slots,
+            ordinal,
+            sizes.get(page),
+        )
         blocks.append(
             SemanticBlock("page_boundary", page, level=None, raw=boundary.group(0))
         )
         page += 1
         cursor = boundary.end()
-    _append_fragment(value[cursor:], page, blocks, slots, ordinal)
+    _append_fragment(
+        value[cursor:], page, blocks, slots, ordinal, sizes.get(page)
+    )
     # Assign producer-local table ordinal deterministically after parsing.  The
     # slot id is intentionally local to this conversion and is not a logical
     # table id.
@@ -252,6 +323,7 @@ def _append_fragment(
     blocks: list[SemanticBlock],
     slots: list[TableSlot],
     ordinal: int,
+    page_size: tuple[float, float] | None,
 ) -> None:
     # Parse recognized semantic tags.  Unsupported tags are retained as generic
     # text, while parser wrappers/location tags are transparent.
@@ -261,7 +333,13 @@ def _append_fragment(
         if prefix.strip():
             blocks.append(
                 SemanticBlock(
-                    "text", page, prefix, raw=fragment[cursor : match.start()]
+                    "text",
+                    page,
+                    prefix,
+                    raw=fragment[cursor : match.start()],
+                    geometry=_doctags_geometry(
+                        fragment[cursor : match.start()], page_size
+                    ),
                 )
             )
         if match.group("tag") == "otsl":
@@ -269,17 +347,31 @@ def _append_fragment(
             if caption is not None and _clean(caption.group(1)):
                 blocks.append(
                     SemanticBlock(
-                        "caption", page, _clean(caption.group(1)), raw=caption.group(0)
+                        "caption",
+                        page,
+                        _clean(caption.group(1)),
+                        raw=caption.group(0),
+                        geometry=_doctags_geometry(caption.group(0), page_size),
                     )
                 )
-        block, slot = _block_from_match(match, page, ordinal + len(slots) + 1)
+        block, slot = _block_from_match(
+            match, page, ordinal + len(slots) + 1, page_size
+        )
         blocks.append(block)
         if slot is not None:
             slots.append(slot)
         cursor = match.end()
     suffix = _clean(fragment[cursor:])
     if suffix.strip():
-        blocks.append(SemanticBlock("text", page, suffix, raw=fragment[cursor:]))
+        blocks.append(
+            SemanticBlock(
+                "text",
+                page,
+                suffix,
+                raw=fragment[cursor:],
+                geometry=_doctags_geometry(fragment[cursor:], page_size),
+            )
+        )
 
 
 # Stable, source-scoped IDs.  These functions do not claim that a producer ref
@@ -374,17 +466,23 @@ def semantic_blocks_to_v2(
 
 
 def ocr_pages_to_blocks(
-    pages: Mapping[int, str],
-    page_lines: Mapping[int, Sequence[Mapping[str, Any]]] | None = None,
+    page_lines: Mapping[int, Sequence[Mapping[str, Any]]],
 ) -> tuple[SemanticBlock, ...]:
-    """Emit generic ordered OCR text blocks; no semantic kind is inferred."""
+    """Emit one producer-backed semantic block for each recognized OCR line."""
     result: list[SemanticBlock] = []
-    lines = page_lines or {}
-    for page in sorted(pages):
-        text = str(pages[page] or "")
-        geometry = tuple(lines.get(page, ())) or None
-        if text.strip():
-            result.append(SemanticBlock("text", page, text, geometry=geometry))
+    for page in sorted(page_lines):
+        for ordinal, line in enumerate(page_lines[page]):
+            text = str(line.get("text", ""))
+            if text.strip():
+                result.append(
+                    SemanticBlock(
+                        "text",
+                        page,
+                        text,
+                        producer_ref=f"ocr:p{page}:line:{ordinal}",
+                        geometry=line,
+                    )
+                )
     return tuple(result)
 
 

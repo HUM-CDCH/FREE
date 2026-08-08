@@ -25,14 +25,14 @@ pnpm build
 
 ## Source-document Evidence
 
-Completed parsing exposes canonical Markdown and the permissive `parsed_document.v2`
+Completed parsing exposes canonical Markdown and the strict `parsed_document.v2`
 contract together. Studio fetches `/tasks/{task_id}/document` alongside Markdown for
 uploaded Source Documents; the bundled example uses a representative local fixture.
 The **Evidence** tab groups text and table-cell Evidence by physical page, shows
 producer and logical coordinates, continuation/page-span status, geometry availability,
-unplaced content, and parser diagnostics. Selecting an anchor navigates only to its
-recorded physical page; text fallback searches that page's PDF text layer and never
-borrows geometry from another page. This source-document Evidence view is separate
+unplaced content, and parser diagnostics. Selecting an anchor uses only its recorded
+physical page and canonical bounding box; missing geometry never triggers PDF text
+matching. This source-document Evidence view is separate
 from extraction-result Evidence and arbitrary extraction JSON remains permissive.
 
 ## Model configuration

@@ -55,7 +55,7 @@ def _bbox_inventory(value: Any) -> dict[str, float | str] | None:
             y1 = float(value.b)
     except (AttributeError, TypeError, ValueError):
         return None
-    if x0 > x1 or y0 > y1:
+    if x0 >= x1 or y0 >= y1:
         return None
     return {"x0": x0, "y0": y0, "x1": x1, "y1": y1, "origin": origin}
 

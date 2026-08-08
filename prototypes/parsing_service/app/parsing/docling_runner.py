@@ -82,7 +82,10 @@ def _convert_document(source_pdf: Path) -> Any:
     converter_cls = module.DocumentConverter  # type: ignore[attr-defined]
     converter = converter_cls()
     result = converter.convert(str(source_pdf))
-    return result.document
+    try:
+        return result.document
+    finally:
+        result.input._backend.unload()
 
 
 def _convert_doctags(raw_doctags: str) -> Any:

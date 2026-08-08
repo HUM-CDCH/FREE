@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const byteSpanSchema = z.object({ start: z.int().nonnegative(), end: z.int().nonnegative() }).strict().refine((value) => value.end >= value.start, 'span end must not precede start')
-const bboxSchema = z.object({ x0: z.number().finite(), y0: z.number().finite(), x1: z.number().finite(), y1: z.number().finite() }).strict().refine((value) => value.x1 >= value.x0 && value.y1 >= value.y0, 'bbox coordinates must be ordered')
+const bboxSchema = z.object({ x0: z.number().finite(), y0: z.number().finite(), x1: z.number().finite(), y1: z.number().finite() }).strict().refine((value) => value.x1 > value.x0 && value.y1 > value.y0, 'bbox must have positive area')
 const sourceSchema = z.object({ kind: z.literal('upload'), original_filename: z.string().nullable(), media_type: z.literal('application/pdf'), byte_size: z.number().int().nonnegative().nullable() }).strict()
 const documentSchema = z.object({
   document_id: z.string().min(1), content_sha256: z.string().regex(/^[a-f0-9]{64}$/), source: sourceSchema,
@@ -22,15 +22,15 @@ const blockSchema = z.discriminatedUnion('kind', [
   z.object({ ...commonBlock, kind: z.literal('table'), table_id: z.string().min(1) }).strict(),
   z.object({ ...commonBlock, kind: z.literal('page_break'), next_page: z.int().positive() }).strict(),
 ])
-const observationSchema = z.object({ occurrence_id: z.string().min(1), page_number: z.int().positive(), producer_ref: z.string().nullable(), row_offset: z.int().nonnegative(), column_offset: z.int().nonnegative(), row_span: z.int().positive(), column_span: z.int().positive(), bbox: bboxSchema.nullable() }).strict()
-const textAnchorSchema = z.object({ kind: z.literal('text'), anchor_id: z.string().min(1), occurrence_id: z.string().min(1), content_sha256: z.string().regex(/^[a-f0-9]{64}$/), preprocess_id: z.string().min(1), block_id: z.string().min(1), page_number: z.int().positive(), markdown_span: byteSpanSchema, bbox: bboxSchema.nullable() }).strict()
+const observationSchema = z.object({ occurrence_id: z.string().min(1), page_number: z.int().positive(), producer_ref: z.string().nullable(), row_offset: z.int().nonnegative(), column_offset: z.int().nonnegative(), row_span: z.int().positive(), column_span: z.int().positive(), bbox: bboxSchema }).strict()
+const textAnchorSchema = z.object({ kind: z.literal('text'), anchor_id: z.string().min(1), occurrence_id: z.string().min(1), content_sha256: z.string().regex(/^[a-f0-9]{64}$/), preprocess_id: z.string().min(1), block_id: z.string().min(1), page_number: z.int().positive(), markdown_span: byteSpanSchema, bbox: bboxSchema }).strict()
 const tableAnchorSchema = z.object({ kind: z.literal('table_cell'), anchor_id: z.string().min(1), content_sha256: z.string().regex(/^[a-f0-9]{64}$/), preprocess_id: z.string().min(1), logical_table_id: z.string().min(1), cell_id: z.string().min(1), canonical_row: z.int().nonnegative(), canonical_column: z.int().nonnegative(), producer_observations: z.array(observationSchema).min(1) }).strict()
 const anchorSchema = z.discriminatedUnion('kind', [textAnchorSchema, tableAnchorSchema])
 const cellSchema = z.object({ cell_id: z.string().min(1), row: z.int().nonnegative(), column: z.int().nonnegative(), text: z.string(), role: z.string().nullable(), rowspan: z.int().positive(), colspan: z.int().positive(), bbox: bboxSchema.nullable(), evidence_anchor_id: z.string().min(1) }).strict()
 const spanSchema = z.object({ page_number: z.int().positive(), producer_table_ref: z.string().nullable(), page_local_row_start: z.int().nonnegative(), page_local_row_end: z.int().nonnegative().nullable(), page_local_col_count: z.int().nonnegative().nullable() }).strict()
 const attributionSchema = z.object({ content_parser: z.object({ parser: z.string(), version: z.string().nullable() }).strict(), structure_parser: z.object({ parser: z.string(), version: z.string().nullable() }).strict(), geometry_parser: z.object({ parser: z.string(), version: z.string().nullable() }).strict().nullable() }).strict()
 const tableSchema = z.object({ table_id: z.string().min(1), rows: z.int().nonnegative().nullable(), cols: z.int().nonnegative().nullable(), cells: z.array(cellSchema), spans: z.array(spanSchema).min(1), parser_attribution: attributionSchema, continuation: z.enum(['page_local', 'derived_continuation']) }).strict()
-const pageSchema = z.object({ page_number: z.int().positive(), width_pt: z.number().nonnegative().nullable(), height_pt: z.number().nonnegative().nullable(), rotation: z.number().int().nullable(), ordered_content: z.array(z.string()), unplaced_content: z.array(z.string()), markdown_span: byteSpanSchema.nullable() }).strict()
+const pageSchema = z.object({ page_number: z.int().positive(), width_pt: z.number().finite().positive(), height_pt: z.number().finite().positive(), rotation: z.number().int().refine((value) => value % 90 === 0, 'rotation must be a multiple of 90 degrees'), ordered_content: z.array(z.string()), unplaced_content: z.array(z.string()), markdown_span: byteSpanSchema.nullable() }).strict()
 const parserRunSchema = z.object({ parser: z.string(), version: z.string().nullable(), status: z.enum(['success', 'failed', 'skipped']), warnings: z.array(z.string()), error: z.string().nullable() }).strict()
 const artifactSchema = z.object({ source_ref: z.literal('source.pdf'), parsed_json_ref: z.literal('parsed_document.json'), markdown_ref: z.literal('artifacts/document.llm.md') }).strict()
 
@@ -52,8 +52,8 @@ export type ParsedDocumentV2 = z.infer<typeof parsedDocumentSchema>
 
 export function decodeParsedDocument(data: unknown): ParsedDocumentV2 {
   const parsed = parsedDocumentSchema.parse(data)
-  const pages = new Set(parsed.pages.map((page) => page.page_number))
-  if (pages.size !== parsed.page_count || [...pages].some((page) => page < 1 || page > parsed.page_count)) throw new Error('parsed_document.v2: pages must uniquely cover all physical pages')
+  const pages = new Map(parsed.pages.map((page) => [page.page_number, page]))
+  if (pages.size !== parsed.page_count || [...pages.keys()].some((page) => page < 1 || page > parsed.page_count)) throw new Error('parsed_document.v2: pages must uniquely cover all physical pages')
   const blocks = new Map(parsed.content_stream.map((block) => [block.block_id, block]))
   if (blocks.size !== parsed.content_stream.length) throw new Error('parsed_document.v2: content block IDs must be unique')
   const tables = new Map(parsed.tables.map((table) => [table.table_id, table]))
@@ -77,15 +77,18 @@ export function decodeParsedDocument(data: unknown): ParsedDocumentV2 {
   if (placed.size !== tables.size) throw new Error('parsed_document.v2: every table requires a placement')
   for (const anchor of parsed.evidence_index.anchors) {
     if (anchor.content_sha256 !== parsed.document.content_sha256 || anchor.preprocess_id !== parsed.preprocessing.preprocess_id) throw new Error('parsed_document.v2: evidence identity does not match document')
-    const occurrences = anchor.kind === 'text' ? [{ occurrence_id: anchor.occurrence_id, page_number: anchor.page_number }] : anchor.producer_observations
+    const occurrences = anchor.kind === 'text' ? [anchor] : anchor.producer_observations
     for (const occurrence of occurrences) {
       if (occurrenceIds.has(occurrence.occurrence_id)) throw new Error('parsed_document.v2: evidence occurrence IDs must be unique')
-      if (!pages.has(occurrence.page_number)) throw new Error('parsed_document.v2: evidence page is invalid')
+      const page = pages.get(occurrence.page_number)
+      if (!page) throw new Error('parsed_document.v2: evidence page is invalid')
+      const { bbox } = occurrence
+      if (bbox.x0 < 0 || bbox.y0 < 0 || bbox.x1 > page.width_pt || bbox.y1 > page.height_pt) throw new Error('parsed_document.v2: evidence bbox is outside its physical page')
       occurrenceIds.add(occurrence.occurrence_id)
     }
     if (anchor.kind === 'text') {
       const block = blocks.get(anchor.block_id)
-      if (!block || block.page_number !== anchor.page_number || block.markdown_span?.start !== anchor.markdown_span.start || block.markdown_span?.end !== anchor.markdown_span.end) throw new Error('parsed_document.v2: text evidence reference is invalid')
+      if (!block || block.page_number !== anchor.page_number || block.markdown_span?.start !== anchor.markdown_span.start || block.markdown_span?.end !== anchor.markdown_span.end || !block.bbox || block.bbox.x0 !== anchor.bbox.x0 || block.bbox.y0 !== anchor.bbox.y0 || block.bbox.x1 !== anchor.bbox.x1 || block.bbox.y1 !== anchor.bbox.y1) throw new Error('parsed_document.v2: text evidence reference is invalid')
     } else {
       const table = tables.get(anchor.logical_table_id)
       const cell = table?.cells.find((candidate) => candidate.cell_id === anchor.cell_id)

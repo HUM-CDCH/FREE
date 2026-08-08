@@ -17,8 +17,6 @@ import {
 } from './parsedDocument'
 import {
   anchorOccurrences,
-  blockText,
-  findTextLayerMatch,
   verifiedEvidenceBbox,
 } from './evidenceNavigation'
 import type { AnnotationsMode } from './api'
@@ -433,8 +431,8 @@ export function DocumentWorkspace({
       focus.className = 'parsed-evidence-focus'
       focus.dataset.occurrenceId = occurrence.occurrence_id
       Object.assign(focus.style, {
-        position: 'absolute', left: `${bbox.x0 / pageMeta.width_pt! * 100}%`, top: `${bbox.y0 / pageMeta.height_pt! * 100}%`,
-        width: `${(bbox.x1 - bbox.x0) / pageMeta.width_pt! * 100}%`, height: `${(bbox.y1 - bbox.y0) / pageMeta.height_pt! * 100}%`,
+        position: 'absolute', left: `${bbox.x0 / pageMeta.width_pt * 100}%`, top: `${bbox.y0 / pageMeta.height_pt * 100}%`,
+        width: `${(bbox.x1 - bbox.x0) / pageMeta.width_pt * 100}%`, height: `${(bbox.y1 - bbox.y0) / pageMeta.height_pt * 100}%`,
         border: '2px solid #d97706', background: 'rgb(251 191 36 / 0.22)', pointerEvents: 'none', zIndex: '5',
       })
       if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
@@ -443,13 +441,6 @@ export function DocumentWorkspace({
     }
     if (firstFocus) {
       firstFocus.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-    } else if (anchor.kind === 'text') {
-      const page = container.querySelector(
-        `.page[data-page-number="${firstOccurrence.page_number}"]`,
-      )
-      if (!(page instanceof HTMLElement)) return
-      const match = findTextLayerMatch(page, blockText(parsedDocument, anchor))
-      match?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
     }
   }
 

@@ -19,6 +19,7 @@ from app.models.parsed_document_v2 import (
     ProducerTableCellObservation,
     TableCellEvidenceAnchor,
     TextEvidenceAnchor,
+    V2_GEOMETRY_ERROR_CODE,
 )
 
 PAGE_MARKER_RE = re.compile(r"^<!-- FREE:PAGE ([1-9][0-9]*) -->$")
@@ -268,6 +269,10 @@ def build_evidence_index(
         span = rendered.block_spans.get(block.block_id)
         if span is None or block.kind in {"table", "page_break"}:
             continue
+        if block.bbox is None:
+            raise ValueError(
+                f"{V2_GEOMETRY_ERROR_CODE}: text block {block.block_id} has no producer geometry"
+            )
         anchors.append(
             TextEvidenceAnchor(
                 anchor_id=_identity(content_sha256, preprocess_id, "text", block.block_id),
@@ -393,6 +398,27 @@ def validate_publication(
     if evidence_index is None:
         return
     anchors = evidence_index.anchors
+    for anchor in anchors:
+        occurrences = (
+            [(anchor.page_number, anchor.bbox)]
+            if isinstance(anchor, TextEvidenceAnchor)
+            else [
+                (observation.page_number, observation.bbox)
+                for observation in anchor.producer_observations
+            ]
+        )
+        for page_number, bbox in occurrences:
+            page = pages_by_number.get(page_number)
+            if (
+                page is None
+                or bbox.x0 < 0
+                or bbox.y0 < 0
+                or bbox.x1 > page.width_pt
+                or bbox.y1 > page.height_pt
+            ):
+                raise ValueError(
+                    f"{V2_GEOMETRY_ERROR_CODE}: Evidence geometry is outside physical page {page_number}"
+                )
     table_anchors = {
         (anchor.logical_table_id, anchor.cell_id): anchor
         for anchor in anchors

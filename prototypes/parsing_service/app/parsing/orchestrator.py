@@ -165,6 +165,13 @@ def validate_inspection_for_ingestion(inspection: PdfInspection) -> None:
     scale = CANONICAL_OCR_DPI / 72.0
     total_pixels = 0
     for page in inspection.pages:
+        if (
+            not math.isfinite(page.width_pt)
+            or not math.isfinite(page.height_pt)
+            or page.width_pt <= 0
+            or page.height_pt <= 0
+        ):
+            raise ValueError(f"PDF page {page.page} has invalid physical geometry.")
         page_pixels = math.ceil(page.width_pt * scale) * math.ceil(
             page.height_pt * scale
         )
@@ -757,6 +764,7 @@ def _v2_logical_tables(
         ParserAttribution,
         ProducerTableCellObservation,
         TableParserAttribution,
+        V2_GEOMETRY_ERROR_CODE,
         deterministic_anchor_id,
         deterministic_block_id,
         deterministic_occurrence_id,
@@ -808,6 +816,11 @@ def _v2_logical_tables(
             observed_root_rows = 0
             prior_cells = tuple(cells)
             for cell in getattr(fragment, "cells", ()) or ():
+                if cell.bbox is None:
+                    raise CanonicalIngestionError(
+                        V2_GEOMETRY_ERROR_CODE,
+                        f"Table cell {producer_ref}:{cell.row}:{cell.col} has no safe producer geometry.",
+                    )
                 canonical_row = row_base + int(cell.row)
                 observed_root_rows = max(observed_root_rows, int(cell.row) + 1)
                 roots = [
@@ -930,6 +943,7 @@ def build_parsed_document_v2(
         PublicPageDecision,
         PublicParserProvenance,
         PublicPreprocessingMetadata,
+        V2_GEOMETRY_ERROR_CODE,
         V2_PAGE_MAPPING_ERROR_CODE,
     )
     from app.parsing.semantic_stream import (
@@ -967,8 +981,26 @@ def build_parsed_document_v2(
     producer_doctags = str(
         getattr(parsing.docling_output, "canonical_doctags", "") or ""
     )
+    page_sizes = {
+        page.page: (page.width_pt, page.height_pt)
+        for page in inspected.inspection.pages
+    }
+    selected_ocr_pages = {
+        page
+        for page, parser in parsing.text.parser_by_page.items()
+        if parser == "paddleocr"
+    }
+    ocr_warnings = set(getattr(parsing.text.ocr_output, "warnings", ()) or ())
+    if selected_ocr_pages and "ocr_line_geometry_unavailable" in ocr_warnings:
+        raise CanonicalIngestionError(
+            V2_GEOMETRY_ERROR_CODE,
+            "OCR produced text without complete safe line geometry.",
+            parser_runs=list(parser_runs),
+        )
     if producer_doctags:
-        intermediate, slots = doctags_to_intermediate_blocks(producer_doctags)
+        intermediate, slots = doctags_to_intermediate_blocks(
+            producer_doctags, page_sizes=page_sizes
+        )
         # Only tables that can become canonical v2 objects may participate in
         # placement.  In particular, an ungrounded/ambiguous Camelot candidate
         # must never leave a dangling generated ref in the content stream.
@@ -979,6 +1011,32 @@ def build_parsed_document_v2(
         )
         placement = place_table_slots(intermediate, slots, placement_tables)
         intermediate = placement.blocks
+        if selected_ocr_pages:
+            ocr_blocks = ocr_pages_to_blocks(
+                {
+                    page: parsing.text.ocr_blocks_by_page.get(page, ())
+                    for page in selected_ocr_pages
+                }
+            )
+            replacement: list[Any] = []
+            for page in range(1, inspected.inspection.page_count + 1):
+                page_blocks = [
+                    block for block in intermediate if block.page_number == page
+                ]
+                if page in selected_ocr_pages:
+                    replacement.extend(
+                        block
+                        for block in ocr_blocks
+                        if block.page_number == page
+                    )
+                    replacement.extend(
+                        block
+                        for block in page_blocks
+                        if block.kind in {"table_slot", "page_boundary"}
+                    )
+                else:
+                    replacement.extend(page_blocks)
+            intermediate = tuple(replacement)
         # place_table_slots stores the observed ParsedTable ID in table_slot;
         # reconcile that producer-local identity to the derived logical ID.
         table_ids = {
@@ -1021,13 +1079,7 @@ def build_parsed_document_v2(
         }
     else:
         fallback_pages = parsing.text.ocr_blocks_by_page
-        intermediate = ocr_pages_to_blocks(
-            {
-                page: "\n".join(str(line.get("text", "")) for line in lines)
-                for page, lines in fallback_pages.items()
-            },
-            fallback_pages,
-        )
+        intermediate = ocr_pages_to_blocks(fallback_pages)
         blocks = list(
             semantic_blocks_to_v2(
                 intermediate, content_sha256, preprocess_id, parser="paddleocr"
@@ -1094,22 +1146,31 @@ def build_parsed_document_v2(
         page_count=inspected.inspection.page_count,
     )
     blocks, pages = apply_rendered_spans(rendered, blocks, pages)
-    evidence = build_evidence_index(
-        rendered,
-        blocks,
-        tables,
-        content_sha256=content_sha256,
-        preprocess_id=preprocess_id,
-        producer_observations=observations,
-    )
-    validate_publication(
-        rendered,
-        pages,
-        blocks,
-        tables,
-        evidence,
-        page_count=inspected.inspection.page_count,
-    )
+    try:
+        evidence = build_evidence_index(
+            rendered,
+            blocks,
+            tables,
+            content_sha256=content_sha256,
+            preprocess_id=preprocess_id,
+            producer_observations=observations,
+        )
+        validate_publication(
+            rendered,
+            pages,
+            blocks,
+            tables,
+            evidence,
+            page_count=inspected.inspection.page_count,
+        )
+    except ValueError as exc:
+        if V2_GEOMETRY_ERROR_CODE not in str(exc):
+            raise
+        raise CanonicalIngestionError(
+            V2_GEOMETRY_ERROR_CODE,
+            "Canonical Evidence could not be published with safe physical-page geometry.",
+            parser_runs=list(parser_runs),
+        ) from exc
     if artifact_root is not None:
         artifact_root.mkdir(parents=True, exist_ok=True)
         write_text_atomic(

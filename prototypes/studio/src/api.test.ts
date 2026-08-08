@@ -33,7 +33,7 @@ function minimalParsedDocument() {
     page_count: 1, page_mapping_verified: true,
     artifacts: { source_ref: 'source.pdf', parsed_json_ref: 'parsed_document.json', markdown_ref: 'artifacts/document.llm.md' },
     parser_runs: [], arbitration: null, diagnostics: [],
-    pages: [{ page_number: 1, width_pt: null, height_pt: null, rotation: 0, ordered_content: [], unplaced_content: [], markdown_span: null }],
+    pages: [{ page_number: 1, width_pt: 100, height_pt: 100, rotation: 0, ordered_content: [], unplaced_content: [], markdown_span: null }],
     content_stream: [], tables: [], evidence_index: { anchors: [] },
   }
 }

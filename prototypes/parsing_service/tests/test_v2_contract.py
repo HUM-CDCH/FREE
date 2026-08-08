@@ -80,7 +80,7 @@ def _document(source: bytes = b"%PDF-1.7\n") -> ParsedDocument:
                     "block_id": "block-1",
                     "page_number": 1,
                     "parser": "fixture",
-                    "bbox": None,
+                    "bbox": {"x0": 10, "y0": 20, "x1": 100, "y1": 40},
                     "markdown_span": {"start": 21, "end": 25},
                     "text": "Body",
                 }
@@ -88,8 +88,8 @@ def _document(source: bytes = b"%PDF-1.7\n") -> ParsedDocument:
             "pages": [
                 {
                     "page_number": 1,
-                    "width_pt": None,
-                    "height_pt": None,
+                    "width_pt": 612,
+                    "height_pt": 792,
                     "rotation": 0,
                     "ordered_content": ["block-1"],
                     "unplaced_content": [],
@@ -108,7 +108,7 @@ def _document(source: bytes = b"%PDF-1.7\n") -> ParsedDocument:
                         "block_id": "block-1",
                         "page_number": 1,
                         "markdown_span": {"start": 21, "end": 25},
-                        "bbox": None,
+                        "bbox": {"x0": 10, "y0": 20, "x1": 100, "y1": 40},
                     }
                 ]
             },
@@ -139,7 +139,7 @@ class ParsedDocumentV2ContractTests(unittest.TestCase):
     def test_utf8_byte_spans_cover_non_ascii_and_non_bmp_text(self) -> None:
         text = "Smørrebrød 🐟"
         rendered = render_canonical_markdown(
-            [ParsedPageV2(page_number=1, ordered_content=["b"])],
+            [ParsedPageV2(page_number=1, width_pt=612, height_pt=792, rotation=0, ordered_content=["b"])],
             [ParagraphBlock(block_id="b", page_number=1, parser="fixture", text=text)],
             page_count=1,
         )
@@ -167,6 +167,7 @@ class ParsedDocumentV2ContractTests(unittest.TestCase):
             column=0,
             text="Value",
             role="data",
+            bbox={"x0": 10, "y0": 20, "x1": 100, "y1": 40},
             evidence_anchor_id="anchor-1",
         )
         table = LogicalTable(
@@ -197,13 +198,27 @@ class ParsedDocumentV2ContractTests(unittest.TestCase):
                     "column_offset": 0,
                     "row_span": 1,
                     "column_span": 1,
-                    "bbox": None,
+                    "bbox": {"x0": 10, "y0": 20, "x1": 100, "y1": 40},
                 }
             ],
         )
         self.assertNotIn("evidence", cell.model_dump())
         self.assertNotIn("evidence_anchor_ids", table.spans[0].model_dump())
         self.assertEqual(anchor.producer_observations[0].page_number, 1)
+
+    def test_occurrence_geometry_is_mandatory_positive_and_page_bounded(self) -> None:
+        payload = _document().model_dump(mode="json")
+        anchor = payload["evidence_index"]["anchors"][0]
+        for bbox in (
+            None,
+            {"x0": 10, "y0": 20, "x1": 10, "y1": 40},
+            {"x0": 10, "y0": 20, "x1": float("inf"), "y1": 40},
+            {"x0": 10, "y0": 20, "x1": 700, "y1": 40},
+        ):
+            candidate = copy.deepcopy(payload)
+            candidate["evidence_index"]["anchors"][0]["bbox"] = bbox
+            with self.assertRaises(ValidationError):
+                ParsedDocument.model_validate(candidate)
 
     def test_reviewed_continuation_has_fail_closed_negative_cases(self) -> None:
         from app.parsing import continuation as review

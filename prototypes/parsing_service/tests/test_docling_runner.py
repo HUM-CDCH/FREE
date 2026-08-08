@@ -4,9 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from app.parsing.docling_runner import run_docling_ingestion
+from app.parsing.docling_runner import _convert_document, run_docling_ingestion
 from app.storage.paths import SERVICE_ROOT
 
 CONTENT_HASH = "a" * 64
@@ -65,6 +65,27 @@ class TableDoclingDocument(PhysicalPageDoclingDocument):
 
 
 class TestDoclingRunner(unittest.TestCase):
+    def test_conversion_unloads_the_input_backend(self):
+        document = object()
+        backend = SimpleNamespace(unload=Mock())
+        converter = SimpleNamespace(
+            convert=Mock(
+                return_value=SimpleNamespace(
+                    document=document,
+                    input=SimpleNamespace(_backend=backend),
+                )
+            )
+        )
+        module = SimpleNamespace(DocumentConverter=lambda: converter)
+
+        with patch(
+            "app.parsing.docling_runner.importlib.import_module",
+            return_value=module,
+        ):
+            self.assertIs(_convert_document(Path("source.pdf")), document)
+
+        backend.unload.assert_called_once_with()
+
     def test_conversion_failure_exposes_only_stable_diagnostic_code(self):
         with tempfile.TemporaryDirectory(dir=SERVICE_ROOT) as tmp_dir:
             source = Path(tmp_dir) / "source.pdf"

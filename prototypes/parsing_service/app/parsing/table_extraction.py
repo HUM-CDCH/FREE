@@ -117,7 +117,7 @@ def _topleft_bbox_values(
                 page_height_pt - values[1],
             )
         )
-    if values is None or values[0] > values[2] or values[1] > values[3]:
+    if values is None or values[0] >= values[2] or values[1] >= values[3]:
         return None
     return values
 
@@ -842,7 +842,11 @@ def _enrichment_candidates(
             logger.exception("Constrained Camelot table enrichment failed")
             extraction.warn_once("camelot_inventory_enrichment_failed")
             continue
-        candidates.extend(_camelot_tables(found, extraction))
+        try:
+            candidates.extend(_camelot_tables(found, extraction))
+        finally:
+            del found
+            gc.collect()
     return candidates
 
 

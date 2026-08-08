@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
+import { ApiError } from './_http.js'
 import { extractWithModel } from './_model.js'
 import { DELETE as clearLlmInspector, GET as getLlmInspector } from './llm_inspector.js'
 import { providerTable, type GeneralExecutionTarget, type NuExtractRawExecutionTarget } from './_provider.js'
@@ -64,8 +66,8 @@ function records(value: unknown): Array<Record<string, unknown>> {
 
 function assertCompleteExtraction(result: Awaited<ReturnType<typeof extractWithModel>>): void {
   const resultRecords = records(result.result)
-  expect(resultRecords).toHaveLength(7)
-  expect(resultRecords.map(({ grave_number }) => grave_number)).toEqual(EXPECTED_GRAVES)
+  expect(resultRecords.length === EXPECTED_GRAVES.length).toBe(true)
+  expect(resultRecords.every(({ grave_number }, index) => grave_number === EXPECTED_GRAVES[index])).toBe(true)
   expect(result).not.toHaveProperty('evidence')
   expect(() => JSON.parse(result.raw)).not.toThrow()
 }
@@ -125,22 +127,37 @@ describe.skipIf(!LIVE)('live Extraction provider E2E', () => {
       temperatureSupported: true,
     }
     const startedAt = Date.now()
-    const result = await extractWithModel({
-      document: { file: null, markdown: await capturedDocument(), pages: 7 },
-      template: extractionSchema,
-    }, target)
+    let result: Awaited<ReturnType<typeof extractWithModel>>
+    try {
+      result = await extractWithModel({
+        document: { file: null, markdown: await capturedDocument(), pages: 7 },
+        template: extractionSchema,
+      }, target)
+    } catch (error) {
+      console.info(JSON.stringify({
+        apiErrorCode: error instanceof ApiError ? error.code : 'unexpected_failure',
+        finishReason: null,
+        inputTokens: null,
+        outputTokens: null,
+        outputLength: null,
+        outputSha256: null,
+        durationMs: Date.now() - startedAt,
+      }))
+      expect(error instanceof ApiError ? error.code : 'unexpected_failure').toBeNull()
+      return
+    }
     const trace = await latestTrace()
     const response = JSON.parse(trace.response ?? '{}') as {
-      body?: { done_reason?: string; eval_count?: number }
+      body?: { done_reason?: string; prompt_eval_count?: number; eval_count?: number }
     }
     console.info(JSON.stringify({
-      provider: 'ollama',
-      model: target.modelId,
-      durationMs: Date.now() - startedAt,
+      apiErrorCode: null,
       finishReason: response.body?.done_reason,
+      inputTokens: response.body?.prompt_eval_count,
       outputTokens: response.body?.eval_count,
-      outputCharacters: result.raw.length,
-      recordIds: records(result.result).map(({ grave_number }) => grave_number),
+      outputLength: result.raw.length,
+      outputSha256: createHash('sha256').update(result.raw).digest('hex'),
+      durationMs: Date.now() - startedAt,
     }))
     expect(trace).toMatchObject({ status: 'complete', provider: 'ollama', model: target.modelId })
     expect(response.body?.done_reason).toBe('stop')

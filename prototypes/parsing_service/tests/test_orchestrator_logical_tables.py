@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from app.models.parsed_document import ParsedTable, TableCell
-from app.parsing.orchestrator import _v2_logical_tables
+from app.models.parsed_document import BoundingBox, ParsedTable, TableCell
+from app.models.parsed_document_v2 import V2_GEOMETRY_ERROR_CODE
+from app.parsing.orchestrator import CanonicalIngestionError, _v2_logical_tables
 
 
 def _fragment(
@@ -24,7 +25,15 @@ def _fragment(
         source_parser="docling_table",
         rows=rows,
         cols=1,
-        cells=[TableCell(row=row, col=0, text="Fundnummer", rowspan=rowspan)],
+        cells=[
+            TableCell(
+                row=row,
+                col=0,
+                text="Fundnummer",
+                rowspan=rowspan,
+                bbox=BoundingBox(x0=10, y0=10, x1=20, y1=20),
+            )
+        ],
     )
 
 
@@ -63,6 +72,15 @@ class TestOrchestratorLogicalTables(unittest.TestCase):
             [observation.page_number for observation in observations[anchor_id]],
             [1, 2],
         )
+
+    def test_missing_cell_geometry_fails_the_v2_publication(self):
+        first = _fragment("first", "#/tables/0", 1, 0, rows=1)
+        first = first.model_copy(
+            update={"cells": [first.cells[0].model_copy(update={"bbox": None})]}
+        )
+        with self.assertRaises(CanonicalIngestionError) as raised:
+            self.build(first, _fragment("second", "#/tables/1", 2, 1, rows=1))
+        self.assertEqual(raised.exception.code, V2_GEOMETRY_ERROR_CODE)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from app.parsing.semantic_stream import (
     match_table_slot,
     ocr_pages_to_blocks,
     place_table_slots,
+    semantic_blocks_to_v2,
 )
 
 
@@ -35,13 +36,35 @@ class TestSemanticStream(unittest.TestCase):
         self.assertEqual([block.kind for block in blocks], ["list", "code", "formula", "page_boundary", "page_boundary", "caption"])
         self.assertEqual(blocks[-1].page_number, 3)
 
-    def test_ocr_is_generic_and_keeps_page_geometry_as_provenance(self):
-        blocks = ocr_pages_to_blocks({2: "OCR"}, {2: [{"bbox": [1, 2, 3, 4]}]})
-        self.assertEqual(blocks[0].kind, "text")
-        self.assertEqual(blocks[0].page_number, 2)
-        self.assertEqual(blocks[0].geometry, ({"bbox": [1, 2, 3, 4]},))
-        rotated = ocr_pages_to_blocks({4: "rotated"}, {4: []})
-        self.assertIsNone(rotated[0].geometry)
+    def test_ocr_emits_one_block_per_line_with_unchanged_page_geometry(self):
+        lines = {
+            2: [
+                {"text": "First", "bbox": [1, 2, 3, 4]},
+                {"text": "Second", "bbox": [5, 6, 9, 10]},
+            ]
+        }
+        blocks = ocr_pages_to_blocks(lines)
+        self.assertEqual([block.text for block in blocks], ["First", "Second"])
+        self.assertEqual([block.geometry for block in blocks], lines[2])
+        published = semantic_blocks_to_v2(blocks, "a" * 64, "test", parser="paddleocr")
+        self.assertEqual(
+            [block.bbox.model_dump() for block in published],
+            [
+                {"x0": 1.0, "y0": 2.0, "x1": 3.0, "y1": 4.0},
+                {"x0": 5.0, "y0": 6.0, "x1": 9.0, "y1": 10.0},
+            ],
+        )
+
+    def test_doctags_geometry_survives_location_stripping_on_rotated_page(self):
+        blocks = doctags_to_intermediate_blocks(
+            "<text><loc_50><loc_100><loc_250><loc_200>Body</text>",
+            page_sizes={1: (100, 200)},
+        )[0]
+        published = semantic_blocks_to_v2(blocks, "a" * 64, "test")
+        self.assertEqual(
+            published[0].bbox.model_dump(),
+            {"x0": 10.0, "y0": 40.0, "x1": 50.0, "y1": 80.0},
+        )
 
     def test_inline_table_slot_is_preserved_until_canonical_matching(self):
         blocks, slots = doctags_to_intermediate_blocks("<text>Before</text><otsl><ched>Name</otsl>")

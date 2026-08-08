@@ -27,6 +27,7 @@ from app.models.parsed_document import (
 SCHEMA_VERSION = "parsed_document.v2"
 V2_PDF_REQUIRED_ERROR_CODE = "v2_source_not_pdf"
 V2_PAGE_MAPPING_ERROR_CODE = "v2_physical_page_mapping_unavailable"
+V2_GEOMETRY_ERROR_CODE = "v2_evidence_geometry_unavailable"
 _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 _PDF_MEDIA_TYPES = frozenset({"application/pdf", "application/x-pdf"})
 
@@ -113,7 +114,7 @@ class TextEvidenceAnchor(BaseModel):
     block_id: str
     page_number: int = Field(ge=1)
     markdown_span: MarkdownByteSpan
-    bbox: BoundingBox | None = None
+    bbox: BoundingBox
 
 
 class ProducerTableCellObservation(BaseModel):
@@ -128,7 +129,7 @@ class ProducerTableCellObservation(BaseModel):
     column_offset: int = Field(ge=0)
     row_span: int = Field(default=1, ge=1)
     column_span: int = Field(default=1, ge=1)
-    bbox: BoundingBox | None = None
+    bbox: BoundingBox
 
 
 class TableCellEvidenceAnchor(BaseModel):
@@ -310,9 +311,9 @@ class ParsedPageV2(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     page_number: int = Field(ge=1)
-    width_pt: float | None = Field(default=None, ge=0)
-    height_pt: float | None = Field(default=None, ge=0)
-    rotation: int | None = None
+    width_pt: float = Field(gt=0)
+    height_pt: float = Field(gt=0)
+    rotation: int
     ordered_content: list[str] = Field(default_factory=list)
     unplaced_content: list[str] = Field(default_factory=list)
     markdown_span: MarkdownByteSpan | None = None
@@ -320,8 +321,10 @@ class ParsedPageV2(BaseModel):
     @model_validator(mode="after")
     def validate_geometry(self) -> ParsedPageV2:
         for value in (self.width_pt, self.height_pt):
-            if value is not None and not math.isfinite(value):
+            if not math.isfinite(value):
                 raise ValueError("physical page geometry must be finite")
+        if self.rotation % 90:
+            raise ValueError("physical page rotation must be a multiple of 90 degrees")
         return self
 
 
@@ -402,6 +405,14 @@ class ParsedDocument(BaseModel):
         page_numbers = [page.page_number for page in self.pages]
         if set(page_numbers) != expected_pages or len(page_numbers) != self.page_count:
             raise ValueError("v2 pages must provide complete unique physical-page coverage")
+        pages_by_number = {page.page_number: page for page in self.pages}
+
+        def require_safe_bbox(bbox: BoundingBox, page_number: int) -> None:
+            page = pages_by_number[page_number]
+            if bbox.x0 < 0 or bbox.y0 < 0 or bbox.x1 > page.width_pt or bbox.y1 > page.height_pt:
+                raise ValueError(
+                    f"{V2_GEOMETRY_ERROR_CODE}: Evidence geometry must stay inside its physical page"
+                )
 
         blocks_by_id: dict[str, ContentBlockBase] = {}
         for block in self.content_stream:
@@ -462,6 +473,11 @@ class ParsedDocument(BaseModel):
                         "v2 Evidence Anchor references an unknown physical page"
                     )
                 occurrence_ids.add(occurrence_id)
+            if isinstance(anchor, TextEvidenceAnchor):
+                require_safe_bbox(anchor.bbox, anchor.page_number)
+            else:
+                for observation in anchor.producer_observations:
+                    require_safe_bbox(observation.bbox, observation.page_number)
             anchors_by_id[anchor.anchor_id] = anchor
 
         for anchor in self.evidence_index.anchors:
@@ -469,7 +485,11 @@ class ParsedDocument(BaseModel):
                 block = blocks_by_id.get(anchor.block_id)
                 if block is None or isinstance(block, (TableReferenceBlock, PageBreakBlock)):
                     raise ValueError("v2 text Evidence Anchor references a non-text block")
-                if block.page_number != anchor.page_number or block.markdown_span != anchor.markdown_span:
+                if (
+                    block.page_number != anchor.page_number
+                    or block.markdown_span != anchor.markdown_span
+                    or block.bbox != anchor.bbox
+                ):
                     raise ValueError("v2 text Evidence Anchor does not match its block span")
             else:
                 table = tables_by_id.get(anchor.logical_table_id)
@@ -515,7 +535,7 @@ class ParsedDocument(BaseModel):
 
 
 __all__ = [
-    "SCHEMA_VERSION", "V2_PDF_REQUIRED_ERROR_CODE", "V2_PAGE_MAPPING_ERROR_CODE",
+    "SCHEMA_VERSION", "V2_PDF_REQUIRED_ERROR_CODE", "V2_PAGE_MAPPING_ERROR_CODE", "V2_GEOMETRY_ERROR_CODE",
     "deterministic_id", "deterministic_block_id", "deterministic_table_id", "deterministic_anchor_id", "deterministic_occurrence_id",
     "MarkdownByteSpan", "PublicParserProvenance", "ParserDiagnostic", "ParserAttribution", "TableParserAttribution",
     "ContentBlock", "ContentBlockBase", "HeadingBlock", "ParagraphBlock", "TextBlock", "ListBlock", "CodeBlock",

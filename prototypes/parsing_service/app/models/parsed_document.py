@@ -37,8 +37,8 @@ class BoundingBox(BaseModel):
         values = (self.x0, self.y0, self.x1, self.y1)
         if not all(math.isfinite(value) for value in values):
             raise ValueError("BoundingBox coordinates must be finite.")
-        if self.x0 > self.x1 or self.y0 > self.y1:
-            raise ValueError("BoundingBox coordinates must be ordered.")
+        if self.x0 >= self.x1 or self.y0 >= self.y1:
+            raise ValueError("BoundingBox must have positive area.")
         return self
 
 
