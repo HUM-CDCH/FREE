@@ -37,4 +37,3 @@ explicit = true
 
 [tool.uv.sources]
 paddlepaddle-gpu = { index = "paddlepaddle-cuda" }
-

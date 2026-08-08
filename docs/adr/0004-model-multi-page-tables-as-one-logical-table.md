@@ -12,9 +12,11 @@ assume a multi-page producer object.
 Every canonical cell owns exactly one table-cell Evidence anchor. The anchor
 contains derived logical row/column identity and every ordered producer
 occurrence, each with a stable occurrence ID, physical page, producer ref,
-page-local offsets, observed spans, and optional geometry. Canonical cells do
-not contain nested Evidence. Page spans contain page/range/producer identity
-only and never repeat anchor IDs.
+page-local offsets, observed spans, and a finite, ordered, page-bounded bbox in
+displayed top-left physical-page space. Canonical cells do not contain nested
+Evidence. Page spans contain page/range/producer identity only and never repeat
+anchor IDs. Producer geometry that cannot be normalized safely is not
+published; canonical v2 rejects a geometry-less occurrence.
 
 Continuation requires reviewed producer-backed structure: matching page-local
 OTSL matrices, a header-bearing first fragment, a body-only next fragment, and

@@ -70,30 +70,17 @@ const rowAnchors = Object.values(accepted).map((field, column) => ({
   ],
 }))
 
-const unsafeAnchors = [
-  {
-    kind: 'text',
-    anchor_id: 'anchor_invalid_geometry',
-    occurrence_id: 'occurrence_invalid_geometry',
-    content_sha256: rowAnchors[0].content_sha256,
-    preprocess_id: rowAnchors[0].preprocess_id,
-    block_id: 'block-invalid-geometry',
-    page_number: 1,
-    markdown_span: { start: 0, end: 1 },
-    bbox: { x0: 10, y0: 10, x1: 900, y1: 20 },
-  },
-  {
-    kind: 'text',
-    anchor_id: 'anchor_rotated_geometry',
-    occurrence_id: 'occurrence_rotated_geometry',
-    content_sha256: rowAnchors[0].content_sha256,
-    preprocess_id: rowAnchors[0].preprocess_id,
-    block_id: 'block-rotated-geometry',
-    page_number: 2,
-    markdown_span: { start: 1, end: 2 },
-    bbox: { x0: 10, y0: 10, x1: 80, y1: 20 },
-  },
-] as const
+const rotatedAnchor = {
+  kind: 'text',
+  anchor_id: 'anchor_rotated_geometry',
+  occurrence_id: 'occurrence_rotated_geometry',
+  content_sha256: rowAnchors[0].content_sha256,
+  preprocess_id: rowAnchors[0].preprocess_id,
+  block_id: 'block-rotated-geometry',
+  page_number: 2,
+  markdown_span: { start: 0, end: 1 },
+  bbox: { x0: 10, y0: 10, x1: 80, y1: 20 },
+} as const
 
 const parsedDocument = {
   schema_version: 'parsed_document.v2',
@@ -140,20 +127,11 @@ const parsedDocument = {
   content_stream: [
     {
       kind: 'paragraph',
-      block_id: 'block-invalid-geometry',
-      page_number: 1,
-      parser: 'fixture',
-      bbox: unsafeAnchors[0].bbox,
-      markdown_span: unsafeAnchors[0].markdown_span,
-      text: 'Invalid geometry',
-    },
-    {
-      kind: 'paragraph',
       block_id: 'block-rotated-geometry',
       page_number: 2,
       parser: 'fixture',
-      bbox: unsafeAnchors[1].bbox,
-      markdown_span: unsafeAnchors[1].markdown_span,
+      bbox: rotatedAnchor.bbox,
+      markdown_span: rotatedAnchor.markdown_span,
       text: 'Rotated geometry',
     },
   ],
@@ -163,9 +141,7 @@ const parsedDocument = {
     height_pt: 792,
     rotation: index === 1 ? 90 : 0,
     ordered_content:
-      index === 0
-        ? ['block-invalid-geometry']
-        : index === 1
+      index === 1
           ? ['block-rotated-geometry']
           : [],
     unplaced_content:
@@ -205,7 +181,7 @@ const parsedDocument = {
       continuation: 'page_local',
     },
   ],
-  evidence_index: { anchors: [...unsafeAnchors, ...rowAnchors] },
+  evidence_index: { anchors: [rotatedAnchor, ...rowAnchors] },
 }
 
 type State = { extraction: DocumentReopenSnapshot['extraction'] }
@@ -403,11 +379,15 @@ test('canonical Evidence survives persist, fresh reopen, and safe rendering @det
     ),
   ).toHaveCount(1)
 
-  for (const anchorId of ['anchor_invalid_geometry', 'anchor_rotated_geometry']) {
-    await reopened
-      .getByRole('button', { name: new RegExp(`Evidence anchor ${anchorId}`) })
-      .click()
-    await expect(reopened.locator('.parsed-evidence-focus')).toHaveCount(0)
-  }
+  await reopened
+    .getByRole('button', {
+      name: new RegExp(`Evidence anchor ${rotatedAnchor.anchor_id}`),
+    })
+    .click()
+  await expect(
+    reopened.locator(
+      `.parsed-evidence-focus[data-occurrence-id="${rotatedAnchor.occurrence_id}"]`,
+    ),
+  ).toHaveCount(1)
   await reopenedContext.close()
 })

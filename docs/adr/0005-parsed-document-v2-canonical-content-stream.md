@@ -15,6 +15,12 @@ Cache paths, raw parser artifacts, parser input/output refs, and internal
 digests stay in the generation manifest. Route JSON and packaged JSON use the
 same portable shape.
 
+Every published Evidence occurrence carries finite, ordered, page-bounded
+geometry in displayed top-left physical-page space. Canonical v2 publication
+fails when safe geometry is unavailable. Rotation metadata does not invalidate
+already normalized displayed-page geometry; consumers repeat the bounds check
+before rendering it.
+
 Docling supplies semantic table values and structure. Camelot can only add
 exact-match monotonic geometry and never creates a canonical table alone.
 PaddleOCR is the page-level fallback for unresolved text; non-PDF and URL

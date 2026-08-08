@@ -62,17 +62,25 @@ depending on array order or transient renderer state.
 - **THEN** all three row `24-1` anchors and their reviewed occurrences resolve
   exactly
 
-### Requirement: Browser geometry fails safely
+### Requirement: Canonical Evidence geometry fails safely
 
-The browser SHALL highlight only finite, ordered, page-bounded geometry on a
-physical page with zero rotation. Invalid, absent, or rotated geometry SHALL be
-suppressed without changing the resolved Evidence identity.
+Every canonical Evidence occurrence SHALL carry finite, ordered, page-bounded
+geometry in displayed top-left physical-page space. The Parsing Service and
+Studio decoder SHALL reject invalid, absent, or out-of-page Evidence geometry.
+The browser SHALL repeat the bounds check and render valid geometry even when
+the physical page is rotated.
 
-#### Scenario: Valid and unsafe geometry coexist
+#### Scenario: Valid rotated geometry is reopened
 
-- **WHEN** reopened canonical occurrences include valid geometry and invalid or
-  rotated geometry
-- **THEN** valid geometry is highlighted and unsafe geometry is not rendered
+- **WHEN** a reopened canonical occurrence has valid displayed-page geometry
+  on a rotated physical page
+- **THEN** its Evidence identity resolves and its geometry is highlighted
+
+#### Scenario: Unsafe geometry reaches a strict boundary
+
+- **WHEN** an occurrence has absent, non-finite, unordered, or out-of-page
+  geometry
+- **THEN** the strict v2 payload is rejected before unsafe geometry can render
 
 ### Requirement: Review is an explicit action bound to what produced the result
 

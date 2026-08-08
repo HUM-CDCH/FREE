@@ -14,7 +14,8 @@ physical occurrences inspected by a researcher.
   owner.
 - Persist a successful Extraction and its Review Decision atomically, then
   reopen both against the same Source Representation Revision.
-- Render only geometry verified for an unrotated physical page.
+- Require safe geometry for every canonical occurrence and render it in
+  displayed physical-page space.
 
 **Non-Goals:**
 
@@ -35,10 +36,13 @@ physical occurrences inspected by a researcher.
    unknown, or foreign occurrence IDs before the transaction commits.
 4. `ProjectStore` performs the Extraction and Review Decision write in one
    transaction and returns them from the existing exact-revision reopen read.
-5. The browser resolver joins by pinned representation generation, anchor ID,
-   and owned occurrence ID. It highlights a bbox only when finite, ordered,
-   page-bounded, and on an unrotated page; otherwise identity remains resolved
-   and geometry is suppressed.
+5. The Parsing Service and Studio decoder reject missing, non-finite,
+   unordered, or out-of-page Evidence geometry. The browser resolver joins by
+   pinned representation generation, anchor ID, and owned occurrence ID,
+   repeats the bounds check, and renders valid displayed-page geometry even
+   when the physical page is rotated. Producer geometry that cannot be safely
+   normalized is suppressed before publication; v2 does not publish a
+   geometry-less canonical occurrence.
 6. One Playwright test uses the checked-in Ellekilde semantic golden plus the
    fixed accepted row `24-1` output. The raw model audit report is not a fixture
    or runtime dependency.
@@ -55,5 +59,5 @@ physical occurrences inspected by a researcher.
 - **Contract churn in active v2 work** → replace the singular producer
   observation now; no compatibility layer.
 - **A partially persisted review** → one database transaction owns both rows.
-- **Unsafe PDF coordinates** → fail closed on geometry while preserving exact
-  semantic identity.
+- **Unsafe PDF coordinates** → fail closed at publication or strict decoding;
+  repeat the bounds check before rendering.

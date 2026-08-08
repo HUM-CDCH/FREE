@@ -14,7 +14,8 @@ parse-to-render lifecycle proof before any further model sampling.
   result. Models do not generate a second Evidence tree.
 - Reopen the persisted result in a fresh browser session and resolve the same
   generation-scoped anchors.
-- Render valid page geometry and suppress invalid or rotated geometry.
+- Require safe displayed-page geometry at the strict v2 boundary and render it,
+  including normalized geometry on rotated pages.
 - Add one deterministic intercepted browser fixture using the Ellekilde
   semantic golden and a fixed accepted row `24-1` result.
 

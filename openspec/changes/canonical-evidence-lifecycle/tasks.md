@@ -23,8 +23,9 @@
 
 ## 4. Browser rendering
 
-- [x] 4.1 Resolve reopened anchors and render only valid unrotated geometry,
-  suppressing invalid or rotated boxes.
+- [x] 4.1 Reject unsafe occurrence geometry at the strict v2 boundary and
+  render page-bounded displayed-page geometry, including normalized boxes on
+  rotated pages.
 
 ## 5. Verification
 
@@ -33,9 +34,16 @@
 - [x] 5.2 Pass canonical v2 source context to one local-Ollama extraction, return
   canonical anchor IDs, and run it through real Vite/Prisma/browser persistence;
   report the exact model tag.
-  Model tag `hf.co/numind/NuExtract3-GGUF:latest` (Ollama, raw NuExtract route)
-  over `Beretning_Ellekilde_8_13.pdf` (328 canonical anchors, 6 pages): 33 of 33
-  cited labels resolved to published anchors, one Extraction and 33 Review
-  Decisions were written to PostgreSQL against the pinned Schema Revision, and a
-  fresh browser session reopened all 33 anchors — the one reviewed occurrence
-  with valid geometry rendered, the rest resolved without geometry.
+  Model tag `hf.co/numind/NuExtract3-GGUF:Q4_K_M` (Ollama model ID
+  `51cdf1189a0f`, raw NuExtract route) over `Beretning_Ellekilde_8_13.pdf` at
+  runtime commit `d12567f`: the persisted `parsed_document.v2` had 6 pages, 98
+  blocks, 13 tables, 328 anchors, and 328 occurrences. The tolerantly recovered
+  result contained 7 distinct canonical anchor IDs; PostgreSQL stored one
+  successful Extraction, 7 Review Decisions, and 7 reviewed occurrences against
+  the pinned Schema and Source Representation revisions. A fresh Chrome tab
+  reopened all 7 reviewed anchors, rendered the selected occurrence as one PDF
+  highlight, and suppressed 0 reviewed geometries. The exact model response did
+  not satisfy the requested extraction shape: it produced a nested 512-item
+  payload with 7 grounded values, so lifecycle persistence passed while strict
+  model-shape quality did not. Full evidence and execution-target limits are in
+  `live-e2e-evidence.md`.

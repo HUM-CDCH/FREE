@@ -133,4 +133,3 @@ coordination. No byte quota, durable pin, or repository semantics is added.
 - **THEN** parsing-service cleanup may remove its task and eventually
   unreferenced cache data according to time-based retention
 - **AND** the exported package remains the portable ownership-transfer artifact
-
