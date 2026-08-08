@@ -13,8 +13,13 @@ from typing import Any
 
 from filelock import FileLock, Timeout
 
-from app.models.parsed_document import ParsedDocument
-from app.parsing.orchestrator import CanonicalIngestionError, build_parsed_document
+from app.models.parsed_document_v2 import ParsedDocument
+from app.parsing.orchestrator import (
+    CanonicalIngestionError,
+    build_canonical_generation,
+)
+from app.storage.canonical_package import has_active_delivery_lease
+from app.storage.atomic_json import write_json_atomic
 from app.storage.blobs import (
     prune_document_store,
     prune_orphan_document_generations,
@@ -26,11 +31,12 @@ from app.storage.manifests import (
     TaskNotFoundError,
     load_task_metadata,
     preprocessing_config_hash,
+    read_canonical_generation_ref,
     read_canonical_parsed_document,
-    rebase_parsed_document_artifacts,
     rebind_parsed_document_for_task,
     save_task_metadata,
     validate_canonical_document,
+    write_canonical_generation_pointer,
     write_canonical_parsed_document,
     write_parsed_document,
 )
@@ -52,7 +58,7 @@ from app.workers._task_state import (
     cached_document_matches_task,
     failure_metadata as _failure_metadata,
     iter_task_entries as _iter_task_entries,
-    normalize_legacy_metadata as _normalize_legacy_metadata,
+    validate_current_task_metadata as _validate_current_task_metadata,
     task_modified_at as _task_modified_at,
 )
 
@@ -78,6 +84,8 @@ def _load_valid_canonical(
 ) -> ParsedDocument | None:
     try:
         parsed_document = read_canonical_parsed_document(content_sha256)
+        if parsed_document.schema_version != "parsed_document.v2":
+            return None
         validate_canonical_document(
             parsed_document,
             expected_sha256=content_sha256,
@@ -110,6 +118,28 @@ def _authenticated_source_blob(
     return source_blob
 
 
+def _reusable_canonical(
+    content_sha256: str,
+    metadata: dict[str, Any],
+) -> ParsedDocument | None:
+    """Return a cache entry only when it can be bound to a live generation.
+
+    Task completion requires an immutable generation binding, so a canonical
+    document whose generation was pruned is treated as a miss and rebuilt.
+    """
+    cached = _load_valid_canonical(content_sha256, metadata)
+    if cached is None:
+        return None
+    generation_ref = read_canonical_generation_ref(
+        content_sha256,
+        expected_config_hash=preprocessing_config_hash(metadata),
+    )
+    if generation_ref is None:
+        return None
+    metadata["canonical_generation_ref"] = generation_ref
+    return cached
+
+
 def _new_generation_id(config_hash: str) -> str:
     return f"{config_hash[:16]}-{uuid.uuid4().hex}"
 
@@ -129,7 +159,7 @@ def _build_or_load_canonical(
             store_lock.acquire(timeout=_CANONICAL_LOCK_TIMEOUT_SECONDS),
             source_lock.acquire(timeout=_CANONICAL_LOCK_TIMEOUT_SECONDS),
         ):
-            cached = _load_valid_canonical(content_sha256, metadata)
+            cached = _reusable_canonical(content_sha256, metadata)
             if cached is not None:
                 return cached
 
@@ -144,19 +174,25 @@ def _build_or_load_canonical(
             try:
                 pending_artifacts = pending_dir / "artifacts"
                 pending_artifacts.mkdir(parents=True, exist_ok=False)
-                parsed_document = build_parsed_document(
+                built = build_canonical_generation(
                     task_id,
                     source_path=source_blob,
                     artifact_root=pending_artifacts,
                 )
-                parsed_document = rebase_parsed_document_artifacts(
-                    parsed_document,
-                    pending_dir,
-                    final_dir,
+                parsed_document = built.document
+                metadata["canonical_generation_ref"] = service_relative_ref(final_dir)
+                write_json_atomic(
+                    pending_artifacts / "generation-manifest.json",
+                    built.generation_manifest,
                 )
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(pending_dir, final_dir)
                 published_generation = True
+                write_canonical_generation_pointer(
+                    content_sha256,
+                    generation_ref=metadata["canonical_generation_ref"],
+                    config_hash=config_hash,
+                )
                 validate_canonical_document(
                     parsed_document,
                     expected_sha256=content_sha256,
@@ -170,7 +206,7 @@ def _build_or_load_canonical(
                     shutil.rmtree(final_dir, ignore_errors=True)
                 raise
     except Timeout as exc:
-        cached = _load_valid_canonical(content_sha256, metadata)
+        cached = _reusable_canonical(content_sha256, metadata)
         if cached is not None:
             return cached
         raise CanonicalIngestionError(
@@ -203,12 +239,22 @@ def _completed_metadata(
         rebound = rebind_parsed_document_for_task(task_dir, metadata, parsed_document)
         updated = dict(metadata)
         updated["document_id"] = document_id_from_hash(rebound.document.content_sha256)
-        updated["stats"] = {run.parser: run.metrics for run in rebound.parser_runs}
+        updated["stats"] = {run.parser: {} for run in rebound.parser_runs}
         updated["parser_runs"] = [
             run.model_dump(mode="json") for run in rebound.parser_runs
         ]
-        updated["selected_parser"] = rebound.arbitration.primary_document_parser
+        updated["selected_parser"] = (
+            rebound.arbitration.primary_document_parser
+            if rebound.arbitration is not None
+            else None
+        )
         updated["canonical_parsed_document_ref"] = canonical_ref
+        generation_ref = metadata.get("canonical_generation_ref")
+        if generation_ref is None:
+            raise ValueError(
+                "Canonical parser output has no immutable generation binding."
+            )
+        updated["canonical_generation_ref"] = generation_ref
         updated["status"] = "completed"
         updated["error_code"] = None
         updated["error"] = None
@@ -248,7 +294,7 @@ def _run_task_sync(task_id: str) -> None:
             )
             _completed_metadata(
                 task_dir,
-                load_task_metadata(task_dir),
+                metadata,
                 parsed_document,
             )
         except Exception as exc:
@@ -258,15 +304,8 @@ def _run_task_sync(task_id: str) -> None:
             _persist_task_metadata(task_dir, metadata)
 
 
-async def run_extraction_task(
-    task_id: str,
-    source_path: str,
-    dpi: int | None = None,
-    pipeline: str | None = None,
-    device: str | None = None,
-):
-    """Compatibility entry point for the canonical ingestion worker."""
-    _ = (source_path, dpi, pipeline, device)
+async def run_extraction_task(task_id: str):
+    """Dispatch one task using only the persisted, authenticated task state."""
     _ACTIVE_TASK_IDS.add(task_id)
     try:
         async with _PARSER_ADMISSION:
@@ -298,7 +337,7 @@ def _reconcile_task(entry: Path, task_id: str) -> bool:
     """Reconcile one locked task, isolating malformed task-local state."""
     try:
         stored_metadata = load_task_metadata(entry)
-        metadata = _normalize_legacy_metadata(task_id, stored_metadata)
+        metadata = _validate_current_task_metadata(task_id, stored_metadata)
         status = metadata.get("status")
         if status not in {"pending", "running", "completed", "failed"}:
             raise ValueError("Task metadata has an invalid status.")
@@ -361,7 +400,11 @@ def _completed(entry: Path) -> bool:
 
 
 def _remove_expired_task(entry: Path, task_id: str, cutoff: float) -> bool:
-    if task_id in _ACTIVE_TASK_IDS or _completed(entry):
+    if (
+        task_id in _ACTIVE_TASK_IDS
+        or _completed(entry)
+        or has_active_delivery_lease(entry)
+    ):
         return False
     modified = _task_modified_at(entry)
     if modified is None or modified >= cutoff:
@@ -370,6 +413,11 @@ def _remove_expired_task(entry: Path, task_id: str, cutoff: float) -> bool:
     lock = FileLock(str(task_lock_path(task_id)))
     try:
         with lock.acquire(timeout=0):
+            # The lease can be created after the first check while the lock is
+            # being acquired. Re-check while owning the task lock so an active
+            # FileResponse cannot lose its immutable delivery artifact.
+            if has_active_delivery_lease(entry):
+                return False
             shutil.rmtree(entry)
     except OSError:
         return False
@@ -400,8 +448,7 @@ def cleanup_once(*, now: float | None = None) -> int:
     data_path = Path(DEFAULT_DATA_DIR)
     entries = _iter_task_entries(data_path) if data_path.exists() else ()
     removed = sum(
-        _remove_expired_task(entry, task_id, cutoff)
-        for entry, task_id in entries
+        _remove_expired_task(entry, task_id, cutoff) for entry, task_id in entries
     )
 
     prune_source_store(data_dir=DEFAULT_DATA_DIR)

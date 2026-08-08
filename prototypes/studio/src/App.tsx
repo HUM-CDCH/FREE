@@ -9,10 +9,18 @@ import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
 import { type SchemaNode, nodesToTemplate, templateToNodes } from '../shared/schemaNode'
 import { countTemplateFields } from './template'
-import { requestSchema, parseDocumentToMarkdown } from './api'
+import { requestSchema, parseDocument, fetchParsedDocument } from './api'
+import {
+  decodeParsedDocument,
+  type ParsedDocument,
+  type ParsedEvidenceAnchor,
+} from './parsedDocument'
+import {
+  anchorOccurrences,
+  verifiedEvidenceBbox,
+} from './evidenceNavigation'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
-import EvidenceHighlightLayer from './EvidenceHighlightLayer'
 import { Button } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
@@ -65,7 +73,7 @@ type LoadState =
 // The parsing service's Markdown index of the current document, built on upload.
 type DocIndex =
   | { status: 'parsing' }
-  | { status: 'ready'; markdown: string }
+  | { status: 'ready'; markdown: string; document: ParsedDocument | null }
   | { status: 'error'; message: string }
 
 async function readMarkdown(url: string, signal: AbortSignal): Promise<string> {
@@ -75,6 +83,18 @@ async function readMarkdown(url: string, signal: AbortSignal): Promise<string> {
       `Could not fetch Source Document Markdown (HTTP ${response.status}).`,
     )
   return response.text()
+}
+
+async function readParsedDocument(
+  url: string,
+  signal: AbortSignal,
+): Promise<ParsedDocument> {
+  const response = await fetch(url, { signal })
+  if (!response.ok)
+    throw new Error(
+      `Could not fetch parsed Source Document (HTTP ${response.status}).`,
+    )
+  return decodeParsedDocument(await response.json())
 }
 
 function getHighlightLabel(editor: AnnotationEditor) {
@@ -97,7 +117,10 @@ function annotationInputsKey(items: AnnotationSetItem[], mode: AnnotationsMode) 
 export type DocumentWorkspaceProps = {
   pdfUrl: string
   filename: string
+  /** Null for a dev-opened local file, which has nothing durable to review against. */
+  sourceRepresentationId: string | null
   markdownUrl: string | null
+  parsedDocumentUrl: string | null
   annotationSet: DocumentSnapshot['annotationSet']
   extractionSchema: DocumentSnapshot['extractionSchema']
   persistedExtraction: DocumentSnapshot['extraction']
@@ -114,14 +137,17 @@ function reopenedExtractionState(
   return {
     status: 'ready',
     result: extraction.result,
-    evidence: extraction.evidence,
+    evidenceLinks: extraction.evidenceLinks,
+    groundingIssues: [],
   }
 }
 
 export function DocumentWorkspace({
   pdfUrl,
   filename,
+  sourceRepresentationId,
   markdownUrl,
+  parsedDocumentUrl,
   annotationSet,
   extractionSchema,
   persistedExtraction,
@@ -148,19 +174,21 @@ export function DocumentWorkspace({
     extractionSchema
       ? {
           status: 'ready',
-          nodes: templateToNodes(extractionSchema.template),
+          nodes: extractionSchema.schemaNodes,
           inputsKey: annotationInputsKey(restoredAnnotations, 'hints'),
         }
       : { status: 'idle' },
   )
   const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
+  // An accepted result is bound to the Schema Revision it was produced with, so
+  // the pin is dropped as soon as the schema in the browser stops being it.
+  const [pinnedSchemaRevisionId, setPinnedSchemaRevisionId] = useState<
+    string | null
+  >(extractionSchema?.schemaRevisionId ?? null)
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
   const [toast, setToast] = useState<string | null>(null)
-  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
-  const [activePdfViewer, setActivePdfViewer] = useState<PDFViewer | null>(null)
-  const [focusPath, setFocusPath] = useState<string[] | null>(null)
   const pdfSource = useMemo(
     () => ({ url: pdfUrl, filename }),
     [filename, pdfUrl],
@@ -169,10 +197,18 @@ export function DocumentWorkspace({
 
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
+  const parsedDocument = docIndex.status === 'ready' ? docIndex.document : null
+  const reviewedOccurrenceIdsByAnchor = new Map(
+    persistedExtraction?.outcome === 'succeeded'
+      ? persistedExtraction.reviewDecisions.map((decision) => [
+          decision.evidenceAnchorId,
+          decision.reviewedOccurrenceIds,
+        ])
+      : [],
+  )
 
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
     containerRef.current = node
-    setContainerEl(node)
   }, [])
 
   const setViewerNode = useCallback((node: HTMLDivElement | null) => {
@@ -222,7 +258,6 @@ export function DocumentWorkspace({
 
     const loadingTask = pdfjsLib.getDocument({ url: pdfSource.url })
     pdfViewerRef.current = pdfViewer
-    setActivePdfViewer(pdfViewer)
     annotationManagerRef.current = null
     setLoadState({ status: 'loading' })
 
@@ -308,7 +343,6 @@ export function DocumentWorkspace({
     return () => {
       eventBus.off('annotationeditoruimanager', onAnnotationEditorUIManager)
       pdfViewerRef.current = null
-      setActivePdfViewer(null)
       annotationManagerRef.current = null
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
@@ -332,14 +366,20 @@ export function DocumentWorkspace({
         const devTaskId = import.meta.env.VITE_DEV_TASK_ID as
           | string
           | undefined
-        const markdown = markdownUrl
-          ? await readMarkdown(markdownUrl, abortController.signal)
+        const parsed = markdownUrl && parsedDocumentUrl
+          ? await Promise.all([
+              readMarkdown(markdownUrl, abortController.signal),
+              readParsedDocument(parsedDocumentUrl, abortController.signal),
+            ]).then(([markdown, document]) => ({ markdown, document }))
           : devTaskId
-            ? await readMarkdown(
-                `${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`,
-                abortController.signal,
-              )
-            : await parseDocumentToMarkdown(
+            ? await Promise.all([
+                readMarkdown(
+                  `${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`,
+                  abortController.signal,
+                ),
+                fetchParsedDocument(devTaskId, abortController.signal),
+              ]).then(([markdown, document]) => ({ markdown, document }))
+            : await parseDocument(
                 await (
                   await fetch(pdfSource.url, {
                     signal: abortController.signal,
@@ -349,7 +389,7 @@ export function DocumentWorkspace({
                 abortController.signal,
               )
         if (!abortController.signal.aborted) {
-          setDocIndex({ status: 'ready', markdown })
+          setDocIndex({ status: 'ready', markdown: parsed.markdown, document: parsed.document })
         }
       } catch (error) {
         if (abortController.signal.aborted) return
@@ -362,12 +402,50 @@ export function DocumentWorkspace({
     })()
 
     return () => abortController.abort()
-  }, [markdownUrl, onInitialResourceLoadFailure, pdfSource])
+  }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl, pdfSource])
 
-  // A reopened annotation has no pdf.js editor yet — its highlight is not
-  // recreated in the viewer — so both handlers fall back to the recorded page
-  // and the set itself. ponytail: the fallback goes away once reopening
-  // rebuilds the editors from the retained anchors.
+  function selectEvidenceAnchor(anchor: ParsedEvidenceAnchor) {
+    const viewer = pdfViewerRef.current
+    const container = containerRef.current
+    container
+      ?.querySelectorAll('.parsed-evidence-focus')
+      .forEach((focus) => focus.remove())
+    if (!viewer || !container || !parsedDocument) return
+    const reviewed = reviewedOccurrenceIdsByAnchor.get(anchor.anchor_id)
+    const occurrences = anchorOccurrences(anchor).filter(
+      (occurrence) => !reviewed || reviewed.includes(occurrence.occurrence_id),
+    )
+    const firstOccurrence = occurrences[0]
+    if (!firstOccurrence) return
+    viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
+    let firstFocus: HTMLElement | null = null
+    for (const occurrence of occurrences) {
+      const page = container.querySelector(
+        `.page[data-page-number="${occurrence.page_number}"]`,
+      )
+      if (!(page instanceof HTMLElement)) continue
+      const bbox = verifiedEvidenceBbox(parsedDocument, occurrence)
+      if (!bbox) continue
+      const pageMeta = parsedDocument.pages.find(
+        (candidate) => candidate.page_number === occurrence.page_number,
+      )!
+      const focus = document.createElement('div')
+      focus.className = 'parsed-evidence-focus'
+      focus.dataset.occurrenceId = occurrence.occurrence_id
+      Object.assign(focus.style, {
+        position: 'absolute', left: `${bbox.x0 / pageMeta.width_pt * 100}%`, top: `${bbox.y0 / pageMeta.height_pt * 100}%`,
+        width: `${(bbox.x1 - bbox.x0) / pageMeta.width_pt * 100}%`, height: `${(bbox.y1 - bbox.y0) / pageMeta.height_pt * 100}%`,
+        border: '2px solid #d97706', background: 'rgb(251 191 36 / 0.22)', pointerEvents: 'none', zIndex: '5',
+      })
+      if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
+      page.append(focus)
+      firstFocus ??= focus
+    }
+    if (firstFocus) {
+      firstFocus.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+    }
+  }
+
   function selectAnnotationItem(id: string) {
     const manager = annotationManagerRef.current
     const editor = manager?.getEditor(id)
@@ -417,6 +495,7 @@ export function DocumentWorkspace({
     const abortController = new AbortController()
     templateAbortRef.current = abortController
     const inputsKey = annotationInputsKey(annotationItems, annotationsMode)
+    setPinnedSchemaRevisionId(null)
     setTemplateState({ status: 'generating' })
 
     try {
@@ -438,10 +517,6 @@ export function DocumentWorkspace({
         message: error instanceof Error ? error.message : 'Schema generation failed.',
       })
     }
-  }
-
-  function handleValueClick(path: string[]) {
-    setFocusPath(path)
   }
 
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
@@ -467,6 +542,7 @@ export function DocumentWorkspace({
   }
 
   function changeNodes(nodes: SchemaNode[], message: string) {
+    setPinnedSchemaRevisionId(null)
     setTemplateState((state) =>
       state.status === 'ready' ? { ...state, nodes, edited: true } : state,
     )
@@ -517,9 +593,17 @@ export function DocumentWorkspace({
     markdown: documentMarkdown,
     indexing,
     initialState: reopenedExtractionState(persistedExtraction),
+    parsedDocument,
+    reviewTarget:
+      sourceRepresentationId && pinnedSchemaRevisionId
+        ? { sourceRepresentationId, schemaRevisionId: pinnedSchemaRevisionId }
+        : null,
+    persistedExtractionId:
+      persistedExtraction?.outcome === 'succeeded'
+        ? persistedExtraction.extractionId
+        : null,
     onComplete: (isRerun) => {
       setRailTab('results')
-      setFocusPath(null)
       showToast(
         isRerun
           ? '↻ Re-run complete — view the JSON in the Results tab'
@@ -594,14 +678,6 @@ export function DocumentWorkspace({
         <section className="relative min-h-0 min-w-0 flex-1" aria-label="PDF document">
           <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
             <div className="pdfViewer" ref={setViewerNode} />
-            <EvidenceHighlightLayer
-              pdfViewer={activePdfViewer}
-              result={extraction.state.status === 'ready' ? extraction.state.result : null}
-              evidence={extraction.state.status === 'ready' ? extraction.state.evidence : null}
-              schemaTemplate={schemaTemplate}
-              containerEl={containerEl}
-              focusPath={focusPath}
-            />
           </div>
           {extraction.state.status === 'running' && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-canvas/85 backdrop-blur-[2px]">
@@ -661,9 +737,9 @@ export function DocumentWorkspace({
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
             documentMarkdown={documentMarkdown}
-            onValueClick={handleValueClick}
-            focusPath={focusPath}
-            onClearFocus={() => setFocusPath(null)}
+            parsedDocument={parsedDocument}
+            reviewedOccurrenceIdsByAnchor={reviewedOccurrenceIdsByAnchor}
+            onSelectEvidence={selectEvidenceAnchor}
           />
         </aside>
       </div>

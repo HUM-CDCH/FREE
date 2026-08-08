@@ -15,7 +15,6 @@ export type ResultValueProps = {
   value: unknown
   path?: ResultPath
   onChange?: OnResultChange
-  onValueClick?: (path: string[], value: string) => void
   depth?: number
   defaultExpanded?: boolean
   /** When provided, clicking an ObjectSection/ArraySection header navigates to
@@ -24,6 +23,9 @@ export type ResultValueProps = {
   onNavigateTo?: (path: string[]) => void
   /** When true, long primitive values are shown in full without a More button. */
   expandText?: boolean
+  /** Exact canonical Evidence link for a scalar result path, when grounded. */
+  getEvidenceAnchorId?: (path: ResultPath) => string | undefined
+  onSelectEvidence?: (anchorId: string) => void
 }
 
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
@@ -66,8 +68,8 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 // ── PrimitiveRow ──────────────────────────────────────────────────────────────
 
 function PrimitiveRow({
-  name, value, path, onChange, onValueClick, expandText,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; onValueClick?: (path: string[], value: string) => void; expandText?: boolean }) {
+  name, value, path, onChange, expandText, evidenceAnchorId, onSelectEvidence,
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; onSelectEvidence?: (anchorId: string) => void }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
@@ -121,11 +123,18 @@ function PrimitiveRow({
               <PencilIcon />
             </button>
           )}
+          {evidenceAnchorId && onSelectEvidence && (
+            <button
+              className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-[10.5px] font-bold text-accent outline-none hover:border-accent"
+              type="button"
+              aria-label={`View Evidence for ${name}`}
+              onClick={() => onSelectEvidence(evidenceAnchorId)}
+            >
+              Evidence
+            </button>
+          )}
         </div>
-        <div
-          className={`pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap ${onValueClick ? 'cursor-pointer hover:text-accent' : ''}`}
-          onClick={onValueClick ? () => onValueClick(path, text) : undefined}
-        >
+        <div className="pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
           {text}
         </div>
       </div>
@@ -142,10 +151,7 @@ function PrimitiveRow({
         {missing ? (
           <MissingBadge />
         ) : (
-          <span
-            className={`min-w-0 flex-1 truncate text-[13px] text-ink-muted ${onValueClick ? 'cursor-pointer hover:text-accent' : ''}`}
-            onClick={onValueClick ? () => onValueClick(path, text) : undefined}
-          >
+          <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">
             {text}
           </span>
         )}
@@ -156,6 +162,16 @@ function PrimitiveRow({
             onClick={() => setExpanded(v => !v)}
           >
             {expanded ? 'Less' : 'More'}
+          </button>
+        )}
+        {evidenceAnchorId && onSelectEvidence && (
+          <button
+            className="shrink-0 cursor-pointer rounded-full border border-accent/40 bg-accent-ghost px-2 py-0.5 text-[10.5px] font-bold text-accent outline-none hover:border-accent"
+            type="button"
+            aria-label={`View Evidence for ${name}`}
+            onClick={() => onSelectEvidence(evidenceAnchorId)}
+          >
+            Evidence
           </button>
         )}
         {onChange && (
@@ -181,8 +197,8 @@ function PrimitiveRow({
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, onValueClick, depth, defaultExpanded = true, onNavigateTo, expandText,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; onValueClick?: (path: string[], value: string) => void; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -217,10 +233,11 @@ function ObjectSection({
                 value={child}
                 path={[...path, key]}
                 onChange={onChange}
-                onValueClick={onValueClick}
                 onNavigateTo={onNavigateTo}
                 defaultExpanded={onNavigateTo ? false : undefined}
                 expandText={expandText}
+                getEvidenceAnchorId={getEvidenceAnchorId}
+                onSelectEvidence={onSelectEvidence}
                 depth={depth + 1}
               />
             ))
@@ -234,8 +251,8 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, onValueClick, depth, onNavigateTo, expandText,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; onValueClick?: (path: string[], value: string) => void; depth: number; onNavigateTo?: (path: string[]) => void; expandText?: boolean }) {
+  name, value, path, onChange, depth, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void }) {
   const [expanded, setExpanded] = useState(true)
 
   return (
@@ -262,11 +279,12 @@ function ArraySection({
                 value={item}
                 path={[...path, String(i)]}
                 onChange={onChange}
-                onValueClick={onValueClick}
                 onNavigateTo={onNavigateTo}
                 depth={depth + 1}
                 defaultExpanded={false}
                 expandText={expandText}
+                getEvidenceAnchorId={getEvidenceAnchorId}
+                onSelectEvidence={onSelectEvidence}
               />
             ))
           )}
@@ -278,14 +296,14 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, onValueClick, depth = 0, defaultExpanded, onNavigateTo, expandText }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} onNavigateTo={onNavigateTo} expandText={expandText} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} />
   }
-  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} onValueClick={onValueClick} expandText={expandText} />
+  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} onSelectEvidence={onSelectEvidence} />
 }
 
 export default ResultValue

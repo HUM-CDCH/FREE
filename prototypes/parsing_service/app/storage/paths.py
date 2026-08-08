@@ -15,6 +15,9 @@ DEFAULT_DOCUMENT_STORE_DIR = SERVICE_ROOT / "data" / "documents"
 METADATA_FILENAME = "metadata.json"
 PARSED_DOCUMENT_FILENAME = "parsed_document.json"
 SOURCE_FILENAME = "source.pdf"
+# The portable ParsedDocument carries no cache references, so the document
+# store records which immutable generation backs its canonical JSON.
+CANONICAL_GENERATION_FILENAME = "canonical-generation.json"
 
 _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._ -]+")
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -184,6 +187,14 @@ def canonical_parsed_document_path(
     return doc_dir / PARSED_DOCUMENT_FILENAME
 
 
+def canonical_generation_pointer_path(
+    content_sha256: str, base_dir: str | os.PathLike[str] | None = None
+) -> Path:
+    doc_dir = document_store_dir(content_sha256, base_dir)
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    return doc_dir / CANONICAL_GENERATION_FILENAME
+
+
 def service_relative_ref(path: Path) -> str:
     return path.resolve().relative_to(SERVICE_ROOT.resolve()).as_posix()
 
@@ -194,3 +205,13 @@ def safe_relative_ref(base: Path, path: Path) -> str:
         return path.resolve().relative_to(base.resolve()).as_posix()
     except ValueError as exc:
         raise ValueError("Artifact path escaped the base directory.") from exc
+def resolve_service_ref(ref: str) -> Path:
+    """Resolve a service-relative artifact reference without symlink escapes."""
+    service_root = SERVICE_ROOT.resolve()
+    candidate = SERVICE_ROOT / ref
+    if candidate.is_symlink():
+        raise ValueError("Artifact reference may not be a symlink.")
+    path = candidate.resolve()
+    if not path.is_relative_to(service_root):
+        raise ValueError("Artifact reference escaped the service root.")
+    return path

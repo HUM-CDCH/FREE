@@ -376,6 +376,7 @@ describe('resolveCapabilityRoute', () => {
       baseUrl: 'http://ollama.example',
       authorization: 'Bearer secret',
       temperatureSupported: true,
+      attribution: { provider: 'ollama', modelId: 'manual-nuextract' },
     })
   })
 

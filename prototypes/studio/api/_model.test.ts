@@ -92,9 +92,9 @@ afterEach(() => {
 })
 
 describe('extractWithModel', () => {
-  it('preserves raw NuExtract transport fields and mirrored evidence', async () => {
+  it('preserves raw NuExtract transport fields without model-generated evidence', async () => {
     const request = stubOllamaResponse(
-      '{"grave":[{"name":"Grave 1","_evidence":{"name":{"snippet":"Grave 1","page":1}}}]}',
+      '{"grave":[{"name":"Grave 1"}]}',
     )
     const result = await extractWithModel(
       { document, template: { grave: [{ name: 'verbatim-string' }] } },
@@ -102,9 +102,7 @@ describe('extractWithModel', () => {
     )
 
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
-    expect(result.evidence).toEqual({
-      grave: [{ name: { value: 'Grave 1', snippet: 'Grave 1', page: 1 } }],
-    })
+    expect(result).not.toHaveProperty('evidence')
     expect(request).toHaveBeenCalledOnce()
     expect(request).toHaveBeenCalledWith('http://127.0.0.1:11434/api/generate', {
       method: 'POST',
@@ -119,9 +117,8 @@ describe('extractWithModel', () => {
       options: { temperature: 0.2 },
     })
     expect(body).not.toHaveProperty('chat_template_kwargs')
-    // The template must keep plain scalar leaves; evidence rides in a sibling object.
     expect(body.prompt).toContain('"name": "verbatim-string"')
-    expect(body.prompt).toContain('"_evidence"')
+    expect(body.prompt).not.toContain('_evidence')
     const inspector = await getLlmInspector().json() as { traces: LlmTrace[] }
     expect(inspector.traces[0]).toMatchObject({
       operation: 'extraction',
@@ -134,40 +131,42 @@ describe('extractWithModel', () => {
     expect(inspector.traces[0].response).toContain('Grave 1')
   })
 
-  it.each([
-    ['invalid JSON object', '[]', 'stop'],
-    ['length stop', '{"grave":[{"name":"Repeated"}]}', 'length'],
-  ])('retries %s once without evidence', async (_case, firstResponse, doneReason) => {
-    const request = stubOllamaResponses(
-      { response: firstResponse, doneReason },
-      { response: '{"grave":[{"name":"Grave 1"}]}', doneReason: 'stop' },
-    )
-    const result = await extractWithModel(
+  it('rejects invalid output without retrying', async () => {
+    const request = stubOllamaResponses({ response: '[]', doneReason: 'stop' })
+    await expect(extractWithModel(
       {
         document,
         template: { grave: [{ name: 'verbatim-string' }] },
         instruction: 'Keep exact names.',
       },
       rawTarget,
+    )).rejects.toMatchObject({ code: 'invalid_model_output' })
+
+    expect(request).toHaveBeenCalledOnce()
+    const body = JSON.parse(request.mock.calls[0][1].body as string)
+    expect(body.prompt).not.toContain('_evidence')
+    expect(body.prompt).toContain('Keep exact names.')
+  })
+
+  it('preserves a parseable length-stopped partial without retrying', async () => {
+    const request = stubOllamaResponses({
+      response: '{"grave":[{"name":"Repeated"}]}',
+      doneReason: 'length',
+    })
+
+    const result = await extractWithModel(
+      { document, template: { grave: [{ name: 'verbatim-string' }] } },
+      rawTarget,
     )
 
-    expect(request).toHaveBeenCalledTimes(2)
-    const firstBody = JSON.parse(request.mock.calls[0][1].body as string)
-    const secondBody = JSON.parse(request.mock.calls[1][1].body as string)
-    expect(firstBody.prompt).toContain('"_evidence"')
-    expect(secondBody.prompt).not.toContain('"_evidence"')
-    expect(secondBody.prompt).not.toContain('Each object in the template carries')
-    expect(secondBody.prompt).toContain('Keep exact names.')
-    expect(result).toMatchObject({
-      result: { grave: [{ name: 'Grave 1' }] },
-      evidence: null,
-      raw: '{"grave":[{"name":"Grave 1"}]}',
-    })
+    expect(request).toHaveBeenCalledOnce()
+    expect(result.result).toEqual({ grave: [{ name: 'Repeated' }] })
+    expect(result).not.toHaveProperty('evidence')
   })
 
   it('preserves a path-prefixed Ollama server base for raw generation', async () => {
     const request = stubOllamaResponse(
-      '{"grave":[{"name":"Grave 1","_evidence":{"name":{"snippet":"Grave 1","page":1}}}]}',
+      '{"grave":[{"name":"Grave 1"}]}',
     )
     await extractWithModel(
       { document, template: { grave: [{ name: 'verbatim-string' }] } },
@@ -196,7 +195,7 @@ describe('extractWithModel', () => {
     const request = vi.fn().mockRejectedValue(new Error('raw transport must not run'))
     vi.stubGlobal('fetch', request)
     generateTextMock.mockResolvedValue({
-      text: '{"grave":[{"name":"Grave 1","_evidence":{"name":{"snippet":"Grave 1","page":1}}}]}',
+      text: '{"grave":[{"name":"Grave 1"}]}',
     })
     const result = await extractWithModel(
       { document, template: { grave: [{ name: 'verbatim-string' }] } },
@@ -206,14 +205,13 @@ describe('extractWithModel', () => {
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
     expect(generateTextMock.mock.calls[0][0]).toHaveProperty('reasoning', 'none')
     const instructions = generateTextMock.mock.calls[0][0].instructions as string
-    expect(instructions).toContain('direct extracted values at their schema keys')
-    expect(instructions).toContain('evidence belongs only in the sibling _evidence objects')
-    expect(instructions).toContain('Never wrap a direct value')
-    expect(instructions).not.toContain('Each schema leaf is an evidence object')
+    expect(instructions).not.toContain('_evidence')
+    expect(instructions).not.toContain('source evidence')
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
+    expect(result).not.toHaveProperty('evidence')
   })
 
-  it('uses native JSON output and splits validated evidence', async () => {
+  it('uses native JSON output without changing the Extraction Schema', async () => {
     const { generateText } = await vi.importActual<typeof import('ai')>('ai')
     generateTextMock.mockImplementation(generateText)
     const rawOutput = JSON.stringify({
@@ -224,14 +222,8 @@ describe('extractWithModel', () => {
           parts: [{
             number: '8-1',
             description: 'Jaw and teeth',
-            _evidence: {
-              number: { snippet: '8-1', page: 1 },
-              description: { snippet: 'Jaw and teeth', page: 1 },
-            },
           }],
-          _evidence: { preservation: { snippet: 'Jaw fragment', page: 1 } },
         },
-        _evidence: { grave_number: { snippet: 'Grave 8', page: 1 } },
       }],
     })
     const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
@@ -265,14 +257,7 @@ describe('extractWithModel', () => {
     expect(responseFormat).toEqual({ type: 'json' })
     expect(result.result).toMatchObject({ records: [{ grave_number: 8 }] })
     expect(result.raw).toBe(rawOutput)
-    expect(result.evidence).toMatchObject({
-      records: [{
-        grave_number: { value: 8, snippet: 'Grave 8', page: 1 },
-        skeleton: {
-          parts: [{ number: { value: '8-1', snippet: '8-1', page: 1 } }],
-        },
-      }],
-    })
+    expect(result).not.toHaveProperty('evidence')
   })
 
   it('repairs and preserves partial native extraction results', async () => {
@@ -294,7 +279,7 @@ describe('extractWithModel', () => {
     }, target)
 
     expect(result.result).toEqual({ records: [{ grave_number: 8 }] })
-    expect(result.evidence).toBeNull()
+    expect(result).not.toHaveProperty('evidence')
     expect(warning).toHaveBeenCalledOnce()
     expect(doGenerate).toHaveBeenCalledOnce()
   })
@@ -304,7 +289,7 @@ describe('extractWithModel', () => {
     generateTextMock.mockImplementation(generateText)
     const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
       async () => mockGeneration(
-        '{"grave":[{"name":"Grave 1","_evidence":{"name":{"snippet":"Grave 1","page":1}}}]}',
+        '{"grave":[{"name":"Grave 1"}]}',
       ),
     )
     await extractWithModel(

@@ -53,5 +53,8 @@ export function projectContextFixture(): ProjectStore {
           }
         : null
     },
+    async persistReviewedExtraction() {
+      return null
+    },
   }
 }

@@ -5,11 +5,14 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 CANONICAL_PIPELINE = "docling_doctags_canonical"
-CANONICAL_POLICY_REVISION = 4
+# Bump any value here when the bytes or public meaning of the canonical stream
+# changes.  This deliberately invalidates pre-stream and v1 cache entries.
+CANONICAL_POLICY_REVISION = 5
 CANONICAL_OCR_DPI = 150
 CANONICAL_OCR_DEVICE_POLICY = "auto"
 CANONICAL_OCR_MODEL = "PP-OCRv6_medium_det"
-DOCTAGS_CONVERTER_REVISION = 3
+DOCTAGS_CONVERTER_REVISION = 4
+V2_RENDERER_REVISION = 2
 MAX_INGESTION_PAGES = 100
 
 
@@ -29,6 +32,8 @@ def canonical_preprocessing_config(
         "pipeline": CANONICAL_PIPELINE,
         "policy_revision": CANONICAL_POLICY_REVISION,
         "doctags_converter_revision": DOCTAGS_CONVERTER_REVISION,
+        "v2_renderer_revision": V2_RENDERER_REVISION,
+        "parsed_document_schema_revision": "parsed_document.v2",
         "docling_version": _package_version("docling"),
         "ocr_fallback_dpi": CANONICAL_OCR_DPI,
         "ocr_fallback_device_policy": CANONICAL_OCR_DEVICE_POLICY,

@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
+import { ApiError } from './_http.js'
 import { extractWithModel } from './_model.js'
 import { DELETE as clearLlmInspector, GET as getLlmInspector } from './llm_inspector.js'
 import { providerTable, type GeneralExecutionTarget, type NuExtractRawExecutionTarget } from './_provider.js'
@@ -64,42 +66,9 @@ function records(value: unknown): Array<Record<string, unknown>> {
 
 function assertCompleteExtraction(result: Awaited<ReturnType<typeof extractWithModel>>): void {
   const resultRecords = records(result.result)
-  const evidenceRecords = records(result.evidence)
-  expect(resultRecords).toHaveLength(7)
-  expect(resultRecords.map(({ grave_number }) => grave_number)).toEqual(EXPECTED_GRAVES)
-  expect(evidenceRecords).toHaveLength(7)
-  const evidenceGraveIds = evidenceRecords.map(({ grave_number }) =>
-    (grave_number as { value?: unknown })?.value,
-  )
-  console.info(JSON.stringify({
-    evidenceGraveIds,
-    firstEvidenceKeys: Object.keys(evidenceRecords[0]),
-    firstGraveNumberEvidence: evidenceRecords[0].grave_number,
-  }))
-  expect(evidenceRecords.every((record) => Object.keys(record).length > 0)).toBe(true)
-
-  const nestedParts = resultRecords.flatMap((record, recordIndex) => {
-    const resultParts = (record.skeleton as { parts?: unknown })?.parts
-    const evidenceParts = (evidenceRecords[recordIndex].skeleton as { parts?: unknown })?.parts
-    if (!Array.isArray(resultParts) || !Array.isArray(evidenceParts)) return []
-    expect(evidenceParts).toHaveLength(resultParts.length)
-    return resultParts.map((part, partIndex) => ({
-      result: part as Record<string, unknown>,
-      evidence: evidenceParts[partIndex] as Record<string, unknown> | null,
-    }))
-  })
-  const groundedPart = nestedParts.find(({ evidence }) => evidence?.number !== undefined)
-  expect(groundedPart).toBeDefined()
-  const numberEvidence = groundedPart?.evidence?.number as {
-    value?: unknown
-    snippet?: unknown
-    page?: unknown
-  }
-  expect(numberEvidence).toMatchObject({
-    value: groundedPart?.result.number,
-    snippet: expect.any(String),
-  })
-  expect(numberEvidence.page === null || typeof numberEvidence.page === 'number').toBe(true)
+  expect(resultRecords.length === EXPECTED_GRAVES.length).toBe(true)
+  expect(resultRecords.every(({ grave_number }, index) => grave_number === EXPECTED_GRAVES[index])).toBe(true)
+  expect(result).not.toHaveProperty('evidence')
   expect(() => JSON.parse(result.raw)).not.toThrow()
 }
 
@@ -158,22 +127,37 @@ describe.skipIf(!LIVE)('live Extraction provider E2E', () => {
       temperatureSupported: true,
     }
     const startedAt = Date.now()
-    const result = await extractWithModel({
-      document: { file: null, markdown: await capturedDocument(), pages: 7 },
-      template: extractionSchema,
-    }, target)
+    let result: Awaited<ReturnType<typeof extractWithModel>>
+    try {
+      result = await extractWithModel({
+        document: { file: null, markdown: await capturedDocument(), pages: 7 },
+        template: extractionSchema,
+      }, target)
+    } catch (error) {
+      console.info(JSON.stringify({
+        apiErrorCode: error instanceof ApiError ? error.code : 'unexpected_failure',
+        finishReason: null,
+        inputTokens: null,
+        outputTokens: null,
+        outputLength: null,
+        outputSha256: null,
+        durationMs: Date.now() - startedAt,
+      }))
+      expect(error instanceof ApiError ? error.code : 'unexpected_failure').toBeNull()
+      return
+    }
     const trace = await latestTrace()
     const response = JSON.parse(trace.response ?? '{}') as {
-      body?: { done_reason?: string; eval_count?: number }
+      body?: { done_reason?: string; prompt_eval_count?: number; eval_count?: number }
     }
     console.info(JSON.stringify({
-      provider: 'ollama',
-      model: target.modelId,
-      durationMs: Date.now() - startedAt,
+      apiErrorCode: null,
       finishReason: response.body?.done_reason,
+      inputTokens: response.body?.prompt_eval_count,
       outputTokens: response.body?.eval_count,
-      outputCharacters: result.raw.length,
-      recordIds: records(result.result).map(({ grave_number }) => grave_number),
+      outputLength: result.raw.length,
+      outputSha256: createHash('sha256').update(result.raw).digest('hex'),
+      durationMs: Date.now() - startedAt,
     }))
     expect(trace).toMatchObject({ status: 'complete', provider: 'ollama', model: target.modelId })
     expect(response.body?.done_reason).toBe('stop')

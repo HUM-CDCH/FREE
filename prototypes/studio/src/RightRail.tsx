@@ -8,8 +8,10 @@ import type { SchemaNode } from '../shared/schemaNode'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
+import EvidenceTab from './EvidenceTab'
+import type { ParsedDocument, ParsedEvidenceAnchor } from './parsedDocument'
 
-export type RailTab = 'annot' | 'chat' | 'schema' | 'results'
+export type RailTab = 'annot' | 'evidence' | 'chat' | 'schema' | 'results'
 
 type RightRailProps = {
   open: boolean
@@ -29,9 +31,9 @@ type RightRailProps = {
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
   documentMarkdown: string | null
-  onValueClick?: (path: string[], value: string) => void
-  focusPath?: string[] | null
-  onClearFocus?: () => void
+  parsedDocument: ParsedDocument | null
+  reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
+  onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
@@ -65,9 +67,9 @@ function RightRail({
   onAnnotationsModeChange,
   extraction,
   documentMarkdown,
-  onValueClick,
-  focusPath,
-  onClearFocus,
+  parsedDocument,
+  reviewedOccurrenceIdsByAnchor,
+  onSelectEvidence,
 }: RightRailProps) {
   if (!open) {
     return (
@@ -81,7 +83,7 @@ function RightRail({
           <PanelToggleIcon side="right" />
         </button>
         <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
-          Annot · Chat · Schema · Results
+          Annot · Evidence · Chat · Schema · Results
         </span>
       </div>
     )
@@ -95,6 +97,7 @@ function RightRail({
       label: 'Annot.',
       badge: annotationItems.length ? { label: String(annotationItems.length) } : null,
     },
+    { key: 'evidence', label: 'Evidence', badge: parsedDocument ? { label: String(parsedDocument.evidence_index.anchors.length) } : null },
     { key: 'chat', label: 'Chat' },
     { key: 'schema', label: 'Schema', badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null },
     { key: 'results', label: 'Results', badge: resultsBadge },
@@ -114,6 +117,8 @@ function RightRail({
               type="button"
               role="tab"
               aria-selected={active}
+              aria-controls={`rail-panel-${key}`}
+              id={`rail-tab-${key}`}
               onClick={() => onTabChange(key)}
             >
               <span>{label}</span>
@@ -132,17 +137,20 @@ function RightRail({
       </div>
 
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
-      <div className="min-h-0 flex-1" hidden={tab !== 'annot'}>
+      <div id="rail-panel-annot" aria-labelledby="rail-tab-annot" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'annot'}>
         <AnnotationSetTab
           items={annotationItems}
           onSelectItem={onSelectAnnotation}
           onRemoveItem={onRemoveAnnotation}
         />
       </div>
-      <div className="min-h-0 flex-1" hidden={tab !== 'chat'}>
+      <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'evidence'}>
+        <EvidenceTab document={parsedDocument} reviewedOccurrenceIdsByAnchor={reviewedOccurrenceIdsByAnchor} onSelectAnchor={onSelectEvidence} />
+      </div>
+      <div id="rail-panel-chat" aria-labelledby="rail-tab-chat" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'chat'}>
         <ChatTab documentMarkdown={documentMarkdown} />
       </div>
-      <div className="min-h-0 flex-1" hidden={tab !== 'schema'}>
+      <div id="rail-panel-schema" aria-labelledby="rail-tab-schema" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'schema'}>
         <SchemaPanel
           state={schemaState}
           stale={schemaStale}
@@ -154,8 +162,18 @@ function RightRail({
           documentMarkdown={documentMarkdown}
         />
       </div>
-      <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} documentMarkdown={documentMarkdown} onValueClick={onValueClick} focusPath={focusPath} onClearFocus={onClearFocus} />
+      <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'results'}>
+        <ResultsTab
+          controller={extraction}
+          schemaReady={schemaReady}
+          documentMarkdown={documentMarkdown}
+          onSelectEvidence={(anchorId) => {
+            const anchor = parsedDocument?.evidence_index.anchors.find(
+              (candidate) => candidate.anchor_id === anchorId,
+            )
+            if (anchor) onSelectEvidence(anchor)
+          }}
+        />
       </div>
     </div>
   )

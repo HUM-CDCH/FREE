@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { parsedDocumentResourceSchema } from '../shared/projectContext.contract.js'
+import parsedDocument from '../src/assets/parsed_document.v2.json'
 import {
   DEMO_ARTIFACT_REFERENCE,
   DEMO_REPRESENTATION_ID,
   projectContextFixture,
 } from './project_contexts.fixture.js'
-import { createSourceRepresentationResource } from './source_representations.js'
+import {
+  createPersistReviewedExtraction,
+  createSourceRepresentationResource,
+} from './source_representations.js'
 
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37])
 const IMMUTABLE = 'private, max-age=31536000, immutable'
@@ -13,90 +16,53 @@ const IMMUTABLE = 'private, max-age=31536000, immutable'
 const url = (artifact: string, id = DEMO_REPRESENTATION_ID) =>
   `http://test/api/source-representations/${id}/${artifact}`
 
-const parsedDocument = {
-  schema_version: 'parsed_document.v1',
-  document: {
-    document_id: `sha256:${'a'.repeat(64)}`,
-    content_sha256: 'a'.repeat(64),
-    source: { kind: 'upload', original_filename: 'report.pdf' },
-    created_at: '2026-01-01T00:00:00Z',
-    page_count: 2,
-  },
-  preprocessing: { preprocess_id: 'sha256:secret', config_hash: 'b'.repeat(64) },
-  artifacts: { llm_markdown_ref: 'data/documents/aaa/artifacts/markdown.md' },
-  parser_runs: [{ parser: 'docling_pdf', status: 'success' }],
-  text_views: { llm_markdown: '# Beretning' },
-  pages: [
-    { page: 1, text: 'Første side' },
-    { page: 2, text: 'Anden side' },
-  ],
-}
+type Artifact = { bytes: Uint8Array; mediaType: string }
 
-/** Stands in for the Parsing Service's retained artifacts. */
+/** Stands in for the Project Context-owned canonical package store. */
 function upstream(
-  overrides: Partial<Record<string, () => Response | Promise<Response>>> = {},
+  overrides: Partial<Record<string, () => Artifact | Promise<Artifact>>> = {},
 ) {
-  const calls: Array<{ url: string; method: string; headers: Headers }> = []
-  const fetchArtifact = vi.fn(
+  const calls: Array<{
+    artifactReference: string
+    artifact: string
+  }> = []
+  const readArtifact = vi.fn(
     async (
-      input: string | URL | Request,
-      init?: RequestInit,
-    ): Promise<Response> => {
-      const target = String(input)
-      const artifact = target.split('/').at(-1) ?? ''
+      descriptor: { artifactReference: string },
+      artifact: 'pdf' | 'markdown' | 'source',
+    ) => {
       calls.push({
-        url: target,
-        method: init?.method ?? 'GET',
-        headers: new Headers(init?.headers),
+        artifactReference: descriptor.artifactReference,
+        artifact,
       })
       const override = overrides[artifact]
       if (override) return override()
       if (artifact === 'markdown')
-        return new Response('# Beretning', {
-          headers: {
-            'content-type': 'text/markdown; charset=utf-8',
-            'content-length': '11',
-          },
-        })
-      if (artifact === 'document') return Response.json(parsedDocument)
-      const range = new Headers(init?.headers).get('range')
-      if (range === 'bytes=0-3')
-        return new Response(PDF_BYTES.slice(0, 4), {
-          status: 206,
-          headers: {
-            'content-type': 'application/pdf',
-            'content-range': 'bytes 0-3/8',
-            'content-length': '4',
-            'accept-ranges': 'bytes',
-          },
-        })
-      if (range === 'bytes=99-')
-        return new Response('Range Not Satisfiable', {
-          status: 416,
-          headers: { 'content-range': 'bytes */8', 'content-length': '21' },
-        })
-      return new Response(init?.method === 'HEAD' ? null : PDF_BYTES, {
-        headers: {
-          'content-type': 'application/pdf',
-          'content-length': '8',
-          'accept-ranges': 'bytes',
-        },
-      })
+        return {
+          bytes: new TextEncoder().encode('# Beretning'),
+          mediaType: 'text/markdown; charset=utf-8',
+        }
+      if (artifact === 'source')
+        return {
+          bytes: new TextEncoder().encode(JSON.stringify(parsedDocument)),
+          mediaType: 'application/json',
+        }
+      return { bytes: PDF_BYTES, mediaType: 'application/pdf' }
     },
   )
-  return { calls, fetchArtifact }
+  return { calls, readArtifact }
 }
 
 function resource(
-  overrides?: Partial<Record<string, () => Response | Promise<Response>>>,
+  overrides?: Partial<Record<string, () => Artifact | Promise<Artifact>>>,
 ) {
-  const { calls, fetchArtifact } = upstream(overrides)
+  const { calls, readArtifact } = upstream(overrides)
   return {
     calls,
-    fetchArtifact,
+    readArtifact,
     handler: createSourceRepresentationResource(
       projectContextFixture(),
-      fetchArtifact,
+      readArtifact,
     ),
   }
 }
@@ -112,7 +78,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     expect(full.headers.get('accept-ranges')).toBe('bytes')
     expect(full.headers.get('etag')).toBeNull()
     expect(new Uint8Array(await full.arrayBuffer())).toEqual(PDF_BYTES)
-    expect(calls[0].url).toContain(DEMO_ARTIFACT_REFERENCE)
+    expect(calls[0].artifactReference).toBe(DEMO_ARTIFACT_REFERENCE)
 
     const partial = await handler(
       new Request(url('pdf'), { headers: { range: 'bytes=0-3' } }),
@@ -120,7 +86,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     expect(partial.status).toBe(206)
     expect(partial.headers.get('content-range')).toBe('bytes 0-3/8')
     expect((await partial.arrayBuffer()).byteLength).toBe(4)
-    expect(calls[1].headers.get('range')).toBe('bytes=0-3')
+    expect(calls.at(-1)?.artifact).toBe('pdf')
 
     const unsatisfiable = await handler(
       new Request(url('pdf'), { headers: { range: 'bytes=99-' } }),
@@ -134,7 +100,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
   it('answers HEAD with the GET headers and no body', async () => {
     const { handler, calls } = resource()
 
-    for (const artifact of ['pdf', 'markdown', 'parsed-document']) {
+    for (const artifact of ['pdf', 'markdown', 'source']) {
       const response = await handler(
         new Request(url(artifact), { method: 'HEAD' }),
       )
@@ -143,7 +109,11 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
       expect(response.headers.get('cache-control')).toBe(IMMUTABLE)
       expect(response.headers.get('content-length')).toBeTruthy()
     }
-    expect(calls.map((call) => call.method)).toEqual(['HEAD', 'HEAD', 'GET'])
+    expect(calls.map((call) => call.artifact)).toEqual([
+      'pdf',
+      'markdown',
+      'source',
+    ])
   })
 
   it('serves Markdown and an allow-listed parsed document', async () => {
@@ -155,22 +125,12 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     )
     await expect(markdown.text()).resolves.toBe('# Beretning')
 
-    const parsed = await handler(new Request(url('parsed-document')))
+    const parsed = await handler(new Request(url('source')))
     expect(parsed.headers.get('content-type')).toContain('application/json')
     expect(parsed.headers.get('cache-control')).toBe(IMMUTABLE)
     const body: unknown = await parsed.json()
-    expect(parsedDocumentResourceSchema.parse(body)).toEqual({
-      schemaVersion: 'parsed_document.v1',
-      pageCount: 2,
-      pages: [
-        { page: 1, text: 'Første side' },
-        { page: 2, text: 'Anden side' },
-      ],
-    })
-    // Storage paths, hashes, and parser diagnostics stay server-side.
-    expect(JSON.stringify(body)).not.toMatch(
-      /data\/documents|content_sha256|config_hash|docling|preprocess/i,
-    )
+    expect(body).toEqual(parsedDocument)
+    expect(JSON.stringify(body)).not.toMatch(/data\/documents|artifactReference/i)
   })
 
   it('does not use the parsed document hash as an artifact validator', async () => {
@@ -192,8 +152,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     )
 
     expect(ranged.status).toBe(200)
-    expect(calls[1].headers.get('range')).toBeNull()
-    expect(calls[1].headers.get('if-range')).toBeNull()
+    expect(new Uint8Array(await ranged.arrayBuffer())).toEqual(PDF_BYTES)
   })
 
   it('bounds an unknown representation and a malformed identity', async () => {
@@ -217,7 +176,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
   it.each([
     [
       'a missing retained artifact',
-      () => new Response('task not found', { status: 404 }),
+      () => Promise.reject(new Error('package not found')),
     ],
     [
       'an unreachable Parsing Service',
@@ -227,10 +186,10 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     ],
     [
       'an unreadable retained artifact',
-      () => new Response('traceback: /srv/data/tasks', { status: 500 }),
+      () => Promise.reject(new Error('package integrity check failed')),
     ],
   ])('bounds %s without exposing the upstream', async (_case, override) => {
-    const { handler } = resource({ source: override })
+    const { handler } = resource({ pdf: override })
 
     const response = await handler(new Request(url('pdf')))
 
@@ -246,10 +205,15 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
 
   it('bounds an unreadable parsed document', async () => {
     const { handler } = resource({
-      document: () => Response.json({ schema_version: 'parsed_document.v1' }),
+      source: () => ({
+        bytes: new TextEncoder().encode(
+          JSON.stringify({ schema_version: 'parsed_document.v1' }),
+        ),
+        mediaType: 'application/json',
+      }),
     })
 
-    const response = await handler(new Request(url('parsed-document')))
+    const response = await handler(new Request(url('source')))
 
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toMatchObject({
@@ -264,7 +228,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
           throw new Error('postgresql://secret@localhost/free')
         },
       },
-      upstream().fetchArtifact,
+      upstream().readArtifact,
     )
 
     const response = await handler(new Request(url('pdf')))
@@ -276,5 +240,409 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
         message: 'Project Context storage is unavailable.',
       },
     })
+  })
+})
+
+describe('POST /api/source-representations/:id/extraction-reviews', () => {
+  const SCHEMA_REVISION_ID = '72000000-0000-4000-8004-000000000001'
+  const request = (
+    reviewedOccurrenceIds: string[],
+    result: unknown = {
+      number: '24-1',
+    },
+    reviewDecisions = [
+      { evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds },
+    ],
+    evidenceLinks = [
+      { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+    ],
+    modelAttribution: unknown = {
+      extraction: { provider: 'fixture', model: 'values-output' },
+      grounding: { provider: 'fixture', model: 'grounding-output' },
+    },
+  ) =>
+    new Request(url('extraction-reviews'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        schemaRevisionId: SCHEMA_REVISION_ID,
+        result,
+        evidenceLinks,
+        modelAttribution,
+        reviewDecisions,
+      }),
+    })
+
+  it('validates occurrence ownership before persisting the reviewed Extraction', async () => {
+    const persistReviewedExtraction = vi.fn(async () => ({
+      extractionId: '72000000-0000-4000-8003-000000000001',
+      createdAt: new Date('2026-08-07T00:02:00.000Z'),
+    }))
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().readArtifact,
+    )
+
+    const response = await handler(request(['bundled-occurrence']))
+
+    expect(response.status).toBe(201)
+    expect(persistReviewedExtraction).toHaveBeenCalledWith(
+      DEMO_REPRESENTATION_ID,
+      expect.objectContaining({
+        resultPayload: {
+          result: { number: '24-1' },
+          evidenceLinks: [
+            { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          ],
+        },
+        modelAttribution: {
+          extraction: { provider: 'fixture', model: 'values-output' },
+          grounding: { provider: 'fixture', model: 'grounding-output' },
+        },
+        reviewDecisions: [
+          {
+            evidenceAnchorId: 'bundled-anchor',
+            reviewedOccurrenceIds: ['bundled-occurrence'],
+          },
+        ],
+      }),
+    )
+  })
+
+  it('rejects an occurrence owned by another or missing Evidence anchor', async () => {
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().readArtifact,
+    )
+
+    const response = await handler(request(['not-owned']))
+
+    expect(response.status).toBe(422)
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a ReviewDecision anchor absent from the Evidence links', async () => {
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().readArtifact,
+    )
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        { number: '24-1' },
+        [
+          {
+            evidenceAnchorId: 'different-anchor',
+            reviewedOccurrenceIds: [],
+          },
+        ],
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a published cited anchor that carries no ReviewDecision', async () => {
+    const persistReviewedExtraction = vi.fn()
+    // A second published anchor the result also cites, with no decision for it.
+    const twoAnchors = {
+      ...parsedDocument,
+      content_stream: [
+        ...parsedDocument.content_stream,
+        { ...parsedDocument.content_stream[0], block_id: 'bundled-second' },
+      ],
+      pages: parsedDocument.pages.map((page, index) =>
+        index === 0
+          ? { ...page, ordered_content: [...page.ordered_content, 'bundled-second'] }
+          : page,
+      ),
+      evidence_index: {
+        anchors: [
+          ...parsedDocument.evidence_index.anchors,
+          {
+            ...parsedDocument.evidence_index.anchors[0],
+            anchor_id: 'bundled-anchor-2',
+            occurrence_id: 'bundled-occurrence-2',
+            block_id: 'bundled-second',
+          },
+        ],
+      },
+    }
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream({
+        source: () => ({
+          bytes: new TextEncoder().encode(JSON.stringify(twoAnchors)),
+          mediaType: 'application/json',
+        }),
+      }).readArtifact,
+    )
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        { number: '24-1', place: 'Ellekilde' },
+        undefined,
+        [
+          { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          { resultPath: ['place'], evidenceAnchorId: 'bundled-anchor-2' },
+        ],
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unpublished cited anchor instead of persisting false Evidence', async () => {
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().readArtifact,
+    )
+
+    const response = await handler(
+      request(
+        [],
+        { number: '24-1' },
+        [
+          {
+            evidenceAnchorId: 'model-invented-anchor',
+            reviewedOccurrenceIds: [],
+          },
+        ],
+        [
+          {
+            resultPath: ['number'],
+            evidenceAnchorId: 'model-invented-anchor',
+          },
+        ],
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('persists clean abstained values without manufacturing another link or decision', async () => {
+    const persistReviewedExtraction = vi.fn(async () => ({
+      extractionId: '72000000-0000-4000-8003-000000000001',
+      createdAt: new Date('2026-08-07T00:02:00.000Z'),
+    }))
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().readArtifact,
+    )
+
+    const response = await handler(
+      request(['bundled-occurrence'], {
+        number: '24-1',
+        unattested: 'Visible but ungrounded',
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(persistReviewedExtraction).toHaveBeenCalledWith(
+      DEMO_REPRESENTATION_ID,
+      expect.objectContaining({
+        resultPayload: {
+          result: {
+            number: '24-1',
+            unattested: 'Visible but ungrounded',
+          },
+          evidenceLinks: [
+            { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          ],
+        },
+        reviewDecisions: [
+          {
+            evidenceAnchorId: 'bundled-anchor',
+            reviewedOccurrenceIds: ['bundled-occurrence'],
+          },
+        ],
+      }),
+    )
+  })
+
+  it('requires one ReviewDecision per distinct anchor rather than per linked value', async () => {
+    const persistReviewedExtraction = vi.fn(async () => ({
+      extractionId: '72000000-0000-4000-8003-000000000001',
+      createdAt: new Date('2026-08-07T00:02:00.000Z'),
+    }))
+    const handler = createPersistReviewedExtraction(
+      {
+        async getSourceRepresentation() {
+          return {
+            artifactReference: DEMO_ARTIFACT_REFERENCE,
+            artifactSha256: 'c'.repeat(64),
+          }
+        },
+        persistReviewedExtraction,
+      },
+      upstream().readArtifact,
+    )
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        { number: '24-1', repeated: '24-1' },
+        undefined,
+        [
+          { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          { resultPath: ['repeated'], evidenceAnchorId: 'bundled-anchor' },
+        ],
+      ),
+    )
+
+    expect(response.status).toBe(201)
+    expect(persistReviewedExtraction).toHaveBeenCalledWith(
+      DEMO_REPRESENTATION_ID,
+      expect.objectContaining({
+        reviewDecisions: [
+          {
+            evidenceAnchorId: 'bundled-anchor',
+            reviewedOccurrenceIds: ['bundled-occurrence'],
+          },
+        ],
+      }),
+    )
+  })
+
+  it('rejects duplicate result paths before reading or writing persistence', async () => {
+    const getSourceRepresentation = vi.fn()
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction({
+      getSourceRepresentation,
+      persistReviewedExtraction,
+    })
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        { number: '24-1' },
+        undefined,
+        [
+          { resultPath: ['number'], evidenceAnchorId: 'bundled-anchor' },
+          { resultPath: ['number'], evidenceAnchorId: 'another-anchor' },
+        ],
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(getSourceRepresentation).not.toHaveBeenCalled()
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it('rejects the obsolete one-step model attribution contract', async () => {
+    const getSourceRepresentation = vi.fn()
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction({
+      getSourceRepresentation,
+      persistReviewedExtraction,
+    })
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        undefined,
+        undefined,
+        undefined,
+        { provider: 'fixture', model: 'combined-output' },
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(getSourceRepresentation).not.toHaveBeenCalled()
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [
+      'an absent path',
+      { number: '24-1' },
+      ['missing'],
+    ],
+    [
+      'a non-scalar path',
+      { record: { number: '24-1' } },
+      ['record'],
+    ],
+    [
+      'an abstained null value',
+      { number: null },
+      ['number'],
+    ],
+  ])('rejects a link to %s', async (_case, result, resultPath) => {
+    const getSourceRepresentation = vi.fn()
+    const persistReviewedExtraction = vi.fn()
+    const handler = createPersistReviewedExtraction({
+      getSourceRepresentation,
+      persistReviewedExtraction,
+    })
+
+    const response = await handler(
+      request(
+        ['bundled-occurrence'],
+        result,
+        undefined,
+        [{ resultPath, evidenceAnchorId: 'bundled-anchor' }],
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(getSourceRepresentation).not.toHaveBeenCalled()
+    expect(persistReviewedExtraction).not.toHaveBeenCalled()
   })
 })

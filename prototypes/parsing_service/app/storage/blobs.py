@@ -95,7 +95,11 @@ def store_source_by_hash(
     try:
         with os.fdopen(fd, "wb") as tmp_file, open(source, "rb") as src_file:
             shutil.copyfileobj(src_file, tmp_file)
-        os.replace(tmp_name, destination)
+        try:
+            os.replace(tmp_name, destination)
+        except PermissionError:
+            if not destination.exists():
+                raise
         return destination
     finally:
         with suppress(FileNotFoundError, PermissionError):

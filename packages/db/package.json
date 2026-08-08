@@ -5,7 +5,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "tsx --test src/seed.test.ts",
+    "test": "tsx --test src/*.test.ts",
     "contract:emit": "prisma-next contract emit",
     "db:seed": "tsx src/seed.ts",
     "db:init": "prisma-next db init",
@@ -26,6 +26,8 @@
   },
   "dependencies": {
     "@prisma-next/postgres": "^0.16.0",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "env-paths": "^4.0.0",
+    "fflate": "^0.8.3"
   }
 }

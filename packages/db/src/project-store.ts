@@ -1,3 +1,4 @@
+import type { CanonicalPackageDescriptor } from './artifact-store.js'
 import { db } from './prisma/db.js'
 
 type Database = Pick<typeof db, 'orm' | 'transaction'>
@@ -15,10 +16,11 @@ export type SourceDocumentSummary = {
 }
 
 /**
- * One Source Document's complete durable research state: the head Source
- * Representation Revision, the Annotation Set pinned to exactly that
- * representation, the Project Context's shared Extraction Schema head, and the
- * newest Extraction pinned to that exact representation/Schema Revision pair.
+ * One Source Document's complete durable research state: the Source
+ * Representation Revision owning its newest accepted Extraction (or the head
+ * when none exists), the Annotation Set pinned to exactly that representation,
+ * and that Extraction's pinned Schema Revision (or the shared Schema head when
+ * no accepted Extraction exists).
  * Absent optional research state is `null`, not a reason to refuse reopening.
  */
 export type DocumentReopenSnapshot = {
@@ -36,6 +38,7 @@ export type DocumentReopenSnapshot = {
   } | null
   extractionSchema: {
     extractionSchemaId: string
+    schemaRevisionId: string
     revisionNumber: number
     schemaTree: unknown
   } | null
@@ -43,18 +46,28 @@ export type DocumentReopenSnapshot = {
     extractionId: string
     createdAt: Date
     outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+    modelAttribution: unknown
     resultPayload: unknown
     failure: unknown
+    reviewDecisions: Array<{
+      reviewDecisionId: string
+      evidenceAnchorId: string
+      reviewedOccurrenceIds: unknown
+    }>
   } | null
 }
 
-/** Server-only artifact descriptor; it never reaches browser code. */
-export type SourceRepresentationArtifacts = {
-  artifactReference: string
-  artifactSha256: string
+export type ReviewedExtractionInput = {
+  /** The exact Schema Revision the accepted Extraction was produced with. */
+  schemaRevisionId: string
+  resultPayload: unknown
+  modelAttribution: unknown
+  reviewDecisions: Array<{
+    evidenceAnchorId: string
+    reviewedOccurrenceIds: string[]
+  }>
 }
 
-/** Read-only Project Context and reopening seam; writes stay out of it. */
 export type ProjectStore = {
   listProjectContexts(limit: number): Promise<ProjectContextSummary[]>
   getProjectContextWithDocuments(projectContextId: string): Promise<{
@@ -67,7 +80,11 @@ export type ProjectStore = {
   ): Promise<DocumentReopenSnapshot | null>
   getSourceRepresentation(
     sourceRepresentationId: string,
-  ): Promise<SourceRepresentationArtifacts | null>
+  ): Promise<CanonicalPackageDescriptor | null>
+  persistReviewedExtraction(
+    sourceRepresentationId: string,
+    input: ReviewedExtractionInput,
+  ): Promise<{ extractionId: string; createdAt: Date } | null>
 }
 
 export function createProjectStore(database: Database = db): ProjectStore {
@@ -141,14 +158,56 @@ export function createProjectStore(database: Database = db): ProjectStore {
         if (!document || document.projectContextId !== projectContextId)
           return null
 
-        const representation =
+        const representations =
           await orm.public.SourceRepresentationRevision.where({
             sourceDocumentId,
           })
             .select('id', 'revisionNumber', 'createdAt')
             .orderBy((revision) => revision.revisionNumber.desc())
+            .all()
+        if (!representations.length) return null
+
+        let representation = representations[0]
+        let extraction: {
+          id: string
+          createdAt: Date
+          outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+          schemaRevisionId: string
+          modelAttribution: unknown
+          resultPayload: unknown
+          failure: unknown
+        } | null = null
+        for (const candidate of representations) {
+          const candidateExtraction = await orm.public.Extraction.where({
+            sourceRepresentationRevisionId: candidate.id,
+            outcome: 'SUCCEEDED',
+          })
+            .select(
+              'id',
+              'createdAt',
+              'outcome',
+              'schemaRevisionId',
+              'modelAttribution',
+              'resultPayload',
+              'failure',
+            )
+            .orderBy([
+              (attempt) => attempt.createdAt.desc(),
+              (attempt) => attempt.id.desc(),
+            ])
             .first()
-        if (!representation) return null
+          if (
+            candidateExtraction &&
+            (!extraction ||
+              candidateExtraction.createdAt > extraction.createdAt ||
+              (candidateExtraction.createdAt.getTime() ===
+                extraction.createdAt.getTime() &&
+                candidateExtraction.id > extraction.id))
+          ) {
+            representation = candidate
+            extraction = candidateExtraction
+          }
+        }
 
         const annotationSet = await orm.public.AnnotationSetRevision.where({
           sourceDocumentId,
@@ -158,34 +217,62 @@ export function createProjectStore(database: Database = db): ProjectStore {
           .orderBy((revision) => revision.revisionNumber.desc())
           .first()
 
-        // Every Source Document in a Project Context shares its Extraction Schema.
-        const extractionSchema = await orm.public.ExtractionSchema.where({
-          projectContextId,
-        })
-          .select('id')
-          .orderBy([(schema) => schema.createdAt.desc(), (schema) => schema.id.desc()])
-          .first()
-        const schemaRevision = extractionSchema
-          ? await orm.public.SchemaRevision.where({
-              extractionSchemaId: extractionSchema.id,
-            })
-              .select('id', 'revisionNumber', 'schemaTree')
-              .orderBy((revision) => revision.revisionNumber.desc())
-              .first()
-          : null
+        let extractionSchema: { id: string } | null
+        let schemaRevision: {
+          id: string
+          extractionSchemaId: string
+          revisionNumber: number
+          schemaTree: unknown
+        } | null
+        if (extraction) {
+          schemaRevision = await orm.public.SchemaRevision.select(
+            'id',
+            'extractionSchemaId',
+            'revisionNumber',
+            'schemaTree',
+          ).first({ id: extraction.schemaRevisionId })
+          extractionSchema = schemaRevision
+            ? await orm.public.ExtractionSchema.select('id').first({
+                id: schemaRevision.extractionSchemaId,
+                projectContextId,
+              })
+            : null
+        } else {
+          // Every Source Document in a Project Context shares its Extraction Schema.
+          extractionSchema = await orm.public.ExtractionSchema.where({
+            projectContextId,
+          })
+            .select('id')
+            .orderBy([
+              (schema) => schema.createdAt.desc(),
+              (schema) => schema.id.desc(),
+            ])
+            .first()
+          schemaRevision = extractionSchema
+            ? await orm.public.SchemaRevision.where({
+                extractionSchemaId: extractionSchema.id,
+              })
+                .select(
+                  'id',
+                  'extractionSchemaId',
+                  'revisionNumber',
+                  'schemaTree',
+                )
+                .orderBy((revision) => revision.revisionNumber.desc())
+                .first()
+            : null
+        }
 
-        const extraction = schemaRevision
-          ? await orm.public.Extraction.where({
-              sourceRepresentationRevisionId: representation.id,
-              schemaRevisionId: schemaRevision.id,
-            })
-              .select('id', 'createdAt', 'outcome', 'resultPayload', 'failure')
-              .orderBy([
-                (attempt) => attempt.createdAt.desc(),
-                (attempt) => attempt.id.desc(),
-              ])
-              .first()
-          : null
+        const reviewDecisions = extraction
+          ? await orm.public.ReviewDecision.where({ extractionId: extraction.id })
+              .select(
+                'id',
+                'evidenceAnchorId',
+                'reviewedOccurrenceIds',
+              )
+              .orderBy((decision) => decision.id.asc())
+              .all()
+          : []
 
         return {
           projectContext: {
@@ -212,6 +299,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
             extractionSchema && schemaRevision
               ? {
                   extractionSchemaId: extractionSchema.id,
+                  schemaRevisionId: schemaRevision.id,
                   revisionNumber: schemaRevision.revisionNumber,
                   schemaTree: schemaRevision.schemaTree,
                 }
@@ -220,8 +308,14 @@ export function createProjectStore(database: Database = db): ProjectStore {
             extractionId: extraction.id,
             createdAt: extraction.createdAt,
             outcome: extraction.outcome,
+            modelAttribution: extraction.modelAttribution,
             resultPayload: extraction.resultPayload,
             failure: extraction.failure,
+            reviewDecisions: reviewDecisions.map((decision) => ({
+              reviewDecisionId: decision.id,
+              evidenceAnchorId: decision.evidenceAnchorId,
+              reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+            })),
           },
         }
       })
@@ -239,6 +333,50 @@ export function createProjectStore(database: Database = db): ProjectStore {
           artifactSha256: row.artifactSha256,
         }
       )
+    },
+    async persistReviewedExtraction(sourceRepresentationId, input) {
+      return database.transaction(async ({ orm }) => {
+        const representation =
+          await orm.public.SourceRepresentationRevision.select(
+            'id',
+            'sourceDocumentId',
+          ).first({ id: sourceRepresentationId })
+        if (!representation) return null
+        const sourceDocument = await orm.public.SourceDocument.select(
+          'projectContextId',
+        ).first({ id: representation.sourceDocumentId })
+        if (!sourceDocument) return null
+        // The write pins the Schema Revision the Extraction actually used; the
+        // head may already have advanced past it.
+        const schemaRevision = await orm.public.SchemaRevision.select(
+          'id',
+          'extractionSchemaId',
+        ).first({ id: input.schemaRevisionId })
+        if (!schemaRevision) return null
+        const extractionSchema = await orm.public.ExtractionSchema.select(
+          'projectContextId',
+        ).first({ id: schemaRevision.extractionSchemaId })
+        if (
+          !extractionSchema ||
+          extractionSchema.projectContextId !== sourceDocument.projectContextId
+        )
+          return null
+
+        const extraction = await orm.public.Extraction.create({
+          schemaRevisionId: schemaRevision.id,
+          sourceRepresentationRevisionId: representation.id,
+          outcome: 'SUCCEEDED',
+          modelAttribution: input.modelAttribution,
+          resultPayload: input.resultPayload,
+        })
+        for (const decision of input.reviewDecisions)
+          await orm.public.ReviewDecision.create({
+            extractionId: extraction.id,
+            evidenceAnchorId: decision.evidenceAnchorId,
+            reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+          })
+        return { extractionId: extraction.id, createdAt: extraction.createdAt }
+      })
     },
   }
 }

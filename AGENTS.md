@@ -51,11 +51,11 @@ pnpm db:seed                   # Seed the example Project Contexts and Source Do
 ```
 
 `pnpm db:seed` ingests each example PDF through the Parsing Service so its Source
-Documents own retained artifacts and can be reopened, so start the Parsing Service
-first. Without it the seed still writes the Project Contexts and Source Documents
-and says which ones cannot be reopened; re-run it once the service is up. Every
-row is keyed by a fixed identity, so re-running creates nothing new — delete a
-`SourceRepresentationRevision` row to have its artifacts ingested again.
+Documents own portable canonical packages outside the disposable Parsing Service
+task cache, so start the Parsing Service first. Without it the seed still writes
+the Project Contexts and Source Documents and says which ones cannot be reopened;
+re-run it once the service is up. Re-running keeps valid packages and replaces a
+stale seeded representation only after its replacement package is durable.
 
 Python services opt into root install by exposing an `install:python` script. Do not hardcode each service in the root `postinstall`; use the workspace-recursive hook.
 

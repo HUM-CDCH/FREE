@@ -1,4 +1,11 @@
-import { isAllowedValues, isScalarFieldType, type ScalarFieldType } from './allowedValues.js'
+import { z } from 'zod'
+import {
+  isAllowedValues,
+  isScalarFieldType,
+  NON_STRING_SCALAR_FIELD_TYPES,
+  SCALAR_FIELD_TYPES,
+  type ScalarFieldType,
+} from './allowedValues.js'
 
 type SchemaNodeBase = {
   id: string
@@ -11,6 +18,53 @@ export type SchemaNode =
   | (SchemaNodeBase & { type: Exclude<ScalarFieldType, 'string'>; allowedValues?: never; itemType?: never; children?: never })
   | (SchemaNodeBase & { type: 'array'; itemType: ScalarFieldType; allowedValues?: never; children?: never })
   | (SchemaNodeBase & { type: 'object' | 'array'; children: SchemaNode[]; allowedValues?: never; itemType?: never })
+
+const schemaNodeBaseShape = {
+  id: z.string().min(1),
+  name: z.string().trim().min(1),
+  description: z.string().min(1).optional(),
+}
+
+export const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() =>
+  z.union([
+    z
+      .object({
+        ...schemaNodeBaseShape,
+        type: z.literal('string'),
+        allowedValues: z
+          .array(z.string())
+          .refine(isAllowedValues)
+          .optional(),
+      })
+      .strict(),
+    z
+      .object({
+        ...schemaNodeBaseShape,
+        type: z.enum(NON_STRING_SCALAR_FIELD_TYPES),
+      })
+      .strict(),
+    z
+      .object({
+        ...schemaNodeBaseShape,
+        type: z.literal('array'),
+        itemType: z.enum(SCALAR_FIELD_TYPES),
+      })
+      .strict(),
+    z
+      .object({
+        ...schemaNodeBaseShape,
+        type: z.enum(['object', 'array']),
+        children: z.array(schemaNodeSchema),
+      })
+      .strict(),
+  ]),
+)
+
+export const schemaNodesSchema = z.array(schemaNodeSchema)
+
+export function parseSchemaNodes(value: unknown): SchemaNode[] {
+  return schemaNodesSchema.parse(value)
+}
 
 export type EnumeratedField = {
   id: string

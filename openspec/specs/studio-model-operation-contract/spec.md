@@ -72,15 +72,13 @@ resolution, strict client-request parsing, and error transport. It SHALL retain
 the existing tolerant handling outside those boundaries: parseable Extraction
 output that does not match its declared schema remains on the current tolerant
 path, individual invalid conversational Extraction Schema operations remain
-filtered, a non-array schema-edit result remains the existing no-op, and
-fractional Evidence pages retain their current handling. This change MUST NOT
+filtered, and a non-array schema-edit result remains the existing no-op. This change MUST NOT
 add partial Extraction validation issues, reject all schema-edit operations,
-turn a wrong top-level edit shape into a provider error, or introduce integer
-Evidence-page validation.
+or turn a wrong top-level edit shape into a provider error.
 
 #### Scenario: Deferred output-tolerance behavior remains stable
 
-- **WHEN** a selected provider returns parseable but schema-mismatched Extraction output, invalid individual schema-edit operations, a non-array schema-edit result, or a fractional Evidence page
+- **WHEN** a selected provider returns parseable but schema-mismatched Extraction output, invalid individual schema-edit operations, or a non-array schema-edit result
 - **THEN** runtime-model configuration does not convert that existing tolerant behavior into a new HTTP 502 or validation contract
 - **AND** strict parsing still applies to client-supplied request JSON, while repair remains limited to generated model output
 

@@ -17,12 +17,15 @@ from docling_core.types.doc.base import (
 )
 import pandas
 
-from app.models.parsed_document import BoundingBox, ParsedTable
+from app.models.parsed_document_v2 import BoundingBox
+from app.models.parser_output import ParsedTable
 from app.parsing.docling_runner import _table_inventory
 from app.parsing.table_extraction import (
     BBoxTuple,
     DOCLING_TABLE_PARSER_NAME,
     ROTATED_TABLE_GEOMETRY_WARNING,
+    _Extraction,
+    _camelot_tables,
     extract_tables,
     is_matrixlike,
     table_matrix_to_parsed_table,
@@ -283,6 +286,30 @@ class TestMatrixToParsedTable(unittest.TestCase):
         self.assertEqual((by_pos[(0, 0)].rowspan, by_pos[(0, 0)].colspan), (1, 1))
 
 
+class TestCamelotFallbackIdentity(unittest.TestCase):
+    def test_camelot_segments_keep_capture_local_refs(self):
+        table = SimpleNamespace(
+            df=pandas.DataFrame(NUMERIC_MATRIX),
+            page=1,
+            bbox=(0, 0, 100, 100),
+            cells=[],
+        )
+        extraction = _Extraction(
+            source_pdf=Path("source.pdf"),
+            page_heights_pt={1: 100.0},
+            page_rotations={1: 0},
+            docling_tables=(),
+            camelot=object(),
+            camelot_error="",
+        )
+        tables = _camelot_tables([table], extraction)
+        self.assertTrue(tables)
+        producer_ref = tables[0].producer_ref
+        assert producer_ref is not None
+        self.assertTrue(producer_ref.startswith("camelot://page/1/region/1/segment/"))
+        self.assertEqual(tables[0].source_parser, "camelot_stream")
+
+
 class TestExtractTables(unittest.TestCase):
     def test_missing_dependency_returns_safe_diagnostic_without_inventory(self):
         with (
@@ -315,7 +342,7 @@ class TestExtractTables(unittest.TestCase):
         self.assertEqual(output.metrics["tables_kept"], 0)
         self.assertEqual(output.warnings, [])
 
-    def test_camelot_non_string_missing_values_become_empty_json_safe_cells(self):
+    def test_camelot_only_candidates_are_not_published(self):
         output, _ = _extract_with_fake_camelot(
             [
                 _FakeTable(
@@ -328,18 +355,9 @@ class TestExtractTables(unittest.TestCase):
             page_heights_pt={1: 792.0},
         )
 
-        table = output.tables[0]
-        self.assertFalse(
-            any(cell.row == 1 and cell.col in {2, 3} for cell in table.cells)
-        )
-        self.assertEqual(table.cells[-1].text, "NaN")
-        self.assertEqual(
-            table.markdown_view,
-            "| Label | Count | NaN | Missing | Literal |\n"
-            "| --- | --- | --- | --- | --- |\n"
-            "| K1 | 12 |  |  | NaN |",
-        )
-        json.dumps(table.model_dump(mode="json"), allow_nan=False)
+        self.assertEqual(output.tables, [])
+        self.assertEqual(output.metrics["tables_kept"], 0)
+        self.assertEqual(output.diagnostics[0]["code"], "camelot_only_tables_excluded")
 
     def test_docling_literal_nan_is_preserved_in_cells_and_markdown(self):
         inventory = [_inventory_for_rows([["Label", "Value"], ["Missing", "NaN"]])]
@@ -517,6 +535,16 @@ class TestExtractTables(unittest.TestCase):
             read_pdf.call_args.kwargs["table_areas"], ["10.0,150.0,190.0,100.0"]
         )
 
+    def test_inventory_enrichment_releases_camelot_parser_graph(self):
+        with patch("app.parsing.table_extraction.gc.collect") as collect:
+            _extract_with_fake_camelot(
+                [_FakeTable(SMALL_TABLE_ROWS, page=2)],
+                page_heights_pt={2: 200.0},
+                docling_tables=[_inventory_for_rows(SMALL_TABLE_ROWS)],
+            )
+
+        collect.assert_called_once_with()
+
     def test_camelot_replaces_docling_only_with_strict_geometry_improvement(self):
         rows = SMALL_TABLE_ROWS
         camelot_cell_bboxes = [row.copy() for row in ALIGNED_CAMELOT_CELL_BBOXES]
@@ -524,9 +552,7 @@ class TestExtractTables(unittest.TestCase):
         inventory = [
             _inventory_for_rows(
                 rows,
-                _InventoryContext(
-                    cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)}
-                ),
+                _InventoryContext(cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)}),
             )
         ]
         candidate = _FakeTable(
@@ -542,7 +568,7 @@ class TestExtractTables(unittest.TestCase):
         )
 
         table = output.tables[0]
-        self.assertEqual(table.source_parser, "camelot_stream")
+        self.assertEqual(table.source_parser, DOCLING_TABLE_PARSER_NAME)
         self.assertEqual(table.bbox, BoundingBox(x0=10.0, y0=50.0, x1=190.0, y1=100.0))
         by_position = {(cell.row, cell.col): cell for cell in table.cells}
         self.assertEqual(
@@ -591,9 +617,7 @@ class TestExtractTables(unittest.TestCase):
                 "displaced geometry",
                 _inventory_for_rows(
                     rows,
-                    _InventoryContext(
-                        cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)}
-                    ),
+                    _InventoryContext(cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)}),
                 ),
                 displaced_cell_bboxes,
             ),
@@ -626,9 +650,7 @@ class TestExtractTables(unittest.TestCase):
         inventory_cell_bbox = BoundingBox(x0=10.0, y0=50.0, x1=70.0, y1=75.0)
         inventory = _inventory_for_rows(
             rows,
-            _InventoryContext(
-                cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)}
-            ),
+            _InventoryContext(cell_bboxes={(0, 0): (10.0, 50.0, 70.0, 75.0)}),
         )
         full_candidate_boxes = ALIGNED_CAMELOT_CELL_BBOXES
         nested_table_boxes = [[(10.0, 125.0, 70.0, 150.0)] * len(row) for row in rows]
@@ -699,7 +721,7 @@ class TestExtractTables(unittest.TestCase):
 
         self.assertEqual(
             [table.source_parser for table in output.tables],
-            [DOCLING_TABLE_PARSER_NAME, "camelot_stream"],
+            [DOCLING_TABLE_PARSER_NAME, DOCLING_TABLE_PARSER_NAME],
         )
         self.assertEqual(
             output.tables[0].bbox,
@@ -710,23 +732,23 @@ class TestExtractTables(unittest.TestCase):
             BoundingBox(x0=10.0, y0=100.0, x1=190.0, y1=150.0),
         )
 
-    def test_camelot_extracts_one_row_text_table(self):
+    def test_camelot_only_one_row_text_table_is_excluded(self):
         output, _ = _extract_with_fake_camelot(
             [_FakeTable([["Object type", "Description"]])],
             page_heights_pt={1: 200.0},
         )
-        self.assertEqual(len(output.tables), 1)
+        self.assertEqual(output.tables, [])
 
-    def test_camelot_extracts_small_table_when_available(self):
+    def test_camelot_only_small_table_is_excluded(self):
         output, _ = _extract_with_fake_camelot(
             [_FakeTable(SMALL_TABLE_ROWS)],
             page_heights_pt={1: 200.0},
         )
         self.assertEqual(output.status, "success")
-        self.assertEqual(len(output.tables), 1)
-        self.assertEqual((output.tables[0].rows, output.tables[0].cols), (2, 3))
+        self.assertEqual(output.tables, [])
+        self.assertEqual(output.metrics["tables_kept"], 0)
 
-    def test_rotated_camelot_page_keeps_content_but_suppresses_geometry(self):
+    def test_rotated_camelot_only_page_is_excluded(self):
         output, _ = _extract_with_fake_camelot(
             [
                 _FakeTable(
@@ -737,9 +759,8 @@ class TestExtractTables(unittest.TestCase):
             page_heights_pt={1: 200.0},
             page_rotations={1: 90},
         )
-        self.assertEqual(len(output.tables), 1)
-        self.assertIsNone(output.tables[0].bbox)
-        self.assertTrue(all(cell.bbox is None for cell in output.tables[0].cells))
+        self.assertEqual(output.tables, [])
+        self.assertEqual(output.diagnostics[0]["code"], "camelot_only_tables_excluded")
         self.assertIn(ROTATED_TABLE_GEOMETRY_WARNING, output.warnings)
 
     def test_broken_source_fails_without_leaking(self):
@@ -788,16 +809,9 @@ class TestExtractTables(unittest.TestCase):
                     page_heights_pt={1: 300.0 if rotation in (90, 270) else 500.0},
                     page_rotations={1: rotation},
                 )
-                self.assertTrue(output.tables, rotation)
+                self.assertEqual(output.tables, [])
+                self.assertEqual(output.diagnostics[0]["code"], "camelot_only_tables_excluded")
                 self.assertIn(ROTATED_TABLE_GEOMETRY_WARNING, output.warnings)
-                self.assertTrue(all(table.bbox is None for table in output.tables))
-                self.assertTrue(
-                    all(
-                        cell.bbox is None
-                        for table in output.tables
-                        for cell in table.cells
-                    )
-                )
 
     @unittest.skipIf(
         importlib.util.find_spec("camelot") is None, "camelot not installed"

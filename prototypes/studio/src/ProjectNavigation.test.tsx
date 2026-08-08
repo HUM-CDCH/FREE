@@ -23,7 +23,7 @@ vi.mock('./App', () => ({
       <p>
         Opened {filename} · {pdfUrl} · {String(markdownUrl)} ·{' '}
         {annotationSet?.annotations[0]?.text ?? 'no annotation'} ·{' '}
-        {JSON.stringify(extractionSchema?.template ?? 'no schema')} ·{' '}
+        {JSON.stringify(extractionSchema?.schemaNodes ?? 'no schema')} ·{' '}
         {persistedExtraction?.outcome ?? 'no extraction'}
       </p>
       <button type="button" onClick={onInitialResourceLoadFailure}>
@@ -67,7 +67,7 @@ function snapshot(sourceDocument = beretning) {
       resources: {
         sourcePdfUrl: `/api/source-representations/${representationId}/pdf`,
         markdownUrl: `/api/source-representations/${representationId}/markdown`,
-        parsedDocumentUrl: `/api/source-representations/${representationId}/parsed-document`,
+        parsedDocumentUrl: `/api/source-representations/${representationId}/source`,
       },
     },
     annotationSet: null,
@@ -93,15 +93,18 @@ function hydratedSnapshot() {
     },
     extractionSchema: {
       extractionSchemaId: '51000000-0000-4000-8005-000000000001',
+      schemaRevisionId: '51000000-0000-4000-8005-000000000002',
       revisionNumber: 1,
-      template: { place: 'string' },
+      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
     },
     extraction: {
       extractionId: '51000000-0000-4000-8006-000000000001',
       createdAt: '2026-07-31T12:03:00.000Z',
       outcome: 'succeeded',
       result: { place: 'Ellekilde' },
-      evidence: null,
+      evidenceLinks: [],
+      modelAttribution: { extraction: null, grounding: null },
+      reviewDecisions: [],
     },
   }
 }

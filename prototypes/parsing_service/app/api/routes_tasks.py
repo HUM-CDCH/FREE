@@ -12,11 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from app.api.deps import http_task_dir, load_metadata, save_metadata
 from app.api.schemas import TaskCreatedResponse, TaskStatusResponse
 from app.ingestion.upload import save_uploaded_source
-from app.models.parser import (
-    CANONICAL_OCR_DEVICE_POLICY,
-    CANONICAL_OCR_DPI,
-    canonical_preprocessing_config,
-)
+from app.models.parser import canonical_preprocessing_config
 from app.storage.hashing import document_id_from_hash
 from app.storage.paths import SOURCE_FILENAME
 from app.workers.gpu import gpu_available
@@ -74,14 +70,7 @@ async def create_task(
             detail="Could not create parsing task.",
         ) from exc
 
-    background_tasks.add_task(
-        run_extraction_task,
-        task_id=task_id,
-        source_path=str(source_path),
-        dpi=CANONICAL_OCR_DPI,
-        pipeline=None,
-        device=CANONICAL_OCR_DEVICE_POLICY,
-    )
+    background_tasks.add_task(run_extraction_task, task_id)
 
     return TaskCreatedResponse(
         task_id=task_id,

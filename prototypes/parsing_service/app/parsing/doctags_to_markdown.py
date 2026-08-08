@@ -476,48 +476,6 @@ def convert_doctags_to_markdown(
     return compose_page_markdown(value.split(page_sentinel))
 
 
-def doctags_to_markdown(doctags: str, *, drop_page_footers: bool = True) -> str:
-    """Compatibility wrapper returning only canonical Markdown."""
-    return convert_doctags_to_markdown(
-        doctags, drop_page_footers=drop_page_footers
-    ).markdown
-
-
-def _page_markdown_span(page: int, raw_chunk: str, offset: int) -> PageMarkdownSpan:
-    text = raw_chunk.strip()
-    start = offset + len(raw_chunk) - len(raw_chunk.lstrip())
-    return PageMarkdownSpan(
-        page=page,
-        text=text,
-        llm_markdown_start=start,
-        llm_markdown_end=start + len(text),
-    )
-
-
-def llm_markdown_page_spans(llm_markdown: str) -> list[PageMarkdownSpan]:
-    """Best-effort compatibility parser for standalone page-rule Markdown.
-
-    Production DocTags ingestion uses ``DocTagsMarkdownResult.page_spans`` and
-    does not infer page boundaries from rendered Markdown.
-    """
-    if not llm_markdown:
-        return []
-
-    separator = re.compile(r"(?m)^[ \t]*---[ \t]*(?:\n|$)")
-    spans: list[PageMarkdownSpan] = []
-    cursor = 0
-    page = 1
-    for match in separator.finditer(llm_markdown):
-        raw_chunk = llm_markdown[cursor : match.start()]
-        spans.append(_page_markdown_span(page, raw_chunk, cursor))
-        cursor = match.end()
-        page += 1
-
-    raw_chunk = llm_markdown[cursor:]
-    spans.append(_page_markdown_span(page, raw_chunk, cursor))
-    return spans
-
-
 def load_doctags_from_parsed_json(path: str | Path) -> str:
     try:
         data: Any = json.loads(Path(path).read_text(encoding="utf-8"))

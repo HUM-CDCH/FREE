@@ -1,0 +1,12 @@
+{
+  "schema_version": "parsed_document.v2",
+  "page_marker_template": "<!-- FREE:PAGE {page} -->",
+  "pages": [1, 2],
+  "ordered_block_ids": ["block-1", "block-2"],
+  "table": {
+    "logical_table_id": "logical-table-1",
+    "cell_count": 4,
+    "evidence_pages": [1, 2],
+    "geometry_optional": true
+  }
+}

@@ -3,31 +3,29 @@
 from __future__ import annotations
 
 import importlib
+import hashlib
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from app.models.parsed_document import (
-    ArbitrationResult,
-    ArtifactManifest,
+from app.models.parsed_document_v2 import (
     DocumentMetadata,
-    EvidenceIndex,
     InputProfile,
     ParsedDocument,
-    ParserRun,
-    PreprocessingMetadata,
+    PublicArbitrationResult,
+    PublicPreprocessingMetadata,
     SourceInfo,
 )
+from app.models.parser_output import ParserRun
 from app.models.parser import CANONICAL_OCR_DPI, MAX_INGESTION_PAGES
 from app.parsing.adapters.pymupdf_inspect import PdfInspection, inspect_pdf
 from app.parsing.normalize import read_text
 from app.parsing.page_resolution import (
-    _PageViewResult,
     _docling_arbitration,
     _merge_page_fallback_text,
-    _pages_and_views_from_llm_markdown,
     _pages_requiring_fallback,
 )
 from app.parsing.render import (
@@ -40,7 +38,6 @@ from app.storage.manifests import load_task_metadata, preprocessing_config_hash
 from app.storage.paths import (
     SERVICE_ROOT,
     SOURCE_FILENAME,
-    canonical_parsed_document_path,
     document_artifacts_dir,
     service_relative_ref,
     task_dir_for,
@@ -131,6 +128,17 @@ class _TableResolution:
     tables: list[Any]
     parser_run: ParserRun
     parser_by_page: dict[int, str]
+    # Rejected/excluded table candidates stay auditable as portable diagnostics.
+    diagnostics: tuple[dict[str, Any], ...] = ()
+
+
+@dataclass(frozen=True)
+class BuiltGeneration:
+    """Portable document plus canonical bytes and internal cache manifest."""
+
+    document: Any
+    markdown_bytes: bytes
+    generation_manifest: dict[str, Any]
 
 
 def package_version(package_name: str) -> str | None:
@@ -158,6 +166,13 @@ def validate_inspection_for_ingestion(inspection: PdfInspection) -> None:
     scale = CANONICAL_OCR_DPI / 72.0
     total_pixels = 0
     for page in inspection.pages:
+        if (
+            not math.isfinite(page.width_pt)
+            or not math.isfinite(page.height_pt)
+            or page.width_pt <= 0
+            or page.height_pt <= 0
+        ):
+            raise ValueError(f"PDF page {page.page} has invalid physical geometry.")
         page_pixels = math.ceil(page.width_pt * scale) * math.ceil(
             page.height_pt * scale
         )
@@ -343,23 +358,14 @@ def parser_run_from_table_output(output: Any, content_sha256: str) -> ParserRun:
         finished_at=output.finished_at,
         duration_ms=output.duration_ms,
         input_ref=f"data/sources/{content_sha256}.pdf",
-        metrics={**output.metrics, "input_sha256": content_sha256},
+        metrics={
+            **output.metrics,
+            "input_sha256": content_sha256,
+            "diagnostics": list(getattr(output, "diagnostics", ()) or ()),
+        },
         warnings=output.warnings,
         error=output.error,
     )
-
-
-def _write_final_llm_markdown(
-    content_sha256: str,
-    llm_markdown: str,
-    *,
-    artifact_root: Path | None = None,
-) -> str:
-    final_path = (
-        artifact_root or document_artifacts_dir(content_sha256)
-    ) / "document.canonical.llm.md"
-    write_text_atomic(final_path, llm_markdown + ("\n" if llm_markdown else ""))
-    return service_relative_ref(final_path)
 
 
 def _docling_text_source(request: _CanonicalTextRequest) -> _DoclingTextSource:
@@ -434,8 +440,7 @@ def _mapped_text_resolution(
         ocr_parser_run=ocr_parser_run,
         ocr_blocks_by_page=merged.ocr_blocks_by_page,
         page_mapping_verified=(
-            {span.page for span in merged.llm_spans}
-            == set(range(1, page_count + 1))
+            {span.page for span in merged.llm_spans} == set(range(1, page_count + 1))
             and len(merged.llm_spans) == page_count
         ),
         unresolved_pages=tuple(merged.unresolved_pages),
@@ -594,9 +599,7 @@ def _extract_document_tables(
     parsing: _ParsingResult,
 ) -> _TableResolution:
     inspection = inspected.inspection
-    docling_tables = tuple(
-        getattr(parsing.docling_output, "table_inventory", ()) or ()
-    )
+    docling_tables = tuple(getattr(parsing.docling_output, "table_inventory", ()) or ())
     output = _run_table_extraction(
         context.source_path,
         context.content_sha256,
@@ -612,20 +615,10 @@ def _extract_document_tables(
             context.content_sha256,
         ),
         parser_by_page=_table_parsers_by_page(tables),
-    )
-
-
-def _final_markdown_ref(
-    context: _BuildContext,
-    parsing: _ParsingResult,
-) -> str | None:
-    text = parsing.text
-    if text.llm_markdown == text.doc_tags_simplified:
-        return parsing.docling_output.llm_markdown_ref
-    return _write_final_llm_markdown(
-        context.content_sha256,
-        text.llm_markdown,
-        artifact_root=context.artifact_root,
+        diagnostics=tuple(
+            dict(diagnostic)
+            for diagnostic in (getattr(output, "diagnostics", ()) or ())
+        ),
     )
 
 
@@ -633,7 +626,7 @@ def _arbitrate_parsers(
     inspected: _InspectionResult,
     parsing: _ParsingResult,
     tables: _TableResolution,
-) -> ArbitrationResult:
+) -> PublicArbitrationResult:
     return _docling_arbitration(
         inspection=inspected.inspection,
         docling_run=parsing.docling_run,
@@ -642,34 +635,6 @@ def _arbitrate_parsers(
         table_pages=frozenset(table.page_number for table in tables.tables),
         table_parser_by_page=tables.parser_by_page,
     )
-
-
-def _assemble_pages(
-    inspected: _InspectionResult,
-    parsing: _ParsingResult,
-    arbitration: ArbitrationResult,
-) -> _PageViewResult:
-    text = parsing.text
-    return _pages_and_views_from_llm_markdown(
-        llm_markdown=text.llm_markdown,
-        llm_spans=text.llm_spans,
-        selected_parser=arbitration.primary_document_parser,
-        inspection=inspected.inspection,
-        parser_by_page=text.parser_by_page,
-        doc_tags_simplified=text.doc_tags_simplified or None,
-        doc_tags_spans=text.docling_spans,
-        page_mapping_verified=text.page_mapping_verified,
-        ocr_blocks_by_page=text.ocr_blocks_by_page,
-    )
-
-
-def _source_kind(metadata: dict[str, Any]) -> str:
-    source_kind = metadata.get("source_kind")
-    if source_kind:
-        return cast(str, source_kind)
-    if metadata.get("submitted_url"):
-        return "url"
-    return "upload"
 
 
 def _source_byte_size(source_path: Path) -> int | None:
@@ -686,9 +651,8 @@ def _document_metadata(
         document_id=document_id_from_hash(context.content_sha256),
         content_sha256=context.content_sha256,
         source=SourceInfo(
-            kind=_source_kind(context.metadata),
+            kind="upload",
             original_filename=context.source_name,
-            submitted_url=context.metadata.get("submitted_url"),
             byte_size=_source_byte_size(context.source_path),
         ),
         created_at=context.started_at,
@@ -702,9 +666,7 @@ def _document_metadata(
 
 def _parser_warnings(parser_runs: list[ParserRun]) -> list[str]:
     warnings = [
-        f"{run.parser}: {run.error}"
-        for run in parser_runs
-        if run.status == "failed"
+        f"{run.parser}: {run.error}" for run in parser_runs if run.status == "failed"
     ]
     for run in parser_runs:
         warnings.extend(run.warnings)
@@ -714,16 +676,15 @@ def _parser_warnings(parser_runs: list[ParserRun]) -> list[str]:
 def _preprocessing_metadata(
     context: _BuildContext,
     parser_runs: list[ParserRun],
-) -> PreprocessingMetadata:
+) -> PublicPreprocessingMetadata:
     config_hash = preprocessing_config_hash(context.metadata)
     warnings = _parser_warnings(parser_runs)
-    return PreprocessingMetadata(
+    return PublicPreprocessingMetadata(
         preprocess_id=preprocess_id_from_hashes(
             context.content_sha256,
             config_hash,
         ),
         profile=PREPROCESS_PROFILE,
-        config_hash=config_hash,
         service_version=package_version("parsing_service"),
         started_at=context.started_at,
         finished_at=utc_now(),
@@ -732,78 +693,533 @@ def _preprocessing_metadata(
     )
 
 
-def _debug_artifact_refs(
-    inspected: _InspectionResult,
-    parsing: _ParsingResult,
-    final_llm_markdown_ref: str | None,
-) -> list[str]:
-    output = parsing.docling_output
-    return [
-        ref
-        for ref in (
-            inspected.artifact_ref,
-            output.raw_docling_json_ref,
-            output.raw_doctags_ref,
-            output.aggregate_doctags_ref,
-            output.llm_markdown_ref,
-            final_llm_markdown_ref,
-            output.markdown_ref,
-            parsing.docling_run.output_ref,
-            getattr(parsing.text.ocr_output, "output_ref", None),
-        )
-        if ref
-    ]
+def _reviewed_continuations(
+    docling_output: Any,
+) -> tuple[tuple[tuple[str, str], ...], tuple[dict[str, Any], ...]]:
+    """Review every producer boundary once, returning its pairs and diagnostics.
 
-
-def _artifact_manifest(
-    context: _BuildContext,
-    inspected: _InspectionResult,
-    parsing: _ParsingResult,
-    final_llm_markdown_ref: str | None,
-) -> ArtifactManifest:
-    canonical_path = canonical_parsed_document_path(context.content_sha256)
-    return ArtifactManifest(
-        source_ref=context.metadata.get("source_store_path"),
-        parsed_json_ref=f"data/tasks/{context.task_id}/parsed_document.json",
-        canonical_parsed_json_ref=service_relative_ref(canonical_path),
-        raw_docling_json_ref=parsing.docling_output.raw_docling_json_ref,
-        raw_doctags_ref=parsing.docling_output.raw_doctags_ref,
-        llm_markdown_ref=final_llm_markdown_ref,
-        debug_refs=_debug_artifact_refs(
-            inspected,
-            parsing,
-            final_llm_markdown_ref,
-        ),
+    Admits only the checked-in producer review observation; the diagnostics
+    retain each decision without turning any of them into a heuristic.
+    """
+    from app.parsing.continuation import (
+        evaluate_reviewed_continuation,
+        reviewed_boundary_from_doctags,
     )
 
+    records = tuple(getattr(docling_output, "producer_records", ()) or ())
+    doctags = str(getattr(docling_output, "canonical_doctags", "") or "")
+    if not records:
+        return (), ()
+    pairs: list[tuple[str, str]] = []
+    diagnostics: list[dict[str, Any]] = []
+    for first, second in zip(records, records[1:], strict=False):
+        first_ref = first.get("self_ref")
+        second_ref = second.get("self_ref")
+        boundary = (
+            reviewed_boundary_from_doctags(doctags, (first, second))
+            if doctags
+            else None
+        )
+        if boundary is None:
+            reason = "malformed_observation"
+        else:
+            decision = evaluate_reviewed_continuation(
+                (first, second), boundary=boundary
+            )
+            reason = decision.reason
+            if (
+                decision.continue_table
+                and isinstance(first_ref, str)
+                and isinstance(second_ref, str)
+            ):
+                pairs.append((first_ref, second_ref))
+        diagnostics.append(
+            {
+                "code": "continuation_reviewed"
+                if reason == "reviewed_capture_continuation"
+                else "continuation_rejected",
+                "reason": reason,
+                "first_producer_ref": str(first_ref) if first_ref is not None else None,
+                "second_producer_ref": str(second_ref)
+                if second_ref is not None
+                else None,
+                "first_page": first.get("page_no"),
+                "second_page": second.get("page_no"),
+            }
+        )
+    return tuple(pairs), tuple(diagnostics)
 
-def build_parsed_document(
+
+def _v2_logical_tables(
+    tables: Sequence[Any],
+    *,
+    content_sha256: str,
+    preprocess_id: str,
+    continuation_pairs: Sequence[tuple[str, str]],
+) -> tuple[list[Any], dict[str, str], dict[str, Any]]:
+    from app.models.parsed_document_v2 import (
+        CanonicalTableCell,
+        LogicalTable,
+        LogicalTablePageSpan,
+        ParserAttribution,
+        ProducerTableCellObservation,
+        TableParserAttribution,
+        V2_GEOMETRY_ERROR_CODE,
+        deterministic_anchor_id,
+        deterministic_block_id,
+        deterministic_occurrence_id,
+        deterministic_table_id,
+    )
+    from app.parsing.semantic_stream import derive_logical_table_groups
+
+    # A table without a producer-local reference is Camelot-only (or otherwise
+    # ungrounded). It may still be reported as unplaced by the caller, but it
+    # must never become canonical v2 content or acquire a fabricated producer
+    # identity from its derived table_id.
+    grounded_tables = [
+        table
+        for table in tables
+        if getattr(table, "producer_ref", None)
+        and (
+            getattr(table, "source_parser", None) == "docling_table"
+            or getattr(table, "content_parser", None) == "docling_table"
+        )
+    ]
+    groups = derive_logical_table_groups(
+        grounded_tables, continuation_pairs=continuation_pairs
+    )
+    output: list[LogicalTable] = []
+    table_id_by_observed_ref: dict[str, str] = {}
+    observations: dict[str, list[ProducerTableCellObservation]] = {}
+    for group in groups:
+        producer_refs = tuple(
+            str(
+                getattr(fragment, "producer_ref", None)
+                or getattr(fragment, "table_id", "")
+            )
+            for fragment in group.fragments
+        )
+        table_id = deterministic_table_id(
+            content_sha256, preprocess_id, "+".join(producer_refs)
+        )
+        row_base = 0
+        cells: list[CanonicalTableCell] = []
+        spans: list[LogicalTablePageSpan] = []
+        for fragment in group.fragments:
+            producer_ref = getattr(fragment, "producer_ref", None)
+            if not producer_ref:
+                # Defensive guard: grounded_tables above should make this
+                # unreachable, and failing closed is preferable to inventing
+                # producer Evidence if a new table adapter bypasses it.
+                continue
+            table_id_by_observed_ref[str(producer_ref)] = table_id
+            observed_root_rows = 0
+            prior_cells = tuple(cells)
+            for cell in getattr(fragment, "cells", ()) or ():
+                if cell.bbox is None:
+                    raise CanonicalIngestionError(
+                        V2_GEOMETRY_ERROR_CODE,
+                        f"Table cell {producer_ref}:{cell.row}:{cell.col} has no safe producer geometry.",
+                    )
+                canonical_row = row_base + int(cell.row)
+                observed_root_rows = max(observed_root_rows, int(cell.row) + 1)
+                roots = [
+                    root
+                    for root in prior_cells
+                    if root.row < canonical_row
+                    and canonical_row + cell.rowspan <= root.row + root.rowspan
+                    and root.column <= cell.col
+                    and cell.col + cell.colspan <= root.column + root.colspan
+                ]
+                if len(roots) > 1:
+                    raise ValueError("continued_cell_root_ambiguous")
+                if roots:
+                    cell_id = roots[0].cell_id
+                    anchor_id = roots[0].evidence_anchor_id
+                else:
+                    cell_id = deterministic_block_id(
+                        content_sha256,
+                        preprocess_id,
+                        f"{table_id}:cell:{canonical_row}:{cell.col}",
+                    )
+                    anchor_id = deterministic_anchor_id(
+                        content_sha256, preprocess_id, f"{table_id}:{cell_id}"
+                    )
+                observations.setdefault(anchor_id, []).append(
+                    ProducerTableCellObservation(
+                        occurrence_id=deterministic_occurrence_id(
+                            content_sha256,
+                            preprocess_id,
+                            f"{table_id}:{cell_id}:{producer_ref}:{fragment.page_number}:{cell.row}:{cell.col}",
+                        ),
+                        page_number=fragment.page_number,
+                        row_offset=cell.row,
+                        column_offset=cell.col,
+                        producer_ref=str(producer_ref),
+                        row_span=cell.rowspan,
+                        column_span=cell.colspan,
+                        bbox=cell.bbox,
+                    )
+                )
+                if not roots:
+                    cells.append(
+                        CanonicalTableCell(
+                            cell_id=cell_id,
+                            row=canonical_row,
+                            column=cell.col,
+                            text=cell.text,
+                            role=cell.role,
+                            rowspan=cell.rowspan,
+                            colspan=cell.colspan,
+                            bbox=cell.bbox,
+                            evidence_anchor_id=anchor_id,
+                        )
+                    )
+            spans.append(
+                LogicalTablePageSpan(
+                    page_number=fragment.page_number,
+                    producer_table_ref=str(producer_ref),
+                    page_local_row_start=0,
+                    page_local_row_end=max(
+                        (cell.row for cell in fragment.cells), default=0
+                    ),
+                    page_local_col_count=fragment.cols,
+                )
+            )
+            row_base += max(int(fragment.rows or 0), observed_root_rows)
+        first = group.fragments[0]
+        parser = (
+            getattr(first, "content_parser", None)
+            or getattr(first, "source_parser", None)
+            or "unknown"
+        )
+        structure = getattr(first, "structure_parser", None) or parser
+        geometry = getattr(first, "geometry_parser", None)
+        output.append(
+            LogicalTable(
+                table_id=table_id,
+                rows=row_base,
+                cols=max(
+                    (
+                        int(getattr(fragment, "cols", 0) or 0)
+                        for fragment in group.fragments
+                    ),
+                    default=0,
+                ),
+                cells=cells,
+                spans=spans,
+                parser_attribution=TableParserAttribution(
+                    content_parser=ParserAttribution(parser=parser),
+                    structure_parser=ParserAttribution(parser=structure),
+                    geometry_parser=ParserAttribution(parser=geometry)
+                    if geometry
+                    else None,
+                ),
+                continuation="derived_continuation"
+                if group.continuation
+                else "page_local",
+            )
+        )
+    return output, table_id_by_observed_ref, observations
+
+
+def build_parsed_document_v2(
     task_id: str,
     *,
     source_path: Path | None = None,
     artifact_root: Path | None = None,
-) -> ParsedDocument:
+):
+    """Build v2 directly from the authenticated producer stages.
+
+    The builder promotes DocTags semantic blocks and producer-inventory tables
+    directly; no projection or compatibility view is involved.
+    """
+    from app.models.parsed_document_v2 import (
+        ArtifactManifestV2,
+        ParsedPageV2,
+        ParserDiagnostic,
+        PublicParserProvenance,
+        V2_GEOMETRY_ERROR_CODE,
+        V2_PAGE_MAPPING_ERROR_CODE,
+    )
+    from app.parsing.semantic_stream import (
+        doctags_to_intermediate_blocks,
+        ocr_pages_to_blocks,
+        place_table_slots,
+        semantic_blocks_to_v2,
+    )
+    from app.parsing.v2_publication import (
+        apply_rendered_spans,
+        build_evidence_index,
+        render_canonical_markdown,
+        validate_publication,
+    )
+
     context = _build_context(task_id, source_path, artifact_root)
     inspected = _inspect_source(context)
     parsing = _run_canonical_parsers(context, inspected)
-    tables = _extract_document_tables(context, inspected, parsing)
-    parser_runs = [*parsing.parser_runs, tables.parser_run]
-    final_llm_markdown_ref = _final_markdown_ref(context, parsing)
-    arbitration = _arbitrate_parsers(inspected, parsing, tables)
-    pages = _assemble_pages(inspected, parsing, arbitration)
+    tables_result = _extract_document_tables(context, inspected, parsing)
+    parser_runs = [*parsing.parser_runs, tables_result.parser_run]
+    content_sha256 = context.content_sha256
+    preprocess = _preprocessing_metadata(context, parser_runs)
+    preprocess_id = preprocess.preprocess_id
+    continuation_pairs, continuation_diagnostics = _reviewed_continuations(
+        parsing.docling_output
+    )
+    tables, observed_to_logical, observations = _v2_logical_tables(
+        tables_result.tables,
+        content_sha256=content_sha256,
+        preprocess_id=preprocess_id,
+        continuation_pairs=continuation_pairs,
+    )
+
+    producer_doctags = str(
+        getattr(parsing.docling_output, "canonical_doctags", "") or ""
+    )
+    page_sizes = {
+        page.page: (page.width_pt, page.height_pt)
+        for page in inspected.inspection.pages
+    }
+    selected_ocr_pages = {
+        page
+        for page, parser in parsing.text.parser_by_page.items()
+        if parser == "paddleocr"
+    }
+    ocr_warnings = set(getattr(parsing.text.ocr_output, "warnings", ()) or ())
+    if selected_ocr_pages and "ocr_line_geometry_unavailable" in ocr_warnings:
+        raise CanonicalIngestionError(
+            V2_GEOMETRY_ERROR_CODE,
+            "OCR produced text without complete safe line geometry.",
+            parser_runs=list(parser_runs),
+        )
+    if producer_doctags:
+        intermediate, slots = doctags_to_intermediate_blocks(
+            producer_doctags, page_sizes=page_sizes
+        )
+        # Only tables that can become canonical v2 objects may participate in
+        # placement.  In particular, an ungrounded/ambiguous Camelot candidate
+        # must never leave a dangling generated ref in the content stream.
+        placement_tables = tuple(
+            table
+            for table in tables_result.tables
+            if getattr(table, "producer_ref", None)
+        )
+        placement = place_table_slots(intermediate, slots, placement_tables)
+        intermediate = placement.blocks
+        if selected_ocr_pages:
+            ocr_blocks = ocr_pages_to_blocks(
+                {
+                    page: parsing.text.ocr_blocks_by_page.get(page, ())
+                    for page in selected_ocr_pages
+                }
+            )
+            replacement: list[Any] = []
+            for page in range(1, inspected.inspection.page_count + 1):
+                page_blocks = [
+                    block for block in intermediate if block.page_number == page
+                ]
+                if page in selected_ocr_pages:
+                    replacement.extend(
+                        block
+                        for block in ocr_blocks
+                        if block.page_number == page
+                    )
+                    replacement.extend(
+                        block
+                        for block in page_blocks
+                        if block.kind in {"table_slot", "page_boundary"}
+                    )
+                else:
+                    replacement.extend(page_blocks)
+            intermediate = tuple(replacement)
+        # place_table_slots stores the observed ParsedTable ID in table_slot;
+        # reconcile that producer-local identity to the derived logical ID.
+        table_ids = {
+            block.table_slot: observed_to_logical.get(
+                block.table_slot or "", block.table_slot or ""
+            )
+            for block in intermediate
+            if getattr(block, "kind", None) == "table_slot" and block.table_slot
+        }
+        blocks = list(
+            semantic_blocks_to_v2(
+                intermediate,
+                content_sha256,
+                preprocess_id,
+                table_ids=table_ids,
+            )
+        )
+        placement_diagnostics = [
+            {
+                "code": diagnostic.code,
+                "page_number": diagnostic.page_number,
+                "slot_id": diagnostic.slot_id,
+                "table_id": diagnostic.table_id,
+                "detail": diagnostic.detail,
+            }
+            for diagnostic in placement.diagnostics
+        ]
+        # Placement reports producer identities, while the canonical renderer
+        # resolves tables by derived logical IDs. Rebase unplaced refs through
+        # the same observed-to-logical map used for ordered table slots.
+        canonical_ids = {table.table_id for table in tables}
+        unplaced = {
+            page: tuple(
+                observed_to_logical[table_ref]
+                for table_ref in refs
+                if table_ref in observed_to_logical
+                and observed_to_logical[table_ref] in canonical_ids
+            )
+            for page, refs in placement.unplaced_content.items()
+        }
+    else:
+        fallback_pages = parsing.text.ocr_blocks_by_page
+        intermediate = ocr_pages_to_blocks(fallback_pages)
+        blocks = list(
+            semantic_blocks_to_v2(
+                intermediate, content_sha256, preprocess_id, parser="paddleocr"
+            )
+        )
+        placement_diagnostics = []
+        # Without an authenticated DocTags inventory, no table is promoted to
+        # the canonical stream. Camelot-only candidates remain diagnostics.
+        unplaced = {}
+
+    ungrounded_table_diagnostics = [
+        {
+            "code": "ungrounded_table_excluded",
+            "table_id": str(getattr(table, "table_id", "")),
+            "page_number": int(getattr(table, "page_number", 0)),
+            "detail": "Table has no producer-local observation; excluded from v2 canonical tables.",
+        }
+        for table in tables_result.tables
+        if not getattr(table, "producer_ref", None)
+    ]
+    diagnostics = [
+        *continuation_diagnostics,
+        *placement_diagnostics,
+        *tables_result.diagnostics,
+        *ungrounded_table_diagnostics,
+    ]
+    if not parsing.text.page_mapping_verified:
+        raise CanonicalIngestionError(
+            V2_PAGE_MAPPING_ERROR_CODE,
+            "physical-page mapping could not be verified",
+            parser_runs=list(parser_runs),
+        )
+    parser_runs_public = [
+        PublicParserProvenance(
+            parser=run.parser,
+            version=run.version,
+            status=run.status,
+            warnings=list(run.warnings),
+            error=run.error,
+        )
+        for run in parser_runs
+    ]
+
+    pages: list[ParsedPageV2] = []
+    block_by_page: dict[int, list[str]] = {}
+    for block in blocks:
+        block_by_page.setdefault(block.page_number, []).append(block.block_id)
+    for page_info in inspected.inspection.pages:
+        pages.append(
+            ParsedPageV2(
+                page_number=page_info.page,
+                width_pt=page_info.width_pt,
+                height_pt=page_info.height_pt,
+                rotation=page_info.rotation,
+                ordered_content=block_by_page.get(page_info.page, []),
+                unplaced_content=list(unplaced.get(page_info.page, ())),
+            )
+        )
+
+    rendered = render_canonical_markdown(
+        pages,
+        blocks,
+        tables,
+        page_count=inspected.inspection.page_count,
+    )
+    blocks, pages = apply_rendered_spans(rendered, blocks, pages)
+    try:
+        evidence = build_evidence_index(
+            rendered,
+            blocks,
+            tables,
+            content_sha256=content_sha256,
+            preprocess_id=preprocess_id,
+            producer_observations=observations,
+        )
+        validate_publication(
+            rendered,
+            pages,
+            blocks,
+            tables,
+            evidence,
+            page_count=inspected.inspection.page_count,
+        )
+    except ValueError as exc:
+        if V2_GEOMETRY_ERROR_CODE not in str(exc):
+            raise
+        raise CanonicalIngestionError(
+            V2_GEOMETRY_ERROR_CODE,
+            "Canonical Evidence could not be published with safe physical-page geometry.",
+            parser_runs=list(parser_runs),
+        ) from exc
+    if artifact_root is not None:
+        artifact_root.mkdir(parents=True, exist_ok=True)
+        write_text_atomic(
+            artifact_root / "document.llm.md",
+            rendered.markdown,
+        )
+    arbitration = _arbitrate_parsers(inspected, parsing, tables_result)
     return ParsedDocument(
         document=_document_metadata(context, inspected.inspection),
-        preprocessing=_preprocessing_metadata(context, parser_runs),
-        artifacts=_artifact_manifest(
-            context,
-            inspected,
-            parsing,
-            final_llm_markdown_ref,
-        ),
-        parser_runs=parser_runs,
+        preprocessing=preprocess,
+        page_count=inspected.inspection.page_count,
+        page_mapping_verified=True,
+        artifacts=ArtifactManifestV2(),
+        parser_runs=parser_runs_public,
         arbitration=arbitration,
-        text_views=pages.text_views,
-        pages=pages.pages,
-        tables=tables.tables,
-        evidence_index=EvidenceIndex(),
+        content_stream=blocks,
+        pages=pages,
+        tables=tables,
+        diagnostics=[ParserDiagnostic.model_validate(item) for item in diagnostics],
+        evidence_index=evidence,
+    )
+
+
+def build_canonical_generation(
+    task_id: str,
+    *,
+    source_path: Path | None = None,
+    artifact_root: Path | None = None,
+) -> BuiltGeneration:
+    """Run the one canonical PDF pipeline and return its portable generation.
+
+    Parser-owned paths, raw artifacts, and digests are kept in the internal
+    generation manifest; only the v2 document and canonical Markdown bytes are
+    eligible for route/package publication.
+    """
+    document = build_parsed_document_v2(
+        task_id,
+        source_path=source_path,
+        artifact_root=artifact_root,
+    )
+    markdown_path = (artifact_root / "document.llm.md") if artifact_root else None
+    markdown_bytes = markdown_path.read_bytes() if markdown_path and markdown_path.is_file() else b""
+    return BuiltGeneration(
+        document=document,
+        markdown_bytes=markdown_bytes,
+        generation_manifest={
+            "schema_version": "generation-manifest.v1",
+            "source_sha256": document.document.content_sha256,
+            "preprocess_id": document.preprocessing.preprocess_id,
+            "canonical_markdown_sha256": hashlib.sha256(markdown_bytes).hexdigest(),
+            "parser_runs": [
+                run.model_dump(mode="json")
+                for run in document.parser_runs
+            ],
+            "raw_artifacts_root": str(artifact_root) if artifact_root else None,
+        },
     )

@@ -74,9 +74,9 @@ def _valid_line_geometry(values: list[float], confidence: float) -> bool:
         return False
     if not math.isfinite(confidence):
         return False
-    if values[0] > values[2]:
+    if values[0] >= values[2]:
         return False
-    return values[1] <= values[3]
+    return values[1] < values[3]
 
 
 def _extract_lines_from_result(

@@ -1,38 +1,64 @@
 /// <reference types="vite/client" />
 
-import { ApiError, noStoreError, persistenceUnavailable } from './_http.js'
+import {
+  ApiError,
+  json,
+  noStore,
+  noStoreError,
+  parseJsonRequest,
+  persistenceUnavailable,
+} from './_http.js'
 import {
   createProjectStore,
   type ProjectStore,
-  type SourceRepresentationArtifacts,
 } from '../../../packages/db/src/project-store.js'
 import {
+  canonicalPackageStore,
+  type CanonicalArtifact,
+  type CanonicalArtifactRead,
+  type CanonicalPackageDescriptor,
+} from '../../../packages/db/src/artifact-store.js'
+import {
   canonicalUuidSchema,
-  parsedDocumentResourceSchema,
 } from '../shared/projectContext.contract.js'
+import {
+  cleanExtractionResultSchema,
+  evidenceLinkSchema,
+  evidenceLinksHaveUniqueScalarPaths,
+  groundedModelAttributionSchema,
+} from '../shared/groundedExtraction.js'
+import { decodeParsedDocument } from '../src/parsedDocument.js'
 import { z } from 'zod'
 
 const ROUTE =
-  /^\/api\/source-representations\/([^/]+)\/(pdf|markdown|parsed-document)$/
+  /^\/api\/source-representations\/([^/]+)\/(pdf|markdown|source)$/
+const REVIEW_ROUTE =
+  /^\/api\/source-representations\/([^/]+)\/extraction-reviews$/
+const reviewDecisionInputSchema = z
+  .object({
+    evidenceAnchorId: z.string().min(1),
+    reviewedOccurrenceIds: z
+      .array(z.string().min(1))
+      .refine((ids) => new Set(ids).size === ids.length)
+      .default([]),
+  })
+  .strict()
+const reviewedExtractionSchema = z
+  .object({
+    schemaRevisionId: canonicalUuidSchema,
+    result: cleanExtractionResultSchema,
+    evidenceLinks: z.array(evidenceLinkSchema).min(1),
+    modelAttribution: groundedModelAttributionSchema,
+    reviewDecisions: z.array(reviewDecisionInputSchema).min(1),
+  })
+  .strict()
 
-/**
- * The Parsing Service retains every published artifact and `artifactReference`
- * is its opaque handle. Studio resolves and streams the bytes itself so no
- * reference, path, or upstream URL reaches the browser. The base is the same
- * override the browser uses (see src/api.ts).
- */
-const PARSING_SERVICE =
-  (import.meta.env.VITE_PARSING_SERVICE_URL as string | undefined) ??
-  'http://127.0.0.1:8000'
-/** Keyed by the path segment `ROUTE` allows, so no artifact name is unchecked. */
-const ARTIFACTS: Record<string, { upstream: string; mediaType: string }> = {
-  pdf: { upstream: 'source', mediaType: 'application/pdf' },
-  markdown: { upstream: 'markdown', mediaType: 'text/markdown; charset=utf-8' },
-  'parsed-document': { upstream: 'document', mediaType: 'application/json' },
-}
 /** Representation-pinned artifacts are immutable, and private to this researcher. */
 const IMMUTABLE = { 'Cache-Control': 'private, max-age=31536000, immutable' }
-const MIRRORED = ['content-length', 'content-range', 'accept-ranges'] as const
+type ArtifactReader = (
+  descriptor: CanonicalPackageDescriptor,
+  artifact: CanonicalArtifact,
+) => Promise<CanonicalArtifactRead>
 
 function artifactUnavailable(cause: unknown): ApiError {
   return new ApiError(
@@ -43,57 +69,50 @@ function artifactUnavailable(cause: unknown): ApiError {
   )
 }
 
-// Unknown keys are dropped, not rejected: the canonical parsed document carries
-// far more than the browser may read.
-const storedParsedDocumentSchema = z.object({
-  schema_version: z.string(),
-  document: z.object({ page_count: z.number().int() }),
-  pages: z.array(z.object({ page: z.number().int(), text: z.string() })),
-})
-
-/** Only content crosses into the browser: no refs, hashes, or parser diagnostics. */
-function parsedDocumentResource(
-  document: unknown,
-): z.output<typeof parsedDocumentResourceSchema> {
-  const stored = storedParsedDocumentSchema.safeParse(document)
-  if (!stored.success) throw artifactUnavailable(stored.error)
-  return {
-    schemaVersion: stored.data.schema_version,
-    pageCount: stored.data.document.page_count,
-    pages: stored.data.pages,
+function decodedSource(bytes: Uint8Array) {
+  try {
+    return decodeParsedDocument(
+      JSON.parse(new TextDecoder().decode(bytes)) as unknown,
+    )
+  } catch (cause) {
+    throw artifactUnavailable(cause)
   }
+}
+
+function pdfRange(
+  value: string,
+  total: number,
+): { start: number; endExclusive: number } | false {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(value)
+  if (!match || (!match[1] && !match[2])) return false
+  if (match[1]) {
+    const start = Number(match[1])
+    const requestedEnd = match[2] ? Number(match[2]) : total - 1
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(requestedEnd) ||
+      start >= total ||
+      requestedEnd < start
+    )
+      return false
+    return { start, endExclusive: Math.min(requestedEnd + 1, total) }
+  }
+  const suffix = Number(match[2])
+  if (!Number.isSafeInteger(suffix) || suffix <= 0 || total === 0) return false
+  return { start: Math.max(total - suffix, 0), endExclusive: total }
 }
 
 export function createSourceRepresentationResource(
   store: Pick<ProjectStore, 'getSourceRepresentation'> = createProjectStore(),
-  fetchArtifact: typeof fetch = fetch,
+  readArtifact: ArtifactReader = canonicalPackageStore.read,
 ) {
-  async function upstream(
-    descriptor: SourceRepresentationArtifacts,
-    artifact: string,
-    request: Request,
-  ): Promise<Response> {
-    const headers = new Headers()
-    if (artifact === 'pdf' && !request.headers.has('if-range')) {
-      const range = request.headers.get('range')
-      if (range !== null) headers.set('range', range)
-    }
-    const response = await fetchArtifact(
-      `${PARSING_SERVICE}/tasks/${descriptor.artifactReference}/${ARTIFACTS[artifact].upstream}`,
-      {
-        // The projection needs the body, so a parsed-document HEAD still reads it.
-        method:
-          request.method === 'HEAD' && artifact !== 'parsed-document'
-            ? 'HEAD'
-            : 'GET',
-        headers,
-      },
-    ).catch((cause: unknown) => {
+  async function retained(
+    descriptor: CanonicalPackageDescriptor,
+    artifact: CanonicalArtifact,
+  ) {
+    return readArtifact(descriptor, artifact).catch((cause: unknown) => {
       throw artifactUnavailable(cause)
     })
-    if (!response.ok && response.status !== 206 && response.status !== 416)
-      throw artifactUnavailable(response.status)
-    return response
   }
 
   return async function sourceRepresentationResource(
@@ -122,34 +141,50 @@ export function createSourceRepresentationResource(
           'That Source Representation was not found.',
         )
 
+      const kind = artifact as CanonicalArtifact
+      const retainedArtifact = await retained(descriptor, kind)
+      const requested =
+        kind === 'pdf' && !request.headers.has('if-range')
+          ? request.headers.get('range')
+          : null
+      const range = requested
+        ? pdfRange(requested, retainedArtifact.bytes.byteLength)
+        : null
+      if (range === false)
+        return new Response(null, {
+          status: 416,
+          headers: {
+            ...IMMUTABLE,
+            'Accept-Ranges': 'bytes',
+            'Content-Range': `bytes */${retainedArtifact.bytes.byteLength}`,
+          },
+        })
+
       const headers = new Headers(IMMUTABLE)
-
-      const response = await upstream(descriptor, artifact, request)
-      headers.set('Content-Type', ARTIFACTS[artifact].mediaType)
-      for (const name of MIRRORED) {
-        const value = response.headers.get(name)
-        if (value !== null) headers.set(name, value)
-      }
-      // The unsatisfiable-range body is an upstream error page, so it is dropped
-      // and must not be announced. `Content-Range` still carries the full length.
-      if (response.status === 416) headers.delete('Content-Length')
-
-      if (artifact === 'parsed-document') {
-        const body = JSON.stringify(
-          parsedDocumentResource(
-            await response.json().catch((cause: unknown) => {
-              throw artifactUnavailable(cause)
-            }),
-          ),
+      headers.set('Content-Type', retainedArtifact.mediaType)
+      if (kind === 'pdf') headers.set('Accept-Ranges', 'bytes')
+      const selectedSize = range
+        ? range.endExclusive - range.start
+        : retainedArtifact.bytes.byteLength
+      headers.set('Content-Length', String(selectedSize))
+      if (range)
+        headers.set(
+          'Content-Range',
+          `bytes ${range.start}-${range.endExclusive - 1}/${retainedArtifact.bytes.byteLength}`,
         )
+
+      if (kind === 'source') {
+        const body = JSON.stringify(decodedSource(retainedArtifact.bytes))
         headers.set('Content-Length', String(Buffer.byteLength(body)))
         return new Response(request.method === 'HEAD' ? null : body, { headers })
       }
+      if (request.method === 'HEAD') return new Response(null, { headers })
+      const bytes = range
+        ? retainedArtifact.bytes.slice(range.start, range.endExclusive)
+        : retainedArtifact.bytes
       return new Response(
-        request.method === 'HEAD' || response.status === 416
-          ? null
-          : response.body,
-        { status: response.status, headers },
+        Uint8Array.from(bytes),
+        { status: range ? 206 : 200, headers },
       )
     } catch (error) {
       return noStoreError(error)
@@ -159,3 +194,148 @@ export function createSourceRepresentationResource(
 
 export const GET = createSourceRepresentationResource()
 export const HEAD = GET
+
+export function createPersistReviewedExtraction(
+  store: Pick<
+    ProjectStore,
+    'getSourceRepresentation' | 'persistReviewedExtraction'
+  > = createProjectStore(),
+  readArtifact: ArtifactReader = canonicalPackageStore.read,
+) {
+  return async function persistReviewedExtraction(
+    request: Request,
+  ): Promise<Response> {
+    try {
+      const match = REVIEW_ROUTE.exec(new URL(request.url).pathname)
+      if (!match) throw new ApiError(404, 'not_found', 'API route not found.')
+      const sourceRepresentationId = match[1]
+      if (!canonicalUuidSchema.safeParse(sourceRepresentationId).success)
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'sourceRepresentationId must be a canonical lowercase UUID.',
+        )
+      const parsedInput = reviewedExtractionSchema.safeParse(
+        await parseJsonRequest(request),
+      )
+      if (!parsedInput.success)
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'The reviewed Extraction payload is invalid.',
+        )
+      const input = parsedInput.data
+      if (!evidenceLinksHaveUniqueScalarPaths(input.result, input.evidenceLinks))
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'Every Evidence link requires one unique populated scalar result path.',
+        )
+      const referencedAnchors = new Set(
+        input.evidenceLinks.map((link) => link.evidenceAnchorId),
+      )
+      if (
+        new Set(input.reviewDecisions.map((decision) => decision.evidenceAnchorId))
+          .size !== input.reviewDecisions.length
+      )
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'Each Evidence anchor can have only one ReviewDecision.',
+        )
+
+      const descriptor = await store
+        .getSourceRepresentation(sourceRepresentationId)
+        .catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
+      if (!descriptor)
+        throw new ApiError(
+          404,
+          'not_found',
+          'That Source Representation was not found.',
+        )
+      const source = await readArtifact(descriptor, 'source').catch(
+        (cause: unknown) => {
+          throw artifactUnavailable(cause)
+        },
+      )
+      const document = decodedSource(source.bytes)
+      const ownership = new Map(
+        document.evidence_index.anchors.map((anchor) => [
+          anchor.anchor_id,
+          new Set(
+            anchor.kind === 'text'
+              ? [anchor.occurrence_id]
+              : anchor.producer_observations.map(
+                  (observation) => observation.occurrence_id,
+                ),
+          ),
+        ]),
+      )
+      if ([...referencedAnchors].some((anchorId) => !ownership.has(anchorId)))
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'The Extraction Result cites Evidence this Source Representation did not publish.',
+        )
+      for (const decision of input.reviewDecisions) {
+        if (!referencedAnchors.has(decision.evidenceAnchorId))
+          throw new ApiError(
+            422,
+            'invalid_request',
+            'A ReviewDecision Evidence anchor is not referenced by the Extraction Result.',
+          )
+        const owned = ownership.get(decision.evidenceAnchorId)
+        if (
+          !owned ||
+          decision.reviewedOccurrenceIds.some(
+            (occurrenceId) => !owned.has(occurrenceId),
+          )
+        )
+          throw new ApiError(
+            422,
+            'invalid_request',
+            'A reviewed occurrence does not belong to its Evidence anchor.',
+          )
+      }
+      if (input.reviewDecisions.length !== referencedAnchors.size)
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'Every published Evidence anchor the Extraction Result cites requires one ReviewDecision.',
+        )
+
+      const persisted = await store
+        .persistReviewedExtraction(sourceRepresentationId, {
+          schemaRevisionId: input.schemaRevisionId,
+          resultPayload: {
+            result: input.result,
+            evidenceLinks: input.evidenceLinks,
+          },
+          modelAttribution: input.modelAttribution,
+          reviewDecisions: input.reviewDecisions,
+        })
+        .catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
+      if (!persisted)
+        throw new ApiError(
+          409,
+          'invalid_request',
+          'That Schema Revision does not belong to this Source Representation’s Project Context.',
+        )
+      return json(
+        {
+          extractionId: persisted.extractionId,
+          createdAt: persisted.createdAt.toISOString(),
+        },
+        { status: 201, headers: noStore },
+      )
+    } catch (error) {
+      return noStoreError(error)
+    }
+  }
+}
+
+export const POST = createPersistReviewedExtraction()

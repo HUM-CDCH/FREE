@@ -5,8 +5,10 @@ import type { ExtractionController } from './useExtraction'
 import {
   decodeExtractDone,
   decodeSchemaDone,
-  parseDocumentToMarkdown,
+  fetchParsedDocument,
+  parseDocument,
   requestExtraction,
+  requestGrounding,
   requestSchema,
 } from './api'
 
@@ -19,12 +21,44 @@ function jsonResponse(body: unknown): Response {
 
 afterEach(() => vi.unstubAllGlobals())
 
+function minimalParsedDocument() {
+  return {
+    schema_version: 'parsed_document.v2',
+    document: {
+      document_id: 'document-a', content_sha256: 'a'.repeat(64),
+      source: { kind: 'upload', original_filename: 'source.pdf', media_type: 'application/pdf', byte_size: null },
+      created_at: 'now', page_count: 1, language_hints: [], is_encrypted: false,
+      input_profile: { file_kind: 'pdf', detected_mime: 'application/pdf', pdf_version: null, has_text_layer: true, has_images: false },
+    },
+    preprocessing: { preprocess_id: 'test', profile: 'production_default', service_version: null, started_at: null, finished_at: null, status: 'completed', warnings: [] },
+    page_count: 1, page_mapping_verified: true,
+    artifacts: { source_ref: 'source.pdf', parsed_json_ref: 'parsed_document.json', markdown_ref: 'artifacts/document.llm.md' },
+    parser_runs: [], arbitration: null, diagnostics: [],
+    pages: [{ page_number: 1, width_pt: 100, height_pt: 100, rotation: 0, ordered_content: [], unplaced_content: [], markdown_span: null }],
+    content_stream: [], tables: [], evidence_index: { anchors: [] },
+  }
+}
+
 function readyController(): ExtractionController {
   return {
-    state: { status: 'ready', result: { title: 'Report' }, evidence: null },
+    state: {
+      status: 'ready',
+      result: { title: 'Report' },
+      evidenceLinks: [],
+      groundingIssues: [],
+    },
     canRun: true,
     hasResults: true,
     runExtraction: async () => {},
+    retryGrounding: async () => {},
+    review: {
+      available: false,
+      canAccept: false,
+      saving: false,
+      reviewedExtractionId: null,
+      error: null,
+      accept: async () => {},
+    },
   }
 }
 
@@ -35,7 +69,7 @@ describe('requestExtraction', () => {
       'fetch',
       vi.fn().mockImplementation((_url: string, init: RequestInit) => {
         submittedTemplate = init.body instanceof FormData ? init.body.get('template') : null
-        return Promise.resolve(jsonResponse({ result: {}, evidence: null, reasoning: null, raw: '', pages: null }))
+        return Promise.resolve(jsonResponse({ result: {}, reasoning: null, raw: '', pages: null }))
       }),
     )
 
@@ -61,6 +95,50 @@ describe('requestExtraction', () => {
   })
 })
 
+describe('requestGrounding', () => {
+  it('posts the grounding protocol to the buffered provider-neutral route', async () => {
+    let submittedUrl = ''
+    const submittedForms: FormData[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init: RequestInit) => {
+        submittedUrl = url
+        if (init.body instanceof FormData) submittedForms.push(init.body)
+        return Promise.resolve(
+          jsonResponse({
+            result: { links: { C1: 'E2' } },
+            reasoning: null,
+            raw: '{"links":{"C1":"E2"}}',
+            pages: null,
+            modelAttribution: { provider: 'fixture', modelId: 'grounder' },
+          }),
+        )
+      }),
+    )
+
+    const done = await requestGrounding({
+      documentMarkdown: '[E2] Ellekilde',
+      template: { links: { C1: 'verbatim-string' } },
+      instruction: '[C1] $.site = "Ellekilde"',
+    })
+    const form = submittedForms[0]
+
+    expect(submittedUrl).toBe('/api/extract')
+    expect(form.get('document_markdown')).toBe('[E2] Ellekilde')
+    expect(form.get('template')).toBe(
+      '{"links":{"C1":"verbatim-string"}}',
+    )
+    expect(form.get('instruction')).toBe(
+      '[C1] $.site = "Ellekilde"',
+    )
+    expect(form.has('file')).toBe(false)
+    expect(done).toEqual({
+      result: { links: { C1: 'E2' } },
+      modelAttribution: { provider: 'fixture', modelId: 'grounder' },
+    })
+  })
+})
+
 describe('requestSchema', () => {
   it('calls the schema generation endpoint', async () => {
     let submittedUrl = ''
@@ -78,8 +156,23 @@ describe('requestSchema', () => {
   })
 })
 
-describe('parseDocumentToMarkdown', () => {
-  it('starts a job, polls until completed, and returns the markdown', async () => {
+describe('fetchParsedDocument', () => {
+  it('decodes the strict v2 document route', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(minimalParsedDocument())))
+    const document = await fetchParsedDocument('task-1')
+    expect(document.page_count).toBe(1)
+  })
+
+  it('rejects alternate or unknown document fields', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      schema_version: 'parsed_document.v2', future_field: 'not allowed',
+    })))
+    await expect(fetchParsedDocument('task-1')).rejects.toThrow()
+  })
+})
+
+describe('parseDocument', () => {
+  it('starts a job, polls until completed, and returns the markdown and document', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string) => {
@@ -92,11 +185,16 @@ describe('parseDocumentToMarkdown', () => {
         if (url.endsWith('/tasks/abc/markdown')) {
           return Promise.resolve(new Response('# Doc', { status: 200 }))
         }
+        if (url.endsWith('/tasks/abc/document')) {
+          return Promise.resolve(jsonResponse(minimalParsedDocument()))
+        }
         return Promise.reject(new Error(`unexpected ${url}`))
       }),
     )
 
-    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).resolves.toBe('# Doc')
+    const parsed = await parseDocument(new Blob(['pdf']), 'report.pdf')
+    expect(parsed.markdown).toBe('# Doc')
+    expect(parsed.document.page_count).toBe(1)
   })
 
   it('throws the job error when parsing fails', async () => {
@@ -113,14 +211,14 @@ describe('parseDocumentToMarkdown', () => {
       }),
     )
 
-    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).rejects.toThrow('boom')
+    await expect(parseDocument(new Blob(['pdf']), 'report.pdf')).rejects.toThrow('boom')
   })
 })
 
 describe('decoders', () => {
   it('fail loud when response contracts drift', () => {
     expect(() => decodeExtractDone({ raw: '{}' })).toThrow("extract: response missing 'result'")
-    expect(() => decodeExtractDone({ result: {}, raw: '{}' })).toThrow("extract: response missing 'evidence'")
+    expect(decodeExtractDone({ result: {}, raw: '{}' }).result).toEqual({})
     expect(() => decodeSchemaDone({ raw: '{}' })).toThrow("generate_schema: response missing 'template'")
   })
 })

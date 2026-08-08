@@ -1,0 +1,33 @@
+{
+  "schema_version": "parsed_document.v2",
+  "document": {
+    "document_id": "document_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source": {"kind": "upload", "original_filename": "bundled.pdf", "media_type": "application/pdf", "byte_size": null},
+    "created_at": "2026-01-01T00:00:00Z",
+    "page_count": 6,
+    "language_hints": [],
+    "is_encrypted": false,
+    "input_profile": {"file_kind": "pdf", "detected_mime": "application/pdf", "pdf_version": null, "has_text_layer": true, "has_images": true}
+  },
+  "preprocessing": {"preprocess_id": "bundled-fixture", "profile": "production_default", "service_version": "fixture", "started_at": null, "finished_at": null, "status": "completed", "warnings": []},
+  "page_count": 6,
+  "page_mapping_verified": true,
+  "artifacts": {"source_ref": "source.pdf", "parsed_json_ref": "parsed_document.json", "markdown_ref": "artifacts/document.llm.md"},
+  "parser_runs": [],
+  "arbitration": null,
+  "diagnostics": [],
+  "pages": [
+    {"page_number": 1, "width_pt": 612, "height_pt": 792, "rotation": 0, "ordered_content": ["bundled-title"], "unplaced_content": [], "markdown_span": {"start": 21, "end": 27}},
+    {"page_number": 2, "width_pt": 612, "height_pt": 792, "rotation": 0, "ordered_content": [], "unplaced_content": [], "markdown_span": null},
+    {"page_number": 3, "width_pt": 612, "height_pt": 792, "rotation": 0, "ordered_content": [], "unplaced_content": [], "markdown_span": null},
+    {"page_number": 4, "width_pt": 612, "height_pt": 792, "rotation": 0, "ordered_content": [], "unplaced_content": [], "markdown_span": null},
+    {"page_number": 5, "width_pt": 612, "height_pt": 792, "rotation": 0, "ordered_content": [], "unplaced_content": [], "markdown_span": null},
+    {"page_number": 6, "width_pt": 612, "height_pt": 792, "rotation": 0, "ordered_content": [], "unplaced_content": [], "markdown_span": null}
+  ],
+  "content_stream": [
+    {"kind": "paragraph", "block_id": "bundled-title", "page_number": 1, "parser": "bundled-fixture", "bbox": {"x0": 36, "y0": 36, "x1": 100, "y1": 54}, "markdown_span": {"start": 21, "end": 27}, "text": "Grav 8"}
+  ],
+  "tables": [],
+  "evidence_index": {"anchors": [{"kind": "text", "anchor_id": "bundled-anchor", "occurrence_id": "bundled-occurrence", "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "preprocess_id": "bundled-fixture", "block_id": "bundled-title", "page_number": 1, "markdown_span": {"start": 21, "end": 27}, "bbox": {"x0": 36, "y0": 36, "x1": 100, "y1": 54}}]}
+}

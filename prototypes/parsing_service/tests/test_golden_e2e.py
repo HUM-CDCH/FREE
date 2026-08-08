@@ -59,7 +59,7 @@ def _table_matrix(table: dict) -> list[list[str]]:
     cols = _integer(table["cols"])
     matrix = [[""] * cols for _ in range(rows)]
     for cell in table["cells"]:
-        matrix[_integer(cell["row"])][_integer(cell["col"])] = str(cell["text"])
+        matrix[_integer(cell["row"])][_integer(cell["column"])] = str(cell["text"])
     return matrix
 
 
@@ -68,11 +68,14 @@ def normalize(parsed: dict) -> dict:
     summaries: list[dict] = []
     for table in parsed["tables"]:
         matrix = _table_matrix(table)
+        spans = table.get("spans", [])
+        page_numbers = [span["page_number"] for span in spans]
+        attribution = table.get("parser_attribution", {})
+        content_parser = attribution.get("content_parser", {}).get("parser")
         summaries.append(
             {
-                "table_id": table["table_id"],
-                "page_number": table["page_number"],
-                "source_parser": table["source_parser"],
+                "page_numbers": page_numbers,
+                "content_parser": content_parser,
                 "rows": table["rows"],
                 "cols": table["cols"],
                 "header_rows": sorted(
@@ -133,7 +136,7 @@ def _assert_cell_coverage(
     cell: dict,
     occupied: dict[tuple[int, int], tuple[int, int]],
 ) -> None:
-    row, col = _integer(cell["row"]), _integer(cell["col"])
+    row, col = _integer(cell["row"]), _integer(cell["column"])
     for covered_row in range(row, row + _integer(cell.get("rowspan", 1))):
         for covered_col in range(col, col + _integer(cell.get("colspan", 1))):
             position = (covered_row, covered_col)
@@ -152,12 +155,13 @@ def _assert_table_cells(
 ) -> list[str]:
     occupied: dict[tuple[int, int], tuple[int, int]] = {}
     texts: list[str] = []
+    table_label = table.get("table_id", table.get("logical_table_id", "table"))
     for cell in table["cells"]:
         texts.append(str(cell["text"]).strip())
         cell_bbox = cell.get("bbox")
         if cell_bbox is not None:
             _assert_bbox_inside_page(test, cell_bbox, page)
-        _assert_cell_coverage(test, table["table_id"], cell, occupied)
+        _assert_cell_coverage(test, table_label, cell, occupied)
     return texts
 
 
@@ -167,26 +171,30 @@ def _assert_unique_table(
     texts: list[str],
     fingerprints: dict[tuple[int, tuple[str, ...]], list[dict | None]],
 ) -> None:
-    fingerprint = (_integer(table["page_number"]), tuple(texts))
+    page_number = table.get("page_number")
+    if page_number is None:
+        page_number = table.get("spans", [{}])[0].get("page_number")
+    fingerprint = (_integer(page_number), tuple(texts))
     table_bbox = table.get("bbox")
     for prior_bbox in fingerprints.get(fingerprint, []):
         test.assertLess(
             _bbox_overlap_ratio(prior_bbox, table_bbox),
             0.8,
-            f"overlapping duplicate table content: {table['table_id']}",
+            f"overlapping duplicate table content: {table.get('table_id', table.get('logical_table_id', 'table'))}",
         )
     fingerprints.setdefault(fingerprint, []).append(table_bbox)
 
 
 def _assert_table_markdown(test: unittest.TestCase, table: dict) -> None:
-    markdown_lines = (table.get("markdown_view") or "").splitlines()
-    test.assertGreaterEqual(len(markdown_lines), 2, table["table_id"])
+    markdown = table.get("markdown_view")
+    if markdown is None:
+        return
+    markdown_lines = markdown.splitlines()
+    table_label = table.get("table_id", table.get("logical_table_id", "table"))
+    test.assertGreaterEqual(len(markdown_lines), 2, table_label)
     test.assertTrue(
-        all(
-            part.strip() == "---"
-            for part in markdown_lines[1].strip("| ").split("|")
-        ),
-        table["table_id"],
+        all(part.strip() == "---" for part in markdown_lines[1].strip("| ").split("|")),
+        table.get("table_id", table.get("logical_table_id", "table")),
     )
 
 
@@ -202,34 +210,98 @@ def _assert_table_invariants(
 
     texts = _assert_table_cells(test, table, page)
     joined = "\n".join(texts)
+    table_label = table.get("table_id", table.get("logical_table_id", "table"))
     for phrase in _FORBIDDEN_TABLE_PROSE:
-        test.assertNotIn(phrase, joined, table["table_id"])
+        test.assertNotIn(phrase, joined, table_label)
     _assert_unique_table(test, table, texts, fingerprints)
     _assert_table_markdown(test, table)
 
 
 def assert_semantic_invariants(test: unittest.TestCase, parsed: dict) -> None:
-    pages = {_integer(page["page"]): page for page in parsed["pages"]}
+    pages = {_integer(page["page_number"]): page for page in parsed["pages"]}
     fingerprints: dict[tuple[int, tuple[str, ...]], list[dict | None]] = {}
+    anchors = {
+        anchor["anchor_id"]: anchor
+        for anchor in parsed.get("evidence_index", {}).get("anchors", [])
+    }
     test.assertTrue(parsed["tables"], "canonical tables must not silently disappear")
+    multi_page_tables = []
     for table in parsed["tables"]:
-        page = pages[_integer(table["page_number"])]
-        _assert_table_invariants(test, table, page, fingerprints)
+        spans = table.get("spans", [])
+        page_numbers = [span["page_number"] for span in spans]
+        test.assertTrue(
+            page_numbers, table["table_id"]
+        )
+        _assert_table_invariants(
+            test, table, pages[_integer(page_numbers[0])], fingerprints
+        )
+        if not anchors:
+            continue
+        if len(set(page_numbers)) > 1:
+            multi_page_tables.append(table)
+        span_by_page = {span["page_number"]: span for span in spans}
+        for cell in table["cells"]:
+            anchor_id = cell.get("evidence_anchor_id")
+            anchor = anchors.get(anchor_id)
+            if not isinstance(anchor, dict):
+                raise AssertionError(
+                    f"missing Evidence anchor for {table.get('table_id')}/{cell.get('cell_id')}"
+                )
+            test.assertEqual(anchor["kind"], "table_cell")
+            test.assertEqual(anchor["logical_table_id"], table["table_id"])
+            test.assertEqual(anchor["cell_id"], cell["cell_id"])
+            test.assertEqual(anchor["canonical_row"], cell["row"])
+            test.assertEqual(anchor["canonical_column"], cell["column"])
+            observations = anchor["producer_observations"]
+            if not isinstance(observations, list) or not observations:
+                raise AssertionError(
+                    "table Evidence must retain producer occurrences per cell"
+                )
+            for observation in observations:
+                test.assertIsInstance(observation.get("occurrence_id"), str)
+                test.assertIn(observation["page_number"], span_by_page)
+    if not anchors:
+        return
+    reviewed = [
+        table
+        for table in multi_page_tables
+        if {span["page_number"] for span in table.get("spans", [])} == {4, 5}
+    ]
+    test.assertEqual(
+        len(reviewed), 1, "reviewed 6→7 continuation must be one logical table"
+    )
+    test.assertEqual(reviewed[0]["continuation"], "derived_continuation")
+    reviewed_anchor_pages = {
+        observation["page_number"]
+        for cell in reviewed[0]["cells"]
+        for observation in anchors[cell["evidence_anchor_id"]][
+            "producer_observations"
+        ]
+    }
+    test.assertEqual(reviewed_anchor_pages, {4, 5})
+    test.assertEqual(
+        len(reviewed[0]["cells"]),
+        sum(
+            1
+            for anchor in anchors.values()
+            if anchor.get("logical_table_id") == reviewed[0]["table_id"]
+        ),
+    )
 
 
 class TestSemanticInvariants(unittest.TestCase):
     @staticmethod
     def _document_with_repeated_tables(bboxes: list[dict]) -> dict:
         return {
-            "pages": [{"page": 1, "width_pt": 200, "height_pt": 200}],
+            "pages": [{"page_number": 1, "width_pt": 200, "height_pt": 200}],
             "tables": [
                 {
                     "table_id": f"p01_t{index:02d}",
-                    "page_number": 1,
                     "bbox": bbox,
+                    "spans": [{"page_number": 1}],
                     "cells": [
-                        {"row": 0, "col": 0, "text": "Name"},
-                        {"row": 0, "col": 1, "text": "Value"},
+                        {"row": 0, "column": 0, "text": "Name"},
+                        {"row": 0, "column": 1, "text": "Value"},
                     ],
                     "markdown_view": "| Name | Value |\n| --- | --- |",
                 }
@@ -286,9 +358,13 @@ class TestGoldenE2E(unittest.TestCase):
         status = self.client.get(f"/tasks/{task_id}").json()
         self.assertEqual(status["status"], "completed", status)
 
-        parsed_response = self.client.get(f"/tasks/{task_id}/parsed-document")
+        parsed_response = self.client.get(f"/tasks/{task_id}/source")
         self.assertEqual(parsed_response.status_code, 200, parsed_response.text)
         parsed = parsed_response.json()
+        self.assertEqual(
+            parsed,
+            self.client.get(f"/tasks/{task_id}/document").json(),
+        )
         assert_semantic_invariants(self, parsed)
 
         golden = _load_golden()
@@ -296,7 +372,7 @@ class TestGoldenE2E(unittest.TestCase):
 
         markdown = self.client.get(f"/tasks/{task_id}/markdown")
         self.assertEqual(markdown.status_code, 200)
-        self.assertEqual(markdown.text, parsed["text_views"]["llm_markdown"])
+        self.assertTrue(markdown.text.strip(), "canonical Markdown must not be empty")
 
 
 if __name__ == "__main__":

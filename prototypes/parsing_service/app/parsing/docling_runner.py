@@ -44,6 +44,9 @@ class DoclingRunnerOutput:
     page_mapping_verified: bool = False
     physical_page_export_complete: bool = False
     table_inventory: tuple[dict[str, Any], ...] = ()
+    # Raw producer records are retained only for the reviewed continuation gate.
+    producer_records: tuple[dict[str, Any], ...] = ()
+    canonical_doctags: str = ""
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
 
@@ -79,7 +82,10 @@ def _convert_document(source_pdf: Path) -> Any:
     converter_cls = module.DocumentConverter  # type: ignore[attr-defined]
     converter = converter_cls()
     result = converter.convert(str(source_pdf))
-    return result.document
+    try:
+        return result.document
+    finally:
+        result.input._backend.unload()
 
 
 def _convert_doctags(raw_doctags: str) -> Any:
@@ -341,6 +347,12 @@ def run_docling_ingestion(
         page_mapping_verified=simplified.page_mapping_verified,
         physical_page_export_complete=streams.physical_page_export_complete,
         table_inventory=inventory,
+        producer_records=tuple(
+            item["producer_record"]
+            for item in inventory
+            if isinstance(item.get("producer_record"), dict)
+        ),
+        canonical_doctags=streams.canonical,
         warnings=warnings,
         error=None if status == "success" else "canonical_doctags_unavailable",
     )

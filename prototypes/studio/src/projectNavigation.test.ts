@@ -69,7 +69,7 @@ const snapshotOf = (documentId: string) =>
       resources: {
         sourcePdfUrl: `/api/source-representations/${documentId}/pdf`,
         markdownUrl: `/api/source-representations/${documentId}/markdown`,
-        parsedDocumentUrl: `/api/source-representations/${documentId}/parsed-document`,
+        parsedDocumentUrl: `/api/source-representations/${documentId}/source`,
       },
     },
     annotationSet: null,

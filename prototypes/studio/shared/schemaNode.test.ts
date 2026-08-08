@@ -4,6 +4,7 @@ import {
   duplicateFieldKeys,
   enumerateFieldPaths,
   nodesToTemplate,
+  parseSchemaNodes,
   templateToNodes,
   type SchemaNode,
 } from './schemaNode'
@@ -60,5 +61,40 @@ describe('SchemaNode conversion', () => {
     ]
 
     expect(() => nodesToTemplate(duplicate)).toThrow('Duplicate field name: same')
+  })
+
+  it('validates recursive ordered nodes without changing sibling order', () => {
+    const stored = [
+      { id: 'z', name: 'zeta', type: 'string' },
+      {
+        id: 'g',
+        name: 'group',
+        type: 'object',
+        children: [
+          { id: 'b', name: 'beta', type: 'number' },
+          { id: 'a', name: 'alpha', type: 'string' },
+        ],
+      },
+      { id: 'a2', name: 'alpha', type: 'boolean' },
+    ]
+
+    expect(parseSchemaNodes(stored)).toEqual(stored)
+    expect(Object.keys(nodesToTemplate(parseSchemaNodes(stored)))).toEqual([
+      'zeta',
+      'group',
+      'alpha',
+    ])
+    expect(
+      Object.keys(
+        nodesToTemplate(parseSchemaNodes(stored)).group as Record<
+          string,
+          unknown
+        >,
+      ),
+    ).toEqual(['beta', 'alpha'])
+  })
+
+  it('rejects an obsolete object-shaped stored schema', () => {
+    expect(() => parseSchemaNodes({ zeta: 'string' })).toThrow()
   })
 })

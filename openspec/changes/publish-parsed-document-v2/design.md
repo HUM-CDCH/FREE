@@ -2,175 +2,68 @@
 
 # Design: publish-parsed-document-v2
 
-## Context
+## Contract boundary
 
-`parsed_document.v1` has separate Markdown, page-local table, and Evidence views without a construction-level consistency guarantee. The previous v2 draft assumed that a real fixture would expose one Docling `TableItem` spanning pages. Inspection disproved that premise: the runner exports each physical page independently, and continuation-looking tables are separate page-local Docling/DocTags fragments. The closed hardening tasks 2.5 and 2.6 therefore cannot gate v2 on an impossible object.
+`app.models.parsed_document.ParsedDocument` resolves to the v2 model and is
+the only document type crossing the HTTP or package boundary. The model is
+strict: removed spellings (`page`, `blocks`, `canonical_col`, `char_span`),
+nested cell Evidence, URL-source fields, and unknown top-level fields are
+rejected. Existing task/cache records are unsupported; startup reconciliation
+accepts only the current upload-task shape and never migrates it.
 
-This correction freezes the v2 interface before implementation. It changes design artifacts and focused producer-shape tests only. No production parser, route, package, or Studio behavior changes.
+The public model contains document identity, PDF upload source metadata,
+preprocessing identity, page mapping, semantic content blocks, physical pages,
+logical tables, sanitized parser provenance, and typed diagnostics. Cache paths,
+raw artifacts, parser input/output refs, and storage digests belong only to the
+internal generation manifest.
 
-## Goals / Non-Goals
+## Parsing seam
 
-**Goals:**
+`build_canonical_generation(request) -> BuiltGeneration` is the single parsing
+interface. It returns the portable document, canonical UTF-8 Markdown bytes,
+and an internal manifest. The orchestrator sequences source inspection,
+Docling execution, page-level PaddleOCR fallback, semantic block conversion,
+table placement, Markdown/Evidence publication, and contract validation; each
+typed responsibility lives behind its focused module.
 
-- Freeze a PDF-specific typed content stream with verified physical pages.
-- Derive Markdown, table placement, logical tables, and anchors from one canonical representation.
-- Define conservative deterministic grouping of page-local table fragments.
-- Preserve fragment identity, repeated-header locations, merged-cell identity, optional page geometry, and stable ambiguity diagnostics.
-- Separate deterministic parser facts from model-proposed Evidence.
+Docling is authoritative for semantic table values, roles, structure, and
+proven spans. Camelot is restricted to exact normalized-content/structure
+matches that monotonically add missing geometry. If no Docling inventory
+exists, Camelot candidates are diagnostics only and are excluded from the
+canonical table collection.
 
-**Non-goals:**
+## Markdown and Evidence
 
-- Implementing v2 models, canonicalization, rendering, routes, packages, or Studio orchestration.
-- LLM-based table continuation.
-- Resolving character-versus-UTF-8-byte offsets, package quota policy, deterministic package metadata, or completed task-local v1 migration.
+The renderer emits a reserved physical-page marker for every page and records
+half-open byte spans from the exact UTF-8 output buffer. `RenderedMarkdown.slice`
+decodes a span from those bytes, so offsets cannot silently become Python
+character indices.
 
-## Decisions
+Text blocks receive one anchor with their page and byte span. Every canonical
+table cell receives one anchor containing derived logical row/column identity
+and an ordered collection of producer occurrences containing stable occurrence
+ID, physical page, producer ref, page-local row/column offsets, spans, and
+optional geometry. Text anchors own one occurrence ID. Cells contain no nested
+Evidence; page spans contain no anchor-ID lists.
 
-### 1. Page-local producer facts precede logical tables
+Continuation is a typed evaluator over reviewed producer facts. It requires
+page-local Docling records, matching OTSL matrices, a header-bearing first
+fragment, a body-only next fragment, and a page-break-only interstitial.
+Narrative, caption, new-header, malformed, adjacency-only, and textual-
+similarity-only cases remain separate. No capture-digest allowlist is used.
 
-A producer table observation is a page-local fragment. Each fragment has a deterministic generation-scoped `fragment_id`, physical `page_number`, optional matched DocTags `slot_id`, parser attribution, observed cells, and optional page-scoped geometry. Fragment identity never depends on a later continuation decision.
+## Publication and storage
 
-A logical table has one deterministic generation-scoped `table_id`, canonical logical root cells, and a non-empty `fragments` array whose array order is the canonical physical order. Every fragment root cell maps explicitly from its page-local `(row, col)` to one logical root `(logical_row, logical_col)`. Multiple fragment cells may map to one logical cell only when they are repeated physical observations, including observed repeated headers.
+The worker authenticates source bytes, validates cache reuse using the internal
+generation manifest, publishes an immutable generation atomically, and writes
+the canonical JSON plus Markdown. Public route serialization and package
+serialization use the same portable model dump. The deterministic four-entry
+ZIP contains `manifest.json`, `source.pdf`, `parsed_document.json`, and
+`artifacts/document.llm.md`; raw parser output and task metadata never enter it.
 
-### 2. Continuation is deterministic, conservative, and all-or-nothing
+## Studio
 
-FREE considers only fragments on consecutive physical pages. It joins a candidate pair only when all conditions hold:
-
-1. their matched DocTags slots are adjacent after ignoring only verified page furniture;
-2. each slot has exactly one page-local inventory match;
-3. normalized column count, column roles, merged-cell structure, and compatible widths/signatures agree;
-4. caption state is compatible and does not introduce a new independently captioned table;
-5. header state is compatible: a body-only continuation is accepted, or an observed repeated header uniquely maps to the existing logical header;
-6. no narrative block interrupts the two slots; and
-7. the predecessor and successor match is unique in both directions.
-
-There is no probabilistic tie-breaker and no LLM call. Definite incompatibility leaves separate page-local logical tables without a continuation-ambiguity diagnostic. Multiple plausible matches or repeated-header mappings emit stable typed `table_continuation_ambiguous` with the involved fragment IDs. Slot ambiguity is instead represented through that page's `unplaced_content` and its placement diagnostic; it cannot participate in continuation.
-
-### 3. Repeated headers add locations, not rows
-
-An observed repeated header is retained in its fragment and maps to existing logical header root cells. It adds physical cell occurrences and optional geometry but does not add logical rows. If that mapping is not unique or structurally compatible, continuation is rejected as ambiguous.
-
-A header generated by the Markdown renderer to make a continuation fragment readable is presentation metadata. It has no fragment-cell occurrence, geometry, source span, or Evidence location.
-
-### 4. Merged cells have one logical root
-
-A canonical merged cell is identified only by its root `(row, col)` plus `rowspan` and `colspan`. Covered positions are occupancy facts, not independent cells. They receive no fragment-cell mapping target, source location, or cell anchor. Every producer cell occurrence maps to the root coordinate.
-
-### 5. Freeze page geometry and physical occurrences
-
-Version 2 reuses the existing displayed-page geometry convention: each page has optional `width_pt`, `height_pt`, and `rotation`; `BoundingBox` uses `x0`, `y0`, `x1`, and `y1` in PDF points with a top-left origin in displayed page space. A fragment carries its page in `page_number`, and that fragment and its fragment-local root cells may have optional boxes valid on the page. Missing or unsafe geometry remains absent and is never copied between pages.
-
-A block anchor contains only `anchor_id` and `block_id`; its physical page and exact canonical `char_span` resolve from the referenced block rather than being duplicated in the anchor. The span's offset units remain gated, but the reference relationship is fixed. A table-cell anchor identifies the logical table and root coordinate. Its ordered `locations` contain only fragment-cell references `(fragment_id, row, col)`; page and optional geometry resolve through that fragment cell rather than being duplicated in the anchor. Logical identity remains valid without geometry. Anchor, block, table, and fragment IDs are deterministic only within `content_sha256 + preprocess_id`.
-
-### 6. Keep placement and rendering physical
-
-The ordered content stream contains typed text blocks, physical page boundaries, and table-reference blocks. A placed fragment has a table-reference block containing both `table_id` and `fragment_id`; thus one logical table can be referenced once per physical fragment. An unplaced fragment is referenced from its page's `unplaced_content`.
-
-Rendering walks physical pages and fragments. Each page begins with exactly:
-
-```text
-<!-- FREE:PAGE n -->
-```
-
-A continued logical table is rendered as page-local Markdown fragments at its ordered references. After a page's ordered blocks, every `UnplacedTableReference` is rendered in deterministic reference order under an explicitly labelled page-local unplaced-tables appendix. Inline and unplaced fragments are both rendered from the same logical cells and fragment mappings; the appendix preserves content without claiming a position among ordered blocks. An observed or renderer-generated header may make a fragment readable according to the repeated-header rules, but only producer observations create locations. This preserves valid Markdown and page order rather than placing a marker inside one synthetic cross-page Markdown table.
-
-The marker is reserved renderer metadata and lies outside source Evidence spans. If canonical source text contains a line that exactly matches the reserved marker grammar, ingestion fails with stable `reserved_page_marker_collision`; it never rewrites, escapes, or silently alters source text. `---` is ordinary Markdown and has no page semantics.
-
-### 7. Preserve one semantic authority
-
-Docling is semantic authority for content, structure, roles, and spans within each observed fragment. FREE's deterministic canonicalizer owns cross-fragment continuation and logical coordinate mapping. Camelot may fill only missing verified geometry after an exact fragment-semantic match, or provide an explicitly attributed fallback when Docling inventory is absent. Content, structure, and geometry attribution remain distinct.
-
-A DocTags slot links inline only through unique producer identity or exact normalized page-local matching. Mismatch or ambiguity never substitutes an unrelated table; the fragment remains page-local unplaced content and a stable typed diagnostic is published. Raw candidates and parser debug payloads remain internal.
-
-### 8. Parser anchors are canonical; model Evidence is proposed
-
-Canonical block IDs, fragment IDs, table IDs, logical root coordinates, physical occurrences, and ranges are deterministic parser facts. Extraction models may propose a page and verbatim snippet, but those proposals neither create nor modify canonical anchors.
-
-Focused NuExtract probes use Studio's exact hand-built structured prompt and `raw: true` request. They support two design inputs: explicit `<!-- FREE:PAGE n -->` markers enable page selection where plain separators do not, and stable block IDs distinguish repeated textual headings. A model-selected end block may be off by one, so Studio must deterministically validate or derive half-open ranges from canonical block order in a later change.
-
-### 9. Commit only internally consistent generations
-
-Later publication validation must reject generations unless every page/block/table/fragment/anchor reference resolves; fragment order is physical; every occurrence maps to a logical root; covered merged-cell positions have no anchors; repeated observed headers add only occurrences; every box is page-valid; table Markdown regenerates from canonical cells; and page/source spans match the chosen offset convention.
-
-### 10. Keep later-phase decisions deferred
-
-The character-versus-UTF-8-byte span convention and completed task-local v1 migration remain v2 implementation gates. Package scope, quota policy, and deterministic metadata belong to a separate future OpenSpec change. This correction does not choose among them.
-
-## Frozen table contract
-
-The v2 model SHALL use this field shape; implementation may add parser-attribution fields required elsewhere in this design but SHALL NOT change these identities or relationships:
-
-```text
-ParsedTable
-  table_id: string
-  cells: LogicalCell[]
-  fragments: TableFragment[]
-
-LogicalCell
-  row: integer
-  col: integer
-  text: string
-  role?: string
-  rowspan: integer
-  colspan: integer
-
-TableFragment
-  fragment_id: string
-  page_number: integer
-  slot_id?: string
-  bbox?: BoundingBox
-  cells: FragmentCell[]
-
-FragmentCell
-  row: integer
-  col: integer
-  logical_row: integer
-  logical_col: integer
-  bbox?: BoundingBox
-
-TableReferenceBlock
-  block_id: string
-  page_number: integer
-  table_id: string
-  fragment_id: string
-
-UnplacedTableReference
-  table_id: string
-  fragment_id: string
-
-BlockAnchor
-  anchor_id: string
-  block_id: string
-
-TableCellAnchor
-  anchor_id: string
-  table_id: string
-  row: integer
-  col: integer
-  locations: FragmentCellRef[]
-
-FragmentCellRef
-  fragment_id: string
-  row: integer
-  col: integer
-```
-
-Only logical root cells appear in `ParsedTable.cells`; only fragment-local root cells appear in `TableFragment.cells`. `ParsedTable.fragments` array order is authoritative. Each `BlockAnchor.block_id` resolves exactly one anchorable block, which supplies `page_number` and `char_span`. Each `FragmentCellRef` resolves exactly one `FragmentCell`, whose fragment supplies the physical page and whose optional `bbox` supplies geometry.
-
-## Risks / Trade-offs
-
-- Conservative detection will leave some real continuations separate; this is preferable to silently combining unrelated evidence.
-- Page-local Markdown repeats presentation structure, but keeps page markers and physical Evidence truthful.
-- Version-specific producer variation may change compatibility signals; `preprocess_id` scopes identities and fixtures pin admitted behavior.
-- Typed diagnostics enlarge the public contract but make uncertainty portable; raw parser payloads remain excluded.
-
-## Migration Plan
-
-1. Land this design correction, probe evidence, and focused DocTags continuation regression.
-2. Implement v2 models and deterministic continuation behind tests in a later change.
-3. Resolve the offset and completed-task migration gates before route migration.
-4. Design any portable package in a separate future OpenSpec change.
-
-## Open Questions
-
-None for the parsed-document.v2 table design gate. Offset semantics and completed-task migration remain v2 implementation gates; package decisions are deferred to a separate change.
+Studio decodes exactly the v2 Zod shape. Evidence navigation groups text and
+table-cell anchors by physical page, displays top-level diagnostics separately,
+and uses producer observations for table-page navigation. Extraction-result
+Evidence remains a separate concern.

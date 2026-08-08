@@ -44,10 +44,10 @@ describe('Studio API endpoints', () => {
   it('POST /api/extract returns the documented JSON shape', async () => {
     vi.mocked(extractWithModel).mockResolvedValue({
       result: { title: 'Report' },
-      evidence: { title: { value: 'Report', snippet: 'Report', page: 1 } },
       raw: '{"title":"Report"}',
       reasoning: null,
       pages: null,
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
     })
 
     const response = await extractPost(formRequest('extract'))
@@ -55,10 +55,10 @@ describe('Studio API endpoints', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       result: { title: 'Report' },
-      evidence: { title: { value: 'Report', snippet: 'Report', page: 1 } },
       raw: '{"title":"Report"}',
       reasoning: null,
       pages: null,
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
     })
   })
 

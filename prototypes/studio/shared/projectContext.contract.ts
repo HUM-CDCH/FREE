@@ -1,4 +1,10 @@
 import { z } from 'zod'
+import {
+  cleanExtractionResultSchema,
+  evidenceLinkSchema,
+  groundedModelAttributionSchema,
+} from './groundedExtraction'
+import { schemaNodesSchema } from './schemaNode'
 
 export const canonicalUuidSchema = z
   .string()
@@ -50,9 +56,16 @@ export const projectContextErrorResponseSchema = z
 
 const revisionNumber = z.number().int().positive()
 
+export const reviewDecisionSchema = z
+  .object({
+    reviewDecisionId: canonicalUuidSchema,
+    evidenceAnchorId: z.string().min(1),
+    reviewedOccurrenceIds: z.array(z.string().min(1)).default([]),
+  })
+  .strict()
 /**
  * Annotations project only what Studio needs to reopen. Geometry, offsets, and
- * anchor internals stay in the parsed-document resource.
+ * anchor internals stay in the source resource.
  */
 export const annotationSchema = z
   .object({
@@ -78,8 +91,10 @@ export const extractionSchema = z.discriminatedUnion('outcome', [
       extractionId: canonicalUuidSchema,
       createdAt: timestamp,
       outcome: z.literal('succeeded'),
-      result: z.json(),
-      evidence: z.json().nullable(),
+      result: cleanExtractionResultSchema,
+      evidenceLinks: z.array(evidenceLinkSchema),
+      modelAttribution: groundedModelAttributionSchema,
+      reviewDecisions: z.array(reviewDecisionSchema),
     })
     .strict(),
   z
@@ -121,22 +136,12 @@ export const documentReopenResponseSchema = z
     extractionSchema: z
       .object({
         extractionSchemaId: canonicalUuidSchema,
+        schemaRevisionId: canonicalUuidSchema,
         revisionNumber,
-        template: z.json(),
+        schemaNodes: schemaNodesSchema,
       })
       .strict()
       .nullable(),
     extraction: extractionSchema.nullable(),
-  })
-  .strict()
-
-/** The parsed document the browser may read: content only, no provenance. */
-export const parsedDocumentResourceSchema = z
-  .object({
-    schemaVersion: z.string(),
-    pageCount: revisionNumber,
-    pages: z.array(
-      z.object({ page: revisionNumber, text: z.string() }).strict(),
-    ),
   })
   .strict()
