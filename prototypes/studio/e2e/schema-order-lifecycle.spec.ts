@@ -6,7 +6,26 @@ const id = {
   project: '73000000-0000-4000-8000-000000000001',
   document: '73000000-0000-4000-8001-000000000001',
   representation: '73000000-0000-4000-8002-000000000001',
+  schema: '73000000-0000-4000-8003-000000000001',
 } as const
+
+const historicalNodes = [
+  { id: 'z', name: 'zeta', type: 'string' },
+  {
+    id: 'g',
+    name: 'group',
+    type: 'object',
+    children: [
+      { id: 'b', name: 'beta', type: 'number' },
+      { id: 'a', name: 'alpha', type: 'string' },
+    ],
+  },
+  { id: 'a2', name: 'alpha', type: 'boolean' },
+] as const
+
+const currentNodes = [
+  { id: 'current-title', name: 'document_title', type: 'string' },
+] as const
 
 const pdfPath = fileURLToPath(
   new URL('../../../examples/1790-06-17-1.pdf', import.meta.url),
@@ -106,37 +125,32 @@ test.beforeAll(async () => {
     parserName: 'fixture',
     parserVersion: '1',
   })
-  const extractionSchemaId = '73000000-0000-4000-8003-000000000001'
   await db.orm.public.ExtractionSchema.create({
-    id: extractionSchemaId,
+    id: id.schema,
     projectContextId: id.project,
     name: 'Deliberately non-alphabetical',
   })
   await db.orm.public.SchemaRevision.create({
     id: '73000000-0000-4000-8004-000000000001',
-    extractionSchemaId,
+    extractionSchemaId: id.schema,
     revisionNumber: 1,
     origin: 'RESEARCHER_EDIT',
-    schemaTree: [
-      { id: 'z', name: 'zeta', type: 'string' },
-      {
-        id: 'g',
-        name: 'group',
-        type: 'object',
-        children: [
-          { id: 'b', name: 'beta', type: 'number' },
-          { id: 'a', name: 'alpha', type: 'string' },
-        ],
-      },
-      { id: 'a2', name: 'alpha', type: 'boolean' },
-    ],
+    schemaTree: historicalNodes,
+  })
+  await db.orm.public.SchemaRevision.create({
+    id: '73000000-0000-4000-8004-000000000002',
+    extractionSchemaId: id.schema,
+    revisionNumber: 2,
+    origin: 'RESEARCHER_EDIT',
+    schemaTree: currentNodes,
   })
 })
 
-test('JSONB schema order survives reopen and reaches NuExtract @database', async ({
+test('restored JSONB schema order survives a fresh browser and reaches NuExtract @database', async ({
   browser,
   page,
 }) => {
+  test.setTimeout(60_000)
   test.skip(!process.env.SCHEMA_ORDER_E2E, 'Requires the disposable PostgreSQL stack.')
 
   const reopened = await page.request.get(
@@ -147,17 +161,38 @@ test('JSONB schema order survives reopen and reaches NuExtract @database', async
     extractionSchema: { schemaNodes: Array<{ name: string; children?: Array<{ name: string }> }> }
   }
   expect(durable.extractionSchema.schemaNodes.map(({ name }) => name)).toEqual([
-    'zeta',
-    'group',
-    'alpha',
+    'document_title',
   ])
-  expect(
-    durable.extractionSchema.schemaNodes[1].children?.map(({ name }) => name),
-  ).toEqual(['beta', 'alpha'])
 
   const templates: Record<string, unknown>[] = []
   await installModelAndArtifactRoutes(page, templates)
   await page.goto(`/projects/${id.project}/documents/${id.document}`)
+  await page.getByRole('tab', { name: /^Schema / }).click()
+  const history = page.getByRole('button', { name: 'Schema history' })
+  await expect(history).toBeEnabled({ timeout: 15_000 })
+  await history.click()
+  await page.getByRole('button', { name: /^Revision 1:/ }).click()
+
+  await expect.poll(async () => {
+    const response = await page.request.get(
+      `/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`,
+    )
+    const body = (await response.json()) as { revisions: Array<{ revisionNumber: number }> }
+    return body.revisions[0]?.revisionNumber
+  }).toBe(3)
+
+  const timeline = await page.request.get(
+    `/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`,
+  )
+  const latest = (await timeline.json()) as {
+    revisions: Array<{ schemaRevisionId: string; revisionNumber: number }>
+  }
+  const restored = await page.request.get(
+    `/api/schema-revisions/${latest.revisions[0].schemaRevisionId}?projectContextId=${id.project}&extractionSchemaId=${id.schema}`,
+  )
+  const restoredBody = (await restored.json()) as { revision: { schemaNodes: unknown } }
+  expect(restoredBody.revision.schemaNodes).toEqual(historicalNodes)
+
   const run = page.getByRole('button', { name: '▶ Run extraction' })
   await expect(run).toBeEnabled({ timeout: 15_000 })
   await run.click()
@@ -170,6 +205,11 @@ test('JSONB schema order survives reopen and reaches NuExtract @database', async
   const freshPage = await freshContext.newPage()
   await installModelAndArtifactRoutes(freshPage, templates)
   await freshPage.goto(`/projects/${id.project}/documents/${id.document}`)
+  await freshPage.getByRole('tab', { name: /^Schema / }).click()
+  const freshHistory = freshPage.getByRole('button', { name: 'Schema history' })
+  await expect(freshHistory).toBeEnabled({ timeout: 15_000 })
+  await freshHistory.click()
+  await expect(freshPage.getByText('Revision 3 · Current')).toBeVisible()
   const rerun = freshPage.getByRole('button', { name: '▶ Run extraction' })
   await expect(rerun).toBeEnabled({ timeout: 15_000 })
   await rerun.click()

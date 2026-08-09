@@ -50,6 +50,18 @@ describe('schema save coordinator', () => {
     expect(coordinator.state.acknowledged.revisionNumber).toBe(3)
   })
 
+  it('does not append when a restored tree already equals the acknowledged revision', async () => {
+    const initial = revision(1, 'site')
+    const save = vi.fn()
+    const coordinator = createSchemaSaveCoordinator(initial, save, 60_000)
+
+    coordinator.edit([...initial.schemaNodes])
+    await coordinator.flush()
+
+    expect(save).not.toHaveBeenCalled()
+    expect(coordinator.state).toMatchObject({ status: 'saved', acknowledged: initial })
+  })
+
   it('flushes immediately and blocks on a conflict until current is reloaded', async () => {
     const winning = revision(2, 'rival')
     const save = vi.fn(async () => { throw new SchemaRevisionConflictError(winning) })

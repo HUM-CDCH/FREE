@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
-import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
+import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import { nodesToTemplate, type SchemaNode } from '../shared/schemaNode'
 import SchemaPanel from './SchemaPanel'
 
@@ -35,6 +35,62 @@ function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes) {
     sourceDocumentName="test.pdf"
   />)
   return onNodesChange
+}
+
+const schemaHistory: SchemaRevisionSummary[] = [
+  {
+    schemaRevisionId: '51000000-0000-4000-8004-000000000002',
+    extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+    revisionNumber: 2,
+    origin: 'researcher-edit',
+    createdAt: '2026-08-01T12:01:00.000Z',
+    summary: '1 renamed',
+  },
+  {
+    schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+    extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+    revisionNumber: 1,
+    origin: 'suggestion',
+    createdAt: '2026-08-01T12:00:00.000Z',
+    summary: 'Initial schema',
+  },
+]
+
+const historicalNodes: SchemaNode[] = [
+  { id: 'stable-place', name: 'historical_place', type: 'string' },
+  { id: 'stable-year', name: 'historical_year', type: 'number' },
+]
+
+type HistoryPanelOptions = {
+  onNodesChange?: (nodes: SchemaNode[], message: string) => void
+  beforeSchemaEdit?: () => Promise<void>
+  loadRevision?: (schemaRevisionId: string) => Promise<SchemaRevision>
+  panelNodes?: SchemaNode[]
+  currentRevisionNumber?: number
+}
+
+function renderHistoryPanel({
+  onNodesChange = vi.fn(),
+  beforeSchemaEdit = vi.fn(async () => undefined),
+  loadRevision = vi.fn(async () => ({ ...schemaHistory[1], schemaNodes: historicalNodes })),
+  panelNodes = nodes,
+  currentRevisionNumber = 2,
+}: HistoryPanelOptions = {}) {
+  render(<SchemaPanel
+    state={{ status: 'ready', nodes: panelNodes, inputsKey: 'test' }}
+    stale={false}
+    onGenerate={vi.fn()}
+    onNodesChange={onNodesChange}
+    beforeSchemaEdit={beforeSchemaEdit}
+    annotationCount={0}
+    annotationsMode="hints"
+    onAnnotationsModeChange={vi.fn()}
+    documentMarkdown={null}
+    sourceDocumentName="test.pdf"
+    history={schemaHistory}
+    currentRevisionNumber={currentRevisionNumber}
+    loadRevision={loadRevision}
+  />)
 }
 
 async function send(response: SchemaEditResponse) {
@@ -68,59 +124,84 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(within(row).queryAllByText('string')).toHaveLength(0)
   })
 
-  it('previews an exact historical tree read-only and returns to current without mutation', async () => {
+  it('loads, flushes, and appends an exact historical tree in order', async () => {
     const onNodesChange = vi.fn()
-    const history: SchemaRevisionSummary[] = [
-      {
-        schemaRevisionId: '51000000-0000-4000-8004-000000000002',
-        extractionSchemaId: '51000000-0000-4000-8003-000000000001',
-        revisionNumber: 2,
-        origin: 'researcher-edit',
-        createdAt: '2026-08-01T12:01:00.000Z',
-        summary: '1 renamed',
-      },
-      {
-        schemaRevisionId: '51000000-0000-4000-8004-000000000001',
-        extractionSchemaId: '51000000-0000-4000-8003-000000000001',
-        revisionNumber: 1,
-        origin: 'suggestion',
-        createdAt: '2026-08-01T12:00:00.000Z',
-        summary: 'Initial schema',
-      },
-    ]
-    const historicalNodes: SchemaNode[] = [
-      { id: 'stable-place', name: 'historical_place', type: 'string' },
-      { id: 'stable-year', name: 'historical_year', type: 'number' },
-    ]
-    render(<SchemaPanel
-      state={{ status: 'ready', nodes, inputsKey: 'test' }}
-      stale={false}
-      onGenerate={vi.fn()}
-      onNodesChange={onNodesChange}
-      beforeSchemaEdit={vi.fn()}
-      annotationCount={0}
-      annotationsMode="hints"
-      onAnnotationsModeChange={vi.fn()}
-      documentMarkdown={null}
-      sourceDocumentName="test.pdf"
-      history={history}
-      currentRevisionNumber={2}
-      loadRevision={vi.fn(async () => ({ ...history[1], schemaNodes: historicalNodes }))}
-    />)
+    const order: string[] = []
+    const loadRevision = vi.fn(async () => {
+      order.push('load')
+      return { ...schemaHistory[1], schemaNodes: historicalNodes }
+    })
+    const beforeSchemaEdit = vi.fn(async () => { order.push('flush') })
+    onNodesChange.mockImplementation(() => { order.push('edit') })
+    renderHistoryPanel({ onNodesChange, beforeSchemaEdit, loadRevision })
 
     const chatHeader = screen.getByText('Chat').parentElement!
     fireEvent.click(within(chatHeader).getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
-    expect(await screen.findByText('Historical Preview · Revision 1')).toBeInTheDocument()
-    expect(screen.getByTestId('historical-schema-tree')).toHaveTextContent('historical_place')
-    expect(screen.getByTestId('historical-schema-tree')).toHaveTextContent('historical_year')
-    expect(screen.queryByRole('button', { name: '+ Add field' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Regenerate' })).not.toBeInTheDocument()
-    expect(onNodesChange).not.toHaveBeenCalled()
+    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Return to current schema' }))
+    expect(order).toEqual(['load', 'flush', 'edit', 'flush'])
+    expect(onNodesChange).toHaveBeenCalledWith(historicalNodes, '↺ Restored revision 1')
+    expect(screen.getByText('historical_place')).toBeInTheDocument()
+    expect(screen.getByText('historical_year')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Revision 1/ })).not.toBeInTheDocument()
+  })
+
+  it('closes history without loading or flushing the current revision', () => {
+    const onNodesChange = vi.fn()
+    const beforeSchemaEdit = vi.fn()
+    const loadRevision = vi.fn()
+    renderHistoryPanel({ onNodesChange, beforeSchemaEdit, loadRevision })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
+    fireEvent.click(screen.getByRole('button', { name: /Revision 2/ }))
+
+    expect(loadRevision).not.toHaveBeenCalled()
+    expect(beforeSchemaEdit).not.toHaveBeenCalled()
     expect(onNodesChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /Revision 2/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps the current schema when loading or pre-restore flushing fails', async () => {
+    const onNodesChange = vi.fn()
+    const loadRevision = vi.fn(async () => { throw new Error('Load failed') })
+    const beforeSchemaEdit = vi.fn(async () => undefined)
+    renderHistoryPanel({ onNodesChange, beforeSchemaEdit, loadRevision })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
+    fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Load failed')
+    expect(beforeSchemaEdit).not.toHaveBeenCalled()
+    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(screen.getByText('title')).toBeInTheDocument()
+
+    cleanup()
+    const flushFailure = vi.fn(async () => { throw new Error('Save current failed') })
+    renderHistoryPanel({ onNodesChange, beforeSchemaEdit: flushFailure })
+    fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
+    fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Save current failed')
+    expect(flushFailure).toHaveBeenCalledTimes(1)
+    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(screen.getByText('title')).toBeInTheDocument()
+  })
+
+  it('keeps the restored editable tree when its append flush fails', async () => {
+    const onNodesChange = vi.fn()
+    const beforeSchemaEdit = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Append failed'))
+    renderHistoryPanel({ onNodesChange, beforeSchemaEdit })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
+    fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Append failed')
+    expect(onNodesChange).toHaveBeenCalledWith(historicalNodes, '↺ Restored revision 1')
+    expect(screen.getByText('historical_place')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
   })
 
   it('applies an inline edit at arbitrary nesting depth', () => {

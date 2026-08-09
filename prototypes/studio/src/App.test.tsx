@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
 import parsedDocument from './assets/parsed_document.v2.json'
+import type { SchemaNode } from '../shared/schemaNode'
 
 const { scrollPageIntoView } = vi.hoisted(() => ({ scrollPageIntoView: vi.fn() }))
 
@@ -141,6 +142,121 @@ describe('reopened Source Document workspace', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Schema history' })).toBeEnabled())
     expect(schemaNodes).toHaveLength(1)
+  })
+
+  it('loads an older revision before appending the pending draft and restored tree', async () => {
+    const currentRevisionId = '51000000-0000-4000-8005-000000000020'
+    const historicalRevisionId = '51000000-0000-4000-8005-000000000019'
+    const currentNodes: SchemaNode[] = [{ id: 'current-field', name: 'current_field', type: 'string' }]
+    const historicalNodes: SchemaNode[] = [
+      {
+        id: 'stable-group',
+        name: 'historical_group',
+        type: 'object',
+        children: [{ id: 'stable-leaf', name: 'historical_leaf', type: 'number' }],
+      },
+      { id: 'stable-title', name: 'historical_title', type: 'string' },
+    ]
+    const requests: Array<{ url: string; method?: string; body?: unknown }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        const method = init?.method
+        const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
+        requests.push({ url, method, body })
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.startsWith('/api/schema-revisions?')) {
+          return Response.json({
+            revisions: [
+              {
+                schemaRevisionId: currentRevisionId,
+                extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+                revisionNumber: 2,
+                origin: 'researcher-edit',
+                createdAt: '2026-08-09T10:01:00.000Z',
+                summary: 'Current schema',
+              },
+              {
+                schemaRevisionId: historicalRevisionId,
+                extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+                revisionNumber: 1,
+                origin: 'suggestion',
+                createdAt: '2026-08-09T10:00:00.000Z',
+                summary: 'Initial schema',
+              },
+            ],
+          })
+        }
+        if (url.startsWith(`/api/schema-revisions/${historicalRevisionId}?`)) {
+          return Response.json({
+            revision: {
+              schemaRevisionId: historicalRevisionId,
+              extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+              revisionNumber: 1,
+              origin: 'suggestion',
+              createdAt: '2026-08-09T10:00:00.000Z',
+              schemaNodes: historicalNodes,
+            },
+          })
+        }
+        if (url === '/api/schema-revisions' && method === 'POST') {
+          const request = body as { expectedRevisionNumber: number; schemaNodes: unknown[] }
+          return Response.json({
+            revision: {
+              schemaRevisionId: request.expectedRevisionNumber === 2
+                ? '51000000-0000-4000-8005-000000000021'
+                : '51000000-0000-4000-8005-000000000022',
+              extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+              revisionNumber: request.expectedRevisionNumber + 1,
+              origin: 'researcher-edit',
+              createdAt: '2026-08-09T10:02:00.000Z',
+              schemaNodes: request.schemaNodes,
+            },
+          }, { status: 201 })
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    render(<DocumentWorkspace
+      {...reopened}
+      persistedExtraction={null}
+      extractionSchema={{
+        ...reopened.extractionSchema!,
+        schemaRevisionId: currentRevisionId,
+        revisionNumber: 2,
+        schemaNodes: currentNodes,
+      }}
+    />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Schema history' })).toBeEnabled())
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
+    fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+
+    await waitFor(() => expect(requests.filter((request) => request.method === 'POST')).toHaveLength(2))
+    const getIndex = requests.findIndex((request) =>
+      request.url.startsWith(`/api/schema-revisions/${historicalRevisionId}?`),
+    )
+    const postRequests = requests.filter((request) => request.method === 'POST')
+    expect(getIndex).toBeGreaterThan(-1)
+    expect(requests.indexOf(postRequests[0])).toBeGreaterThan(getIndex)
+    expect((postRequests[0].body as { expectedRevisionNumber: number }).expectedRevisionNumber).toBe(2)
+    expect((postRequests[0].body as { schemaNodes: Array<{ name: string }> }).schemaNodes.map((node) => node.name)).toEqual(['current_field', 'nyt_felt'])
+    expect(postRequests[1].body).toEqual({
+      projectContextId: reopened.projectContextId,
+      extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+      expectedRevisionNumber: 3,
+      schemaNodes: historicalNodes,
+    })
+    expect(await screen.findByText('historical_group')).toBeInTheDocument()
+    expect(screen.getByText('historical_title')).toBeInTheDocument()
   })
 
   it('hydrates the annotation set, Extraction Schema, and Extraction Result', async () => {

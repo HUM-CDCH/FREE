@@ -16,11 +16,11 @@
 - [x] 3.2 Implement the minimal schema-save coordinator and wire acknowledged revision identity through reopen, edits, conversational-edit base selection, and Extraction
 - [x] 3.3 Verify existing schema-chat proposal review and current-schema Extraction tests remain green
 
-## 4. Timeline and Historical Preview
+## 4. Revision Timeline
 
 - [x] 4.1 Add failing pure tests for adjacent-tree structural summaries including order and stable ids
 - [x] 4.2 Add failing schema-panel tests for bounded timeline metadata, exact read-only preview, explicit return to current, and zero mutation callbacks
-- [x] 4.3 Implement the History entry point, timeline loading, Historical Preview, and return-to-current action without restore semantics
+- [x] 4.3 Implement the History entry point and bounded timeline loading
 
 ## 5. Lifecycle Verification
 
@@ -34,3 +34,9 @@
 - [x] 6.1 Add failing store, route, browser-client, and workspace tests for creating revision 1 and enabling history
 - [x] 6.2 Persist the first generated schema and install its acknowledged revision identity in Studio
 - [x] 6.3 Relax the schema-edit prompt so broad translation instructions apply to all relevant field names
+
+## 7. Append-only Historical Restoration
+
+- [x] 7.1 Replace Historical Preview coverage with one-click restore ordering, current/same-tree no-op, and failure-state tests
+- [x] 7.2 Remove preview state and restore through the existing load, flush, edit, and immediate-flush seams
+- [x] 7.3 Run focused/static checks and a real PostgreSQL, Vite, and fresh-browser restoration lifecycle

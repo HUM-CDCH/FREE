@@ -1,6 +1,6 @@
 ## Why
 
-Schema edits currently live only in browser state even though PostgreSQL already models immutable, append-only Schema Revisions. Humanities Researchers need durable schema history that survives a fresh browser context and Project Context reopen without introducing a second history ledger or changing the current schema when inspecting an earlier revision.
+Schema edits currently live only in browser state even though PostgreSQL already models immutable, append-only Schema Revisions. Humanities Researchers need durable schema history that survives a fresh browser context and Project Context reopen, and they need to restore an earlier revision without rewriting that history or introducing a second ledger.
 
 ## What Changes
 
@@ -8,16 +8,16 @@ Schema edits currently live only in browser state even though PostgreSQL already
 - Persist a generated first schema as revision 1 before making it editable.
 - Carry the durable Schema Revision identity and number through save, conflict, queued-save, conversational-edit, reopen, and Extraction flows.
 - Expose bounded, ownership-validated list and get operations through same-origin Studio endpoints.
-- Add a read-only revision timeline and Historical Preview with an explicit return to the Current Schema Revision.
+- Add a revision timeline whose older entries restore their exact tree as a new Current Schema Revision.
 - Derive concise structural summaries from adjacent ordered `SchemaNode[]` trees.
-- Verify persistence and non-mutation with PostgreSQL, Studio, and a fresh browser context.
-- Exclude restore, rollback, undo/redo, failed attempt history, persisted prose summaries, branches, tags, and arbitrary revision comparison.
+- Verify append-only restoration with PostgreSQL, Studio, and a fresh browser context.
+- Exclude history rewriting, rollback-in-place, undo/redo, failed attempt history, persisted prose summaries, branches, tags, and arbitrary revision comparison.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `schema-revision-history`: Durable append-only Schema Revision persistence, bounded browsing, and non-mutating Historical Preview.
+- `schema-revision-history`: Durable append-only Schema Revision persistence, bounded browsing, and one-click restoration as a new revision.
 
 ### Modified Capabilities
 
@@ -26,4 +26,4 @@ Schema edits currently live only in browser state even though PostgreSQL already
 
 ## Impact
 
-`packages/db` gains the narrow Schema Revision methods on the existing `ProjectStore` interface. Studio gains shared DTO validation, same-origin schema revision handlers, autosave coordination, timeline/preview UI, and focused tests. PostgreSQL and the existing Prisma models remain authoritative; no dependency or database schema change is expected.
+`packages/db` gains the narrow Schema Revision methods on the existing `ProjectStore` interface. Studio gains shared DTO validation, same-origin schema revision handlers, autosave coordination, timeline/restore UI, and focused tests. PostgreSQL and the existing Prisma models remain authoritative; no dependency or database schema change is expected.

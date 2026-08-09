@@ -31,23 +31,30 @@ FREE SHALL list Schema Revisions only for an Extraction Schema owned by the supp
 - **WHEN** a list or get request combines identities that do not share ownership
 - **THEN** the request fails without returning Schema Revision metadata or trees
 
-### Requirement: Historical Preview is non-mutating
-FREE SHALL render a selected Historical Schema Revision as a read-only preview separate from the editable Current Schema Revision and SHALL provide an explicit return to the current schema.
+### Requirement: Historical restoration is append-only
+FREE SHALL restore a selected Historical Schema Revision by preserving any pending current draft, installing the selected exact ordered `SchemaNode[]` as the editable schema, and appending it as a new Current Schema Revision without modifying an existing row.
 
-#### Scenario: Historical tree is previewed
+#### Scenario: Historical tree is restored
 - **WHEN** a researcher selects a Historical Schema Revision
-- **THEN** the preview reproduces its exact ordered `SchemaNode[]` including stable ids
-- **AND** schema editing controls are unavailable in the preview
+- **THEN** Studio loads its exact ordered `SchemaNode[]` including stable ids
+- **AND** durably acknowledges any pending current draft before installing the historical tree
+- **AND** immediately appends the installed tree as the next Current Schema Revision
+- **AND** schema editing controls remain available
 
-#### Scenario: Researcher returns to current schema
-- **WHEN** a researcher leaves Historical Preview
-- **THEN** the editable Current Schema Revision is shown unchanged
+#### Scenario: Selection already represents the current tree
+- **WHEN** a researcher selects the Current Schema Revision or a historical tree identical to the acknowledged current tree
+- **THEN** the editable tree remains current
 - **AND** no Schema Revision is appended
 
-### Requirement: Browser revision DTOs expose only research history
-Schema Revision browser DTOs SHALL contain only owner and revision identities, revision number, origin, timestamp, derived summary, and the exact schema tree when requested for preview. They SHALL exclude raw model output, internal provenance, model attribution, and attempt failure records.
+#### Scenario: Restoration cannot be prepared
+- **WHEN** the selected revision cannot be loaded or the pending current draft cannot be acknowledged
+- **THEN** the visible editable tree remains unchanged
+- **AND** no restoration append is attempted
 
-#### Scenario: Timeline and preview are returned
+### Requirement: Browser revision DTOs expose only research history
+Schema Revision browser DTOs SHALL contain only owner and revision identities, revision number, origin, timestamp, derived summary, and the exact schema tree when requested for restoration. They SHALL exclude raw model output, internal provenance, model attribution, and attempt failure records.
+
+#### Scenario: Timeline and restoration tree are returned
 - **WHEN** Studio receives list and get responses
 - **THEN** neither response contains raw model output, internal provenance, model attribution, or failure data
 

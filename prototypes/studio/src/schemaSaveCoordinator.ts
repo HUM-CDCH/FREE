@@ -112,8 +112,10 @@ export function createSchemaSaveCoordinator(
       if (state.status === 'conflict')
         return Promise.reject(new SchemaRevisionConflictError(state.currentRevision!))
       if (state.status === 'error') return Promise.reject(state.error)
-      if (!inFlight && sameNodes(state.draft, state.acknowledged.schemaNodes))
+      if (!inFlight && sameNodes(state.draft, state.acknowledged.schemaNodes)) {
+        publish({ ...state, status: 'saved' })
         return Promise.resolve(state.acknowledged)
+      }
       if (timer) clearTimeout(timer)
       timer = undefined
       const promise = new Promise<AcknowledgedSchemaRevision>((resolve, reject) => {

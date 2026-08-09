@@ -8,12 +8,12 @@ PostgreSQL already stores immutable `SchemaRevision` rows and relationships to `
 
 - Make every acknowledged direct schema edit an append-only Schema Revision.
 - Reject stale writes atomically and keep the acknowledged revision identity explicit.
-- Browse a bounded timeline and preview an exact historical ordered tree without changing the Current Schema Revision.
+- Browse a bounded timeline and restore an exact historical ordered tree as a new Current Schema Revision.
 - Preserve current schema-chat proposal review, stable node ids, and Extraction pinning.
 
 **Non-Goals:**
 
-- Restore, rollback, undo/redo, failed-attempt history, persisted prose summaries, branches, tags, named versions, or arbitrary revision comparison.
+- History rewriting, rollback-in-place, undo/redo, failed-attempt history, persisted prose summaries, branches, tags, named versions, or arbitrary revision comparison.
 - A browser history ledger, a second persistence interface, or a database schema change.
 
 ## Decisions
@@ -28,7 +28,7 @@ Within one transaction, read the owner and current head, compare the expected re
 
 ### Use one narrow same-origin route family
 
-`POST /api/schema-revisions` appends a researcher-authored revision. `GET /api/schema-revisions?projectContextId=...&extractionSchemaId=...&limit=...` returns bounded timeline metadata with derived adjacent-tree summaries. `GET /api/schema-revisions/{id}?projectContextId=...&extractionSchemaId=...` returns one exact tree for preview. The handler validates identity syntax, Project Context ownership, bounds, and `SchemaNode[]`; it never returns model output, internal provenance, or failure records.
+`POST /api/schema-revisions` appends a researcher-authored revision. `GET /api/schema-revisions?projectContextId=...&extractionSchemaId=...&limit=...` returns bounded timeline metadata with derived adjacent-tree summaries. `GET /api/schema-revisions/{id}?projectContextId=...&extractionSchemaId=...` returns one exact tree for restoration. The handler validates identity syntax, Project Context ownership, bounds, and `SchemaNode[]`; it never returns model output, internal provenance, or failure records.
 
 ### Keep one acknowledged head and one latest draft in Studio
 
@@ -38,9 +38,9 @@ The workspace owns the acknowledged `{schemaRevisionId, revisionNumber, nodes}` 
 
 When a durable Project Context has no Extraction Schema, the revision route creates the shared Extraction Schema and suggestion revision 1 in one transaction. Studio installs that returned identity before exposing the generated nodes as editable, so later direct and conversational edits use the same save coordinator as reopened schemas.
 
-### Preview is projection, never mutation
+### Restore through the existing editable-draft seam
 
-The schema panel receives history state separately from the editable current nodes. Selecting a Historical Schema Revision loads its exact tree into a read-only projection. “Return to current schema” discards only the projection. Preview actions never call `onNodesChange`, the save route, or change the acknowledged head.
+The schema panel receives history state separately from the editable current nodes. Selecting an older revision loads its exact tree, flushes any pending current draft, installs the historical nodes through `onNodesChange`, and flushes again immediately. This preserves stable ids and order, appends through the existing optimistic coordinator, and never mutates an old row. Selecting the current or an identical tree is a no-op. The history control is disabled while restoration is active; load or pre-flush failure leaves the current tree unchanged, while append failure retains the restored tree as the visible failed or conflicted draft.
 
 ### Derive summaries from adjacent trees
 
@@ -51,6 +51,7 @@ A pure helper beside the existing schema-change logic compares stable node ids a
 - **A tab can close before a debounced save completes** → warn while dirty/saving/queued and flush before Extraction or conversational editing; browser shutdown persistence is not guaranteed.
 - **The bounded window cannot describe a first row whose predecessor lies outside the window** → fetch one extra predecessor internally and return only the requested limit.
 - **A uniqueness error can also indicate malformed data** → map only the owner/revision unique constraint to conflict; surface other persistence failures through the existing sanitized error contract.
+- **A restore can overlap pending edits** → load the immutable target first, flush the latest current draft, then install and immediately flush the restored tree through the same coordinator.
 
 ## Migration Plan
 
@@ -58,4 +59,4 @@ No schema migration or seed is required. Deploy store methods, route/DTOs, then 
 
 ## Open Questions
 
-None for this slice. Restore remains a separately specified future append operation.
+None for this slice.
