@@ -207,6 +207,9 @@ describe('extractWithModel', () => {
     const instructions = generateTextMock.mock.calls[0][0].instructions as string
     expect(instructions).not.toContain('_evidence')
     expect(instructions).not.toContain('source evidence')
+    expect(instructions).toContain(
+      'Keep every repeated item inside its schema array; close the root object only after the final item.',
+    )
     expect(result.result).toEqual({ grave: [{ name: 'Grave 1' }] })
     expect(result).not.toHaveProperty('evidence')
   })

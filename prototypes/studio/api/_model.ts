@@ -144,7 +144,8 @@ export async function extractWithModel(
     generated = await generateWithGenericJsonPrompt(resolved, {
       instructions:
         'Produce a FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
-        'Return only one JSON object with no Markdown or commentary.',
+        'Return only one JSON object with no Markdown or commentary. ' +
+        'Keep every repeated item inside its schema array; close the root object only after the final item.',
       request,
       documentParts: documentParts.parts,
       temperature,
