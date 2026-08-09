@@ -16,6 +16,7 @@ Use topic labels to make it clear which part of the system an issue touches:
 
 ## Docs
 
-Notes, decisions, and open questions go in [docs/](docs/). Add to or edit
-those files in the same PR as the code change they relate to, when it makes
-sense.
+Keep domain language in [CONTEXT.md](CONTEXT.md), durable decisions in
+`docs/adr/`, and current contracts beside the product area they describe.
+Track temporary plans and open questions in GitHub Issues or an active OpenSpec
+change instead of adding handoff ledgers to `docs/`.

@@ -8,7 +8,6 @@ import type {
 import { createGetDocumentReopen } from '../api/document_reopen.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
 import {
-  DEMO_ARTIFACT_REFERENCE,
   DEMO_DOCUMENT_ID,
   DEMO_PROJECT_ID,
   DEMO_REPRESENTATION_ID,
@@ -113,7 +112,14 @@ const documents = (seed: (typeof SEED)[number]) =>
     createdAt: new Date(document.createdAt),
   }))
 
-const base: ProjectStore = {
+type NavigationStore = Pick<
+  ProjectStore,
+  | 'listProjectContexts'
+  | 'getProjectContextWithDocuments'
+  | 'getDocumentReopenSnapshot'
+>
+
+const base: NavigationStore = {
   async listProjectContexts(limit) {
     return SEED.slice(0, limit).map(summary)
   },
@@ -144,20 +150,9 @@ const base: ProjectStore = {
       extraction: null,
     }
   },
-  async getSourceRepresentation(sourceRepresentationId) {
-    return Object.values(REPRESENTATIONS).includes(sourceRepresentationId)
-      ? {
-          artifactReference: DEMO_ARTIFACT_REFERENCE,
-          artifactSha256: 'c'.repeat(64),
-        }
-      : null
-  },
-  async persistReviewedExtraction() {
-    return null
-  },
 }
 
-const railStore = (overrides: Partial<ProjectStore> = {}): ProjectStore => ({
+const railStore = (overrides: Partial<NavigationStore> = {}): NavigationStore => ({
   ...base,
   ...overrides,
 })
@@ -181,7 +176,7 @@ type Studio = {
  */
 async function stubStudio(
   page: Page,
-  options: { store?: ProjectStore; artifacts?: 'unavailable' } = {},
+  options: { store?: NavigationStore; artifacts?: 'unavailable' } = {},
 ): Promise<Studio> {
   const store = options.store ?? railStore()
   const projectContexts = createGetProjectContexts(store)

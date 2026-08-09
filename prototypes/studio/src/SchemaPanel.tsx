@@ -12,6 +12,10 @@ import {
   nodesToTemplate,
   templateToNodes,
 } from '../shared/schemaNode'
+import type {
+  SchemaRevision,
+  SchemaRevisionSummary,
+} from '../shared/schemaRevision.contract'
 import {
   deriveSchemaProposal,
   replaySchemaChanges,
@@ -40,10 +44,37 @@ type SchemaPanelProps = {
   stale: boolean
   onGenerate: () => void
   onNodesChange: (nodes: SchemaNode[], message: string) => void
+  beforeSchemaEdit: () => Promise<void>
+  history: SchemaRevisionSummary[]
+  currentRevisionNumber?: number
+  loadRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
   annotationCount: number
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   documentMarkdown: string | null
+  sourceDocumentName: string
+}
+
+function HistoricalSchemaTree({
+  nodes,
+  depth = 0,
+}: {
+  nodes: readonly SchemaNode[]
+  depth?: number
+}) {
+  return (
+    <ul className={depth ? 'ml-4 border-l border-line pl-3' : 'flex flex-col gap-1'}>
+      {nodes.map((node) => (
+        <li key={node.id} data-schema-node-id={node.id}>
+          <div className="flex items-center gap-2 py-1.5">
+            <span className="font-mono text-[13px] font-medium text-ink">{node.name}</span>
+            <span className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[9px] text-ink-muted">{node.type}</span>
+          </div>
+          {node.children && <HistoricalSchemaTree nodes={node.children} depth={depth + 1} />}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 type DragState = {
@@ -177,13 +208,26 @@ function fieldTypeLabel(node: SchemaNode): string {
 
 function FieldChangeLabel({ node, change }: { node: SchemaNode; change?: Change }) {
   if (change?.kind === 'modified' && change.before && change.after) {
+    const nameChanged = change.before.name !== change.after.name
+    const beforeType = fieldTypeLabel(change.before)
+    const afterType = fieldTypeLabel(change.after)
     return (
       <>
-        <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-danger line-through">{change.before.name}</span>
-        <span className="shrink-0 text-[10px] text-ink-faint" aria-hidden="true">→</span>
-        <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-green">{change.after.name}</span>
-        <span className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 font-mono text-[9px] text-danger line-through">{fieldTypeLabel(change.before)}</span>
-        <span className="shrink-0 rounded bg-green-soft px-1.5 py-0.5 font-mono text-[9px] text-green">{fieldTypeLabel(change.after)}</span>
+        {nameChanged ? (
+          <>
+            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-danger line-through">{change.before.name}</span>
+            <span className="shrink-0 text-[10px] text-ink-faint" aria-hidden="true">→</span>
+            <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-green">{change.after.name}</span>
+          </>
+        ) : (
+          <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{change.after.name}</span>
+        )}
+        {beforeType !== afterType && (
+          <>
+            <span className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 font-mono text-[9px] text-danger line-through">{beforeType}</span>
+            <span className="shrink-0 rounded bg-green-soft px-1.5 py-0.5 font-mono text-[9px] text-green">{afterType}</span>
+          </>
+        )}
       </>
     )
   }
@@ -202,7 +246,7 @@ function FieldChangeLabel({ node, change }: { node: SchemaNode; change?: Change 
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Task 1.1–1.4: Data model & converters
+// Data model and converters
 // ────────────────────────────────────────────────────────────────────────────
 
 
@@ -358,7 +402,7 @@ function AnnotationsModeToggle({ mode, onChange }: { mode: AnnotationsMode; onCh
   )
 }
 
-// Task 5.1 – FieldEditForm (id-based, not path-based)
+// Field editing uses stable ids, not paths.
 function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
   editing: FieldEditing
   error: string | null
@@ -445,10 +489,15 @@ function SchemaPanel({
   stale,
   onGenerate,
   onNodesChange,
+  beforeSchemaEdit,
+  history,
+  currentRevisionNumber,
+  loadRevision,
   annotationCount,
   annotationsMode,
   onAnnotationsModeChange,
   documentMarkdown,
+  sourceDocumentName,
 }: SchemaPanelProps) {
   // ── render state ──
   const [nodes, setNodes] = useState<SchemaNode[]>([])
@@ -475,6 +524,10 @@ function SchemaPanel({
   const [jsonEditMode, setJsonEditMode] = useState(false)
   const [jsonDraft, setJsonDraft] = useState('')
   const [jsonEditError, setJsonEditError] = useState<string | null>(null)
+  const [historicalRevision, setHistoricalRevision] =
+    useState<SchemaRevision | null>(null)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   // ── refs for event handlers (avoid stale closures) ──
   const nodesRef = useRef<SchemaNode[]>([])
@@ -492,6 +545,9 @@ function SchemaPanel({
 
   const ready = state.status === 'ready'
   const fieldCount = ready ? countTemplateFields(nodesToTemplate(state.nodes)) : 0
+  const displayedFieldCount = historicalRevision
+    ? countTemplateFields(nodesToTemplate(historicalRevision.schemaNodes))
+    : fieldCount
   const inputsKey = state.status === 'ready' ? state.inputsKey : null
   const dx = dragging ? dragX - dragStartXRef.current : 0
   const dy = dragging ? dragY - dragStartYRef.current : 0
@@ -512,13 +568,13 @@ function SchemaPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputsKey])
 
-  // Task 7.5 – scroll chat to bottom on new messages / pending change
+  // Keep the newest chat message visible.
   useEffect(() => {
     const el = chatRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [chat.length, pending])
 
-  // ── Task 4: auto-scroll helpers ──
+  // ── Auto-scroll helpers ──
   function stopScroll() {
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
   }
@@ -530,7 +586,7 @@ function SchemaPanel({
       const el = scrollRef.current
       if (el) {
         const r = el.getBoundingClientRect()
-        // Task 4.2: 60px edge zone, 7px/frame
+        // 60px edge zone, 7px/frame.
         if (dragYRef.current < r.top + 60) el.scrollTop -= 7
         else if (dragYRef.current > r.bottom - 60) el.scrollTop += 7
       }
@@ -539,7 +595,7 @@ function SchemaPanel({
     rafRef.current = requestAnimationFrame(tick)
   }
 
-  // Task 2.5 – commitDrop (reads from refs, no stale closure risk)
+  // Reads refs to avoid stale closures.
   function commitNodes(nextNodes: SchemaNode[], message: string): boolean {
     const duplicates = duplicateFieldKeys(enumerateFieldPaths(nextNodes))
     if (duplicates.length > 0) {
@@ -626,7 +682,7 @@ function SchemaPanel({
     }
   }
 
-  // Task 2.2 – global mouse listeners (set up once)
+  // Global mouse listeners are installed once.
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       setDragX(e.clientX)
@@ -645,7 +701,7 @@ function SchemaPanel({
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-    // Task 4.3 – cancel RAF on unmount
+    // Cancel RAF on unmount.
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
@@ -655,7 +711,7 @@ function SchemaPanel({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Task 2.3 – drag start ──
+  // ── Drag start ──
   function startDrag(e: React.MouseEvent, id: string, parentId: string | null, name: string, isGroup: boolean) {
     if (e.button !== 0) return
     e.preventDefault()
@@ -672,7 +728,7 @@ function SchemaPanel({
     startScroll()
   }
 
-  // Task 2.4 – slot targets
+  // Slot targets
   function setSlotTarget(parentId: string | null, index: number) {
     if (!draggingRef.current) return
     const t: DropTarget = { type: 'slot', parentId, index }
@@ -680,7 +736,7 @@ function SchemaPanel({
     setOverTarget(t)
   }
 
-  // Task 3.1 – group hover targets
+  // Group hover targets
   function setGroupTarget(id: string, name: string) {
     const drag = draggingRef.current
     if (!drag || drag.isGroup || drag.id === id || drag.parentId === id) return
@@ -690,7 +746,6 @@ function SchemaPanel({
     setExpandedIds(s => new Set([...s, id]))
   }
 
-  // Task 3.2 – clear group target on leave
   function clearGroupTarget(id: string) {
     if (overTargetRef.current?.type === 'group' && overTargetRef.current.id === id) {
       overTargetRef.current = null
@@ -698,7 +753,7 @@ function SchemaPanel({
     }
   }
 
-  // ── Task 5: inline edit ──
+  // ── Inline editing ──
   function saveEdit() {
     if (!editing) return
     const parsedAllowedValues = parseAllowedValues(editing.allowedValuesText)
@@ -767,14 +822,7 @@ function SchemaPanel({
     setEditing({ id, name, type: 'verbatim-string', allowedValuesText: '' })
   }
 
-  // const SUGGESTIONS = [
-  //   { id: 's1', label: 'Add a field', prompt: 'Add one new relevant field to this schema.' },
-  //   { id: 's2', label: 'Remove a field', prompt: 'Remove the least important field from this schema.' },
-  //   { id: 's3', label: 'Change a field type', prompt: 'Find a field whose type seems wrong and correct it.' },
-  // ]
-
-
-  // ── Tasks 6–8: chat ──
+  // ── Chat ──
   async function sendChatMessage(text: string) {
     if (!text.trim() || chatLoading || pending) return
     const userMsg = text.trim()
@@ -783,9 +831,15 @@ function SchemaPanel({
     setChatLoading(true)
     const controller = new AbortController()
     chatAbortRef.current = controller
-    const original = nodesRef.current
 
+    const originalBeforeFlush = nodesRef.current
     try {
+      await beforeSchemaEdit()
+      if (nodesRef.current !== originalBeforeFlush) {
+        setChat(c => [...c, { role: 'assistant', text: 'Schema changed while the request was running. Send the request again.' }])
+        return
+      }
+      const original = nodesRef.current
       const response = await requestSchemaEdit(original, userMsg, documentMarkdown, controller.signal)
       if (nodesRef.current !== original) {
         setChat(c => [...c, { role: 'assistant', text: 'Schema changed while the request was running. Send the request again.' }])
@@ -808,6 +862,7 @@ function SchemaPanel({
       if (err instanceof Error && err.name === 'AbortError') {
         setChat(c => [...c, { role: 'assistant', text: 'Cancelled.' }])
       } else {
+        setChatInput(userMsg)
         setChat(c => [...c, { role: 'assistant', text: `Error: ${err instanceof Error ? err.message : 'Request failed'}` }])
       }
     } finally {
@@ -820,7 +875,7 @@ function SchemaPanel({
     chatAbortRef.current?.abort()
   }
 
-  // Task 8.2 – apply pending
+  // Apply pending proposal.
   function applyPending() {
     if (!pending) return
     if (nodesRef.current !== pending.original) {
@@ -839,7 +894,7 @@ function SchemaPanel({
     setAcceptedChangeIds(new Set())
   }
 
-  // Task 8.3 – discard
+  // Discard pending proposal.
   function discardPending() {
     setChat(c => [...c, { role: 'assistant', text: 'Okay — discarded, no changes made.' }])
     setPending(null)
@@ -850,11 +905,6 @@ function SchemaPanel({
     if (!pending) return
     setAcceptedChangeIds((current) => toggleAcceptedSchemaChange(pending.changes, current, id))
   }
-
-  // function pickSuggestion(s: (typeof SUGGESTIONS)[number]) {
-  //   setUsedSuggs(u => [...u, s.id])
-  //   void sendChatMessage(s.prompt)
-  // }
 
   // ── style helpers ──
   function slotCls(parentId: string | null, index: number) {
@@ -881,10 +931,8 @@ function SchemaPanel({
       ? 'self-end max-w-[88%] rounded-[11px_11px_3px_11px] bg-accent px-3 py-1.5 text-xs leading-relaxed text-white'
       : 'self-start max-w-[92%] rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-1.5 text-xs leading-relaxed text-ink'
 
-  // Task 5.3 – disable edit buttons while dragging
   const editDisabled = !!dragging
 
-  // Task 8.4 – disable chat input while pending
   const chatBlocked = !!pending || chatLoading
   const replay = pending ? replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds) : null
   const metadataCounts = pending ? countSchemaMetadata(pending.original) : null
@@ -903,8 +951,6 @@ function SchemaPanel({
     ]).size,
   } : null
   const canApply = pending && replay!.hasChanges
-
-  // const activeSuggs = SUGGESTIONS.filter(s => !usedSuggs.includes(s.id))
 
   const tabCls = (active: boolean) =>
     `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
@@ -1158,18 +1204,40 @@ function SchemaPanel({
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5">
         <div className="min-w-0">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">Extraction Schema</h2>
-          <p className="truncate font-mono text-[13px] font-medium text-ink">Beretning_Ellekilde_8_13.pdf</p>
+          <p className="truncate font-mono text-[13px] font-medium text-ink">{sourceDocumentName}</p>
         </div>
         {ready && (
-          <div className="flex shrink-0 overflow-hidden rounded-md border border-line">
-            <button className={tabCls(view === 'fields')} type="button" aria-pressed={view === 'fields'} onClick={() => setView('fields')}>Fields</button>
-            <button className={`${tabCls(view === 'json')} font-mono`} type="button" aria-pressed={view === 'json'} onClick={() => setView('json')}>{'JSON'}</button>
+          <div className="flex shrink-0 items-center gap-2">
+            {!historicalRevision && (
+              <div className="flex overflow-hidden rounded-md border border-line">
+                <button className={tabCls(view === 'fields')} type="button" aria-pressed={view === 'fields'} onClick={() => setView('fields')}>Fields</button>
+                <button className={`${tabCls(view === 'json')} font-mono`} type="button" aria-pressed={view === 'json'} onClick={() => setView('json')}>{'JSON'}</button>
+              </div>
+            )}
           </div>
         )}
       </header>
 
       {/* ── Schema list / states ── */}
       <div ref={scrollRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        {historyError && <p role="alert" className="mb-2 text-xs text-danger">{historyError}</p>}
+        {historicalRevision && (
+          <section aria-label={`Historical Preview Revision ${historicalRevision.revisionNumber}`}>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-xs font-bold text-ink">Historical Preview · Revision {historicalRevision.revisionNumber}</p>
+              <button
+                type="button"
+                className="rounded-md border border-line px-2 py-1 text-[11px] font-semibold text-accent"
+                onClick={() => setHistoricalRevision(null)}
+              >
+                Return to current schema
+              </button>
+            </div>
+            <div data-testid="historical-schema-tree">
+              <HistoricalSchemaTree nodes={historicalRevision.schemaNodes} />
+            </div>
+          </section>
+        )}
         {state.status === 'idle' && (
           <div className="rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
             <p className="text-[13px] font-semibold text-ink">No schema yet</p>
@@ -1195,7 +1263,7 @@ function SchemaPanel({
           </div>
         )}
 
-        {ready && view === 'json' && (
+        {ready && !historicalRevision && view === 'json' && (
           <div className="flex flex-col gap-1.5">
             {!jsonEditMode ? (
               <div className="relative">
@@ -1260,7 +1328,7 @@ function SchemaPanel({
           </div>
         )}
 
-        {ready && view === 'fields' && (
+        {ready && !historicalRevision && view === 'fields' && (
           <>
             {mutationError && <p className="mb-2 text-[11px] font-semibold text-danger" role="alert">{mutationError}</p>}
             {selectedIds.size > 0 && (
@@ -1302,10 +1370,57 @@ function SchemaPanel({
         )}
       </div>
 
-      {/* ── Task 6: Chat panel (visible when schema is ready) ── */}
-      {ready && (
+      {/* Chat panel */}
+      {ready && !historicalRevision && (
         <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
-          {/* Task 6.2 – message list */}
+          <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
+            <div className="relative">
+              <button
+                className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent disabled:cursor-default disabled:opacity-40"
+                type="button"
+                aria-label="Schema history"
+                title="Schema edit history"
+                disabled={history.length === 0}
+                onClick={() => setHistoryOpen((open) => !open)}
+              >
+                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v5a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V5z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {historyOpen && (
+                <div className="scrollbar-subtle absolute right-0 bottom-full z-30 mb-1.5 max-h-80 w-72 overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-float">
+                  {history.map((revision) => (
+                    <button
+                      key={revision.schemaRevisionId}
+                      type="button"
+                      className="block w-full rounded-md px-3 py-2 text-left outline-none hover:bg-accent-ghost"
+                      aria-label={`Revision ${revision.revisionNumber}: ${revision.summary}`}
+                      onClick={() => {
+                        setHistoryOpen(false)
+                        if (revision.revisionNumber === currentRevisionNumber) {
+                          setHistoricalRevision(null)
+                          return
+                        }
+                        setHistoryError(null)
+                        void loadRevision(revision.schemaRevisionId)
+                          .then((loaded) => setHistoricalRevision(loaded))
+                          .catch((error: unknown) =>
+                            setHistoryError(error instanceof Error ? error.message : 'Could not load Schema Revision.'),
+                          )
+                      }}
+                    >
+                      <span className="block text-xs font-semibold text-ink">
+                        Revision {revision.revisionNumber}{revision.revisionNumber === currentRevisionNumber ? ' · Current' : ''}
+                      </span>
+                      <span className="block text-[11px] text-ink-muted">{revision.origin} · {revision.summary}</span>
+                      <span className="block text-[10px] text-ink-faint">{new Date(revision.createdAt).toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
               {chat.map((m, i) => (
@@ -1358,23 +1473,6 @@ function SchemaPanel({
             </div>
           )}
 
-          {/* Task 6.3 – suggestion chips (hidden while pending / loading) */}
-          {/* {activeSuggs.length > 0 && !chatBlocked && (
-            <div className="flex shrink-0 flex-wrap gap-1.5 px-3.5 pb-1.5 pt-1">
-              {activeSuggs.map(s => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className="cursor-pointer rounded-full border border-line-strong bg-surface px-3 py-1 font-sans text-[11px] font-medium text-ink outline-none hover:border-accent/50 hover:text-accent"
-                  onClick={() => pickSuggestion(s)}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          )} */}
-
-          {/* Task 6.4 – text input */}
           <div className="shrink-0 px-3.5 pb-3 pt-1.5">
             <div className="flex items-center gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">
               <input
@@ -1424,12 +1522,12 @@ function SchemaPanel({
               Highlights changed — regenerate to update the schema
             </span>
           ) : (
-            `${fieldCount} field${fieldCount === 1 ? '' : 's'} `
+            `${displayedFieldCount} field${displayedFieldCount === 1 ? '' : 's'} `
           ))}
           {state.status === 'idle' && 'Generate to produce the schema from the document'}
           {state.status === 'error' && 'Generation failed'}
         </p>
-        {ready && (
+        {ready && !historicalRevision && (
           <div className="flex shrink-0 items-center gap-2">
             {annotationCount > 0 && <AnnotationsModeToggle mode={annotationsMode} onChange={onAnnotationsModeChange} />}
             <button className={genBtnCls} type="button" onClick={onGenerate}>Regenerate</button>
@@ -1437,7 +1535,7 @@ function SchemaPanel({
         )}
       </footer>
 
-      {/* Task 2.6 – drag overlay chip (fixed, follows cursor) */}
+      {/* Drag overlay chip */}
       {dragging && (
         <div
           style={{ position: 'fixed', left: dragX + 18, top: dragY - 16, pointerEvents: 'none', zIndex: 9999 }}

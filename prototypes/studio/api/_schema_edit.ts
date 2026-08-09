@@ -181,7 +181,7 @@ Return one JSON object:
 Rules:
 - fields must contain every supplied opaque key exactly once, including unchanged and removed fields
 - additions must always be present; use [] when no fields are added
-- treat each field property independently: unless explicitly told to remove that field use removed false; unless explicitly told to rename it preserve its supplied name; unless explicitly told to retype it preserve its supplied type and itemType
+- apply the researcher instruction to every relevant field; preserve only properties unrelated to that instruction
 - itemType is allowed only when type is array; every array field and array addition requires itemType: a scalar type (${SCALAR_FIELD_TYPES.join('|')}) for a repeating scalar, or null for repeating records
 - removed is true only for a removed existing field
 - additions use full structural paths in the post-edit namespace and must not invent root path segments that are not existing or explicitly added fields

@@ -17,6 +17,7 @@ const API_ROUTE = /^\/api\/([a-z][a-z_]*)$/
 const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/project-contexts\/[^/]+\/source-documents\//, 'document_reopen'],
   [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
+  [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
   [/^\/api\/source-representations\//, 'source_representations'],
 ]
 

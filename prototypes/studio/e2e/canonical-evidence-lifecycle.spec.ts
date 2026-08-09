@@ -210,7 +210,14 @@ function evidenceLabelFor(requestBody: string, value: string): string {
   return match[1]
 }
 
-function lifecycleStore(state: State): ProjectStore {
+function lifecycleStore(state: State): Pick<
+  ProjectStore,
+  | 'listProjectContexts'
+  | 'getProjectContextWithDocuments'
+  | 'getDocumentReopenSnapshot'
+  | 'getSourceRepresentation'
+  | 'persistReviewedExtraction'
+> {
   const projectContext = {
     projectContextId: id.project,
     name: 'Ellekilde lifecycle',

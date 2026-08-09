@@ -10,6 +10,10 @@ import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
 import EvidenceTab from './EvidenceTab'
 import type { ParsedDocument, ParsedEvidenceAnchor } from './parsedDocument'
+import type {
+  SchemaRevision,
+  SchemaRevisionSummary,
+} from '../shared/schemaRevision.contract'
 
 export type RailTab = 'annot' | 'evidence' | 'chat' | 'schema' | 'results'
 
@@ -27,10 +31,15 @@ type RightRailProps = {
   schemaFieldCount: number
   onGenerate: () => void
   onNodesChange: (nodes: SchemaNode[], message: string) => void
+  beforeSchemaEdit: () => Promise<void>
+  schemaHistory: SchemaRevisionSummary[]
+  currentSchemaRevisionNumber?: number
+  loadSchemaRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
   documentMarkdown: string | null
+  sourceDocumentName: string
   parsedDocument: ParsedDocument | null
   reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
@@ -63,10 +72,15 @@ function RightRail({
   schemaFieldCount,
   onGenerate,
   onNodesChange,
+  beforeSchemaEdit,
+  schemaHistory,
+  currentSchemaRevisionNumber,
+  loadSchemaRevision,
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
   documentMarkdown,
+  sourceDocumentName,
   parsedDocument,
   reviewedOccurrenceIdsByAnchor,
   onSelectEvidence,
@@ -156,10 +170,15 @@ function RightRail({
           stale={schemaStale}
           onGenerate={onGenerate}
           onNodesChange={onNodesChange}
+          beforeSchemaEdit={beforeSchemaEdit}
+          history={schemaHistory}
+          currentRevisionNumber={currentSchemaRevisionNumber}
+          loadRevision={loadSchemaRevision}
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}
           documentMarkdown={documentMarkdown}
+          sourceDocumentName={sourceDocumentName}
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'results'}>

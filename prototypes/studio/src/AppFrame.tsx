@@ -185,6 +185,7 @@ export default function AppFrame({
   // Durable hydration: the PDF, its name, and its Markdown all come from the
   // reopened representation. Rail state, PDF position, focus, and drafts do not.
   const reopened = openDocument && {
+    projectContextId: openDocument.projectContext.projectContextId,
     pdfUrl: openDocument.sourceRepresentation.resources.sourcePdfUrl,
     filename: openDocument.sourceDocument.name,
     sourceRepresentationId:
@@ -199,6 +200,7 @@ export default function AppFrame({
   const workspace = devDocument
     ? {
         ...devDocument,
+        projectContextId: null,
         sourceRepresentationId: null,
         markdownUrl: null,
         parsedDocumentUrl: null,

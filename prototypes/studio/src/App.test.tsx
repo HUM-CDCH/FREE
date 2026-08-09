@@ -31,6 +31,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
   },
 }))
 const reopened: DocumentWorkspaceProps = {
+  projectContextId: '51000000-0000-4000-8000-000000000001',
   pdfUrl: '/api/source-representations/rep/pdf',
   filename: 'Beretning.pdf',
   sourceRepresentationId: '51000000-0000-4000-8002-000000000001',
@@ -90,6 +91,58 @@ async function renderReopened() {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('persists a generated first schema and enables its history', async () => {
+    const schemaRevisionId = '51000000-0000-4000-8005-000000000010'
+    const extractionSchemaId = '51000000-0000-4000-8005-000000000011'
+    let schemaNodes: unknown[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.endsWith('/api/generate_schema'))
+          return Response.json({ template: { site: 'string' }, raw: '{}', pages: 1 })
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          schemaNodes = (JSON.parse(String(init.body)) as { schemaNodes: unknown[] }).schemaNodes
+          return Response.json({
+            revision: {
+              schemaRevisionId,
+              extractionSchemaId,
+              revisionNumber: 1,
+              origin: 'suggestion',
+              createdAt: '2026-08-09T10:00:00.000Z',
+              schemaNodes,
+            },
+          }, { status: 201 })
+        }
+        if (url.startsWith('/api/schema-revisions?'))
+          return Response.json({
+            revisions: [{
+              schemaRevisionId,
+              extractionSchemaId,
+              revisionNumber: 1,
+              origin: 'suggestion',
+              createdAt: '2026-08-09T10:00:00.000Z',
+              summary: 'Initial schema',
+            }],
+          })
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Schema history' })).toBeEnabled())
+    expect(schemaNodes).toHaveLength(1)
+  })
+
   it('hydrates the annotation set, Extraction Schema, and Extraction Result', async () => {
     await renderReopened()
 

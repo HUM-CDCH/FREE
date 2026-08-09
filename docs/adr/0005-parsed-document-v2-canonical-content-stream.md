@@ -2,7 +2,7 @@
 
 # ParsedDocument v2 uses one canonical semantic content stream
 
-> **Accepted.** `ParsedDocument` in `app.models.parsed_document` is the sole
+> **Accepted.** `ParsedDocument` in `app.models.parsed_document_v2` is the sole
 > public typed interface for canonical PDF ingestion.
 
 The typed, page-scoped semantic content stream is authoritative for ordered

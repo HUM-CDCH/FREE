@@ -8,7 +8,8 @@ Model endpoints are served from same-origin `/api`. Set `VITE_PARSING_SERVICE_UR
 - `pdf.js` has no public event for editor add/remove. `App.tsx` monkey-patches `uiManager.addEditor` / `removeEditor` to keep the annotation sidebar in sync.
 - Every model operation resolves its provider from saved configuration through `resolveCapabilityRoute` in `api/_provider.ts`. There are no `AI_*` environment settings; `api/_environment.test.ts` fails the build if one reappears.
 - Configuration routes are reached through `src/providerConfig/providerConfig.data.ts`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
-- The hardcoded source document is `examples/Beretning_Ellekilde_8_13.pdf` (a Danish archaeological site report).
+- There is no hardcoded Source Document. `AppFrame.tsx` lists Project Contexts from `/api/project-contexts` and opens the selected Source Document through `/api/project-contexts/{id}/source-documents/{id}/reopen`. `pnpm db:seed` writes the example Project Contexts from `examples/`.
+- A reopened Source Document reads its PDF, Markdown, and `parsed_document.v2` from `/api/source-representations/{id}/…`. A Source Document that you open from disk has no durable Source Representation, so `App.tsx` uploads it to the Parsing Service instead. Set `VITE_DEV_TASK_ID` to read an existing Parsing Service task and skip that upload.
 
 ## Annotation modes
 
@@ -41,5 +42,5 @@ schema/extraction prompts:
   `0.2` by default (`NON_THINKING_TEMPERATURE`); leaving it unset lets Ollama apply
   ~0.8, which produced noisy, instance-enumerated templates.
 
-Docker Model Runner and vLLM *do* honor `chat_template_kwargs` — see the probe doc
-for the per-provider channel if NuExtract is ever served that way.
+Docker Model Runner and vLLM *do* honor `chat_template_kwargs`. The archived change
+above holds the per-provider probe evidence if NuExtract is ever served that way.

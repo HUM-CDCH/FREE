@@ -33,6 +33,62 @@ export type ReplayResult = {
   hasChanges: boolean
 }
 
+type NodePosition = { node: SchemaNode; parentId: string | null; index: number }
+
+function nodePositions(nodes: readonly SchemaNode[]): Map<string, NodePosition> {
+  const positions = new Map<string, NodePosition>()
+  const visit = (level: readonly SchemaNode[], parentId: string | null) => {
+    level.forEach((node, index) => {
+      positions.set(node.id, { node, parentId, index })
+      if (node.children) visit(node.children, node.id)
+    })
+  }
+  visit(nodes, null)
+  return positions
+}
+
+export function summarizeSchemaRevision(
+  previous: readonly SchemaNode[] | null,
+  current: readonly SchemaNode[],
+): string {
+  if (!previous) return 'Initial schema'
+  const before = nodePositions(previous)
+  const after = nodePositions(current)
+  const counts = {
+    added: 0,
+    removed: 0,
+    renamed: 0,
+    retyped: 0,
+    described: 0,
+    moved: 0,
+  }
+  for (const [id, position] of after) {
+    const old = before.get(id)
+    if (!old) {
+      counts.added++
+      continue
+    }
+    if (old.node.name !== position.node.name) counts.renamed++
+    if (old.node.type !== position.node.type) counts.retyped++
+    if (old.node.description !== position.node.description) counts.described++
+    if (old.parentId !== position.parentId || old.index !== position.index)
+      counts.moved++
+  }
+  for (const id of before.keys()) if (!after.has(id)) counts.removed++
+  const parts = [
+    [counts.added, 'added'],
+    [counts.removed, 'removed'],
+    [counts.renamed, 'renamed'],
+    [counts.retyped, 'retyped'],
+    [counts.described, `description${counts.described === 1 ? '' : 's'} updated`],
+    [counts.moved, 'moved'],
+  ] as const
+  return parts
+    .filter(([count]) => count > 0)
+    .map(([count, label]) => `${count} ${label}`)
+    .join(', ') || 'No structural changes'
+}
+
 export function toggleAcceptedSchemaChange(
   changes: readonly Change[],
   current: ReadonlySet<string>,

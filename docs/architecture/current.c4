@@ -21,112 +21,195 @@ specification {
 }
 
 model {
-  researcher = person 'Humanities Researcher' 'Loads a Source Document, shapes a schema, runs extraction, and inspects evidence.'
+  researcher = person 'Humanities Researcher' 'Opens a Source Document, shapes an Extraction Schema, runs Extraction, and reviews Evidence.'
 
-  studio = system 'Studio Application' 'React UI plus same-origin TypeScript model handlers.' {
-    ui = container 'React UI' 'Source Document viewer, browser-only annotations, schema editor, extraction results, evidence, and Model Connections.' 'React'
-    browser_http = component 'Browser HTTP adapter' '`src/api.ts` sends parsing and same-origin model requests.' 'TypeScript'
-    model_handlers = container 'Same-origin model handlers' '`api/*.ts` owns model operations and application composition.' 'TypeScript serverless handlers'
-    provider_registry = component 'Provider registry' '`api/_provider.ts` resolves Capability Routes and adapts configured providers.' 'AI SDK/provider adapters'
+  studio = system 'Studio Application' 'React UI plus same-origin TypeScript handlers on one Vite origin.' {
+    ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence, and Model Connections.' 'React'
+    browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts.ts`, and `src/schemaRevisions.ts` send parsing and same-origin requests.' 'TypeScript'
+    handlers = container 'Same-origin handlers' '`api/*.ts` owns model operations, durable reads, Schema Revision writes, and the review write.' 'TypeScript Request/Response handlers'
+    provider_registry = component 'Provider registry' '`api/_provider.ts` resolves a Capability Route and adapts the configured provider.' 'AI SDK v7 provider adapters'
+    project_store = component 'ProjectStore' '`packages/db` owns every Project Store read and write; handlers hold no SQL.' 'TypeScript, Prisma Next'
   }
 
-  parsing_service = system 'Parsing Service' 'FastAPI document parsing and OCR indexing service; it does not own model operations.' {
-    http_api = container 'FastAPI HTTP API' '`POST /tasks`, task polling, ParsedDocument, Markdown, and artifact routes.' 'FastAPI'
-    parser = component 'Canonical parsing pipeline' 'Validates PDF input and produces canonical ParsedDocument, Markdown, and parser artifacts.' 'Python, Docling, PyMuPDF, PaddleOCR, Camelot'
-    content_store = datastore 'Content-addressed filesystem' 'Immutable source blobs, canonical generations, task metadata, Markdown, and parser artifacts.'
+  parsing_service = system 'Parsing Service' 'FastAPI PDF ingestion service; it owns no model operation.' {
+    http_api = container 'FastAPI HTTP API' '`POST /tasks`, task polling, ParsedDocument, Markdown, PDF, and package routes.' 'FastAPI'
+    parser = component 'Canonical parsing pipeline' 'Validates the PDF and publishes `parsed_document.v2`, canonical Markdown, and the package.' 'Python, Docling, PaddleOCR, Camelot, PyMuPDF'
+    task_cache = datastore 'Task directory' 'Processor cache: source bytes, task metadata, immutable generations, and the generation manifest. Never a durable dependency.'
   }
 
-  model_config = datastore 'Machine-wide model configuration and OS credential store' 'Saved Model Connections and Capability Routes; credentials remain in the operating-system keyring.'
-  project_store = datastore 'Isolated Project Store implementation' 'Adopted PostgreSQL/Prisma implementation behind ProjectStore; no application runtime consumes it.' 'PostgreSQL, Prisma'
+  seed = container 'Seed CLI' '`pnpm db:seed` ingests each example PDF, then writes the durable package and its Project Context.' 'TypeScript, tsx'
+
+  project_db = datastore 'Project Store' 'Project Contexts, Source Documents, Source Representations, Annotation Sets, Schema Revisions, reviewed Extractions, and Review Decisions.' 'PostgreSQL 17, Prisma Next'
+  package_store = datastore 'Canonical ingestion packages' 'Content-addressed portable packages in the `FREE Studio` data directory. The Project Store keeps only the package reference.' 'Operating system data directory'
+  model_config = datastore 'Model configuration and credential store' '`model-config.json` in the `FREE Studio` config directory; FREE-managed credentials stay in the operating system credential store.' 'JSON, OS keyring'
   model_connections = external 'Model Connections' 'Configured external HTTP or local CLI model providers.'
 
   researcher -> studio 'Uses in a browser'
-  studio -> parsing_service 'Indexes Source Documents via /tasks*'
-  studio -> model_connections 'Executes configured model operations'
+  studio -> parsing_service 'Parses a PDF opened from disk'
+  studio -> project_db 'Reads research state and appends durable writes'
+  studio -> package_store 'Reads the pinned canonical package'
   studio -> model_config 'Reads and updates machine-wide model configuration'
+  studio -> model_connections 'Executes configured model operations'
+  seed -> parsing_service 'Ingests each example PDF'
+  seed -> package_store 'Writes the durable package'
+  seed -> project_db 'Writes the example Project Contexts and Source Documents'
 
   researcher -> studio.ui 'Uses'
   studio.ui -> studio.browser_http 'Starts product flows'
-  studio.browser_http -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET Markdown'
-  studio.browser_http -> studio.model_handlers 'Calls /api/* model operations'
-  studio.model_handlers -> studio.provider_registry 'Resolves a Capability Route'
+  studio.browser_http -> studio.handlers 'Calls /api/*'
+  studio.browser_http -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /markdown and /document'
+  studio.handlers -> studio.provider_registry 'Resolves a Capability Route'
+  studio.handlers -> studio.project_store 'Reads a snapshot; appends a Schema Revision; stores a reviewed Extraction'
+  studio.handlers -> package_store 'Reads the pdf, markdown, and source entries'
+  studio.project_store -> project_db 'Reads and writes through Prisma Next'
   studio.provider_registry -> model_config 'Reads routes, connections, and credentials'
   studio.provider_registry -> model_connections 'Calls the resolved Model Connection'
-  parsing_service.http_api -> parsing_service.parser 'Runs parsing/OCR work'
-  parsing_service.parser -> parsing_service.content_store 'Publishes ParsedDocument, Markdown, and artifacts'
-  parsing_service.http_api -> parsing_service.content_store 'Reads task state and canonical outputs'
+  parsing_service.http_api -> parsing_service.parser 'Runs parsing and OCR work'
+  parsing_service.parser -> parsing_service.task_cache 'Publishes an immutable generation'
+  parsing_service.http_api -> parsing_service.task_cache 'Reads task state and canonical outputs'
 }
 
 views {
   view current_context {
     title 'FREE — current runtime context'
     description '''
-      Implemented runtime boundaries only. The MVP assumes one trusted machine/user: every browser session reaches the same model handlers and machine-wide credential store.
+      Implemented runtime boundaries only. The prototype assumes one trusted
+      machine and one researcher: every browser session reaches the same
+      handlers, the same Project Store, and the same machine-wide credential
+      store.
 
-      The disconnected Project Store is adopted and implemented in isolation, but no application runtime consumes it.
+      The Project Store is consumed. Studio reads its research state from
+      PostgreSQL and writes Schema Revisions and reviewed Extractions to it.
+      The Parsing Service task directory stays a processor cache; the durable
+      artifact is the canonical package.
     '''
-    include researcher, studio, parsing_service, model_config, project_store, model_connections
+    include researcher, studio, parsing_service, seed, project_db, package_store, model_config, model_connections
   }
 
   view current_modules {
     title 'FREE — current runtime modules'
     description 'Maintained module seams; this is not an import graph.'
-    include researcher, studio.*, parsing_service.*, model_config, project_store, model_connections
+    include researcher, studio.*, parsing_service.*, seed, project_db, package_store, model_config, model_connections
   }
 
-  dynamic view source_document_ingestion {
-    title 'Non-bundled Source Document ingestion and view — current'
-    description 'Implemented; deterministic evidence covers the browser viewer and backend lifecycle separately.'
-    researcher -> studio.ui 'Open a non-bundled Source Document'
+  dynamic view document_seeding {
+    title 'Example Source Document seeding — current'
+    description '''
+      `pnpm db:seed` is the only writer of canonical packages today. It needs
+      the Parsing Service. Without it the seed still writes the Project
+      Contexts and reports which Source Documents cannot be reopened.
+    '''
+    seed -> parsing_service.http_api 'POST /tasks with the example PDF'
+    parsing_service.http_api -> parsing_service.parser 'Validate and parse the PDF'
+    parsing_service.parser -> parsing_service.task_cache 'Publish the generation'
+    loop 'until the task completes' {
+      seed -> parsing_service.http_api 'GET /tasks/:taskId'
+    }
+    seed -> parsing_service.http_api 'GET /tasks/:taskId/download'
+    parsing_service.http_api -> seed 'Return the canonical package'
+    seed -> package_store 'Save the package under its content address'
+    seed -> project_db 'Write the Project Context, Source Document, and Source Representation'
+  }
+
+  dynamic view source_document_reopen {
+    title 'Reopen a durable Source Document — current'
+    description 'The durable path. The browser never reaches the Parsing Service here; the pinned package answers every artifact read.'
+    researcher -> studio.ui 'Select a Project Context'
+    studio.ui -> studio.handlers 'GET /api/project-contexts'
+    studio.handlers -> studio.project_store 'listProjectContexts'
+    studio.project_store -> project_db 'Read the Project Contexts and their Source Documents'
+    studio.handlers -> studio.ui 'Return the navigation tree'
+    researcher -> studio.ui 'Select a Source Document'
+    studio.ui -> studio.handlers 'GET /api/project-contexts/:id/source-documents/:id/reopen'
+    studio.handlers -> studio.project_store 'getDocumentReopenSnapshot'
+    studio.project_store -> project_db 'Read the pinned Representation, Annotation Set, schema, and last Extraction'
+    studio.handlers -> studio.ui 'Return the snapshot with artifact URLs'
+    studio.ui -> studio.handlers 'GET /api/source-representations/:id/pdf, /markdown, and /source'
+    studio.handlers -> package_store 'Read the pinned package entries'
+    studio.handlers -> studio.ui 'Return the PDF, canonical Markdown, and parsed_document.v2'
+  }
+
+  dynamic view local_document_ingestion {
+    title 'Open a Source Document from disk — current'
+    description '''
+      The developer path. A file opened from disk has no durable Source
+      Representation, so it cannot be reviewed. Set `VITE_DEV_TASK_ID` to read
+      an existing Parsing Service task instead of a new upload.
+    '''
+    researcher -> studio.ui 'Open a PDF from disk'
     studio.ui -> studio.browser_http 'Load the PDF locally and begin document indexing'
     studio.browser_http -> parsing_service.http_api 'POST /tasks'
     parsing_service.http_api -> parsing_service.parser 'Validate and parse the PDF'
-    parsing_service.parser -> parsing_service.content_store 'Publish ParsedDocument, Markdown, and artifacts'
+    parsing_service.parser -> parsing_service.task_cache 'Publish the generation'
     loop 'until parsing completes' {
       studio.browser_http -> parsing_service.http_api 'GET /tasks/:taskId'
     }
-    studio.browser_http -> parsing_service.http_api 'GET /tasks/:taskId/markdown'
-    parsing_service.http_api -> studio.browser_http 'Return canonical Markdown'
-    studio.browser_http -> studio.ui 'Show the PDF and make canonical Markdown available'
+    studio.browser_http -> parsing_service.http_api 'GET /tasks/:taskId/markdown and /document'
+    parsing_service.http_api -> studio.browser_http 'Return canonical Markdown and parsed_document.v2'
+    studio.browser_http -> studio.ui 'Show the PDF and its canonical index'
   }
 
   dynamic view schema_guided_extraction {
-    title 'Schema suggestion and schema-guided extraction — current'
-    description 'Implemented; deterministic UI traces intercept model HTTP, and evidence rendering has no pixel-level assertion.'
-    researcher -> studio.ui 'Choose Schema and Generate schema'
-    studio.ui -> studio.browser_http 'Prepare Source Document Markdown and browser annotations'
-    studio.browser_http -> studio.model_handlers 'POST /api/generate_schema'
-    studio.model_handlers -> studio.provider_registry 'Resolve schema-suggestion through the saved Extraction Capability Route'
-    studio.provider_registry -> model_connections 'Generate schema with the Model Connection'
-    model_connections -> studio.model_handlers 'Return suggested template'
-    studio.model_handlers -> studio.ui 'Show editable schema'
+    title 'Schema Suggestion to reviewed Extraction — current'
+    description '''
+      The Extraction Route serves Schema Suggestion, Extraction, and Evidence
+      grounding. The Interaction Route serves chat and conversational schema
+      edits. Grounding is a second `/api/extract` call with its own
+      instruction.
+
+      `POST /api/schema-revisions` initializes the first Schema Revision, or
+      appends the next one against `expectedRevisionNumber`. A stale number
+      returns a revision conflict rather than an overwrite.
+    '''
+    researcher -> studio.ui 'Annotate the Source Document and choose Generate schema'
+    studio.ui -> studio.browser_http 'Prepare the Markdown and the browser Annotations'
+    studio.browser_http -> studio.handlers 'POST /api/generate_schema'
+    studio.handlers -> studio.provider_registry 'Resolve the Extraction Route'
+    studio.provider_registry -> model_connections 'Generate the schema, raw NuExtract or general protocol'
+    model_connections -> studio.handlers 'Return the suggested schema'
+    studio.handlers -> studio.ui 'Show the editable Extraction Schema'
+    researcher -> studio.ui 'Edit a field, or ask for a change in chat'
+    studio.ui -> studio.handlers 'POST /api/edit_schema'
+    studio.handlers -> studio.provider_registry 'Resolve the Interaction Route'
+    studio.provider_registry -> model_connections 'Propose the schema changes'
+    studio.ui -> studio.handlers 'POST /api/schema-revisions'
+    studio.handlers -> studio.project_store 'initializeSchemaRevision or appendSchemaRevision'
+    studio.project_store -> project_db 'Append the immutable Schema Revision'
+    studio.handlers -> studio.ui 'Return the new Current Schema Revision'
     researcher -> studio.ui 'Run extraction'
-    studio.ui -> studio.browser_http 'Submit schema and Markdown'
-    studio.browser_http -> studio.model_handlers 'POST /api/extract'
-    studio.model_handlers -> studio.provider_registry 'Resolve extraction Capability Route'
-    studio.provider_registry -> model_connections 'Execute schema-guided extraction'
-    model_connections -> studio.model_handlers 'Return result and evidence'
-    studio.model_handlers -> studio.ui 'Show Results, Raw JSON, and source-linked evidence'
+    studio.ui -> studio.handlers 'POST /api/extract with the schema and Markdown'
+    studio.handlers -> studio.provider_registry 'Resolve the Extraction Route'
+    studio.provider_registry -> model_connections 'Execute the schema-guided Extraction'
+    model_connections -> studio.handlers 'Return the extracted values'
+    studio.ui -> studio.handlers 'POST /api/extract with the grounding instruction'
+    studio.handlers -> model_connections 'Ground each claim against canonical anchors'
+    studio.handlers -> studio.ui 'Show Results, Raw JSON, and source-linked Evidence'
+    researcher -> studio.ui 'Accept the Extraction Result'
+    studio.ui -> studio.handlers 'POST /api/source-representations/:id/extraction-reviews'
+    studio.handlers -> package_store 'Re-read the pinned parsed_document.v2 to check every anchor'
+    studio.handlers -> studio.project_store 'persistReviewedExtraction'
+    studio.project_store -> project_db 'Store the Extraction and its Review Decisions in one transaction'
+    studio.handlers -> studio.ui 'Return the reviewed Extraction identity'
   }
 
   dynamic view model_configuration {
     title 'Model configuration — current'
-    description 'Implemented; deterministic UI tests intercept configuration/probe HTTP and server seams are covered separately.'
+    description 'A fresh installation is unconfigured. Discovery is advisory: it never generates content, changes credentials, or gates Apply.'
     researcher -> studio.ui 'Open Model Connections'
-    studio.ui -> studio.model_handlers 'GET /api/model_config'
-    studio.model_handlers -> model_config 'Read saved connections, routes, and credential states'
-    model_config -> studio.model_handlers 'Return sanitized model configuration'
-    studio.model_handlers -> studio.ui 'Show saved state without credential values'
+    studio.ui -> studio.handlers 'GET /api/model_config'
+    studio.handlers -> model_config 'Read the saved connections, routes, and credential states'
+    model_config -> studio.handlers 'Return the sanitized model configuration'
+    studio.handlers -> studio.ui 'Show the saved state without credential values'
     researcher -> studio.ui 'Edit a Model Connection or Capability Route'
-    studio.ui -> studio.model_handlers 'POST /api/model_probe'
-    studio.model_handlers -> studio.provider_registry 'Probe provider adapter'
+    studio.ui -> studio.handlers 'POST /api/model_probe'
+    studio.handlers -> studio.provider_registry 'Probe the provider adapter'
     studio.provider_registry -> model_connections 'Discover models or check connectivity'
-    model_connections -> studio.provider_registry 'Return discovery/connectivity result'
-    studio.provider_registry -> studio.model_handlers 'Sanitize the probe result'
-    studio.model_handlers -> studio.ui 'Show probe result without credentials'
-    studio.ui -> studio.model_handlers 'PUT /api/model_config'
-    studio.model_handlers -> model_config 'Commit configuration and keyring changes'
-    model_config -> studio.model_handlers 'Return committed sanitized state'
-    studio.model_handlers -> studio.ui 'Show committed configuration'
+    model_connections -> studio.provider_registry 'Return the discovery or connectivity result'
+    studio.provider_registry -> studio.handlers 'Sanitize the probe result'
+    studio.handlers -> studio.ui 'Show the probe result without credentials'
+    studio.ui -> studio.handlers 'PUT /api/model_config'
+    studio.handlers -> model_config 'Commit the configuration and the keyring changes'
+    model_config -> studio.handlers 'Return the committed sanitized state'
+    studio.handlers -> studio.ui 'Show the committed configuration'
   }
 }

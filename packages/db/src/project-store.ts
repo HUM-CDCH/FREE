@@ -1,7 +1,70 @@
 import type { CanonicalPackageDescriptor } from './artifact-store.js'
+import { randomUUID } from 'node:crypto'
 import { db } from './prisma/db.js'
 
 type Database = Pick<typeof db, 'orm' | 'transaction'>
+
+export type SchemaRevisionOrigin =
+  | 'suggestion'
+  | 'researcher-edit'
+  | 'model-edit'
+
+export type SchemaRevisionRecord = {
+  schemaRevisionId: string
+  extractionSchemaId: string
+  revisionNumber: number
+  origin: SchemaRevisionOrigin
+  schemaTree: unknown
+  createdAt: Date
+}
+
+export type AppendSchemaRevisionResult =
+  | { status: 'created'; revision: SchemaRevisionRecord }
+  | { status: 'conflict'; currentRevision: SchemaRevisionRecord }
+
+type StoredSchemaRevision = {
+  id: string
+  extractionSchemaId: string
+  revisionNumber: number
+  origin: 'SUGGESTION' | 'RESEARCHER_EDIT' | 'MODEL_EDIT'
+  schemaTree: unknown
+  createdAt: Date
+}
+
+const revisionFields = [
+  'id',
+  'extractionSchemaId',
+  'revisionNumber',
+  'origin',
+  'schemaTree',
+  'createdAt',
+] as const
+
+const revisionOrigins: Record<StoredSchemaRevision['origin'], SchemaRevisionOrigin> = {
+  SUGGESTION: 'suggestion',
+  RESEARCHER_EDIT: 'researcher-edit',
+  MODEL_EDIT: 'model-edit',
+}
+
+function schemaRevision(row: StoredSchemaRevision): SchemaRevisionRecord {
+  return {
+    schemaRevisionId: row.id,
+    extractionSchemaId: row.extractionSchemaId,
+    revisionNumber: row.revisionNumber,
+    origin: revisionOrigins[row.origin],
+    schemaTree: row.schemaTree,
+    createdAt: row.createdAt,
+  }
+}
+
+function uniqueConstraint(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'sqlState' in error &&
+    error.sqlState === '23505'
+  )
+}
 
 export type ProjectContextSummary = {
   projectContextId: string
@@ -81,6 +144,26 @@ export type ProjectStore = {
   getSourceRepresentation(
     sourceRepresentationId: string,
   ): Promise<CanonicalPackageDescriptor | null>
+  initializeSchemaRevision(
+    projectContextId: string,
+    schemaTree: unknown,
+  ): Promise<AppendSchemaRevisionResult | null>
+  appendSchemaRevision(
+    projectContextId: string,
+    extractionSchemaId: string,
+    expectedRevisionNumber: number,
+    schemaTree: unknown,
+  ): Promise<AppendSchemaRevisionResult | null>
+  listSchemaRevisions(
+    projectContextId: string,
+    extractionSchemaId: string,
+    limit: number,
+  ): Promise<SchemaRevisionRecord[] | null>
+  getSchemaRevision(
+    projectContextId: string,
+    extractionSchemaId: string,
+    schemaRevisionId: string,
+  ): Promise<SchemaRevisionRecord | null>
   persistReviewedExtraction(
     sourceRepresentationId: string,
     input: ReviewedExtractionInput,
@@ -333,6 +416,135 @@ export function createProjectStore(database: Database = db): ProjectStore {
           artifactSha256: row.artifactSha256,
         }
       )
+    },
+    async initializeSchemaRevision(projectContextId, schemaTree) {
+      return database.transaction(async ({ orm }) => {
+        const project = await orm.public.ProjectContext.select('id').first({
+          id: projectContextId,
+        })
+        if (!project) return null
+
+        const extractionSchema = await orm.public.ExtractionSchema.where({
+          projectContextId,
+        })
+          .select('id')
+          .orderBy([
+            (schema) => schema.createdAt.desc(),
+            (schema) => schema.id.desc(),
+          ])
+          .first()
+        if (extractionSchema) {
+          const row = await orm.public.SchemaRevision.where({
+            extractionSchemaId: extractionSchema.id,
+          })
+            .select(...revisionFields)
+            .orderBy((revision) => revision.revisionNumber.desc())
+            .first()
+          if (row)
+            return {
+              status: 'conflict' as const,
+              currentRevision: schemaRevision(row as StoredSchemaRevision),
+            }
+        }
+        const extractionSchemaId = extractionSchema?.id ?? randomUUID()
+        if (!extractionSchema) {
+          await orm.public.ExtractionSchema.create({
+            id: extractionSchemaId,
+            projectContextId,
+            name: 'Extraction Schema',
+          })
+        }
+
+        const created = await orm.public.SchemaRevision.create({
+          extractionSchemaId,
+          revisionNumber: 1,
+          origin: 'SUGGESTION',
+          schemaTree,
+        })
+        return {
+          status: 'created' as const,
+          revision: schemaRevision(created as StoredSchemaRevision),
+        }
+      })
+    },
+    async appendSchemaRevision(
+      projectContextId,
+      extractionSchemaId,
+      expectedRevisionNumber,
+      schemaTree,
+    ) {
+      const currentHead = async (): Promise<SchemaRevisionRecord | null> => {
+        const row = await database.orm.public.SchemaRevision.where({
+          extractionSchemaId,
+        })
+          .select(...revisionFields)
+          .orderBy((revision) => revision.revisionNumber.desc())
+          .first()
+        return row ? schemaRevision(row as StoredSchemaRevision) : null
+      }
+      const owner = await database.orm.public.ExtractionSchema.select('id').first({
+        id: extractionSchemaId,
+        projectContextId,
+      })
+      if (!owner) return null
+
+      try {
+        return await database.transaction(async ({ orm }) => {
+          const row = await orm.public.SchemaRevision.where({ extractionSchemaId })
+            .select(...revisionFields)
+            .orderBy((revision) => revision.revisionNumber.desc())
+            .first()
+          const head = row ? schemaRevision(row as StoredSchemaRevision) : null
+          if ((head?.revisionNumber ?? 0) !== expectedRevisionNumber) {
+            return head ? { status: 'conflict' as const, currentRevision: head } : null
+          }
+          const created = await orm.public.SchemaRevision.create({
+            extractionSchemaId,
+            revisionNumber: expectedRevisionNumber + 1,
+            origin: 'RESEARCHER_EDIT',
+            schemaTree,
+          })
+          return {
+            status: 'created' as const,
+            revision: schemaRevision(created as StoredSchemaRevision),
+          }
+        })
+      } catch (error) {
+        if (!uniqueConstraint(error)) throw error
+        const head = await currentHead()
+        if (!head) throw error
+        return { status: 'conflict', currentRevision: head }
+      }
+    },
+    async listSchemaRevisions(projectContextId, extractionSchemaId, limit) {
+      const owner = await database.orm.public.ExtractionSchema.select('id').first({
+        id: extractionSchemaId,
+        projectContextId,
+      })
+      if (!owner) return null
+      const rows = await database.orm.public.SchemaRevision.where({
+        extractionSchemaId,
+      })
+        .select(...revisionFields)
+        .orderBy((revision) => revision.revisionNumber.desc())
+        .take(limit)
+        .all()
+      return rows.map((row) => schemaRevision(row as StoredSchemaRevision))
+    },
+    async getSchemaRevision(
+      projectContextId,
+      extractionSchemaId,
+      schemaRevisionId,
+    ) {
+      const owner = await database.orm.public.ExtractionSchema.select('id').first({
+        id: extractionSchemaId,
+        projectContextId,
+      })
+      if (!owner) return null
+      const row = await database.orm.public.SchemaRevision.select(
+        ...revisionFields,
+      ).first({ id: schemaRevisionId, extractionSchemaId })
+      return row ? schemaRevision(row as StoredSchemaRevision) : null
     },
     async persistReviewedExtraction(sourceRepresentationId, input) {
       return database.transaction(async ({ orm }) => {

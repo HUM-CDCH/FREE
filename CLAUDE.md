@@ -30,7 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 FREE is a document extraction and evaluation tool for **humanities researchers** (not "users"). Researchers annotate source documents, request schema suggestions from those annotations, approve an extraction schema, and validate the results. Every extracted value must be grounded in source evidence.
 
-The target workflow has five phases: Document Ingestion → Annotation → Schema Suggestion → Extraction → Validation. See `docs/architecture-new.md` for the full sequence diagram and `docs/user_stories.md` for acceptance criteria per phase.
+The workflow has five phases: Document Ingestion → Annotation → Schema Suggestion → Extraction → Validation. `CONTEXT.md` defines the domain language; `docs/architecture/` holds the LikeC4 model of the implemented runtime (`pnpm architecture:dev`); `docs/parsing-service.md` and `docs/parsing-quality.md` define the implemented parsing boundary.
 
 ## Language
 
@@ -73,9 +73,10 @@ Model configuration remains separate: non-secret Model Connections and
 Capability Routes live in `model-config.json` in the OS user config directory
 for `FREE Studio`, while FREE-managed credentials use the OS credential store.
 
-Studio has no general write APIs for annotations, Schema Revisions,
-validations, or document preparation. Annotations are still passed inline with
-each `/api/generate_schema` request; seeded and accepted research state reopens
+Studio keeps writes narrow: researcher schema edits append immutable Schema
+Revisions through `/api/schema-revisions`, and explicit review stores accepted
+Extractions and Review Decisions. Annotations are still passed inline with each
+`/api/generate_schema` request; seeded and accepted research state reopens
 through `ProjectStore`.
 
 ## Agent skills

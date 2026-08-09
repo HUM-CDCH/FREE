@@ -8,7 +8,7 @@ model {
     application_backend = container 'Application Backend' 'Authenticates accounts, owns sessions and authorization, composes product operations, persists research state, and mediates all parsing and model access.' 'Persistent application runtime'
     parsing_queue = container 'Parsing queue' 'Durable asynchronous work queue for Source Document parsing and OCR.' 'University-managed queue'
     parsing_workers = container 'Parsing workers' 'Consumes parsing tasks and produces canonical Source Representation Revisions and parser artifacts.' 'Python workers'
-    project_store = datastore 'Application and Project Store' 'Application accounts, private Project Context data, Model Connection metadata, immutable research history, and audit records. PostgreSQL/Prisma is adopted behind ProjectStore, but no application runtime consumes it yet.' 'PostgreSQL, Prisma'
+    project_store = datastore 'Application and Project Store' 'Application accounts, private Project Context data, Model Connection metadata, immutable research history, and audit records. PostgreSQL/Prisma is implemented behind ProjectStore and consumed by the local Studio runtime; the hosted Application Backend does not exist.' 'PostgreSQL, Prisma'
     artifact_store = datastore 'Institution artifact store' 'Encrypted Source Documents, canonical Markdown, Source Representation Revisions, and parser artifacts.' 'University-managed object storage'
     credential_vault = datastore 'Encrypted researcher credentials' 'Per-researcher closed-provider ciphertext, wrapped data key, nonce, authenticated context, and key version. Never plaintext.' 'University-managed secret store or database'
     key_management = container 'Key management' 'Keeps key-encryption keys separate from application data; unwrap is restricted to the Application Backend workload and audited.' 'KMS, Vault Transit, or HSM'
@@ -45,8 +45,13 @@ views {
       collaboration and public registration are out of scope.
 
       The implemented localhost runtime remains documented separately in
-      `current.c4`. PostgreSQL/Prisma is adopted for the Project Store; the
-      artifact store, queue, and key-management products remain unselected.
+      `current.c4`. PostgreSQL/Prisma is implemented for the Project Store and
+      is consumed there; the artifact store, queue, and key-management products
+      remain unselected.
+
+      Open conflict: ADR 0006 states that hosted deployment is unsupported and
+      that the current change adds no distributable host. That ADR governs the
+      local prototype. Confirm which text holds before this target is built.
     '''
 
     include administrator, target_researcher, free, closed_model_providers
@@ -69,9 +74,9 @@ views {
   view target_runtime of free {
     title 'FREE target runtime — conventional university-hosted web application'
     description '''
-      **Status:** approved target deployment. PostgreSQL/Prisma is adopted for
-      the Project Store but is not consumed by an application runtime; other
-      storage and queue technologies remain unselected.
+      **Status:** approved target deployment. Nothing here is built. The local
+      runtime consumes PostgreSQL/Prisma for the Project Store already; the
+      other storage and queue technologies remain unselected.
 
       The web gateway serves static assets and routes `/api` to the persistent
       Application Backend. Only the backend reaches stores, workers, key

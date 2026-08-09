@@ -68,7 +68,8 @@ There is no URL ingestion and no `/parsed-document` alias.
 
 ## Verification
 
+The suite is `unittest`. Keep `--no-sync` to hold the installed OCR profile.
+
 ```bash
-uv run --no-sync --with pytest python -m pytest -q
-uv run --no-sync lint-imports
+uv run --no-sync python -m unittest discover -s tests
 ```

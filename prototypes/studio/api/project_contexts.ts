@@ -1,5 +1,6 @@
 import {
   ApiError,
+  boundedLimit,
   noStoreError,
   json,
   noStore,
@@ -10,17 +11,6 @@ import {
   type ProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
-
-function limit(url: URL): number {
-  const value = url.searchParams.get('limit') ?? '20'
-  if (!/^(?:[1-9]|[1-4][0-9]|50)$/.test(value))
-    throw new ApiError(
-      422,
-      'invalid_request',
-      'limit must be an integer from 1 to 50.',
-    )
-  return Number(value)
-}
 
 function projectId(pathname: string): string | null {
   const match = /^\/api\/project-contexts\/([^/]+)$/.exec(pathname)
@@ -41,7 +31,7 @@ export function createGetProjectContexts(
       const id = projectId(url.pathname)
       if (id === null) {
         const projectContexts = await store
-          .listProjectContexts(limit(url))
+          .listProjectContexts(boundedLimit(url))
           .catch((cause) => {
             throw persistenceUnavailable(cause)
           })

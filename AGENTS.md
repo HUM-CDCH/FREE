@@ -42,13 +42,20 @@ We use a **pnpm workspace** to orchestrate commands across the monorepo from the
 Run commands from the workspace root:
 
 ```bash
-pnpm install                   # Install JS deps and run uv sync for Python services
+pnpm install                   # Install JS deps, emit the DB contract, run uv sync
 pnpm start                     # Alias for pnpm dev
 pnpm dev                       # Run backend and frontend dev servers concurrently
+pnpm dev:gpu                   # The same, but install the GPU OCR profile first
 pnpm test                      # Run all backend and frontend tests recursively
 pnpm build                     # Compile the frontend assets
 pnpm db:seed                   # Seed the example Project Contexts and Source Documents
 ```
+
+FREE keeps its research state in PostgreSQL 17. Start the database with
+`docker compose -f packages/db/docker-compose.yml up -d`, copy
+`packages/db/.env.example` to `packages/db/.env`, then create the schema with
+`pnpm --filter db db:init`. `packages/db` also holds `db:verify`, `db:update`,
+and `db:studio`.
 
 `pnpm db:seed` ingests each example PDF through the Parsing Service so its Source
 Documents own portable canonical packages outside the disposable Parsing Service
@@ -86,7 +93,12 @@ pnpm install
 pnpm dev
 pnpm build
 pnpm lint
+pnpm test                      # Vitest
+pnpm test:e2e                  # Playwright
 ```
+
+`pnpm install` does not install the Playwright browsers. Run
+`pnpm exec playwright install chromium` before the first `pnpm test:e2e`.
 
 ## NuExtract Prompting
 

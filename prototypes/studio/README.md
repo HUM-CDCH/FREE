@@ -25,9 +25,11 @@ pnpm build
 
 ## Source-document Evidence
 
-Completed parsing exposes canonical Markdown and the strict `parsed_document.v2`
-contract together. Studio fetches `/tasks/{task_id}/document` alongside Markdown for
-uploaded Source Documents; the bundled example uses a representative local fixture.
+Completed parsing supplies canonical Markdown and the strict `parsed_document.v2`
+contract together. A reopened Source Document reads both from its durable Source
+Representation at `/api/source-representations/{id}/markdown` and
+`/api/source-representations/{id}/source`. A Source Document that you open from
+disk goes to the Parsing Service, which returns the same two payloads.
 The **Evidence** tab groups text and table-cell Evidence by physical page, shows
 producer and logical coordinates, continuation/page-span status, geometry availability,
 unplaced content, and parser diagnostics. Selecting an anchor uses only its recorded

@@ -21,7 +21,7 @@ schema handling, and hierarchical record detection happen later.
 
 ## Public contract
 
-`app.models.parsed_document.ParsedDocument` is the sole public type. It contains
+`app.models.parsed_document_v2.ParsedDocument` is the sole public type. It contains
 PDF upload metadata, preprocessing identity, complete physical pages, typed
 semantic blocks, logical tables, sanitized parser provenance, diagnostics, and
 an Evidence index.

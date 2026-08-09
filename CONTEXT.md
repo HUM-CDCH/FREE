@@ -60,6 +60,22 @@ _Avoid_: property, column, metadata
 A researcher-approved structure that belongs to at least a ProjectContext and describes which entities and fields FREE should extract.
 _Avoid_: template, extraction target, target list
 
+**Schema Revision**:
+An immutable, ordered version of an Extraction Schema.
+_Avoid_: schema version, history entry, snapshot
+
+**Current Schema Revision**:
+The latest durable Schema Revision of an Extraction Schema and the basis for new edits and Extractions.
+_Avoid_: active version, current schema, head
+
+**Historical Schema Revision**:
+A Schema Revision earlier than the Current Schema Revision.
+_Avoid_: old version, history entry
+
+**Historical Preview**:
+A read-only view of a Historical Schema Revision that does not replace or alter the Current Schema Revision.
+_Avoid_: restore, rollback, checkout
+
 **Extraction**:
 A run that applies an extraction schema to source context from its source document to produce extracted values.
 _Avoid_: schema, suggestion

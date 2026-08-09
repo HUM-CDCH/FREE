@@ -4,14 +4,26 @@ Document Extraction & Evaluation — shared team repo.
 
 ## Start the Prototype
 
-From the repository root:
+FREE keeps its research state in PostgreSQL 17. Start the database, then set its
+connection string. Do this once, from the repository root:
 
 ```bash
+docker compose -f packages/db/docker-compose.yml up -d
+cp packages/db/.env.example packages/db/.env
 pnpm install
+pnpm --filter db db:init
+```
+
+Then start both servers:
+
+```bash
 pnpm start
 ```
 
-`pnpm install` installs workspace JavaScript dependencies and runs `uv sync` for Python services that expose `install:python`. `pnpm start` runs the FastAPI parsing service on `http://127.0.0.1:8000` and the Vite studio on `http://localhost:5173`.
+`pnpm install` installs the workspace JavaScript dependencies, emits the database contract, and runs `uv sync` for Python services that expose `install:python`. `pnpm --filter db db:init` creates the schema in the empty database. `pnpm start` runs the FastAPI parsing service on `http://127.0.0.1:8000` and the Vite studio on `http://localhost:5173`.
 
-See [docs/](docs/) for vision, architecture, user workflows, and evaluation notes.
+To open the example Source Documents, run `pnpm db:seed` in a second terminal while both servers run. The seed sends each example PDF to the parsing service.
+
+See [CONTEXT.md](CONTEXT.md) for domain language and [docs/](docs/) for current
+decisions and parsing contracts.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how we work together.

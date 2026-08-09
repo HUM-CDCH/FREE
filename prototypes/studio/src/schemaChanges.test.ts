@@ -1,11 +1,47 @@
 import { describe, expect, it } from 'vitest'
 import type { ProposedSchemaEdit } from '../shared/schemaEdit.contract'
 import { nodesToTemplate, templateToNodes, type SchemaNode } from '../shared/schemaNode'
-import { deriveSchemaProposal, replaySchemaChanges, toggleAcceptedSchemaChange } from './schemaChanges'
+import {
+  deriveSchemaProposal,
+  replaySchemaChanges,
+  summarizeSchemaRevision,
+  toggleAcceptedSchemaChange,
+} from './schemaChanges'
 
 function proposed(fields: ProposedSchemaEdit['fields'], additions: ProposedSchemaEdit['additions'] = []): ProposedSchemaEdit {
   return { status: 'proposed', fields, additions, issues: [] }
 }
+
+describe('summarizeSchemaRevision', () => {
+  it('derives structural changes from stable ids and order', () => {
+    const previous: SchemaNode[] = [
+      { id: 'a', name: 'site', type: 'string' },
+      {
+        id: 'group',
+        name: 'burial',
+        type: 'object',
+        children: [{ id: 'b', name: 'year', type: 'number' }],
+      },
+    ]
+    const current: SchemaNode[] = [
+      {
+        id: 'group',
+        name: 'grave',
+        type: 'object',
+        children: [
+          { id: 'b', name: 'year', type: 'string', description: 'Recorded year' },
+          { id: 'c', name: 'place', type: 'string' },
+        ],
+      },
+      { id: 'a', name: 'site', type: 'string' },
+    ]
+
+    expect(summarizeSchemaRevision(previous, current)).toBe(
+      '1 added, 1 renamed, 1 retyped, 1 description updated, 2 moved',
+    )
+    expect(summarizeSchemaRevision(null, current)).toBe('Initial schema')
+  })
+})
 
 describe('deriveSchemaProposal', () => {
   it('leaves an unchanged repeating scalar field untouched', () => {

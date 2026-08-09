@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
+import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import { nodesToTemplate, type SchemaNode } from '../shared/schemaNode'
 import SchemaPanel from './SchemaPanel'
 
@@ -24,10 +25,14 @@ function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes) {
     stale={false}
     onGenerate={vi.fn()}
     onNodesChange={onNodesChange}
+    beforeSchemaEdit={vi.fn()}
+    history={[]}
+    loadRevision={vi.fn()}
     annotationCount={0}
     annotationsMode="hints"
     onAnnotationsModeChange={vi.fn()}
     documentMarkdown={null}
+    sourceDocumentName="test.pdf"
   />)
   return onNodesChange
 }
@@ -43,10 +48,81 @@ async function send(response: SchemaEditResponse) {
 
 afterEach(() => {
   cleanup()
-  vi.clearAllMocks()
+  vi.resetAllMocks()
 })
 
-describe('SchemaPanel schema proposal review', () => {
+describe.sequential('SchemaPanel schema proposal review', () => {
+  it('omits unchanged types from a rename-only diff row', async () => {
+    renderPanel()
+    await send({
+      status: 'proposed',
+      fields: {
+        title: { name: 'heading', type: 'string', removed: false },
+        gender: { name: 'gender', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    })
+
+    const row = screen.getByText('title').parentElement!
+    expect(within(row).queryAllByText('string')).toHaveLength(0)
+  })
+
+  it('previews an exact historical tree read-only and returns to current without mutation', async () => {
+    const onNodesChange = vi.fn()
+    const history: SchemaRevisionSummary[] = [
+      {
+        schemaRevisionId: '51000000-0000-4000-8004-000000000002',
+        extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+        revisionNumber: 2,
+        origin: 'researcher-edit',
+        createdAt: '2026-08-01T12:01:00.000Z',
+        summary: '1 renamed',
+      },
+      {
+        schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+        extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+        revisionNumber: 1,
+        origin: 'suggestion',
+        createdAt: '2026-08-01T12:00:00.000Z',
+        summary: 'Initial schema',
+      },
+    ]
+    const historicalNodes: SchemaNode[] = [
+      { id: 'stable-place', name: 'historical_place', type: 'string' },
+      { id: 'stable-year', name: 'historical_year', type: 'number' },
+    ]
+    render(<SchemaPanel
+      state={{ status: 'ready', nodes, inputsKey: 'test' }}
+      stale={false}
+      onGenerate={vi.fn()}
+      onNodesChange={onNodesChange}
+      beforeSchemaEdit={vi.fn()}
+      annotationCount={0}
+      annotationsMode="hints"
+      onAnnotationsModeChange={vi.fn()}
+      documentMarkdown={null}
+      sourceDocumentName="test.pdf"
+      history={history}
+      currentRevisionNumber={2}
+      loadRevision={vi.fn(async () => ({ ...history[1], schemaNodes: historicalNodes }))}
+    />)
+
+    const chatHeader = screen.getByText('Chat').parentElement!
+    fireEvent.click(within(chatHeader).getByRole('button', { name: 'Schema history' }))
+    fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+    expect(await screen.findByText('Historical Preview · Revision 1')).toBeInTheDocument()
+    expect(screen.getByTestId('historical-schema-tree')).toHaveTextContent('historical_place')
+    expect(screen.getByTestId('historical-schema-tree')).toHaveTextContent('historical_year')
+    expect(screen.queryByRole('button', { name: '+ Add field' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Regenerate' })).not.toBeInTheDocument()
+    expect(onNodesChange).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to current schema' }))
+    expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
+    expect(onNodesChange).not.toHaveBeenCalled()
+  })
+
   it('applies an inline edit at arbitrary nesting depth', () => {
     const onNodesChange = renderPanel(vi.fn(), [{
       id: 'root',
@@ -208,6 +284,7 @@ describe('SchemaPanel schema proposal review', () => {
     expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Metadata not directly editable by chat: 1 description · 1 allowed-value list')
     expect(screen.getAllByText('heading')).toHaveLength(1)
     expect(screen.getAllByText('title')).toHaveLength(1)
+    expect(screen.getByText('number')).toBeInTheDocument()
     expect(input).toBeDisabled()
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Accept change to heading' }))

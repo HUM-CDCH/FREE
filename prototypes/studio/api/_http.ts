@@ -51,6 +51,17 @@ export function json(data: unknown, init?: ResponseInit): Response {
 /** Persisted research state is never cached by the browser. */
 export const noStore = { 'Cache-Control': 'no-store' }
 
+export function boundedLimit(url: URL): number {
+  const value = url.searchParams.get('limit') ?? '20'
+  if (!/^(?:[1-9]|[1-4][0-9]|50)$/.test(value))
+    throw new ApiError(
+      422,
+      'invalid_request',
+      'limit must be an integer from 1 to 50.',
+    )
+  return Number(value)
+}
+
 /** One sanitized failure for every unreadable persisted read. */
 export function persistenceUnavailable(
   cause: unknown,
