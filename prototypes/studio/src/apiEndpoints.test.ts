@@ -48,6 +48,12 @@ describe('Studio API endpoints', () => {
       reasoning: null,
       pages: null,
       modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      metadata: {
+        finishReason: 'stop',
+        inputTokens: 10,
+        outputTokens: 4,
+        durationMs: 12,
+      },
     })
 
     const response = await extractPost(formRequest('extract'))

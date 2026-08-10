@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AnnotationsMode } from './api'
 import { requestSchemaEdit } from './api'
-import { countTemplateFields, isRecord } from './template'
+import { countTemplateFields, isRecord } from '../shared/template'
 import { isAllowedValues, type FieldType } from '../shared/allowedValues'
 import {
   duplicateFieldKeys,

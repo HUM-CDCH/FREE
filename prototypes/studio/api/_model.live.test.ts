@@ -9,7 +9,99 @@ import type { LlmTrace } from '../shared/llmInspector.contract.js'
 
 const EXPECTED_GRAVES = [8, 13, 24, 26, 28, 30, 31]
 const LIVE = process.env.FREE_LIVE_MODEL_E2E === '1'
+const ARTICLE_SMOKE = process.env.FREE_LIVE_ARTICLE_SMOKE === '1'
 const TIMEOUT_MS = 12 * 60 * 1_000
+
+const articleSmokeInput = {
+  document: {
+    file: null,
+    markdown: '## Page 1\nGrav 8 is an archaeological grave.',
+    pages: 1,
+  },
+  template: { records: [{ title: 'string' }] },
+}
+
+function articleSmokeEvidence(
+  provider: string,
+  model: string,
+  startedAt: number,
+  result: Awaited<ReturnType<typeof extractWithModel>>,
+) {
+  const output = JSON.stringify(result.result)
+  console.info(
+    JSON.stringify({
+      provider,
+      model,
+      durationMs: Date.now() - startedAt,
+      finishReason: result.metadata.finishReason,
+      inputTokens: result.metadata.inputTokens,
+      outputTokens: result.metadata.outputTokens,
+      outputSha256: createHash('sha256').update(output).digest('hex'),
+      records: Array.isArray(result.result.records)
+        ? result.result.records.length
+        : 0,
+    }),
+  )
+  expect(result.result.records).toEqual([
+    expect.objectContaining({ title: expect.any(String) }),
+  ])
+}
+
+describe.skipIf(!ARTICLE_SMOKE)('focused live Article provider smoke', () => {
+  it(
+    'runs one whole-source Article call through configured Codex CLI',
+    { timeout: TIMEOUT_MS },
+    async () => {
+      const codex = providerTable['codex-cli']
+      const target: GeneralExecutionTarget = {
+        profile: 'general',
+        model: codex.createModel(
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            name: 'Live Codex CLI',
+            provider: 'codex-cli',
+            baseUrl: null,
+          },
+          'gpt-5.6-luna',
+        ),
+        jsonOutput: codex.jsonOutput,
+        temperatureSupported: codex.temperatureSupported,
+      }
+      const startedAt = Date.now()
+      articleSmokeEvidence(
+        'codex-cli',
+        'gpt-5.6-luna',
+        startedAt,
+        await extractWithModel(articleSmokeInput, target),
+      )
+    },
+  )
+
+  it(
+    'runs one whole-source Article call through configured Ollama',
+    { timeout: TIMEOUT_MS },
+    async () => {
+      const model =
+        process.env.FREE_LIVE_OLLAMA_MODEL ??
+        'hf.co/numind/NuExtract3-GGUF:Q4_K_M'
+      const target: NuExtractRawExecutionTarget = {
+        profile: 'nuextract-raw',
+        modelId: model,
+        baseUrl:
+          process.env.FREE_LIVE_OLLAMA_URL ?? 'http://127.0.0.1:11434',
+        authorization: null,
+        temperatureSupported: true,
+      }
+      const startedAt = Date.now()
+      articleSmokeEvidence(
+        'ollama',
+        model,
+        startedAt,
+        await extractWithModel(articleSmokeInput, target),
+      )
+    },
+  )
+})
 
 const extractionSchema = {
   records: [{

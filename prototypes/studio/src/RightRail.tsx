@@ -9,7 +9,7 @@ import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { AnnotationsMode } from './api'
 import EvidenceTab from './EvidenceTab'
-import type { ParsedDocument, ParsedEvidenceAnchor } from './parsedDocument'
+import type { ParsedDocument, ParsedEvidenceAnchor } from '../shared/parsedDocument'
 import type {
   SchemaRevision,
   SchemaRevisionSummary,

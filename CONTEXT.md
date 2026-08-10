@@ -36,6 +36,18 @@ _Avoid_: annotation set, validation set, correction set
 Source material and annotations from a single source document that FREE may consider when proposing schemas or producing extraction results.
 _Avoid_: annotation text, surrounding text, document context, full context
 
+**Extraction Strategy**:
+A per-Extraction choice of how FREE applies an Extraction Schema to Source Context. Article and Catalog are Extraction Strategies and do not replace Direct Extraction or Schema-Guided Extraction.
+_Avoid_: document type, extraction mode, profile
+
+**Article Extraction Strategy**:
+An Extraction Strategy that applies an Extraction Schema to the complete canonical Source Context as one values-extraction operation.
+_Avoid_: article mode, narrative mode, direct extraction
+
+**Catalog Extraction Strategy**:
+An Extraction Strategy that discovers repeated records in canonical Source Context, extracts each record separately, and combines them under the Extraction Schema's root records collection.
+_Avoid_: catalog mode, hierarchical extraction, schema-guided extraction
+
 **Direct Extraction**:
 An extraction mode where a humanities researcher extracts information from a source document without first creating annotations, reviewing schema suggestions, or approving an extraction schema.
 _Avoid_: quick extraction, simple extraction, automatic extraction

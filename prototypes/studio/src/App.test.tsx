@@ -58,12 +58,35 @@ const reopened: DocumentWorkspaceProps = {
   },
   persistedExtraction: {
     extractionId: '51000000-0000-4000-8006-000000000001',
+    sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+    sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
+    schemaRevisionId: '51000000-0000-4000-8005-000000000002',
     createdAt: '2026-07-31T12:03:00.000Z',
-    outcome: 'succeeded',
-    result: { place: 'Ellekilde' },
+    reviewedAt: null,
+    strategy: 'ARTICLE',
+    outcome: 'SUCCEEDED',
+    complete: true,
+    diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+    failure: null,
+    resultPayload: { place: 'Ellekilde' },
     evidenceLinks: [],
-    modelAttribution: { extraction: null, grounding: null },
+    modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+    reviewable: true,
+    retryOfId: null,
     reviewDecisions: [],
+    sourceRepresentation: {
+      revisionNumber: 1,
+      resources: {
+        sourcePdfUrl: '/api/source-representations/rep/pdf',
+        markdownUrl: '/api/source-representations/rep/markdown',
+        parsedDocumentUrl: '/api/source-representations/rep/source',
+      },
+    },
+    extractionSchema: {
+      extractionSchemaId: '51000000-0000-4000-8005-000000000001',
+      revisionNumber: 1,
+      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+    },
   },
 }
 
@@ -276,7 +299,6 @@ describe('reopened Source Document workspace', () => {
 
   it('posts the accepted result with its pinned Schema Revision and canonical Review Decisions', async () => {
     const calls: Array<{ url: string; body: unknown }> = []
-    let extractCalls = 0
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -288,24 +310,44 @@ describe('reopened Source Document workspace', () => {
               typeof init.body === 'string' ? JSON.parse(init.body) : init.body,
           })
         if (url.endsWith('/source')) return Response.json(parsedDocument)
-        if (url.endsWith('/api/extract')) {
-          extractCalls += 1
+        if (url.endsWith('/api/extractions')) {
+          const request = JSON.parse(String(init?.body)) as { id: string }
           return Response.json({
-            result:
-              extractCalls === 1
-                ? { number: '24-1' }
-                : { links: { C1: 'E1' } },
-            raw: '{}',
-            reasoning: null,
-            pages: 1,
+            extractionId: request.id,
+            sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+            sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+            schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+            strategy: 'ARTICLE',
+            outcome: 'SUCCEEDED',
+            complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+            diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null },
+            failure: null,
+            resultPayload: { records: [{ number: '24-1' }] },
+            evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
+            reviewable: true,
+            retryOfId: null,
+            createdAt: '2026-08-10T00:00:00.000Z',
+            reviewedAt: null,
+            reviewDecisions: [],
+          }, { status: 201 })
+        }
+        if (url.endsWith('/review')) {
+          const extractionId = url.split('/').at(-2)!
+          return Response.json({
+            extractionId,
+            sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+            sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+            schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+            strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
+            modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+            diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null },
+            failure: null, resultPayload: { records: [{ number: '24-1' }] },
+            evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
+            reviewable: true, retryOfId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',
+            reviewDecisions: [{ reviewDecisionId: '51000000-0000-4000-8007-000000000001', evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'] }],
           })
         }
-        if (url.endsWith('/extraction-reviews'))
-          return Response.json(
-            { extractionId: '51000000-0000-4000-8006-000000000002' },
-            { status: 201 },
-          )
         return new Response('# Beretning')
       }),
     )
@@ -322,35 +364,8 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByRole('button', { name: 'Review saved' })).toBeDisabled(),
     )
     const review = calls.at(-1)!
-    expect(review.url).toContain(
-      `/api/source-representations/${reopened.sourceRepresentationId}/extraction-reviews`,
-    )
+    expect(review.url).toMatch(/\/api\/extractions\/[0-9a-f-]+\/review$/)
     expect(review.body).toEqual({
-      schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-      result: { number: '24-1' },
-      evidenceLinks: [
-        {
-          resultPath: ['number'],
-          evidenceAnchorId: 'bundled-anchor',
-        },
-      ],
-      modelAttribution: {
-        extraction: { provider: 'ollama', modelId: 'test-model' },
-        grounding: {
-          strategy: 'retrieval_batched',
-          batches: [
-            {
-              resultPath: null,
-              candidateCount: 1,
-              fallback: true,
-              modelAttribution: {
-                provider: 'ollama',
-                modelId: 'test-model',
-              },
-            },
-          ],
-        },
-      },
       reviewDecisions: [
         {
           evidenceAnchorId: 'bundled-anchor',

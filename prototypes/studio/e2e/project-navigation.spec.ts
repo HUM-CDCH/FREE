@@ -85,18 +85,11 @@ const DURABLE = {
     revisionNumber: 4,
     schemaTree: [{ id: 'place', name: 'place', type: 'string' }],
   },
-  extraction: {
-    extractionId: '00000000-0000-4000-8000-0000000000f1',
-    createdAt: new Date('2026-08-01T08:00:00.000Z'),
-    outcome: 'SUCCEEDED' as const,
-    resultPayload: { result: { place: 'Ellekilde' }, evidenceLinks: [] },
-    modelAttribution: { extraction: null, grounding: null },
-    failure: null,
-    reviewDecisions: [],
-  },
+  latestAttempt: null,
+  latestReviewed: null,
 } satisfies Pick<
   DocumentReopenSnapshot,
-  'annotationSet' | 'extractionSchema' | 'extraction'
+  'annotationSet' | 'extractionSchema' | 'latestAttempt' | 'latestReviewed'
 >
 
 const seedOf = (projectContextId: string) =>
@@ -147,7 +140,8 @@ const base: NavigationStore = {
       },
       annotationSet: null,
       extractionSchema: null,
-      extraction: null,
+      latestAttempt: null,
+      latestReviewed: null,
     }
   },
 }

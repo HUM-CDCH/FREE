@@ -184,18 +184,32 @@ export default function AppFrame({
   }
   // Durable hydration: the PDF, its name, and its Markdown all come from the
   // reopened representation. Rail state, PDF position, focus, and drafts do not.
+  const reopenedAttempt = openDocument?.latestAttempt ?? null
   const reopened = openDocument && {
     projectContextId: openDocument.projectContext.projectContextId,
-    pdfUrl: openDocument.sourceRepresentation.resources.sourcePdfUrl,
+    pdfUrl:
+      reopenedAttempt?.sourceRepresentation.resources.sourcePdfUrl ??
+      openDocument.sourceRepresentation.resources.sourcePdfUrl,
     filename: openDocument.sourceDocument.name,
     sourceRepresentationId:
+      reopenedAttempt?.sourceRepresentationRevisionId ??
       openDocument.sourceRepresentation.sourceRepresentationId,
-    markdownUrl: openDocument.sourceRepresentation.resources.markdownUrl,
+    markdownUrl:
+      reopenedAttempt?.sourceRepresentation.resources.markdownUrl ??
+      openDocument.sourceRepresentation.resources.markdownUrl,
     parsedDocumentUrl:
+      reopenedAttempt?.sourceRepresentation.resources.parsedDocumentUrl ??
       openDocument.sourceRepresentation.resources.parsedDocumentUrl,
     annotationSet: openDocument.annotationSet,
-    extractionSchema: openDocument.extractionSchema,
-    persistedExtraction: openDocument.extraction,
+    extractionSchema:
+      reopenedAttempt
+        ? {
+            ...reopenedAttempt.extractionSchema,
+            schemaRevisionId: reopenedAttempt.schemaRevisionId,
+          }
+        : openDocument.extractionSchema,
+    persistedExtraction: reopenedAttempt,
+    latestReviewedExtraction: openDocument.latestReviewed,
   }
   const workspace = devDocument
     ? {
@@ -207,6 +221,7 @@ export default function AppFrame({
         annotationSet: null,
         extractionSchema: null,
         persistedExtraction: null,
+        latestReviewedExtraction: null,
       }
     : reopened
 

@@ -6,7 +6,7 @@ import {
   type SchemaRevision,
   type SchemaRevisionSummary,
 } from '../shared/schemaRevision.contract'
-import { isRecord } from './template'
+import { isRecord } from '../shared/template'
 
 export class SchemaRevisionConflictError extends Error {
   readonly currentRevision: SchemaRevision

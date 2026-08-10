@@ -114,7 +114,7 @@ describe('extractWithModel', () => {
       model: 'nuextract/manual',
       raw: true,
       stream: false,
-      options: { temperature: 0.2 },
+      options: { temperature: 0.2, num_ctx: 32768, num_predict: 8192 },
     })
     expect(body).not.toHaveProperty('chat_template_kwargs')
     expect(body.prompt).toContain('"name": "verbatim-string"')
@@ -161,6 +161,7 @@ describe('extractWithModel', () => {
 
     expect(request).toHaveBeenCalledOnce()
     expect(result.result).toEqual({ grave: [{ name: 'Repeated' }] })
+    expect(result.metadata.finishReason).toBe('length')
     expect(result).not.toHaveProperty('evidence')
   })
 
@@ -204,6 +205,7 @@ describe('extractWithModel', () => {
     expect(request).not.toHaveBeenCalled()
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
     expect(generateTextMock.mock.calls[0][0]).toHaveProperty('reasoning', 'none')
+    expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('maxOutputTokens')
     const instructions = generateTextMock.mock.calls[0][0].instructions as string
     expect(instructions).not.toContain('_evidence')
     expect(instructions).not.toContain('source evidence')

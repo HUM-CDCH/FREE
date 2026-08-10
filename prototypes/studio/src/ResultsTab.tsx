@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import ResultValue from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
-import { isRecord } from './template'
+import { isRecord } from '../shared/template'
 import { resultStats } from './resultStats'
 import type { ExtractionController } from './useExtraction'
 
@@ -53,10 +53,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
     setForwardStack([])
   }
 
-  const displayResult =
-    state.status === 'ready' || (state.status === 'running' && state.step === 'grounding')
-      ? state.result
-      : null
+  const displayResult = state.status === 'ready' ? state.result : null
   const evidenceAnchorIdByPath = useMemo(
     () =>
       new Map(
@@ -98,24 +95,6 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
     if (isRecord(node)) return Object.entries(node as Record<string, unknown>).map(([k, v]) => ({ pathKey: k, displayName: k, value: v }))
     return []
   }, [displayResult, navPath])
-
-  async function copyJson() {
-    if (displayResult) {
-      await navigator.clipboard.writeText(JSON.stringify(displayResult, null, 2))
-    }
-  }
-
-  function downloadJson() {
-    if (!displayResult) return
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(displayResult, null, 2)], { type: 'application/json' }),
-    )
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'free-extraction-result.json'
-    link.click()
-    URL.revokeObjectURL(url)
-  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -167,12 +146,6 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
                 <Button variant="secondary" size="sm" onClick={() => void controller.runExtraction()}>
                   Rerun
                 </Button>
-                <Button variant="secondary" size="sm" onClick={() => void copyJson()}>
-                  Copy JSON
-                </Button>
-                <Button variant="secondary" size="sm" onClick={downloadJson}>
-                  Download
-                </Button>
               </div>
             </div>
             {controller.review.error && (
@@ -180,21 +153,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
                 {controller.review.error}
               </p>
             )}
-            {state.groundingError && (
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-danger/40 px-3 py-2">
-                <p role="alert" className="text-[11.5px] leading-snug text-danger">
-                  Evidence grounding failed: {state.groundingError}
-                </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void controller.retryGrounding()}
-                >
-                  Retry grounding
-                </Button>
-              </div>
-            )}
-            {!state.groundingError && state.groundingIssues.length > 0 && (
+            {state.groundingIssues.length > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
                 {state.groundingIssues.length} value{state.groundingIssues.length === 1 ? '' : 's'} could not be grounded and will not create Evidence highlights.
               </p>
@@ -280,26 +239,12 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
       )}
 
       {state.status === 'running' && (
-        state.step === 'extraction' ? (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
-            <Spinner
-              label="Extracting values…"
-              hint="Applying the clean schema to the source document."
-            />
-          </div>
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="shrink-0 border-b border-line bg-surface px-4 py-3">
-              <Spinner
-                label="Grounding Evidence…"
-                hint="The extracted values below are ready; canonical Evidence links are still being resolved."
-              />
-            </div>
-            <pre className={preClasses} aria-label="Extracted values awaiting grounding">
-              {JSON.stringify(state.result, null, 2)}
-            </pre>
-          </div>
-        )
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
+          <Spinner
+            label="Running Article extraction…"
+            hint="The server is extracting values, grounding Evidence, and saving the terminal attempt."
+          />
+        </div>
       )}
 
       {state.status === 'error' && (
@@ -328,6 +273,15 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
             onClick={() => void controller.runExtraction()}
           >
             {schemaReady ? 'Run extraction' : 'Generate a schema first'}
+          </Button>
+        </div>
+      )}
+
+      {state.status === 'cancelled' && (
+        <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
+          <p className="text-[13px] font-semibold text-ink">Extraction cancelled</p>
+          <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction()}>
+            Run a new extraction
           </Button>
         </div>
       )}

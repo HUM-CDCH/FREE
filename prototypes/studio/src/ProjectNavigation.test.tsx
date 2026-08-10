@@ -72,7 +72,8 @@ function snapshot(sourceDocument = beretning) {
     },
     annotationSet: null,
     extractionSchema: null,
-    extraction: null,
+    latestAttempt: null,
+    latestReviewed: null,
   }
 }
 
@@ -97,15 +98,39 @@ function hydratedSnapshot() {
       revisionNumber: 1,
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
     },
-    extraction: {
+    latestAttempt: {
       extractionId: '51000000-0000-4000-8006-000000000001',
+      sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+      sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
+      schemaRevisionId: '51000000-0000-4000-8005-000000000002',
       createdAt: '2026-07-31T12:03:00.000Z',
-      outcome: 'succeeded',
-      result: { place: 'Ellekilde' },
+      reviewedAt: null,
+      strategy: 'ARTICLE',
+      outcome: 'SUCCEEDED',
+      complete: true,
+      diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+      failure: null,
+      resultPayload: { place: 'Ellekilde' },
       evidenceLinks: [],
-      modelAttribution: { extraction: null, grounding: null },
+      modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+      reviewable: true,
+      retryOfId: null,
       reviewDecisions: [],
+      sourceRepresentation: {
+        revisionNumber: 2,
+        resources: {
+          sourcePdfUrl: '/api/source-representations/rep/pdf',
+          markdownUrl: '/api/source-representations/rep/markdown',
+          parsedDocumentUrl: '/api/source-representations/rep/source',
+        },
+      },
+      extractionSchema: {
+        extractionSchemaId: '51000000-0000-4000-8005-000000000001',
+        revisionNumber: 1,
+        schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+      },
     },
+    latestReviewed: null,
   }
 }
 
@@ -315,7 +340,7 @@ describe('routed Source Document reopening', () => {
     renderRoutes(studioFetch(() => Response.json(hydratedSnapshot())))
 
     expect(
-      await screen.findByText(/The restored annotation.*place.*succeeded/),
+      await screen.findByText(/The restored annotation.*place.*SUCCEEDED/),
     ).toBeInTheDocument()
   })
 

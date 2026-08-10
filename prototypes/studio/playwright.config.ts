@@ -8,9 +8,8 @@ export default defineConfig({
     command: 'pnpm dev --port 41739',
     url: 'http://localhost:41739',
     reuseExistingServer: false,
-    // Every persisted read is stubbed in the browser, so no database is reached.
-    // The URL only has to parse: without one the store module throws on import
-    // and even a request rejected before any read would answer 500, not 422.
+    // Focused lifecycle runs pass a disposable database; browser-only specs use
+    // the fallback URL but do not reach it.
     env: {
       DATABASE_URL:
         process.env.DATABASE_URL ??

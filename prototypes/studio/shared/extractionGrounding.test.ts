@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import bundled from './assets/parsed_document.v2.json'
+import bundled from '../src/assets/parsed_document.v2.json'
 import {
   groundExtraction,
-  InvalidGroundingResponseError,
   type GroundingModelInvoker,
-} from './extractionGrounding'
-import { decodeParsedDocument, type ParsedDocument } from './parsedDocument'
+} from './extractionGrounding.js'
+import { decodeParsedDocument, type ParsedDocument } from './parsedDocument.js'
 
 const document = decodeParsedDocument(bundled)
 const firstAnchorId = document.evidence_index.anchors[0].anchor_id
@@ -345,6 +344,46 @@ describe('groundExtraction', () => {
     ])
   })
 
+  it('continues after a failed grounding batch and leaves its claims ungrounded', async () => {
+    const invokeModel: GroundingModelInvoker = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('grounder unavailable'))
+      .mockResolvedValueOnce({
+        result: { links: { C2: 'E1' } },
+        modelAttribution: { provider: 'fixture', batch: 2 },
+      })
+
+    const grounded = await groundExtraction({
+      document,
+      result: {
+        records: [{ title: 'first' }, { title: 'Ellekilde' }],
+      },
+      invokeModel,
+    })
+
+    expect(invokeModel).toHaveBeenCalledTimes(2)
+    expect(grounded.evidenceLinks).toEqual([
+      {
+        resultPath: ['records', 1, 'title'],
+        evidenceAnchorId: firstAnchorId,
+      },
+    ])
+    expect(grounded.ungroundedPaths).toEqual([['records', 0, 'title']])
+    expect(grounded.issues).toEqual([
+      { code: 'grounding_failed', resultPath: ['records', 0] },
+    ])
+    expect(grounded.modelAttribution?.batches).toEqual([
+      expect.objectContaining({
+        resultPath: ['records', 0],
+        modelAttribution: null,
+      }),
+      expect.objectContaining({
+        resultPath: ['records', 1],
+        modelAttribution: { provider: 'fixture', batch: 2 },
+      }),
+    ])
+  })
+
   it('does not dispatch another batch after the signal is aborted', async () => {
     const controller = new AbortController()
     const invokeModel: GroundingModelInvoker = vi.fn(async () => {
@@ -393,14 +432,18 @@ describe('groundExtraction', () => {
     null,
     { links: [] },
     { links: {}, commentary: 'extra' },
-  ])('rejects a malformed response root %#', async (modelResult) => {
+  ])('leaves claims ungrounded for a malformed response root %#', async (modelResult) => {
     await expect(
       groundExtraction({
         document,
         result: { title: 'Ellekilde' },
         invokeModel: async () => ({ result: modelResult, modelAttribution: null }),
       }),
-    ).rejects.toBeInstanceOf(InvalidGroundingResponseError)
+    ).resolves.toMatchObject({
+      evidenceLinks: [],
+      ungroundedPaths: [['title']],
+      issues: [{ code: 'grounding_failed', resultPath: null }],
+    })
   })
 
   it('skips the model call when there are no populated claims', async () => {

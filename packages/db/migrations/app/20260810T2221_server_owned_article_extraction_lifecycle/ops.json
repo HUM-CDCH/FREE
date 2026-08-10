@@ -1,0 +1,1240 @@
+[
+  {
+    "id": "data.reset-prototype-extractions",
+    "label": "Reset obsolete prototype Extraction rows",
+    "operationClass": "data",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [],
+    "execute": [
+      {
+        "description": "Delete obsolete reviewed Extractions and Review Decisions",
+        "sql": "DELETE FROM public.\"reviewDecision\"; DELETE FROM public.extraction;"
+      }
+    ],
+    "postcheck": []
+  },
+  {
+    "id": "dropColumn.extraction.rawModelOutput",
+    "label": "Drop column \"rawModelOutput\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "rawModelOutput",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"rawModelOutput\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "rawModelOutput"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"rawModelOutput\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"rawModelOutput\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"rawModelOutput\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "rawModelOutput"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropConstraint.extraction.extraction_sourceRepresentationRevisionId_fkey",
+    "label": "Drop constraint \"extraction_sourceRepresentationRevisionId_fkey\" on \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extraction_sourceRepresentationRevisionId_fkey",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_sourceRepresentationRevisionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_sourceRepresentationRevisionId_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop constraint \"extraction_sourceRepresentationRevisionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP CONSTRAINT \"extraction_sourceRepresentationRevisionId_fkey\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_sourceRepresentationRevisionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_sourceRepresentationRevisionId_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropIndex.extraction.extraction_sourceRepresentationRevisionId_idx",
+    "label": "Drop index \"extraction_sourceRepresentationRevisionId_idx\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_sourceRepresentationRevisionId_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_sourceRepresentationRevisionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceRepresentationRevisionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop index \"extraction_sourceRepresentationRevisionId_idx\"",
+        "sql": "DROP INDEX \"public\".\"extraction_sourceRepresentationRevisionId_idx\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_sourceRepresentationRevisionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceRepresentationRevisionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.extractionReview",
+    "label": "Create table \"extractionReview\"",
+    "summary": "Creates table \"extractionReview\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"extractionReview\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"extractionReview\"",
+        "sql": "CREATE TABLE \"public\".\"extractionReview\" (\n  \"createdAt\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"decisionDigest\" text NOT NULL,\n  \"extractionId\" \"uuid\" NOT NULL,\n  \"id\" \"uuid\" NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"extractionReview\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.complete",
+    "label": "Add column \"complete\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "complete",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"complete\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "complete"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"complete\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"complete\" bool"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"complete\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "complete"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.evidenceLinks",
+    "label": "Add column \"evidenceLinks\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "evidenceLinks",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"evidenceLinks\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "evidenceLinks"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"evidenceLinks\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"evidenceLinks\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"evidenceLinks\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "evidenceLinks"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.retryOfId",
+    "label": "Add column \"retryOfId\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "retryOfId",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"retryOfId\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "retryOfId"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"retryOfId\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"retryOfId\" \"uuid\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"retryOfId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "retryOfId"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.reviewedAt",
+    "label": "Add column \"reviewedAt\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewedAt",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewedAt\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewedAt"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"reviewedAt\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"reviewedAt\" timestamptz(6)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewedAt\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewedAt"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.diagnostics",
+    "label": "Add column \"diagnostics\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "diagnostics",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"diagnostics\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "diagnostics"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"diagnostics\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"diagnostics\" jsonb"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"diagnostics\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "diagnostics"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.extraction.diagnostics",
+    "label": "Set NOT NULL on \"extraction\".\"diagnostics\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "diagnostics",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"diagnostics\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "diagnostics"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"diagnostics\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"extraction\" WHERE \"diagnostics\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"diagnostics\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ALTER COLUMN \"diagnostics\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"diagnostics\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "diagnostics",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.reviewable",
+    "label": "Add column \"reviewable\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewable",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewable\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewable"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"reviewable\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"reviewable\" bool"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewable\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewable"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.extraction.reviewable",
+    "label": "Set NOT NULL on \"extraction\".\"reviewable\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewable",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewable\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewable"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"reviewable\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"extraction\" WHERE \"reviewable\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"reviewable\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ALTER COLUMN \"reviewable\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewable\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewable",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.sourceDocumentId",
+    "label": "Add column \"sourceDocumentId\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "sourceDocumentId",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"sourceDocumentId\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "sourceDocumentId"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"sourceDocumentId\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"sourceDocumentId\" \"uuid\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"sourceDocumentId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "sourceDocumentId"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.extraction.sourceDocumentId",
+    "label": "Set NOT NULL on \"extraction\".\"sourceDocumentId\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "sourceDocumentId",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"sourceDocumentId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "sourceDocumentId"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"sourceDocumentId\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"extraction\" WHERE \"sourceDocumentId\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"sourceDocumentId\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ALTER COLUMN \"sourceDocumentId\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"sourceDocumentId\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "sourceDocumentId",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extraction.strategy",
+    "label": "Add column \"strategy\" to \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "strategy",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"strategy\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "strategy"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"strategy\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD COLUMN \"strategy\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"strategy\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "strategy"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.extraction.strategy",
+    "label": "Set NOT NULL on \"extraction\".\"strategy\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "strategy",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"strategy\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "strategy"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"strategy\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"extraction\" WHERE \"strategy\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"strategy\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ALTER COLUMN \"strategy\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"strategy\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "strategy",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.dropNotNull.extraction.modelAttribution",
+    "label": "Drop NOT NULL on \"extraction\".\"modelAttribution\"",
+    "operationClass": "widening",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "modelAttribution",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"modelAttribution\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "modelAttribution"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop NOT NULL on \"modelAttribution\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ALTER COLUMN \"modelAttribution\" DROP NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"modelAttribution\" is nullable",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "modelAttribution",
+          "YES"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.extraction.extraction_id_sourceDocumentId_key",
+    "label": "Add unique constraint on \"extraction\" (id, sourceDocumentId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extraction_id_sourceDocumentId_key",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_id_sourceDocumentId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_id_sourceDocumentId_key",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"extraction_id_sourceDocumentId_key\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD CONSTRAINT \"extraction_id_sourceDocumentId_key\" UNIQUE (\"id\", \"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_id_sourceDocumentId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_id_sourceDocumentId_key",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.extraction.extraction_retry_pin_key",
+    "label": "Add unique constraint on \"extraction\" (id, sourceRepresentationRevisionId, schemaRevisionId, strategy)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extraction_retry_pin_key",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_retry_pin_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_retry_pin_key",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"extraction_retry_pin_key\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ADD CONSTRAINT \"extraction_retry_pin_key\" UNIQUE (\"id\", \"sourceRepresentationRevisionId\", \"schemaRevisionId\", \"strategy\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_retry_pin_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_retry_pin_key",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.extractionReview.extractionReview_extractionId_key",
+    "label": "Add unique constraint on \"extractionReview\" (extractionId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extractionReview_extractionId_key",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extractionReview_extractionId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_key",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"extractionReview_extractionId_key\"",
+        "sql": "ALTER TABLE \"public\".\"extractionReview\" ADD CONSTRAINT \"extractionReview_extractionId_key\" UNIQUE (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extractionReview_extractionId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_key",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.sourceRepresentationRevision.sourceRepresentationRevision_id_sourceDocumentId_key",
+    "label": "Add unique constraint on \"sourceRepresentationRevision\" (id, sourceDocumentId)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "sourceRepresentationRevision_id_sourceDocumentId_key",
+        "table": "sourceRepresentationRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"sourceRepresentationRevision_id_sourceDocumentId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_id_sourceDocumentId_key",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"sourceRepresentationRevision_id_sourceDocumentId_key\"",
+        "sql": "ALTER TABLE \"public\".\"sourceRepresentationRevision\" ADD CONSTRAINT \"sourceRepresentationRevision_id_sourceDocumentId_key\" UNIQUE (\"id\", \"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"sourceRepresentationRevision_id_sourceDocumentId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "sourceRepresentationRevision_id_sourceDocumentId_key",
+          "public",
+          "\"public\".\"sourceRepresentationRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extraction.extraction_retry_pin_idx",
+    "label": "Create index \"extraction_retry_pin_idx\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_retry_pin_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_retry_pin_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_retry_pin_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_retry_pin_idx\"",
+        "sql": "CREATE INDEX \"extraction_retry_pin_idx\" ON \"public\".\"extraction\" (\"retryOfId\", \"sourceRepresentationRevisionId\", \"schemaRevisionId\", \"strategy\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_retry_pin_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_retry_pin_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extraction.extraction_reviewedAt_idx",
+    "label": "Create index \"extraction_reviewedAt_idx\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_reviewedAt_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_reviewedAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_reviewedAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_reviewedAt_idx\"",
+        "sql": "CREATE INDEX \"extraction_reviewedAt_idx\" ON \"public\".\"extraction\" (\"reviewedAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_reviewedAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_reviewedAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extraction.extraction_sourceDocumentId_createdAt_idx",
+    "label": "Create index \"extraction_sourceDocumentId_createdAt_idx\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_sourceDocumentId_createdAt_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_sourceDocumentId_createdAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceDocumentId_createdAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_sourceDocumentId_createdAt_idx\"",
+        "sql": "CREATE INDEX \"extraction_sourceDocumentId_createdAt_idx\" ON \"public\".\"extraction\" (\"sourceDocumentId\", \"createdAt\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_sourceDocumentId_createdAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceDocumentId_createdAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extraction.extraction_sourceRepresentationRevisionId_sourceDocumentId_idx",
+    "label": "Create index \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_sourceRepresentationRevisionId_sourceDocumentId_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\"",
+        "sql": "CREATE INDEX \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\" ON \"public\".\"extraction\" (\"sourceRepresentationRevisionId\", \"sourceDocumentId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_sourceRepresentationRevisionId_sourceDocumentId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extraction.extraction_retry_pin_fkey",
+    "label": "Add foreign key \"extraction_retry_pin_fkey\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extraction_retry_pin_fkey",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extraction_retry_pin_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_retry_pin_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extraction_retry_pin_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\"\nADD CONSTRAINT \"extraction_retry_pin_fkey\"\nFOREIGN KEY (\"retryOfId\", \"sourceRepresentationRevisionId\", \"schemaRevisionId\", \"strategy\")\nREFERENCES \"public\".\"extraction\" (\"id\", \"sourceRepresentationRevisionId\", \"schemaRevisionId\", \"strategy\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extraction_retry_pin_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_retry_pin_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extraction.extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey",
+    "label": "Add foreign key \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\" on \"extraction\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\"\nADD CONSTRAINT \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\"\nFOREIGN KEY (\"sourceRepresentationRevisionId\", \"sourceDocumentId\")\nREFERENCES \"public\".\"sourceRepresentationRevision\" (\"id\", \"sourceDocumentId\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_sourceRepresentationRevisionId_sourceDocumentId_fkey",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.extractionReview.extractionReview_extractionId_fkey",
+    "label": "Add foreign key \"extractionReview_extractionId_fkey\" on \"extractionReview\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "extractionReview_extractionId_fkey",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"extractionReview_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_fkey",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"extractionReview_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"extractionReview\"\nADD CONSTRAINT \"extractionReview_extractionId_fkey\"\nFOREIGN KEY (\"extractionId\")\nREFERENCES \"public\".\"extraction\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"extractionReview_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_fkey",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "constraint.article-terminal-shape",
+    "label": "Enforce Article strategy and terminal shapes",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "constraint",
+        "name": "extraction_terminal_shape_check",
+        "table": "extraction"
+      }
+    },
+    "precheck": [],
+    "execute": [
+      {
+        "description": "Install Article lifecycle and JSON shape checks",
+        "sql": "ALTER TABLE public.extraction\n            ADD CONSTRAINT extraction_strategy_check CHECK (strategy = 'ARTICLE'),\n            ADD CONSTRAINT extraction_terminal_shape_check CHECK (\n              jsonb_typeof(diagnostics) = 'object'\n              AND (\"modelAttribution\" IS NULL OR jsonb_typeof(\"modelAttribution\") = 'object')\n              AND (failure IS NULL OR jsonb_typeof(failure) = 'object')\n              AND (\"retryOfId\" IS NULL OR \"retryOfId\" <> id)\n              AND (\n                (outcome = 'SUCCEEDED' AND complete IS NOT NULL AND \"resultPayload\" IS NOT NULL\n                  AND jsonb_typeof(\"resultPayload\") = 'object' AND \"evidenceLinks\" IS NOT NULL\n                  AND jsonb_typeof(\"evidenceLinks\") = 'array' AND failure IS NULL\n                  AND \"modelAttribution\" IS NOT NULL)\n                OR\n                (outcome = 'FAILED' AND complete IS NULL AND failure IS NOT NULL\n                  AND \"resultPayload\" IS NULL AND \"evidenceLinks\" IS NULL\n                  AND reviewable = false AND \"reviewedAt\" IS NULL)\n                OR\n                (outcome = 'CANCELLED' AND complete IS NULL AND failure IS NULL\n                  AND \"resultPayload\" IS NULL AND \"evidenceLinks\" IS NULL\n                  AND reviewable = false AND \"reviewedAt\" IS NULL)\n              )\n              AND (\"reviewedAt\" IS NULL OR (outcome = 'SUCCEEDED' AND reviewable = true))\n            );\n            ALTER TABLE public.\"reviewDecision\"\n              ADD CONSTRAINT review_decision_occurrences_array_check\n              CHECK (jsonb_typeof(\"reviewedOccurrenceIds\") = 'array');"
+      }
+    ],
+    "postcheck": []
+  },
+  {
+    "id": "constraint.extraction-append-only",
+    "label": "Make the Extraction lifecycle append-only",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "trigger",
+        "name": "extraction_append_only",
+        "table": "extraction"
+      }
+    },
+    "precheck": [],
+    "execute": [
+      {
+        "description": "Protect attempts, review gates, and Review Decisions",
+        "sql": "CREATE FUNCTION public.free_extraction_append_only() RETURNS trigger\n            LANGUAGE plpgsql AS $$ BEGIN\n              IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'Extraction rows are append-only'; END IF;\n              IF OLD.\"reviewedAt\" IS NOT NULL OR NEW.\"reviewedAt\" IS NULL\n                OR (to_jsonb(NEW) - 'reviewedAt') <> (to_jsonb(OLD) - 'reviewedAt')\n              THEN RAISE EXCEPTION 'Only reviewedAt may be finalized once'; END IF;\n              RETURN NEW;\n            END $$;\n            CREATE TRIGGER extraction_append_only BEFORE UPDATE OR DELETE ON public.extraction\n              FOR EACH ROW EXECUTE FUNCTION public.free_extraction_append_only();\n            CREATE FUNCTION public.free_review_decision_append_only() RETURNS trigger\n            LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Review Decisions are append-only'; END $$;\n            CREATE TRIGGER review_decision_append_only BEFORE UPDATE OR DELETE ON public.\"reviewDecision\"\n              FOR EACH ROW EXECUTE FUNCTION public.free_review_decision_append_only();\n            CREATE FUNCTION public.free_extraction_review_append_only() RETURNS trigger\n            LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Extraction Reviews are append-only'; END $$;\n            CREATE TRIGGER extraction_review_append_only BEFORE UPDATE OR DELETE ON public.\"extractionReview\"\n              FOR EACH ROW EXECUTE FUNCTION public.free_extraction_review_append_only();"
+      }
+    ],
+    "postcheck": []
+  }
+]

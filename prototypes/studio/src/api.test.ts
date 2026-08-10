@@ -6,9 +6,9 @@ import {
   decodeExtractDone,
   decodeSchemaDone,
   fetchParsedDocument,
+  finalizeArticleReview,
   parseDocument,
-  requestExtraction,
-  requestGrounding,
+  requestArticleExtraction,
   requestSchema,
 } from './api'
 
@@ -50,7 +50,7 @@ function readyController(): ExtractionController {
     canRun: true,
     hasResults: true,
     runExtraction: async () => {},
-    retryGrounding: async () => {},
+    attempt: null,
     review: {
       available: false,
       canAccept: false,
@@ -62,80 +62,58 @@ function readyController(): ExtractionController {
   }
 }
 
-describe('requestExtraction', () => {
-  it('posts a blank template object when the UI passes null', async () => {
-    let submittedTemplate: FormDataEntryValue | null = null
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
-        submittedTemplate = init.body instanceof FormData ? init.body.get('template') : null
-        return Promise.resolve(jsonResponse({ result: {}, reasoning: null, raw: '', pages: null }))
-      }),
-    )
-
-    await requestExtraction(new Blob(['pdf']), 'report.pdf', null)
-
-    expect(submittedTemplate).toBe('{}')
-  })
-
-  it('throws the API detail on a non-OK response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: { code: 'model_operation_failed', message: 'Model endpoint error.' } }), {
-          status: 502,
-          headers: { 'content-type': 'application/json' },
-        }),
-      ),
-    )
-
-    await expect(requestExtraction(new Blob(['pdf']), 'report.pdf', {})).rejects.toThrow(
-      'model_operation_failed: Model endpoint error.',
-    )
-  })
-})
-
-describe('requestGrounding', () => {
-  it('posts the grounding protocol to the buffered provider-neutral route', async () => {
-    let submittedUrl = ''
-    const submittedForms: FormData[] = []
+describe('Article extraction lifecycle client', () => {
+  it('posts only the operation identity and finalizes review by Extraction ID', async () => {
+    const extractionId = '11111111-1111-4111-8111-111111111111'
+    const representationId = '22222222-2222-4222-8222-222222222222'
+    const schemaRevisionId = '33333333-3333-4333-8333-333333333333'
+    const documentId = '44444444-4444-4444-8444-444444444444'
+    const attempt = {
+      extractionId,
+      sourceDocumentId: documentId,
+      sourceRepresentationRevisionId: representationId,
+      schemaRevisionId,
+      strategy: 'ARTICLE',
+      outcome: 'SUCCEEDED',
+      complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+      diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+      failure: null,
+      resultPayload: { records: [] },
+      evidenceLinks: [],
+      reviewable: true,
+      retryOfId: null,
+      createdAt: '2026-08-10T00:00:00.000Z',
+      reviewedAt: null,
+      reviewDecisions: [],
+    }
+    const submitted: Array<{ url: string; body: unknown }> = []
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string, init: RequestInit) => {
-        submittedUrl = url
-        if (init.body instanceof FormData) submittedForms.push(init.body)
-        return Promise.resolve(
-          jsonResponse({
-            result: { links: { C1: 'E2' } },
-            reasoning: null,
-            raw: '{"links":{"C1":"E2"}}',
-            pages: null,
-            modelAttribution: { provider: 'fixture', modelId: 'grounder' },
-          }),
-        )
+        submitted.push({ url, body: init.body ? JSON.parse(String(init.body)) : null })
+        return Promise.resolve(jsonResponse(attempt))
       }),
     )
 
-    const done = await requestGrounding({
-      documentMarkdown: '[E2] Ellekilde',
-      template: { links: { C1: 'verbatim-string' } },
-      instruction: '[C1] $.site = "Ellekilde"',
+    await requestArticleExtraction({
+      id: extractionId,
+      sourceRepresentationRevisionId: representationId,
+      schemaRevisionId,
+      strategy: 'ARTICLE',
     })
-    const form = submittedForms[0]
+    await finalizeArticleReview(extractionId, [])
 
-    expect(submittedUrl).toBe('/api/extract')
-    expect(form.get('document_markdown')).toBe('[E2] Ellekilde')
-    expect(form.get('template')).toBe(
-      '{"links":{"C1":"verbatim-string"}}',
-    )
-    expect(form.get('instruction')).toBe(
-      '[C1] $.site = "Ellekilde"',
-    )
-    expect(form.has('file')).toBe(false)
-    expect(done).toEqual({
-      result: { links: { C1: 'E2' } },
-      modelAttribution: { provider: 'fixture', modelId: 'grounder' },
-    })
+    expect(submitted).toEqual([
+      {
+        url: '/api/extractions',
+        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE' },
+      },
+      {
+        url: `/api/extractions/${extractionId}/review`,
+        body: { reviewDecisions: [] },
+      },
+    ])
   })
 })
 

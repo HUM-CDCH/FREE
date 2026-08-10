@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import Panel from './ui/Panel'
-import type { ParsedDocument, ParsedEvidenceAnchor, TableCellEvidenceAnchor, TextEvidenceAnchor } from './parsedDocument'
-import { blockForAnchor, tableForAnchor } from './parsedDocument'
+import type { ParsedDocument, ParsedEvidenceAnchor, TableCellEvidenceAnchor, TextEvidenceAnchor } from '../shared/parsedDocument'
+import { blockForAnchor, tableForAnchor } from '../shared/parsedDocument'
 
 function groupByPage(anchors: ParsedEvidenceAnchor[]) {
   const groups = new Map<number, ParsedEvidenceAnchor[]>()

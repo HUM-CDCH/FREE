@@ -8,13 +8,13 @@ import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
 import { type SchemaNode, nodesToTemplate, templateToNodes } from '../shared/schemaNode'
-import { countTemplateFields } from './template'
+import { countTemplateFields } from '../shared/template'
 import { requestSchema, parseDocument, fetchParsedDocument } from './api'
 import {
   decodeParsedDocument,
   type ParsedDocument,
   type ParsedEvidenceAnchor,
-} from './parsedDocument'
+} from '../shared/parsedDocument'
 import {
   anchorOccurrences,
   verifiedEvidenceBbox,
@@ -26,7 +26,6 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
 import type { DocumentSnapshot } from './projectContexts'
-import type { ExtractionState } from './extraction'
 import {
   appendSchemaRevision,
   getSchemaRevision,
@@ -136,23 +135,10 @@ export type DocumentWorkspaceProps = {
   parsedDocumentUrl: string | null
   annotationSet: DocumentSnapshot['annotationSet']
   extractionSchema: DocumentSnapshot['extractionSchema']
-  persistedExtraction: DocumentSnapshot['extraction']
+  persistedExtraction: DocumentSnapshot['latestAttempt']
+  latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
-}
-
-function reopenedExtractionState(
-  extraction: DocumentSnapshot['extraction'],
-): ExtractionState {
-  if (!extraction || extraction.outcome === 'cancelled') return { status: 'idle' }
-  if (extraction.outcome === 'failed')
-    return { status: 'error', message: extraction.failure.message }
-  return {
-    status: 'ready',
-    result: extraction.result,
-    evidenceLinks: extraction.evidenceLinks,
-    groundingIssues: [],
-  }
 }
 
 export function DocumentWorkspace({
@@ -165,6 +151,7 @@ export function DocumentWorkspace({
   annotationSet,
   extractionSchema,
   persistedExtraction,
+  latestReviewedExtraction = null,
   onInitialResourceLoadFailure,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -290,8 +277,9 @@ export function DocumentWorkspace({
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
   const parsedDocument = docIndex.status === 'ready' ? docIndex.document : null
   const reviewedOccurrenceIdsByAnchor = new Map(
-    persistedExtraction?.outcome === 'succeeded'
-      ? persistedExtraction.reviewDecisions.map((decision) => [
+    latestReviewedExtraction &&
+    latestReviewedExtraction.extractionId === persistedExtraction?.extractionId
+      ? latestReviewedExtraction.reviewDecisions.map((decision) => [
           decision.evidenceAnchorId,
           decision.reviewedOccurrenceIds,
         ])
@@ -702,20 +690,13 @@ export function DocumentWorkspace({
   const effectiveRailWidth = effectiveRailOpen ? railWidth : COLLAPSED_WIDTH
 
   const extraction = useExtraction({
-    pdfSource,
-    template: schemaTemplate,
     schemaReady,
-    markdown: documentMarkdown,
     indexing,
-    initialState: reopenedExtractionState(persistedExtraction),
+    initialAttempt: persistedExtraction,
     parsedDocument,
     reviewTarget:
       sourceRepresentationId && pinnedSchemaRevisionId
         ? { sourceRepresentationId, schemaRevisionId: pinnedSchemaRevisionId }
-        : null,
-    persistedExtractionId:
-      persistedExtraction?.outcome === 'succeeded'
-        ? persistedExtraction.extractionId
         : null,
     onComplete: (isRerun) => {
       setRailTab('results')

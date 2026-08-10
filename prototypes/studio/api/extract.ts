@@ -19,7 +19,13 @@ export async function POST(request: Request): Promise<Response> {
       instruction: optionalString(form.get('instruction'), 'instruction'),
       temperature: parseTemperature(form.get('temperature')),
     })
-    return json(result)
+    return json({
+      result: result.result,
+      raw: result.raw,
+      reasoning: result.reasoning,
+      pages: result.pages,
+      modelAttribution: result.modelAttribution,
+    })
   } catch (error) {
     return apiErrorResponse(error)
   }

@@ -1,4 +1,4 @@
-import type { ParsedDocument, ParsedLogicalTable } from './parsedDocument'
+import type { ParsedDocument, ParsedLogicalTable } from './parsedDocument.js'
 
 export type AnchoredSource = {
   /** The canonical content the model reads, each passage labelled. */

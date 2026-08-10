@@ -1,4 +1,4 @@
-import { isRecord } from './template'
+import { isRecord } from '../shared/template'
 
 export type ResultStats = {
   fields: number

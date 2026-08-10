@@ -10,16 +10,13 @@ afterEach(cleanup)
 
 function controller(
   state: ExtractionController['state'],
-  retryGrounding = vi.fn(async () => {}),
 ): ExtractionController {
   return {
     state,
+    attempt: null,
     canRun: true,
-    hasResults:
-      state.status === 'ready' ||
-      (state.status === 'running' && state.step === 'grounding'),
+    hasResults: state.status === 'ready',
     runExtraction: async () => {},
-    retryGrounding,
     review: {
       available: false,
       canAccept: false,
@@ -32,23 +29,20 @@ function controller(
 }
 
 describe('ResultsTab grounded values', () => {
-  it('keeps clean extracted values visible while grounding runs', () => {
+  it('shows one server-owned progress state without raw output', () => {
     render(
       <ResultsTab
         controller={controller({
           status: 'running',
-          step: 'grounding',
-          result: { title: 'Report' },
+          step: 'extraction',
         })}
         schemaReady
         documentMarkdown="# Source"
       />,
     )
 
-    expect(screen.getByText('Grounding Evidence…')).toBeInTheDocument()
-    expect(
-      screen.getByLabelText('Extracted values awaiting grounding'),
-    ).toHaveTextContent('Report')
+    expect(screen.getByText('Running Article extraction…')).toBeInTheDocument()
+    expect(screen.queryByText('Report')).not.toBeInTheDocument()
   })
 
   it('offers canonical Evidence navigation only for linked scalar paths', () => {
@@ -108,27 +102,16 @@ describe('ResultsTab grounded values', () => {
     expect(onSelectEvidence).toHaveBeenCalledWith('anchor-1')
   })
 
-  it('retries only the grounding stage while preserving extracted values', () => {
-    const retryGrounding = vi.fn(async () => {})
+  it('offers a new run after cancellation', () => {
     render(
       <ResultsTab
-        controller={controller(
-          {
-            status: 'ready',
-            result: { title: 'Report' },
-            evidenceLinks: [],
-            groundingIssues: [],
-            groundingError: 'provider unavailable',
-          },
-          retryGrounding,
-        )}
+        controller={controller({ status: 'cancelled' })}
         schemaReady
         documentMarkdown="# Source"
       />,
     )
 
-    expect(screen.getByText('Report')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Retry grounding' }))
-    expect(retryGrounding).toHaveBeenCalledOnce()
+    expect(screen.getByText('Extraction cancelled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run a new extraction' })).toBeInTheDocument()
   })
 })
