@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ResultValue from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from '../shared/template'
@@ -10,6 +10,7 @@ type ResultsTabProps = {
   schemaReady: boolean
   documentMarkdown: string | null
   onSelectEvidence?: (anchorId: string) => void
+  onResultPathChange?: (path: string[]) => void
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -35,7 +36,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidence }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
   const stats = useMemo(() => (state.status === 'ready' ? resultStats(state.result) : null), [state])
@@ -44,6 +45,8 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
   const [backStack, setBackStack] = useState<string[][]>([])
   const [forwardStack, setForwardStack] = useState<string[][]>([])
   const [previousState, setPreviousState] = useState(state)
+
+  useEffect(() => onResultPathChange?.(navPath), [navPath, onResultPathChange])
 
 
   if (previousState !== state) {

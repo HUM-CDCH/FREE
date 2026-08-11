@@ -162,6 +162,58 @@ describe('reopened Source Document workspace', () => {
     )
   })
 
+  it('paints only canonical Evidence at the visible Results depth', async () => {
+    const persistedExtraction = reopened.persistedExtraction
+    if (!persistedExtraction || persistedExtraction.outcome !== 'SUCCEEDED')
+      throw new Error('Expected a successful reopened Extraction fixture')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request) =>
+        Promise.resolve(
+          String(input).endsWith('/source')
+            ? Response.json(parsedDocument)
+            : new Response('# Beretning'),
+        ),
+      ),
+    )
+    const { container } = render(
+      <DocumentWorkspace
+        {...reopened}
+        persistedExtraction={{
+          ...persistedExtraction,
+          resultPayload: { record: { place: 'Ellekilde' } },
+          evidenceLinks: [
+            { resultPath: ['record', 'place'], evidenceAnchorId: 'bundled-anchor' },
+          ],
+        }}
+      />,
+    )
+    const page = document.createElement('div')
+    page.className = 'page'
+    page.dataset.pageNumber = '1'
+    page.style.position = 'relative'
+    container.querySelector('.pdfViewer')!.append(page)
+
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(screen.getByText('record', { exact: true }))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
+    )
+    const highlight = page.querySelector<HTMLElement>('[data-evidence-anchor-id]')!
+    expect(highlight.dataset.resultPath).toBe('["record","place"]')
+    expect(highlight.style.background).toContain('0.28')
+
+    fireEvent.click(screen.getByTitle('Back'))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
+    )
+  })
+
   it('persists a generated first schema and enables its history', async () => {
     const schemaRevisionId = '51000000-0000-4000-8005-000000000010'
     const extractionSchemaId = '51000000-0000-4000-8005-000000000011'

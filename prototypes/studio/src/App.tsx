@@ -21,6 +21,7 @@ import {
 } from '../shared/parsedDocument'
 import {
   anchorOccurrences,
+  type EvidenceOccurrence,
   verifiedEvidenceBbox,
 } from './evidenceNavigation'
 import type { AnnotationsMode } from './api'
@@ -50,6 +51,58 @@ const COLLAPSED_WIDTH = 46
 const RAIL_MIN = 264
 const RAIL_MAX = 560
 const ANNOTATION_HIGHLIGHT_COLORS = 'annotation=#FFF066'
+const EVIDENCE_HIGHLIGHT_COLORS = [
+  'rgba(148, 203, 236, 0.28)',
+  'rgba(220, 205, 125, 0.28)',
+  'rgba(194, 106, 119, 0.24)',
+  'rgba(93, 168, 153, 0.24)',
+]
+
+function appendEvidenceOverlay(
+  container: HTMLElement,
+  document: ParsedDocument,
+  occurrence: EvidenceOccurrence,
+  options: {
+    className: string
+    background: string
+    border?: string
+    evidenceAnchorId?: string
+    resultPath?: readonly (string | number)[]
+  },
+): HTMLElement | null {
+  const page = container.querySelector(
+    `.page[data-page-number="${occurrence.page_number}"]`,
+  )
+  if (!(page instanceof HTMLElement)) return null
+  const bbox = verifiedEvidenceBbox(document, occurrence)
+  const pageMeta = document.pages.find(
+    (candidate) => candidate.page_number === occurrence.page_number,
+  )
+  if (!bbox || !pageMeta) return null
+  const overlay = window.document.createElement('div')
+  overlay.className = options.className
+  overlay.ariaHidden = 'true'
+  overlay.dataset.occurrenceId = occurrence.occurrence_id
+  if (options.evidenceAnchorId)
+    overlay.dataset.evidenceAnchorId = options.evidenceAnchorId
+  if (options.resultPath)
+    overlay.dataset.resultPath = JSON.stringify(options.resultPath)
+  Object.assign(overlay.style, {
+    position: 'absolute',
+    left: `${bbox.x0 / pageMeta.width_pt * 100}%`,
+    top: `${bbox.y0 / pageMeta.height_pt * 100}%`,
+    width: `${(bbox.x1 - bbox.x0) / pageMeta.width_pt * 100}%`,
+    height: `${(bbox.y1 - bbox.y0) / pageMeta.height_pt * 100}%`,
+    border: options.border ?? '0',
+    borderRadius: '2px',
+    background: options.background,
+    pointerEvents: 'none',
+    zIndex: options.border ? '5' : '4',
+  })
+  if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
+  page.append(overlay)
+  return overlay
+}
 
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
 // (AnnotationEditorLayer #textLayerPointerDown): the text-layer background
@@ -220,6 +273,7 @@ export function DocumentWorkspace({
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
+  const [resultPath, setResultPath] = useState<string[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const pdfSource = useMemo(
     () => ({ url: pdfUrl, filename }),
@@ -289,14 +343,18 @@ export function DocumentWorkspace({
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
   const parsedDocument = docIndex.status === 'ready' ? docIndex.document : null
-  const reviewedOccurrenceIdsByAnchor = new Map(
-    latestReviewedExtraction &&
+  const reviewedOccurrenceIdsByAnchor = useMemo(
+    () =>
+      new Map(
+        latestReviewedExtraction &&
     latestReviewedExtraction.extractionId === persistedExtraction?.extractionId
-      ? latestReviewedExtraction.reviewDecisions.map((decision) => [
-          decision.evidenceAnchorId,
-          decision.reviewedOccurrenceIds,
-        ])
-      : [],
+          ? latestReviewedExtraction.reviewDecisions.map((decision) => [
+              decision.evidenceAnchorId,
+              decision.reviewedOccurrenceIds,
+            ])
+          : [],
+      ),
+    [persistedExtraction],
   )
 
   const setContainerNode = useCallback((node: HTMLDivElement | null) => {
@@ -512,26 +570,12 @@ export function DocumentWorkspace({
     viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     let firstFocus: HTMLElement | null = null
     for (const occurrence of occurrences) {
-      const page = container.querySelector(
-        `.page[data-page-number="${occurrence.page_number}"]`,
-      )
-      if (!(page instanceof HTMLElement)) continue
-      const bbox = verifiedEvidenceBbox(parsedDocument, occurrence)
-      if (!bbox) continue
-      const pageMeta = parsedDocument.pages.find(
-        (candidate) => candidate.page_number === occurrence.page_number,
-      )!
-      const focus = document.createElement('div')
-      focus.className = 'parsed-evidence-focus'
-      focus.dataset.occurrenceId = occurrence.occurrence_id
-      Object.assign(focus.style, {
-        position: 'absolute', left: `${bbox.x0 / pageMeta.width_pt * 100}%`, top: `${bbox.y0 / pageMeta.height_pt * 100}%`,
-        width: `${(bbox.x1 - bbox.x0) / pageMeta.width_pt * 100}%`, height: `${(bbox.y1 - bbox.y0) / pageMeta.height_pt * 100}%`,
-        border: '2px solid #d97706', background: 'rgb(251 191 36 / 0.22)', pointerEvents: 'none', zIndex: '5',
+      const focus = appendEvidenceOverlay(container, parsedDocument, occurrence, {
+        className: 'parsed-evidence-focus',
+        border: '2px solid #d97706',
+        background: 'rgb(251 191 36 / 0.22)',
       })
-      if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
-      page.append(focus)
-      firstFocus ??= focus
+      if (focus) firstFocus ??= focus
     }
     if (firstFocus) {
       firstFocus.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
@@ -768,6 +812,68 @@ export function DocumentWorkspace({
   })
 
   useEffect(() => {
+    const container = containerRef.current
+    const viewer = pdfViewerRef.current
+    if (!container || !parsedDocument || extraction.state.status !== 'ready') return
+    const state = extraction.state
+    const anchors = new Map(
+      parsedDocument.evidence_index.anchors.map((anchor) => [anchor.anchor_id, anchor]),
+    )
+    const fieldNames =
+      templateState.status === 'ready'
+        ? templateState.nodes.map((node) => node.name)
+        : []
+    const paint = () => {
+      container
+        .querySelectorAll('.parsed-evidence-highlight')
+        .forEach((highlight) => highlight.remove())
+      state.evidenceLinks.forEach((link, linkIndex) => {
+        if (
+          link.resultPath.length !== resultPath.length + 1 ||
+          !resultPath.every(
+            (segment, index) => segment === String(link.resultPath[index]),
+          )
+        )
+          return
+        const anchor = anchors.get(link.evidenceAnchorId)
+        if (!anchor) return
+        const fieldName = link.resultPath.find(
+          (segment): segment is string =>
+            typeof segment === 'string' && fieldNames.includes(segment),
+        )
+        const fieldIndex = fieldName ? fieldNames.indexOf(fieldName) : linkIndex
+        const color = EVIDENCE_HIGHLIGHT_COLORS[
+          fieldIndex % EVIDENCE_HIGHLIGHT_COLORS.length
+        ]!
+        const reviewed = reviewedOccurrenceIdsByAnchor.get(anchor.anchor_id)
+        for (const occurrence of anchorOccurrences(anchor)) {
+          if (reviewed && !reviewed.includes(occurrence.occurrence_id)) continue
+          appendEvidenceOverlay(container, parsedDocument, occurrence, {
+            className: 'parsed-evidence-highlight',
+            background: color,
+            evidenceAnchorId: anchor.anchor_id,
+            resultPath: link.resultPath,
+          })
+        }
+      })
+    }
+    paint()
+    viewer?.eventBus?.on('pagerendered', paint)
+    return () => {
+      viewer?.eventBus?.off('pagerendered', paint)
+      container
+        .querySelectorAll('.parsed-evidence-highlight')
+        .forEach((highlight) => highlight.remove())
+    }
+  }, [
+    extraction.state,
+    parsedDocument,
+    reviewedOccurrenceIdsByAnchor,
+    resultPath,
+    templateState,
+  ])
+
+  useEffect(() => {
     if (!extractAfterSave || schemaSaveState?.status !== 'saved') return
     queueMicrotask(() => {
       setExtractAfterSave(false)
@@ -952,6 +1058,7 @@ export function DocumentWorkspace({
             parsedDocument={parsedDocument}
             reviewedOccurrenceIdsByAnchor={reviewedOccurrenceIdsByAnchor}
             onSelectEvidence={selectEvidenceAnchor}
+            onResultPathChange={setResultPath}
           />
         </aside>
       </div>
