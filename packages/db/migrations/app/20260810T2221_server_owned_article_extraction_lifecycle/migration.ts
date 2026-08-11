@@ -19,21 +19,15 @@ export default class M extends Migration<Start, End> {
   override get operations() {
     return [
       rawSql({
-        id: 'data.reset-incompatible-prototype-state',
-        label: 'Delete incompatible prototype extraction and schema-authoring state',
+        id: 'data.reset-incompatible-extraction-state',
+        label: 'Delete incompatible prototype extraction state',
         operationClass: 'data',
         target: { id: 'postgres' },
         precheck: [],
         execute: [{
-          description: 'Delete incompatible extraction, review, and schema-authoring rows',
+          description: 'Delete incompatible extraction and review rows',
           sql: `DELETE FROM public."reviewDecision";
-            DELETE FROM public.extraction;
-            DELETE FROM public."schemaRevision";
-            DELETE FROM public."schemaSuggestionInput";
-            DELETE FROM public."conversationalSchemaEdit";
-            DELETE FROM public."schemaSuggestion";
-            DELETE FROM public."promptRevision";
-            DELETE FROM public."extractionSchema";`,
+            DELETE FROM public.extraction;`,
         }],
         postcheck: [],
       }),

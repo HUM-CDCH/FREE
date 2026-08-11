@@ -63,18 +63,11 @@ const groundingDiagnosticsSchema = z
       ]),
     ),
     batches: z.array(
-      z
-        .object({
-          resultPath: resultPathSchema.nullable(),
-          candidateCount: z.number().int().nonnegative(),
-          fallback: z.boolean(),
-          outcome: z.enum(['succeeded', 'failed']),
-          finishReason: z.string().max(64).nullable(),
-          inputTokens: z.number().int().nonnegative().nullable(),
-          outputTokens: z.number().int().nonnegative().nullable(),
-          durationMs: z.number().int().nonnegative(),
-        })
-        .strict(),
+      modelCallDiagnosticsSchema.extend({
+        resultPath: resultPathSchema.nullable(),
+        candidateCount: z.number().int().nonnegative(),
+        fallback: z.boolean(),
+      }),
     ),
   })
   .strict()

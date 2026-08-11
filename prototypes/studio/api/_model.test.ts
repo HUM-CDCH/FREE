@@ -281,7 +281,7 @@ describe('extractWithModel', () => {
     } | undefined
     expect(responseFormat).toEqual({ type: 'json' })
     expect(result.result).toMatchObject({ records: [{ grave_number: 8 }] })
-    expect(result.raw).toBe(rawOutput)
+    expect(result).not.toHaveProperty('raw')
     expect(result).not.toHaveProperty('evidence')
   })
 

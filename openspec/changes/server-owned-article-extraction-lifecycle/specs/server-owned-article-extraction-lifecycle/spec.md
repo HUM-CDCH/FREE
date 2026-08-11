@@ -99,7 +99,7 @@ Every populated scalar path SHALL be reviewable only when it has an Evidence lin
 
 Review finalization SHALL accept an Extraction ID and one normalized decision per Evidence Anchor referenced by that stored attempt. It SHALL validate exact anchor coverage and every reviewed occurrence against the pinned canonical package, set `reviewedAt`, and insert all decisions in one transaction. It MUST reject an unreviewable or non-completed attempt, missing or extra anchor decisions, unknown or foreign occurrences, and different decisions after finalization.
 
-Before finalization, the server SHALL re-derive every populated scalar path from the immutable stored result and require one unique stored Evidence Link for each path.
+Before finalization, the server SHALL validate the immutable stored result against the pinned Schema Revision, re-derive every populated scalar path, and require one unique stored Evidence Link for each path.
 
 #### Scenario: Review is finalized
 

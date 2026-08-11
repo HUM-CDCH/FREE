@@ -76,7 +76,7 @@ function assertCompleteExtraction(result: Awaited<ReturnType<typeof extractWithM
   expect(resultRecords.length === EXPECTED_GRAVES.length).toBe(true)
   expect(resultRecords.every(({ grave_number }, index) => grave_number === EXPECTED_GRAVES[index])).toBe(true)
   expect(result).not.toHaveProperty('evidence')
-  expect(() => JSON.parse(result.raw)).not.toThrow()
+  expect(result).not.toHaveProperty('raw')
 }
 
 async function latestTrace(): Promise<LlmTrace> {
@@ -116,7 +116,7 @@ describe.skipIf(!LIVE)('live Extraction provider E2E', () => {
       durationMs: Date.now() - startedAt,
       finishReason: response.finishReason?.unified,
       outputTokens: response.usage?.outputTokens?.total,
-      outputCharacters: result.raw.length,
+      outputCharacters: trace.response?.length ?? null,
       recordIds: records(result.result).map(({ grave_number }) => grave_number),
     }))
     expect(trace).toMatchObject({ status: 'complete', model: 'gpt-5.6-luna' })
@@ -162,8 +162,10 @@ describe.skipIf(!LIVE)('live Extraction provider E2E', () => {
       finishReason: response.body?.done_reason,
       inputTokens: response.body?.prompt_eval_count,
       outputTokens: response.body?.eval_count,
-      outputLength: result.raw.length,
-      outputSha256: createHash('sha256').update(result.raw).digest('hex'),
+      outputLength: trace.response?.length ?? null,
+      outputSha256: trace.response
+        ? createHash('sha256').update(trace.response).digest('hex')
+        : null,
       durationMs: Date.now() - startedAt,
     }))
     expect(trace).toMatchObject({ status: 'complete', provider: 'ollama', model: target.modelId })

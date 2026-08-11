@@ -145,7 +145,6 @@ export async function extractWithModel(
   dependencies: ModelDependencies = {},
 ): Promise<{
   readonly result: Record<string, unknown>
-  readonly raw: string
   readonly reasoning: null
   readonly pages: number | null
   readonly modelAttribution: ModelAttribution | null
@@ -200,7 +199,6 @@ export async function extractWithModel(
 
   return {
     result: normalized,
-    raw: generated.response,
     reasoning: null,
     pages: documentParts.pages ?? document.pages,
     modelAttribution: resolved.attribution ?? null,

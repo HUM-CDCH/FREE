@@ -37,6 +37,7 @@ import { decodeParsedDocument } from '../shared/parsedDocument.js'
 import {
   nodesToTemplate,
   parseSchemaDefinition,
+  type SchemaNode,
 } from '../shared/schemaNode.js'
 import {
   compileInstructions,
@@ -134,6 +135,45 @@ function extractionRecords(
 ): Record<string, unknown>[] | null {
   const records = Array.isArray(value.records) ? value.records : [value]
   return records.every(isRecord) ? records : null
+}
+
+function recordMatchesSchema(
+  value: unknown,
+  nodes: readonly SchemaNode[],
+): boolean {
+  if (!isRecord(value)) return false
+  const schema = new Map(nodes.map((node) => [node.name, node]))
+  return Object.entries(value).every(([name, item]) => {
+    const node = schema.get(name)
+    if (!node || item === undefined) return false
+    if (item === null) return true
+    const children = node.children
+    if (children)
+      return node.type === 'array'
+        ? Array.isArray(item) &&
+            item.every((entry) => recordMatchesSchema(entry, children))
+        : recordMatchesSchema(item, children)
+    if (node.type === 'array')
+      return (
+        Array.isArray(item) &&
+        item.every(
+          (entry) =>
+            entry === null || (!Array.isArray(entry) && !isRecord(entry)),
+        )
+      )
+    return !Array.isArray(item) && !isRecord(item)
+  })
+}
+
+function resultMatchesSchema(
+  result: Record<string, unknown>,
+  nodes: readonly SchemaNode[],
+): boolean {
+  return (
+    Object.keys(result).every((key) => key === 'records') &&
+    Array.isArray(result.records) &&
+    result.records.every((record) => recordMatchesSchema(record, nodes))
+  )
 }
 
 function occurrenceOwnership(document: ReturnType<typeof decodeParsedDocument>) {
@@ -511,7 +551,17 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     const resultPayload = cleanExtractionResultSchema.safeParse(
       attempt.resultPayload,
     )
-    if (!resultPayload.success || !Array.isArray(attempt.evidenceLinks))
+    let schemaNodes: SchemaNode[]
+    try {
+      schemaNodes = parseSchemaDefinition(attempt.schemaTree).schemaNodes
+    } catch {
+      throw new ApiError(422, 'invalid_review', 'The Extraction has no valid pinned Schema Revision.')
+    }
+    if (
+      !resultPayload.success ||
+      !resultMatchesSchema(resultPayload.data, schemaNodes) ||
+      !Array.isArray(attempt.evidenceLinks)
+    )
       throw new ApiError(422, 'invalid_review', 'The Extraction has no reviewable result.')
     const finalized = await store.finalizeExtractionReview(extractionId, {
       reviewDecisions: parsed.data.reviewDecisions,

@@ -99,7 +99,6 @@ function generated(
 ) {
   return {
     result,
-    raw: JSON.stringify(result),
     reasoning: null,
     pages: 1,
     modelAttribution: { provider: 'ollama' as const, modelId: 'fixture' },
@@ -596,5 +595,41 @@ describe('server-owned Article extraction route', () => {
     expect(replay.status).toBe(200)
     await expect(replay.json()).resolves.toMatchObject({ outcome: 'FAILED' })
     expect(extract).toHaveBeenCalledOnce()
+  })
+
+  it('rejects review when the stored result does not match its pinned schema', async () => {
+    const { store, attempts } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract: vi
+        .fn()
+        .mockResolvedValueOnce(
+          generated({ records: [{ title: 'Ellekilde' }] }),
+        )
+        .mockResolvedValueOnce(generated({ links: { C1: 'E1' } })),
+    })
+    expect((await handler(request())).status).toBe(201)
+    attempts.get(extractionId)!.resultPayload = {
+      records: [{ title: 'Ellekilde', foreign: 'not in the schema' }],
+    }
+    const finalize = vi.spyOn(store, 'finalizeExtractionReview')
+
+    const response = await handler(
+      new Request(
+        `http://studio/api/extractions/${extractionId}/review`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ reviewDecisions: [] }),
+        },
+      ),
+    )
+
+    expect(response.status).toBe(422)
+    expect(finalize).not.toHaveBeenCalled()
   })
 })
