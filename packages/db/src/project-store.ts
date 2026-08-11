@@ -220,7 +220,7 @@ export type StoredExtractionAttempt = {
     schemaTree: unknown
     createdAt: Date
     reviewedAt: Date | null
-    strategy: 'ARTICLE' | 'CATALOG'
+    strategy: 'ARTICLE'
     outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
     complete: boolean | null
     modelAttribution: unknown | null
@@ -240,7 +240,6 @@ export type StoredExtractionAttempt = {
 export type ExtractionInputs = {
   sourceDocumentId: string
   projectContextId: string
-  originalFilename: string | null
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
   schemaTree: unknown
@@ -252,7 +251,7 @@ export type TerminalExtractionInput = {
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
-  strategy: 'ARTICLE' | 'CATALOG'
+  strategy: 'ARTICLE'
   outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
   complete: boolean | null
   modelAttribution: unknown | null
@@ -528,7 +527,6 @@ export function createProjectStore(database: Database = db): ProjectStore {
         if (!representation) return null
         const document = await orm.public.SourceDocument.select(
           'projectContextId',
-          'originalName',
         ).first({ id: representation.sourceDocumentId })
         const schema = await orm.public.SchemaRevision.select(
           'id',
@@ -548,7 +546,6 @@ export function createProjectStore(database: Database = db): ProjectStore {
         return {
           sourceDocumentId: representation.sourceDocumentId,
           projectContextId: document.projectContextId,
-          originalFilename: document.originalName,
           sourceRepresentationRevisionId: representation.id,
           schemaRevisionId: schema.id,
           schemaTree: schema.schemaTree,

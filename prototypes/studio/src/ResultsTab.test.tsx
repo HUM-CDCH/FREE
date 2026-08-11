@@ -14,10 +14,12 @@ function controller(
   return {
     state,
     attempt: null,
-    strategy: 'ARTICLE',
     canRun: true,
     hasResults: state.status === 'ready',
     runExtraction: async () => {},
+    requestCancellation: async () => {},
+    cancellationRequested: false,
+    cancellationError: null,
     review: {
       available: false,
       canAccept: false,
@@ -96,8 +98,9 @@ describe('ResultsTab grounded values', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps Evidence navigation on expanded record scalars', () => {
+  it('hides the Article records envelope while preserving Evidence paths', () => {
     const onSelectEvidence = vi.fn()
+    const onResultPathChange = vi.fn()
     render(
       <ResultsTab
         controller={controller({
@@ -114,15 +117,41 @@ describe('ResultsTab grounded values', () => {
         schemaReady
         documentMarkdown="# Source"
         onSelectEvidence={onSelectEvidence}
+        onResultPathChange={onResultPathChange}
       />,
     )
 
-    fireEvent.click(screen.getByText('records', { exact: true }))
-    fireEvent.click(screen.getByText('Item 1', { exact: true }))
+    expect(screen.queryByText('records', { exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByText('Item 1', { exact: true })).not.toBeInTheDocument()
+    expect(screen.getByText('Report')).toBeInTheDocument()
+    expect(onResultPathChange).toHaveBeenLastCalledWith(['records', '0'])
     fireEvent.click(
       screen.getByRole('button', { name: 'View Evidence for title' }),
     )
     expect(onSelectEvidence).toHaveBeenCalledWith('anchor-1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Raw JSON' }))
+    expect(screen.getByText(/"title": "Report"/)).toBeInTheDocument()
+    expect(screen.queryByText(/"records"/)).not.toBeInTheDocument()
+  })
+
+  it('hides the Article envelope for multiple returned records', () => {
+    render(
+      <ResultsTab
+        controller={controller({
+          status: 'ready',
+          result: { records: [{ title: 'First' }, { title: 'Second' }] },
+          evidenceLinks: [],
+          ungroundedCount: 0,
+        })}
+        schemaReady
+        documentMarkdown="# Source"
+      />,
+    )
+
+    expect(screen.queryByText('records', { exact: true })).not.toBeInTheDocument()
+    expect(screen.getByText('Item 1')).toBeInTheDocument()
+    expect(screen.getByText('Item 2')).toBeInTheDocument()
   })
 
   it('offers a new run after cancellation', () => {

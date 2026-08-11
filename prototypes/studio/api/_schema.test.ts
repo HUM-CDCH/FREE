@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { schemaPrompt } from './_schema.js'
 
 describe('schemaPrompt', () => {
-  it('requires an explicit root record description for Catalog boundaries', () => {
+  it('requires an explicit root record description', () => {
     const prompt = schemaPrompt([], 'hints')
 
     expect(prompt).toContain('"_description"')

@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import { join, resolve } from 'node:path'
 import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
@@ -67,8 +68,73 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   browser,
   page,
 }) => {
-  test.skip(!process.env.ARTICLE_LIFECYCLE_E2E, 'set ARTICLE_LIFECYCLE_E2E=1')
+  test.skip(
+    !process.env.EXTRACTION_TEST_DATABASE_URL ||
+      process.env.DATABASE_URL !== process.env.EXTRACTION_TEST_DATABASE_URL,
+    'DATABASE_URL must equal the disposable EXTRACTION_TEST_DATABASE_URL',
+  )
 
+  const configHome = resolve(import.meta.dirname, '../test-results/config-home')
+  const configRoot =
+    process.platform === 'win32'
+      ? join(configHome, 'FREE Studio-nodejs', 'Config')
+      : join(configHome, 'free-studio-nodejs')
+  await rm(configHome, { recursive: true, force: true })
+
+  let delayNextResponse = false
+  const modelServer = createServer((request, response) => {
+    let body = ''
+    request.setEncoding('utf8')
+    request.on('data', (chunk) => {
+      body += chunk
+    })
+    request.on('end', () => {
+      const prompt = JSON.parse(body) as { prompt: string }
+      const generated = prompt.prompt.includes('"links"')
+        ? '{"links":{"C1":"E1"}}'
+        : '{"records":[{"title":"Grav 8"}]}'
+      const send = () => {
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ response: generated, done_reason: 'stop', prompt_eval_count: 10, eval_count: 4, total_duration: 1_000_000 }))
+      }
+      if (delayNextResponse) {
+        delayNextResponse = false
+        setTimeout(send, 1_000)
+      } else send()
+    })
+  })
+  await new Promise<void>((resolveListen) =>
+    modelServer.listen(0, '127.0.0.1', resolveListen),
+  )
+  const address = modelServer.address()
+  if (!address || typeof address === 'string')
+    throw new Error('The deterministic model server did not start.')
+  const connectionId = randomUUID()
+  await mkdir(configRoot, { recursive: true })
+  await writeFile(
+    join(configRoot, 'model-config.json'),
+    JSON.stringify({
+      connections: [
+        {
+          id: connectionId,
+          name: 'Article lifecycle fixture',
+          provider: 'ollama',
+          baseUrl: `http://127.0.0.1:${address.port}`,
+        },
+      ],
+      routes: {
+        extraction: {
+          connectionId,
+          modelId: 'fixture/nuextract',
+          nuextractRaw: true,
+        },
+        interaction: null,
+      },
+    }),
+    'utf8',
+  )
+
+  try {
   const projectContextId = randomUUID()
   const sourceDocumentId = randomUUID()
   const extractionSchemaId = randomUUID()
@@ -112,14 +178,10 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
     extractionSchemaId,
     revisionNumber: 1,
     origin: 'RESEARCHER_EDIT',
-    schemaTree: [
-      {
-        id: 'filename',
-        name: 'filename',
-        type: 'string',
-        valueSource: 'source-filename',
-      },
-    ],
+    schemaTree: {
+      recordDescription: 'One lifecycle fixture record.',
+      schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+    },
   })
 
   const url = `/projects/${projectContextId}/documents/${sourceDocumentId}`
@@ -130,7 +192,9 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   await page.getByRole('button', { name: '▶ Run extraction' }).click()
   await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible()
   await page.getByRole('tab', { name: /Results/ }).click()
-  await expect(page.getByText('reviewed.pdf')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'View Evidence for title' }),
+  ).toBeVisible()
   await page.getByRole('button', { name: 'Accept result' }).click()
   await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
 
@@ -139,6 +203,11 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
     .orderBy((attempt) => attempt.createdAt.desc())
     .first()
   expect(reviewed?.reviewedAt).not.toBeNull()
+  expect(
+    await db.orm.public.ReviewDecision.where({ extractionId: reviewed!.id })
+      .select('id')
+      .all(),
+  ).toHaveLength(1)
 
   const secondPackage = await canonicalPackage('newer-unreviewed.pdf')
   const secondDescriptor = await packageStore.save(secondPackage.bytes)
@@ -158,14 +227,10 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
     extractionSchemaId,
     revisionNumber: 2,
     origin: 'RESEARCHER_EDIT',
-    schemaTree: [
-      {
-        id: 'filename',
-        name: 'filename',
-        type: 'string',
-        valueSource: 'source-filename',
-      },
-    ],
+    schemaTree: {
+      recordDescription: 'One lifecycle fixture record.',
+      schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+    },
   })
 
   const newerExtractionId = randomUUID()
@@ -183,7 +248,12 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   const freshPage = await fresh.newPage()
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
-  await expect(freshPage.getByText('newer-unreviewed.pdf')).toBeVisible()
+  await expect(
+    freshPage.getByRole('button', { name: 'View Evidence for title' }),
+  ).toBeVisible()
+  await expect(
+    freshPage.getByRole('button', { name: 'Accept result' }),
+  ).toBeVisible()
   const reopened = documentReopenResponseSchema.parse(
     await (
       await freshPage.request.get(
@@ -202,5 +272,22 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
     sourceRepresentationRevisionId: firstRepresentationId,
     schemaRevisionId: firstSchemaRevisionId,
   })
+  await expect(freshPage.getByLabel('Extraction snapshot')).toBeVisible()
+  await freshPage.getByLabel('Extraction snapshot').selectOption(String(reviewed?.id))
+  await expect(freshPage.getByTitle('Pinned extraction PDF')).toBeVisible()
+  await freshPage.getByRole('button', { name: 'Pinned schema' }).click()
+  await expect(freshPage.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
+  await freshPage.getByLabel('Extraction snapshot').selectOption(newerExtractionId)
+  await expect(freshPage.getByTitle('Pinned extraction PDF')).toHaveCount(0)
+  delayNextResponse = true
+  await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
+  await freshPage.getByRole('button', { name: 'Cancel extraction' }).click()
+  await expect(freshPage.getByText('Extraction cancelled')).toBeVisible()
   await fresh.close()
+  } finally {
+    await new Promise<void>((resolveClose, reject) =>
+      modelServer.close((error) => (error ? reject(error) : resolveClose())),
+    )
+    await rm(configHome, { recursive: true, force: true })
+  }
 })

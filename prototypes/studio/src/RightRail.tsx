@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import PanelToggleIcon from './PanelToggleIcon'
 import AnnotationSetTab from './AnnotationSidebar'
 import type { AnnotationSetItem } from './AnnotationSidebar'
@@ -6,7 +7,8 @@ import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
 import type { SchemaNode } from '../shared/schemaNode'
 import ResultsTab from './ResultsTab'
-import type { ExtractionController } from './useExtraction'
+import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
 import type { AnnotationsMode } from './api'
 import EvidenceTab from './EvidenceTab'
 import type { ParsedDocument, ParsedEvidenceAnchor } from '../shared/parsedDocument'
@@ -16,6 +18,19 @@ import type {
 } from '../shared/schemaRevision.contract'
 
 export type RailTab = 'annot' | 'evidence' | 'chat' | 'schema' | 'results'
+
+export type ExtractionInspection = {
+  attempt: ExtractionAttempt | null
+  readOnly: boolean
+  choices: readonly { extractionId: string; label: string }[]
+  selectedId: string | null
+  onSelect: (extractionId: string) => void
+  documentMarkdown: string | null
+  parsedDocument: ParsedDocument | null
+  sourceStatus: { status: 'parsing' } | { status: 'ready' } | { status: 'error'; message: string } | null
+  reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
+  pinnedSchema: { recordDescription: string; schemaNodes: SchemaNode[] } | null
+}
 
 type RightRailProps = {
   open: boolean
@@ -43,10 +58,8 @@ type RightRailProps = {
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
-  documentMarkdown: string | null
+  inspection: ExtractionInspection
   sourceDocumentName: string
-  parsedDocument: ParsedDocument | null
-  reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
   onResultPathChange: (path: string[] | null) => void
 }
@@ -86,13 +99,20 @@ function RightRail({
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
-  documentMarkdown,
+  inspection,
   sourceDocumentName,
-  parsedDocument,
-  reviewedOccurrenceIdsByAnchor,
   onSelectEvidence,
   onResultPathChange,
 }: RightRailProps) {
+  const { documentMarkdown, parsedDocument, reviewedOccurrenceIdsByAnchor } = inspection
+  const inspectedState = useMemo(
+    () => inspection.attempt ? extractionStateFromAttempt(inspection.attempt) : extraction.state,
+    [extraction.state, inspection.attempt],
+  )
+  const displayedExtraction = inspection.readOnly && inspection.attempt
+    ? { ...extraction, attempt: inspection.attempt, state: inspectedState, canRun: false, review: { ...extraction.review, available: false, canAccept: false } }
+    : extraction
+
   if (!open) {
     return (
       <div className="flex h-full flex-col items-center">
@@ -159,6 +179,13 @@ function RightRail({
       </div>
 
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
+      {inspection.sourceStatus?.status !== 'ready' && inspection.sourceStatus && (
+        <p role={inspection.sourceStatus.status === 'error' ? 'alert' : 'status'} className="shrink-0 border-b border-line bg-surface-muted px-3 py-2 text-xs text-ink-muted">
+          {inspection.sourceStatus.status === 'parsing'
+            ? 'Loading historical source snapshot…'
+            : `Historical source snapshot unavailable: ${inspection.sourceStatus.message}`}
+        </p>
+      )}
       <div id="rail-panel-annot" aria-labelledby="rail-tab-annot" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'annot'}>
         <AnnotationSetTab
           items={annotationItems}
@@ -192,9 +219,10 @@ function RightRail({
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'results'}>
         <ResultsTab
-          controller={extraction}
+          controller={displayedExtraction}
           schemaReady={schemaReady}
           documentMarkdown={documentMarkdown}
+          pinnedSchema={inspection.pinnedSchema}
           onResultPathChange={onResultPathChange}
           onSelectEvidence={(anchorId) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(

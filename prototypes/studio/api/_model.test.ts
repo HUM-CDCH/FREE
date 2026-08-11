@@ -4,6 +4,7 @@ import {
   generateSchemaEditJson,
   extractWithModel,
   generateSchemaWithModel,
+  modelGenerationMetadata,
   renderNuExtractPrompt,
   streamChatWithModel,
 } from './_model.js'
@@ -163,6 +164,25 @@ describe('extractWithModel', () => {
     expect(result.result).toEqual({ grave: [{ name: 'Repeated' }] })
     expect(result.metadata.finishReason).toBe('length')
     expect(result).not.toHaveProperty('evidence')
+  })
+
+  it('retains length metadata when truncated output cannot be parsed', async () => {
+    stubOllamaResponses({ response: '[]', doneReason: 'length' })
+
+    let failure: unknown
+    try {
+      await extractWithModel(
+        { document, template: { grave: [{ name: 'verbatim-string' }] } },
+        rawTarget,
+      )
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeDefined()
+    expect(modelGenerationMetadata(failure)).toMatchObject({
+      finishReason: 'length',
+    })
   })
 
   it('preserves a path-prefixed Ollama server base for raw generation', async () => {

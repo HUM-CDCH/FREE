@@ -52,6 +52,16 @@ export type ModelGenerationMetadata = {
   readonly durationMs: number
 }
 
+const generationMetadataByError = new WeakMap<object, ModelGenerationMetadata>()
+
+export function modelGenerationMetadata(
+  error: unknown,
+): ModelGenerationMetadata | null {
+  return typeof error === 'object' && error !== null
+    ? generationMetadataByError.get(error) ?? null
+    : null
+}
+
 type GeneratedText = {
   readonly response: string
   readonly metadata: ModelGenerationMetadata
@@ -146,7 +156,6 @@ export async function extractWithModel(
   const extractionTemplate = template ?? {}
   const callerInstruction = instruction?.trim()
   let generated: GeneratedText
-  let parsed: Record<string, unknown>
   if (resolved.profile === 'general') {
     const request = [
       'Extract information from the Source Document using this Extraction Schema:',
@@ -165,7 +174,6 @@ export async function extractWithModel(
       temperature,
       signal,
     })
-    parsed = await parseExtractionResult(generated.response, extractionTemplate)
   } else {
     generated = await generateWithNuExtractRawPrompt('extraction', resolved, {
       mode: 'structured',
@@ -175,9 +183,20 @@ export async function extractWithModel(
       temperature,
       signal,
     }, dependencies.fetch)
-    parsed = await parseExtractionResult(generated.response, extractionTemplate)
   }
-  const normalized = applyAllowedValues(parsed, extractionTemplate)
+
+  let normalized: Record<string, unknown>
+  try {
+    const parsed = await parseExtractionResult(
+      generated.response,
+      extractionTemplate,
+    )
+    normalized = applyAllowedValues(parsed, extractionTemplate)
+  } catch (error) {
+    if (typeof error === 'object' && error !== null)
+      generationMetadataByError.set(error, generated.metadata)
+    throw error
+  }
 
   return {
     result: normalized,

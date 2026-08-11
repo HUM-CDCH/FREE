@@ -120,7 +120,7 @@ function hydratedSnapshot() {
       strategy: 'ARTICLE',
       outcome: 'SUCCEEDED',
       complete: true,
-      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null },
       failure: null,
       resultPayload: { place: 'Ellekilde' },
       evidenceLinks: [],

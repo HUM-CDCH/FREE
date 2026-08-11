@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import ResultValue from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from '../shared/template'
+import { schemaDefinitionToTemplate, type SchemaNode } from '../shared/schemaNode'
 import { resultStats } from './resultStats'
 import type { ExtractionController } from './useExtraction'
 
@@ -11,9 +12,10 @@ type ResultsTabProps = {
   documentMarkdown: string | null
   onSelectEvidence?: (anchorId: string) => void
   onResultPathChange?: (path: string[] | null) => void
+  pinnedSchema?: { recordDescription: string; schemaNodes: SchemaNode[] } | null
 }
 
-type View = 'review' | 'json' | 'markdown'
+type View = 'review' | 'json' | 'markdown' | 'schema'
 
 const preClasses =
   'scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre bg-canvas px-4 py-3.5 font-mono text-[11px] leading-relaxed text-ink'
@@ -36,10 +38,32 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = null, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
   const { state } = controller
   const [view, setView] = useState<View>('review')
-  const stats = useMemo(() => (state.status === 'ready' ? resultStats(state.result) : null), [state])
+  const articleRecords =
+    state.status === 'ready' &&
+    isRecord(state.result) &&
+    Array.isArray(state.result.records)
+      ? state.result.records
+      : null
+  const articlePathPrefix = useMemo(
+    () =>
+      articleRecords
+        ? articleRecords.length === 1
+          ? ['records', '0']
+          : ['records']
+        : [],
+    [articleRecords],
+  )
+  const displayResult =
+    articleRecords?.length === 1
+      ? articleRecords[0]
+      : articleRecords ?? (state.status === 'ready' ? state.result : null)
+  const stats = useMemo(
+    () => (displayResult !== null ? resultStats(displayResult) : null),
+    [displayResult],
+  )
 
   const [navPath, setNavPath] = useState<string[]>([])
   const [backStack, setBackStack] = useState<string[][]>([])
@@ -47,8 +71,10 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
   const [previousState, setPreviousState] = useState(state)
 
   useEffect(
-    () => onResultPathChange?.(view === 'review' ? navPath : null),
-    [navPath, onResultPathChange, view],
+    () => onResultPathChange?.(
+      view === 'review' ? [...articlePathPrefix, ...navPath] : null,
+    ),
+    [articlePathPrefix, navPath, onResultPathChange, view],
   )
 
 
@@ -59,18 +85,19 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
     setForwardStack([])
   }
 
-  const displayResult = state.status === 'ready' ? state.result : null
   const evidenceAnchorIdByPath = useMemo(
     () =>
       new Map(
         state.status === 'ready'
           ? state.evidenceLinks.map((link) => [
-              JSON.stringify(link.resultPath.map(String)),
+              JSON.stringify(
+                link.resultPath.map(String).slice(articlePathPrefix.length),
+              ),
               link.evidenceAnchorId,
             ])
           : [],
       ),
-    [state],
+    [articlePathPrefix.length, state],
   )
 
   function navTo(newPath: string[]) {
@@ -132,6 +159,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
                   { value: 'review', label: 'Review' },
                   { value: 'json', label: 'Raw JSON' },
                   { value: 'markdown', label: 'Markdown' },
+                  ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
                 ]}
               />
               <div className="flex gap-1.5">
@@ -166,9 +194,8 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
               >
                 <p className="font-semibold">Incomplete Extraction</p>
                 <p>
-                  Successful records remain visible.{' '}
-                  {controller.attempt.diagnostics.catalog?.codes.join(', ') ||
-                    'See the persisted stage diagnostics for details.'}
+                  Successful values remain visible. See the persisted stage
+                  diagnostics for details.
                 </p>
               </div>
             )}
@@ -245,6 +272,10 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
 
           {view === 'json' && <pre className={preClasses}>{JSON.stringify(displayResult, null, 2)}</pre>}
 
+          {view === 'schema' && pinnedSchema && (
+            <pre className={preClasses}>{JSON.stringify(schemaDefinitionToTemplate({ recordDescription: pinnedSchema.recordDescription, schemaNodes: pinnedSchema.schemaNodes }), null, 2)}</pre>
+          )}
+
           {view === 'markdown' && (
             <div className="flex min-h-0 flex-1 flex-col">
               {documentMarkdown ? (
@@ -265,7 +296,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
       {state.status === 'running' && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
           <Spinner
-            label={`Running ${controller.strategy === 'CATALOG' ? 'Catalog' : 'Article'} extraction…`}
+            label="Running Article extraction…"
             hint="The server is extracting values, grounding Evidence, and saving the terminal attempt."
           />
         </div>

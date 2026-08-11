@@ -90,7 +90,6 @@ export type GroundingModelInvoker = (
 export type GroundExtractionInput = {
   document: ParsedDocument
   result: Record<string, unknown>
-  excludedRootFields?: ReadonlySet<string>
   allowedAnchorIds?: ReadonlySet<string>
   signal?: AbortSignal
   invokeModel: GroundingModelInvoker
@@ -124,19 +123,10 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
-function enumerateClaims(
-  result: Record<string, unknown>,
-  excludedRootFields: ReadonlySet<string> = new Set(),
-): Claim[] {
+function enumerateClaims(result: Record<string, unknown>): Claim[] {
   const claims: Claim[] = []
   const visit = (value: unknown, path: ResultPath) => {
     if (isPopulatedResultScalar(value)) {
-      const rootField =
-        path[0] === 'records' && typeof path[2] === 'string'
-          ? path[2]
-          : path[0]
-      if (typeof rootField === 'string' && excludedRootFields.has(rootField))
-        return
       claims.push({
         label: `C${claims.length + 1}`,
         resultPath: path,
@@ -160,11 +150,8 @@ function enumerateClaims(
 
 export function populatedContentPaths(
   result: Record<string, unknown>,
-  excludedRootFields: ReadonlySet<string> = new Set(),
 ): ResultPath[] {
-  return enumerateClaims(result, excludedRootFields).map(
-    (claim) => claim.resultPath,
-  )
+  return enumerateClaims(result).map((claim) => claim.resultPath)
 }
 
 function renderResultPath(path: ResultPath): string {
@@ -377,13 +364,12 @@ function resolveGrounding(
 export async function groundExtraction({
   document,
   result,
-  excludedRootFields,
   allowedAnchorIds,
   signal,
   invokeModel,
 }: GroundExtractionInput): Promise<GroundingOutcome> {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-  const claims = enumerateClaims(result, excludedRootFields)
+  const claims = enumerateClaims(result)
   if (claims.length === 0)
     return {
       evidenceLinks: [],

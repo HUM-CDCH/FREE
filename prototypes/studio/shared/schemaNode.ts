@@ -11,7 +11,6 @@ type SchemaNodeBase = {
   id: string
   name: string
   description?: string
-  valueSource?: 'document' | 'source-filename'
 }
 
 export type SchemaNode =
@@ -24,7 +23,6 @@ const schemaNodeBaseShape = {
   id: z.string().min(1),
   name: z.string().trim().min(1),
   description: z.string().min(1).optional(),
-  valueSource: z.enum(['document', 'source-filename']).optional(),
 }
 
 export const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() =>
@@ -82,14 +80,7 @@ export function parseSchemaDefinition(value: unknown): SchemaDefinition {
 }
 
 export function parseSchemaNodes(value: unknown): SchemaNode[] {
-  const nodes = schemaNodesSchema.parse(value)
-  if (nodes.some((node) => node.children?.some(hasValueSource)))
-    throw new Error('valueSource is allowed only on top-level schema fields')
-  return nodes
-}
-
-function hasValueSource(node: SchemaNode): boolean {
-  return node.valueSource !== undefined || Boolean(node.children?.some(hasValueSource))
+  return schemaNodesSchema.parse(value)
 }
 
 export type EnumeratedField = {

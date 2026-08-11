@@ -23,11 +23,11 @@ const completed = {
     finishReason: null,
     inputTokens: null,
     outputTokens: null,
+    values: null,
     grounding: null,
-    catalog: null,
   },
   failure: null,
-  resultPayload: { records: [{ filename: 'source.pdf' }] },
+  resultPayload: { records: [{}] },
   evidenceLinks: [],
   reviewable: true,
   retryOfId: null,
@@ -37,7 +37,7 @@ const completed = {
 } as const
 
 describe('Article lifecycle contracts', () => {
-  it('accepts a strict completed package-only attempt and rejects contradictory terminal fields', () => {
+  it('accepts a strict completed empty attempt and rejects contradictory terminal fields', () => {
     expect(extractionAttemptSchema.safeParse(completed).success).toBe(true)
     expect(
       extractionAttemptSchema.safeParse({

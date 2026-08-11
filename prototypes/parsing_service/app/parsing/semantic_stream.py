@@ -36,7 +36,6 @@ _PAGE_FURNITURE = re.compile(
 _CAPTION = re.compile(r"<caption>(.*?)</caption>", re.DOTALL)
 _LIST_ITEM = re.compile(r"<list_item>(.*?)</list_item>", re.DOTALL)
 _CODE_TOKEN = re.compile(r"^<_[^<>=\n]+_>")
-_OUTLINE_HEADING = re.compile(r"^\s*(?P<number>\d+(?:\.\d+)*)\.\s+\S")
 _CELL = re.compile(r"<(?:ched|rhed|srow|fcel|ecel|lcel|ucel|xcel)>")
 _NL = "<nl>"
 
@@ -183,12 +182,6 @@ def _list_items(body: str) -> tuple[str, ...]:
     return tuple(_clean(match.group(1)) for match in _LIST_ITEM.finditer(body))
 
 
-def _heading_level(text: str, producer_level: int) -> int:
-    """Publish explicit decimal outline depth when Docling flattens headings."""
-    match = _OUTLINE_HEADING.match(text)
-    return len(match.group("number").split(".")) if match else producer_level
-
-
 def _block_from_match(
     match: re.Match[str],
     page: int,
@@ -219,7 +212,7 @@ def _block_from_match(
             "heading",
             page,
             body,
-            _heading_level(body, int(match.group("level"))),
+            int(match.group("level")),
             raw=match.group(0),
             geometry=geometry,
         ), None

@@ -19,19 +19,18 @@ export default class M extends Migration<Start, End> {
   override get operations() {
     return [
       rawSql({
-        id: 'data.reset-prototype-extractions-and-schemas',
-        label: 'Reset obsolete prototype Extraction and Schema rows',
+        id: 'data.reset-incompatible-prototype-state',
+        label: 'Delete incompatible prototype extraction and schema-authoring state',
         operationClass: 'data',
         target: { id: 'postgres' },
         precheck: [],
         execute: [{
-          description: 'Delete obsolete Extraction and Schema authoring state',
+          description: 'Delete incompatible extraction, review, and schema-authoring rows',
           sql: `DELETE FROM public."reviewDecision";
             DELETE FROM public.extraction;
-            UPDATE public."schemaRevision" SET "conversationalSchemaEditId" = NULL;
-            DELETE FROM public."conversationalSchemaEdit";
             DELETE FROM public."schemaRevision";
             DELETE FROM public."schemaSuggestionInput";
+            DELETE FROM public."conversationalSchemaEdit";
             DELETE FROM public."schemaSuggestion";
             DELETE FROM public."promptRevision";
             DELETE FROM public."extractionSchema";`,
@@ -215,7 +214,7 @@ export default class M extends Migration<Start, End> {
         execute: [{
           description: 'Install Article lifecycle and JSON shape checks',
           sql: `ALTER TABLE public.extraction
-            ADD CONSTRAINT extraction_strategy_check CHECK (strategy IN ('ARTICLE', 'CATALOG')),
+            ADD CONSTRAINT extraction_strategy_check CHECK (strategy = 'ARTICLE'),
             ADD CONSTRAINT extraction_terminal_shape_check CHECK (
               jsonb_typeof(diagnostics) = 'object'
               AND ("modelAttribution" IS NULL OR jsonb_typeof("modelAttribution") = 'object')

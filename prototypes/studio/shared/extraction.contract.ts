@@ -6,7 +6,7 @@ import {
 } from './groundedExtraction.js'
 import { providerKindSchema } from './modelConfig.contract.js'
 
-export const extractionStrategySchema = z.enum(['ARTICLE', 'CATALOG'])
+export const extractionStrategySchema = z.literal('ARTICLE')
 export type ExtractionStrategy = z.infer<typeof extractionStrategySchema>
 
 export const extractionRequestSchema = z
@@ -49,72 +49,6 @@ const modelCallDiagnosticsSchema = z
   })
   .strict()
 
-export const catalogDiagnosticCodeSchema = z.enum([
-  'discovery_invalid_output',
-  'boundary_invalid',
-  'boundary_terminal_ambiguous',
-  'document_metadata_incomplete',
-  'document_metadata_inconsistent',
-  'record_extraction_failed',
-  'grounding_incomplete',
-  'not_attempted_limit',
-])
-
-const catalogDiagnosticsSchema = z
-  .object({
-    codes: z.array(catalogDiagnosticCodeSchema),
-    documentMetadata: modelCallDiagnosticsSchema.nullable(),
-    discovery: modelCallDiagnosticsSchema.extend({
-      candidateCount: z.number().int().nonnegative(),
-      returnedCount: z.number().int().nonnegative(),
-      resolvedCount: z.number().int().nonnegative(),
-    }).strict(),
-    boundaries: z.array(
-      z
-        .object({
-          ordinal: z.number().int().nonnegative(),
-          startLabel: z.string().min(1),
-          startAnchorId: z.string().min(1),
-          headingText: z.string(),
-          headingLevel: z.number().int().positive(),
-          endAnchorId: z.string().min(1).nullable(),
-        })
-        .strict(),
-    ),
-    boundaryIssues: z.array(
-      z
-        .object({
-          code: z.enum([
-            'boundary_invalid',
-            'boundary_terminal_ambiguous',
-          ]),
-          label: z.string().nullable(),
-          reason: z.enum([
-            'unknown_label',
-            'duplicate_label',
-            'non_monotonic',
-            'terminal_unresolved',
-          ]),
-        })
-        .strict(),
-    ),
-    records: z.array(
-      modelCallDiagnosticsSchema
-        .extend({
-          ordinal: z.number().int().nonnegative(),
-          startAnchorId: z.string().min(1),
-          headingText: z.string(),
-          outcome: z.enum(['succeeded', 'failed', 'not_attempted']),
-          code: z.enum([
-            'record_extraction_failed',
-            'not_attempted_limit',
-          ]).nullable(),
-        })
-        .strict(),
-    ),
-  })
-  .strict()
-
 const groundingDiagnosticsSchema = z
   .object({
     groundedPaths: z.array(resultPathSchema),
@@ -135,6 +69,7 @@ const groundingDiagnosticsSchema = z
           resultPath: resultPathSchema.nullable(),
           candidateCount: z.number().int().nonnegative(),
           fallback: z.boolean(),
+          outcome: z.enum(['succeeded', 'failed']),
           finishReason: z.string().max(64).nullable(),
           inputTokens: z.number().int().nonnegative().nullable(),
           outputTokens: z.number().int().nonnegative().nullable(),
@@ -149,8 +84,6 @@ export const extractionDiagnosticsSchema = z
   .object({
     phase: z.enum([
       'loading',
-      'document_metadata',
-      'discovering',
       'extracting',
       'grounding',
     ]),
@@ -159,8 +92,8 @@ export const extractionDiagnosticsSchema = z
     finishReason: z.string().max(64).nullable(),
     inputTokens: z.number().int().nonnegative().nullable(),
     outputTokens: z.number().int().nonnegative().nullable(),
+    values: modelCallDiagnosticsSchema.nullable(),
     grounding: groundingDiagnosticsSchema.nullable(),
-    catalog: catalogDiagnosticsSchema.nullable(),
   })
   .strict()
 
@@ -222,15 +155,6 @@ export const extractionAttemptSchema = z
       context.addIssue({
         code: 'custom',
         message: 'Extraction terminal fields do not match the outcome.',
-      })
-
-    if (
-      attempt.strategy === 'ARTICLE' &&
-      attempt.diagnostics.catalog !== null
-    )
-      context.addIssue({
-        code: 'custom',
-        message: 'Article diagnostics must not contain a Catalog plan.',
       })
 
     if (

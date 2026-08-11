@@ -1391,7 +1391,7 @@ function SchemaPanel({
                 }}
               />
               <p className="mt-1 text-[10.5px] leading-snug text-ink-faint">
-                Defines which canonical headings begin repeated Catalog records.
+                Describes the single record extracted from this Source Document.
               </p>
             </div>
             {mutationError && <p className="mb-2 text-[11px] font-semibold text-danger" role="alert">{mutationError}</p>}

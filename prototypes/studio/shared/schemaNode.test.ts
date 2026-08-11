@@ -14,7 +14,10 @@ import {
 
 // @ts-expect-error Closed-set values are valid only on string fields.
 const invalidClosedSetNode: SchemaNode = { id: 'count', name: 'count', type: 'number', allowedValues: ['one', 'two'] }
+// @ts-expect-error Schema values are always extracted from document content.
+const invalidValueSourceNode: SchemaNode = { id: 'title', name: 'title', type: 'string', valueSource: 'document' }
 void invalidClosedSetNode
+void invalidValueSourceNode
 
 describe('SchemaNode conversion', () => {
   it('round-trips closed sets, repeating groups, and repeating string lists', () => {
@@ -126,7 +129,17 @@ describe('SchemaNode conversion', () => {
     ).toThrow()
   })
 
-  it('rejects an obsolete object-shaped stored schema', () => {
+  it('rejects obsolete stored schema properties', () => {
     expect(() => parseSchemaNodes({ zeta: 'string' })).toThrow()
+    expect(() =>
+      parseSchemaNodes([
+        {
+          id: 'title',
+          name: 'title',
+          type: 'string',
+          valueSource: 'document',
+        },
+      ]),
+    ).toThrow()
   })
 })

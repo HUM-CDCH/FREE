@@ -4,7 +4,7 @@
 - [x] 1.2 Generate the direct destructive prototype migration without applying it to the research database
 - [x] 1.3 Add strict shared Article attempt, review, diagnostics, attribution, and reopen DTO decoders
 - [x] 1.4 Move anchored-document and grounding logic to shared modules and keep canonical-anchor validation exact
-- [x] 1.5 Extend SchemaNode provenance for `document` and `source-filename` values without changing the visible one-record schema shape
+- [x] 1.5 Keep SchemaNode values document-derived without changing the visible one-record schema shape
 
 ## 2. ProjectStore lifecycle
 
@@ -18,9 +18,9 @@
 
 - [x] 3.1 Add the Article POST and cancellation routes with strict request parsing and stable error responses
 - [x] 3.2 Implement process-local in-flight identity sharing, mismatch rejection, terminal replay, and cancellation phase boundaries
-- [x] 3.3 Load the pinned schema and canonical package, run one whole-source values call, overlay `source-filename`, and ground content-derived paths
+- [x] 3.3 Load the pinned schema and canonical package, run one whole-source values call, and ground populated paths
 - [x] 3.4 Persist safe attribution, diagnostics, completeness, failure, and cancellation before every terminal response
-- [x] 3.5 Add concurrent identical/mismatched, cancellation, persistence-before-response, package-only, foreign-anchor, and reviewability route tests
+- [x] 3.5 Add concurrent identical/mismatched, cancellation, persistence-before-response, foreign-anchor, and reviewability route tests
 
 ## 4. Provider and browser integration
 
@@ -42,5 +42,5 @@
 
 ## 6. Acceptance repair
 
-- [x] 6.1 Remove the contradicted one-record Article gate and provider-specific Catalog heading/level filters
-- [x] 6.2 Add focused multi-record Article and mixed-level Catalog regression coverage
+- [x] 6.1 Remove out-of-slice Catalog execution, parser changes, diagnostics, and UI controls
+- [x] 6.2 Hide the runtime `records` envelope for single- and multi-record Article output while preserving Evidence paths

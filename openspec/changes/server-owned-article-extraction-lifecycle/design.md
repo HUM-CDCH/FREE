@@ -24,7 +24,7 @@ The active prototype is a Vite-served React application with TypeScript API modu
 
 ### One Article orchestrator owns the lifecycle
 
-`POST /api/extractions` resolves an Article operation from `{ id, sourceRepresentationRevisionId, schemaRevisionId, strategy: "ARTICLE" }`. One server module loads the pinned schema and canonical package, resolves the saved capability route once, performs the whole-source value call, overlays `source-filename` fields from the package, grounds populated content-derived paths, and persists `COMPLETED`, `FAILED`, or `CANCELLED` before returning.
+`POST /api/extractions` resolves an Article operation from `{ id, sourceRepresentationRevisionId, schemaRevisionId, strategy: "ARTICLE" }`. One server module loads the pinned schema and canonical package, resolves the saved capability route once, performs the whole-source value call, grounds populated paths, and persists `COMPLETED`, `FAILED`, or `CANCELLED` before returning.
 
 The existing model gateway, schema helpers, canonical grounding algorithm, and `ProjectStore` are reused. Grounding and anchored-document construction move to `shared/` so the server is not coupled to browser modules. No general extraction-strategy framework is introduced.
 
@@ -40,9 +40,9 @@ The Extraction row stores strategy, outcome, completeness, failure, result, Evid
 
 Review finalization accepts only decisions for the stored Extraction ID. It re-derives populated content paths from the immutable stored result and pinned schema, requires exact Evidence-path and cited-anchor coverage, validates occurrence ownership against the pinned canonical package, then claims one append-only review gate in the transaction before inserting decisions and setting `reviewedAt`. A concurrent loser compares the stored normalized decision digest: the same decisions replay successfully and different decisions return `409`.
 
-### Grounding completeness derives from the pinned schema
+### Grounding completeness derives from the result
 
-Top-level schema nodes with `valueSource: "source-filename"` are package-derived and are overlaid without a model call. Other populated scalar paths are content-derived and require canonical Evidence links. Reviewability is computed by the server from exact path coverage; the browser cannot claim it. Grounding uses only published `parsed_document.v2` anchors and exact citation labels, never text matching.
+Every populated scalar path is document-derived and requires a canonical Evidence link. Reviewability is computed by the server from exact path coverage; the browser cannot claim it. Grounding uses only published `parsed_document.v2` anchors and exact citation labels, never text matching.
 
 ### Truncation is durable, incomplete output
 

@@ -34,7 +34,7 @@ function attempt(
     outcome: 'SUCCEEDED' as const,
     complete: true,
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null },
     resultPayload: { records: [{ title: 'Ellekilde' }] },
     evidenceLinks: reviewedAt ? [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }] : [],
     failure: null,

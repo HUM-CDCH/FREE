@@ -4,7 +4,9 @@ import assert from 'node:assert/strict'
 import { db } from './prisma/db.js'
 import { createProjectStore, type TerminalExtractionInput } from './project-store.js'
 
-const enabled = Boolean(process.env.EXTRACTION_TEST_DATABASE_URL)
+const enabled =
+  Boolean(process.env.EXTRACTION_TEST_DATABASE_URL) &&
+  process.env.DATABASE_URL === process.env.EXTRACTION_TEST_DATABASE_URL
 const diagnostics = {
   phase: 'grounding',
   durationMs: 1,
@@ -12,13 +14,19 @@ const diagnostics = {
   finishReason: 'stop',
   inputTokens: 10,
   outputTokens: 4,
+  values: {
+    outcome: 'succeeded',
+    finishReason: 'stop',
+    inputTokens: 10,
+    outputTokens: 4,
+    durationMs: 1,
+  },
   grounding: {
     groundedPaths: [['records', 0, 'title']],
     ungroundedPaths: [],
     issueCodes: [],
     batches: [],
   },
-  catalog: null,
 }
 
 describe('ProjectStore Extraction lifecycle on PostgreSQL', { skip: !enabled }, () => {
@@ -116,35 +124,6 @@ describe('ProjectStore Extraction lifecycle on PostgreSQL', { skip: !enabled }, 
     const idempotentId = randomUUID()
     assert.equal((await store.persistExtractionAttempt(terminal(idempotentId))).status, 'created')
     assert.equal((await store.persistExtractionAttempt(terminal(idempotentId))).status, 'replayed')
-    assert.equal(
-      (
-        await store.persistExtractionAttempt({
-          ...terminal(randomUUID()),
-          strategy: 'CATALOG',
-          diagnostics: {
-            ...diagnostics,
-            catalog: {
-              codes: [],
-              documentMetadata: null,
-              discovery: {
-                outcome: 'succeeded',
-                finishReason: 'stop',
-                inputTokens: 1,
-                outputTokens: 1,
-                durationMs: 1,
-                candidateCount: 0,
-                returnedCount: 0,
-                resolvedCount: 0,
-              },
-              boundaries: [],
-              boundaryIssues: [],
-              records: [],
-            },
-          },
-        })
-      ).status,
-      'created',
-    )
     assert.equal(
       (await store.persistExtractionAttempt(terminal(idempotentId, representation2, schemaRevision2))).status,
       'conflict',

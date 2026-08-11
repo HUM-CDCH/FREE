@@ -80,15 +80,9 @@ PostgreSQL SHALL store only `SUCCEEDED`, `FAILED`, or `CANCELLED` Extraction out
 - **WHEN** a retry parent is the child itself or has a different Source Representation Revision, Schema Revision, or strategy
 - **THEN** PostgreSQL rejects the relationship
 
-### Requirement: Article grounding uses canonical anchors and schema provenance
+### Requirement: Article grounding uses canonical anchors
 
-The server SHALL derive provenance from the pinned Schema Revision. It SHALL copy `source-filename` values from the canonical package without model grounding, and every populated scalar path derived from document content SHALL be reviewable only when it has an Evidence link to an exact published `parsed_document.v2` Evidence Anchor. It MUST NOT create Evidence through PDF text matching or accept a foreign citation label.
-
-#### Scenario: Source filename is requested
-
-- **WHEN** a top-level field has `valueSource: "source-filename"`
-- **THEN** the server overlays the pinned package filename for each Article record without asking the model for that field
-- **AND** that path does not require Evidence
+Every populated scalar path SHALL be reviewable only when it has an Evidence link to an exact published `parsed_document.v2` Evidence Anchor. The server MUST NOT create Evidence through PDF text matching or accept a foreign citation label.
 
 #### Scenario: Grounding returns a foreign anchor
 
@@ -98,14 +92,14 @@ The server SHALL derive provenance from the pinned Schema Revision. It SHALL cop
 
 #### Scenario: All populated content paths are grounded
 
-- **WHEN** every populated content-derived scalar path has a canonical Evidence link and package-only paths are excluded
+- **WHEN** every populated scalar path has a canonical Evidence link
 - **THEN** the server marks the completed attempt reviewable
 
 ### Requirement: Review finalization trusts only stored attempt material
 
 Review finalization SHALL accept an Extraction ID and one normalized decision per Evidence Anchor cited by that stored attempt. It SHALL validate exact anchor coverage and every reviewed occurrence against the pinned canonical package, set `reviewedAt`, and insert all decisions in one transaction. It MUST reject an unreviewable or non-completed attempt, missing or extra anchor decisions, unknown or foreign occurrences, and different decisions after finalization.
 
-Before finalization, the server SHALL re-derive every populated content-derived scalar path from the immutable stored result and pinned Schema Revision and require one unique stored Evidence Link for each path. Package-derived paths SHALL be excluded by schema provenance, never inferred from grounding success.
+Before finalization, the server SHALL re-derive every populated scalar path from the immutable stored result and require one unique stored Evidence Link for each path.
 
 #### Scenario: Review is finalized
 

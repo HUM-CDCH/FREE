@@ -34,11 +34,11 @@ function attempt(
       finishReason: null,
       inputTokens: null,
       outputTokens: null,
+      values: null,
       grounding: null,
-      catalog: null,
     },
     failure: null,
-    resultPayload: { records: [{ filename: 'report.pdf' }] },
+    resultPayload: { records: [{}] },
     evidenceLinks: [],
     reviewable: true,
     retryOfId: null,
@@ -58,7 +58,7 @@ function options(initialAttempt: ExtractionAttempt | null = null) {
       sourceRepresentationId: representationId,
       schemaRevisionId,
     },
-    onComplete: vi.fn(),
+    onTerminal: vi.fn(),
     onError: vi.fn(),
   }
 }
@@ -88,27 +88,61 @@ describe('useExtraction server-owned lifecycle', () => {
     )
     expect(result.current.state).toMatchObject({
       status: 'ready',
-      result: { records: [{ filename: 'report.pdf' }] },
+      result: { records: [{}] },
     })
   })
 
-  it('submits an explicitly selected Catalog strategy', async () => {
-    vi.mocked(api.requestExtraction).mockResolvedValue(
-      attempt({ strategy: 'CATALOG' }),
+  it('returns to idle when changed pins cancel a running extraction', () => {
+    vi.mocked(api.requestExtraction).mockImplementation(
+      () => new Promise(() => {}),
     )
-    const { result } = renderHook(() =>
-      useExtraction({ ...options(), strategy: 'CATALOG' }),
+    vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
+    const { result, rerender } = renderHook(
+      ({ revision }) =>
+        useExtraction({
+          ...options(),
+          reviewTarget: {
+            sourceRepresentationId: representationId,
+            schemaRevisionId: revision,
+          },
+        }),
+      { initialProps: { revision: schemaRevisionId } },
     )
 
-    await act(() => result.current.runExtraction())
+    act(() => void result.current.runExtraction())
+    expect(result.current.state.status).toBe('running')
 
-    expect(api.requestExtraction).toHaveBeenCalledWith(
-      expect.objectContaining({ strategy: 'CATALOG' }),
-      expect.any(AbortSignal),
-    )
+    rerender({ revision: '55555555-5555-4555-8555-555555555555' })
+
+    expect(result.current.state.status).toBe('idle')
+    expect(api.cancelExtraction).toHaveBeenCalledOnce()
   })
 
-  it('finalizes a package-only result with an empty decision set', async () => {
+  it('keeps the POST live until persisted cancellation returns', async () => {
+    let resolvePost!: (attempt: ExtractionAttempt) => void
+    let signal: AbortSignal | undefined
+    vi.mocked(api.requestExtraction).mockImplementation((_input, requestSignal) => {
+      signal = requestSignal
+      return new Promise((resolve) => { resolvePost = resolve })
+    })
+    vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
+    const { result } = renderHook(() => useExtraction(options()))
+
+    act(() => void result.current.runExtraction())
+    await act(() => result.current.requestCancellation())
+
+    expect(signal?.aborted).toBe(false)
+    expect(result.current.state.status).toBe('running')
+    expect(result.current.cancellationRequested).toBe(true)
+
+    await act(() => {
+      resolvePost(attempt({ outcome: 'CANCELLED', complete: null, resultPayload: null, evidenceLinks: null, modelAttribution: null, reviewable: false }))
+    })
+    expect(result.current.state.status).toBe('cancelled')
+    expect(result.current.attempt?.outcome).toBe('CANCELLED')
+  })
+
+  it('finalizes a result without populated values using an empty decision set', async () => {
     const reviewed = attempt({ reviewedAt: '2026-08-10T00:01:00.000Z' })
     vi.mocked(api.finalizeExtractionReview).mockResolvedValue(reviewed)
     const { result } = renderHook(() => useExtraction(options(attempt())))

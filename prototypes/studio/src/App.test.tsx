@@ -67,7 +67,7 @@ const reopened: DocumentWorkspaceProps = {
     strategy: 'ARTICLE',
     outcome: 'SUCCEEDED',
     complete: true,
-    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null },
     failure: null,
     resultPayload: { place: 'Ellekilde' },
     evidenceLinks: [],
@@ -117,51 +117,6 @@ async function renderReopened() {
 }
 
 describe('reopened Source Document workspace', () => {
-  it('restores Catalog as the strategy for a rerun', async () => {
-    const requests: unknown[] = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-        const url = String(input)
-        if (url.endsWith('/source')) return Response.json(parsedDocument)
-        if (url.endsWith('/api/extractions') && init?.method === 'POST') {
-          requests.push(JSON.parse(String(init.body)))
-          return Response.json(
-            { error: { code: 'test_stop', message: 'Request captured.' } },
-            { status: 500 },
-          )
-        }
-        return new Response('# Beretning')
-      }),
-    )
-    render(
-      <DocumentWorkspace
-        {...reopened}
-        persistedExtraction={{
-          ...reopened.persistedExtraction!,
-          strategy: 'CATALOG',
-        }}
-      />,
-    )
-    await waitFor(() =>
-      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
-    )
-
-    expect(screen.getByRole('button', { name: 'Catalog' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    fireEvent.click(
-      screen.getByRole('button', { name: '↻ Re-run extraction' }),
-    )
-
-    await waitFor(() =>
-      expect(requests).toEqual([
-        expect.objectContaining({ strategy: 'CATALOG' }),
-      ]),
-    )
-  })
-
   it('paints only canonical Evidence at the visible Results depth', async () => {
     const persistedExtraction = reopened.persistedExtraction
     if (!persistedExtraction || persistedExtraction.outcome !== 'SUCCEEDED')
@@ -452,7 +407,7 @@ describe('reopened Source Document workspace', () => {
             outcome: 'SUCCEEDED',
             complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, values: { outcome: 'succeeded', finishReason: 'stop', inputTokens: 10, outputTokens: 4, durationMs: 1 }, grounding: null },
             failure: null,
             resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
@@ -472,7 +427,7 @@ describe('reopened Source Document workspace', () => {
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
             strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, values: { outcome: 'succeeded', finishReason: 'stop', inputTokens: 10, outputTokens: 4, durationMs: 1 }, grounding: null },
             failure: null, resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
             reviewable: true, retryOfId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',
@@ -525,4 +480,70 @@ describe('reopened Source Document workspace', () => {
       }),
     ).not.toBeInTheDocument()
   })
+})
+
+
+describe('historical extraction inspection', () => {
+  it('switches pinned resources without disturbing the live schema draft', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input); calls.push(url)
+      return Promise.resolve(url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Historical'))
+    }))
+    const latest = reopened.persistedExtraction!
+    const reviewed = { ...latest, extractionId: '51000000-0000-4000-8006-000000000009', reviewedAt: '2026-08-09T00:00:00.000Z', resultPayload: { place: 'Historical place' }, reviewDecisions: [{ reviewDecisionId: '51000000-0000-4000-8007-000000000009', evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'] }], sourceRepresentation: { revisionNumber: 9, resources: { sourcePdfUrl: '/api/source-representations/old/pdf', markdownUrl: '/api/source-representations/old/markdown', parsedDocumentUrl: '/api/source-representations/old/source' } }, extractionSchema: { ...latest.extractionSchema, revisionNumber: 9, recordDescription: 'Historical record.', schemaNodes: [{ id: 'old-place', name: 'historical_place', type: 'string' as const }] } }
+    render(<DocumentWorkspace {...reopened} latestReviewedExtraction={reviewed} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    const draft = screen.getByLabelText('One root record')
+    fireEvent.change(draft, { target: { value: 'Unsaved live draft.' } })
+    fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: reviewed.extractionId } })
+    await waitFor(() => { expect(calls).toContain('/api/source-representations/old/markdown'); expect(calls).toContain('/api/source-representations/old/source') })
+    expect(screen.getByTitle('Pinned extraction PDF')).toHaveAttribute('src', '/api/source-representations/old/pdf#page=1')
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(await screen.findByText('Historical place')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned schema' }))
+    expect(screen.getByText(/historical_place/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Accept result' })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: latest.extractionId } })
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    expect(screen.getByLabelText('One root record')).toHaveValue('Unsaved live draft.')
+  })
+})
+
+
+describe('updated latest reviewed extraction', () => {
+  it('refreshes the historical choice after rerender', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) =>
+      Promise.resolve(String(input).endsWith('/source') ? Response.json(parsedDocument) : new Response('# Source')),
+    ))
+    const latest = reopened.persistedExtraction!
+    const first = { ...latest, extractionId: '51000000-0000-4000-8006-000000000008', reviewedAt: '2026-08-08T00:00:00.000Z' }
+    const second = { ...first, extractionId: '51000000-0000-4000-8006-000000000009', reviewedAt: '2026-08-09T00:00:00.000Z' }
+    const { rerender } = render(<DocumentWorkspace {...reopened} latestReviewedExtraction={first} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    rerender(<DocumentWorkspace {...reopened} latestReviewedExtraction={second} />)
+    expect(screen.getByRole<HTMLOptionElement>('option', { name: 'Latest reviewed' }).value).toBe(second.extractionId)
+  })
+
+  it('fails closed when the pinned source snapshot cannot be loaded', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/old/')) return Promise.resolve(new Response('gone', { status: 404 }))
+      return Promise.resolve(url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Current source'))
+    }))
+    const latest = reopened.persistedExtraction!
+    const reviewed = { ...latest, extractionId: '51000000-0000-4000-8006-000000000009', reviewedAt: '2026-08-09T00:00:00.000Z', sourceRepresentation: { revisionNumber: 9, resources: { sourcePdfUrl: '/api/source-representations/old/pdf', markdownUrl: '/api/source-representations/old/markdown', parsedDocumentUrl: '/api/source-representations/old/source' } } }
+    render(<DocumentWorkspace {...reopened} latestReviewedExtraction={reviewed} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: reviewed.extractionId } })
+    expect(screen.getByRole('status')).toHaveTextContent('Loading historical source snapshot')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Historical source snapshot unavailable')
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Markdown' }))
+    expect(screen.getByText('Markdown unavailable')).toBeInTheDocument()
+    expect(screen.queryByText('# Current source')).not.toBeInTheDocument()
+  })
+
 })

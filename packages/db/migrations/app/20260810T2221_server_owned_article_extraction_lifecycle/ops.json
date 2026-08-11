@@ -1,7 +1,7 @@
 [
   {
-    "id": "data.reset-prototype-extractions-and-schemas",
-    "label": "Reset obsolete prototype Extraction and Schema rows",
+    "id": "data.reset-incompatible-prototype-state",
+    "label": "Delete incompatible prototype extraction and schema-authoring state",
     "operationClass": "data",
     "target": {
       "id": "postgres"
@@ -9,8 +9,8 @@
     "precheck": [],
     "execute": [
       {
-        "description": "Delete obsolete Extraction and Schema authoring state",
-        "sql": "DELETE FROM public.\"reviewDecision\";\n            DELETE FROM public.extraction;\n            UPDATE public.\"schemaRevision\" SET \"conversationalSchemaEditId\" = NULL;\n            DELETE FROM public.\"conversationalSchemaEdit\";\n            DELETE FROM public.\"schemaRevision\";\n            DELETE FROM public.\"schemaSuggestionInput\";\n            DELETE FROM public.\"schemaSuggestion\";\n            DELETE FROM public.\"promptRevision\";\n            DELETE FROM public.\"extractionSchema\";"
+        "description": "Delete incompatible extraction, review, and schema-authoring rows",
+        "sql": "DELETE FROM public.\"reviewDecision\";\n            DELETE FROM public.extraction;\n            DELETE FROM public.\"schemaRevision\";\n            DELETE FROM public.\"schemaSuggestionInput\";\n            DELETE FROM public.\"conversationalSchemaEdit\";\n            DELETE FROM public.\"schemaSuggestion\";\n            DELETE FROM public.\"promptRevision\";\n            DELETE FROM public.\"extractionSchema\";"
       }
     ],
     "postcheck": []
@@ -1210,7 +1210,7 @@
     "execute": [
       {
         "description": "Install Article lifecycle and JSON shape checks",
-        "sql": "ALTER TABLE public.extraction\n            ADD CONSTRAINT extraction_strategy_check CHECK (strategy IN ('ARTICLE', 'CATALOG')),\n            ADD CONSTRAINT extraction_terminal_shape_check CHECK (\n              jsonb_typeof(diagnostics) = 'object'\n              AND (\"modelAttribution\" IS NULL OR jsonb_typeof(\"modelAttribution\") = 'object')\n              AND (failure IS NULL OR jsonb_typeof(failure) = 'object')\n              AND (\"retryOfId\" IS NULL OR \"retryOfId\" <> id)\n              AND (\n                (outcome = 'SUCCEEDED' AND complete IS NOT NULL AND \"resultPayload\" IS NOT NULL\n                  AND jsonb_typeof(\"resultPayload\") = 'object' AND \"evidenceLinks\" IS NOT NULL\n                  AND jsonb_typeof(\"evidenceLinks\") = 'array' AND failure IS NULL\n                  AND \"modelAttribution\" IS NOT NULL)\n                OR\n                (outcome = 'FAILED' AND complete IS NULL AND failure IS NOT NULL\n                  AND \"resultPayload\" IS NULL AND \"evidenceLinks\" IS NULL\n                  AND reviewable = false AND \"reviewedAt\" IS NULL)\n                OR\n                (outcome = 'CANCELLED' AND complete IS NULL AND failure IS NULL\n                  AND \"resultPayload\" IS NULL AND \"evidenceLinks\" IS NULL\n                  AND reviewable = false AND \"reviewedAt\" IS NULL)\n              )\n              AND (\"reviewedAt\" IS NULL OR (outcome = 'SUCCEEDED' AND reviewable = true))\n            );\n            ALTER TABLE public.\"reviewDecision\"\n              ADD CONSTRAINT review_decision_occurrences_array_check\n              CHECK (jsonb_typeof(\"reviewedOccurrenceIds\") = 'array');"
+        "sql": "ALTER TABLE public.extraction\n            ADD CONSTRAINT extraction_strategy_check CHECK (strategy = 'ARTICLE'),\n            ADD CONSTRAINT extraction_terminal_shape_check CHECK (\n              jsonb_typeof(diagnostics) = 'object'\n              AND (\"modelAttribution\" IS NULL OR jsonb_typeof(\"modelAttribution\") = 'object')\n              AND (failure IS NULL OR jsonb_typeof(failure) = 'object')\n              AND (\"retryOfId\" IS NULL OR \"retryOfId\" <> id)\n              AND (\n                (outcome = 'SUCCEEDED' AND complete IS NOT NULL AND \"resultPayload\" IS NOT NULL\n                  AND jsonb_typeof(\"resultPayload\") = 'object' AND \"evidenceLinks\" IS NOT NULL\n                  AND jsonb_typeof(\"evidenceLinks\") = 'array' AND failure IS NULL\n                  AND \"modelAttribution\" IS NOT NULL)\n                OR\n                (outcome = 'FAILED' AND complete IS NULL AND failure IS NOT NULL\n                  AND \"resultPayload\" IS NULL AND \"evidenceLinks\" IS NULL\n                  AND reviewable = false AND \"reviewedAt\" IS NULL)\n                OR\n                (outcome = 'CANCELLED' AND complete IS NULL AND failure IS NULL\n                  AND \"resultPayload\" IS NULL AND \"evidenceLinks\" IS NULL\n                  AND reviewable = false AND \"reviewedAt\" IS NULL)\n              )\n              AND (\"reviewedAt\" IS NULL OR (outcome = 'SUCCEEDED' AND reviewable = true))\n            );\n            ALTER TABLE public.\"reviewDecision\"\n              ADD CONSTRAINT review_decision_occurrences_array_check\n              CHECK (jsonb_typeof(\"reviewedOccurrenceIds\") = 'array');"
       }
     ],
     "postcheck": []

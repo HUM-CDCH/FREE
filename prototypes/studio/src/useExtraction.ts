@@ -9,7 +9,6 @@ import { anchorOccurrences } from './evidenceNavigation'
 import type { ParsedDocument } from '../shared/parsedDocument'
 import type {
   ExtractionAttempt,
-  ExtractionStrategy,
   ReviewDecisionInput,
 } from '../shared/extraction.contract'
 
@@ -21,12 +20,11 @@ export type ReviewTarget = {
 type UseExtractionOptions = {
   schemaReady: boolean
   indexing: boolean
-  onComplete: (isRerun: boolean) => void
+  onTerminal: (attempt: ExtractionAttempt, isRerun: boolean) => void
   onError: (message: string) => void
   initialAttempt?: ExtractionAttempt | null
   parsedDocument?: ParsedDocument | null
   reviewTarget?: ReviewTarget | null
-  strategy?: ExtractionStrategy
 }
 
 export type ExtractionController = ReturnType<typeof useExtraction>
@@ -57,7 +55,7 @@ function reviewDecisions(
   })
 }
 
-function stateFromAttempt(attempt: ExtractionAttempt | null): ExtractionState {
+export function extractionStateFromAttempt(attempt: ExtractionAttempt | null): ExtractionState {
   if (!attempt) return { status: 'idle' }
   if (attempt.outcome === 'CANCELLED') return { status: 'cancelled' }
   if (attempt.outcome === 'FAILED')
@@ -90,27 +88,28 @@ function sameTarget(
 export function useExtraction({
   schemaReady,
   indexing,
-  onComplete,
+  onTerminal,
   onError,
   initialAttempt = null,
   parsedDocument = null,
   reviewTarget = null,
-  strategy = 'ARTICLE',
 }: UseExtractionOptions) {
   const [attempt, setAttempt] = useState<ExtractionAttempt | null>(
     initialAttempt,
   )
   const [state, setState] = useState<ExtractionState>(() =>
-    stateFromAttempt(initialAttempt),
+    extractionStateFromAttempt(initialAttempt),
   )
   const [saving, setSaving] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [cancellationRequested, setCancellationRequested] = useState(false)
+  const [cancellationError, setCancellationError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const activeIdRef = useRef<string | null>(null)
   const runInputsKey = `${reviewTarget?.sourceRepresentationId ?? ''}\n${reviewTarget?.schemaRevisionId ?? ''}`
   const previousInputsRef = useRef(runInputsKey)
 
-  function cancelRunning() {
+  function abandonRunning() {
     const id = activeIdRef.current
     if (id) void cancelExtraction(id).catch(() => {})
     activeIdRef.current = null
@@ -118,11 +117,14 @@ export function useExtraction({
     abortRef.current = null
   }
 
-  useEffect(() => () => cancelRunning(), [])
+  useEffect(() => () => abandonRunning(), [])
   useEffect(() => {
     if (previousInputsRef.current === runInputsKey) return
     previousInputsRef.current = runInputsKey
-    cancelRunning()
+    abandonRunning()
+    setState((current) =>
+      current.status === 'running' ? { status: 'idle' } : current,
+    )
     setReviewError(null)
   }, [runInputsKey])
 
@@ -144,15 +146,30 @@ export function useExtraction({
     sameTarget(attempt, reviewTarget),
   )
 
+  async function requestCancellation() {
+    const id = activeIdRef.current
+    if (state.status !== 'running' || !id || cancellationRequested) return
+    setCancellationRequested(true)
+    setCancellationError(null)
+    try {
+      await cancelExtraction(id)
+    } catch (error) {
+      setCancellationRequested(false)
+      setCancellationError(error instanceof Error ? error.message : 'Cancellation failed.')
+    }
+  }
+
   async function runExtraction() {
     if (!canRun || !reviewTarget) return
-    cancelRunning()
+    abandonRunning()
     const controller = new AbortController()
     const extractionId = crypto.randomUUID()
     abortRef.current = controller
     activeIdRef.current = extractionId
     const isRerun = attempt !== null
     setReviewError(null)
+    setCancellationRequested(false)
+    setCancellationError(null)
     setState({ status: 'running', step: 'extraction' })
     try {
       const terminal = await requestExtraction(
@@ -161,16 +178,14 @@ export function useExtraction({
           sourceRepresentationRevisionId:
             reviewTarget.sourceRepresentationId,
           schemaRevisionId: reviewTarget.schemaRevisionId,
-          strategy,
+          strategy: 'ARTICLE',
         },
         controller.signal,
       )
       if (controller.signal.aborted) return
       setAttempt(terminal)
-      setState(stateFromAttempt(terminal))
-      if (terminal.outcome === 'SUCCEEDED') onComplete(isRerun)
-      else if (terminal.outcome === 'FAILED')
-        onError(terminal.failure?.message ?? 'Extraction failed.')
+      setState(extractionStateFromAttempt(terminal))
+      onTerminal(terminal, isRerun)
     } catch (error) {
       if (controller.signal.aborted) return
       const message =
@@ -203,10 +218,12 @@ export function useExtraction({
   return {
     state,
     attempt,
-    strategy,
     canRun,
     hasResults,
     runExtraction,
+    requestCancellation,
+    cancellationRequested,
+    cancellationError,
     review: {
       available: Boolean(
         attempt?.outcome === 'SUCCEEDED' &&
