@@ -242,7 +242,6 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
       const { recordDescription, schemaNodes: nodes } =
         parseSchemaDefinition(inputs.schemaTree)
-      let result: Record<string, unknown>
       const target = await resolveTarget()
       if (!target.attribution)
         throw new ApiError(
@@ -252,67 +251,63 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
         )
       routeAttribution = target.attribution
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      if (nodes.length === 0) {
-        result = { records: [{}] }
-      } else {
-        phase = 'extracting'
-        const describedTemplate = {
-          records: [
-            {
-              _description: recordDescription,
-              ...nodesToTemplate(nodes),
-            },
-          ],
-        }
-        modelCalls++
-        const valuesStartedAt = now()
-        let generated: Awaited<ReturnType<typeof extract>>
-        try {
-          generated = await extract(
-            {
-              document: {
-                file: null,
-                markdown: canonicalSource(document),
-                pages: document.page_count,
-              },
-              template: stripDescriptions(describedTemplate),
-              instruction: compileInstructions(describedTemplate) || undefined,
-              signal,
-            },
-            target,
-          )
-          valuesDiagnostics = {
-            outcome: 'succeeded',
-            ...generated.metadata,
-          }
-        } catch (error) {
-          const metadata = modelGenerationMetadata(error)
-          valuesDiagnostics = {
-            outcome: 'failed',
-            finishReason: metadata?.finishReason ?? null,
-            inputTokens: metadata?.inputTokens ?? null,
-            outputTokens: metadata?.outputTokens ?? null,
-            durationMs:
-              metadata?.durationMs ??
-              Math.max(0, Math.round(now() - valuesStartedAt)),
-          }
-          finishReason = valuesDiagnostics.finishReason
-          inputTokens = valuesDiagnostics.inputTokens
-          outputTokens = valuesDiagnostics.outputTokens
-          throw error
-        }
-        finishReason = generated.metadata.finishReason
-        inputTokens = generated.metadata.inputTokens
-        outputTokens = generated.metadata.outputTokens
-        const records = extractionRecords(generated.result)
-        if (!records)
-          throw new ApiError(
-            502,
-            'invalid_model_output',
-            'Article extraction records must be objects.',
-          )
-        result = { records }
+      phase = 'extracting'
+      const describedTemplate = {
+        records: [
+          {
+            _description: recordDescription,
+            ...nodesToTemplate(nodes),
+          },
+        ],
       }
+      modelCalls++
+      const valuesStartedAt = now()
+      let generated: Awaited<ReturnType<typeof extract>>
+      try {
+        generated = await extract(
+          {
+            document: {
+              file: null,
+              markdown: canonicalSource(document),
+              pages: document.page_count,
+            },
+            template: stripDescriptions(describedTemplate),
+            instruction: compileInstructions(describedTemplate) || undefined,
+            signal,
+          },
+          target,
+        )
+        valuesDiagnostics = {
+          outcome: 'succeeded',
+          ...generated.metadata,
+        }
+      } catch (error) {
+        const metadata = modelGenerationMetadata(error)
+        valuesDiagnostics = {
+          outcome: 'failed',
+          finishReason: metadata?.finishReason ?? null,
+          inputTokens: metadata?.inputTokens ?? null,
+          outputTokens: metadata?.outputTokens ?? null,
+          durationMs:
+            metadata?.durationMs ??
+            Math.max(0, Math.round(now() - valuesStartedAt)),
+        }
+        finishReason = valuesDiagnostics.finishReason
+        inputTokens = valuesDiagnostics.inputTokens
+        outputTokens = valuesDiagnostics.outputTokens
+        throw error
+      }
+      finishReason = generated.metadata.finishReason
+      inputTokens = generated.metadata.inputTokens
+      outputTokens = generated.metadata.outputTokens
+      const records = extractionRecords(generated.result)
+      if (!records)
+        throw new ApiError(
+          502,
+          'invalid_model_output',
+          'Article extraction records must be objects.',
+        )
+      const result = { records }
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
 
       phase = 'grounding'

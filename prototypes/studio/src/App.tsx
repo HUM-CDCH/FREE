@@ -32,6 +32,7 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
 import type { DocumentSnapshot } from './projectContexts'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
 import {
   appendSchemaRevision,
   getSchemaRevision,
@@ -57,6 +58,15 @@ const EVIDENCE_HIGHLIGHT_COLORS = [
   'rgba(194, 106, 119, 0.24)',
   'rgba(93, 168, 153, 0.24)',
 ]
+
+function reviewedOccurrenceIds(
+  attempt: Pick<ExtractionAttempt, 'reviewDecisions'> | null,
+  evidenceAnchorId: string,
+) {
+  return attempt?.reviewDecisions.find(
+    (decision) => decision.evidenceAnchorId === evidenceAnchorId,
+  )?.reviewedOccurrenceIds
+}
 
 function appendEvidenceOverlay(
   container: HTMLElement,
@@ -545,7 +555,7 @@ export function DocumentWorkspace({
     if (inspectionReadOnly && pinnedAttempt) {
       const occurrence = reviewedAnchorOccurrences(
         anchor,
-        reviewedOccurrenceIdsByAnchor.get(anchor.anchor_id),
+        reviewedOccurrenceIds(inspectedAttempt, anchor.anchor_id),
       )[0]
       if (occurrence) setPinnedPage(occurrence.page_number)
       return
@@ -558,7 +568,7 @@ export function DocumentWorkspace({
     if (!viewer || !container || !parsedDocument) return
     const occurrences = reviewedAnchorOccurrences(
       anchor,
-      reviewedOccurrenceIdsByAnchor.get(anchor.anchor_id),
+      reviewedOccurrenceIds(inspectedAttempt, anchor.anchor_id),
     )
     const firstOccurrence = occurrences[0]
     if (!firstOccurrence) return
@@ -794,11 +804,16 @@ export function DocumentWorkspace({
     onTerminal: (attempt, isRerun) => {
       setSelectedInspectionId(attempt.extractionId)
       setRailTab('results')
-      showToast(
-        isRerun
-          ? '↻ Re-run complete — view the JSON in the Results tab'
-          : '✓ Extraction complete — view the JSON in the Results tab',
-      )
+      if (attempt.outcome === 'FAILED')
+        showToast('Extraction failed — see details in Results')
+      else if (attempt.outcome === 'CANCELLED')
+        showToast('Extraction cancelled — no result was saved')
+      else
+        showToast(
+          isRerun
+            ? '↻ Re-run complete — view the JSON in the Results tab'
+            : '✓ Extraction complete — view the JSON in the Results tab',
+        )
     },
     onError: () => {
       setRailTab('results')
@@ -824,17 +839,17 @@ export function DocumentWorkspace({
   const inspectionParsedDocument = inspectionReadOnly
     ? pinnedDocIndex.status === 'ready' ? pinnedDocIndex.document : null
     : parsedDocument
-  const reviewedOccurrenceIdsByAnchor = new Map(
-    (inspectedAttempt?.reviewDecisions ?? []).map((decision) => [
-      decision.evidenceAnchorId,
-      decision.reviewedOccurrenceIds,
-    ]),
-  )
+  function selectInspection(extractionId: string) {
+    if (extractionId === latestReviewedExtraction?.extractionId) {
+      setPinnedDocIndex({ status: 'parsing' })
+      setPinnedPage(1)
+    }
+    setSelectedInspectionId(extractionId)
+  }
 
   useEffect(() => {
     if (!inspectionReadOnly || !pinnedAttempt) return
     const controller = new AbortController()
-    setPinnedDocIndex({ status: 'parsing' })
     void Promise.all([
       readMarkdown(pinnedAttempt.sourceRepresentation.resources.markdownUrl, controller.signal),
       readParsedDocument(pinnedAttempt.sourceRepresentation.resources.parsedDocumentUrl, controller.signal),
@@ -991,7 +1006,7 @@ export function DocumentWorkspace({
           )}
           <div className="min-w-0 flex-1" />
           {inspectionChoices.length > 1 && (
-            <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''} onChange={(event) => setSelectedInspectionId(event.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-xs">
+            <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''} onChange={(event) => selectInspection(event.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-xs">
               {inspectionChoices.map((choice) => <option key={choice.extractionId} value={choice.extractionId}>{choice.label}</option>)}
             </select>
           )}
@@ -1094,7 +1109,7 @@ export function DocumentWorkspace({
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
-            inspection={{ attempt: inspectedAttempt, readOnly: inspectionReadOnly, choices: inspectionChoices, selectedId: inspectedAttempt?.extractionId ?? null, onSelect: setSelectedInspectionId, documentMarkdown: inspectionDocumentMarkdown, parsedDocument: inspectionParsedDocument, sourceStatus: inspectionReadOnly ? pinnedDocIndex : null, reviewedOccurrenceIdsByAnchor, pinnedSchema: pinnedAttempt?.extractionSchema ?? null }}
+            inspection={{ attempt: inspectedAttempt, readOnly: inspectionReadOnly, documentMarkdown: inspectionDocumentMarkdown, parsedDocument: inspectionParsedDocument, sourceStatus: inspectionReadOnly ? pinnedDocIndex : null, reviewDecisions: inspectedAttempt?.reviewDecisions ?? [], pinnedSchema: pinnedAttempt?.extractionSchema ?? null }}
             sourceDocumentName={pdfSource.filename}
             onSelectEvidence={selectEvidenceAnchor}
             onResultPathChange={setResultPath}

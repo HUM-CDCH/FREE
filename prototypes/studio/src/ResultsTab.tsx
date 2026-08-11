@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import ResultValue from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from '../shared/template'
-import { schemaDefinitionToTemplate, type SchemaNode } from '../shared/schemaNode'
+import { schemaDefinitionToTemplate, type SchemaDefinition } from '../shared/schemaNode'
 import { resultStats } from './resultStats'
 import type { ExtractionController } from './useExtraction'
 
@@ -12,7 +12,7 @@ type ResultsTabProps = {
   documentMarkdown: string | null
   onSelectEvidence?: (anchorId: string) => void
   onResultPathChange?: (path: string[] | null) => void
-  pinnedSchema?: { recordDescription: string; schemaNodes: SchemaNode[] } | null
+  pinnedSchema?: SchemaDefinition | null
 }
 
 type View = 'review' | 'json' | 'markdown' | 'schema'

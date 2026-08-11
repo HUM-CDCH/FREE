@@ -461,6 +461,51 @@ describe('reopened Source Document workspace', () => {
     })
   })
 
+  it.each([
+    ['FAILED', 'Extraction failed — see details in Results'],
+    ['CANCELLED', 'Extraction cancelled — no result was saved'],
+  ] as const)('reports a persisted %s attempt without a success toast', async (outcome, message) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/api/extractions')) {
+          const request = JSON.parse(String(init?.body)) as { id: string }
+          return Response.json({
+            extractionId: request.id,
+            sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+            sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+            schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+            strategy: 'ARTICLE',
+            outcome,
+            complete: null,
+            modelAttribution: null,
+            diagnostics: { phase: 'extracting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null },
+            failure: outcome === 'FAILED' ? { code: 'extraction_failed', message: 'Extraction failed.' } : null,
+            resultPayload: null,
+            evidenceLinks: null,
+            reviewable: false,
+            retryOfId: null,
+            createdAt: '2026-08-10T00:00:00.000Z',
+            reviewedAt: null,
+            reviewDecisions: [],
+          }, { status: 201 })
+        }
+        return new Response('# Beretning')
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(screen.queryByText(/Extraction complete/)).not.toBeInTheDocument()
+  })
+
   it('keeps a restored annotation usable without a pdf.js editor', async () => {
     await renderReopened()
 

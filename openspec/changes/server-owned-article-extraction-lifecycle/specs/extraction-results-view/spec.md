@@ -52,4 +52,3 @@ When an attempt is displayed and the schema is ready, the researcher SHALL be ab
 - **WHEN** a fresh browser reopens a Source Document whose latest attempt is unreviewed and whose latest reviewed Extraction is older
 - **THEN** the Results experience restores the latest attempt for inspection
 - **AND** retains the independently pinned latest reviewed Extraction for reviewed-state resolution
-

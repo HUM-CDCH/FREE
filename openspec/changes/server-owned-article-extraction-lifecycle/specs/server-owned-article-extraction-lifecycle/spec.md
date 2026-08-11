@@ -82,11 +82,11 @@ PostgreSQL SHALL store only `SUCCEEDED`, `FAILED`, or `CANCELLED` Extraction out
 
 ### Requirement: Article grounding uses canonical anchors
 
-Every populated scalar path SHALL be reviewable only when it has an Evidence link to an exact published `parsed_document.v2` Evidence Anchor. The server MUST NOT create Evidence through PDF text matching or accept a foreign citation label.
+Every populated scalar path SHALL be reviewable only when it has an Evidence link to an exact published `parsed_document.v2` Evidence Anchor. The server MUST NOT create Evidence through PDF text matching or accept a foreign Evidence Anchor label.
 
 #### Scenario: Grounding returns a foreign anchor
 
-- **WHEN** a model citation does not exactly identify an anchor in the pinned canonical package
+- **WHEN** a model-selected Evidence Anchor label does not exactly identify an anchor in the pinned canonical package
 - **THEN** the populated content-derived path remains ungrounded
 - **AND** the attempt is not reviewable
 
@@ -97,7 +97,7 @@ Every populated scalar path SHALL be reviewable only when it has an Evidence lin
 
 ### Requirement: Review finalization trusts only stored attempt material
 
-Review finalization SHALL accept an Extraction ID and one normalized decision per Evidence Anchor cited by that stored attempt. It SHALL validate exact anchor coverage and every reviewed occurrence against the pinned canonical package, set `reviewedAt`, and insert all decisions in one transaction. It MUST reject an unreviewable or non-completed attempt, missing or extra anchor decisions, unknown or foreign occurrences, and different decisions after finalization.
+Review finalization SHALL accept an Extraction ID and one normalized decision per Evidence Anchor referenced by that stored attempt. It SHALL validate exact anchor coverage and every reviewed occurrence against the pinned canonical package, set `reviewedAt`, and insert all decisions in one transaction. It MUST reject an unreviewable or non-completed attempt, missing or extra anchor decisions, unknown or foreign occurrences, and different decisions after finalization.
 
 Before finalization, the server SHALL re-derive every populated scalar path from the immutable stored result and require one unique stored Evidence Link for each path.
 

@@ -5,7 +5,7 @@ import type { AnnotationSetItem } from './AnnotationSidebar'
 import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
-import type { SchemaNode } from '../shared/schemaNode'
+import type { SchemaDefinition, SchemaNode } from '../shared/schemaNode'
 import ResultsTab from './ResultsTab'
 import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -22,14 +22,11 @@ export type RailTab = 'annot' | 'evidence' | 'chat' | 'schema' | 'results'
 export type ExtractionInspection = {
   attempt: ExtractionAttempt | null
   readOnly: boolean
-  choices: readonly { extractionId: string; label: string }[]
-  selectedId: string | null
-  onSelect: (extractionId: string) => void
   documentMarkdown: string | null
   parsedDocument: ParsedDocument | null
   sourceStatus: { status: 'parsing' } | { status: 'ready' } | { status: 'error'; message: string } | null
-  reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
-  pinnedSchema: { recordDescription: string; schemaNodes: SchemaNode[] } | null
+  reviewDecisions: ExtractionAttempt['reviewDecisions']
+  pinnedSchema: SchemaDefinition | null
 }
 
 type RightRailProps = {
@@ -104,7 +101,7 @@ function RightRail({
   onSelectEvidence,
   onResultPathChange,
 }: RightRailProps) {
-  const { documentMarkdown, parsedDocument, reviewedOccurrenceIdsByAnchor } = inspection
+  const { documentMarkdown, parsedDocument, reviewDecisions } = inspection
   const inspectedState = useMemo(
     () => inspection.attempt ? extractionStateFromAttempt(inspection.attempt) : extraction.state,
     [extraction.state, inspection.attempt],
@@ -194,7 +191,7 @@ function RightRail({
         />
       </div>
       <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'evidence'}>
-        <EvidenceTab document={parsedDocument} reviewedOccurrenceIdsByAnchor={reviewedOccurrenceIdsByAnchor} onSelectAnchor={onSelectEvidence} />
+        <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />
       </div>
       <div id="rail-panel-chat" aria-labelledby="rail-tab-chat" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'chat'}>
         <ChatTab documentMarkdown={documentMarkdown} />

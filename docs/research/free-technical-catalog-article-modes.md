@@ -1,4 +1,4 @@
-# FREE-technical Catalog and Article modes
+# FREE-technical Catalog and Article Extraction Strategies
 
 Research snapshot: upstream `HUM-CDCH/FREE-technical` `main` at [`67ea4dc`](https://github.com/HUM-CDCH/FREE-technical/commit/67ea4dc535a2ab674ed8c4b558068e13e7c2980d) (2026-05-19). Only first-party source and documentation were used.
 
@@ -11,7 +11,7 @@ Research snapshot: upstream `HUM-CDCH/FREE-technical` `main` at [`67ea4dc`](http
 
 The reusable product behavior is the strategy choice—whole-document versus boundary-driven repeated-record extraction. The Streamlit state, DocTags/Camelot wiring, filesystem layout, prompt-authored `_evidence`, and current validation heuristics are implementation-specific and should not be copied as architecture.
 
-## Exact user-visible semantics
+## Exact researcher-visible semantics
 
 | Concern | Article | Catalog |
 |---|---|---|
@@ -32,7 +32,7 @@ Catalog routing is also PDF-only in practice. Non-PDF uploads keep a source such
 
 ## Shared schema and output contract
 
-Both modes consume the same wrapper:
+Both strategies consume the same wrapper:
 
 - `record`: the desired output object, including scalars, arrays, nested arrays, and `_evidence` templates;
 - `_schema_metadata`: path-keyed `instance_description` and optional `allowed_values` instructions.
@@ -71,14 +71,14 @@ The current merge is also lossy for mixed document/entry schemas: when a primary
 ## Persistence, review, and export implications
 
 - Parsed representations are cached separately by `text_source`, so the same PDF may retain both `docling` and `docling_doctags` forms. See [`core/save_json.py` lines 233-305](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/core/save_json.py#L233-L305).
-- Extraction identity is only document hash + schema + model. The saved metadata includes `text_source`, but not the Article/Catalog choice or extractor variant. Running the other mode for the same tuple writes the same extraction JSON and prompt-audit paths. See [`core/save_json.py` lines 76-106](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/core/save_json.py#L76-L106) and [`core/save_json.py` lines 109-162](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/core/save_json.py#L109-L162).
+- Extraction identity is only document hash + schema + model. The saved metadata includes `text_source`, but not the Article/Catalog choice or extractor variant. Running the other strategy for the same tuple writes the same extraction JSON and prompt-audit paths. See [`core/save_json.py` lines 76-106](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/core/save_json.py#L76-L106) and [`core/save_json.py` lines 109-162](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/core/save_json.py#L109-L162).
 - Catalog's structured boundary, section, validation, failure, and retry diagnostics are not persisted; the adapter saves only a concatenated prompt audit. See [`core/extract_doctags.py` lines 266-290](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/core/extract_doctags.py#L266-L290).
-- Review/validation is downstream and mode-agnostic: annotations are keyed by schema/model and record identity, without mode. See [`ui/validation.py` lines 406-438](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/ui/validation.py#L406-L438).
-- JSON export returns the original extraction files. Excel export is schema-agnostic, omits underscore-prefixed evidence data, and can emit one row per document or explode a populated top-level/nested array up to two levels. This behavior is equally available to both modes. See [`core/export.py` lines 82-167](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/core/export.py#L82-L167) and [`pages/6_Export.py` lines 162-208](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/pages/6_Export.py#L162-L208).
+- Review/validation is downstream and strategy-agnostic: annotations are keyed by schema/model and record identity, without an Extraction Strategy. See [`ui/validation.py` lines 406-438](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/ui/validation.py#L406-L438).
+- JSON export returns the original extraction files. Excel export is schema-agnostic, omits underscore-prefixed evidence data, and can emit one row per document or explode a populated top-level/nested array up to two levels. This behavior is equally available to both strategies. See [`core/export.py` lines 82-167](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/core/export.py#L82-L167) and [`pages/6_Export.py` lines 162-208](https://github.com/HUM-CDCH/FREE-technical/blob/67ea4dc535a2ab674ed8c4b558068e13e7c2980d/pages/6_Export.py#L162-L208).
 
 ## Relationship to this FREE repository
 
-Catalog/Article should be a separate dimension from FREE's established modes:
+Catalog/Article should be a separate Extraction Strategy dimension from FREE's established Direct Extraction and Schema-Guided Extraction modes:
 
 - **Direct Extraction** means extraction without prior annotations, schema suggestion review, or approved Extraction Schema.
 - **Schema-Guided Extraction** means extraction using an explicit Extraction Schema for precision and repeatability.
@@ -97,7 +97,7 @@ Reuse:
 - whole-document extraction for article-like sources;
 - boundary discovery, per-instance extraction, merge, diagnostics, and targeted retry for catalogue-like repeated records;
 - the same Extraction Schema and Extraction Result shape across strategies;
-- mode-agnostic review and JSON/row-oriented export behavior.
+- strategy-agnostic review and JSON/row-oriented export behavior.
 
 Redesign for current FREE:
 

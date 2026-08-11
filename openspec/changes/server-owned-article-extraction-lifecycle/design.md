@@ -38,11 +38,11 @@ A process-local map holds `{ identity, AbortController, promise }` for active op
 
 The Extraction row stores strategy, outcome, completeness, failure, result, Evidence links, route attribution, bounded diagnostics, pins, retry parent, timestamps, and nullable `reviewedAt`; raw model output is removed. `SUCCEEDED` requires result, Evidence links, attribution, and completeness. `FAILED` and `CANCELLED` forbid result and Evidence links. PostgreSQL checks enforce these shapes and JSON container types. A composite self-reference keeps a retry on the same Source Representation Revision, Schema Revision, and strategy, and a check forbids self-parenting.
 
-Review finalization accepts only decisions for the stored Extraction ID. It re-derives populated content paths from the immutable stored result and pinned schema, requires exact Evidence-path and cited-anchor coverage, validates occurrence ownership against the pinned canonical package, then claims one append-only review gate in the transaction before inserting decisions and setting `reviewedAt`. A concurrent loser compares the stored normalized decision digest: the same decisions replay successfully and different decisions return `409`.
+Review finalization accepts only decisions for the stored Extraction ID. It re-derives populated content paths from the immutable stored result and pinned schema, requires exact Evidence-path and referenced-anchor coverage, validates occurrence ownership against the pinned canonical package, then claims one append-only review gate in the transaction before inserting decisions and setting `reviewedAt`. A concurrent loser compares the stored normalized decision digest: the same decisions replay successfully and different decisions return `409`.
 
 ### Grounding completeness derives from the result
 
-Every populated scalar path is document-derived and requires a canonical Evidence link. Reviewability is computed by the server from exact path coverage; the browser cannot claim it. Grounding uses only published `parsed_document.v2` anchors and exact citation labels, never text matching.
+Every populated scalar path is document-derived and requires a canonical Evidence link. Reviewability is computed by the server from exact path coverage; the browser cannot claim it. Grounding uses only published `parsed_document.v2` anchors and exact Evidence Anchor labels, never text matching.
 
 ### Truncation is durable, incomplete output
 

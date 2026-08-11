@@ -113,6 +113,27 @@ function generated(
 }
 
 describe('server-owned Article extraction route', () => {
+  it('runs the whole-source values call for an empty schema', async () => {
+    const { store } = fakeStore([])
+    const extract = vi.fn().mockResolvedValue(generated({ records: [{}] }))
+
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract,
+    })(request())
+
+    expect(response.status).toBe(201)
+    expect(extract).toHaveBeenCalledOnce()
+    expect(extract.mock.calls[0][0].template).toEqual({ records: [{}] })
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: 'SUCCEEDED',
+      resultPayload: { records: [{}] },
+      diagnostics: { modelCalls: 1 },
+    })
+  })
+
   it('preserves root and nested schema field order in the model request', async () => {
     const { store } = fakeStore([
       { id: 'z', name: 'zeta', type: 'string' },
@@ -487,11 +508,12 @@ describe('server-owned Article extraction route', () => {
 
   it('does not expose a stored replay as cancellable work', async () => {
     const { store } = fakeStore([])
+    const extract = vi.fn().mockResolvedValue(generated({ records: [{}] }))
     const handler = createExtractionsApi({
       store,
       readSource: async () => parsedDocument,
       resolveTarget: async () => target,
-      extract: vi.fn(),
+      extract,
     })
     expect((await handler(request())).status).toBe(201)
 
@@ -534,7 +556,7 @@ describe('server-owned Article extraction route', () => {
       store,
       readSource: async () => parsedDocument,
       resolveTarget: async () => target,
-      extract: vi.fn(),
+      extract: vi.fn().mockResolvedValue(generated({ records: [{}] })),
     })
     let responded = false
     const response = handler(request()).then((value) => {
