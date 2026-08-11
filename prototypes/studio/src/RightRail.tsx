@@ -43,6 +43,7 @@ type RightRailProps = {
   parsedDocument: ParsedDocument | null
   reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
+  onResultPathChange: (path: string[]) => void
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
@@ -84,6 +85,7 @@ function RightRail({
   parsedDocument,
   reviewedOccurrenceIdsByAnchor,
   onSelectEvidence,
+  onResultPathChange,
 }: RightRailProps) {
   if (!open) {
     return (
@@ -186,6 +188,7 @@ function RightRail({
           controller={extraction}
           schemaReady={schemaReady}
           documentMarkdown={documentMarkdown}
+          onResultPathChange={onResultPathChange}
           onSelectEvidence={(anchorId) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(
               (candidate) => candidate.anchor_id === anchorId,
