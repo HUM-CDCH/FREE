@@ -274,11 +274,11 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   })
   await expect(freshPage.getByLabel('Extraction snapshot')).toBeVisible()
   await freshPage.getByLabel('Extraction snapshot').selectOption(String(reviewed?.id))
-  await expect(freshPage.getByTitle('Pinned extraction PDF')).toBeVisible()
+  await expect(freshPage.getByTitle('Pinned Source Document')).toBeVisible()
   await freshPage.getByRole('button', { name: 'Pinned schema' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
   await freshPage.getByLabel('Extraction snapshot').selectOption(newerExtractionId)
-  await expect(freshPage.getByTitle('Pinned extraction PDF')).toHaveCount(0)
+  await expect(freshPage.getByTitle('Pinned Source Document')).toHaveCount(0)
   delayNextResponse = true
   await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
   await freshPage.getByRole('button', { name: 'Cancel extraction' }).click()

@@ -59,7 +59,6 @@ const groundingDiagnosticsSchema = z
         'unknown_claim_label',
         'unknown_anchor_label',
         'malformed_selection',
-        'conflicting_anchor_selection',
         'grounding_failed',
       ]),
     ),

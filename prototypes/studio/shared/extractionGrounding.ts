@@ -7,7 +7,6 @@ import { isPopulatedResultScalar } from './groundedExtraction.js'
 import {
   anchoredSource,
   canonicalAnchorInventory,
-  type CanonicalAnchorInventoryEntry,
 } from './anchoredDocument.js'
 import type { ParsedDocument } from './parsedDocument.js'
 
@@ -38,12 +37,6 @@ export type GroundingIssue =
       code: 'malformed_selection'
       claimLabel: string
       resultPath: ResultPath
-    }
-  | {
-      code: 'conflicting_anchor_selection'
-      claimLabel: string
-      resultPath: ResultPath
-      anchorLabel: string
     }
   | {
       code: 'grounding_failed'
@@ -188,68 +181,6 @@ function claimBatches(
   return [...batches.values()]
 }
 
-function normalizeForRetrieval(value: string | number | boolean): string {
-  return String(value)
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function containsClaim(
-  source: string,
-  claimValue: string | number | boolean,
-): boolean {
-  const needle = normalizeForRetrieval(claimValue)
-  if (!needle || needle.length < 2) return false
-  const haystack = normalizeForRetrieval(source)
-  if (/^[+-]?(?:\d+[.,]?\d*|[.,]\d+)$/.test(needle)) {
-    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    return new RegExp(
-      `(^|[^\\p{L}\\p{N}])${escaped}([^\\p{L}\\p{N}]|$)`,
-      'u',
-    ).test(haystack)
-  }
-  return haystack.includes(needle)
-}
-
-function retrievalCandidates(
-  inventory: readonly CanonicalAnchorInventoryEntry[],
-  claims: readonly Claim[],
-): { anchorIds: readonly string[]; fallback: boolean } {
-  const seeds = new Set(
-    inventory
-      .filter((entry) =>
-        claims.some((claim) => containsClaim(entry.text, claim.value)),
-      )
-      .map((entry) => entry.anchorId),
-  )
-  if (seeds.size === 0)
-    return {
-      anchorIds: inventory.map((entry) => entry.anchorId),
-      fallback: true,
-    }
-
-  const seededTableRows = new Map<string, Set<number>>()
-  for (const entry of inventory) {
-    if (entry.kind !== 'table_cell' || !seeds.has(entry.anchorId)) continue
-    const rows = seededTableRows.get(entry.logicalTableId) ?? new Set<number>()
-    rows.add(entry.row)
-    seededTableRows.set(entry.logicalTableId, rows)
-  }
-  return {
-    anchorIds: inventory
-      .filter(
-        (entry) =>
-          seeds.has(entry.anchorId) ||
-          (entry.kind === 'table_cell' &&
-            seededTableRows.get(entry.logicalTableId)?.has(entry.row)),
-      )
-      .map((entry) => entry.anchorId),
-    fallback: false,
-  }
-}
-
 function groundingInstruction(batch: ClaimBatch): string {
   const renderedClaims = batch.claims.map(
     (claim) =>
@@ -283,7 +214,6 @@ function resolveGrounding(
   result: unknown,
   claims: readonly Claim[],
   anchorIdByLabel: ReadonlyMap<string, string>,
-  anchorTextByLabel: ReadonlyMap<string, string>,
 ): Pick<GroundingOutcome, 'evidenceLinks' | 'ungroundedPaths' | 'issues'> {
   const returned = strictLinks(result)
   const claimByLabel = new Map(claims.map((claim) => [claim.label, claim]))
@@ -318,21 +248,6 @@ function resolveGrounding(
     if (!evidenceAnchorId) {
       issues.push({
         code: 'unknown_anchor_label',
-        claimLabel: claim.label,
-        resultPath: claim.resultPath,
-        anchorLabel,
-      })
-      continue
-    }
-    const exactAnchorLabels = [...anchorTextByLabel]
-      .filter(([, text]) => containsClaim(text, claim.value))
-      .map(([label]) => label)
-    if (
-      exactAnchorLabels.length > 0 &&
-      !exactAnchorLabels.includes(anchorLabel)
-    ) {
-      issues.push({
-        code: 'conflicting_anchor_selection',
         claimLabel: claim.label,
         resultPath: claim.resultPath,
         anchorLabel,
@@ -381,17 +296,14 @@ export async function groundExtraction({
   const inventory = canonicalAnchorInventory(document).filter(
     (entry) => !allowedAnchorIds || allowedAnchorIds.has(entry.anchorId),
   )
-  const anchorTextById = new Map(
-    inventory.map((entry) => [entry.anchorId, entry.text]),
-  )
+  const anchorIds = inventory.map((entry) => entry.anchorId)
   const batches = claimBatches(result, claims)
   const evidenceLinks: EvidenceLink[] = []
   const issues: GroundingIssue[] = []
   const attributions: GroundingStageAttribution['batches'][number][] = []
   for (const batch of batches) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    const candidates = retrievalCandidates(inventory, batch.claims)
-    const source = anchoredSource(document, new Set(candidates.anchorIds))
+    const source = anchoredSource(document, new Set(anchorIds))
     let generated: GroundingModelResponse
     try {
       generated = await invokeModel({
@@ -409,8 +321,8 @@ export async function groundExtraction({
       issues.push({ code: 'grounding_failed', resultPath: batch.resultPath })
       attributions.push({
         resultPath: batch.resultPath,
-        candidateCount: candidates.anchorIds.length,
-        fallback: candidates.fallback,
+        candidateCount: anchorIds.length,
+        fallback: true,
         modelAttribution: null,
       })
       continue
@@ -422,12 +334,6 @@ export async function groundExtraction({
         generated.result,
         batch.claims,
         source.anchorIdByLabel,
-        new Map(
-          [...source.anchorIdByLabel].flatMap(([label, anchorId]) => {
-            const text = anchorTextById.get(anchorId)
-            return text === undefined ? [] : [[label, text] as const]
-          }),
-        ),
       )
       evidenceLinks.push(...resolved.evidenceLinks)
       issues.push(...resolved.issues)
@@ -437,8 +343,8 @@ export async function groundExtraction({
     }
     attributions.push({
       resultPath: batch.resultPath,
-      candidateCount: candidates.anchorIds.length,
-      fallback: candidates.fallback,
+      candidateCount: anchorIds.length,
+      fallback: true,
       modelAttribution: generated.modelAttribution,
     })
   }

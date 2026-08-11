@@ -552,7 +552,7 @@ export function DocumentWorkspace({
   }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl, pdfSource])
 
   function selectEvidenceAnchor(anchor: ParsedEvidenceAnchor) {
-    if (inspectionReadOnly && pinnedAttempt) {
+    if (inspectionSourceSnapshot) {
       const occurrence = reviewedAnchorOccurrences(
         anchor,
         reviewedOccurrenceIds(inspectedAttempt, anchor.anchor_id),
@@ -833,14 +833,28 @@ export function DocumentWorkspace({
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
-  const inspectionDocumentMarkdown = inspectionReadOnly
+  const inspectedSnapshot = pinnedAttempt ?? (
+    selectedInspectionId === persistedExtraction?.extractionId
+      ? persistedExtraction
+      : null
+  )
+  const inspectionSourceSnapshot =
+    inspectedSnapshot?.sourceRepresentationRevisionId !== sourceRepresentationId
+      ? inspectedSnapshot
+      : null
+  const inspectionDocumentMarkdown = inspectionSourceSnapshot
     ? pinnedDocIndex.status === 'ready' ? pinnedDocIndex.markdown : null
     : documentMarkdown
-  const inspectionParsedDocument = inspectionReadOnly
+  const inspectionParsedDocument = inspectionSourceSnapshot
     ? pinnedDocIndex.status === 'ready' ? pinnedDocIndex.document : null
     : parsedDocument
   function selectInspection(extractionId: string) {
-    if (extractionId === latestReviewedExtraction?.extractionId) {
+    const selected = extractionId === latestReviewedExtraction?.extractionId
+      ? latestReviewedExtraction
+      : extractionId === persistedExtraction?.extractionId
+        ? persistedExtraction
+        : null
+    if (selected?.sourceRepresentationRevisionId !== sourceRepresentationId) {
       setPinnedDocIndex({ status: 'parsing' })
       setPinnedPage(1)
     }
@@ -848,32 +862,33 @@ export function DocumentWorkspace({
   }
 
   useEffect(() => {
-    if (!inspectionReadOnly || !pinnedAttempt) return
+    if (!inspectionSourceSnapshot) return
     const controller = new AbortController()
     void Promise.all([
-      readMarkdown(pinnedAttempt.sourceRepresentation.resources.markdownUrl, controller.signal),
-      readParsedDocument(pinnedAttempt.sourceRepresentation.resources.parsedDocumentUrl, controller.signal),
+      readMarkdown(inspectionSourceSnapshot.sourceRepresentation.resources.markdownUrl, controller.signal),
+      readParsedDocument(inspectionSourceSnapshot.sourceRepresentation.resources.parsedDocumentUrl, controller.signal),
     ]).then(([markdown, document]) => {
       if (!controller.signal.aborted) setPinnedDocIndex({ status: 'ready', markdown, document })
     }).catch((error) => {
       if (!controller.signal.aborted) setPinnedDocIndex({ status: 'error', message: error instanceof Error ? error.message : 'Snapshot loading failed.' })
     })
     return () => controller.abort()
-  }, [inspectionReadOnly, pinnedAttempt])
+  }, [inspectionSourceSnapshot])
 
   useEffect(() => {
     const container = containerRef.current
     const viewer = pdfViewerRef.current
     if (
       !container ||
-      !parsedDocument ||
-      extraction.state.status !== 'ready' ||
+      !inspectionParsedDocument ||
+      inspectionSourceSnapshot ||
+      inspectedAttempt?.outcome !== 'SUCCEEDED' ||
       !effectiveRailOpen ||
       railTab !== 'results' ||
       !resultPath
     )
       return
-    const state = extraction.state
+    const evidenceLinks = inspectedAttempt.evidenceLinks ?? []
     const reviewedOccurrenceIdsByAnchor = new Map(
       (inspectedAttempt?.reviewDecisions ?? []).map((decision) => [
         decision.evidenceAnchorId,
@@ -881,17 +896,18 @@ export function DocumentWorkspace({
       ]),
     )
     const anchors = new Map(
-      parsedDocument.evidence_index.anchors.map((anchor) => [anchor.anchor_id, anchor]),
+      inspectionParsedDocument.evidence_index.anchors.map((anchor) => [anchor.anchor_id, anchor]),
     )
-    const fieldNames =
-      templateState.status === 'ready'
+    const fieldNames = pinnedAttempt
+      ? pinnedAttempt.extractionSchema.schemaNodes.map((node) => node.name)
+      : templateState.status === 'ready'
         ? templateState.nodes.map((node) => node.name)
         : []
     const paint = () => {
       container
         .querySelectorAll('.parsed-evidence-highlight')
         .forEach((highlight) => highlight.remove())
-      state.evidenceLinks.forEach((link, linkIndex) => {
+      evidenceLinks.forEach((link, linkIndex) => {
         if (
           link.resultPath.length !== resultPath.length + 1 ||
           !resultPath.every(
@@ -912,7 +928,7 @@ export function DocumentWorkspace({
         const reviewed = reviewedOccurrenceIdsByAnchor.get(anchor.anchor_id)
         for (const occurrence of anchorOccurrences(anchor)) {
           if (reviewed && !reviewed.includes(occurrence.occurrence_id)) continue
-          appendEvidenceOverlay(container, parsedDocument, occurrence, {
+          appendEvidenceOverlay(container, inspectionParsedDocument, occurrence, {
             className: 'parsed-evidence-highlight',
             background: color,
             evidenceAnchorId: anchor.anchor_id,
@@ -930,11 +946,12 @@ export function DocumentWorkspace({
         .forEach((highlight) => highlight.remove())
     }
   }, [
-    extraction.state,
     effectiveRailOpen,
-    parsedDocument,
-    railTab,
     inspectedAttempt,
+    inspectionParsedDocument,
+    inspectionSourceSnapshot,
+    pinnedAttempt,
+    railTab,
     resultPath,
     templateState,
   ])
@@ -1050,8 +1067,8 @@ export function DocumentWorkspace({
           <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
             <div className="pdfViewer" ref={setViewerNode} />
           </div>
-          {inspectionReadOnly && pinnedAttempt && (
-            <iframe title="Pinned extraction PDF" src={`${pinnedAttempt.sourceRepresentation.resources.sourcePdfUrl}#page=${pinnedPage}`} className="absolute inset-0 z-10 size-full border-0 bg-canvas" />
+          {inspectionSourceSnapshot && (
+            <iframe title="Pinned Source Document" src={`${inspectionSourceSnapshot.sourceRepresentation.resources.sourcePdfUrl}#page=${pinnedPage}`} className="absolute inset-0 z-10 size-full border-0 bg-canvas" />
           )}
           {toast && (
             <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
@@ -1109,7 +1126,7 @@ export function DocumentWorkspace({
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
-            inspection={{ attempt: inspectedAttempt, readOnly: inspectionReadOnly, documentMarkdown: inspectionDocumentMarkdown, parsedDocument: inspectionParsedDocument, sourceStatus: inspectionReadOnly ? pinnedDocIndex : null, reviewDecisions: inspectedAttempt?.reviewDecisions ?? [], pinnedSchema: pinnedAttempt?.extractionSchema ?? null }}
+            inspection={{ attempt: inspectedAttempt, readOnly: inspectionReadOnly, documentMarkdown: inspectionDocumentMarkdown, parsedDocument: inspectionParsedDocument, sourceStatus: inspectionSourceSnapshot ? pinnedDocIndex : null, reviewDecisions: inspectedAttempt?.reviewDecisions ?? [], pinnedSchema: pinnedAttempt?.extractionSchema ?? null }}
             sourceDocumentName={pdfSource.filename}
             onSelectEvidence={selectEvidenceAnchor}
             onResultPathChange={setResultPath}
