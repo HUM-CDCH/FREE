@@ -10,7 +10,7 @@ type ResultsTabProps = {
   schemaReady: boolean
   documentMarkdown: string | null
   onSelectEvidence?: (anchorId: string) => void
-  onResultPathChange?: (path: string[]) => void
+  onResultPathChange?: (path: string[] | null) => void
 }
 
 type View = 'review' | 'json' | 'markdown'
@@ -46,7 +46,10 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
   const [forwardStack, setForwardStack] = useState<string[][]>([])
   const [previousState, setPreviousState] = useState(state)
 
-  useEffect(() => onResultPathChange?.(navPath), [navPath, onResultPathChange])
+  useEffect(
+    () => onResultPathChange?.(view === 'review' ? navPath : null),
+    [navPath, onResultPathChange, view],
+  )
 
 
   if (previousState !== state) {

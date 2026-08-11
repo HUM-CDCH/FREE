@@ -273,7 +273,7 @@ export function DocumentWorkspace({
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
-  const [resultPath, setResultPath] = useState<string[]>([])
+  const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const pdfSource = useMemo(
     () => ({ url: pdfUrl, filename }),
@@ -814,7 +814,15 @@ export function DocumentWorkspace({
   useEffect(() => {
     const container = containerRef.current
     const viewer = pdfViewerRef.current
-    if (!container || !parsedDocument || extraction.state.status !== 'ready') return
+    if (
+      !container ||
+      !parsedDocument ||
+      extraction.state.status !== 'ready' ||
+      !effectiveRailOpen ||
+      railTab !== 'results' ||
+      !resultPath
+    )
+      return
     const state = extraction.state
     const anchors = new Map(
       parsedDocument.evidence_index.anchors.map((anchor) => [anchor.anchor_id, anchor]),
@@ -867,7 +875,9 @@ export function DocumentWorkspace({
     }
   }, [
     extraction.state,
+    effectiveRailOpen,
     parsedDocument,
+    railTab,
     reviewedOccurrenceIdsByAnchor,
     resultPath,
     templateState,

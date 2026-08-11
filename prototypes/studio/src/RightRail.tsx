@@ -48,7 +48,7 @@ type RightRailProps = {
   parsedDocument: ParsedDocument | null
   reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
-  onResultPathChange: (path: string[]) => void
+  onResultPathChange: (path: string[] | null) => void
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {

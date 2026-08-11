@@ -181,8 +181,9 @@ describe('reopened Source Document workspace', () => {
         {...reopened}
         persistedExtraction={{
           ...persistedExtraction,
-          resultPayload: { record: { place: 'Ellekilde' } },
+          resultPayload: { title: 'Beretning', record: { place: 'Ellekilde' } },
           evidenceLinks: [
+            { resultPath: ['title'], evidenceAnchorId: 'bundled-anchor' },
             { resultPath: ['record', 'place'], evidenceAnchorId: 'bundled-anchor' },
           ],
         }}
@@ -200,6 +201,9 @@ describe('reopened Source Document workspace', () => {
     expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0)
 
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
+    )
     fireEvent.click(screen.getByText('record', { exact: true }))
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
@@ -208,9 +212,33 @@ describe('reopened Source Document workspace', () => {
     expect(highlight.dataset.resultPath).toBe('["record","place"]')
     expect(highlight.style.background).toContain('0.28')
 
-    fireEvent.click(screen.getByTitle('Back'))
+    fireEvent.click(screen.getByRole('button', { name: 'Raw JSON' }))
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
+    )
+    fireEvent.click(screen.getByTitle('Back'))
+    await waitFor(() =>
+      expect(page.querySelector<HTMLElement>('[data-evidence-anchor-id]')?.dataset.resultPath).toBe('["title"]'),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Annot\./ }))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
+    )
+    fireEvent.click(screen.getByTitle('Collapse panel'))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
+    )
+    fireEvent.click(screen.getByTitle('Expand panel'))
+    await waitFor(() =>
+      expect(page.querySelector<HTMLElement>('[data-evidence-anchor-id]')?.dataset.resultPath).toBe('["title"]'),
     )
   })
 
