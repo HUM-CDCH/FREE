@@ -10,6 +10,12 @@ The Studio server SHALL accept an Article operation UUID, Source Representation 
 - **THEN** the server persists a terminal completed Extraction before returning its server-computed DTO
 - **AND** the result is a hidden-root `{ "records": [...] }` object produced by one whole-source value call
 
+#### Scenario: Article returns zero or multiple records
+
+- **WHEN** the one whole-source value call returns a valid hidden `records` array containing zero or multiple objects
+- **THEN** the server retains that array as the succeeded result instead of imposing an Article cardinality
+- **AND** normal grounding and completeness rules apply to the retained records
+
 #### Scenario: Pins do not share one Project Context
 
 - **WHEN** the Source Representation Revision and Schema Revision belong to different Project Contexts

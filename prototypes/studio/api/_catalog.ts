@@ -32,7 +32,6 @@ export type BoundaryIssue = {
     | 'unknown_label'
     | 'duplicate_label'
     | 'non_monotonic'
-    | 'wrong_level'
     | 'terminal_unresolved'
 }
 
@@ -104,45 +103,6 @@ export function headingCandidates(
   return result
 }
 
-function numberedHeadingSignature(text: string): string | null {
-  const outline = /^\s*(\d+(?:\.\d+)*)\.\s+/.exec(text)
-  if (outline) return `outline:${outline[1].split('.').length}`
-  if (!/\d/.test(text)) return null
-  return text
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/\d+/g, '#')
-    .replace(/[^\p{L}#\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-/**
- * Prefer one proved shallow sibling family when canonical headings expose it.
- * This removes nested Zhang subsections and Beretning's spurious headings
- * before discovery; otherwise all canonical headings remain available.
- */
-export function catalogHeadingCandidates(
-  document: ParsedDocument,
-): HeadingCandidate[] {
-  const candidates = headingCandidates(document)
-  if (candidates.length < 2) return candidates
-  const shallowest = Math.min(...candidates.map((candidate) => candidate.level))
-  const siblings = candidates.filter(
-    (candidate) => candidate.level === shallowest,
-  )
-  const groups = new Map<string, HeadingCandidate[]>()
-  for (const candidate of siblings) {
-    const signature = numberedHeadingSignature(candidate.text)
-    if (!signature) continue
-    groups.set(signature, [...(groups.get(signature) ?? []), candidate])
-  }
-  const recurring = [...groups.values()].sort(
-    (left, right) => right.length - left.length,
-  )[0]
-  return recurring && recurring.length >= 2 ? recurring : candidates
-}
-
 export function headingCandidateSource(
   candidates: readonly HeadingCandidate[],
 ): string {
@@ -183,7 +143,6 @@ export function resolveCatalogBoundaries(
   const issues: BoundaryIssue[] = []
   const seen = new Set<string>()
   let previousIndex = -1
-  let headingLevel: number | null = null
 
   for (const label of labels) {
     const candidate = candidateByLabel.get(label)
@@ -200,11 +159,6 @@ export function resolveCatalogBoundaries(
       issues.push({ code: 'boundary_invalid', label, reason: 'non_monotonic' })
       continue
     }
-    if (headingLevel !== null && candidate.level !== headingLevel) {
-      issues.push({ code: 'boundary_invalid', label, reason: 'wrong_level' })
-      continue
-    }
-    headingLevel ??= candidate.level
     previousIndex = candidate.inventoryIndex
     accepted.push(candidate)
   }

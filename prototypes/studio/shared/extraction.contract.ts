@@ -93,7 +93,6 @@ const catalogDiagnosticsSchema = z
             'unknown_label',
             'duplicate_label',
             'non_monotonic',
-            'wrong_level',
             'terminal_unresolved',
           ]),
         })

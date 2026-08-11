@@ -167,8 +167,10 @@ describe('server-owned Catalog extraction route', () => {
     const extract = vi
       .fn()
       .mockResolvedValueOnce(generated({ starts: ['H-A', 'H-C'] }))
-      .mockResolvedValueOnce(generated({ title: 'Introduction body' }))
-      .mockResolvedValueOnce(generated({ title: 'Methods body' }))
+      .mockResolvedValueOnce(
+        generated({ records: [{ title: 'Introduction body' }] }),
+      )
+      .mockResolvedValueOnce(generated({ records: [{ title: 'Methods body' }] }))
       .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
       .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
     const response = await createExtractionsApi({
@@ -197,7 +199,7 @@ describe('server-owned Catalog extraction route', () => {
         catalog: {
           codes: [],
           discovery: {
-            candidateCount: 2,
+            candidateCount: 4,
             returnedCount: 2,
             resolvedCount: 2,
           },
@@ -619,11 +621,19 @@ describe('server-owned Article extraction route', () => {
     })
   })
 
-  it('fails closed when Article values do not contain exactly one record', async () => {
+  it('persists multiple records returned by one Article values call', async () => {
     const { store } = fakeStore([
       { id: 'title', name: 'title', type: 'string' },
     ])
-    const extract = vi.fn().mockResolvedValueOnce(generated({ records: [] }))
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generated({
+          records: [{ title: 'Ellekilde' }, { title: 'Tornby' }],
+        }),
+      )
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
     const response = await createExtractionsApi({
       store,
       readSource: async () => parsedDocument,
@@ -631,16 +641,14 @@ describe('server-owned Article extraction route', () => {
       extract,
     })(request())
 
-    expect(extract).toHaveBeenCalledOnce()
+    expect(extract).toHaveBeenCalledTimes(3)
     await expect(response.json()).resolves.toMatchObject({
-      outcome: 'FAILED',
-      complete: null,
+      outcome: 'SUCCEEDED',
+      complete: false,
       reviewable: false,
-      failure: {
-        code: 'invalid_model_output',
-        message: 'Article extraction must return exactly one record.',
+      resultPayload: {
+        records: [{ title: 'Ellekilde' }, { title: 'Tornby' }],
       },
-      resultPayload: null,
     })
   })
 

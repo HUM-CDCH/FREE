@@ -39,3 +39,8 @@
 - [x] 5.5 Rerun the retained 32-call and 48-call Article/Catalog matrices for 80 cumulative calls and record redacted evidence
   - All 80 calls returned; 77/80 component contracts were valid and zero retries ran. The selected Codex paths passed, while Ollama Article truncation and one missed Catalog start keep the provider matrix release gate blocked. See `matrix-rerun-evidence.md` and the redacted per-call JSON.
 - [x] 5.6 Run final Sonnet and Opus read-only advisor reviews, reconcile every finding against the canonical resolution, and ensure completed task boxes match evidence
+
+## 6. Acceptance repair
+
+- [x] 6.1 Remove the contradicted one-record Article gate and provider-specific Catalog heading/level filters
+- [x] 6.2 Add focused multi-record Article and mixed-level Catalog regression coverage

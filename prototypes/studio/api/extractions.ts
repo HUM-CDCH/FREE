@@ -46,10 +46,13 @@ import {
   nodesToTemplate,
   parseSchemaDefinition,
 } from '../shared/schemaNode.js'
-import { compileInstructions, stripDescriptions } from '../shared/template.js'
+import {
+  compileInstructions,
+  isRecord,
+  stripDescriptions,
+} from '../shared/template.js'
 import { ApiError, json, noStore, noStoreError, parseJsonRequest } from './_http.js'
 import {
-  catalogHeadingCandidates,
   catalogSliceSource,
   headingCandidateSource,
   headingCandidates,
@@ -141,10 +144,11 @@ function safeFailure(error: unknown): ExtractionFailure {
     : { code: 'extraction_failed', message: 'Extraction failed.' }
 }
 
-function articleResult(
+function extractionRecords(
   value: Record<string, unknown>,
-): Record<string, unknown> {
-  return Array.isArray(value.records) ? value : { records: [value] }
+): Record<string, unknown>[] | null {
+  const records = Array.isArray(value.records) ? value.records : [value]
+  return records.every(isRecord) ? records : null
 }
 
 function overlayFilename(
@@ -308,19 +312,14 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
         finishReason = generated.metadata.finishReason
         inputTokens = generated.metadata.inputTokens
         outputTokens = generated.metadata.outputTokens
-        result = articleResult(generated.result)
-        if (
-          !Array.isArray(result.records) ||
-          result.records.length !== 1 ||
-          typeof result.records[0] !== 'object' ||
-          result.records[0] === null ||
-          Array.isArray(result.records[0])
-        )
+        const records = extractionRecords(generated.result)
+        if (!records)
           throw new ApiError(
             502,
             'invalid_model_output',
-            'Article extraction must return exactly one record.',
+            'Article extraction records must be objects.',
           )
+        result = { records }
       }
       overlayFilename(
         result,
@@ -608,17 +607,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
 
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
       phase = 'discovering'
-      const canonicalHeadings = headingCandidates(document)
-      const publishedHeadingCount = document.content_stream.filter(
-        (block) => block.kind === 'heading',
-      ).length
-      if (canonicalHeadings.length !== publishedHeadingCount)
-        throw new ApiError(
-          422,
-          'catalog_ineligible',
-          'Every Catalog heading requires a canonical Evidence Anchor.',
-        )
-      const candidates = catalogHeadingCandidates(document)
+      const candidates = headingCandidates(document)
       catalog.discovery.candidateCount = candidates.length
       if (candidates.length === 0)
         throw new ApiError(
@@ -703,7 +692,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
         if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
         const before = now()
         try {
-          let record: Record<string, unknown> = {}
+          let extractedRecords: Record<string, unknown>[] = [{}]
           let metadata: ModelGenerationMetadata = {
             finishReason: null,
             inputTokens: null,
@@ -725,8 +714,8 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
                 },
                 template: stripDescriptions(described),
                 instruction: [
-                  `Extract exactly one record: ${definition.recordDescription}`,
-                  compileInstructions({ records: [described] }),
+                  `Extract the record described here: ${definition.recordDescription}`,
+                  compileInstructions(described),
                 ]
                   .filter(Boolean)
                   .join('\n'),
@@ -739,16 +728,18 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
             const recordFieldNames = new Set(
               recordNodes.map((node) => node.name),
             )
-            record = Object.fromEntries(
-              Object.entries(generated.result).filter(([key]) =>
-                recordFieldNames.has(key),
-              ),
-            )
+            const returnedRecords = extractionRecords(generated.result)
+            extractedRecords =
+              returnedRecords?.map((returnedRecord) =>
+                Object.fromEntries(
+                  Object.entries(returnedRecord).filter(([key]) =>
+                    recordFieldNames.has(key),
+                  ),
+                ),
+              ) ?? []
             if (
-              recordNodes.length > 0 &&
-              !recordNodes.some((node) =>
-                Object.hasOwn(generated.result, node.name),
-              )
+              extractedRecords.length === 0 ||
+              extractedRecords.some((record) => Object.keys(record).length === 0)
             )
               throw new ApiError(
                 502,
@@ -756,16 +747,18 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
                 'Catalog record extraction returned no schema fields.',
               )
           }
-          Object.assign(record, documentValues)
-          const wrapped = { records: [record] }
-          overlayFilename(
-            wrapped,
-            packageFields,
-            document.document.source.original_filename ??
-              inputs.originalFilename,
-          )
-          records.push((wrapped.records as Record<string, unknown>[])[0])
-          recordBoundaries.push(boundary)
+          for (const record of extractedRecords) {
+            Object.assign(record, documentValues)
+            const wrapped = { records: [record] }
+            overlayFilename(
+              wrapped,
+              packageFields,
+              document.document.source.original_filename ??
+                inputs.originalFilename,
+            )
+            records.push((wrapped.records as Record<string, unknown>[])[0])
+            recordBoundaries.push(boundary)
+          }
           catalog.records.push({
             ...callDiagnostics(metadata),
             ordinal: boundary.ordinal,

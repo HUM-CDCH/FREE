@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { ParsedDocument } from '../shared/parsedDocument.js'
 import {
   MAX_CATALOG_RECORDS,
-  catalogHeadingCandidates,
   catalogSliceSource,
   headingCandidateSource,
   headingCandidates,
@@ -100,40 +99,10 @@ describe('Catalog canonical heading discovery', () => {
     expect(headingCandidateSource(candidates)).not.toContain('anchor-')
   })
 
-  it('offers only the proved shallow numbered sibling family to discovery', () => {
+  it('offers every canonical heading to discovery', () => {
     expect(
-      catalogHeadingCandidates(zhang).map((candidate) => candidate.label),
-    ).toEqual(['H-A', 'H-C', 'H-E'])
-  })
-
-  it('keeps the seven retained grave siblings and removes spurious Beretning headings', () => {
-    const beretning = documentWithHeadings(
-      [
-        'Grav 8',
-        'Grav 13',
-        'Grav 24',
-        'Skeletdelene er nummereret som følger:',
-        'Grav 26',
-        'Skelet:',
-        'Fundliste grav 26',
-        'Grav 28',
-        'Grav 30',
-        'nummereret som følger:',
-        'Grav 31',
-      ].map((text) => ({ text, level: 1 })),
-    )
-
-    expect(
-      catalogHeadingCandidates(beretning).map((candidate) => candidate.text),
-    ).toEqual([
-      'Grav 8',
-      'Grav 13',
-      'Grav 24',
-      'Grav 26',
-      'Grav 28',
-      'Grav 30',
-      'Grav 31',
-    ])
+      headingCandidates(zhang).map((candidate) => candidate.label),
+    ).toEqual(['H-A', 'H-B', 'H-C', 'H-D', 'H-E', 'H-F'])
   })
 
   it('accepts only a compact scalar starts array', () => {
@@ -149,7 +118,9 @@ describe('Catalog canonical heading discovery', () => {
     const resolved = resolveCatalogBoundaries(
       zhang,
       ['H-B'],
-      catalogHeadingCandidates(zhang),
+      headingCandidates(zhang).filter((candidate) =>
+        ['H-A', 'H-C', 'H-E'].includes(candidate.label),
+      ),
     )
 
     expect(resolved.boundaries).toEqual([])
@@ -197,7 +168,7 @@ describe('Catalog canonical heading discovery', () => {
     )
   })
 
-  it('rejects unknown, duplicate, non-monotonic, and wrong-level labels without recovery', () => {
+  it('retains ordered mixed-level labels while rejecting invalid labels', () => {
     const resolved = resolveCatalogBoundaries(zhang, [
       'H-C',
       'missing',
@@ -209,13 +180,13 @@ describe('Catalog canonical heading discovery', () => {
 
     expect(resolved.boundaries.map((boundary) => boundary.startLabel)).toEqual([
       'H-C',
+      'H-D',
       'H-E',
     ])
     expect(resolved.issues.map((issue) => issue.reason)).toEqual([
       'unknown_label',
       'duplicate_label',
       'non_monotonic',
-      'wrong_level',
     ])
   })
 
