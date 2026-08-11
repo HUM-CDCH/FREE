@@ -11,9 +11,13 @@ const SCHEMA = '51000000-0000-4000-8003-000000000001'
 const REVISION_1 = '51000000-0000-4000-8004-000000000001'
 const REVISION_2 = '51000000-0000-4000-8004-000000000002'
 const nodes = (name: string) => [{ id: `node-${name}`, name, type: 'string' as const }]
+const definition = (name: string) => ({
+  recordDescription: `One ${name} record.`,
+  schemaNodes: nodes(name),
+})
 const revisions: SchemaRevisionRecord[] = [
-  { schemaRevisionId: REVISION_2, extractionSchemaId: SCHEMA, revisionNumber: 2, origin: 'researcher-edit', schemaTree: nodes('year'), createdAt: new Date('2026-08-01T12:01:00Z') },
-  { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: nodes('site'), createdAt: new Date('2026-08-01T12:00:00Z') },
+  { schemaRevisionId: REVISION_2, extractionSchemaId: SCHEMA, revisionNumber: 2, origin: 'researcher-edit', schemaTree: definition('year'), createdAt: new Date('2026-08-01T12:01:00Z') },
+  { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: definition('site'), createdAt: new Date('2026-08-01T12:00:00Z') },
 ]
 
 function store(overrides: Partial<Pick<ProjectStore, 'initializeSchemaRevision' | 'appendSchemaRevision' | 'listSchemaRevisions' | 'getSchemaRevision'>> = {}) {
@@ -33,7 +37,7 @@ describe('Schema Revision routes', () => {
     const response = await POST(new Request('http://test/api/schema-revisions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ projectContextId: PROJECT, schemaNodes: nodes('site') }),
+      body: JSON.stringify({ projectContextId: PROJECT, ...definition('site') }),
     }))
 
     expect(response.status).toBe(201)
@@ -42,7 +46,7 @@ describe('Schema Revision routes', () => {
       revisionNumber: 1,
       origin: 'suggestion',
     })
-    expect(fixture.initializeSchemaRevision).toHaveBeenCalledWith(PROJECT, nodes('site'))
+    expect(fixture.initializeSchemaRevision).toHaveBeenCalledWith(PROJECT, definition('site'))
   })
 
   it('appends a validated researcher revision and returns its identity and number', async () => {
@@ -55,7 +59,7 @@ describe('Schema Revision routes', () => {
         projectContextId: PROJECT,
         extractionSchemaId: SCHEMA,
         expectedRevisionNumber: 1,
-        schemaNodes: nodes('year'),
+        ...definition('year'),
       }),
     }))
 
@@ -66,7 +70,7 @@ describe('Schema Revision routes', () => {
       revisionNumber: 2,
       schemaNodes: nodes('year'),
     })
-    expect(fixture.appendSchemaRevision).toHaveBeenCalledWith(PROJECT, SCHEMA, 1, nodes('year'))
+    expect(fixture.appendSchemaRevision).toHaveBeenCalledWith(PROJECT, SCHEMA, 1, definition('year'))
   })
 
   it('returns the winning head for a stale write without exposing persistence details', async () => {
@@ -75,7 +79,7 @@ describe('Schema Revision routes', () => {
     }))
     const response = await POST(new Request('http://test/api/schema-revisions', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, expectedRevisionNumber: 1, schemaNodes: nodes('mine') }),
+      body: JSON.stringify({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, expectedRevisionNumber: 1, ...definition('mine') }),
     }))
 
     expect(response.status).toBe(409)
@@ -92,7 +96,7 @@ describe('Schema Revision routes', () => {
 
     expect(response.status).toBe(200)
     expect(schemaRevisionListResponseSchema.parse(body).revisions).toEqual([
-      expect.objectContaining({ schemaRevisionId: REVISION_2, revisionNumber: 2, summary: '1 added, 1 removed' }),
+      expect.objectContaining({ schemaRevisionId: REVISION_2, revisionNumber: 2, summary: '1 record description updated, 1 added, 1 removed' }),
     ])
     expect(JSON.stringify(body)).not.toContain('schemaNodes')
     expect(fixture.listSchemaRevisions).toHaveBeenCalledWith(PROJECT, SCHEMA, 2)
@@ -114,7 +118,7 @@ describe('Schema Revision routes', () => {
     const failing = store({ listSchemaRevisions: vi.fn(async () => { throw new Error('postgresql://secret') }) })
     const { GET, POST } = createSchemaRevisionHandlers(failing)
     expect((await GET(new Request(`http://test/api/schema-revisions?projectContextId=${PROJECT}&extractionSchemaId=${SCHEMA}&limit=51`))).status).toBe(422)
-    expect((await POST(new Request('http://test/api/schema-revisions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, expectedRevisionNumber: 1, schemaNodes: nodes('x'), origin: 'MODEL_EDIT' }) }))).status).toBe(422)
+    expect((await POST(new Request('http://test/api/schema-revisions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ projectContextId: PROJECT, extractionSchemaId: SCHEMA, expectedRevisionNumber: 1, ...definition('x'), origin: 'MODEL_EDIT' }) }))).status).toBe(422)
     const unavailable = await GET(new Request(`http://test/api/schema-revisions?projectContextId=${PROJECT}&extractionSchemaId=${SCHEMA}&limit=1`))
     expect(unavailable.status).toBe(503)
     expect(await unavailable.text()).not.toContain('secret')

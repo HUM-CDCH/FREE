@@ -24,14 +24,17 @@ function attempt(
     schemaRevisionId,
     extractionSchemaId: '77777777-7777-4777-8777-777777777777',
     schemaRevisionNumber: schemaRevisionId === latestSchemaId ? 2 : 1,
-    schemaTree: [{ id: 'title', name: 'title', type: 'string' as const }],
+    schemaTree: {
+      recordDescription: 'One title record.',
+      schemaNodes: [{ id: 'title', name: 'title', type: 'string' as const }],
+    },
     createdAt: new Date(reviewedAt ? '2026-08-10T00:00:00Z' : '2026-08-10T01:00:00Z'),
     reviewedAt,
     strategy: 'ARTICLE' as const,
     outcome: 'SUCCEEDED' as const,
     complete: true,
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-    diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
     resultPayload: { records: [{ title: 'Ellekilde' }] },
     evidenceLinks: reviewedAt ? [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }] : [],
     failure: null,
@@ -49,7 +52,15 @@ function snapshot(): DocumentReopenSnapshot {
     sourceDocument: { sourceDocumentId: documentId, name: 'source.pdf', createdAt: new Date('2026-08-10T00:00:00Z') },
     sourceRepresentation: { sourceRepresentationId: latestRepresentationId, revisionNumber: 2, createdAt: new Date('2026-08-10T01:00:00Z') },
     annotationSet: null,
-    extractionSchema: { extractionSchemaId: '77777777-7777-4777-8777-777777777777', schemaRevisionId: latestSchemaId, revisionNumber: 2, schemaTree: [{ id: 'title', name: 'title', type: 'string' }] },
+    extractionSchema: {
+      extractionSchemaId: '77777777-7777-4777-8777-777777777777',
+      schemaRevisionId: latestSchemaId,
+      revisionNumber: 2,
+      schemaTree: {
+        recordDescription: 'One title record.',
+        schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+      },
+    },
     latestAttempt: attempt('99999999-9999-4999-8999-999999999999', latestRepresentationId, latestSchemaId, null),
     latestReviewed: attempt('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', reviewedRepresentationId, reviewedSchemaId, new Date('2026-08-10T00:30:00Z')),
   }
@@ -76,5 +87,84 @@ describe('document reopen Article attempts', () => {
     expect(body.latestReviewed.sourceRepresentationRevisionId).toBe(reviewedRepresentationId)
     expect(body.latestReviewed.schemaRevisionId).toBe(reviewedSchemaId)
     expect(body.latestReviewed.sourceRepresentation.resources.sourcePdfUrl).toContain(reviewedRepresentationId)
+  })
+
+  it('fails closed for an unreadable schema tree', async () => {
+    const stored = snapshot()
+    stored.extractionSchema!.schemaTree = { schemaNodes: 'not-an-array' }
+    const response = await createGetDocumentReopen({
+      async getDocumentReopenSnapshot() {
+        return stored
+      },
+    })(
+      new Request(
+        `http://studio/api/project-contexts/${projectId}/source-documents/${documentId}/reopen`,
+      ),
+    )
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'persistence_unavailable' },
+    })
+  })
+
+  it('fails closed for invalid stored Evidence paths', async () => {
+    const stored = snapshot()
+    stored.latestAttempt!.evidenceLinks = [
+      {
+        resultPath: ['records', 99, 'title'],
+        evidenceAnchorId: 'anchor-1',
+      },
+    ]
+    const response = await createGetDocumentReopen({
+      async getDocumentReopenSnapshot() {
+        return stored
+      },
+    })(
+      new Request(
+        `http://studio/api/project-contexts/${projectId}/source-documents/${documentId}/reopen`,
+      ),
+    )
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'persistence_unavailable' },
+    })
+  })
+
+  it('fails closed for incomplete stored Review Decisions', async () => {
+    const stored = snapshot()
+    stored.latestReviewed!.reviewDecisions = []
+    const response = await createGetDocumentReopen({
+      async getDocumentReopenSnapshot() {
+        return stored
+      },
+    })(
+      new Request(
+        `http://studio/api/project-contexts/${projectId}/source-documents/${documentId}/reopen`,
+      ),
+    )
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'persistence_unavailable' },
+    })
+  })
+
+  it('returns not found when the durable snapshot is missing', async () => {
+    const response = await createGetDocumentReopen({
+      async getDocumentReopenSnapshot() {
+        return null
+      },
+    })(
+      new Request(
+        `http://studio/api/project-contexts/${projectId}/source-documents/${documentId}/reopen`,
+      ),
+    )
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'not_found' },
+    })
   })
 })

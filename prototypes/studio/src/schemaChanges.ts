@@ -2,6 +2,7 @@ import type { FieldEdit, ProposedSchemaEdit, SchemaAddition, SchemaEditIssue } f
 import {
   enumerateFieldPaths,
   mkId,
+  type SchemaDefinition,
   type SchemaNode,
 } from '../shared/schemaNode'
 
@@ -48,12 +49,12 @@ function nodePositions(nodes: readonly SchemaNode[]): Map<string, NodePosition> 
 }
 
 export function summarizeSchemaRevision(
-  previous: readonly SchemaNode[] | null,
-  current: readonly SchemaNode[],
+  previous: SchemaDefinition | null,
+  current: SchemaDefinition,
 ): string {
   if (!previous) return 'Initial schema'
-  const before = nodePositions(previous)
-  const after = nodePositions(current)
+  const before = nodePositions(previous.schemaNodes)
+  const after = nodePositions(current.schemaNodes)
   const counts = {
     added: 0,
     removed: 0,
@@ -76,6 +77,10 @@ export function summarizeSchemaRevision(
   }
   for (const id of before.keys()) if (!after.has(id)) counts.removed++
   const parts = [
+    [
+      previous.recordDescription === current.recordDescription ? 0 : 1,
+      'record description updated',
+    ],
     [counts.added, 'added'],
     [counts.removed, 'removed'],
     [counts.renamed, 'renamed'],

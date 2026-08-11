@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { canonicalUuidSchema } from './projectContext.contract.js'
-import { schemaNodesSchema } from './schemaNode.js'
+import {
+  recordDescriptionSchema,
+  schemaDefinitionSchema,
+  schemaNodesSchema,
+} from './schemaNode.js'
 
 const timestamp = z.iso.datetime({ offset: true }).refine((value) => value.endsWith('Z'))
 
@@ -17,6 +21,7 @@ export const schemaRevisionSchema = z
     revisionNumber: z.number().int().positive(),
     origin: schemaRevisionOriginSchema,
     createdAt: timestamp,
+    recordDescription: recordDescriptionSchema,
     schemaNodes: schemaNodesSchema,
   })
   .strict()
@@ -29,7 +34,7 @@ export const schemaRevisionListResponseSchema = z
   .object({
     revisions: z.array(
       schemaRevisionSchema
-        .omit({ schemaNodes: true })
+        .omit({ recordDescription: true, schemaNodes: true })
         .extend({ summary: z.string().min(1) })
         .strict(),
     ),
@@ -41,14 +46,14 @@ export const appendSchemaRevisionRequestSchema = z
     projectContextId: canonicalUuidSchema,
     extractionSchemaId: canonicalUuidSchema,
     expectedRevisionNumber: z.number().int().nonnegative(),
-    schemaNodes: schemaNodesSchema,
+    ...schemaDefinitionSchema.shape,
   })
   .strict()
 
 export const initializeSchemaRevisionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
-    schemaNodes: schemaNodesSchema,
+    ...schemaDefinitionSchema.shape,
   })
   .strict()
 

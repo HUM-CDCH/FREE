@@ -5,6 +5,7 @@ import type {
   TerminalExtractionInput,
 } from '../../../packages/db/src/project-store.js'
 import parsedDocument from '../src/assets/parsed_document.v2.json'
+import type { ParsedDocument } from '../shared/parsedDocument.js'
 import { createExtractionsApi } from './extractions.js'
 
 const extractionId = '11111111-1111-4111-8111-111111111111'
@@ -16,6 +17,7 @@ const alternateSchemaId = '55555555-5555-4555-8555-555555555555'
 function request(
   id = extractionId,
   schemaId = schemaRevisionId,
+  strategy: 'ARTICLE' | 'CATALOG' = 'ARTICLE',
 ) {
   return new Request('http://studio/api/extractions', {
     method: 'POST',
@@ -24,12 +26,16 @@ function request(
       id,
       sourceRepresentationRevisionId: representationId,
       schemaRevisionId: schemaId,
-      strategy: 'ARTICLE',
+      strategy,
     }),
   })
 }
 
-function fakeStore(schemaTree: unknown) {
+function fakeStore(schemaNodes: unknown) {
+  const schemaTree = {
+    recordDescription: 'One representative source record.',
+    schemaNodes,
+  }
   const attempts = new Map<string, StoredExtractionAttempt>()
   const persist = vi.fn(async (input: TerminalExtractionInput) => {
     const existing = attempts.get(input.extractionId)
@@ -50,12 +56,12 @@ function fakeStore(schemaTree: unknown) {
   const store: Pick<
     ProjectStore,
     | 'finalizeExtractionReview'
-    | 'getArticleExtractionInputs'
+    | 'getExtractionInputs'
     | 'getExtractionAttempt'
     | 'getSourceRepresentation'
     | 'persistExtractionAttempt'
   > = {
-    async getArticleExtractionInputs(_representationId, schemaId) {
+    async getExtractionInputs(_representationId, schemaId) {
       if (schemaId !== schemaRevisionId) return null
       return {
         sourceDocumentId,
@@ -100,6 +106,50 @@ function generated(
   }
 }
 
+function catalogDocument() {
+  const source = structuredClone(parsedDocument) as unknown as ParsedDocument
+  const blocks = [
+    { text: '1. Introduction', level: 1 },
+    { text: '1.1. Context', level: 2 },
+    { text: '2. Methods', level: 1 },
+    { text: 'References', level: 1 },
+  ].flatMap((heading, index) => [
+    {
+      block_id: `heading-${index}`,
+      page_number: 1,
+      parser: 'fixture',
+      bbox: { x0: 1, y0: index * 10 + 1, x1: 100, y1: index * 10 + 5 },
+      markdown_span: { start: index * 20, end: index * 20 + 5 },
+      kind: 'heading',
+      text: heading.text,
+      level: heading.level,
+    },
+    {
+      block_id: `body-${index}`,
+      page_number: 1,
+      parser: 'fixture',
+      bbox: { x0: 1, y0: index * 10 + 5, x1: 100, y1: index * 10 + 9 },
+      markdown_span: { start: index * 20 + 5, end: index * 20 + 10 },
+      kind: 'paragraph',
+      text: index === 0 ? 'Introduction body' : index === 2 ? 'Methods body' : `Body ${index}`,
+    },
+  ]) as ParsedDocument['content_stream']
+  source.content_stream = blocks
+  source.pages[0].ordered_content = blocks.map((block) => block.block_id)
+  source.evidence_index.anchors = blocks.map((block, index) => ({
+    kind: 'text',
+    anchor_id: `anchor-${index}`,
+    occurrence_id: `occurrence-${index}`,
+    content_sha256: source.document.content_sha256,
+    preprocess_id: source.preprocessing.preprocess_id,
+    block_id: block.block_id,
+    page_number: 1,
+    markdown_span: block.markdown_span!,
+    bbox: block.bbox!,
+  }))
+  return source
+}
+
 const target = {
   profile: 'nuextract-raw' as const,
   modelId: 'fixture',
@@ -109,7 +159,383 @@ const target = {
   attribution: { provider: 'ollama' as const, modelId: 'fixture' },
 }
 
+describe('server-owned Catalog extraction route', () => {
+  it('discovers exact heading starts, extracts each slice once, and persists ordered records', async () => {
+    const { store, persist } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['H-A', 'H-C'] }))
+      .mockResolvedValueOnce(generated({ title: 'Introduction body' }))
+      .mockResolvedValueOnce(generated({ title: 'Methods body' }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })(request(extractionId, schemaRevisionId, 'CATALOG'))
+
+    expect(response.status).toBe(201)
+    expect(extract).toHaveBeenCalledTimes(5)
+    expect(persist).toHaveBeenCalledOnce()
+    await expect(response.json()).resolves.toMatchObject({
+      strategy: 'CATALOG',
+      outcome: 'SUCCEEDED',
+      complete: true,
+      reviewable: true,
+      resultPayload: {
+        records: [
+          { title: 'Introduction body' },
+          { title: 'Methods body' },
+        ],
+      },
+      diagnostics: {
+        modelCalls: 5,
+        catalog: {
+          codes: [],
+          discovery: {
+            candidateCount: 2,
+            returnedCount: 2,
+            resolvedCount: 2,
+          },
+          boundaries: [
+            expect.objectContaining({
+              startLabel: 'H-A',
+              headingText: '1. Introduction',
+            }),
+            expect.objectContaining({
+              startLabel: 'H-C',
+              headingText: '2. Methods',
+            }),
+          ],
+        },
+      },
+    })
+  })
+
+  it('grounds identical record values only within each resolved slice', async () => {
+    const { store } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const document = catalogDocument()
+    for (const blockId of ['body-0', 'body-2']) {
+      const block = document.content_stream.find(
+        (candidate) => candidate.block_id === blockId,
+      )
+      if (block && 'text' in block) block.text = 'Shared title'
+    }
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['H-A', 'H-C'] }))
+      .mockResolvedValueOnce(generated({ title: 'Shared title' }))
+      .mockResolvedValueOnce(generated({ title: 'Shared title' }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => document,
+      resolveTarget: async () => target,
+      extract,
+    })(request(extractionId, schemaRevisionId, 'CATALOG'))
+
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: 'SUCCEEDED',
+      reviewable: true,
+      evidenceLinks: [
+        {
+          resultPath: ['records', 0, 'title'],
+          evidenceAnchorId: 'anchor-1',
+        },
+        {
+          resultPath: ['records', 1, 'title'],
+          evidenceAnchorId: 'anchor-5',
+        },
+      ],
+    })
+  })
+
+  it('copies canonical package fields into every record without a values call', async () => {
+    const { store } = fakeStore([
+      {
+        id: 'filename',
+        name: 'filename',
+        type: 'string',
+        valueSource: 'source-filename',
+      },
+    ])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['H-A', 'H-C'] }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })(request(extractionId, schemaRevisionId, 'CATALOG'))
+
+    expect(extract).toHaveBeenCalledOnce()
+    await expect(response.json()).resolves.toMatchObject({
+      complete: true,
+      reviewable: true,
+      resultPayload: {
+        records: [
+          { filename: 'bundled.pdf' },
+          { filename: 'bundled.pdf' },
+        ],
+      },
+      evidenceLinks: [],
+    })
+  })
+
+  it('extracts document-scoped content once and overlays it on every record', async () => {
+    const { store } = fakeStore([
+      {
+        id: 'documentTitle',
+        name: 'documentTitle',
+        type: 'string',
+        valueSource: 'document',
+      },
+    ])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ documentTitle: 'Introduction body' }))
+      .mockResolvedValueOnce(generated({ starts: ['H-A', 'H-C'] }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })(request(extractionId, schemaRevisionId, 'CATALOG'))
+
+    expect(extract).toHaveBeenCalledTimes(3)
+    await expect(response.json()).resolves.toMatchObject({
+      complete: true,
+      resultPayload: {
+        records: [
+          { documentTitle: 'Introduction body' },
+          { documentTitle: 'Introduction body' },
+        ],
+      },
+      evidenceLinks: [
+        {
+          resultPath: ['records', 0, 'documentTitle'],
+          evidenceAnchorId: 'anchor-1',
+        },
+        {
+          resultPath: ['records', 1, 'documentTitle'],
+          evidenceAnchorId: 'anchor-1',
+        },
+      ],
+      diagnostics: {
+        catalog: {
+          documentMetadata: { outcome: 'succeeded' },
+          records: [
+            expect.objectContaining({ outcome: 'succeeded' }),
+            expect.objectContaining({ outcome: 'succeeded' }),
+          ],
+        },
+      },
+    })
+  })
+
+  it('treats a valid empty discovery as a complete zero-record result', async () => {
+    const { store } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const extract = vi.fn().mockResolvedValueOnce(generated({ starts: [] }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })(request(extractionId, schemaRevisionId, 'CATALOG'))
+
+    expect(extract).toHaveBeenCalledOnce()
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: 'SUCCEEDED',
+      complete: true,
+      reviewable: true,
+      resultPayload: { records: [] },
+      diagnostics: {
+        catalog: {
+          codes: [],
+          discovery: { returnedCount: 0, resolvedCount: 0 },
+        },
+      },
+    })
+  })
+
+  it('persists cancellation when empty discovery resolves after abort', async () => {
+    const { store } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    let releaseDiscovery!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      releaseDiscovery = resolve
+    })
+    const discoveryStarted = vi.fn()
+    const extract = vi.fn(async () => {
+      discoveryStarted()
+      await blocked
+      return generated({ starts: [] })
+    })
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })
+
+    const post = handler(request(extractionId, schemaRevisionId, 'CATALOG'))
+    await vi.waitFor(() => expect(discoveryStarted).toHaveBeenCalledOnce())
+    const cancellation = await handler(
+      new Request(`http://studio/api/extractions/${extractionId}`, {
+        method: 'DELETE',
+      }),
+    )
+    releaseDiscovery()
+
+    expect(cancellation.status).toBe(202)
+    await expect((await post).json()).resolves.toMatchObject({
+      outcome: 'CANCELLED',
+      resultPayload: null,
+      evidenceLinks: null,
+    })
+  })
+
+  it('keeps successful records and never automatically retries a failed record', async () => {
+    const { store } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['H-A', 'H-C'] }))
+      .mockRejectedValueOnce(new Error('record failed'))
+      .mockResolvedValueOnce(generated({ title: 'Methods body' }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })(request(extractionId, schemaRevisionId, 'CATALOG'))
+
+    expect(extract).toHaveBeenCalledTimes(4)
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: 'SUCCEEDED',
+      complete: false,
+      resultPayload: { records: [{ title: 'Methods body' }] },
+      diagnostics: {
+        catalog: {
+          codes: ['record_extraction_failed'],
+          records: [
+            expect.objectContaining({
+              outcome: 'failed',
+              code: 'record_extraction_failed',
+            }),
+            expect.objectContaining({ outcome: 'succeeded', code: null }),
+          ],
+        },
+      },
+    })
+  })
+
+  it('rejects invalid boundaries without retries or fallback', async () => {
+    const { store } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generated({ starts: ['H-C', 'missing', 'H-C', 'H-A'] }),
+      )
+      .mockResolvedValueOnce(generated({ title: 'Methods body' }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })(request(extractionId, schemaRevisionId, 'CATALOG'))
+
+    expect(extract).toHaveBeenCalledTimes(3)
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: 'SUCCEEDED',
+      complete: false,
+      resultPayload: { records: [{ title: 'Methods body' }] },
+      diagnostics: {
+        catalog: {
+          codes: ['boundary_invalid'],
+          boundaryIssues: [
+            expect.objectContaining({ reason: 'unknown_label' }),
+            expect.objectContaining({ reason: 'duplicate_label' }),
+            expect.objectContaining({ reason: 'non_monotonic' }),
+          ],
+        },
+      },
+    })
+  })
+})
+
 describe('server-owned Article extraction route', () => {
+  it('preserves root and nested schema field order in the model request', async () => {
+    const { store } = fakeStore([
+      { id: 'z', name: 'zeta', type: 'string' },
+      {
+        id: 'g',
+        name: 'group',
+        type: 'object',
+        children: [
+          { id: 'b', name: 'beta', type: 'number' },
+          { id: 'a', name: 'alpha', type: 'string' },
+        ],
+      },
+      { id: 'a2', name: 'alpha', type: 'boolean' },
+    ])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generated({
+          records: [
+            {
+              zeta: 'last alphabetically',
+              group: { beta: 2, alpha: 'nested second' },
+              alpha: true,
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        generated({
+          links: { C1: 'NONE', C2: 'NONE', C3: 'NONE', C4: 'NONE' },
+        }),
+      )
+
+    await createExtractionsApi({
+      store,
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract,
+    })(request())
+
+    const template = extract.mock.calls[0][0].template as {
+      records: [Record<string, unknown>]
+    }
+    expect(Object.keys(template.records[0])).toEqual([
+      'zeta',
+      'group',
+      'alpha',
+    ])
+    expect(
+      Object.keys(template.records[0].group as Record<string, unknown>),
+    ).toEqual(['beta', 'alpha'])
+  })
+
   it('shares concurrent identical work and rejects mismatched in-flight reuse', async () => {
     const { store, persist } = fakeStore([
       { id: 'title', name: 'title', type: 'string' },
@@ -190,6 +616,31 @@ describe('server-owned Article extraction route', () => {
       reviewable: true,
       resultPayload: { records: [{ filename: 'bundled.pdf' }] },
       evidenceLinks: [],
+    })
+  })
+
+  it('fails closed when Article values do not contain exactly one record', async () => {
+    const { store } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const extract = vi.fn().mockResolvedValueOnce(generated({ records: [] }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract,
+    })(request())
+
+    expect(extract).toHaveBeenCalledOnce()
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: 'FAILED',
+      complete: null,
+      reviewable: false,
+      failure: {
+        code: 'invalid_model_output',
+        message: 'Article extraction must return exactly one record.',
+      },
+      resultPayload: null,
     })
   })
 

@@ -4,9 +4,9 @@ import assert from 'node:assert/strict'
 import { db } from './prisma/db.js'
 import { createProjectStore, type TerminalExtractionInput } from './project-store.js'
 
-const enabled = Boolean(process.env.ARTICLE_TEST_DATABASE_URL)
+const enabled = Boolean(process.env.EXTRACTION_TEST_DATABASE_URL)
 const diagnostics = {
-  phase: 'persisting',
+  phase: 'grounding',
   durationMs: 1,
   modelCalls: 1,
   finishReason: 'stop',
@@ -18,9 +18,10 @@ const diagnostics = {
     issueCodes: [],
     batches: [],
   },
+  catalog: null,
 }
 
-describe('ProjectStore Article lifecycle on PostgreSQL', { skip: !enabled }, () => {
+describe('ProjectStore Extraction lifecycle on PostgreSQL', { skip: !enabled }, () => {
   it('enforces terminal shapes, transactions, concurrency, idempotency, and independent reopen pins', async () => {
     const projectContextId = randomUUID()
     const sourceDocumentId = randomUUID()
@@ -33,7 +34,7 @@ describe('ProjectStore Article lifecycle on PostgreSQL', { skip: !enabled }, () 
     const schemaRevision2 = randomUUID()
     const store = createProjectStore()
 
-    await db.orm.public.ProjectContext.create({ id: projectContextId, name: 'Article test' })
+    await db.orm.public.ProjectContext.create({ id: projectContextId, name: 'Extraction test' })
     await db.orm.public.SourceDocument.create({
       id: sourceDocumentId,
       projectContextId,
@@ -67,21 +68,27 @@ describe('ProjectStore Article lifecycle on PostgreSQL', { skip: !enabled }, () 
     await db.orm.public.ExtractionSchema.create({
       id: extractionSchemaId,
       projectContextId,
-      name: 'Article schema',
+      name: 'Extraction schema',
     })
     await db.orm.public.SchemaRevision.create({
       id: schemaRevision1,
       extractionSchemaId,
       revisionNumber: 1,
       origin: 'RESEARCHER_EDIT',
-      schemaTree: [{ id: 'title', name: 'title', type: 'string' }],
+      schemaTree: {
+        recordDescription: 'One title record.',
+        schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+      },
     })
     await db.orm.public.SchemaRevision.create({
       id: schemaRevision2,
       extractionSchemaId,
       revisionNumber: 2,
       origin: 'RESEARCHER_EDIT',
-      schemaTree: [{ id: 'title', name: 'title', type: 'string' }],
+      schemaTree: {
+        recordDescription: 'One title record.',
+        schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+      },
     })
 
     const terminal = (
@@ -109,6 +116,35 @@ describe('ProjectStore Article lifecycle on PostgreSQL', { skip: !enabled }, () 
     const idempotentId = randomUUID()
     assert.equal((await store.persistExtractionAttempt(terminal(idempotentId))).status, 'created')
     assert.equal((await store.persistExtractionAttempt(terminal(idempotentId))).status, 'replayed')
+    assert.equal(
+      (
+        await store.persistExtractionAttempt({
+          ...terminal(randomUUID()),
+          strategy: 'CATALOG',
+          diagnostics: {
+            ...diagnostics,
+            catalog: {
+              codes: [],
+              documentMetadata: null,
+              discovery: {
+                outcome: 'succeeded',
+                finishReason: 'stop',
+                inputTokens: 1,
+                outputTokens: 1,
+                durationMs: 1,
+                candidateCount: 0,
+                returnedCount: 0,
+                resolvedCount: 0,
+              },
+              boundaries: [],
+              boundaryIssues: [],
+              records: [],
+            },
+          },
+        })
+      ).status,
+      'created',
+    )
     assert.equal(
       (await store.persistExtractionAttempt(terminal(idempotentId, representation2, schemaRevision2))).status,
       'conflict',

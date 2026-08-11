@@ -3,13 +3,13 @@ import type { SchemaNode } from '../shared/schemaNode'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 import { decodeParsedDocument, type ParsedDocument } from '../shared/parsedDocument'
 import {
-  articleExtractionRequestSchema,
+  extractionRequestSchema,
   extractionAttemptSchema,
   finalizeExtractionReviewSchema,
-  type ArticleExtractionRequest,
+  type ExtractionRequest,
   type ExtractionAttempt,
   type ReviewDecisionInput,
-} from '../shared/articleExtraction.contract'
+} from '../shared/extraction.contract'
 
 export const API_BASE = '/api'
 
@@ -31,14 +31,6 @@ type TemplateOptions = {
   markdown?: string | null
 }
 
-export type ExtractDone = {
-  result: Record<string, unknown>
-  reasoning: string | null
-  raw: string
-  pages: number | null
-  /** What produced this result, as the review write records it. */
-  modelAttribution: unknown
-}
 export type SchemaDone = { template: unknown; raw: string; pages: number | null }
 
 export function decodeSchemaDone(data: unknown): SchemaDone {
@@ -46,13 +38,6 @@ export function decodeSchemaDone(data: unknown): SchemaDone {
     throw new Error("generate_schema: response missing 'template' — API contract drift?")
   }
   return data as SchemaDone
-}
-
-export function decodeExtractDone(data: unknown): ExtractDone {
-  if (!isRecord(data) || !isRecord(data.result)) {
-    throw new Error("extract: response missing 'result' — API contract drift?")
-  }
-  return data as ExtractDone
 }
 
 async function readErrorDetail(response: Response): Promise<string> {
@@ -163,26 +148,26 @@ async function extractionJson(
   })
   if (!response.ok) {
     const detail = await readErrorDetail(response)
-    throw new Error(detail || `Article extraction failed (HTTP ${response.status})`)
+    throw new Error(detail || `Extraction failed (HTTP ${response.status})`)
   }
   return response.json()
 }
 
-export async function requestArticleExtraction(
-  input: ArticleExtractionRequest,
+export async function requestExtraction(
+  input: ExtractionRequest,
   signal?: AbortSignal,
 ): Promise<ExtractionAttempt> {
-  const request = articleExtractionRequestSchema.parse(input)
+  const request = extractionRequestSchema.parse(input)
   return extractionAttemptSchema.parse(
     await extractionJson('/extractions', 'POST', request, signal),
   )
 }
 
-export async function cancelArticleExtraction(extractionId: string) {
+export async function cancelExtraction(extractionId: string) {
   await extractionJson(`/extractions/${extractionId}`, 'DELETE', null)
 }
 
-export async function finalizeArticleReview(
+export async function finalizeExtractionReview(
   extractionId: string,
   reviewDecisions: readonly ReviewDecisionInput[],
 ): Promise<ExtractionAttempt> {

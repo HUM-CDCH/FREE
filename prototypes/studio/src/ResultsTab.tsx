@@ -106,7 +106,12 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
         <>
           <div className="shrink-0 border-b border-line bg-surface px-3 py-2">
             <div className="flex flex-wrap gap-1.5">
-              {summaryItem('Status', 'ready')}
+              {summaryItem(
+                'Status',
+                controller.attempt?.complete === false ? 'incomplete' : 'ready',
+              )}
+              {controller.attempt &&
+                summaryItem('Strategy', controller.attempt.strategy.toLowerCase())}
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
@@ -148,14 +153,27 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
                 </Button>
               </div>
             </div>
+            {controller.attempt?.complete === false && (
+              <div
+                className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
+                role="status"
+              >
+                <p className="font-semibold">Incomplete Extraction</p>
+                <p>
+                  Successful records remain visible.{' '}
+                  {controller.attempt.diagnostics.catalog?.codes.join(', ') ||
+                    'See the persisted stage diagnostics for details.'}
+                </p>
+              </div>
+            )}
             {controller.review.error && (
               <p role="alert" className="mt-2 text-[11.5px] leading-snug text-danger">
                 {controller.review.error}
               </p>
             )}
-            {state.groundingIssues.length > 0 && (
+            {state.ungroundedCount > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
-                {state.groundingIssues.length} value{state.groundingIssues.length === 1 ? '' : 's'} could not be grounded and will not create Evidence highlights.
+                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded and will not create Evidence highlights.
               </p>
             )}
           </div>
@@ -241,7 +259,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, onSelectEvidenc
       {state.status === 'running' && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
           <Spinner
-            label="Running Article extraction…"
+            label={`Running ${controller.strategy === 'CATALOG' ? 'Catalog' : 'Article'} extraction…`}
             hint="The server is extracting values, grounding Evidence, and saving the terminal attempt."
           />
         </div>

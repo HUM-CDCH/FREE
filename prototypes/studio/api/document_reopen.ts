@@ -18,8 +18,8 @@ import {
 import {
   evidenceLinksHaveUniqueScalarPaths,
 } from '../shared/groundedExtraction.js'
-import { extractionAttemptSchema } from '../shared/articleExtraction.contract.js'
-import { schemaNodesSchema } from '../shared/schemaNode.js'
+import { extractionAttemptSchema } from '../shared/extraction.contract.js'
+import { schemaDefinitionSchema } from '../shared/schemaNode.js'
 import { z } from 'zod'
 
 const ROUTE =
@@ -97,6 +97,7 @@ function extractionDto(
       new Error('The stored Extraction has incomplete Review Decisions.'),
       'Stored research state could not be read.',
     )
+  const schema = durable(schemaDefinitionSchema, extraction.schemaTree)
   return {
     ...attempt,
     sourceRepresentation: {
@@ -108,7 +109,7 @@ function extractionDto(
     extractionSchema: {
       extractionSchemaId: extraction.extractionSchemaId,
       revisionNumber: extraction.schemaRevisionNumber,
-      schemaNodes: durable(schemaNodesSchema, extraction.schemaTree),
+      ...schema,
     },
   }
 }
@@ -130,6 +131,9 @@ function representationResources(sourceRepresentationId: string) {
  */
 function reopenResponse(snapshot: DocumentReopenSnapshot) {
   const { sourceRepresentation: representation } = snapshot
+  const currentSchema = snapshot.extractionSchema
+    ? durable(schemaDefinitionSchema, snapshot.extractionSchema.schemaTree)
+    : null
   return documentReopenResponseSchema.parse({
     projectContext: {
       ...snapshot.projectContext,
@@ -162,10 +166,7 @@ function reopenResponse(snapshot: DocumentReopenSnapshot) {
         extractionSchemaId: snapshot.extractionSchema.extractionSchemaId,
         schemaRevisionId: snapshot.extractionSchema.schemaRevisionId,
         revisionNumber: snapshot.extractionSchema.revisionNumber,
-        schemaNodes: durable(
-          schemaNodesSchema,
-          snapshot.extractionSchema.schemaTree,
-        ),
+        ...currentSchema!,
       },
     latestAttempt: extractionDto(snapshot.latestAttempt),
     latestReviewed: extractionDto(snapshot.latestReviewed),

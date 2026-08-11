@@ -9,7 +9,11 @@ export function countTemplateFields(value: unknown): number {
     return countTemplateFields(value[0])
   }
   if (isRecord(value)) {
-    return Object.values(value).reduce<number>((sum, child) => sum + countTemplateFields(child), 0)
+    return Object.entries(value).reduce<number>(
+      (sum, [key, child]) =>
+        key === '_description' ? sum : sum + countTemplateFields(child),
+      0,
+    )
   }
   return 1
 }

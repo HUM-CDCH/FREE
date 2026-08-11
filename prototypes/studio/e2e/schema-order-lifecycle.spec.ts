@@ -34,58 +34,11 @@ const parsedDocumentPath = fileURLToPath(
   new URL('../src/assets/parsed_document.v2.json', import.meta.url),
 )
 
-function submittedTemplate(body: string): Record<string, unknown> {
-  const match = /name="template"\r?\n\r?\n([^\r\n]+)/u.exec(body)
-  if (!match) throw new Error('Model request omitted its template field.')
-  return JSON.parse(match[1]) as Record<string, unknown>
-}
-
-async function installModelAndArtifactRoutes(
-  page: Page,
-  extractionTemplates: Record<string, unknown>[],
-) {
+async function installArtifactRoutes(page: Page) {
   const [pdf, parsedDocument] = await Promise.all([
     readFile(pdfPath),
     readFile(parsedDocumentPath, 'utf8'),
   ])
-  await page.route('**/api/extract', async (route) => {
-    const template = submittedTemplate(route.request().postData() ?? '')
-    if ('records' in template) {
-      extractionTemplates.push(template)
-      return route.fulfill({
-        json: {
-          result: {
-            records: [
-              {
-                zeta: 'last alphabetically',
-                group: { beta: 2, alpha: 'nested second' },
-                alpha: true,
-              },
-            ],
-          },
-          reasoning: null,
-          raw: '{}',
-          pages: null,
-          modelAttribution: { provider: 'fixture', modelId: 'ordered-values' },
-        },
-      })
-    }
-    const links = Object.fromEntries(
-      Object.keys(template.links as Record<string, unknown>).map((claim) => [
-        claim,
-        'NONE',
-      ]),
-    )
-    return route.fulfill({
-      json: {
-        result: { links },
-        reasoning: null,
-        raw: JSON.stringify({ links }),
-        pages: null,
-        modelAttribution: { provider: 'fixture', modelId: 'ordered-grounding' },
-      },
-    })
-  })
   await page.route(
     `**/api/source-representations/${id.representation}/pdf`,
     (route) => route.fulfill({ body: pdf, contentType: 'application/pdf' }),
@@ -135,18 +88,24 @@ test.beforeAll(async () => {
     extractionSchemaId: id.schema,
     revisionNumber: 1,
     origin: 'RESEARCHER_EDIT',
-    schemaTree: historicalNodes,
+    schemaTree: {
+      recordDescription: 'One deliberately ordered record.',
+      schemaNodes: historicalNodes,
+    },
   })
   await db.orm.public.SchemaRevision.create({
     id: '73000000-0000-4000-8004-000000000002',
     extractionSchemaId: id.schema,
     revisionNumber: 2,
     origin: 'RESEARCHER_EDIT',
-    schemaTree: currentNodes,
+    schemaTree: {
+      recordDescription: 'One current record.',
+      schemaNodes: currentNodes,
+    },
   })
 })
 
-test('restored JSONB schema order survives a fresh browser and reaches NuExtract @database', async ({
+test('restored JSONB schema order survives a fresh browser @database', async ({
   browser,
   page,
 }) => {
@@ -164,8 +123,7 @@ test('restored JSONB schema order survives a fresh browser and reaches NuExtract
     'document_title',
   ])
 
-  const templates: Record<string, unknown>[] = []
-  await installModelAndArtifactRoutes(page, templates)
+  await installArtifactRoutes(page)
   await page.goto(`/projects/${id.project}/documents/${id.document}`)
   await page.getByRole('tab', { name: /^Schema / }).click()
   const history = page.getByRole('button', { name: 'Schema history' })
@@ -193,39 +151,30 @@ test('restored JSONB schema order survives a fresh browser and reaches NuExtract
   const restoredBody = (await restored.json()) as { revision: { schemaNodes: unknown } }
   expect(restoredBody.revision.schemaNodes).toEqual(historicalNodes)
 
-  const run = page.getByRole('button', { name: '▶ Run extraction' })
-  await expect(run).toBeEnabled({ timeout: 15_000 })
-  await run.click()
-  await expect(page.getByRole('button', { name: 'Raw JSON' })).toBeVisible({
-    timeout: 15_000,
-  })
-
   await page.close()
   const freshContext = await browser.newContext()
   const freshPage = await freshContext.newPage()
-  await installModelAndArtifactRoutes(freshPage, templates)
+  await installArtifactRoutes(freshPage)
   await freshPage.goto(`/projects/${id.project}/documents/${id.document}`)
   await freshPage.getByRole('tab', { name: /^Schema / }).click()
   const freshHistory = freshPage.getByRole('button', { name: 'Schema history' })
   await expect(freshHistory).toBeEnabled({ timeout: 15_000 })
   await freshHistory.click()
   await expect(freshPage.getByText('Revision 3 · Current')).toBeVisible()
-  const rerun = freshPage.getByRole('button', { name: '▶ Run extraction' })
-  await expect(rerun).toBeEnabled({ timeout: 15_000 })
-  await rerun.click()
-  await expect(freshPage.getByRole('button', { name: 'Raw JSON' })).toBeVisible({
-    timeout: 15_000,
-  })
+  const fieldButtons = freshPage.locator(
+    'button[title="Edit zeta"], button[title="Edit group"], button[title="Edit beta"], button[title="Edit alpha"]',
+  )
+  await expect(fieldButtons).toHaveCount(5)
+  expect(
+    await fieldButtons.evaluateAll((buttons) =>
+      buttons.map((button) => button.getAttribute('title')),
+    ),
+  ).toEqual([
+    'Edit zeta',
+    'Edit group',
+    'Edit beta',
+    'Edit alpha',
+    'Edit alpha',
+  ])
   await freshContext.close()
-
-  expect(templates).toHaveLength(2)
-  for (const template of templates) {
-    const record = (template.records as [Record<string, unknown>])[0]
-    expect(Object.keys(record)).toEqual(['zeta', 'group', 'alpha'])
-    expect(Object.keys(record.group as Record<string, unknown>)).toEqual([
-      'beta',
-      'alpha',
-    ])
-  }
-  expect(templates[1]).toEqual(templates[0])
 })

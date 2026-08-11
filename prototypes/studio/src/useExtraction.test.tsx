@@ -4,12 +4,12 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useExtraction } from './useExtraction'
 import * as api from './api'
-import type { ExtractionAttempt } from '../shared/articleExtraction.contract'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
 
 vi.mock('./api', () => ({
-  requestArticleExtraction: vi.fn(),
-  cancelArticleExtraction: vi.fn(),
-  finalizeArticleReview: vi.fn(),
+  requestExtraction: vi.fn(),
+  cancelExtraction: vi.fn(),
+  finalizeExtractionReview: vi.fn(),
 }))
 
 const representationId = '22222222-2222-4222-8222-222222222222'
@@ -28,13 +28,14 @@ function attempt(
     complete: true,
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
     diagnostics: {
-      phase: 'persisting',
+      phase: 'grounding',
       durationMs: 1,
       modelCalls: 0,
       finishReason: null,
       inputTokens: null,
       outputTokens: null,
       grounding: null,
+      catalog: null,
     },
     failure: null,
     resultPayload: { records: [{ filename: 'report.pdf' }] },
@@ -63,20 +64,20 @@ function options(initialAttempt: ExtractionAttempt | null = null) {
 }
 
 beforeEach(() => {
-  vi.mocked(api.requestArticleExtraction).mockReset()
-  vi.mocked(api.cancelArticleExtraction).mockReset()
-  vi.mocked(api.finalizeArticleReview).mockReset()
+  vi.mocked(api.requestExtraction).mockReset()
+  vi.mocked(api.cancelExtraction).mockReset()
+  vi.mocked(api.finalizeExtractionReview).mockReset()
 })
 
-describe('useExtraction server-owned Article lifecycle', () => {
+describe('useExtraction server-owned lifecycle', () => {
   it('posts only new identity pins and presents the persisted attempt', async () => {
-    vi.mocked(api.requestArticleExtraction).mockResolvedValue(attempt())
+    vi.mocked(api.requestExtraction).mockResolvedValue(attempt())
     const input = options()
     const { result } = renderHook(() => useExtraction(input))
 
     await act(() => result.current.runExtraction())
 
-    expect(api.requestArticleExtraction).toHaveBeenCalledWith(
+    expect(api.requestExtraction).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceRepresentationRevisionId: representationId,
         schemaRevisionId,
@@ -91,15 +92,31 @@ describe('useExtraction server-owned Article lifecycle', () => {
     })
   })
 
+  it('submits an explicitly selected Catalog strategy', async () => {
+    vi.mocked(api.requestExtraction).mockResolvedValue(
+      attempt({ strategy: 'CATALOG' }),
+    )
+    const { result } = renderHook(() =>
+      useExtraction({ ...options(), strategy: 'CATALOG' }),
+    )
+
+    await act(() => result.current.runExtraction())
+
+    expect(api.requestExtraction).toHaveBeenCalledWith(
+      expect.objectContaining({ strategy: 'CATALOG' }),
+      expect.any(AbortSignal),
+    )
+  })
+
   it('finalizes a package-only result with an empty decision set', async () => {
     const reviewed = attempt({ reviewedAt: '2026-08-10T00:01:00.000Z' })
-    vi.mocked(api.finalizeArticleReview).mockResolvedValue(reviewed)
+    vi.mocked(api.finalizeExtractionReview).mockResolvedValue(reviewed)
     const { result } = renderHook(() => useExtraction(options(attempt())))
 
     expect(result.current.review.canAccept).toBe(true)
     await act(() => result.current.review.accept())
 
-    expect(api.finalizeArticleReview).toHaveBeenCalledWith(
+    expect(api.finalizeExtractionReview).toHaveBeenCalledWith(
       attempt().extractionId,
       [],
     )
@@ -114,5 +131,29 @@ describe('useExtraction server-owned Article lifecycle', () => {
     )
     expect(result.current.review.available).toBe(false)
     expect(result.current.review.canAccept).toBe(false)
+  })
+
+  it('blocks review of a historical attempt and reruns with current pins', async () => {
+    const historical = attempt({
+      sourceRepresentationRevisionId:
+        '55555555-5555-4555-8555-555555555555',
+      schemaRevisionId: '66666666-6666-4666-8666-666666666666',
+    })
+    vi.mocked(api.requestExtraction).mockResolvedValue(attempt())
+    const { result } = renderHook(() =>
+      useExtraction(options(historical)),
+    )
+
+    expect(result.current.review.available).toBe(false)
+    expect(result.current.review.canAccept).toBe(false)
+    await act(() => result.current.runExtraction())
+
+    expect(api.requestExtraction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceRepresentationRevisionId: representationId,
+        schemaRevisionId,
+      }),
+      expect.any(AbortSignal),
+    )
   })
 })

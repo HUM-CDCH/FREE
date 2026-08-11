@@ -14,6 +14,7 @@ function controller(
   return {
     state,
     attempt: null,
+    strategy: 'ARTICLE',
     canRun: true,
     hasResults: state.status === 'ready',
     runExtraction: async () => {},
@@ -55,7 +56,7 @@ describe('ResultsTab grounded values', () => {
           evidenceLinks: [
             { resultPath: ['title'], evidenceAnchorId: 'anchor-1' },
           ],
-          groundingIssues: [],
+          ungroundedCount: 0,
         })}
         schemaReady
         documentMarkdown="# Source"
@@ -71,6 +72,28 @@ describe('ResultsTab grounded values', () => {
       screen.queryByRole('button', { name: 'View Evidence for ungrounded' }),
     ).not.toBeInTheDocument()
     expect(screen.getByText('Visible without Evidence')).toBeInTheDocument()
+    expect(screen.queryByText(/could not be grounded/)).not.toBeInTheDocument()
+  })
+
+  it('reports the persisted ungrounded value count', () => {
+    render(
+      <ResultsTab
+        controller={controller({
+          status: 'ready',
+          result: { title: 'Report', place: 'Unknown' },
+          evidenceLinks: [],
+          ungroundedCount: 2,
+        })}
+        schemaReady
+        documentMarkdown="# Source"
+      />,
+    )
+
+    expect(
+      screen.getByText(
+        '2 values could not be grounded and will not create Evidence highlights.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('keeps Evidence navigation on expanded record scalars', () => {
@@ -86,7 +109,7 @@ describe('ResultsTab grounded values', () => {
               evidenceAnchorId: 'anchor-1',
             },
           ],
-          groundingIssues: [],
+          ungroundedCount: 0,
         })}
         schemaReady
         documentMarkdown="# Source"

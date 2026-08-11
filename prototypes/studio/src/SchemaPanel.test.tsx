@@ -21,10 +21,11 @@ const nodes: SchemaNode[] = [
 
 function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes) {
   render(<SchemaPanel
-    state={{ status: 'ready', nodes: panelNodes, inputsKey: 'test' }}
+    state={{ status: 'ready', recordDescription: 'One test record.', nodes: panelNodes, inputsKey: 'test' }}
     stale={false}
     onGenerate={vi.fn()}
     onNodesChange={onNodesChange}
+    onRecordDescriptionChange={vi.fn()}
     beforeSchemaEdit={vi.fn()}
     history={[]}
     loadRevision={vi.fn()}
@@ -72,15 +73,20 @@ type HistoryPanelOptions = {
 function renderHistoryPanel({
   onNodesChange = vi.fn(),
   beforeSchemaEdit = vi.fn(async () => undefined),
-  loadRevision = vi.fn(async () => ({ ...schemaHistory[1], schemaNodes: historicalNodes })),
+  loadRevision = vi.fn(async () => ({
+    ...schemaHistory[1],
+    recordDescription: 'One historical record.',
+    schemaNodes: historicalNodes,
+  })),
   panelNodes = nodes,
   currentRevisionNumber = 2,
 }: HistoryPanelOptions = {}) {
   render(<SchemaPanel
-    state={{ status: 'ready', nodes: panelNodes, inputsKey: 'test' }}
+    state={{ status: 'ready', recordDescription: 'One test record.', nodes: panelNodes, inputsKey: 'test' }}
     stale={false}
     onGenerate={vi.fn()}
     onNodesChange={onNodesChange}
+    onRecordDescriptionChange={vi.fn()}
     beforeSchemaEdit={beforeSchemaEdit}
     annotationCount={0}
     annotationsMode="hints"
@@ -129,7 +135,11 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     const order: string[] = []
     const loadRevision = vi.fn(async () => {
       order.push('load')
-      return { ...schemaHistory[1], schemaNodes: historicalNodes }
+      return {
+        ...schemaHistory[1],
+        recordDescription: 'One historical record.',
+        schemaNodes: historicalNodes,
+      }
     })
     const beforeSchemaEdit = vi.fn(async () => { order.push('flush') })
     onNodesChange.mockImplementation(() => { order.push('edit') })
@@ -141,7 +151,11 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
 
     expect(order).toEqual(['load', 'flush', 'edit', 'flush'])
-    expect(onNodesChange).toHaveBeenCalledWith(historicalNodes, '↺ Restored revision 1')
+    expect(onNodesChange).toHaveBeenCalledWith(
+      historicalNodes,
+      '↺ Restored revision 1',
+      'One historical record.',
+    )
     expect(screen.getByText('historical_place')).toBeInTheDocument()
     expect(screen.getByText('historical_year')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
@@ -199,7 +213,11 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Append failed')
-    expect(onNodesChange).toHaveBeenCalledWith(historicalNodes, '↺ Restored revision 1')
+    expect(onNodesChange).toHaveBeenCalledWith(
+      historicalNodes,
+      '↺ Restored revision 1',
+      'One historical record.',
+    )
     expect(screen.getByText('historical_place')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
   })

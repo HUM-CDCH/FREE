@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  cancelArticleExtraction,
-  finalizeArticleReview,
-  requestArticleExtraction,
+  cancelExtraction,
+  finalizeExtractionReview,
+  requestExtraction,
 } from './api'
 import type { ExtractionState } from './extraction'
 import { anchorOccurrences } from './evidenceNavigation'
 import type { ParsedDocument } from '../shared/parsedDocument'
 import type {
   ExtractionAttempt,
+  ExtractionStrategy,
   ReviewDecisionInput,
-} from '../shared/articleExtraction.contract'
+} from '../shared/extraction.contract'
 
 export type ReviewTarget = {
   sourceRepresentationId: string
@@ -25,6 +26,7 @@ type UseExtractionOptions = {
   initialAttempt?: ExtractionAttempt | null
   parsedDocument?: ParsedDocument | null
   reviewTarget?: ReviewTarget | null
+  strategy?: ExtractionStrategy
 }
 
 export type ExtractionController = ReturnType<typeof useExtraction>
@@ -61,15 +63,16 @@ function stateFromAttempt(attempt: ExtractionAttempt | null): ExtractionState {
   if (attempt.outcome === 'FAILED')
     return {
       status: 'error',
-      message: attempt.failure?.message ?? 'Article extraction failed.',
+      message: attempt.failure?.message ?? 'Extraction failed.',
     }
   if (!attempt.resultPayload || !attempt.evidenceLinks)
-    return { status: 'error', message: 'The stored Article result is invalid.' }
+    return { status: 'error', message: 'The stored Extraction Result is invalid.' }
   return {
     status: 'ready',
     result: attempt.resultPayload,
     evidenceLinks: attempt.evidenceLinks,
-    groundingIssues: [],
+    ungroundedCount:
+      attempt.diagnostics.grounding?.ungroundedPaths.length ?? 0,
   }
 }
 
@@ -92,6 +95,7 @@ export function useExtraction({
   initialAttempt = null,
   parsedDocument = null,
   reviewTarget = null,
+  strategy = 'ARTICLE',
 }: UseExtractionOptions) {
   const [attempt, setAttempt] = useState<ExtractionAttempt | null>(
     initialAttempt,
@@ -108,7 +112,7 @@ export function useExtraction({
 
   function cancelRunning() {
     const id = activeIdRef.current
-    if (id) void cancelArticleExtraction(id).catch(() => {})
+    if (id) void cancelExtraction(id).catch(() => {})
     activeIdRef.current = null
     abortRef.current?.abort()
     abortRef.current = null
@@ -151,13 +155,13 @@ export function useExtraction({
     setReviewError(null)
     setState({ status: 'running', step: 'extraction' })
     try {
-      const terminal = await requestArticleExtraction(
+      const terminal = await requestExtraction(
         {
           id: extractionId,
           sourceRepresentationRevisionId:
             reviewTarget.sourceRepresentationId,
           schemaRevisionId: reviewTarget.schemaRevisionId,
-          strategy: 'ARTICLE',
+          strategy,
         },
         controller.signal,
       )
@@ -166,11 +170,11 @@ export function useExtraction({
       setState(stateFromAttempt(terminal))
       if (terminal.outcome === 'SUCCEEDED') onComplete(isRerun)
       else if (terminal.outcome === 'FAILED')
-        onError(terminal.failure?.message ?? 'Article extraction failed.')
+        onError(terminal.failure?.message ?? 'Extraction failed.')
     } catch (error) {
       if (controller.signal.aborted) return
       const message =
-        error instanceof Error ? error.message : 'Article extraction failed.'
+        error instanceof Error ? error.message : 'Extraction failed.'
       setState({ status: 'error', message })
       onError(message)
     } finally {
@@ -185,7 +189,7 @@ export function useExtraction({
     setReviewError(null)
     try {
       setAttempt(
-        await finalizeArticleReview(attempt.extractionId, pendingDecisions),
+        await finalizeExtractionReview(attempt.extractionId, pendingDecisions),
       )
     } catch (error) {
       setReviewError(
@@ -199,6 +203,7 @@ export function useExtraction({
   return {
     state,
     attempt,
+    strategy,
     canRun,
     hasResults,
     runExtraction,

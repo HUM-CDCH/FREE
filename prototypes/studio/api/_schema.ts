@@ -13,7 +13,7 @@ export function schemaPrompt(annotations: readonly Annotation[], mode: Annotatio
 
   return `${modeText}
 
-Generate a compact JSON extraction schema for this source document. Return an object named "template". Field values should be simple type labels such as "verbatim-string", "string", "date", "number", "integer", "boolean", nested objects, or arrays.
+Generate a compact JSON extraction schema for this source document. Return an object named "template". Its first member must be "_description": one concise, explicit sentence defining what constitutes ONE root record in the source document. This record description must distinguish record boundaries (for example, one grave beginning at a "Grav N" heading or one top-level numbered article section); field names alone are not a record definition. Field values should be simple type labels such as "verbatim-string", "string", "date", "number", "integer", "boolean", nested objects, or arrays.
 
 When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "sex": ["mand", "kvinde", "ukendt"].
 

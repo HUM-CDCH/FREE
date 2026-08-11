@@ -63,6 +63,23 @@ export const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() =>
 )
 
 export const schemaNodesSchema = z.array(schemaNodeSchema)
+export const recordDescriptionSchema = z.string().trim().min(1).max(1_000)
+export const schemaDefinitionSchema = z
+  .object({
+    recordDescription: recordDescriptionSchema,
+    schemaNodes: schemaNodesSchema,
+  })
+  .strict()
+
+export type SchemaDefinition = z.infer<typeof schemaDefinitionSchema>
+
+export function parseSchemaDefinition(value: unknown): SchemaDefinition {
+  const definition = schemaDefinitionSchema.parse(value)
+  return {
+    recordDescription: definition.recordDescription,
+    schemaNodes: parseSchemaNodes(definition.schemaNodes),
+  }
+}
 
 export function parseSchemaNodes(value: unknown): SchemaNode[] {
   const nodes = schemaNodesSchema.parse(value)
@@ -112,6 +129,25 @@ export function templateToNodes(value: unknown): SchemaNode[] {
       }
       return { id: mkId(), name, type: isScalarFieldType(child) ? child : 'string' }
     })
+}
+
+export function templateToSchemaDefinition(value: unknown): SchemaDefinition {
+  if (!isRecord(value) || typeof value._description !== 'string')
+    throw new Error('The Extraction Schema requires a root record description.')
+  return parseSchemaDefinition({
+    recordDescription: value._description,
+    schemaNodes: templateToNodes(value),
+  })
+}
+
+export function schemaDefinitionToTemplate(
+  definition: SchemaDefinition,
+): Record<string, unknown> {
+  const parsed = parseSchemaDefinition(definition)
+  return {
+    _description: parsed.recordDescription,
+    ...nodesToTemplate(parsed.schemaNodes),
+  }
 }
 
 export function nodesToTemplate(nodes: readonly SchemaNode[]): Record<string, unknown> {

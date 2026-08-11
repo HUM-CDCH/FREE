@@ -3,12 +3,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ExtractionController } from './useExtraction'
 import {
-  decodeExtractDone,
   decodeSchemaDone,
   fetchParsedDocument,
-  finalizeArticleReview,
+  finalizeExtractionReview,
   parseDocument,
-  requestArticleExtraction,
+  requestExtraction,
   requestSchema,
 } from './api'
 
@@ -45,12 +44,13 @@ function readyController(): ExtractionController {
       status: 'ready',
       result: { title: 'Report' },
       evidenceLinks: [],
-      groundingIssues: [],
+      ungroundedCount: 0,
     },
     canRun: true,
     hasResults: true,
     runExtraction: async () => {},
     attempt: null,
+    strategy: 'ARTICLE' as const,
     review: {
       available: false,
       canAccept: false,
@@ -77,7 +77,7 @@ describe('Article extraction lifecycle client', () => {
       outcome: 'SUCCEEDED',
       complete: true,
       modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-      diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
       failure: null,
       resultPayload: { records: [] },
       evidenceLinks: [],
@@ -96,13 +96,13 @@ describe('Article extraction lifecycle client', () => {
       }),
     )
 
-    await requestArticleExtraction({
+    await requestExtraction({
       id: extractionId,
       sourceRepresentationRevisionId: representationId,
       schemaRevisionId,
       strategy: 'ARTICLE',
     })
-    await finalizeArticleReview(extractionId, [])
+    await finalizeExtractionReview(extractionId, [])
 
     expect(submitted).toEqual([
       {
@@ -195,8 +195,6 @@ describe('parseDocument', () => {
 
 describe('decoders', () => {
   it('fail loud when response contracts drift', () => {
-    expect(() => decodeExtractDone({ raw: '{}' })).toThrow("extract: response missing 'result'")
-    expect(decodeExtractDone({ result: {}, raw: '{}' }).result).toEqual({})
     expect(() => decodeSchemaDone({ raw: '{}' })).toThrow("generate_schema: response missing 'template'")
   })
 })

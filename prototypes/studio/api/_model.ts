@@ -218,6 +218,15 @@ export async function generateSchemaWithModel(
           temperature,
         }, dependencies.fetch)
   const parsed = await parseTemplate(generated.response)
+  if (
+    typeof parsed._description !== 'string' ||
+    parsed._description.trim().length === 0
+  )
+    throw new ApiError(
+      502,
+      'invalid_model_output',
+      'The generated Extraction Schema has no root record description.',
+    )
   return {
     template: parsed,
     raw: generated.response,

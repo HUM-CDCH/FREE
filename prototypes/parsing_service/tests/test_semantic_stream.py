@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from app.models.parser_output import ParsedTable, TableCell
 from app.parsing.semantic_stream import (
@@ -26,6 +27,56 @@ class TestSemanticStream(unittest.TestCase):
             [("heading", 1), ("paragraph", 1), ("caption", 1), ("page_boundary", 1), ("code", 2), ("formula", 2)],
         )
         self.assertEqual(blocks[1].text, "Body &amp; exact")
+        self.assertEqual(blocks[0].level, 2)
+
+    def test_numbered_heading_hierarchy_overrides_flat_producer_levels(self):
+        blocks = doctags_to_intermediate_blocks(
+            "<section_header_level_1>2. Materials and Methods</section_header_level_1>"
+            "<section_header_level_1>2.9. Analysis</section_header_level_1>"
+            "<section_header_level_1>2.9.1. Total RNA Extraction</section_header_level_1>"
+        )[0]
+
+        self.assertEqual(
+            [(block.text, block.level) for block in blocks],
+            [
+                ("2. Materials and Methods", 1),
+                ("2.9. Analysis", 2),
+                ("2.9.1. Total RNA Extraction", 3),
+            ],
+        )
+
+    def test_retained_zhang_headings_publish_three_outline_levels(self):
+        fixture = (
+            Path(__file__).parent / "fixtures" / "zhang_flat_headings.doctags"
+        ).read_text(encoding="utf-8")
+        headings = [
+            block
+            for block in doctags_to_intermediate_blocks(fixture)[0]
+            if block.kind == "heading"
+        ]
+
+        self.assertEqual(len(headings), 27)
+        self.assertEqual(
+            {level: sum(block.level == level for block in headings) for level in (1, 2, 3)},
+            {1: 7, 2: 18, 3: 2},
+        )
+        self.assertEqual(
+            [block.text for block in headings if block.level == 1][1:5],
+            [
+                "1. Introduction",
+                "2. Materials and Methods",
+                "3. Results and Discussion",
+                "4. Conclusions",
+            ],
+        )
+
+    def test_non_outline_numbers_do_not_invent_heading_hierarchy(self):
+        blocks = doctags_to_intermediate_blocks(
+            "<section_header_level_1>Grav 8</section_header_level_1>"
+            "<section_header_level_2>2024 findings</section_header_level_2>"
+        )[0]
+
+        self.assertEqual([block.level for block in blocks], [1, 2])
 
     def test_minified_lists_code_formula_caption_and_blank_page(self):
         blocks = doctags_to_intermediate_blocks(

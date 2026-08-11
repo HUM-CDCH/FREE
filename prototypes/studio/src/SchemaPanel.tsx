@@ -10,7 +10,8 @@ import {
   type SchemaNode,
   mkId,
   nodesToTemplate,
-  templateToNodes,
+  schemaDefinitionToTemplate,
+  templateToSchemaDefinition,
 } from '../shared/schemaNode'
 import type {
   SchemaRevision,
@@ -32,7 +33,13 @@ import {
 export type TemplateState =
   | { status: 'idle' }
   | { status: 'generating' }
-  | { status: 'ready'; nodes: SchemaNode[]; inputsKey: string; edited?: boolean }
+  | {
+      status: 'ready'
+      recordDescription: string
+      nodes: SchemaNode[]
+      inputsKey: string
+      edited?: boolean
+    }
   | { status: 'error'; message: string }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -43,7 +50,12 @@ type SchemaPanelProps = {
   state: TemplateState
   stale: boolean
   onGenerate: () => void
-  onNodesChange: (nodes: SchemaNode[], message: string) => void
+  onNodesChange: (
+    nodes: SchemaNode[],
+    message: string,
+    recordDescription?: string,
+  ) => void
+  onRecordDescriptionChange: (recordDescription: string) => void
   beforeSchemaEdit: () => Promise<void>
   history: SchemaRevisionSummary[]
   currentRevisionNumber?: number
@@ -467,6 +479,7 @@ function SchemaPanel({
   stale,
   onGenerate,
   onNodesChange,
+  onRecordDescriptionChange,
   beforeSchemaEdit,
   history,
   currentRevisionNumber,
@@ -502,6 +515,7 @@ function SchemaPanel({
   const [jsonEditMode, setJsonEditMode] = useState(false)
   const [jsonDraft, setJsonDraft] = useState('')
   const [jsonEditError, setJsonEditError] = useState<string | null>(null)
+  const [recordDescriptionDraft, setRecordDescriptionDraft] = useState('')
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyRestoring, setHistoryRestoring] = useState(false)
@@ -518,8 +532,10 @@ function SchemaPanel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const onNodesChangeRef = useRef(onNodesChange)
+  const onRecordDescriptionChangeRef = useRef(onRecordDescriptionChange)
   const historyRestoringRef = useRef(false)
   onNodesChangeRef.current = onNodesChange
+  onRecordDescriptionChangeRef.current = onRecordDescriptionChange
 
   const ready = state.status === 'ready'
   const fieldCount = ready ? countTemplateFields(nodesToTemplate(state.nodes)) : 0
@@ -535,6 +551,7 @@ function SchemaPanel({
     if (state.status === 'ready') {
       setNodes(state.nodes)
       nodesRef.current = state.nodes
+      setRecordDescriptionDraft(state.recordDescription)
       setEditing(null)
       setEditingError(null)
       setMutationError(null)
@@ -597,6 +614,7 @@ function SchemaPanel({
       await beforeSchemaEdit()
       nodesRef.current = loaded.schemaNodes
       setNodes(loaded.schemaNodes)
+      setRecordDescriptionDraft(loaded.recordDescription)
       setEditing(null)
       setEditingError(null)
       setMutationError(null)
@@ -607,7 +625,11 @@ function SchemaPanel({
       setJsonEditMode(false)
       setJsonEditError(null)
       setView('fields')
-      onNodesChangeRef.current(loaded.schemaNodes, `↺ Restored revision ${revision.revisionNumber}`)
+      onNodesChangeRef.current(
+        loaded.schemaNodes,
+        `↺ Restored revision ${revision.revisionNumber}`,
+        loaded.recordDescription,
+      )
       await beforeSchemaEdit()
     } catch (error) {
       setHistoryError(error instanceof Error ? error.message : 'Could not restore Schema Revision.')
@@ -1257,13 +1279,29 @@ function SchemaPanel({
             {!jsonEditMode ? (
               <div className="relative">
                 <pre className="overflow-x-auto whitespace-pre rounded-md border border-line bg-canvas p-2.5 font-mono text-[11px] leading-relaxed text-ink">
-                  {JSON.stringify(nodesToTemplate(nodes), null, 2)}
+                  {JSON.stringify(
+                    schemaDefinitionToTemplate({
+                      recordDescription: recordDescriptionDraft,
+                      schemaNodes: nodes,
+                    }),
+                    null,
+                    2,
+                  )}
                 </pre>
                 <button
                   className="absolute right-2 top-2 cursor-pointer rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[10px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent"
                   type="button"
                   onClick={() => {
-                    setJsonDraft(JSON.stringify(nodesToTemplate(nodes), null, 2))
+                    setJsonDraft(
+                      JSON.stringify(
+                        schemaDefinitionToTemplate({
+                          recordDescription: recordDescriptionDraft,
+                          schemaNodes: nodes,
+                        }),
+                        null,
+                        2,
+                      ),
+                    )
                     setJsonEditMode(true)
                     setJsonEditError(null)
                   }}
@@ -1291,10 +1329,16 @@ function SchemaPanel({
                       try {
                         const parsed: unknown = JSON.parse(jsonDraft)
                         if (!isRecord(parsed)) throw new Error('JSON must be an object')
-                        const newNodes = templateToNodes(parsed)
+                        const definition = templateToSchemaDefinition(parsed)
+                        const newNodes = definition.schemaNodes
                         nodesRef.current = newNodes
                         setNodes(newNodes)
-                        onNodesChangeRef.current(newNodes, '✎ Schema updated via JSON editor')
+                        setRecordDescriptionDraft(definition.recordDescription)
+                        onNodesChangeRef.current(
+                          newNodes,
+                          '✎ Schema updated via JSON editor',
+                          definition.recordDescription,
+                        )
                         setJsonEditMode(false)
                         setJsonEditError(null)
                       } catch (e) {
@@ -1319,6 +1363,37 @@ function SchemaPanel({
 
         {ready && view === 'fields' && (
           <>
+            <div className="mb-3 rounded-lg border border-line bg-surface-muted p-2.5">
+              <label
+                className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted"
+                htmlFor="root-record-description"
+              >
+                One root record
+              </label>
+              <textarea
+                id="root-record-description"
+                className="mt-1.5 w-full resize-y rounded-md border border-line-strong bg-surface px-2.5 py-2 text-[11.5px] leading-snug text-ink outline-none focus:border-accent"
+                rows={3}
+                maxLength={1000}
+                value={recordDescriptionDraft}
+                onChange={(event) =>
+                  setRecordDescriptionDraft(event.target.value)
+                }
+                onBlur={() => {
+                  const description = recordDescriptionDraft.trim()
+                  if (!description) {
+                    setRecordDescriptionDraft(state.recordDescription)
+                    setMutationError('A root record description is required.')
+                    return
+                  }
+                  if (description !== state.recordDescription)
+                    onRecordDescriptionChangeRef.current(description)
+                }}
+              />
+              <p className="mt-1 text-[10.5px] leading-snug text-ink-faint">
+                Defines which canonical headings begin repeated Catalog records.
+              </p>
+            </div>
             {mutationError && <p className="mb-2 text-[11px] font-semibold text-danger" role="alert">{mutationError}</p>}
             {selectedIds.size > 0 && (
               <div className="mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5">

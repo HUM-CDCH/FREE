@@ -54,6 +54,7 @@ const reopened: DocumentWorkspaceProps = {
     extractionSchemaId: '51000000-0000-4000-8005-000000000001',
     schemaRevisionId: '51000000-0000-4000-8005-000000000002',
     revisionNumber: 1,
+    recordDescription: 'One place record.',
     schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
   },
   persistedExtraction: {
@@ -66,7 +67,7 @@ const reopened: DocumentWorkspaceProps = {
     strategy: 'ARTICLE',
     outcome: 'SUCCEEDED',
     complete: true,
-    diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
     failure: null,
     resultPayload: { place: 'Ellekilde' },
     evidenceLinks: [],
@@ -85,6 +86,7 @@ const reopened: DocumentWorkspaceProps = {
     extractionSchema: {
       extractionSchemaId: '51000000-0000-4000-8005-000000000001',
       revisionNumber: 1,
+      recordDescription: 'One place record.',
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
     },
   },
@@ -115,6 +117,51 @@ async function renderReopened() {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('restores Catalog as the strategy for a rerun', async () => {
+    const requests: unknown[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/api/extractions') && init?.method === 'POST') {
+          requests.push(JSON.parse(String(init.body)))
+          return Response.json(
+            { error: { code: 'test_stop', message: 'Request captured.' } },
+            { status: 500 },
+          )
+        }
+        return new Response('# Beretning')
+      }),
+    )
+    render(
+      <DocumentWorkspace
+        {...reopened}
+        persistedExtraction={{
+          ...reopened.persistedExtraction!,
+          strategy: 'CATALOG',
+        }}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+
+    expect(screen.getByRole('button', { name: 'Catalog' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: '↻ Re-run extraction' }),
+    )
+
+    await waitFor(() =>
+      expect(requests).toEqual([
+        expect.objectContaining({ strategy: 'CATALOG' }),
+      ]),
+    )
+  })
+
   it('persists a generated first schema and enables its history', async () => {
     const schemaRevisionId = '51000000-0000-4000-8005-000000000010'
     const extractionSchemaId = '51000000-0000-4000-8005-000000000011'
@@ -127,7 +174,7 @@ describe('reopened Source Document workspace', () => {
         if (url.endsWith('/markdown')) return new Response('# Beretning')
         if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
         if (url.endsWith('/api/generate_schema'))
-          return Response.json({ template: { site: 'string' }, raw: '{}', pages: 1 })
+          return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1 })
         if (url === '/api/schema-revisions' && init?.method === 'POST') {
           schemaNodes = (JSON.parse(String(init.body)) as { schemaNodes: unknown[] }).schemaNodes
           return Response.json({
@@ -137,6 +184,7 @@ describe('reopened Source Document workspace', () => {
               revisionNumber: 1,
               origin: 'suggestion',
               createdAt: '2026-08-09T10:00:00.000Z',
+              recordDescription: 'One site record.',
               schemaNodes,
             },
           }, { status: 201 })
@@ -221,12 +269,13 @@ describe('reopened Source Document workspace', () => {
               revisionNumber: 1,
               origin: 'suggestion',
               createdAt: '2026-08-09T10:00:00.000Z',
+              recordDescription: 'One historical record.',
               schemaNodes: historicalNodes,
             },
           })
         }
         if (url === '/api/schema-revisions' && method === 'POST') {
-          const request = body as { expectedRevisionNumber: number; schemaNodes: unknown[] }
+          const request = body as { expectedRevisionNumber: number; recordDescription: string; schemaNodes: unknown[] }
           return Response.json({
             revision: {
               schemaRevisionId: request.expectedRevisionNumber === 2
@@ -236,6 +285,7 @@ describe('reopened Source Document workspace', () => {
               revisionNumber: request.expectedRevisionNumber + 1,
               origin: 'researcher-edit',
               createdAt: '2026-08-09T10:02:00.000Z',
+              recordDescription: request.recordDescription,
               schemaNodes: request.schemaNodes,
             },
           }, { status: 201 })
@@ -276,6 +326,7 @@ describe('reopened Source Document workspace', () => {
       projectContextId: reopened.projectContextId,
       extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
       expectedRevisionNumber: 3,
+      recordDescription: 'One historical record.',
       schemaNodes: historicalNodes,
     })
     expect(await screen.findByText('historical_group')).toBeInTheDocument()
@@ -321,7 +372,7 @@ describe('reopened Source Document workspace', () => {
             outcome: 'SUCCEEDED',
             complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-            diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null },
             failure: null,
             resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
@@ -341,7 +392,7 @@ describe('reopened Source Document workspace', () => {
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
             strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-            diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null },
             failure: null, resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
             reviewable: true, retryOfId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',

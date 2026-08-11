@@ -404,19 +404,23 @@ def _build_comparison_report(
         comparison_stats["paddleocr"],
         page_count,
     )
-    relative_output_dir = os.path.relpath(paths.pdf_output_dir, os.getcwd())
-    relative_images_dir = os.path.relpath(paths.images_dir, os.getcwd())
-    relative_docling_pdf_dir = os.path.relpath(
-        os.path.join(paths.pdf_output_dir, "docling_pdf"),
-        os.getcwd(),
+    def report_path(path: str) -> str:
+        try:
+            return os.path.relpath(path, os.getcwd())
+        except ValueError:
+            # Windows cannot make paths relative across drive letters.
+            return str(path)
+
+    relative_output_dir = report_path(paths.pdf_output_dir)
+    relative_images_dir = report_path(paths.images_dir)
+    relative_docling_pdf_dir = report_path(
+        os.path.join(paths.pdf_output_dir, "docling_pdf")
     )
-    relative_docling_images_dir = os.path.relpath(
-        os.path.join(paths.pdf_output_dir, "docling_images"),
-        os.getcwd(),
+    relative_docling_images_dir = report_path(
+        os.path.join(paths.pdf_output_dir, "docling_images")
     )
-    relative_paddle_dir = os.path.relpath(
-        os.path.join(paths.pdf_output_dir, "paddleocr_images"),
-        os.getcwd(),
+    relative_paddle_dir = report_path(
+        os.path.join(paths.pdf_output_dir, "paddleocr_images")
     )
     return f"""# Extraction Comparison Report
 

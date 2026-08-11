@@ -7,7 +7,11 @@ import type { AnnotationSetItem } from './AnnotationSidebar'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import type { TemplateState } from './SchemaPanel'
-import { type SchemaNode, nodesToTemplate, templateToNodes } from '../shared/schemaNode'
+import {
+  type SchemaNode,
+  schemaDefinitionToTemplate,
+  templateToSchemaDefinition,
+} from '../shared/schemaNode'
 import { countTemplateFields } from '../shared/template'
 import { requestSchema, parseDocument, fetchParsedDocument } from './api'
 import {
@@ -21,7 +25,8 @@ import {
 } from './evidenceNavigation'
 import type { AnnotationsMode } from './api'
 import { useExtraction } from './useExtraction'
-import { Button } from './ui'
+import { Button, SegmentedControl } from './ui'
+import type { ExtractionStrategy } from '../shared/extraction.contract'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
@@ -175,6 +180,7 @@ export function DocumentWorkspace({
     extractionSchema
       ? {
           status: 'ready',
+          recordDescription: extractionSchema.recordDescription,
           nodes: extractionSchema.schemaNodes,
           inputsKey: annotationInputsKey(restoredAnnotations, 'hints'),
         }
@@ -196,15 +202,21 @@ export function DocumentWorkspace({
               schemaRevisionId: extractionSchema.schemaRevisionId,
               extractionSchemaId: extractionSchema.extractionSchemaId,
               revisionNumber: extractionSchema.revisionNumber,
+              recordDescription: extractionSchema.recordDescription,
               schemaNodes: extractionSchema.schemaNodes,
             },
-            draft: extractionSchema.schemaNodes,
+            draft: {
+              recordDescription: extractionSchema.recordDescription,
+              schemaNodes: extractionSchema.schemaNodes,
+            },
           }
         : null,
   )
   const [schemaHistory, setSchemaHistory] = useState<SchemaRevisionSummary[]>([])
   const schemaSaveCoordinatorRef = useRef<SchemaSaveCoordinator | null>(null)
   const [extractAfterSave, setExtractAfterSave] = useState(false)
+  const [extractionStrategy, setExtractionStrategy] =
+    useState<ExtractionStrategy>(persistedExtraction?.strategy ?? 'ARTICLE')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('annot')
@@ -221,16 +233,17 @@ export function DocumentWorkspace({
       schemaRevisionId: durableSchema.schemaRevisionId,
       extractionSchemaId: durableSchema.extractionSchemaId,
       revisionNumber: durableSchema.revisionNumber,
+      recordDescription: durableSchema.recordDescription,
       schemaNodes: durableSchema.schemaNodes,
     }
     const coordinator = createSchemaSaveCoordinator(
       acknowledged,
-      (expectedRevisionNumber, schemaNodes) =>
+      (expectedRevisionNumber, definition) =>
         appendSchemaRevision(
           projectContextId,
           durableSchema.extractionSchemaId,
           expectedRevisionNumber,
-          schemaNodes,
+          definition,
         ),
       1500,
       (next) => {
@@ -585,30 +598,40 @@ export function DocumentWorkspace({
         markdown: documentMarkdown,
       })
       if (!abortController.signal.aborted) {
-        const nodes = templateToNodes(template)
+        const definition = templateToSchemaDefinition(template)
+        const { recordDescription, schemaNodes: nodes } = definition
         const coordinator = schemaSaveCoordinatorRef.current
-        if (coordinator) coordinator.edit(nodes)
+        if (coordinator) coordinator.edit(definition)
         else if (projectContextId) {
           const revision = await initializeSchemaRevision(
             projectContextId,
-            nodes,
+            definition,
             abortController.signal,
           )
           const initialized = {
             extractionSchemaId: revision.extractionSchemaId,
             schemaRevisionId: revision.schemaRevisionId,
             revisionNumber: revision.revisionNumber,
+            recordDescription: revision.recordDescription,
             schemaNodes: revision.schemaNodes,
           }
           setDurableSchema(initialized)
           setSchemaSaveState({
             status: 'saved',
             acknowledged: revision,
-            draft: revision.schemaNodes,
+            draft: {
+              recordDescription: revision.recordDescription,
+              schemaNodes: revision.schemaNodes,
+            },
           })
           setPinnedSchemaRevisionId(revision.schemaRevisionId)
         }
-        setTemplateState({ status: 'ready', nodes, inputsKey })
+        setTemplateState({
+          status: 'ready',
+          recordDescription,
+          nodes,
+          inputsKey,
+        })
       }
     } catch (error) {
       if (abortController.signal.aborted) {
@@ -643,13 +666,38 @@ export function DocumentWorkspace({
     }
   }
 
-  function changeNodes(nodes: SchemaNode[], message: string) {
+  function changeNodes(
+    nodes: SchemaNode[],
+    message: string,
+    recordDescription =
+      templateState.status === 'ready'
+        ? templateState.recordDescription
+        : '',
+  ) {
+    if (templateState.status !== 'ready') return
     setPinnedSchemaRevisionId(null)
-    schemaSaveCoordinatorRef.current?.edit(nodes)
-    setTemplateState((state) =>
-      state.status === 'ready' ? { ...state, nodes, edited: true } : state,
-    )
+    schemaSaveCoordinatorRef.current?.edit({
+      recordDescription,
+      schemaNodes: nodes,
+    })
+    setTemplateState({
+      ...templateState,
+      recordDescription,
+      nodes,
+      edited: true,
+    })
     showToast(message)
+  }
+
+  function changeRecordDescription(recordDescription: string) {
+    if (templateState.status !== 'ready') return
+    setPinnedSchemaRevisionId(null)
+    schemaSaveCoordinatorRef.current?.edit({
+      recordDescription,
+      schemaNodes: templateState.nodes,
+    })
+    setTemplateState({ ...templateState, recordDescription, edited: true })
+    showToast('✎ Root record description updated')
   }
 
   function startResize(event: React.MouseEvent) {
@@ -677,7 +725,13 @@ export function DocumentWorkspace({
   }
 
   const schemaReady = templateState.status === 'ready'
-  const schemaTemplate = templateState.status === 'ready' ? nodesToTemplate(templateState.nodes) : null
+  const schemaTemplate =
+    templateState.status === 'ready'
+      ? schemaDefinitionToTemplate({
+          recordDescription: templateState.recordDescription,
+          schemaNodes: templateState.nodes,
+        })
+      : null
 
   const schemaFieldCount =
     templateState.status === 'ready' ? countTemplateFields(schemaTemplate) : 0
@@ -694,6 +748,7 @@ export function DocumentWorkspace({
     indexing,
     initialAttempt: persistedExtraction,
     parsedDocument,
+    strategy: extractionStrategy,
     reviewTarget:
       sourceRepresentationId && pinnedSchemaRevisionId
         ? { sourceRepresentationId, schemaRevisionId: pinnedSchemaRevisionId }
@@ -787,6 +842,15 @@ export function DocumentWorkspace({
             {loadState.status === 'ready' && `${loadState.pageCount} pages · text highlights only`}
             {loadState.status === 'error' && loadState.message}
           </p>
+          <SegmentedControl
+            aria-label="Extraction Strategy"
+            value={extractionStrategy}
+            onChange={setExtractionStrategy}
+            options={[
+              { value: 'ARTICLE', label: 'Article' },
+              { value: 'CATALOG', label: 'Catalog' },
+            ]}
+          />
           <Button
             variant="primary"
             size="md"
@@ -795,7 +859,13 @@ export function DocumentWorkspace({
               schemaSaveState?.status === 'conflict' ||
               schemaSaveState?.status === 'error'
             }
-            title={schemaReady ? 'Run extraction across the whole document' : 'Generate a schema in the Schema tab first'}
+            title={
+              schemaReady
+                ? extractionStrategy === 'CATALOG'
+                  ? 'Discover repeated records and extract each canonical slice'
+                  : 'Run one values extraction across the whole Source Document'
+                : 'Generate a schema in the Schema tab first'
+            }
             onClick={() => void runExtraction()}
           >
             {runLabel}
@@ -861,6 +931,7 @@ export function DocumentWorkspace({
             schemaFieldCount={schemaFieldCount}
             onGenerate={() => void generateSchema()}
             onNodesChange={changeNodes}
+            onRecordDescriptionChange={changeRecordDescription}
             beforeSchemaEdit={flushSchemaEdits}
             schemaHistory={schemaHistory}
             currentSchemaRevisionNumber={schemaSaveState?.acknowledged.revisionNumber}

@@ -14,6 +14,8 @@ vi.mock('./App', () => ({
     pdfUrl,
     filename,
     markdownUrl,
+    parsedDocumentUrl,
+    sourceRepresentationId,
     annotationSet,
     extractionSchema,
     persistedExtraction,
@@ -25,6 +27,15 @@ vi.mock('./App', () => ({
         {annotationSet?.annotations[0]?.text ?? 'no annotation'} ·{' '}
         {JSON.stringify(extractionSchema?.schemaNodes ?? 'no schema')} ·{' '}
         {persistedExtraction?.outcome ?? 'no extraction'}
+      </p>
+      <p data-testid="workspace-resources">
+        {sourceRepresentationId} · {pdfUrl} · {markdownUrl} · {parsedDocumentUrl}
+      </p>
+      <p data-testid="workspace-schema">
+        {JSON.stringify(extractionSchema?.schemaNodes ?? null)}
+      </p>
+      <p data-testid="workspace-result">
+        {JSON.stringify(persistedExtraction?.resultPayload ?? null)}
       </p>
       <button type="button" onClick={onInitialResourceLoadFailure}>
         Fail retained artifact
@@ -96,6 +107,7 @@ function hydratedSnapshot() {
       extractionSchemaId: '51000000-0000-4000-8005-000000000001',
       schemaRevisionId: '51000000-0000-4000-8005-000000000002',
       revisionNumber: 1,
+      recordDescription: 'One place record.',
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
     },
     latestAttempt: {
@@ -108,7 +120,7 @@ function hydratedSnapshot() {
       strategy: 'ARTICLE',
       outcome: 'SUCCEEDED',
       complete: true,
-      diagnostics: { phase: 'persisting', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null },
       failure: null,
       resultPayload: { place: 'Ellekilde' },
       evidenceLinks: [],
@@ -127,6 +139,7 @@ function hydratedSnapshot() {
       extractionSchema: {
         extractionSchemaId: '51000000-0000-4000-8005-000000000001',
         revisionNumber: 1,
+        recordDescription: 'One place record.',
         schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
       },
     },
@@ -342,6 +355,46 @@ describe('routed Source Document reopening', () => {
     expect(
       await screen.findByText(/The restored annotation.*place.*SUCCEEDED/),
     ).toBeInTheDocument()
+  })
+
+  it('keeps the workspace on the current head while displaying a historical latest attempt', async () => {
+    const reopened = hydratedSnapshot()
+    const historicalRepresentationId =
+      '51000000-0000-4000-8002-000000000009'
+    reopened.latestAttempt = {
+      ...reopened.latestAttempt,
+      sourceRepresentationRevisionId: historicalRepresentationId,
+      schemaRevisionId: '51000000-0000-4000-8005-000000000009',
+      resultPayload: { place: 'Historical persisted result' },
+      sourceRepresentation: {
+        revisionNumber: 1,
+        resources: {
+          sourcePdfUrl: `/api/source-representations/${historicalRepresentationId}/pdf`,
+          markdownUrl: `/api/source-representations/${historicalRepresentationId}/markdown`,
+          parsedDocumentUrl: `/api/source-representations/${historicalRepresentationId}/source`,
+        },
+      },
+      extractionSchema: {
+        ...reopened.latestAttempt.extractionSchema,
+        revisionNumber: 1,
+        schemaNodes: [
+          { id: 'historical', name: 'historical_place', type: 'string' },
+        ],
+      },
+    }
+    history.replaceState(null, '', documentPath())
+    renderRoutes(studioFetch(() => Response.json(reopened)))
+
+    const resources = await screen.findByTestId('workspace-resources')
+    expect(resources).toHaveTextContent(representationId)
+    expect(resources).not.toHaveTextContent(historicalRepresentationId)
+    expect(screen.getByTestId('workspace-schema')).toHaveTextContent('place')
+    expect(screen.getByTestId('workspace-schema')).not.toHaveTextContent(
+      'historical_place',
+    )
+    expect(screen.getByTestId('workspace-result')).toHaveTextContent(
+      'Historical persisted result',
+    )
   })
 
   it('retries after the workspace reports a retained artifact failure', async () => {

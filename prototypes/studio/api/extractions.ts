@@ -11,22 +11,30 @@ import {
   type TerminalExtractionInput,
 } from '../../../packages/db/src/project-store.js'
 import {
-  articleExtractionRequestSchema,
+  extractionRequestSchema,
   extractionAttemptSchema,
   extractionDiagnosticsSchema,
   extractionFailureSchema,
   extractionModelAttributionSchema,
   finalizeExtractionReviewSchema,
   sameExtractionIdentity,
-  type ArticleExtractionRequest,
+  type ExtractionRequest,
   type ExtractionDiagnostics,
   type ExtractionFailure,
   type ExtractionModelAttribution,
-} from '../shared/articleExtraction.contract.js'
-import { canonicalSource } from '../shared/anchoredDocument.js'
+} from '../shared/extraction.contract.js'
+import {
+  canonicalAnchorInventory,
+  canonicalSource,
+} from '../shared/anchoredDocument.js'
 import {
   groundExtraction,
   populatedContentPaths,
+  type EvidenceLink,
+  type GroundingIssue,
+  type GroundingModelInvoker,
+  type GroundingStageAttribution,
+  type ResultPath,
 } from '../shared/extractionGrounding.js'
 import {
   cleanExtractionResultSchema,
@@ -34,9 +42,21 @@ import {
   resultPathKey,
 } from '../shared/groundedExtraction.js'
 import { decodeParsedDocument } from '../shared/parsedDocument.js'
-import { nodesToTemplate, parseSchemaNodes } from '../shared/schemaNode.js'
+import {
+  nodesToTemplate,
+  parseSchemaDefinition,
+} from '../shared/schemaNode.js'
 import { compileInstructions, stripDescriptions } from '../shared/template.js'
 import { ApiError, json, noStore, noStoreError, parseJsonRequest } from './_http.js'
+import {
+  catalogHeadingCandidates,
+  catalogSliceSource,
+  headingCandidateSource,
+  headingCandidates,
+  parseDiscoveryStarts,
+  resolveCatalogBoundaries,
+  type CatalogDiagnosticCode,
+} from './_catalog.js'
 import {
   extractWithModel,
   type ModelGenerationMetadata,
@@ -54,7 +74,7 @@ const REVIEW_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review$/
 type ExtractionStore = Pick<
   ProjectStore,
   | 'finalizeExtractionReview'
-  | 'getArticleExtractionInputs'
+  | 'getExtractionInputs'
   | 'getExtractionAttempt'
   | 'getSourceRepresentation'
   | 'persistExtractionAttempt'
@@ -69,7 +89,7 @@ type Dependencies = {
 }
 
 type ActiveOperation = {
-  request: ArticleExtractionRequest
+  request: ExtractionRequest
   controller: AbortController
   lookup: Promise<StoredExtractionAttempt | null>
   persisting: boolean
@@ -118,7 +138,7 @@ function abortError(error: unknown): boolean {
 function safeFailure(error: unknown): ExtractionFailure {
   return error instanceof ApiError
     ? { code: error.code, message: error.message.slice(0, 512) }
-    : { code: 'article_extraction_failed', message: 'Article extraction failed.' }
+    : { code: 'extraction_failed', message: 'Extraction failed.' }
 }
 
 function articleResult(
@@ -191,7 +211,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       throw new ApiError(
         409,
         'invalid_extraction_pins',
-        'The pinned Article extraction inputs are no longer valid.',
+        'The pinned Extraction inputs are no longer valid.',
       )
     if (persisted.status === 'conflict')
       throw new ApiError(
@@ -206,12 +226,12 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
   }
 
   async function runArticle(
-    request: ArticleExtractionRequest,
+    request: ExtractionRequest,
     signal: AbortSignal,
     beginPersist: () => void,
   ): Promise<OperationResult> {
     const startedAt = now()
-    const inputs = await store.getArticleExtractionInputs(
+    const inputs = await store.getExtractionInputs(
       request.sourceRepresentationRevisionId,
       request.schemaRevisionId,
     )
@@ -243,7 +263,8 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
       const document = decodeParsedDocument(await readSource(inputs.descriptor))
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      const nodes = parseSchemaNodes(inputs.schemaTree)
+      const { recordDescription, schemaNodes: nodes } =
+        parseSchemaDefinition(inputs.schemaTree)
       const packageFields = new Set(
         nodes
           .filter((node) => node.valueSource === 'source-filename')
@@ -267,7 +288,12 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       } else {
         phase = 'extracting'
         const describedTemplate = {
-          records: [nodesToTemplate(modelNodes)],
+          records: [
+            {
+              _description: recordDescription,
+              ...nodesToTemplate(modelNodes),
+            },
+          ],
         }
         modelCalls++
         const generated = await extract(
@@ -283,6 +309,18 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
         inputTokens = generated.metadata.inputTokens
         outputTokens = generated.metadata.outputTokens
         result = articleResult(generated.result)
+        if (
+          !Array.isArray(result.records) ||
+          result.records.length !== 1 ||
+          typeof result.records[0] !== 'object' ||
+          result.records[0] === null ||
+          Array.isArray(result.records[0])
+        )
+          throw new ApiError(
+            502,
+            'invalid_model_output',
+            'Article extraction must return exactly one record.',
+          )
       }
       overlayFilename(
         result,
@@ -391,7 +429,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       sourceRepresentationRevisionId:
         request.sourceRepresentationRevisionId,
       schemaRevisionId: request.schemaRevisionId,
-      strategy: 'ARTICLE',
+      strategy: request.strategy,
       retryOfId: null,
       ...terminal,
       diagnostics: {
@@ -402,16 +440,566 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
         inputTokens,
         outputTokens,
         grounding: groundingDiagnostics,
+        catalog: null,
+      },
+    })
+  }
+
+  async function runCatalog(
+    request: ExtractionRequest,
+    signal: AbortSignal,
+    beginPersist: () => void,
+  ): Promise<OperationResult> {
+    const startedAt = now()
+    const inputs = await store.getExtractionInputs(
+      request.sourceRepresentationRevisionId,
+      request.schemaRevisionId,
+    )
+    if (!inputs)
+      throw new ApiError(
+        409,
+        'invalid_extraction_pins',
+        'The Source Representation and Schema Revision do not share one Project Context.',
+      )
+
+    let phase: ExtractionDiagnostics['phase'] = 'loading'
+    let modelCalls = 0
+    let inputTokens: number | null = null
+    let outputTokens: number | null = null
+    let routeAttribution: ExtractionModelAttribution | null = null
+    let groundingDiagnostics: ExtractionDiagnostics['grounding'] = null
+    const catalog: NonNullable<ExtractionDiagnostics['catalog']> = {
+      codes: [],
+      documentMetadata: null,
+      discovery: {
+        outcome: 'failed',
+        finishReason: null,
+        inputTokens: null,
+        outputTokens: null,
+        durationMs: 0,
+        candidateCount: 0,
+        returnedCount: 0,
+        resolvedCount: 0,
+      },
+      boundaries: [],
+      boundaryIssues: [],
+      records: [],
+    }
+    let terminal: Omit<
+      TerminalExtractionInput,
+      | 'extractionId'
+      | 'sourceDocumentId'
+      | 'sourceRepresentationRevisionId'
+      | 'schemaRevisionId'
+      | 'strategy'
+      | 'diagnostics'
+      | 'retryOfId'
+    >
+
+    const addCode = (code: CatalogDiagnosticCode) => {
+      if (!catalog.codes.includes(code)) catalog.codes.push(code)
+    }
+    const addUsage = (metadata: ModelGenerationMetadata) => {
+      inputTokens =
+        inputTokens === null && metadata.inputTokens === null
+          ? null
+          : (inputTokens ?? 0) + (metadata.inputTokens ?? 0)
+      outputTokens =
+        outputTokens === null && metadata.outputTokens === null
+          ? null
+          : (outputTokens ?? 0) + (metadata.outputTokens ?? 0)
+    }
+    const callDiagnostics = (
+      metadata: ModelGenerationMetadata,
+      outcome: 'succeeded' | 'failed' = 'succeeded',
+    ) => ({
+      outcome,
+      finishReason: metadata.finishReason,
+      inputTokens: metadata.inputTokens,
+      outputTokens: metadata.outputTokens,
+      durationMs: metadata.durationMs,
+    })
+
+    try {
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      const document = decodeParsedDocument(await readSource(inputs.descriptor))
+      const definition = parseSchemaDefinition(inputs.schemaTree)
+      const packageNodes = definition.schemaNodes.filter(
+        (node) => node.valueSource === 'source-filename',
+      )
+      const documentNodes = definition.schemaNodes.filter(
+        (node) => node.valueSource === 'document',
+      )
+      const recordNodes = definition.schemaNodes.filter(
+        (node) => node.valueSource === undefined,
+      )
+      const packageFields = new Set(packageNodes.map((node) => node.name))
+      const target = await resolveTarget()
+      if (!target.attribution)
+        throw new ApiError(
+          503,
+          'model_route_unavailable',
+          'The Extraction Route has no durable attribution.',
+        )
+      routeAttribution = target.attribution
+      const source = canonicalSource(document)
+      const inventory = canonicalAnchorInventory(document)
+      const documentValues: Record<string, unknown> = {}
+      let metadataComplete = true
+
+      if (documentNodes.length > 0) {
+        phase = 'document_metadata'
+        const before = now()
+        try {
+          modelCalls++
+          const described = nodesToTemplate(documentNodes)
+          const generated = await extract(
+            {
+              document: {
+                file: null,
+                markdown: source,
+                pages: document.page_count,
+              },
+              template: stripDescriptions(described),
+              instruction:
+                [
+                  'Extract document-scoped values once. These values will be copied to every discovered record.',
+                  compileInstructions(described),
+                ]
+                  .filter(Boolean)
+                  .join('\n'),
+              signal,
+            },
+            target,
+          )
+          addUsage(generated.metadata)
+          const documentFieldNames = new Set(
+            documentNodes.map((node) => node.name),
+          )
+          for (const node of documentNodes)
+            if (Object.hasOwn(generated.result, node.name))
+              documentValues[node.name] = generated.result[node.name]
+          if (
+            Object.keys(generated.result).some(
+              (key) => !documentFieldNames.has(key),
+            )
+          ) {
+            metadataComplete = false
+            addCode('document_metadata_inconsistent')
+          }
+          catalog.documentMetadata = callDiagnostics(generated.metadata)
+          if (generated.metadata.finishReason === 'length') {
+            metadataComplete = false
+            addCode('document_metadata_incomplete')
+          }
+        } catch (error) {
+          if (abortError(error) || signal.aborted) throw error
+          metadataComplete = false
+          addCode('document_metadata_incomplete')
+          catalog.documentMetadata = {
+            outcome: 'failed',
+            finishReason: null,
+            inputTokens: null,
+            outputTokens: null,
+            durationMs: Math.max(0, Math.round(now() - before)),
+          }
+        }
+      }
+
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      phase = 'discovering'
+      const canonicalHeadings = headingCandidates(document)
+      const publishedHeadingCount = document.content_stream.filter(
+        (block) => block.kind === 'heading',
+      ).length
+      if (canonicalHeadings.length !== publishedHeadingCount)
+        throw new ApiError(
+          422,
+          'catalog_ineligible',
+          'Every Catalog heading requires a canonical Evidence Anchor.',
+        )
+      const candidates = catalogHeadingCandidates(document)
+      catalog.discovery.candidateCount = candidates.length
+      if (candidates.length === 0)
+        throw new ApiError(
+          422,
+          'catalog_ineligible',
+          'Catalog requires canonical heading candidates.',
+        )
+      const discoveryBefore = now()
+      let starts: string[] | null = null
+      try {
+        modelCalls++
+        const generated = await extract(
+          {
+            document: {
+              file: null,
+              markdown: headingCandidateSource(candidates),
+              pages: document.page_count,
+            },
+            template: { starts: ['string'] },
+            instruction: [
+              `One record is: ${definition.recordDescription}`,
+              'Select every heading that starts one such record.',
+              'Return only the compact starts array in canonical source order.',
+              'Copy only the supplied opaque H-* labels. Do not return headings, ends, records, explanations, or unknown labels.',
+            ].join('\n'),
+            signal,
+          },
+          target,
+        )
+        addUsage(generated.metadata)
+        starts = parseDiscoveryStarts(generated.result)
+        catalog.discovery = {
+          ...callDiagnostics(
+            generated.metadata,
+            starts === null ? 'failed' : 'succeeded',
+          ),
+          candidateCount: candidates.length,
+          returnedCount: starts?.length ?? 0,
+          resolvedCount: 0,
+        }
+        if (starts === null || generated.metadata.finishReason === 'length')
+          addCode('discovery_invalid_output')
+      } catch (error) {
+        if (abortError(error) || signal.aborted) throw error
+        addCode('discovery_invalid_output')
+        catalog.discovery = {
+          outcome: 'failed',
+          finishReason: null,
+          inputTokens: null,
+          outputTokens: null,
+          durationMs: Math.max(0, Math.round(now() - discoveryBefore)),
+          candidateCount: candidates.length,
+          returnedCount: 0,
+          resolvedCount: 0,
+        }
+      }
+
+      const resolution = resolveCatalogBoundaries(
+        document,
+        starts ?? [],
+        candidates,
+      )
+      catalog.discovery.resolvedCount =
+        resolution.boundaries.length + resolution.notAttempted.length
+      catalog.boundaryIssues = resolution.issues
+      catalog.boundaries = resolution.boundaries.map((boundary) => ({
+        ordinal: boundary.ordinal,
+        startLabel: boundary.startLabel,
+        startAnchorId: boundary.startAnchorId,
+        headingText: boundary.headingText,
+        headingLevel: boundary.headingLevel,
+        endAnchorId: boundary.endAnchorId,
+      }))
+      for (const issue of resolution.issues) addCode(issue.code)
+      if (resolution.notAttempted.length > 0) addCode('not_attempted_limit')
+
+      phase = 'extracting'
+      const records: Record<string, unknown>[] = []
+      const recordBoundaries: (typeof resolution.boundaries)[number][] = []
+      let recordsComplete = true
+      for (const boundary of resolution.boundaries) {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+        const before = now()
+        try {
+          let record: Record<string, unknown> = {}
+          let metadata: ModelGenerationMetadata = {
+            finishReason: null,
+            inputTokens: null,
+            outputTokens: null,
+            durationMs: 0,
+          }
+          if (recordNodes.length > 0) {
+            modelCalls++
+            const described = {
+              _description: definition.recordDescription,
+              ...nodesToTemplate(recordNodes),
+            }
+            const generated = await extract(
+              {
+                document: {
+                  file: null,
+                  markdown: catalogSliceSource(document, boundary),
+                  pages: document.page_count,
+                },
+                template: stripDescriptions(described),
+                instruction: [
+                  `Extract exactly one record: ${definition.recordDescription}`,
+                  compileInstructions({ records: [described] }),
+                ]
+                  .filter(Boolean)
+                  .join('\n'),
+                signal,
+              },
+              target,
+            )
+            metadata = generated.metadata
+            addUsage(metadata)
+            const recordFieldNames = new Set(
+              recordNodes.map((node) => node.name),
+            )
+            record = Object.fromEntries(
+              Object.entries(generated.result).filter(([key]) =>
+                recordFieldNames.has(key),
+              ),
+            )
+            if (
+              recordNodes.length > 0 &&
+              !recordNodes.some((node) =>
+                Object.hasOwn(generated.result, node.name),
+              )
+            )
+              throw new ApiError(
+                502,
+                'invalid_model_output',
+                'Catalog record extraction returned no schema fields.',
+              )
+          }
+          Object.assign(record, documentValues)
+          const wrapped = { records: [record] }
+          overlayFilename(
+            wrapped,
+            packageFields,
+            document.document.source.original_filename ??
+              inputs.originalFilename,
+          )
+          records.push((wrapped.records as Record<string, unknown>[])[0])
+          recordBoundaries.push(boundary)
+          catalog.records.push({
+            ...callDiagnostics(metadata),
+            ordinal: boundary.ordinal,
+            startAnchorId: boundary.startAnchorId,
+            headingText: boundary.headingText,
+            outcome: 'succeeded',
+            code: null,
+          })
+          if (metadata.finishReason === 'length') recordsComplete = false
+        } catch (error) {
+          if (abortError(error) || signal.aborted) throw error
+          recordsComplete = false
+          addCode('record_extraction_failed')
+          catalog.records.push({
+            outcome: 'failed',
+            finishReason: null,
+            inputTokens: null,
+            outputTokens: null,
+            durationMs: Math.max(0, Math.round(now() - before)),
+            ordinal: boundary.ordinal,
+            startAnchorId: boundary.startAnchorId,
+            headingText: boundary.headingText,
+            code: 'record_extraction_failed',
+          })
+        }
+      }
+      for (const boundary of resolution.notAttempted) {
+        recordsComplete = false
+        catalog.records.push({
+          outcome: 'not_attempted',
+          finishReason: null,
+          inputTokens: null,
+          outputTokens: null,
+          durationMs: 0,
+          ordinal: boundary.ordinal,
+          startAnchorId: boundary.startAnchorId,
+          headingText: boundary.headingText,
+          code: 'not_attempted_limit',
+        })
+      }
+
+      const result = { records }
+      phase = 'grounding'
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      const groundingMetadata: (ModelGenerationMetadata | null)[] = []
+      const evidenceLinks: EvidenceLink[] = []
+      const ungroundedPaths: ResultPath[] = []
+      const groundingIssueCodes: GroundingIssue['code'][] = []
+      const groundingBatches: GroundingStageAttribution['batches'][number][] = []
+      const invokeGrounding: GroundingModelInvoker = async ({
+        documentMarkdown,
+        template,
+        instruction,
+        signal,
+      }) => {
+        const metadataIndex = groundingMetadata.push(null) - 1
+        modelCalls++
+        const generated = await extract(
+          {
+            document: {
+              file: null,
+              markdown: documentMarkdown,
+              pages: document.page_count,
+            },
+            template,
+            instruction,
+            signal,
+          },
+          target,
+        )
+        groundingMetadata[metadataIndex] = generated.metadata
+        addUsage(generated.metadata)
+        return {
+          result: generated.result,
+          modelAttribution: generated.modelAttribution,
+        }
+      }
+      if (records.length > 0 && Object.keys(documentValues).length > 0) {
+        const grounded = await groundExtraction({
+          document,
+          result: documentValues,
+          excludedRootFields: packageFields,
+          signal,
+          invokeModel: invokeGrounding,
+        })
+        for (let recordIndex = 0; recordIndex < records.length; recordIndex++) {
+          evidenceLinks.push(
+            ...grounded.evidenceLinks.map((link) => ({
+              ...link,
+              resultPath: ['records', recordIndex, ...link.resultPath],
+            })),
+          )
+          ungroundedPaths.push(
+            ...grounded.ungroundedPaths.map((path) => [
+              'records',
+              recordIndex,
+              ...path,
+            ]),
+          )
+        }
+        groundingIssueCodes.push(...grounded.issues.map((issue) => issue.code))
+        groundingBatches.push(...(grounded.modelAttribution?.batches ?? []))
+      }
+      const recordExcludedFields = new Set([
+        ...packageFields,
+        ...documentNodes.map((node) => node.name),
+      ])
+      for (const [recordIndex, record] of records.entries()) {
+        const boundary = recordBoundaries[recordIndex]
+        const grounded = await groundExtraction({
+          document,
+          result: record,
+          excludedRootFields: recordExcludedFields,
+          allowedAnchorIds: new Set(
+            inventory
+              .slice(boundary.startIndex, boundary.endIndex)
+              .map((entry) => entry.anchorId),
+          ),
+          signal,
+          invokeModel: invokeGrounding,
+        })
+        evidenceLinks.push(
+          ...grounded.evidenceLinks.map((link) => ({
+            ...link,
+            resultPath: ['records', recordIndex, ...link.resultPath],
+          })),
+        )
+        ungroundedPaths.push(
+          ...grounded.ungroundedPaths.map((path) => [
+            'records',
+            recordIndex,
+            ...path,
+          ]),
+        )
+        groundingIssueCodes.push(...grounded.issues.map((issue) => issue.code))
+        groundingBatches.push(
+          ...(grounded.modelAttribution?.batches.map((batch) => ({
+            ...batch,
+            resultPath: ['records', recordIndex],
+          })) ?? []),
+        )
+      }
+      const groundedPathKeys = new Set(
+        evidenceLinks.map((link) => resultPathKey(link.resultPath)),
+      )
+      groundingDiagnostics = {
+        groundedPaths: populatedContentPaths(result, packageFields).filter(
+          (path) => groundedPathKeys.has(resultPathKey(path)),
+        ),
+        ungroundedPaths,
+        issueCodes: groundingIssueCodes,
+        batches: groundingBatches.map((batch, index) => ({
+          resultPath: batch.resultPath,
+          candidateCount: batch.candidateCount,
+          fallback: batch.fallback,
+          finishReason: groundingMetadata[index]?.finishReason ?? null,
+          inputTokens: groundingMetadata[index]?.inputTokens ?? null,
+          outputTokens: groundingMetadata[index]?.outputTokens ?? null,
+          durationMs: groundingMetadata[index]?.durationMs ?? 0,
+        })),
+      }
+      const groundingComplete =
+        ungroundedPaths.length === 0 &&
+        groundingIssueCodes.length === 0 &&
+        groundingMetadata.every((item) => item?.finishReason !== 'length')
+      if (!groundingComplete) addCode('grounding_incomplete')
+      terminal = {
+        outcome: 'SUCCEEDED',
+        complete:
+          starts !== null &&
+          catalog.discovery.finishReason !== 'length' &&
+          resolution.issues.length === 0 &&
+          resolution.notAttempted.length === 0 &&
+          metadataComplete &&
+          recordsComplete &&
+          groundingComplete,
+        modelAttribution: routeAttribution,
+        failure: null,
+        resultPayload: result,
+        evidenceLinks,
+        reviewable: ungroundedPaths.length === 0,
+      }
+    } catch (error) {
+      terminal =
+        abortError(error) || signal.aborted
+          ? {
+              outcome: 'CANCELLED',
+              complete: null,
+              modelAttribution: routeAttribution,
+              failure: null,
+              resultPayload: null,
+              evidenceLinks: null,
+              reviewable: false,
+            }
+          : {
+              outcome: 'FAILED',
+              complete: null,
+              modelAttribution: routeAttribution,
+              failure: safeFailure(error),
+              resultPayload: null,
+              evidenceLinks: null,
+              reviewable: false,
+            }
+    }
+
+    beginPersist()
+    return persist({
+      extractionId: request.id,
+      sourceDocumentId: inputs.sourceDocumentId,
+      sourceRepresentationRevisionId:
+        request.sourceRepresentationRevisionId,
+      schemaRevisionId: request.schemaRevisionId,
+      strategy: request.strategy,
+      retryOfId: null,
+      ...terminal,
+      diagnostics: {
+        phase,
+        durationMs: Math.max(0, Math.round(now() - startedAt)),
+        modelCalls,
+        finishReason: null,
+        inputTokens,
+        outputTokens,
+        grounding: groundingDiagnostics,
+        catalog,
       },
     })
   }
 
   async function create(request: Request): Promise<Response> {
-    const parsed = articleExtractionRequestSchema.safeParse(
+    const parsed = extractionRequestSchema.safeParse(
       await parseJsonRequest(request),
     )
     if (!parsed.success)
-      throw new ApiError(422, 'invalid_request', 'The Article extraction request is invalid.')
+      throw new ApiError(422, 'invalid_request', 'The Extraction request is invalid.')
     const identity = parsed.data
     const existing = active.get(identity.id)
     if (existing) {
@@ -437,13 +1025,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     operation.promise = lookup
       .then(async (stored) => {
         if (stored) {
-          if (
-            stored.strategy !== 'ARTICLE' ||
-            !sameExtractionIdentity(
-              { ...stored, strategy: 'ARTICLE' },
-              identity,
-            )
-          )
+          if (!sameExtractionIdentity(stored, identity))
             throw new ApiError(
               409,
               'extraction_id_conflict',
@@ -451,7 +1033,8 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
             )
           return { attempt: stored, created: false }
         }
-        return runArticle(identity, operation.controller.signal, () => {
+        const run = identity.strategy === 'CATALOG' ? runCatalog : runArticle
+        return run(identity, operation.controller.signal, () => {
           operation.persisting = true
         })
       })
@@ -487,7 +1070,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     if (!resultPayload.success || !Array.isArray(attempt.evidenceLinks))
       throw new ApiError(422, 'invalid_review', 'The Extraction has no reviewable result.')
     const packageFields = new Set(
-      parseSchemaNodes(attempt.schemaTree)
+      parseSchemaDefinition(attempt.schemaTree).schemaNodes
         .filter((node) => node.valueSource === 'source-filename')
         .map((node) => node.name),
     )

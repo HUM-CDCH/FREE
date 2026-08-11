@@ -4,7 +4,10 @@ import {
   duplicateFieldKeys,
   enumerateFieldPaths,
   nodesToTemplate,
+  parseSchemaDefinition,
   parseSchemaNodes,
+  schemaDefinitionToTemplate,
+  templateToSchemaDefinition,
   templateToNodes,
   type SchemaNode,
 } from './schemaNode'
@@ -92,6 +95,35 @@ describe('SchemaNode conversion', () => {
         >,
       ),
     ).toEqual(['beta', 'alpha'])
+  })
+
+  it('round-trips the explicit root record description separately from fields', () => {
+    const template = {
+      _description: 'One top-level numbered research article section.',
+      sectionNumber: 'integer',
+      sectionTitle: 'string',
+    }
+
+    const definition = templateToSchemaDefinition(template)
+
+    expect(definition.recordDescription).toBe(
+      'One top-level numbered research article section.',
+    )
+    expect(definition.schemaNodes.map((node) => node.name)).toEqual([
+      'sectionNumber',
+      'sectionTitle',
+    ])
+    expect(schemaDefinitionToTemplate(definition)).toEqual(template)
+    expect(parseSchemaDefinition(definition)).toEqual(definition)
+  })
+
+  it('rejects a schema without an explicit root record description', () => {
+    expect(() => templateToSchemaDefinition({ title: 'string' })).toThrow(
+      'record description',
+    )
+    expect(() =>
+      parseSchemaDefinition({ recordDescription: '', schemaNodes: [] }),
+    ).toThrow()
   })
 
   it('rejects an obsolete object-shaped stored schema', () => {

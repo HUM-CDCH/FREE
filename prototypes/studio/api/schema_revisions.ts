@@ -5,7 +5,7 @@ import {
 } from '../../../packages/db/src/project-store.js'
 import { schemaRevisionWriteRequestSchema } from '../shared/schemaRevision.contract.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
-import { parseSchemaNodes } from '../shared/schemaNode.js'
+import { parseSchemaDefinition } from '../shared/schemaNode.js'
 import { summarizeSchemaRevision } from '../src/schemaChanges.js'
 import {
   ApiError,
@@ -33,13 +33,14 @@ function identity(url: URL, name: string): string {
 }
 
 function revisionDto(revision: SchemaRevisionRecord) {
+  const definition = parseSchemaDefinition(revision.schemaTree)
   return {
     schemaRevisionId: revision.schemaRevisionId,
     extractionSchemaId: revision.extractionSchemaId,
     revisionNumber: revision.revisionNumber,
     origin: revision.origin,
     createdAt: revision.createdAt.toISOString(),
-    schemaNodes: parseSchemaNodes(revision.schemaTree),
+    ...definition,
   }
 }
 
@@ -108,8 +109,8 @@ export function createSchemaRevisionHandlers(
               origin: revision.origin,
               createdAt: revision.createdAt.toISOString(),
               summary: summarizeSchemaRevision(
-                previous ? parseSchemaNodes(previous.schemaTree) : null,
-                parseSchemaNodes(revision.schemaTree),
+                previous ? parseSchemaDefinition(previous.schemaTree) : null,
+                parseSchemaDefinition(revision.schemaTree),
               ),
             }
           }),
@@ -140,9 +141,15 @@ export function createSchemaRevisionHandlers(
             input.projectContextId,
             input.extractionSchemaId,
             input.expectedRevisionNumber,
-            input.schemaNodes,
+            {
+              recordDescription: input.recordDescription,
+              schemaNodes: input.schemaNodes,
+            },
           )
-        : store.initializeSchemaRevision(input.projectContextId, input.schemaNodes))
+        : store.initializeSchemaRevision(input.projectContextId, {
+            recordDescription: input.recordDescription,
+            schemaNodes: input.schemaNodes,
+          }))
         .catch((cause) => {
           throw persistenceUnavailable(cause)
         })

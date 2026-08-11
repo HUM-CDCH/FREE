@@ -91,6 +91,7 @@ export type GroundExtractionInput = {
   document: ParsedDocument
   result: Record<string, unknown>
   excludedRootFields?: ReadonlySet<string>
+  allowedAnchorIds?: ReadonlySet<string>
   signal?: AbortSignal
   invokeModel: GroundingModelInvoker
 }
@@ -377,9 +378,11 @@ export async function groundExtraction({
   document,
   result,
   excludedRootFields,
+  allowedAnchorIds,
   signal,
   invokeModel,
 }: GroundExtractionInput): Promise<GroundingOutcome> {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const claims = enumerateClaims(result, excludedRootFields)
   if (claims.length === 0)
     return {
@@ -389,7 +392,9 @@ export async function groundExtraction({
       modelAttribution: null,
     }
 
-  const inventory = canonicalAnchorInventory(document)
+  const inventory = canonicalAnchorInventory(document).filter(
+    (entry) => !allowedAnchorIds || allowedAnchorIds.has(entry.anchorId),
+  )
   const anchorTextById = new Map(
     inventory.map((entry) => [entry.anchorId, entry.text]),
   )

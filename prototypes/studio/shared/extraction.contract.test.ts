@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  articleExtractionRequestSchema,
+  extractionRequestSchema,
   extractionAttemptSchema,
-  normalizeReviewDecisions,
-} from './articleExtraction.contract.js'
+} from './extraction.contract.js'
 
 const id = (digit: string) =>
   `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`
@@ -25,6 +24,7 @@ const completed = {
     inputTokens: null,
     outputTokens: null,
     grounding: null,
+    catalog: null,
   },
   failure: null,
   resultPayload: { records: [{ filename: 'source.pdf' }] },
@@ -47,7 +47,7 @@ describe('Article lifecycle contracts', () => {
       }).success,
     ).toBe(false)
     expect(
-      articleExtractionRequestSchema.safeParse({
+      extractionRequestSchema.safeParse({
         id: id('1'),
         sourceRepresentationRevisionId: id('3'),
         schemaRevisionId: id('4'),
@@ -57,19 +57,7 @@ describe('Article lifecycle contracts', () => {
     ).toBe(false)
   })
 
-  it('normalizes review identity and requires exact reviewed-anchor coverage', () => {
-    expect(
-      normalizeReviewDecisions([
-        {
-          evidenceAnchorId: 'b',
-          reviewedOccurrenceIds: ['2', '1', '2'],
-        },
-        { evidenceAnchorId: 'a', reviewedOccurrenceIds: [] },
-      ]),
-    ).toEqual([
-      { evidenceAnchorId: 'a', reviewedOccurrenceIds: [] },
-      { evidenceAnchorId: 'b', reviewedOccurrenceIds: ['1', '2'] },
-    ])
+  it('requires exact reviewed-anchor coverage', () => {
     expect(
       extractionAttemptSchema.safeParse({
         ...completed,

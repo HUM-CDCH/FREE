@@ -220,7 +220,7 @@ export type StoredExtractionAttempt = {
     schemaTree: unknown
     createdAt: Date
     reviewedAt: Date | null
-    strategy: 'ARTICLE'
+    strategy: 'ARTICLE' | 'CATALOG'
     outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
     complete: boolean | null
     modelAttribution: unknown | null
@@ -237,7 +237,7 @@ export type StoredExtractionAttempt = {
     }>
 }
 
-export type ArticleExtractionInputs = {
+export type ExtractionInputs = {
   sourceDocumentId: string
   projectContextId: string
   originalFilename: string | null
@@ -252,7 +252,7 @@ export type TerminalExtractionInput = {
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
-  strategy: 'ARTICLE'
+  strategy: 'ARTICLE' | 'CATALOG'
   outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
   complete: boolean | null
   modelAttribution: unknown | null
@@ -286,10 +286,10 @@ export type ProjectStore = {
   getSourceRepresentation(
     sourceRepresentationId: string,
   ): Promise<CanonicalPackageDescriptor | null>
-  getArticleExtractionInputs(
+  getExtractionInputs(
     sourceRepresentationRevisionId: string,
     schemaRevisionId: string,
-  ): Promise<ArticleExtractionInputs | null>
+  ): Promise<ExtractionInputs | null>
   getExtractionAttempt(
     extractionId: string,
   ): Promise<StoredExtractionAttempt | null>
@@ -439,89 +439,26 @@ export function createProjectStore(database: Database = db): ProjectStore {
               .first()
           : null
 
-        const attempts = await orm.public.Extraction.where({ sourceDocumentId })
-          .select(
-            'id',
-            'sourceDocumentId',
-            'sourceRepresentationRevisionId',
-            'schemaRevisionId',
-            'strategy',
-            'outcome',
-            'complete',
-            'modelAttribution',
-            'diagnostics',
-            'failure',
-            'resultPayload',
-            'evidenceLinks',
-            'reviewable',
-            'retryOfId',
-            'createdAt',
-            'reviewedAt',
-          )
+        const latestAttempt = await orm.public.Extraction.where({
+          sourceDocumentId,
+        })
+          .select('id')
           .orderBy([
             (attempt) => attempt.createdAt.desc(),
             (attempt) => attempt.id.desc(),
           ])
-          .all()
-        const materialize = async (
-          attempt: (typeof attempts)[number] | undefined,
-        ): Promise<StoredExtractionAttempt | null> => {
-          if (!attempt) return null
-          const pinnedRepresentation = representations.find(
-            (candidate) => candidate.id === attempt.sourceRepresentationRevisionId,
-          )
-          const pinnedSchema = await orm.public.SchemaRevision.select(
-            'id',
-            'extractionSchemaId',
-            'revisionNumber',
-            'schemaTree',
-          ).first({ id: attempt.schemaRevisionId })
-          if (!pinnedRepresentation || !pinnedSchema)
-            throw new Error('Stored Extraction pins are unavailable.')
-          const decisions = await orm.public.ReviewDecision.where({
-            extractionId: attempt.id,
-          })
-            .select('id', 'evidenceAnchorId', 'reviewedOccurrenceIds')
-            .orderBy((decision) => decision.evidenceAnchorId.asc())
-            .all()
-          return {
-            extractionId: attempt.id,
-            sourceDocumentId: attempt.sourceDocumentId,
-            sourceRepresentationRevisionId:
-              attempt.sourceRepresentationRevisionId,
-            sourceRepresentationRevisionNumber:
-              pinnedRepresentation.revisionNumber,
-            schemaRevisionId: attempt.schemaRevisionId,
-            extractionSchemaId: pinnedSchema.extractionSchemaId,
-            schemaRevisionNumber: pinnedSchema.revisionNumber,
-            schemaTree: pinnedSchema.schemaTree,
-            createdAt: attempt.createdAt,
-            reviewedAt: attempt.reviewedAt,
-            strategy: attempt.strategy,
-            outcome: attempt.outcome,
-            complete: attempt.complete,
-            modelAttribution: attempt.modelAttribution,
-            diagnostics: attempt.diagnostics,
-            resultPayload: attempt.resultPayload,
-            evidenceLinks: attempt.evidenceLinks,
-            failure: attempt.failure,
-            reviewable: attempt.reviewable,
-            retryOfId: attempt.retryOfId,
-            reviewDecisions: decisions.map((decision) => ({
-              reviewDecisionId: decision.id,
-              evidenceAnchorId: decision.evidenceAnchorId,
-              reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
-            })),
-          }
-        }
-        const latestReviewedRow = attempts
-          .filter((attempt) => attempt.reviewedAt !== null)
-          .sort(
-            (left, right) =>
-              right.reviewedAt!.getTime() - left.reviewedAt!.getTime() ||
-              right.createdAt.getTime() - left.createdAt.getTime() ||
-              right.id.localeCompare(left.id),
-          )[0]
+          .first()
+        const latestReviewed = await orm.public.Extraction.where({
+          sourceDocumentId,
+        })
+          .where((attempt) => attempt.reviewedAt.isNotNull())
+          .select('id')
+          .orderBy([
+            (attempt) => attempt.reviewedAt.desc(),
+            (attempt) => attempt.createdAt.desc(),
+            (attempt) => attempt.id.desc(),
+          ])
+          .first()
 
         return {
           projectContext: {
@@ -553,8 +490,12 @@ export function createProjectStore(database: Database = db): ProjectStore {
                   schemaTree: schemaRevision.schemaTree,
                 }
               : null,
-          latestAttempt: await materialize(attempts[0]),
-          latestReviewed: await materialize(latestReviewedRow),
+          latestAttempt: latestAttempt
+            ? await loadStoredAttempt(orm, latestAttempt.id)
+            : null,
+          latestReviewed: latestReviewed
+            ? await loadStoredAttempt(orm, latestReviewed.id)
+            : null,
         }
       })
     },
@@ -572,7 +513,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
         }
       )
     },
-    async getArticleExtractionInputs(
+    async getExtractionInputs(
       sourceRepresentationRevisionId,
       schemaRevisionId,
     ) {

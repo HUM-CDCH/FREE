@@ -308,16 +308,27 @@ describe('extractWithModel', () => {
 
 describe('generateSchemaWithModel', () => {
   it('repairs generated model JSON on the raw path', async () => {
-    stubOllamaResponse('{"grave":[{"name":"verbatim-string"}}]')
+    stubOllamaResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}}]')
     const result = await generateSchemaWithModel(
       { document, annotations: [], annotationsMode: 'hints' },
       rawTarget,
     )
-    expect(result.template).toEqual({ grave: [{ name: 'verbatim-string' }] })
+    expect(result.template).toEqual({ _description: 'One grave record.', grave: [{ name: 'verbatim-string' }] })
+  })
+
+  it('rejects a generated schema without a root record description', async () => {
+    stubOllamaResponse('{"grave":[{"name":"verbatim-string"}]}')
+
+    await expect(
+      generateSchemaWithModel(
+        { document, annotations: [], annotationsMode: 'hints' },
+        rawTarget,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_model_output' })
   })
 
   it('leads the raw template-generation message with schema guidance', async () => {
-    const request = stubOllamaResponse('{"grave":[{"name":"verbatim-string"}]}')
+    const request = stubOllamaResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
     await generateSchemaWithModel(
       { document, annotations: [], annotationsMode: 'hints' },
       rawTarget,
@@ -328,13 +339,13 @@ describe('generateSchemaWithModel', () => {
   })
 
   it('uses the selected general target for schema suggestion', async () => {
-    generateTextMock.mockResolvedValue({ text: '{"grave":[{"name":"verbatim-string"}]}' })
+    generateTextMock.mockResolvedValue({ text: '{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}' })
     const result = await generateSchemaWithModel(
       { document, annotations: [], annotationsMode: 'hints' },
       generalTarget,
     )
     expect(generateTextMock).toHaveBeenCalledOnce()
-    expect(result.template).toEqual({ grave: [{ name: 'verbatim-string' }] })
+    expect(result.template).toEqual({ _description: 'One grave record.', grave: [{ name: 'verbatim-string' }] })
   })
 })
 

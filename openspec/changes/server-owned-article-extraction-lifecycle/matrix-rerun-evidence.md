@@ -29,3 +29,5 @@ All 80 provider invocations returned. The three rejected component contracts wer
 ## Gate result
 
 **Provider matrix release gate: blocked.** Codex passed the selected Article and Catalog path checks. The Ollama rerun did not: Article truncated and Catalog missed one exact start while grounding only 4/6 supported content metadata values. This confirms that `done_reason: length` must remain an incomplete outcome and that FREE must not silently fall back to another strategy or provider.
+
+Follow-up minimization showed that the Article failure used an obsolete model-authored Evidence shape rather than the implemented values-only operation, while Catalog exposed unreliable heading hierarchy in the retained canonical source. See [`provider-gate-solution-space.md`](provider-gate-solution-space.md) for the 78-call follow-up and revised rollout recommendation.

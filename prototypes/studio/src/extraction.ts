@@ -1,5 +1,4 @@
 import type { EvidenceLink } from '../shared/groundedExtraction'
-import type { GroundingIssue } from '../shared/extractionGrounding'
 
 export type ExtractionState =
   | { status: 'idle' }
@@ -8,7 +7,7 @@ export type ExtractionState =
       status: 'ready'
       result: Record<string, unknown>
       evidenceLinks: readonly EvidenceLink[]
-      groundingIssues: readonly GroundingIssue[]
+      ungroundedCount: number
     }
   | { status: 'error'; message: string }
   | { status: 'cancelled' }

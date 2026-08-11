@@ -1,6 +1,9 @@
 import { z } from 'zod'
-import { extractionAttemptSchema } from './articleExtraction.contract'
-import { schemaNodesSchema } from './schemaNode'
+import { extractionAttemptSchema } from './extraction.contract'
+import {
+  recordDescriptionSchema,
+  schemaNodesSchema,
+} from './schemaNode'
 
 export const canonicalUuidSchema = z
   .string()
@@ -86,6 +89,7 @@ export const reopenedExtractionSchema = extractionAttemptSchema
       .object({
         extractionSchemaId: canonicalUuidSchema,
         revisionNumber,
+        recordDescription: recordDescriptionSchema,
         schemaNodes: schemaNodesSchema,
       })
       .strict(),
@@ -116,6 +120,7 @@ export const documentReopenResponseSchema = z
         extractionSchemaId: canonicalUuidSchema,
         schemaRevisionId: canonicalUuidSchema,
         revisionNumber,
+        recordDescription: recordDescriptionSchema,
         schemaNodes: schemaNodesSchema,
       })
       .strict()
