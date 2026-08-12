@@ -292,12 +292,7 @@ describe('ProjectStore Extraction lifecycle on PostgreSQL', { skip: !enabled }, 
       representation2,
     )
     assert.equal(reopened?.latestAttempt?.schemaRevisionId, schemaRevision2)
-    assert.equal(reopened?.latestReviewed?.extractionId, reviewedId)
-    assert.equal(
-      reopened?.latestReviewed?.sourceRepresentationRevisionId,
-      representation1,
-    )
-    assert.equal(reopened?.latestReviewed?.schemaRevisionId, schemaRevision1)
+    assert.equal(reopened?.latestReviewed, null)
 
     await assert.rejects(
       db.orm.public.Extraction.where({ id: newerId }).update({ complete: false }),

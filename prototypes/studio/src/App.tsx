@@ -290,20 +290,11 @@ export function DocumentWorkspace({
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
-  const selectedSourceSnapshot = selectedInspectionId === latestReviewedExtraction?.extractionId
-    ? latestReviewedExtraction
-    : selectedInspectionId === persistedExtraction?.extractionId
-      ? persistedExtraction
-      : null
-  const viewerPdfUrl = selectedSourceSnapshot && selectedSourceSnapshot.sourceRepresentationRevisionId !== sourceRepresentationId
-    ? selectedSourceSnapshot.sourceRepresentation.resources.sourcePdfUrl
-    : pdfUrl
   const pdfSource = useMemo(
-    () => ({ url: viewerPdfUrl, filename }),
-    [filename, viewerPdfUrl],
+    () => ({ url: pdfUrl, filename }),
+    [filename, pdfUrl],
   )
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
-  const [pinnedDocIndex, setPinnedDocIndex] = useState<DocIndex>({ status: 'parsing' })
 
   useEffect(() => {
     if (!projectContextId || !durableSchema) return
@@ -565,14 +556,6 @@ export function DocumentWorkspace({
   }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl, pdfSource])
 
   function selectEvidenceAnchor(anchor: ParsedEvidenceAnchor) {
-    if (inspectionSourceSnapshot) {
-      const occurrence = reviewedAnchorOccurrences(
-        anchor,
-        reviewedOccurrenceIds(inspectedAttempt, anchor.anchor_id),
-      )[0]
-      if (occurrence) pdfViewerRef.current?.scrollPageIntoView({ pageNumber: occurrence.page_number })
-      return
-    }
     const viewer = pdfViewerRef.current
     const container = containerRef.current
     container
@@ -848,53 +831,13 @@ export function DocumentWorkspace({
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
-  const inspectedSnapshot = pinnedAttempt ?? (
-    selectedInspectionId === persistedExtraction?.extractionId
-      ? persistedExtraction
-      : null
-  )
-  const inspectionSourceSnapshot =
-    inspectedSnapshot?.sourceRepresentationRevisionId !== sourceRepresentationId
-      ? inspectedSnapshot
-      : null
-  const inspectionDocumentMarkdown = inspectionSourceSnapshot
-    ? pinnedDocIndex.status === 'ready' ? pinnedDocIndex.markdown : null
-    : documentMarkdown
-  const inspectionParsedDocument = inspectionSourceSnapshot
-    ? pinnedDocIndex.status === 'ready' ? pinnedDocIndex.document : null
-    : parsedDocument
-  function selectInspection(extractionId: string) {
-    const selected = extractionId === latestReviewedExtraction?.extractionId
-      ? latestReviewedExtraction
-      : extractionId === persistedExtraction?.extractionId
-        ? persistedExtraction
-        : null
-    if (selected?.sourceRepresentationRevisionId !== sourceRepresentationId) {
-      setPinnedDocIndex({ status: 'parsing' })
-    }
-    setSelectedInspectionId(extractionId)
-  }
-
-  useEffect(() => {
-    if (!inspectionSourceSnapshot) return
-    const controller = new AbortController()
-    void Promise.all([
-      readMarkdown(inspectionSourceSnapshot.sourceRepresentation.resources.markdownUrl, controller.signal),
-      readParsedDocument(inspectionSourceSnapshot.sourceRepresentation.resources.parsedDocumentUrl, controller.signal),
-    ]).then(([markdown, document]) => {
-      if (!controller.signal.aborted) setPinnedDocIndex({ status: 'ready', markdown, document })
-    }).catch((error) => {
-      if (!controller.signal.aborted) setPinnedDocIndex({ status: 'error', message: error instanceof Error ? error.message : 'Snapshot loading failed.' })
-    })
-    return () => controller.abort()
-  }, [inspectionSourceSnapshot])
 
   useEffect(() => {
     const container = containerRef.current
     const viewer = pdfViewerRef.current
     if (
       !container ||
-      !inspectionParsedDocument ||
+      !parsedDocument ||
       inspectedAttempt?.outcome !== 'SUCCEEDED' ||
       !effectiveRailOpen ||
       railTab !== 'results' ||
@@ -909,7 +852,7 @@ export function DocumentWorkspace({
       ]),
     )
     const anchors = new Map(
-      inspectionParsedDocument.evidence_index.anchors.map((anchor) => [anchor.anchor_id, anchor]),
+      parsedDocument.evidence_index.anchors.map((anchor) => [anchor.anchor_id, anchor]),
     )
     const fieldNames = pinnedAttempt
       ? pinnedAttempt.extractionSchema.schemaNodes.map((node) => node.name)
@@ -945,7 +888,7 @@ export function DocumentWorkspace({
           if (paintedOccurrenceIds.has(occurrence.occurrence_id)) continue
           paintedOccurrenceIds.add(occurrence.occurrence_id)
           firstOccurrence ??= occurrence
-          appendEvidenceOverlay(container, inspectionParsedDocument, occurrence, {
+          appendEvidenceOverlay(container, parsedDocument, occurrence, {
             className: 'parsed-evidence-highlight',
             background: color,
             evidenceAnchorId: anchor.anchor_id,
@@ -968,8 +911,7 @@ export function DocumentWorkspace({
   }, [
     effectiveRailOpen,
     inspectedAttempt,
-    inspectionParsedDocument,
-    inspectionSourceSnapshot,
+    parsedDocument,
     pinnedAttempt,
     railTab,
     resultPath,
@@ -1048,7 +990,7 @@ export function DocumentWorkspace({
           )}
           <div className="min-w-0 flex-1" />
           {inspectionChoices.length > 1 && (
-            <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''} onChange={(event) => selectInspection(event.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-xs">
+            <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''} onChange={(event) => setSelectedInspectionId(event.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-xs">
               {inspectionChoices.map((choice) => <option key={choice.extractionId} value={choice.extractionId}>{choice.label}</option>)}
             </select>
           )}
@@ -1166,7 +1108,7 @@ export function DocumentWorkspace({
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
-            inspection={{ attempt: inspectedAttempt, readOnly: inspectionReadOnly, documentMarkdown: inspectionDocumentMarkdown, parsedDocument: inspectionParsedDocument, reviewDecisions: inspectedAttempt?.reviewDecisions ?? [], pinnedSchema: pinnedAttempt?.extractionSchema ?? null }}
+            inspection={{ attempt: inspectedAttempt, readOnly: inspectionReadOnly, documentMarkdown, parsedDocument, reviewDecisions: inspectedAttempt?.reviewDecisions ?? [], pinnedSchema: pinnedAttempt?.extractionSchema ?? null }}
             sourceDocumentName={pdfSource.filename}
             onSelectEvidence={selectEvidenceAnchor}
             onResultPathChange={setResultPath}

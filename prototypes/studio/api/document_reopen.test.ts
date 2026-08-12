@@ -6,7 +6,6 @@ import { createGetDocumentReopen } from './document_reopen.js'
 const projectId = '11111111-1111-4111-8111-111111111111'
 const documentId = '22222222-2222-4222-8222-222222222222'
 const latestRepresentationId = '33333333-3333-4333-8333-333333333333'
-const reviewedRepresentationId = '44444444-4444-4444-8444-444444444444'
 const latestSchemaId = '55555555-5555-4555-8555-555555555555'
 const reviewedSchemaId = '66666666-6666-4666-8666-666666666666'
 
@@ -62,12 +61,12 @@ function snapshot(): DocumentReopenSnapshot {
       },
     },
     latestAttempt: attempt('99999999-9999-4999-8999-999999999999', latestRepresentationId, latestSchemaId, null),
-    latestReviewed: attempt('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', reviewedRepresentationId, reviewedSchemaId, new Date('2026-08-10T00:30:00Z')),
+    latestReviewed: attempt('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', latestRepresentationId, reviewedSchemaId, new Date('2026-08-10T00:30:00Z')),
   }
 }
 
 describe('document reopen Article attempts', () => {
-  it('returns latest attempt and latest reviewed with independent pins and resources', async () => {
+  it('returns current-representation attempts with their schema pins', async () => {
     const handler = createGetDocumentReopen({
       async getDocumentReopenSnapshot() {
         return snapshot()
@@ -84,9 +83,15 @@ describe('document reopen Article attempts', () => {
     expect(body.latestAttempt.sourceRepresentationRevisionId).toBe(latestRepresentationId)
     expect(body.latestAttempt.schemaRevisionId).toBe(latestSchemaId)
     expect(body.latestAttempt.sourceRepresentation.resources.sourcePdfUrl).toContain(latestRepresentationId)
-    expect(body.latestReviewed.sourceRepresentationRevisionId).toBe(reviewedRepresentationId)
+    expect(body.latestAttempt.sourceRepresentation.resources.sourcePdfUrl).toContain(
+      '?v=2026-08-10T01%3A00%3A00.000Z',
+    )
+    expect(body.latestReviewed.sourceRepresentationRevisionId).toBe(latestRepresentationId)
     expect(body.latestReviewed.schemaRevisionId).toBe(reviewedSchemaId)
-    expect(body.latestReviewed.sourceRepresentation.resources.sourcePdfUrl).toContain(reviewedRepresentationId)
+    expect(body.latestReviewed.sourceRepresentation.resources.sourcePdfUrl).toContain(latestRepresentationId)
+    expect(body.latestReviewed.sourceRepresentation.resources.sourcePdfUrl).toContain(
+      '?v=2026-08-10T01%3A00%3A00.000Z',
+    )
   })
 
   it('fails closed for an unreadable schema tree', async () => {

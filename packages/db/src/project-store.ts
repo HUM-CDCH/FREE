@@ -78,7 +78,7 @@ export type SourceDocumentSummary = {
   createdAt: Date
 }
 
-/** One Source Document's heads plus independent latest-attempt/review snapshots. */
+/** One Source Document's head plus its current attempt/review snapshots. */
 export type DocumentReopenSnapshot = {
   projectContext: ProjectContextSummary
   sourceDocument: SourceDocumentSummary
@@ -395,16 +395,14 @@ export function createProjectStore(database: Database = db): ProjectStore {
         if (!document || document.projectContextId !== projectContextId)
           return null
 
-        const representations =
+        const representation =
           await orm.public.SourceRepresentationRevision.where({
             sourceDocumentId,
           })
             .select('id', 'revisionNumber', 'createdAt')
             .orderBy((revision) => revision.revisionNumber.desc())
-            .all()
-        if (!representations.length) return null
-
-        const representation = representations[0]
+            .first()
+        if (!representation) return null
 
         const annotationSet = await orm.public.AnnotationSetRevision.where({
           sourceDocumentId,
@@ -440,6 +438,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
 
         const latestAttempt = await orm.public.Extraction.where({
           sourceDocumentId,
+          sourceRepresentationRevisionId: representation.id,
         })
           .select('id')
           .orderBy([
@@ -449,6 +448,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
           .first()
         const latestReviewed = await orm.public.Extraction.where({
           sourceDocumentId,
+          sourceRepresentationRevisionId: representation.id,
         })
           .where((attempt) => attempt.reviewedAt.isNotNull())
           .select('id')

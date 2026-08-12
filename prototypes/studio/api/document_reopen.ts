@@ -42,6 +42,7 @@ function durable<T>(schema: z.ZodType<T>, value: unknown): T {
 
 function extractionDto(
   extraction: DocumentReopenSnapshot['latestAttempt'],
+  resourceVersion: string,
 ) {
   if (!extraction) return null
   const attempt = durable(extractionAttemptSchema, {
@@ -104,6 +105,7 @@ function extractionDto(
       revisionNumber: extraction.sourceRepresentationRevisionNumber,
       resources: representationResources(
         extraction.sourceRepresentationRevisionId,
+        resourceVersion,
       ),
     },
     extractionSchema: {
@@ -114,9 +116,12 @@ function extractionDto(
   }
 }
 
-function representationResources(sourceRepresentationId: string) {
+function representationResources(
+  sourceRepresentationId: string,
+  version: string,
+) {
   const resource = (artifact: string) =>
-    `/api/source-representations/${sourceRepresentationId}/${artifact}`
+    `/api/source-representations/${sourceRepresentationId}/${artifact}?v=${version}`
   return {
     sourcePdfUrl: resource('pdf'),
     markdownUrl: resource('markdown'),
@@ -131,6 +136,8 @@ function representationResources(sourceRepresentationId: string) {
  */
 function reopenResponse(snapshot: DocumentReopenSnapshot) {
   const { sourceRepresentation: representation } = snapshot
+  // A local reset can recreate a seeded representation ID with new artifacts.
+  const resourceVersion = encodeURIComponent(representation.createdAt.toISOString())
   const currentSchema = snapshot.extractionSchema
     ? durable(schemaDefinitionSchema, snapshot.extractionSchema.schemaTree)
     : null
@@ -148,6 +155,7 @@ function reopenResponse(snapshot: DocumentReopenSnapshot) {
       revisionNumber: representation.revisionNumber,
       resources: representationResources(
         representation.sourceRepresentationId,
+        resourceVersion,
       ),
     },
     annotationSet:
@@ -168,8 +176,8 @@ function reopenResponse(snapshot: DocumentReopenSnapshot) {
         revisionNumber: snapshot.extractionSchema.revisionNumber,
         ...currentSchema!,
       },
-    latestAttempt: extractionDto(snapshot.latestAttempt),
-    latestReviewed: extractionDto(snapshot.latestReviewed),
+    latestAttempt: extractionDto(snapshot.latestAttempt, resourceVersion),
+    latestReviewed: extractionDto(snapshot.latestReviewed, resourceVersion),
   })
 }
 

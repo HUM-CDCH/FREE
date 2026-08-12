@@ -48,14 +48,18 @@ pnpm dev                       # Run backend and frontend dev servers concurrent
 pnpm dev:gpu                   # The same, but install the GPU OCR profile first
 pnpm test                      # Run all backend and frontend tests recursively
 pnpm build                     # Compile the frontend assets
+pnpm db:reset                  # Destructively recreate only the local `free` database
 pnpm db:seed                   # Seed the example Project Contexts and Source Documents
 ```
 
 FREE keeps its research state in PostgreSQL 17. Start the database with
 `docker compose -f packages/db/docker-compose.yml up -d`, copy
 `packages/db/.env.example` to `packages/db/.env`, then create the schema with
-`pnpm --filter db db:init`. `packages/db` also holds `db:verify`, `db:update`,
-and `db:studio`.
+`pnpm --filter db db:init`. `pnpm dev` fails before starting the servers when
+the database does not match the current branch. For a disposable local database,
+run `pnpm db:reset`, restart the servers, and re-run `pnpm db:seed`; the reset
+refuses remote URLs and database names other than `free`. `packages/db` also
+holds `db:verify`, `db:update`, and `db:studio`.
 
 `pnpm db:seed` ingests each example PDF through the Parsing Service so its Source
 Documents own portable canonical packages outside the disposable Parsing Service

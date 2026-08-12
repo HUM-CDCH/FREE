@@ -773,65 +773,6 @@ describe('reopened Source Document workspace', () => {
 })
 
 
-describe('historical extraction inspection', () => {
-  it('switches pinned resources without disturbing the live schema draft', async () => {
-    const calls: string[] = []
-    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
-      const url = String(input); calls.push(url)
-      return Promise.resolve(url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Historical'))
-    }))
-    const latest = reopened.persistedExtraction!
-    const reviewed = { ...latest, extractionId: '51000000-0000-4000-8006-000000000009', sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000099', reviewedAt: '2026-08-09T00:00:00.000Z', resultPayload: { place: 'Historical place' }, reviewDecisions: [{ reviewDecisionId: '51000000-0000-4000-8007-000000000009', evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'] }], sourceRepresentation: { revisionNumber: 9, resources: { sourcePdfUrl: '/api/source-representations/old/pdf', markdownUrl: '/api/source-representations/old/markdown', parsedDocumentUrl: '/api/source-representations/old/source' } }, extractionSchema: { ...latest.extractionSchema, revisionNumber: 9, recordDescription: 'Historical record.', schemaNodes: [{ id: 'old-place', name: 'historical_place', type: 'string' as const }] } }
-    render(<DocumentWorkspace {...reopened} latestReviewedExtraction={reviewed} />)
-    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    const draft = screen.getByLabelText('One root record')
-    fireEvent.change(draft, { target: { value: 'Unsaved live draft.' } })
-    fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: reviewed.extractionId } })
-    await waitFor(() => { expect(calls).toContain('/api/source-representations/old/markdown'); expect(calls).toContain('/api/source-representations/old/source') })
-    expect(getDocument).toHaveBeenLastCalledWith({ url: '/api/source-representations/old/pdf' })
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    expect(await screen.findByText('Historical place')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Pinned schema' }))
-    expect(screen.getByText(/historical_place/)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Accept result' })).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: latest.extractionId } })
-    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    expect(screen.getByLabelText('One root record')).toHaveValue('Unsaved live draft.')
-  })
-
-  it('uses the latest attempt source pin when it differs from the open representation', async () => {
-    const calls: string[] = []
-    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
-      const url = String(input)
-      calls.push(url)
-      return Promise.resolve(url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Pinned latest'))
-    }))
-    const latest = reopened.persistedExtraction!
-    const pinnedLatest = {
-      ...latest,
-      sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000099',
-      sourceRepresentation: {
-        revisionNumber: 9,
-        resources: {
-          sourcePdfUrl: '/api/source-representations/old/pdf',
-          markdownUrl: '/api/source-representations/old/markdown',
-          parsedDocumentUrl: '/api/source-representations/old/source',
-        },
-      },
-    }
-
-    render(<DocumentWorkspace {...reopened} persistedExtraction={pinnedLatest} />)
-
-    await waitFor(() => {
-      expect(calls).toContain('/api/source-representations/old/markdown')
-      expect(calls).toContain('/api/source-representations/old/source')
-    })
-    expect(getDocument).toHaveBeenLastCalledWith({ url: '/api/source-representations/old/pdf' })
-  })
-})
-
-
 describe('updated latest reviewed extraction', () => {
   it('refreshes the historical choice after rerender', async () => {
     vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) =>
@@ -844,24 +785,6 @@ describe('updated latest reviewed extraction', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     rerender(<DocumentWorkspace {...reopened} latestReviewedExtraction={second} />)
     expect(screen.getByRole<HTMLOptionElement>('option', { name: 'Latest reviewed' }).value).toBe(second.extractionId)
-  })
-
-  it('fails closed when the pinned source snapshot cannot be loaded', async () => {
-    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
-      const url = String(input)
-      if (url.includes('/old/')) return Promise.resolve(new Response('gone', { status: 404 }))
-      return Promise.resolve(url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Current source'))
-    }))
-    const latest = reopened.persistedExtraction!
-    const reviewed = { ...latest, extractionId: '51000000-0000-4000-8006-000000000009', sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000099', reviewedAt: '2026-08-09T00:00:00.000Z', sourceRepresentation: { revisionNumber: 9, resources: { sourcePdfUrl: '/api/source-representations/old/pdf', markdownUrl: '/api/source-representations/old/markdown', parsedDocumentUrl: '/api/source-representations/old/source' } } }
-    render(<DocumentWorkspace {...reopened} latestReviewedExtraction={reviewed} />)
-    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
-
-    fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: reviewed.extractionId } })
-    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Markdown' }))
-    expect(screen.getByText('Markdown unavailable')).toBeInTheDocument()
-    expect(screen.queryByText('# Current source')).not.toBeInTheDocument()
   })
 
 })

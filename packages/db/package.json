@@ -7,10 +7,11 @@
   "scripts": {
     "test": "tsx --test src/*.test.ts",
     "contract:emit": "prisma-next contract emit",
+    "db:reset": "tsx src/reset-database.ts && prisma-next db init",
     "db:seed": "tsx src/seed.ts",
     "db:init": "prisma-next migrate --yes",
     "db:update": "prisma-next db update",
-    "db:verify": "prisma-next db verify",
+    "db:verify": "tsx src/verify-database.ts",
     "db:migrate": "prisma-next migrate",
     "db:studio": "set -a && . ./.env && set +a && npx prisma@dev studio --url \"$DATABASE_URL\""
   },
@@ -20,6 +21,7 @@
   "packageManager": "pnpm@10.9.0",
   "devDependencies": {
     "@types/node": "^24.13.2",
+    "@types/pg": "^8.21.0",
     "prisma-next": "^0.16.0",
     "tsx": "^4.23.4",
     "typescript": "~6.0.3"
@@ -28,6 +30,7 @@
     "@prisma-next/postgres": "^0.16.0",
     "dotenv": "^17.4.2",
     "env-paths": "^4.0.0",
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "pg": "8.22.0"
   }
 }
