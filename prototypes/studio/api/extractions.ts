@@ -217,11 +217,9 @@ function occurrenceOwnership(document: ReturnType<typeof decodeParsedDocument>) 
     document.evidence_index.anchors.map((anchor) => [
       anchor.anchor_id,
       new Set(
-        anchor.kind === 'text'
-          ? [anchor.occurrence_id]
-          : anchor.producer_observations.map(
-              (observation) => observation.occurrence_id,
-            ),
+        anchor.producer_observations.map(
+          (observation) => observation.occurrence_id,
+        ),
       ),
     ]),
   )

@@ -15,6 +15,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.parsing.docling_inventory import (
+    multi_page_text_inventory as _multi_page_text_inventory,
+)
 from app.parsing.docling_inventory import table_inventory as _table_inventory
 from app.storage.atomic_json import write_json_atomic, write_text_atomic
 from app.storage.hashing import compute_sha256
@@ -44,6 +47,7 @@ class DoclingRunnerOutput:
     page_mapping_verified: bool = False
     physical_page_export_complete: bool = False
     table_inventory: tuple[dict[str, Any], ...] = ()
+    multi_page_text_inventory: tuple[dict[str, Any], ...] = ()
     # Raw producer records are retained only for the reviewed continuation gate.
     producer_records: tuple[dict[str, Any], ...] = ()
     canonical_doctags: str = ""
@@ -314,6 +318,7 @@ def run_docling_ingestion(
         )
 
     inventory = _table_inventory(document)
+    text_inventory = _multi_page_text_inventory(document)
     raw_docling_json_ref = _persist_docling_json(document, artifact_dir, warnings)
     streams = _select_doctags_streams(document, physical_pages, warnings)
     raw_doctags_ref, aggregate_doctags_ref = _persist_doctags(
@@ -347,6 +352,7 @@ def run_docling_ingestion(
         page_mapping_verified=simplified.page_mapping_verified,
         physical_page_export_complete=streams.physical_page_export_complete,
         table_inventory=inventory,
+        multi_page_text_inventory=text_inventory,
         producer_records=tuple(
             item["producer_record"]
             for item in inventory

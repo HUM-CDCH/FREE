@@ -102,13 +102,18 @@ def _document(source: bytes = b"%PDF-1.7\n") -> ParsedDocument:
                     {
                         "kind": "text",
                         "anchor_id": "anchor-1",
-                        "occurrence_id": "occurrence-1",
                         "content_sha256": digest,
                         "preprocess_id": "sha256:policy",
                         "block_id": "block-1",
-                        "page_number": 1,
                         "markdown_span": {"start": 21, "end": 25},
-                        "bbox": {"x0": 10, "y0": 20, "x1": 100, "y1": 40},
+                        "producer_observations": [
+                            {
+                                "occurrence_id": "occurrence-1",
+                                "page_number": 1,
+                                "producer_ref": "#/texts/1",
+                                "bbox": {"x0": 10, "y0": 20, "x1": 100, "y1": 40},
+                            }
+                        ],
                     }
                 ]
             },

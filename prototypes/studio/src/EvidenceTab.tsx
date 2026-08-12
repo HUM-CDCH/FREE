@@ -7,7 +7,7 @@ import type { ExtractionAttempt } from '../shared/extraction.contract'
 function groupByPage(anchors: ParsedEvidenceAnchor[]) {
   const groups = new Map<number, ParsedEvidenceAnchor[]>()
   for (const anchor of anchors) {
-    const page = anchor.kind === 'text' ? anchor.page_number : anchor.producer_observations[0].page_number
+    const page = anchor.producer_observations[0].page_number
     groups.set(page, [...(groups.get(page) ?? []), anchor])
   }
   return [...groups.entries()].sort(([left], [right]) => left - right)
@@ -19,9 +19,10 @@ function Detail({ children }: { children: ReactNode }) {
 
 function TextAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: TextEvidenceAnchor; document: ParsedDocument; onSelect: () => void; reviewedCount: number }) {
   const block = blockForAnchor(document, anchor)
+  const observation = anchor.producer_observations[0]
   const blockText = block && ('text' in block ? block.text : block.kind === 'list' ? block.items.join(' ') : '')
   return (
-    <button type="button" onClick={onSelect} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-accent/60 hover:bg-accent-ghost focus-visible:outline-2 focus-visible:outline-accent" aria-label={`Evidence anchor ${anchor.anchor_id} on page ${anchor.page_number}`}>
+    <button type="button" onClick={onSelect} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-left transition-colors hover:border-accent/60 hover:bg-accent-ghost focus-visible:outline-2 focus-visible:outline-accent" aria-label={`Evidence anchor ${anchor.anchor_id} on page ${observation.page_number}`}>
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-xs font-semibold text-ink">{blockText || 'Text block'}</span>
         <Detail>text</Detail>
@@ -29,7 +30,7 @@ function TextAnchor({ anchor, document, onSelect, reviewedCount }: { anchor: Tex
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         <Detail>block {anchor.block_id}</Detail>
         <Detail>UTF-8 bytes {anchor.markdown_span.start}–{anchor.markdown_span.end}</Detail>
-        <Detail>{anchor.bbox ? 'geometry verified' : 'geometry unavailable'}</Detail>
+        <Detail>{anchor.producer_observations.length} occurrence{anchor.producer_observations.length === 1 ? '' : 's'} · geometry verified</Detail>
         {reviewedCount > 0 && <Detail>{reviewedCount} reviewed occurrence{reviewedCount === 1 ? '' : 's'}</Detail>}
       </div>
     </button>

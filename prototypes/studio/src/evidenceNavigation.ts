@@ -2,18 +2,13 @@ import type {
   ParsedEvidenceAnchor,
   ParsedDocument,
   ProducerObservation,
-  TextEvidenceAnchor,
+  TextProducerObservation,
 } from '../shared/parsedDocument'
 
-export type EvidenceOccurrence = Pick<
-  TextEvidenceAnchor,
-  'occurrence_id' | 'page_number' | 'bbox'
-> | ProducerObservation
+export type EvidenceOccurrence = TextProducerObservation | ProducerObservation
 
 export function anchorOccurrences(anchor: ParsedEvidenceAnchor): EvidenceOccurrence[] {
-  return anchor.kind === 'text'
-    ? [anchor]
-    : anchor.producer_observations
+  return anchor.producer_observations
 }
 
 export function reviewedAnchorOccurrences(

@@ -1,9 +1,9 @@
 """Canonical, portable ``parsed_document.v2`` contract.
 
 The parser keeps richer generation state internally, but this module is the
-only document shape that may cross the route/package boundary.  In
-particular, producer observations live on table-cell anchors exactly once;
-logical table cells and page spans contain only derived/public structure.
+only document shape that may cross the route/package boundary. Producer
+observations live on Evidence anchors exactly once; content blocks, logical
+table cells, and page spans contain only derived/public structure.
 """
 
 from __future__ import annotations
@@ -148,18 +148,28 @@ class ParserDiagnostic(BaseModel):
     page_number: int | None = Field(default=None, ge=1)
 
 
+class ProducerTextObservation(BaseModel):
+    """One page-scoped producer location for one logical text block."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    occurrence_id: str
+    page_number: int = Field(ge=1)
+    producer_ref: str | None = None
+    bbox: BoundingBox
+
+
 class TextEvidenceAnchor(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     kind: Literal["text"] = "text"
     anchor_id: str
-    occurrence_id: str
     content_sha256: str
     preprocess_id: str
     block_id: str
-    page_number: int = Field(ge=1)
     markdown_span: MarkdownByteSpan
-    bbox: BoundingBox
+
+    producer_observations: list[ProducerTextObservation] = Field(min_length=1)
 
 
 class ProducerTableCellObservation(BaseModel):
@@ -502,14 +512,10 @@ class ParsedDocument(BaseModel):
                 raise ValueError("v2 Evidence Anchor IDs must be unique")
             if anchor.preprocess_id != self.preprocessing.preprocess_id or anchor.content_sha256 != self.document.content_sha256:
                 raise ValueError("v2 Evidence Anchor identity does not match the document")
-            occurrences = (
-                [(anchor.occurrence_id, anchor.page_number)]
-                if isinstance(anchor, TextEvidenceAnchor)
-                else [
-                    (observation.occurrence_id, observation.page_number)
-                    for observation in anchor.producer_observations
-                ]
-            )
+            occurrences = [
+                (observation.occurrence_id, observation.page_number)
+                for observation in anchor.producer_observations
+            ]
             for occurrence_id, page_number in occurrences:
                 if occurrence_id in occurrence_ids:
                     raise ValueError("v2 Evidence occurrence IDs must be unique")
@@ -518,11 +524,8 @@ class ParsedDocument(BaseModel):
                         "v2 Evidence Anchor references an unknown physical page"
                     )
                 occurrence_ids.add(occurrence_id)
-            if isinstance(anchor, TextEvidenceAnchor):
-                require_safe_bbox(anchor.bbox, anchor.page_number)
-            else:
-                for observation in anchor.producer_observations:
-                    require_safe_bbox(observation.bbox, observation.page_number)
+            for observation in anchor.producer_observations:
+                require_safe_bbox(observation.bbox, observation.page_number)
             anchors_by_id[anchor.anchor_id] = anchor
 
         for anchor in self.evidence_index.anchors:
@@ -530,10 +533,11 @@ class ParsedDocument(BaseModel):
                 block = blocks_by_id.get(anchor.block_id)
                 if block is None or isinstance(block, (TableReferenceBlock, PageBreakBlock)):
                     raise ValueError("v2 text Evidence Anchor references a non-text block")
+                first = anchor.producer_observations[0]
                 if (
-                    block.page_number != anchor.page_number
+                    block.page_number != first.page_number
                     or block.markdown_span != anchor.markdown_span
-                    or block.bbox != anchor.bbox
+                    or block.bbox != first.bbox
                 ):
                     raise ValueError("v2 text Evidence Anchor does not match its block span")
             else:
@@ -588,6 +592,6 @@ __all__ = [
     "FormulaBlock", "CaptionBlock", "TableReferenceBlock", "PageBreakBlock", "CanonicalTableCell",
     "LogicalTablePageSpan", "LogicalTable", "ParsedPageV2", "ArtifactManifestV2", "PublicPreprocessingMetadata",
     "PublicPageDecision", "PublicArbitrationResult",
-    "ParsedDocument", "EvidenceAnchor", "EvidenceIndex", "TextEvidenceAnchor",
+    "ParsedDocument", "EvidenceAnchor", "EvidenceIndex", "TextEvidenceAnchor", "ProducerTextObservation",
     "ProducerTableCellObservation", "TableCellEvidenceAnchor",
 ]

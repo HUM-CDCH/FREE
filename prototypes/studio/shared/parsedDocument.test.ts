@@ -10,7 +10,7 @@ const fixture = {
   pages: [{ page_number: 1, width_pt: 100, height_pt: 200, rotation: 0, ordered_content: ['b1'], unplaced_content: [], markdown_span: null }, { page_number: 2, width_pt: 200, height_pt: 100, rotation: 90, ordered_content: [], unplaced_content: ['t1'], markdown_span: null }],
   content_stream: [{ kind: 'paragraph', block_id: 'b1', page_number: 1, parser: 'test', bbox: { x0: 1, y0: 2, x1: 40, y1: 20 }, markdown_span: { start: 21, end: 25 }, text: 'Text' }],
   tables: [{ table_id: 't1', continuation: 'derived_continuation', rows: 1, cols: 1, cells: [{ cell_id: 'c1', row: 0, column: 0, text: 'Cell', role: 'data', rowspan: 1, colspan: 1, bbox: { x0: 5, y0: 5, x1: 30, y1: 20 }, evidence_anchor_id: 'a2' }], spans: [{ page_number: 2, producer_table_ref: '#/tables/1', page_local_row_start: 0, page_local_row_end: 0, page_local_col_count: 1 }], parser_attribution: { content_parser: { parser: 'docling', version: null }, structure_parser: { parser: 'docling', version: null }, geometry_parser: { parser: 'docling', version: null } } }],
-  evidence_index: { anchors: [{ kind: 'text', anchor_id: 'a1', occurrence_id: 'o1', content_sha256: sha, preprocess_id: 'test', block_id: 'b1', page_number: 1, markdown_span: { start: 21, end: 25 }, bbox: { x0: 1, y0: 2, x1: 40, y1: 20 } }, { kind: 'table_cell', anchor_id: 'a2', content_sha256: sha, preprocess_id: 'test', logical_table_id: 't1', cell_id: 'c1', canonical_row: 0, canonical_column: 0, producer_observations: [{ occurrence_id: 'o2', page_number: 2, row_offset: 0, column_offset: 0, row_span: 1, column_span: 1, producer_ref: '#/tables/1', bbox: { x0: 5, y0: 5, x1: 30, y1: 20 } }] }] },
+  evidence_index: { anchors: [{ kind: 'text', anchor_id: 'a1', content_sha256: sha, preprocess_id: 'test', block_id: 'b1', markdown_span: { start: 21, end: 25 }, producer_observations: [{ occurrence_id: 'o1', page_number: 1, producer_ref: '#/texts/1', bbox: { x0: 1, y0: 2, x1: 40, y1: 20 } }] }, { kind: 'table_cell', anchor_id: 'a2', content_sha256: sha, preprocess_id: 'test', logical_table_id: 't1', cell_id: 'c1', canonical_row: 0, canonical_column: 0, producer_observations: [{ occurrence_id: 'o2', page_number: 2, row_offset: 0, column_offset: 0, row_span: 1, column_span: 1, producer_ref: '#/tables/1', bbox: { x0: 5, y0: 5, x1: 30, y1: 20 } }] }] },
 }
 
 describe('parsed_document.v2 decoder', () => {
@@ -29,10 +29,10 @@ describe('parsed_document.v2 decoder', () => {
 
   it('rejects missing or out-of-page Evidence geometry', () => {
     const textAnchor = fixture.evidence_index.anchors[0]
-    const withoutBbox = { ...textAnchor } as Record<string, unknown>
+    const withoutBbox = { ...textAnchor.producer_observations[0] } as Record<string, unknown>
     delete withoutBbox.bbox
-    expect(() => decodeParsedDocument({ ...fixture, evidence_index: { anchors: [withoutBbox, fixture.evidence_index.anchors[1]] } })).toThrow()
-    expect(() => decodeParsedDocument({ ...fixture, evidence_index: { anchors: [{ ...textAnchor, bbox: { x0: 1, y0: 2, x1: 101, y1: 20 } }, fixture.evidence_index.anchors[1]] } })).toThrow()
+    expect(() => decodeParsedDocument({ ...fixture, evidence_index: { anchors: [{ ...textAnchor, producer_observations: [withoutBbox] }, fixture.evidence_index.anchors[1]] } })).toThrow()
+    expect(() => decodeParsedDocument({ ...fixture, evidence_index: { anchors: [{ ...textAnchor, producer_observations: [{ ...textAnchor.producer_observations[0], bbox: { x0: 1, y0: 2, x1: 101, y1: 20 } }] }, fixture.evidence_index.anchors[1]] } })).toThrow()
   })
 
   // The Python model is the authority: an occurrence resolves to exactly one page

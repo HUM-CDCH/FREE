@@ -25,10 +25,10 @@ physical occurrences inspected by a researcher.
 
 ## Decisions
 
-1. `parsed_document.v2` remains the only authority. Text anchors own one
-   occurrence; table-cell anchors own an ordered non-empty collection of
-   producer observations. Each occurrence has a deterministic ID unique within
-   the pinned generation. Page, text, and geometry remain derived fields.
+1. `parsed_document.v2` remains the only authority. Text and table-cell anchors
+   own ordered non-empty collections of page-scoped producer observations. Each
+   occurrence has a deterministic ID unique within the pinned generation. Page,
+   text, and geometry remain derived fields.
 2. Studio proxies and decodes the complete strict v2 DTO. It does not manufacture
    anchors or project pages into an alternate shape.
 3. A Review Decision belongs to one successful Extraction and stores an anchor

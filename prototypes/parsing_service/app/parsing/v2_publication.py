@@ -16,6 +16,7 @@ from app.models.parsed_document_v2 import (
     MarkdownByteSpan,
     ParsedPageV2,
     ProducerTableCellObservation,
+    ProducerTextObservation,
     TableCellEvidenceAnchor,
     TextEvidenceAnchor,
     V2_GEOMETRY_ERROR_CODE,
@@ -246,6 +247,10 @@ def build_evidence_index(
     *,
     content_sha256: str,
     preprocess_id: str,
+    text_producer_observations: Mapping[
+        str, Sequence[Mapping[str, Any]]
+    ]
+    | None = None,
     producer_observations: Mapping[
         str, Sequence[ProducerTableCellObservation]
     ]
@@ -253,6 +258,7 @@ def build_evidence_index(
 ) -> EvidenceIndex:
     """Build exactly one typed text or table-cell anchor per published value."""
     anchors: list[TextEvidenceAnchor | TableCellEvidenceAnchor] = []
+    text_observations = text_producer_observations or {}
     for block in blocks:
         span = rendered.block_spans.get(block.block_id)
         if span is None or block.kind in {"table", "page_break"}:
@@ -261,18 +267,40 @@ def build_evidence_index(
             raise ValueError(
                 f"{V2_GEOMETRY_ERROR_CODE}: text block {block.block_id} has no producer geometry"
             )
+        observed = text_observations.get(block.block_id) or (
+            {
+                "page_number": block.page_number,
+                "producer_ref": None,
+                "bbox": block.bbox,
+            },
+        )
+        occurrences = [
+            ProducerTextObservation(
+                occurrence_id=_identity(
+                    content_sha256,
+                    preprocess_id,
+                    "text-occurrence",
+                    block.block_id,
+                    *(() if index == 0 else (str(index),)),
+                ),
+                page_number=int(item["page_number"]),
+                producer_ref=(
+                    str(item["producer_ref"])
+                    if item.get("producer_ref") is not None
+                    else None
+                ),
+                bbox=item["bbox"],
+            )
+            for index, item in enumerate(observed)
+        ]
         anchors.append(
             TextEvidenceAnchor(
                 anchor_id=_identity(content_sha256, preprocess_id, "text", block.block_id),
-                occurrence_id=_identity(
-                    content_sha256, preprocess_id, "text-occurrence", block.block_id
-                ),
                 content_sha256=content_sha256,
                 preprocess_id=preprocess_id,
                 block_id=block.block_id,
-                page_number=block.page_number,
                 markdown_span=MarkdownByteSpan(start=span.start, end=span.end),
-                bbox=block.bbox,
+                producer_observations=occurrences,
             )
         )
 
@@ -387,14 +415,10 @@ def validate_publication(
         return
     anchors = evidence_index.anchors
     for anchor in anchors:
-        occurrences = (
-            [(anchor.page_number, anchor.bbox)]
-            if isinstance(anchor, TextEvidenceAnchor)
-            else [
-                (observation.page_number, observation.bbox)
-                for observation in anchor.producer_observations
-            ]
-        )
+        occurrences = [
+            (observation.page_number, observation.bbox)
+            for observation in anchor.producer_observations
+        ]
         for page_number, bbox in occurrences:
             page = pages_by_number.get(page_number)
             if (

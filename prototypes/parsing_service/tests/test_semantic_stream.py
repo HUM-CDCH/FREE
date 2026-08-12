@@ -5,6 +5,7 @@ import unittest
 from app.models.parser_output import ParsedTable, TableCell
 from app.parsing.semantic_stream import (
     TableSlot,
+    apply_multi_page_text_provenance,
     doctags_to_intermediate_blocks,
     derive_logical_table_groups,
     match_table_slot,
@@ -54,7 +55,7 @@ class TestSemanticStream(unittest.TestCase):
         blocks = ocr_pages_to_blocks(lines)
         self.assertEqual([block.text for block in blocks], ["First", "Second"])
         self.assertEqual([block.geometry for block in blocks], lines[2])
-        published = semantic_blocks_to_v2(blocks, "a" * 64, "test", parser="paddleocr")
+        published, _ = semantic_blocks_to_v2(blocks, "a" * 64, "test", parser="paddleocr")
         self.assertEqual(
             [block.bbox.model_dump() for block in published],
             [
@@ -68,10 +69,61 @@ class TestSemanticStream(unittest.TestCase):
             "<text><loc_50><loc_100><loc_250><loc_200>Body</text>",
             page_sizes={1: (100, 200)},
         )[0]
-        published = semantic_blocks_to_v2(blocks, "a" * 64, "test")
+        published, _ = semantic_blocks_to_v2(blocks, "a" * 64, "test")
         self.assertEqual(
             published[0].bbox.model_dump(),
             {"x0": 10.0, "y0": 40.0, "x1": 50.0, "y1": 80.0},
+        )
+
+    def test_multi_page_text_keeps_page_scoped_geometry(self):
+        blocks = doctags_to_intermediate_blocks(
+            "<text><loc_50><loc_400><loc_450><loc_450>"
+            "<loc_50><loc_50><loc_450><loc_100>Across pages</text>",
+            page_sizes={1: (100, 200)},
+        )[0]
+
+        enriched = apply_multi_page_text_provenance(
+            blocks,
+            (
+                {
+                    "producer_ref": "#/texts/1",
+                    "text": "Across pages",
+                    "observations": [
+                        {
+                            "page_number": 1,
+                            "charspan": [0, 6],
+                            "bbox": {
+                                "x0": 10,
+                                "y0": 20,
+                                "x1": 90,
+                                "y1": 40,
+                                "origin": "BOTTOMLEFT",
+                            },
+                        },
+                        {
+                            "page_number": 2,
+                            "charspan": [7, 12],
+                            "bbox": {
+                                "x0": 10,
+                                "y0": 160,
+                                "x1": 90,
+                                "y1": 180,
+                                "origin": "BOTTOMLEFT",
+                            },
+                        },
+                    ],
+                },
+            ),
+            page_sizes={1: (100, 200), 2: (100, 200)},
+        )
+
+        self.assertEqual(
+            enriched[0].geometry,
+            {"x0": 10.0, "y0": 160.0, "x1": 90.0, "y1": 180.0},
+        )
+        self.assertEqual(
+            [item["page_number"] for item in enriched[0].evidence_observations],
+            [1, 2],
         )
 
     def test_inline_table_slot_is_preserved_until_canonical_matching(self):

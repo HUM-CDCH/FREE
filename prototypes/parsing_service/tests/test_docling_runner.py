@@ -64,6 +64,41 @@ class TableDoclingDocument(PhysicalPageDoclingDocument):
         ]
 
 
+class MultiPageTextDoclingDocument(PhysicalPageDoclingDocument):
+    def __init__(self) -> None:
+        super().__init__()
+        self.texts = [
+            SimpleNamespace(
+                self_ref="#/texts/0",
+                text="Across pages",
+                prov=[
+                    SimpleNamespace(
+                        page_no=1,
+                        charspan=(0, 6),
+                        bbox=SimpleNamespace(
+                            l=10,
+                            t=40,
+                            r=90,
+                            b=20,
+                            coord_origin=SimpleNamespace(value="BOTTOMLEFT"),
+                        ),
+                    ),
+                    SimpleNamespace(
+                        page_no=2,
+                        charspan=(7, 12),
+                        bbox=SimpleNamespace(
+                            l=10,
+                            t=180,
+                            r=90,
+                            b=160,
+                            coord_origin=SimpleNamespace(value="BOTTOMLEFT"),
+                        ),
+                    ),
+                ],
+            )
+        ]
+
+
 class TestDoclingRunner(unittest.TestCase):
     def test_conversion_unloads_the_input_backend(self):
         document = object()
@@ -178,6 +213,30 @@ class TestDoclingRunner(unittest.TestCase):
         self.assertEqual((inventory["rows"], inventory["cols"]), (1, 1))
         self.assertEqual(inventory["cells"][0]["role"], "header")
         self.assertEqual(inventory["cells"][0]["bbox"]["origin"], "TOPLEFT")
+
+    def test_multi_page_text_inventory_preserves_page_scoped_provenance(self):
+        document = MultiPageTextDoclingDocument()
+        with tempfile.TemporaryDirectory(dir=SERVICE_ROOT) as tmp_dir:
+            source = Path(tmp_dir) / "source.pdf"
+            source.write_bytes(b"%PDF-1.4\n")
+            with patch(
+                "app.parsing.docling_runner._convert_document", return_value=document
+            ):
+                output = run_docling_ingestion(
+                    source,
+                    CONTENT_HASH,
+                    physical_pages=[1, 2],
+                    artifact_root=Path(tmp_dir) / "artifacts",
+                )
+
+        self.assertEqual(len(output.multi_page_text_inventory), 1)
+        self.assertEqual(
+            [
+                item["page_number"]
+                for item in output.multi_page_text_inventory[0]["observations"]
+            ],
+            [1, 2],
+        )
 
     def test_legacy_export_does_not_claim_physical_page_mapping(self):
         with tempfile.TemporaryDirectory(dir=SERVICE_ROOT) as tmp_dir:

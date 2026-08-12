@@ -83,9 +83,30 @@ const DURABLE = {
     extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
     schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
     revisionNumber: 4,
-    schemaTree: [{ id: 'place', name: 'place', type: 'string' }],
+    schemaTree: {
+      recordDescription: 'One place record.',
+      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+    },
   },
-  latestAttempt: null,
+  latestAttempt: {
+    extractionId: '00000000-0000-4000-8000-0000000000f1',
+    sourceDocumentId: BERETNING,
+    sourceRepresentationRevisionId: DEMO_REPRESENTATION_ID,
+    sourceRepresentationRevisionNumber: 2,
+    schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
+    extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
+    schemaRevisionNumber: 4,
+    schemaTree: {
+      recordDescription: 'One place record.',
+      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+    },
+    strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
+    modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null, catalog: null },
+    failure: null, resultPayload: { place: 'Ellekilde' }, evidenceLinks: [],
+    reviewable: true, retryOfId: null, createdAt: new Date('2026-08-02T10:00:00.000Z'),
+    reviewedAt: null, reviewDecisions: [],
+  },
   latestReviewed: null,
 } satisfies Pick<
   DocumentReopenSnapshot,
@@ -456,9 +477,7 @@ test.describe('reopening a routed Source Document', () => {
     })
 
     await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
-    const annotation = page.getByRole('button', {
-      name: 'Remove highlight: Grav 8 laa i undergrunden',
-    })
+    const annotation = page.getByRole('tab', { name: 'Annot. 1' })
     const schemaTab = page.getByRole('tab', { name: /^Schema\s*1$/ })
     const rerun = page.getByRole('button', { name: '↻ Re-run extraction' })
     await expect(annotation).toBeVisible()
@@ -509,7 +528,7 @@ test.describe('reopening a routed Source Document', () => {
       'true',
     )
     await schemaTab.click()
-    await expect(rightRail.locator('textarea')).toHaveCount(0)
+    await expect(rightRail.locator('textarea')).not.toHaveValue('{ "unsaved": "draft" }')
     await expect(page.getByText(/pages · text highlights only/)).toBeVisible({
       timeout: 20_000,
     })

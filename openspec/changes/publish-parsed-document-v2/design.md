@@ -39,11 +39,12 @@ half-open byte spans from the exact UTF-8 output buffer. `RenderedMarkdown.slice
 decodes a span from those bytes, so offsets cannot silently become Python
 character indices.
 
-Text blocks receive one anchor with their page and byte span. Every canonical
+Text blocks receive one anchor with their byte span and ordered page-scoped
+producer occurrences. Every canonical
 table cell receives one anchor containing derived logical row/column identity
 and an ordered collection of producer occurrences containing stable occurrence
 ID, physical page, producer ref, page-local row/column offsets, spans, and
-optional geometry. Text anchors own one occurrence ID. Cells contain no nested
+optional geometry. Cells contain no nested
 Evidence; page spans contain no anchor-ID lists.
 
 Continuation is a typed evaluator over reviewed producer facts. It requires

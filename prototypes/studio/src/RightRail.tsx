@@ -23,7 +23,6 @@ export type ExtractionInspection = {
   readOnly: boolean
   documentMarkdown: string | null
   parsedDocument: ParsedDocument | null
-  sourceStatus: { status: 'parsing' } | { status: 'ready' } | { status: 'error'; message: string } | null
   reviewDecisions: ExtractionAttempt['reviewDecisions']
   pinnedSchema: SchemaDefinition | null
 }
@@ -167,13 +166,6 @@ function RightRail({
       </div>
 
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
-      {inspection.sourceStatus?.status !== 'ready' && inspection.sourceStatus && (
-        <p role={inspection.sourceStatus.status === 'error' ? 'alert' : 'status'} className="shrink-0 border-b border-line bg-surface-muted px-3 py-2 text-xs text-ink-muted">
-          {inspection.sourceStatus.status === 'parsing'
-            ? 'Loading historical source snapshot…'
-            : `Historical source snapshot unavailable: ${inspection.sourceStatus.message}`}
-        </p>
-      )}
       <div id="rail-panel-annot" aria-labelledby="rail-tab-annot" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'annot'}>
         <AnnotationSetTab
           items={annotationItems}

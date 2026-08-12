@@ -7,15 +7,18 @@ import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
 import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from '../shared/schemaNode'
 
-const { scrollPageIntoView } = vi.hoisted(() => ({ scrollPageIntoView: vi.fn() }))
+const { getDocument, scrollPageIntoView } = vi.hoisted(() => ({
+  getDocument: vi.fn(() => ({
+    promise: Promise.resolve({ numPages: 3 }),
+    destroy: () => {},
+  })),
+  scrollPageIntoView: vi.fn(),
+}))
 
 vi.mock('pdfjs-dist/build/pdf.worker.mjs?url', () => ({ default: 'pdf.worker.mjs' }))
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: {},
-  getDocument: () => ({
-    promise: Promise.resolve({ numPages: 3 }),
-    destroy: () => {},
-  }),
+  getDocument,
   AnnotationEditorType: { HIGHLIGHT: 9 },
   AnnotationMode: { ENABLE: 2 },
 }))
@@ -95,6 +98,7 @@ const reopened: DocumentWorkspaceProps = {
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  getDocument.mockClear()
   scrollPageIntoView.mockClear()
 })
 
@@ -195,6 +199,109 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(page.querySelector<HTMLElement>('[data-evidence-anchor-id]')?.dataset.resultPath).toBe('["title"]'),
     )
+  })
+
+  it('reveals the PDF page before painting nested table Evidence', async () => {
+    const tableDocument = {
+      ...parsedDocument,
+      pages: parsedDocument.pages.map((page) =>
+        page.page_number === 4
+          ? { ...page, unplaced_content: ['table-1'] }
+          : page,
+      ),
+      tables: [{
+        table_id: 'table-1',
+        rows: 1,
+        cols: 1,
+        cells: [{
+          cell_id: 'cell-1', row: 0, column: 0, text: '26-1', role: 'data',
+          rowspan: 1, colspan: 1,
+          bbox: { x0: 80, y0: 606, x1: 100, y1: 615 },
+          evidence_anchor_id: 'table-anchor',
+        }],
+        spans: [{
+          page_number: 4, producer_table_ref: '#/tables/6',
+          page_local_row_start: 0, page_local_row_end: 0,
+          page_local_col_count: 1,
+        }],
+        parser_attribution: {
+          content_parser: { parser: 'docling', version: null },
+          structure_parser: { parser: 'docling', version: null },
+          geometry_parser: { parser: 'docling', version: null },
+        },
+        continuation: 'page_local',
+      }],
+      evidence_index: {
+        anchors: [...parsedDocument.evidence_index.anchors, {
+          kind: 'table_cell',
+          anchor_id: 'table-anchor',
+          content_sha256: 'a'.repeat(64),
+          preprocess_id: 'bundled-fixture',
+          logical_table_id: 'table-1',
+          cell_id: 'cell-1',
+          canonical_row: 0,
+          canonical_column: 0,
+          producer_observations: [{
+            occurrence_id: 'table-occurrence',
+            page_number: 4,
+            producer_ref: '#/tables/6',
+            row_offset: 0,
+            column_offset: 0,
+            row_span: 1,
+            column_span: 1,
+            bbox: { x0: 80, y0: 606, x1: 100, y1: 615 },
+          }],
+        }],
+      },
+    }
+    const persistedExtraction = reopened.persistedExtraction
+    if (!persistedExtraction || persistedExtraction.outcome !== 'SUCCEEDED')
+      throw new Error('Expected a successful reopened Extraction fixture')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request) =>
+        Promise.resolve(
+          String(input).endsWith('/source')
+            ? Response.json(tableDocument)
+            : new Response('# Beretning'),
+        ),
+      ),
+    )
+    const { container } = render(
+      <DocumentWorkspace
+        {...reopened}
+        persistedExtraction={{
+          ...persistedExtraction,
+          strategy: 'CATALOG',
+          resultPayload: { records: [
+            { finds: [] },
+            { finds: [] },
+            { finds: [] },
+            { finds: [{ find_number: '26-1' }] },
+          ] },
+          evidenceLinks: [{
+            resultPath: ['records', 3, 'finds', 0, 'find_number'],
+            evidenceAnchorId: 'table-anchor',
+          }],
+        }}
+      />,
+    )
+    const page = document.createElement('div')
+    page.className = 'page'
+    page.dataset.pageNumber = '4'
+    page.style.position = 'relative'
+    container.querySelector('.pdfViewer')!.append(page)
+
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(screen.getByText('Item 4'))
+
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id="table-anchor"]')).toHaveLength(1),
+    )
+    expect(scrollPageIntoView).toHaveBeenLastCalledWith({ pageNumber: 4 })
   })
 
   it('persists a generated first schema and enables its history', async () => {
@@ -682,7 +789,7 @@ describe('historical extraction inspection', () => {
     fireEvent.change(draft, { target: { value: 'Unsaved live draft.' } })
     fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: reviewed.extractionId } })
     await waitFor(() => { expect(calls).toContain('/api/source-representations/old/markdown'); expect(calls).toContain('/api/source-representations/old/source') })
-    expect(screen.getByTitle('Pinned Source Document')).toHaveAttribute('src', '/api/source-representations/old/pdf#page=1')
+    expect(getDocument).toHaveBeenLastCalledWith({ url: '/api/source-representations/old/pdf' })
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(await screen.findByText('Historical place')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Pinned schema' }))
@@ -720,10 +827,7 @@ describe('historical extraction inspection', () => {
       expect(calls).toContain('/api/source-representations/old/markdown')
       expect(calls).toContain('/api/source-representations/old/source')
     })
-    expect(screen.getByTitle('Pinned Source Document')).toHaveAttribute(
-      'src',
-      '/api/source-representations/old/pdf#page=1',
-    )
+    expect(getDocument).toHaveBeenLastCalledWith({ url: '/api/source-representations/old/pdf' })
   })
 })
 
@@ -754,8 +858,6 @@ describe('updated latest reviewed extraction', () => {
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
 
     fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: reviewed.extractionId } })
-    expect(screen.getByRole('status')).toHaveTextContent('Loading historical source snapshot')
-    expect(await screen.findByRole('alert')).toHaveTextContent('Historical source snapshot unavailable')
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Markdown' }))
     expect(screen.getByText('Markdown unavailable')).toBeInTheDocument()

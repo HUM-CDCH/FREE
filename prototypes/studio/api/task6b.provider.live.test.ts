@@ -182,13 +182,16 @@ function retainedDocument(): ParsedDocument {
       anchors: blocks.map((block, index) => ({
         kind: 'text' as const,
         anchor_id: `beretning-anchor-${String(index + 1).padStart(3, '0')}`,
-        occurrence_id: `beretning-occurrence-${String(index + 1).padStart(3, '0')}`,
         content_sha256: contentSha256,
         preprocess_id: 'retained-beretning',
         block_id: block.block_id,
-        page_number: 1,
         markdown_span: block.markdown_span!,
-        bbox: block.bbox!,
+        producer_observations: [{
+          occurrence_id: `beretning-occurrence-${String(index + 1).padStart(3, '0')}`,
+          page_number: 1,
+          producer_ref: `#/texts/${index}`,
+          bbox: block.bbox!,
+        }],
       } satisfies TextEvidenceAnchor)),
     },
   }

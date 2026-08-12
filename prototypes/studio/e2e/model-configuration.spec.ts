@@ -189,7 +189,7 @@ test('Single model saves, reloads, and checks without probing on open or Apply',
   expect(state.probes()).toBe(1)
 })
 
-test('probe scheduling and refresh share one supersession path', async ({
+test('probe scheduling supersedes stale connection edits', async ({
   page,
 }) => {
   const state = await mockConfiguration(page)
@@ -202,7 +202,6 @@ test('probe scheduling and refresh share one supersession path', async ({
   await page
     .getByLabel('Provider base URL')
     .fill('http://localhost:11434/latest')
-  await page.getByRole('button', { name: 'Refresh models' }).click()
 
   await expect.poll(state.probes).toBe(1)
   await page.waitForTimeout(600)
@@ -261,6 +260,7 @@ test('Capability Routes save mixed exact targets and Ollama-only raw mode', asyn
   await page
     .getByLabel('Extraction & Schema Suggestion model ID')
     .fill('nuextract-manual')
+  await page.getByRole('combobox', { name: 'Extraction & Schema Suggestion model ID' }).press('Tab')
   await page.getByLabel('Use raw NuExtract protocol').check()
   await page
     .getByLabel('Chat & Extraction Schema editing connection')
@@ -345,7 +345,9 @@ test('probe failures do not gate retryable offline Apply and pending state', asy
   // A connection FREE manages no credential for yet is not a broken keyring.
   await expect(page.getByText('Credential store unavailable.')).toBeHidden()
   await expect(page.getByText('Provider is offline.')).toBeVisible()
-  await page.getByRole('button', { name: 'Refresh models' }).click()
+  await page
+    .getByLabel('Provider base URL')
+    .fill('http://127.0.0.1:11434/retry')
   await expect.poll(state.probes).toBe(2)
   await page
     .getByLabel('Single model connection')

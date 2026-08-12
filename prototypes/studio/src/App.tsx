@@ -289,14 +289,21 @@ export function DocumentWorkspace({
   const [railTab, setRailTab] = useState<RailTab>('annot')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
+  const selectedSourceSnapshot = selectedInspectionId === latestReviewedExtraction?.extractionId
+    ? latestReviewedExtraction
+    : selectedInspectionId === persistedExtraction?.extractionId
+      ? persistedExtraction
+      : null
+  const viewerPdfUrl = selectedSourceSnapshot && selectedSourceSnapshot.sourceRepresentationRevisionId !== sourceRepresentationId
+    ? selectedSourceSnapshot.sourceRepresentation.resources.sourcePdfUrl
+    : pdfUrl
   const pdfSource = useMemo(
-    () => ({ url: pdfUrl, filename }),
-    [filename, pdfUrl],
+    () => ({ url: viewerPdfUrl, filename }),
+    [filename, viewerPdfUrl],
   )
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
-  const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
   const [pinnedDocIndex, setPinnedDocIndex] = useState<DocIndex>({ status: 'parsing' })
-  const [pinnedPage, setPinnedPage] = useState(1)
 
   useEffect(() => {
     if (!projectContextId || !durableSchema) return
@@ -563,7 +570,7 @@ export function DocumentWorkspace({
         anchor,
         reviewedOccurrenceIds(inspectedAttempt, anchor.anchor_id),
       )[0]
-      if (occurrence) setPinnedPage(occurrence.page_number)
+      if (occurrence) pdfViewerRef.current?.scrollPageIntoView({ pageNumber: occurrence.page_number })
       return
     }
     const viewer = pdfViewerRef.current
@@ -864,7 +871,6 @@ export function DocumentWorkspace({
         : null
     if (selected?.sourceRepresentationRevisionId !== sourceRepresentationId) {
       setPinnedDocIndex({ status: 'parsing' })
-      setPinnedPage(1)
     }
     setSelectedInspectionId(extractionId)
   }
@@ -889,7 +895,6 @@ export function DocumentWorkspace({
     if (
       !container ||
       !inspectionParsedDocument ||
-      inspectionSourceSnapshot ||
       inspectedAttempt?.outcome !== 'SUCCEEDED' ||
       !effectiveRailOpen ||
       railTab !== 'results' ||
@@ -911,13 +916,14 @@ export function DocumentWorkspace({
       : templateState.status === 'ready'
         ? templateState.nodes.map((node) => node.name)
         : []
-    const paint = () => {
+    const paint = (): EvidenceOccurrence | undefined => {
+      let firstOccurrence: EvidenceOccurrence | undefined
+      const paintedOccurrenceIds = new Set<string>()
       container
         .querySelectorAll('.parsed-evidence-highlight')
         .forEach((highlight) => highlight.remove())
       evidenceLinks.forEach((link, linkIndex) => {
         if (
-          link.resultPath.length !== resultPath.length + 1 ||
           !resultPath.every(
             (segment, index) => segment === String(link.resultPath[index]),
           )
@@ -936,6 +942,9 @@ export function DocumentWorkspace({
         const reviewed = reviewedOccurrenceIdsByAnchor.get(anchor.anchor_id)
         for (const occurrence of anchorOccurrences(anchor)) {
           if (reviewed && !reviewed.includes(occurrence.occurrence_id)) continue
+          if (paintedOccurrenceIds.has(occurrence.occurrence_id)) continue
+          paintedOccurrenceIds.add(occurrence.occurrence_id)
+          firstOccurrence ??= occurrence
           appendEvidenceOverlay(container, inspectionParsedDocument, occurrence, {
             className: 'parsed-evidence-highlight',
             background: color,
@@ -944,9 +953,12 @@ export function DocumentWorkspace({
           })
         }
       })
+      return firstOccurrence
     }
-    paint()
     viewer?.eventBus?.on('pagerendered', paint)
+    const firstOccurrence = paint()
+    if (firstOccurrence)
+      viewer?.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     return () => {
       viewer?.eventBus?.off('pagerendered', paint)
       container
@@ -1098,9 +1110,6 @@ export function DocumentWorkspace({
           <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
             <div className="pdfViewer" ref={setViewerNode} />
           </div>
-          {inspectionSourceSnapshot && (
-            <iframe title="Pinned Source Document" src={`${inspectionSourceSnapshot.sourceRepresentation.resources.sourcePdfUrl}#page=${pinnedPage}`} className="absolute inset-0 z-10 size-full border-0 bg-canvas" />
-          )}
           {toast && (
             <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
               <p className="animate-fadeup min-w-0 truncate rounded-xl border border-line-strong bg-surface px-4.5 py-2 text-xs font-semibold text-ink shadow-float">
@@ -1157,7 +1166,7 @@ export function DocumentWorkspace({
             annotationsMode={annotationsMode}
             onAnnotationsModeChange={setAnnotationsMode}
             extraction={extraction}
-            inspection={{ attempt: inspectedAttempt, readOnly: inspectionReadOnly, documentMarkdown: inspectionDocumentMarkdown, parsedDocument: inspectionParsedDocument, sourceStatus: inspectionSourceSnapshot ? pinnedDocIndex : null, reviewDecisions: inspectedAttempt?.reviewDecisions ?? [], pinnedSchema: pinnedAttempt?.extractionSchema ?? null }}
+            inspection={{ attempt: inspectedAttempt, readOnly: inspectionReadOnly, documentMarkdown: inspectionDocumentMarkdown, parsedDocument: inspectionParsedDocument, reviewDecisions: inspectedAttempt?.reviewDecisions ?? [], pinnedSchema: pinnedAttempt?.extractionSchema ?? null }}
             sourceDocumentName={pdfSource.filename}
             onSelectEvidence={selectEvidenceAnchor}
             onResultPathChange={setResultPath}

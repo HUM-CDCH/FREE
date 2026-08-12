@@ -65,9 +65,10 @@ Each canonical table cell SHALL contain exactly one `evidence_anchor_id`.
 The matching table-cell anchor SHALL contain a non-empty ordered collection of
 producer observations with unique occurrence IDs, physical page, producer
 identity, page-local row/column offsets, observed spans, and optional geometry.
-Text anchors SHALL own one occurrence ID. No occurrence ID may be owned by two
-anchors. Page spans SHALL contain only page/range/producer identity. Missing
-geometry is valid; missing producer occurrence identity is not.
+Text anchors SHALL own a non-empty ordered collection of page-scoped producer
+observations. No occurrence ID may be owned by two anchors. Page spans SHALL
+contain only page/range/producer identity. Missing geometry is valid; missing
+producer occurrence identity is not.
 
 #### Scenario: Cell Evidence is duplicated
 

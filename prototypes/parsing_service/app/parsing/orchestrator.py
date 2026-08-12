@@ -943,6 +943,7 @@ def build_parsed_document_v2(
         V2_PAGE_MAPPING_ERROR_CODE,
     )
     from app.parsing.semantic_stream import (
+        apply_multi_page_text_provenance,
         doctags_to_intermediate_blocks,
         ocr_pages_to_blocks,
         place_table_slots,
@@ -996,6 +997,18 @@ def build_parsed_document_v2(
         intermediate, slots = doctags_to_intermediate_blocks(
             producer_doctags, page_sizes=page_sizes
         )
+        intermediate = apply_multi_page_text_provenance(
+            intermediate,
+            tuple(
+                getattr(
+                    parsing.docling_output,
+                    "multi_page_text_inventory",
+                    (),
+                )
+                or ()
+            ),
+            page_sizes=page_sizes,
+        )
         # Only tables that can become canonical v2 objects may participate in
         # placement.  In particular, an ungrounded/ambiguous Camelot candidate
         # must never leave a dangling generated ref in the content stream.
@@ -1041,14 +1054,13 @@ def build_parsed_document_v2(
             for block in intermediate
             if getattr(block, "kind", None) == "table_slot" and block.table_slot
         }
-        blocks = list(
-            semantic_blocks_to_v2(
-                intermediate,
-                content_sha256,
-                preprocess_id,
-                table_ids=table_ids,
-            )
+        published_blocks, text_observations = semantic_blocks_to_v2(
+            intermediate,
+            content_sha256,
+            preprocess_id,
+            table_ids=table_ids,
         )
+        blocks = list(published_blocks)
         placement_diagnostics = [
             {
                 "code": diagnostic.code,
@@ -1075,11 +1087,10 @@ def build_parsed_document_v2(
     else:
         fallback_pages = parsing.text.ocr_blocks_by_page
         intermediate = ocr_pages_to_blocks(fallback_pages)
-        blocks = list(
-            semantic_blocks_to_v2(
-                intermediate, content_sha256, preprocess_id, parser="paddleocr"
-            )
+        published_blocks, text_observations = semantic_blocks_to_v2(
+            intermediate, content_sha256, preprocess_id, parser="paddleocr"
         )
+        blocks = list(published_blocks)
         placement_diagnostics = []
         # Without an authenticated DocTags inventory, no table is promoted to
         # the canonical stream. Camelot-only candidates remain diagnostics.
@@ -1148,6 +1159,7 @@ def build_parsed_document_v2(
             tables,
             content_sha256=content_sha256,
             preprocess_id=preprocess_id,
+            text_producer_observations=text_observations,
             producer_observations=observations,
         )
         validate_publication(

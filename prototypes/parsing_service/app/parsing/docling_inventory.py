@@ -1,4 +1,4 @@
-"""Dependency-neutral table inventory extraction from Docling objects."""
+"""Dependency-neutral provenance inventory extraction from Docling objects."""
 
 from __future__ import annotations
 
@@ -184,3 +184,34 @@ def table_inventory(document: Any) -> tuple[dict[str, Any], ...]:
         for order, table in enumerate(getattr(document, "tables", ()) or ())
         if (inventory_table := _inventory_table(table, order)) is not None
     )
+
+
+def multi_page_text_inventory(document: Any) -> tuple[dict[str, Any], ...]:
+    """Copy only text items whose producer provenance crosses physical pages."""
+    result: list[dict[str, Any]] = []
+    for item in getattr(document, "texts", ()) or ():
+        observations: list[dict[str, Any]] = []
+        for provenance in getattr(item, "prov", ()) or ():
+            try:
+                page_number = int(getattr(provenance, "page_no", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            bbox = _bbox_inventory(getattr(provenance, "bbox", None))
+            if page_number < 1 or bbox is None:
+                continue
+            observations.append(
+                {
+                    "page_number": page_number,
+                    "bbox": bbox,
+                }
+            )
+        if len({observation["page_number"] for observation in observations}) < 2:
+            continue
+        result.append(
+            {
+                "producer_ref": str(getattr(item, "self_ref", "") or "") or None,
+                "text": str(getattr(item, "text", "") or ""),
+                "observations": observations,
+            }
+        )
+    return tuple(result)

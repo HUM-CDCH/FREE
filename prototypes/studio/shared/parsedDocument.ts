@@ -22,8 +22,9 @@ const blockSchema = z.discriminatedUnion('kind', [
   z.object({ ...commonBlock, kind: z.literal('table'), table_id: z.string().min(1) }).strict(),
   z.object({ ...commonBlock, kind: z.literal('page_break'), next_page: z.int().positive() }).strict(),
 ])
+const textObservationSchema = z.object({ occurrence_id: z.string().min(1), page_number: z.int().positive(), producer_ref: z.string().nullable(), bbox: bboxSchema }).strict()
 const observationSchema = z.object({ occurrence_id: z.string().min(1), page_number: z.int().positive(), producer_ref: z.string().nullable(), row_offset: z.int().nonnegative(), column_offset: z.int().nonnegative(), row_span: z.int().positive(), column_span: z.int().positive(), bbox: bboxSchema }).strict()
-const textAnchorSchema = z.object({ kind: z.literal('text'), anchor_id: z.string().min(1), occurrence_id: z.string().min(1), content_sha256: z.string().regex(/^[a-f0-9]{64}$/), preprocess_id: z.string().min(1), block_id: z.string().min(1), page_number: z.int().positive(), markdown_span: byteSpanSchema, bbox: bboxSchema }).strict()
+const textAnchorSchema = z.object({ kind: z.literal('text'), anchor_id: z.string().min(1), content_sha256: z.string().regex(/^[a-f0-9]{64}$/), preprocess_id: z.string().min(1), block_id: z.string().min(1), markdown_span: byteSpanSchema, producer_observations: z.array(textObservationSchema).min(1) }).strict()
 const tableAnchorSchema = z.object({ kind: z.literal('table_cell'), anchor_id: z.string().min(1), content_sha256: z.string().regex(/^[a-f0-9]{64}$/), preprocess_id: z.string().min(1), logical_table_id: z.string().min(1), cell_id: z.string().min(1), canonical_row: z.int().nonnegative(), canonical_column: z.int().nonnegative(), producer_observations: z.array(observationSchema).min(1) }).strict()
 const anchorSchema = z.discriminatedUnion('kind', [textAnchorSchema, tableAnchorSchema])
 const cellSchema = z.object({ cell_id: z.string().min(1), row: z.int().nonnegative(), column: z.int().nonnegative(), text: z.string(), role: z.string().nullable(), rowspan: z.int().positive(), colspan: z.int().positive(), bbox: bboxSchema.nullable(), evidence_anchor_id: z.string().min(1) }).strict()
@@ -43,6 +44,7 @@ export type MarkdownSpan = z.infer<typeof byteSpanSchema>
 export type ParsedDocumentPage = z.infer<typeof pageSchema>
 export type ParsedContentBlock = z.infer<typeof blockSchema>
 export type TextEvidenceAnchor = z.infer<typeof textAnchorSchema>
+export type TextProducerObservation = z.infer<typeof textObservationSchema>
 export type ProducerObservation = z.infer<typeof observationSchema>
 export type TableCellEvidenceAnchor = z.infer<typeof tableAnchorSchema>
 export type ParsedEvidenceAnchor = z.infer<typeof anchorSchema>
@@ -76,7 +78,7 @@ export function decodeParsedDocument(data: unknown): ParsedDocument {
   if (placed.size !== tables.size) throw new Error('parsed_document.v2: every table requires a placement')
   for (const anchor of parsed.evidence_index.anchors) {
     if (anchor.content_sha256 !== parsed.document.content_sha256 || anchor.preprocess_id !== parsed.preprocessing.preprocess_id) throw new Error('parsed_document.v2: evidence identity does not match document')
-    const occurrences = anchor.kind === 'text' ? [anchor] : anchor.producer_observations
+    const occurrences = anchor.producer_observations
     for (const occurrence of occurrences) {
       if (occurrenceIds.has(occurrence.occurrence_id)) throw new Error('parsed_document.v2: evidence occurrence IDs must be unique')
       const page = pages.get(occurrence.page_number)
@@ -87,7 +89,8 @@ export function decodeParsedDocument(data: unknown): ParsedDocument {
     }
     if (anchor.kind === 'text') {
       const block = blocks.get(anchor.block_id)
-      if (!block || block.page_number !== anchor.page_number || block.markdown_span?.start !== anchor.markdown_span.start || block.markdown_span?.end !== anchor.markdown_span.end || !block.bbox || block.bbox.x0 !== anchor.bbox.x0 || block.bbox.y0 !== anchor.bbox.y0 || block.bbox.x1 !== anchor.bbox.x1 || block.bbox.y1 !== anchor.bbox.y1) throw new Error('parsed_document.v2: text evidence reference is invalid')
+      const first = anchor.producer_observations[0]
+      if (!block || block.page_number !== first.page_number || block.markdown_span?.start !== anchor.markdown_span.start || block.markdown_span?.end !== anchor.markdown_span.end || !block.bbox || block.bbox.x0 !== first.bbox.x0 || block.bbox.y0 !== first.bbox.y0 || block.bbox.x1 !== first.bbox.x1 || block.bbox.y1 !== first.bbox.y1) throw new Error('parsed_document.v2: text evidence reference is invalid')
     } else {
       const table = tables.get(anchor.logical_table_id)
       const cell = table?.cells.find((candidate) => candidate.cell_id === anchor.cell_id)

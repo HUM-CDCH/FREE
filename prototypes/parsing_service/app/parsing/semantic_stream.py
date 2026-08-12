@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import defaultdict, deque
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from html import escape
 from typing import Any
 
 from app.models.parser_output import ParsedTable
@@ -59,6 +61,7 @@ class SemanticBlock:
     producer_ref: str | None = None
     raw: str = field(default="", repr=False)
     geometry: Any | None = None
+    evidence_observations: tuple[Mapping[str, Any], ...] = ()
 
     @property
     def text(self) -> str:
@@ -319,6 +322,88 @@ def doctags_to_intermediate_blocks(
     return tuple(normalized), tuple(slot_by_id.values())
 
 
+def _inventory_text_bbox(
+    raw: Any, page_size: tuple[float, float] | None
+) -> dict[str, float] | None:
+    if not isinstance(raw, Mapping) or page_size is None:
+        return None
+    width, height = page_size
+    try:
+        x0 = float(raw["x0"])
+        y0 = float(raw["y0"])
+        x1 = float(raw["x1"])
+        y1 = float(raw["y1"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if "BOTTOM" in str(raw.get("origin") or "TOPLEFT").upper():
+        y0, y1 = height - y1, height - y0
+    if not (0 <= x0 < x1 <= width and 0 <= y0 < y1 <= height):
+        return None
+    return {"x0": x0, "y0": y0, "x1": x1, "y1": y1}
+
+
+def apply_multi_page_text_provenance(
+    blocks: Sequence[SemanticBlock],
+    inventory: Sequence[Mapping[str, Any]],
+    *,
+    page_sizes: Mapping[int, tuple[float, float]],
+) -> tuple[SemanticBlock, ...]:
+    """Replace flattened DocTags geometry with page-scoped producer observations."""
+    candidates: defaultdict[tuple[str, int], deque[Mapping[str, Any]]] = defaultdict(deque)
+    for record in inventory:
+        observations = record.get("observations")
+        text = record.get("text")
+        if not isinstance(text, str) or not isinstance(observations, Sequence) or not observations:
+            continue
+        first = observations[0]
+        if not isinstance(first, Mapping):
+            continue
+        try:
+            first_page = int(first["page_number"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        for candidate_text in {text, escape(text, quote=False)}:
+            candidates[(candidate_text, first_page)].append(record)
+
+    result: list[SemanticBlock] = []
+    for block in blocks:
+        matches = candidates.get((block.source_text, block.page_number))
+        if not matches:
+            result.append(block)
+            continue
+        record = matches.popleft()
+        converted: list[dict[str, Any]] = []
+        for observation in record.get("observations", ()):
+            if not isinstance(observation, Mapping):
+                converted = []
+                break
+            try:
+                page_number = int(observation["page_number"])
+            except (KeyError, TypeError, ValueError):
+                converted = []
+                break
+            bbox = _inventory_text_bbox(observation.get("bbox"), page_sizes.get(page_number))
+            if bbox is None:
+                converted = []
+                break
+            converted.append(
+                {
+                    "page_number": page_number,
+                    "producer_ref": record.get("producer_ref"),
+                    "bbox": bbox,
+                }
+            )
+        result.append(
+            replace(
+                block,
+                producer_ref=str(record.get("producer_ref") or "") or None,
+                geometry=converted[0]["bbox"] if converted else None,
+                evidence_observations=tuple(converted),
+            )
+        )
+    return tuple(result)
+
+
 def _append_fragment(
     fragment: str,
     page: int,
@@ -392,7 +477,7 @@ def semantic_blocks_to_v2(
     *,
     table_ids: Mapping[str, str] | None = None,
     parser: str = "docling_doctags",
-) -> tuple[Any, ...]:
+) -> tuple[tuple[Any, ...], dict[str, tuple[Mapping[str, Any], ...]]]:
     """Promote producer-observed blocks into the typed v2 block union.
 
     Table slots are not silently promoted: a slot must be supplied in
@@ -427,6 +512,7 @@ def semantic_blocks_to_v2(
         return None
 
     result: list[Any] = []
+    text_observations: dict[str, tuple[Mapping[str, Any], ...]] = {}
     for ordinal, block in enumerate(blocks):
         identity = f"{block.page_number}:{ordinal}:{block.kind}:{block.source_text}:{block.table_slot or ''}"
         block_id = deterministic_block_id(content_sha256, preprocess_id, identity)
@@ -437,6 +523,7 @@ def semantic_blocks_to_v2(
         }
         if (geometry := to_bbox(block.geometry)) is not None:
             common["bbox"] = geometry
+        before = len(result)
         if block.kind == "page_boundary":
             result.append(PageBreakBlock(**common, next_page=block.page_number + 1))
         elif block.kind == "table_slot":
@@ -464,7 +551,18 @@ def semantic_blocks_to_v2(
             result.append(FormulaBlock(**common, text=block.source_text))
         elif block.kind == "caption":
             result.append(CaptionBlock(**common, text=block.source_text))
-    return tuple(result)
+        if len(result) > before and block.kind not in {"page_boundary", "table_slot"}:
+            observations = block.evidence_observations
+            if not observations and (bbox := to_bbox(block.geometry)) is not None:
+                observations = (
+                    {
+                        "page_number": block.page_number,
+                        "producer_ref": block.producer_ref,
+                        "bbox": bbox,
+                    },
+                )
+            text_observations[block_id] = observations
+    return tuple(result), text_observations
 
 
 def ocr_pages_to_blocks(
