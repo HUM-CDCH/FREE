@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { exampleProjects, seedExampleProjects, type Ingest } from './seed.js'
 
 type Row = Record<string, unknown>
+type Order = { field: string; direction: 'asc' | 'desc' }
 
 /** An in-memory stand-in for the three tables the seed writes. */
 function fakeDatabase() {
@@ -11,20 +12,55 @@ function fakeDatabase() {
     SourceDocument: [],
     SourceRepresentationRevision: [],
   }
-  const table = (name: string) => ({
-    first: async ({ id }: { id: string }) =>
-      created[name].find((row) => row.id === id) ?? null,
-    create: async (row: Row) => {
-      created[name].push(row)
-      return row
-    },
-    where: ({ id }: { id: string }) => ({
-      delete: async () => {
-        const index = created[name].findIndex((row) => row.id === id)
-        if (index >= 0) created[name].splice(index, 1)
+  const orderProbe = () =>
+    new Proxy(
+      {},
+      {
+        get: (_target, field: string) => ({
+          asc: (): Order => ({ field, direction: 'asc' }),
+          desc: (): Order => ({ field, direction: 'desc' }),
+        }),
       },
-    }),
-  })
+    )
+  const table = (name: string) => {
+    let selected = created[name]
+    let orders: Order[] = []
+    const query = {
+      where(filter: Row) {
+        selected = selected.filter((row) =>
+          Object.entries(filter).every(([key, value]) => row[key] === value),
+        )
+        return query
+      },
+      orderBy(value: (row: Row) => Order) {
+        orders = [value(orderProbe() as Row)]
+        return query
+      },
+      async first(filter?: Row) {
+        if (filter) query.where(filter)
+        const row = [...selected].sort((left, right) => {
+          for (const { field, direction } of orders) {
+            if (left[field] === right[field]) continue
+            const result =
+              (left[field] as number | string) <
+              (right[field] as number | string)
+                ? -1
+                : 1
+            return direction === 'asc' ? result : -result
+          }
+          return 0
+        })[0] ?? null
+        selected = created[name]
+        orders = []
+        return row
+      },
+      async create(row: Row) {
+        created[name].push(row)
+        return row
+      },
+    }
+    return query
+  }
   const orm = {
     public: {
       ProjectContext: table('ProjectContext'),
@@ -42,7 +78,8 @@ function fakeDatabase() {
 
 function fakeIngest() {
   const filenames: string[] = []
-  const ingest: Ingest = async (pdf, filename) => {
+  const ingest: Ingest = async (pdf, filename, current) => {
+    if (current) return current
     assert.ok(pdf.byteLength > 0, 'the example PDF bytes reach ingestion')
     filenames.push(filename)
     return {
@@ -187,7 +224,7 @@ describe('example database seed', () => {
     })
   })
 
-  it('replaces a stale task reference only after durable package ingestion succeeds', async () => {
+  it('advances past a stale task reference only after durable package ingestion succeeds', async () => {
     const database = fakeDatabase()
     const { ingest, filenames } = fakeIngest()
 
@@ -196,7 +233,8 @@ describe('example database seed', () => {
       artifactReference !== 'task-1'
     const failed = await seedExampleProjects(
       database as never,
-      async () => Promise.reject(new Error('Package transfer failed.')),
+      async (_pdf, _filename, current) =>
+        current ?? Promise.reject(new Error('Package transfer failed.')),
       retained,
     )
 
@@ -218,15 +256,60 @@ describe('example database seed', () => {
 
     assert.equal(repaired.representationsCreated, 1)
     assert.deepEqual(repaired.representationFailures, [])
-    assert.equal(database.created.SourceRepresentationRevision.length, 3)
+    assert.equal(database.created.SourceRepresentationRevision.length, 4)
+    assert.equal(
+      database.created.SourceRepresentationRevision.find(
+        (row) =>
+          row.sourceDocumentId ===
+            '51000000-0000-4000-8001-000000000001' &&
+          row.revisionNumber === 2,
+      )?.artifactReference,
+      'task-4',
+    )
+    assert.equal(filenames.length, 4)
+  })
+
+  it('appends a representation when the parsing policy changes', async () => {
+    const database = fakeDatabase()
+    const { ingest } = fakeIngest()
+
+    await seedExampleProjects(database as never, ingest)
+    const changedPolicy: Ingest = async (_pdf, filename, current) =>
+      filename === 'Beretning_Ellekilde_8_13.pdf'
+        ? {
+            artifactReference: 'updated-task',
+            artifactSha256: 'c'.repeat(64),
+            contractVersion: 'parsed_document.v2',
+            preprocessId: `sha256:${'d'.repeat(64)}`,
+            parserName: 'docling_pdf',
+            parserVersion: '2.0.0',
+          }
+        : current!
+
+    const result = await seedExampleProjects(
+      database as never,
+      changedPolicy,
+      async () => true,
+    )
+
+    assert.equal(result.representationsCreated, 1)
+    assert.equal(database.created.SourceRepresentationRevision.length, 4)
     assert.equal(
       database.created.SourceRepresentationRevision.find(
         (row) =>
           row.id === '51000000-0000-4000-8002-000000000001',
       )?.artifactReference,
-      'task-4',
+      'task-1',
     )
-    assert.equal(filenames.length, 4)
+    assert.equal(
+      database.created.SourceRepresentationRevision.find(
+        (row) =>
+          row.sourceDocumentId ===
+            '51000000-0000-4000-8001-000000000001' &&
+          row.revisionNumber === 2,
+      )?.artifactReference,
+      'updated-task',
+    )
   })
 
 })

@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -59,9 +59,10 @@ export type IngestedRepresentation = {
 export type Ingest = (
   pdf: Uint8Array,
   filename: string,
+  current?: IngestedRepresentation,
 ) => Promise<IngestedRepresentation>
 
-type SeedDatabase = Pick<typeof db, 'orm' | 'transaction'>
+type SeedDatabase = Pick<typeof db, 'orm'>
 export type RetainedArtifacts = (
   descriptor: CanonicalPackageDescriptor,
 ) => Promise<boolean>
@@ -105,7 +106,11 @@ async function awaitCompletedTask(taskId: string, timeoutMs: number) {
  * retained artifacts an uploaded one would, and reopening has one path. Identical
  * bytes hit the service's canonical cache, so re-seeding never re-runs the parsers.
  */
-export const ingestThroughParsingService: Ingest = async (pdf, filename) => {
+export const ingestThroughParsingService: Ingest = async (
+  pdf,
+  filename,
+  current,
+) => {
   const form = new FormData()
   // Copied because a Buffer may be a view into a pooled, shared ArrayBuffer.
   form.append(
@@ -120,16 +125,9 @@ export const ingestThroughParsingService: Ingest = async (pdf, filename) => {
 
   await awaitCompletedTask(taskId, 10 * 60 * 1000)
 
-  // Ownership crosses here: the Parsing Service task remains a disposable cache,
-  // while the Project Context keeps the portable canonical package.
-  const stored = await canonicalPackageStore.save(
-    new Uint8Array(
-      await (
-        await parsingServiceRequest(`/tasks/${taskId}/download`)
-      ).arrayBuffer(),
-    ),
-  )
-  const document = stored.document as {
+  const document = (await (
+    await parsingServiceRequest(`/tasks/${taskId}/source`)
+  ).json()) as {
     schema_version?: unknown
     preprocessing?: { preprocess_id?: unknown }
     arbitration?: { primary_document_parser?: unknown }
@@ -142,22 +140,43 @@ export const ingestThroughParsingService: Ingest = async (pdf, filename) => {
   const parserVersion = document.parser_runs?.find(
     (run) => run.parser === parserName,
   )?.version
+  const resolvedParserVersion =
+    typeof parserVersion === 'string' ? parserVersion : 'unknown'
   const parsedContractVersion = required(
     document.schema_version,
     'a contract version',
   )
   if (parsedContractVersion !== contractVersion)
     throw new Error(`The parsed document is not ${contractVersion}.`)
+  const preprocessId = required(
+    document.preprocessing?.preprocess_id,
+    'a preprocessing identity',
+  )
+  if (
+    current?.contractVersion === parsedContractVersion &&
+    current.preprocessId === preprocessId &&
+    current.parserName === parserName &&
+    current.parserVersion === resolvedParserVersion &&
+    (await canonicalPackageStore.available(current))
+  )
+    return current
+
+  // Ownership crosses here: the Parsing Service task remains a disposable cache,
+  // while the Project Context keeps the portable canonical package.
+  const stored = await canonicalPackageStore.save(
+    new Uint8Array(
+      await (
+        await parsingServiceRequest(`/tasks/${taskId}/download`)
+      ).arrayBuffer(),
+    ),
+  )
   return {
     artifactReference: stored.artifactReference,
     artifactSha256: stored.artifactSha256,
     contractVersion: parsedContractVersion,
-    preprocessId: required(
-      document.preprocessing?.preprocess_id,
-      'a preprocessing identity',
-    ),
+    preprocessId,
     parserName,
-    parserVersion: typeof parserVersion === 'string' ? parserVersion : 'unknown',
+    parserVersion: resolvedParserVersion,
   }
 }
 
@@ -172,7 +191,8 @@ export async function parsingServiceReachable(): Promise<boolean> {
 /**
  * Seeds the example Project Contexts, their Source Documents, and — when an
  * `ingest` is supplied — the Source Representation Revision each one reopens
- * from. Fixed identities make re-seeding idempotent.
+ * from. Fixed first-revision identities and preprocessing identity checks make
+ * re-seeding idempotent.
  */
 export async function seedExampleProjects(
   database: SeedDatabase = db,
@@ -217,35 +237,52 @@ export async function seedExampleProjects(
 
       if (!ingest) continue
       const existingRepresentation =
-        await database.orm.public.SourceRepresentationRevision.first({
-          id: document.sourceRepresentationId,
+        await database.orm.public.SourceRepresentationRevision.where({
+          sourceDocumentId: document.sourceDocumentId,
         })
-      if (
+          .orderBy((revision) => revision.revisionNumber.desc())
+          .first()
+      const current =
         existingRepresentation?.contractVersion === contractVersion &&
         (await retained({
           artifactReference: existingRepresentation.artifactReference,
           artifactSha256: existingRepresentation.artifactSha256,
         }))
-      )
-        continue
+          ? {
+              artifactReference: existingRepresentation.artifactReference,
+              artifactSha256: existingRepresentation.artifactSha256,
+              contractVersion: existingRepresentation.contractVersion,
+              preprocessId: existingRepresentation.preprocessId,
+              parserName: existingRepresentation.parserName,
+              parserVersion: existingRepresentation.parserVersion,
+            }
+          : undefined
       try {
+        const ingested = await ingest(pdf, basename(document.filename), current)
+        if (
+          existingRepresentation &&
+          existingRepresentation.artifactReference ===
+            ingested.artifactReference &&
+          existingRepresentation.artifactSha256 === ingested.artifactSha256 &&
+          existingRepresentation.contractVersion === ingested.contractVersion &&
+          existingRepresentation.preprocessId === ingested.preprocessId &&
+          existingRepresentation.parserName === ingested.parserName &&
+          existingRepresentation.parserVersion === ingested.parserVersion
+        )
+          continue
+        // Source Representation Revisions are immutable Extraction pins, so a
+        // stale seeded artifact advances the head instead of rewriting history.
         const representation = {
-          id: document.sourceRepresentationId,
+          id: existingRepresentation
+            ? randomUUID()
+            : document.sourceRepresentationId,
           sourceDocumentId: document.sourceDocumentId,
-          revisionNumber: 1,
-          ...(await ingest(pdf, basename(document.filename))),
+          revisionNumber: (existingRepresentation?.revisionNumber ?? 0) + 1,
+          ...ingested,
         }
-        if (existingRepresentation)
-          await database.transaction(async ({ orm }) => {
-            await orm.public.SourceRepresentationRevision.where({
-              id: document.sourceRepresentationId,
-            }).delete()
-            await orm.public.SourceRepresentationRevision.create(representation)
-          })
-        else
-          await database.orm.public.SourceRepresentationRevision.create(
-            representation,
-          )
+        await database.orm.public.SourceRepresentationRevision.create(
+          representation,
+        )
         representationsCreated += 1
       } catch (cause) {
         representationFailures.push({
