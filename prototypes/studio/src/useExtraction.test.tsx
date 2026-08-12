@@ -36,6 +36,7 @@ function attempt(
       outputTokens: null,
       values: null,
       grounding: null,
+      catalog: null,
     },
     failure: null,
     resultPayload: { records: [{}] },
@@ -90,6 +91,91 @@ describe('useExtraction server-owned lifecycle', () => {
       status: 'ready',
       result: { records: [{}] },
     })
+  })
+
+  it('submits an explicitly selected Catalog strategy', async () => {
+    vi.mocked(api.requestExtraction).mockResolvedValue(
+      attempt({
+        strategy: 'CATALOG',
+        diagnostics: {
+          phase: 'grounding',
+          durationMs: 1,
+          modelCalls: 1,
+          finishReason: 'stop',
+          inputTokens: 1,
+          outputTokens: 1,
+          values: null,
+          grounding: null,
+          catalog: { stages: [], records: [] },
+        },
+      }),
+    )
+    const { result } = renderHook(() => useExtraction(options()))
+
+    await act(() => result.current.runExtraction('CATALOG'))
+
+    expect(api.requestExtraction).toHaveBeenCalledWith(
+      expect.objectContaining({ strategy: 'CATALOG' }),
+      expect.any(AbortSignal),
+    )
+    expect(result.current.attempt?.strategy).toBe('CATALOG')
+  })
+
+  it('submits a fresh targeted Catalog retry and supports grounding-only selection', async () => {
+    const parent = attempt({
+      strategy: 'CATALOG',
+      diagnostics: {
+        phase: 'grounding', durationMs: 1, modelCalls: 1,
+        finishReason: null, inputTokens: 1, outputTokens: 1,
+        values: null, grounding: null,
+        catalog: {
+          stages: [],
+          records: [],
+        },
+      },
+    })
+    const child = attempt({
+      extractionId: '66666666-6666-4666-8666-666666666666',
+      strategy: 'CATALOG', retryOfId: parent.extractionId,
+      diagnostics: parent.diagnostics,
+    })
+    vi.mocked(api.requestExtraction).mockResolvedValue(child)
+    const { result } = renderHook(() => useExtraction(options(parent)))
+
+    await act(() => result.current.retryExtraction({
+      retryDocument: false,
+      rediscover: false,
+      retryRecordStartBlockIds: [],
+    }))
+
+    expect(api.requestExtraction).toHaveBeenCalledWith(
+      {
+        id: expect.any(String),
+        retryOfId: parent.extractionId,
+        retryDocument: false,
+        rediscover: false,
+        retryRecordStartBlockIds: [],
+      },
+      expect.any(AbortSignal),
+    )
+    expect(result.current.attempt?.extractionId).toBe(child.extractionId)
+  })
+
+  it('blocks a second targeted retry while the first request is active', () => {
+    vi.mocked(api.requestExtraction).mockImplementation(() => new Promise(() => {}))
+    const parent = attempt({ strategy: 'CATALOG', diagnostics: {
+      phase: 'grounding', durationMs: 1, modelCalls: 1,
+      finishReason: null, inputTokens: 1, outputTokens: 1,
+      values: null, grounding: null, catalog: { stages: [], records: [] },
+    } })
+    const { result } = renderHook(() => useExtraction(options(parent)))
+    const selection = { retryDocument: false, rediscover: false, retryRecordStartBlockIds: [] }
+
+    act(() => void result.current.retryExtraction(selection))
+    act(() => void result.current.retryExtraction(selection))
+
+    expect(api.requestExtraction).toHaveBeenCalledOnce()
+    expect(result.current.state.status).toBe('running')
   })
 
   it('returns to idle when changed pins cancel a running extraction', () => {

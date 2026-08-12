@@ -16,14 +16,24 @@ import {
   extractionDiagnosticsSchema,
   extractionFailureSchema,
   extractionModelAttributionSchema,
+  extractionRetrySelectionSchema,
   finalizeExtractionReviewSchema,
   sameExtractionIdentity,
   type ExtractionRequest,
   type ExtractionDiagnostics,
   type ExtractionFailure,
   type ExtractionModelAttribution,
+  type ExtractionRetrySelection,
 } from '../shared/extraction.contract.js'
-import { canonicalSource } from '../shared/anchoredDocument.js'
+import {
+  canonicalSource,
+  canonicalSourceSlice,
+} from '../shared/anchoredDocument.js'
+import {
+  CatalogBoundaryResolutionError,
+  resolveCatalogBoundaries,
+  type CatalogBoundary,
+} from '../shared/catalogBoundaries.js'
 import {
   groundExtraction,
   populatedContentPaths,
@@ -36,7 +46,9 @@ import {
 import { decodeParsedDocument } from '../shared/parsedDocument.js'
 import {
   nodesToTemplate,
+  partitionSchemaNodes,
   parseSchemaDefinition,
+  restoreSchemaNodeOrder,
   type SchemaNode,
 } from '../shared/schemaNode.js'
 import {
@@ -59,6 +71,7 @@ import {
 const COLLECTION_ROUTE = '/api/extractions'
 const ITEM_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)$/
 const REVIEW_ROUTE = /^\/api\/extractions\/([0-9a-f-]+)\/review$/
+export const CATALOG_RECORD_LIMIT = 100
 
 type ExtractionStore = Pick<
   ProjectStore,
@@ -133,8 +146,14 @@ function safeFailure(error: unknown): ExtractionFailure {
 function extractionRecords(
   value: Record<string, unknown>,
 ): Record<string, unknown>[] | null {
-  const records = Array.isArray(value.records) ? value.records : [value]
-  return records.every(isRecord) ? records : null
+  let records: unknown[]
+  if (Object.hasOwn(value, 'records')) {
+    if (Object.keys(value).length !== 1 || !Array.isArray(value.records))
+      return null
+    records = value.records
+  } else records = [value]
+  if (!records.every(isRecord)) return null
+  return records
 }
 
 function recordMatchesSchema(
@@ -163,6 +182,23 @@ function recordMatchesSchema(
       )
     return !Array.isArray(item) && !isRecord(item)
   })
+}
+
+function sameRetrySelection(
+  attempt: Pick<StoredExtractionAttempt, 'diagnostics' | 'retryOfId'>,
+  request: ExtractionRequest,
+): boolean {
+  if (request.retryOfId === null) return attempt.retryOfId === null
+  const diagnostics = extractionDiagnosticsSchema.safeParse(attempt.diagnostics)
+  const retry = diagnostics.success ? diagnostics.data.retry : null
+  return (
+    attempt.retryOfId === request.retryOfId &&
+    retry?.retryOfId === request.retryOfId &&
+    retry.retryDocument === request.retryDocument &&
+    retry.rediscover === request.rediscover &&
+    JSON.stringify([...retry.retryRecordStartBlockIds].sort()) ===
+      JSON.stringify([...request.retryRecordStartBlockIds].sort())
+  )
 }
 
 function resultMatchesSchema(
@@ -241,15 +277,74 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     }
   }
 
-  async function runArticle(
+  type CatalogDiagnostics = NonNullable<ExtractionDiagnostics['catalog']>
+  type CatalogStage = CatalogDiagnostics['stages'][number]
+
+  const callDiagnostic = (
+    outcome: CatalogStage['outcome'],
+    startedAt: number,
+    metadata: ModelGenerationMetadata | null,
+    failureCode: string | null = null,
+    calls = outcome === 'not_attempted' ? 0 : 1,
+    provenance: CatalogStage['provenance'] = 'executed',
+  ): Omit<CatalogStage, 'stage'> => ({
+    provenance,
+    outcome,
+    finishReason: metadata?.finishReason ?? null,
+    calls,
+    inputTokens: metadata?.inputTokens ?? null,
+    outputTokens: metadata?.outputTokens ?? null,
+    durationMs:
+      calls === 0
+        ? 0
+        : metadata?.durationMs ?? Math.max(0, Math.round(now() - startedAt)),
+    failureCode,
+  })
+
+  async function runExtraction(
     request: ExtractionRequest,
     signal: AbortSignal,
     beginPersist: () => void,
   ): Promise<OperationResult> {
     const startedAt = now()
+    const retryParent = request.retryOfId
+      ? await store.getExtractionAttempt(request.retryOfId)
+      : null
+    if (request.retryOfId && !retryParent)
+      throw new ApiError(404, 'not_found', 'The retry parent was not found.')
+    const strategy = retryParent?.strategy ?? request.strategy
+    if (!strategy)
+      throw new ApiError(422, 'invalid_request', 'The Extraction strategy is required.')
+    if (retryParent) {
+      if (retryParent.strategy !== 'CATALOG')
+        throw new ApiError(
+          422,
+          'invalid_retry',
+          'Targeted retry is available only for Catalog attempts.',
+        )
+      if (
+        (request.sourceRepresentationRevisionId !== undefined &&
+          retryParent.sourceRepresentationRevisionId !==
+            request.sourceRepresentationRevisionId) ||
+        (request.schemaRevisionId !== undefined &&
+          retryParent.schemaRevisionId !== request.schemaRevisionId) ||
+        (request.strategy !== undefined && retryParent.strategy !== request.strategy)
+      )
+        throw new ApiError(
+          409,
+          'invalid_retry_pins',
+          'A Catalog retry must use its immediate parent pins and strategy.',
+        )
+      if (
+        retryParent.outcome === 'CANCELLED' ||
+        (retryParent.outcome === 'FAILED' && !retryParent.diagnostics)
+      )
+        throw new ApiError(422, 'invalid_retry', 'The Catalog parent is not retryable.')
+    }
     const inputs = await store.getExtractionInputs(
-      request.sourceRepresentationRevisionId,
-      request.schemaRevisionId,
+      retryParent?.sourceRepresentationRevisionId ??
+        request.sourceRepresentationRevisionId!,
+      retryParent?.schemaRevisionId ?? request.schemaRevisionId!,
     )
     if (!inputs)
       throw new ApiError(
@@ -264,8 +359,466 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     let inputTokens: number | null = null
     let outputTokens: number | null = null
     let routeAttribution: ExtractionModelAttribution | null = null
+    let executionTarget: ExecutionTarget | undefined
     let valuesDiagnostics: ExtractionDiagnostics['values'] = null
     let groundingDiagnostics: ExtractionDiagnostics['grounding'] = null
+    const retrySelection: ExtractionRetrySelection | null = retryParent
+      ? extractionRetrySelectionSchema.parse({
+          retryOfId: retryParent.extractionId,
+          retryDocument: request.retryDocument,
+          rediscover: request.rediscover,
+          retryRecordStartBlockIds: request.retryRecordStartBlockIds,
+        })
+      : null
+    const catalogDiagnostics: CatalogDiagnostics | null =
+      strategy === 'CATALOG'
+        ? {
+            stages: (['document-values', 'discovery', 'record-values', 'grounding'] as const).map(
+              (stage) => ({
+                stage,
+                ...callDiagnostic('not_attempted', now(), null),
+              }),
+            ),
+            records: [],
+          }
+        : null
+    const parentCatalog = retryParent
+      ? extractionDiagnosticsSchema.safeParse(retryParent.diagnostics).data?.catalog ?? null
+      : null
+    if (retryParent && !parentCatalog)
+      throw new ApiError(422, 'invalid_retry', 'The Catalog parent has no valid diagnostics.')
+    if (retryParent && parentCatalog) {
+      const discovery = parentCatalog.stages.find((stage) => stage.stage === 'discovery')
+      const documentValues = parentCatalog.stages.find(
+        (stage) => stage.stage === 'document-values',
+      )
+      const selected = new Set(request.retryRecordStartBlockIds)
+      if (!request.rediscover && discovery?.outcome !== 'succeeded')
+        throw new ApiError(
+          422,
+          'invalid_retry_selection',
+          'A failed Catalog discovery requires rediscover=true.',
+        )
+      if (
+        request.retryDocument &&
+        documentValues?.outcome !== 'failed'
+      )
+        throw new ApiError(
+          422,
+          'invalid_retry_selection',
+          'retryDocument must target a failed document-values stage.',
+        )
+      const recordById = new Map(
+        parentCatalog.records.map((record) => [record.boundary.startBlockId, record]),
+      )
+      for (const startBlockId of selected) {
+        const record = recordById.get(startBlockId)
+        if (!record || !['failed', 'not_attempted'].includes(record.outcome))
+          throw new ApiError(
+            422,
+            'invalid_retry_selection',
+            'Retry records must identify failed canonical parent records.',
+          )
+      }
+      if (
+        !request.rediscover &&
+        !request.retryDocument &&
+        selected.size === 0 &&
+        (!retryParent.resultPayload || retryParent.outcome !== 'SUCCEEDED')
+      )
+        throw new ApiError(
+          422,
+          'invalid_retry_selection',
+          'Grounding-only retry requires a succeeded parent result.',
+        )
+    }
+    const callMetadata: (ModelGenerationMetadata | null)[] = []
+    const invoke = async (
+      input: Parameters<typeof extract>[0],
+    ): Promise<Awaited<ReturnType<typeof extract>>> => {
+      modelCalls++
+      try {
+        const generated = await extract(input, executionTarget)
+        callMetadata.push(generated.metadata)
+        return generated
+      } catch (error) {
+        callMetadata.push(modelGenerationMetadata(error))
+        throw error
+      }
+    }
+    const setCatalogStage = (
+      stage: CatalogStage['stage'],
+      diagnostics: Omit<CatalogStage, 'stage'>,
+    ) => {
+      if (!catalogDiagnostics) return
+      const index = catalogDiagnostics.stages.findIndex((item) => item.stage === stage)
+      catalogDiagnostics.stages[index] = { stage, ...diagnostics }
+    }
+    const executeCatalogRetry = async (
+      document: ReturnType<typeof decodeParsedDocument>,
+      nodes: readonly SchemaNode[],
+      recordDescription: string,
+    ): Promise<Record<string, unknown>> => {
+      if (!retryParent || !parentCatalog || !retrySelection)
+        throw new ApiError(422, 'invalid_retry', 'The Catalog retry is invalid.')
+      const { documentNodes, recordNodes } = partitionSchemaNodes(nodes)
+      const parentPayload = cleanExtractionResultSchema.safeParse(
+        retryParent.resultPayload,
+      )
+      const parentRecords = parentPayload.success
+        ? extractionRecords(parentPayload.data)
+        : null
+      const parentValuesByStartBlockId = new Map<
+        string,
+        Record<string, unknown>
+      >()
+      let parentValueIndex = 0
+      for (const diagnostic of parentCatalog.records) {
+        if (diagnostic.outcome !== 'succeeded') continue
+        const parentValue = parentRecords?.[parentValueIndex++]
+        if (parentValue)
+          parentValuesByStartBlockId.set(
+            diagnostic.boundary.startBlockId,
+            parentValue,
+          )
+      }
+      if (
+        !retrySelection.rediscover &&
+        !retrySelection.retryDocument &&
+        retrySelection.retryRecordStartBlockIds.length === 0 &&
+        !parentRecords
+      )
+        throw new ApiError(
+          422,
+          'invalid_retry_selection',
+          'Grounding-only retry requires a stored parent result.',
+        )
+
+      const reuseCall = <
+        T extends CatalogStage | CatalogDiagnostics['records'][number],
+      >(
+        value: T,
+      ): T => ({
+        ...value,
+        provenance: 'reused',
+        calls: 0,
+        inputTokens: null,
+        outputTokens: null,
+        durationMs: 0,
+        finishReason: value.finishReason,
+      })
+      const parentStage = (stage: CatalogStage['stage']) =>
+        parentCatalog.stages.find((item) => item.stage === stage)
+      for (const stage of ['document-values', 'discovery'] as const) {
+        const previous = parentStage(stage)
+        if (previous) setCatalogStage(stage, reuseCall(previous))
+      }
+
+      let documentValues: Record<string, unknown> = {}
+      let documentComplete = true
+      if (documentNodes.length > 0) {
+        const parentDocument = parentRecords?.[0]
+        for (const node of documentNodes)
+          if (parentDocument && Object.hasOwn(parentDocument, node.name))
+            documentValues[node.name] = parentDocument[node.name]
+      }
+      if (retrySelection.retryDocument) {
+        phase = 'extracting'
+        const documentStartedAt = now()
+        const describedTemplate = {
+          records: [
+            {
+              _description: recordDescription,
+              ...nodesToTemplate(documentNodes),
+            },
+          ],
+        }
+        try {
+          const generated = await invoke({
+            document: {
+              file: null,
+              markdown: canonicalSource(document),
+              pages: document.page_count,
+            },
+            template: stripDescriptions(describedTemplate),
+            instruction: compileInstructions(describedTemplate) || undefined,
+            signal,
+          })
+          const extracted = extractionRecords(generated.result)
+          if (!extracted || extracted.length !== 1)
+            throw new ApiError(
+              502,
+              'invalid_model_output',
+              'Document extraction must return one record.',
+            )
+          documentValues = restoreSchemaNodeOrder(extracted[0], documentNodes)
+          setCatalogStage(
+            'document-values',
+            callDiagnostic('succeeded', documentStartedAt, generated.metadata),
+          )
+          if (generated.metadata.finishReason === 'length') strategyIncomplete = true
+        } catch (error) {
+          if (signal.aborted || abortError(error)) throw error
+          documentComplete = false
+          strategyIncomplete = true
+          setCatalogStage(
+            'document-values',
+            callDiagnostic(
+              'failed',
+              documentStartedAt,
+              modelGenerationMetadata(error),
+              error instanceof ApiError ? error.code : 'extraction_failed',
+            ),
+          )
+        }
+      }
+      const previousDocumentStage = parentStage('document-values')
+      if (
+        documentNodes.length > 0 &&
+        !retrySelection.retryDocument &&
+        previousDocumentStage &&
+        (previousDocumentStage.outcome !== 'succeeded' ||
+          previousDocumentStage.finishReason === 'length')
+      ) {
+        documentComplete = false
+        strategyIncomplete = true
+      }
+
+      let boundaries: CatalogBoundary[]
+      if (retrySelection.rediscover) {
+        phase = 'extracting'
+        const discoveryStartedAt = now()
+        try {
+          const generated = await invoke({
+            document: {
+              file: null,
+              markdown: canonicalSource(document),
+              pages: document.page_count,
+            },
+            template: { starts: ['string'] },
+            instruction:
+              'Identify every catalog record start. Return exactly {"starts":[string]} with each item equal to an exact canonical heading label in source order.',
+            signal,
+          })
+          const discovery = generated.result
+          if (
+            !isRecord(discovery) ||
+            Object.keys(discovery).length !== 1 ||
+            !Array.isArray(discovery.starts) ||
+            !discovery.starts.every((label) => typeof label === 'string')
+          )
+            throw new ApiError(
+              502,
+              'invalid_model_output',
+              'Catalog discovery must return exactly { starts: string[] }.',
+            )
+          boundaries = resolveCatalogBoundaries(document, discovery.starts)
+          setCatalogStage(
+            'discovery',
+            callDiagnostic('succeeded', discoveryStartedAt, generated.metadata),
+          )
+          if (generated.metadata.finishReason === 'length') strategyIncomplete = true
+        } catch (error) {
+          if (signal.aborted || abortError(error)) throw error
+          const failureCode =
+            error instanceof CatalogBoundaryResolutionError
+              ? error.code
+              : error instanceof ApiError
+                ? error.code
+                : 'extraction_failed'
+          setCatalogStage(
+            'discovery',
+            callDiagnostic(
+              'failed',
+              discoveryStartedAt,
+              modelGenerationMetadata(error),
+              failureCode,
+            ),
+          )
+          throw new ApiError(
+            502,
+            failureCode,
+            error instanceof Error ? error.message : 'Catalog discovery failed.',
+          )
+        }
+      } else {
+        boundaries = parentCatalog.records.map((record) => record.boundary)
+      }
+      const previousDiscoveryStage = parentStage('discovery')
+      if (
+        !retrySelection.rediscover &&
+        previousDiscoveryStage &&
+        (previousDiscoveryStage.outcome !== 'succeeded' ||
+          previousDiscoveryStage.finishReason === 'length')
+      )
+        strategyIncomplete = true
+      if (boundaries.length === 0)
+        throw new ApiError(422, 'catalog_no_records', 'Catalog discovery returned no records.')
+
+      const selected = new Set(retrySelection.retryRecordStartBlockIds)
+      const successfulRecords: Array<{
+        boundary: CatalogBoundary
+        record: Record<string, unknown>
+      }> = []
+      const recordStartedAt = now()
+      let executedRecordCalls = 0
+      for (const [ordinal, boundary] of boundaries.entries()) {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+        const previous = parentCatalog.records.find(
+          (record) => record.boundary.startBlockId === boundary.startBlockId,
+        )
+        const shouldExecute = retrySelection.rediscover || selected.has(boundary.startBlockId)
+        if (!shouldExecute && previous?.outcome === 'succeeded') {
+          const reused = parentValuesByStartBlockId.get(boundary.startBlockId)
+          if (reused) successfulRecords.push({ boundary, record: reused })
+          if (previous)
+            catalogDiagnostics!.records.push(reuseCall(previous))
+          if (previous?.finishReason === 'length') strategyIncomplete = true
+          continue
+        }
+        if (!shouldExecute) {
+          if (previous) {
+            catalogDiagnostics!.records.push(reuseCall(previous))
+            if (
+              previous.outcome !== 'succeeded' ||
+              previous.finishReason === 'length'
+            )
+              strategyIncomplete = true
+          }
+          continue
+        }
+        if (
+          recordNodes.length > 0 &&
+          executedRecordCalls >= CATALOG_RECORD_LIMIT
+        ) {
+          strategyIncomplete = true
+          catalogDiagnostics!.records.push({
+            ordinal,
+            boundary,
+            ...callDiagnostic('not_attempted', now(), null, 'not_attempted_limit'),
+          })
+          continue
+        }
+        if (recordNodes.length === 0) {
+          successfulRecords.push({ boundary, record: {} })
+          catalogDiagnostics!.records.push({
+            ordinal,
+            boundary,
+            ...callDiagnostic('succeeded', now(), null, null, 0),
+          })
+          continue
+        }
+        phase = 'extracting'
+        const callStartedAt = now()
+        executedRecordCalls += 1
+        try {
+          const describedTemplate = {
+            records: [
+              {
+                _description: recordDescription,
+                ...nodesToTemplate(recordNodes),
+              },
+            ],
+          }
+          const generated = await invoke({
+            document: {
+              file: null,
+              markdown: canonicalSourceSlice(
+                document,
+                boundary.startContentIndex,
+                boundary.endContentIndex,
+              ),
+              pages: document.page_count,
+            },
+            template: stripDescriptions(describedTemplate),
+            instruction: compileInstructions(describedTemplate) || undefined,
+            signal,
+          })
+          const extracted = extractionRecords(generated.result)
+          if (!extracted || extracted.length !== 1)
+            throw new ApiError(
+              502,
+              'invalid_model_output',
+              'Catalog record extraction must return one record.',
+            )
+          successfulRecords.push({
+            boundary,
+            record: restoreSchemaNodeOrder(extracted[0], recordNodes),
+          })
+          catalogDiagnostics!.records.push({
+            ordinal,
+            boundary,
+            ...callDiagnostic('succeeded', callStartedAt, generated.metadata),
+          })
+          if (generated.metadata.finishReason === 'length') strategyIncomplete = true
+        } catch (error) {
+          if (signal.aborted || abortError(error)) throw error
+          strategyIncomplete = true
+          catalogDiagnostics!.records.push({
+            ordinal,
+            boundary,
+            ...callDiagnostic(
+              'failed',
+              callStartedAt,
+              modelGenerationMetadata(error),
+              error instanceof ApiError ? error.code : 'extraction_failed',
+            ),
+          })
+        }
+      }
+      const attempted = catalogDiagnostics!.records.filter(
+        (record) => record.provenance === 'executed' && record.outcome !== 'not_attempted',
+      )
+      const previousRecordStage = parentStage('record-values')
+      if (attempted.length === 0 && previousRecordStage)
+        setCatalogStage('record-values', reuseCall(previousRecordStage))
+      else
+        setCatalogStage('record-values', {
+          provenance: 'executed',
+          outcome:
+            attempted.every((record) => record.outcome === 'succeeded')
+              ? 'succeeded'
+              : 'failed',
+          finishReason:
+            attempted.find((record) => record.finishReason !== null)?.finishReason ?? null,
+          calls: attempted.reduce((sum, record) => sum + record.calls, 0),
+          inputTokens: attempted.every((record) => record.inputTokens === null)
+            ? null
+            : attempted.reduce((sum, record) => sum + (record.inputTokens ?? 0), 0),
+          outputTokens: attempted.every((record) => record.outputTokens === null)
+            ? null
+            : attempted.reduce((sum, record) => sum + (record.outputTokens ?? 0), 0),
+          durationMs: Math.max(0, Math.round(now() - recordStartedAt)),
+          failureCode:
+            attempted.find((record) => record.failureCode !== null)?.failureCode ?? null,
+        })
+      if (
+        catalogDiagnostics!.records.length !== boundaries.length ||
+        catalogDiagnostics!.records.some((record) => record.outcome !== 'succeeded')
+      )
+        strategyIncomplete = true
+      if (successfulRecords.length === 0)
+        throw new ApiError(422, 'catalog_no_records', 'Catalog produced no successful records.')
+      if (!documentComplete) strategyIncomplete = true
+      return {
+        records: successfulRecords.map(({ record }) => {
+          const restored: Record<string, unknown> = {}
+          for (const node of nodes) {
+            if (node.valueSource === 'source-filename') {
+              if (document.document.source.original_filename !== null)
+                restored[node.name] = document.document.source.original_filename
+            } else if (node.valueSource === 'document') {
+              if (Object.hasOwn(documentValues, node.name))
+                restored[node.name] = documentValues[node.name]
+            } else if (Object.hasOwn(record, node.name)) {
+              restored[node.name] = record[node.name]
+            }
+          }
+          return restored
+        }),
+      }
+    }
+    let strategyIncomplete = false
     let terminal: Omit<
       TerminalExtractionInput,
       | 'extractionId'
@@ -282,6 +835,9 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
       const { recordDescription, schemaNodes: nodes } =
         parseSchemaDefinition(inputs.schemaTree)
+      const { packageNodes } = partitionSchemaNodes(nodes)
+      const modelNodes = nodes.filter((node) => node.valueSource !== 'source-filename')
+      const packageFields = new Set(packageNodes.map((node) => node.name))
       const target = await resolveTarget()
       if (!target.attribution)
         throw new ApiError(
@@ -290,64 +846,318 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
           'The Extraction Route has no durable attribution.',
         )
       routeAttribution = target.attribution
+      executionTarget = target
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-      phase = 'extracting'
-      const describedTemplate = {
-        records: [
-          {
-            _description: recordDescription,
-            ...nodesToTemplate(nodes),
-          },
-        ],
-      }
-      modelCalls++
-      const valuesStartedAt = now()
-      let generated: Awaited<ReturnType<typeof extract>>
-      try {
-        generated = await extract(
-          {
+      let result: Record<string, unknown>
+      if (strategy === 'ARTICLE') {
+        let records: Record<string, unknown>[] = [{}]
+        if (nodes.length === 0 || modelNodes.length > 0) {
+          phase = 'extracting'
+          const describedTemplate = {
+            records: [
+              {
+                _description: recordDescription,
+                ...nodesToTemplate(modelNodes),
+              },
+            ],
+          }
+          const valuesStartedAt = now()
+          let generated: Awaited<ReturnType<typeof extract>>
+          try {
+            generated = await invoke({
+              document: {
+                file: null,
+                markdown: canonicalSource(document),
+                pages: document.page_count,
+              },
+              template: stripDescriptions(describedTemplate),
+              instruction: compileInstructions(describedTemplate) || undefined,
+              signal,
+            })
+            valuesDiagnostics = {
+              outcome: 'succeeded',
+              ...generated.metadata,
+            }
+          } catch (error) {
+            const metadata = modelGenerationMetadata(error)
+            valuesDiagnostics = {
+              outcome: 'failed',
+              finishReason: metadata?.finishReason ?? null,
+              inputTokens: metadata?.inputTokens ?? null,
+              outputTokens: metadata?.outputTokens ?? null,
+              durationMs:
+                metadata?.durationMs ??
+                Math.max(0, Math.round(now() - valuesStartedAt)),
+            }
+            finishReason = valuesDiagnostics.finishReason
+            inputTokens = valuesDiagnostics.inputTokens
+            outputTokens = valuesDiagnostics.outputTokens
+            throw error
+          }
+          finishReason = generated.metadata.finishReason
+          inputTokens = generated.metadata.inputTokens
+          outputTokens = generated.metadata.outputTokens
+          const extracted = extractionRecords(generated.result)
+          if (!extracted)
+            throw new ApiError(
+              502,
+              'invalid_model_output',
+              'Article extraction records must be objects.',
+            )
+          records = extracted
+        }
+        result = {
+          records: records.map((record) => {
+            const modelRecord = restoreSchemaNodeOrder(record, modelNodes)
+            const restored: Record<string, unknown> = {}
+            for (const node of nodes) {
+              if (
+                node.valueSource === 'source-filename' &&
+                document.document.source.original_filename !== null
+              )
+                restored[node.name] = document.document.source.original_filename
+              else if (
+                node.valueSource !== 'source-filename' &&
+                Object.hasOwn(modelRecord, node.name)
+              )
+                restored[node.name] = modelRecord[node.name]
+            }
+            return restored
+          }),
+        }
+      } else {
+        if (retryParent) {
+          result = await executeCatalogRetry(
+            document,
+            nodes,
+            recordDescription,
+          )
+        } else {
+        const { documentNodes, recordNodes } = partitionSchemaNodes(nodes)
+        let documentValues: Record<string, unknown> = {}
+        let documentComplete = true
+        if (documentNodes.length > 0) {
+          phase = 'extracting'
+          const documentStartedAt = now()
+          const describedTemplate = {
+            records: [
+              {
+                _description: recordDescription,
+                ...nodesToTemplate(documentNodes),
+              },
+            ],
+          }
+          let documentMetadata: ModelGenerationMetadata | null = null
+          try {
+            const generated = await invoke({
+              document: {
+                file: null,
+                markdown: canonicalSource(document),
+                pages: document.page_count,
+              },
+              template: stripDescriptions(describedTemplate),
+              instruction: compileInstructions(describedTemplate) || undefined,
+              signal,
+            })
+            documentMetadata = generated.metadata
+            const extracted = extractionRecords(generated.result)
+            if (!extracted || extracted.length !== 1)
+              throw new ApiError(502, 'invalid_model_output', 'Document extraction must return one record.')
+            documentValues = restoreSchemaNodeOrder(extracted[0], documentNodes)
+            setCatalogStage('document-values', callDiagnostic('succeeded', documentStartedAt, generated.metadata))
+            if (generated.metadata.finishReason === 'length') strategyIncomplete = true
+          } catch (error) {
+            if (signal.aborted || abortError(error)) throw error
+            documentComplete = false
+            strategyIncomplete = true
+            setCatalogStage(
+              'document-values',
+              callDiagnostic(
+                'failed',
+                documentStartedAt,
+                modelGenerationMetadata(error) ?? documentMetadata,
+                error instanceof ApiError ? error.code : 'extraction_failed',
+              ),
+            )
+          }
+        }
+
+        phase = 'extracting'
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+        const discoveryStartedAt = now()
+        let boundaries: CatalogBoundary[]
+        let discoveryMetadata: ModelGenerationMetadata | null = null
+        try {
+          const generated = await invoke({
             document: {
               file: null,
               markdown: canonicalSource(document),
               pages: document.page_count,
             },
-            template: stripDescriptions(describedTemplate),
-            instruction: compileInstructions(describedTemplate) || undefined,
+            template: { starts: ['string'] },
+            instruction:
+              'Identify every catalog record start. Return exactly {"starts":[string]} with each item equal to an exact canonical heading label in source order.',
             signal,
+          })
+          discoveryMetadata = generated.metadata
+          const discovery = generated.result
+          if (
+            !isRecord(discovery) ||
+            Object.keys(discovery).length !== 1 ||
+            !Array.isArray(discovery.starts) ||
+            !discovery.starts.every((label) => typeof label === 'string')
+          )
+            throw new ApiError(502, 'invalid_model_output', 'Catalog discovery must return exactly { starts: string[] }.')
+          boundaries = resolveCatalogBoundaries(document, discovery.starts)
+          setCatalogStage('discovery', callDiagnostic('succeeded', discoveryStartedAt, generated.metadata))
+          if (generated.metadata.finishReason === 'length') strategyIncomplete = true
+        } catch (error) {
+          if (signal.aborted || abortError(error)) throw error
+          const failureCode =
+            error instanceof CatalogBoundaryResolutionError
+              ? error.code
+              : error instanceof ApiError
+                ? error.code
+                : 'extraction_failed'
+          setCatalogStage(
+            'discovery',
+            callDiagnostic(
+              'failed',
+              discoveryStartedAt,
+              modelGenerationMetadata(error) ?? discoveryMetadata,
+              failureCode,
+            ),
+          )
+          throw new ApiError(502, failureCode, error instanceof Error ? error.message : 'Catalog discovery failed.')
+        }
+        if (boundaries.length === 0)
+          throw new ApiError(422, 'catalog_no_records', 'Catalog discovery returned no records.')
+
+        const recordStartedAt = now()
+        const successfulRecords: Array<{ boundary: CatalogBoundary; record: Record<string, unknown> }> = []
+        for (let ordinal = 0; ordinal < boundaries.length; ordinal += 1) {
+          if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+          const boundary = boundaries[ordinal]
+          if (ordinal >= CATALOG_RECORD_LIMIT) {
+            strategyIncomplete = true
+            catalogDiagnostics!.records.push({
+              ordinal,
+              boundary,
+              ...callDiagnostic('not_attempted', now(), null, 'not_attempted_limit'),
+            })
+            continue
+          }
+          if (recordNodes.length === 0) {
+            successfulRecords.push({ boundary, record: {} })
+            catalogDiagnostics!.records.push({
+              ordinal,
+              boundary,
+              ...callDiagnostic('succeeded', now(), null, null, 0),
+            })
+            continue
+          }
+          const callStartedAt = now()
+          const describedTemplate = {
+            records: [
+              {
+                _description: recordDescription,
+                ...nodesToTemplate(recordNodes),
+              },
+            ],
+          }
+          let recordMetadata: ModelGenerationMetadata | null = null
+          try {
+            const generated = await invoke({
+              document: {
+                file: null,
+                markdown: canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex),
+                pages: document.page_count,
+              },
+              template: stripDescriptions(describedTemplate),
+              instruction: compileInstructions(describedTemplate) || undefined,
+              signal,
+            })
+            recordMetadata = generated.metadata
+            const extracted = extractionRecords(generated.result)
+            if (!extracted || extracted.length !== 1)
+              throw new ApiError(502, 'invalid_model_output', 'Catalog record extraction must return one record.')
+            const record = restoreSchemaNodeOrder(extracted[0], recordNodes)
+            successfulRecords.push({ boundary, record })
+            catalogDiagnostics!.records.push({
+              ordinal,
+              boundary,
+              ...callDiagnostic('succeeded', callStartedAt, generated.metadata),
+            })
+            if (generated.metadata.finishReason === 'length') strategyIncomplete = true
+          } catch (error) {
+            if (signal.aborted || abortError(error)) {
+              catalogDiagnostics!.records.push({
+                ordinal,
+                boundary,
+                ...callDiagnostic(
+                  'failed',
+                  callStartedAt,
+                  modelGenerationMetadata(error) ?? recordMetadata,
+                  'cancelled',
+                ),
+              })
+              throw error
+            }
+            strategyIncomplete = true
+            catalogDiagnostics!.records.push({
+              ordinal,
+              boundary,
+              ...callDiagnostic(
+                'failed',
+                callStartedAt,
+                modelGenerationMetadata(error) ?? recordMetadata,
+                error instanceof ApiError ? error.code : 'extraction_failed',
+              ),
+            })
+          }
+        }
+        const attempted = catalogDiagnostics!.records.filter((record) => record.outcome !== 'not_attempted')
+        setCatalogStage(
+          'record-values',
+          {
+            outcome:
+              attempted.length === 0
+                ? 'not_attempted'
+                : attempted.every((record) => record.outcome === 'succeeded')
+                  ? 'succeeded'
+                  : 'failed',
+            finishReason: attempted.find((record) => record.finishReason !== null)?.finishReason ?? null,
+            calls: attempted.reduce((sum, record) => sum + record.calls, 0),
+            inputTokens: attempted.every((record) => record.inputTokens === null)
+              ? null
+              : attempted.reduce((sum, record) => sum + (record.inputTokens ?? 0), 0),
+            outputTokens: attempted.every((record) => record.outputTokens === null)
+              ? null
+              : attempted.reduce((sum, record) => sum + (record.outputTokens ?? 0), 0),
+            durationMs: Math.max(0, Math.round(now() - recordStartedAt)),
+            failureCode: attempted.find((record) => record.failureCode !== null)?.failureCode ?? null,
           },
-          target,
         )
-        valuesDiagnostics = {
-          outcome: 'succeeded',
-          ...generated.metadata,
+        if (successfulRecords.length === 0)
+          throw new ApiError(422, 'catalog_no_records', 'Catalog produced no successful records.')
+        if (boundaries.length > CATALOG_RECORD_LIMIT) strategyIncomplete = true
+        result = {
+          records: successfulRecords.map(({ record }) => {
+            const restored: Record<string, unknown> = {}
+            for (const node of nodes) {
+              if (node.valueSource === 'source-filename') {
+                if (document.document.source.original_filename !== null)
+                  restored[node.name] = document.document.source.original_filename
+              } else if (node.valueSource === 'document') {
+                if (Object.hasOwn(documentValues, node.name)) restored[node.name] = documentValues[node.name]
+              } else if (Object.hasOwn(record, node.name)) restored[node.name] = record[node.name]
+            }
+            return restored
+          }),
         }
-      } catch (error) {
-        const metadata = modelGenerationMetadata(error)
-        valuesDiagnostics = {
-          outcome: 'failed',
-          finishReason: metadata?.finishReason ?? null,
-          inputTokens: metadata?.inputTokens ?? null,
-          outputTokens: metadata?.outputTokens ?? null,
-          durationMs:
-            metadata?.durationMs ??
-            Math.max(0, Math.round(now() - valuesStartedAt)),
+        if (!documentComplete) strategyIncomplete = true
         }
-        finishReason = valuesDiagnostics.finishReason
-        inputTokens = valuesDiagnostics.inputTokens
-        outputTokens = valuesDiagnostics.outputTokens
-        throw error
       }
-      finishReason = generated.metadata.finishReason
-      inputTokens = generated.metadata.inputTokens
-      outputTokens = generated.metadata.outputTokens
-      const records = extractionRecords(generated.result)
-      if (!records)
-        throw new ApiError(
-          502,
-          'invalid_model_output',
-          'Article extraction records must be objects.',
-        )
-      const result = { records }
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
 
       phase = 'grounding'
@@ -356,6 +1166,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       const grounded = await groundExtraction({
         document,
         result,
+        excludedRootFields: packageFields,
         signal,
         invokeModel: async ({ documentMarkdown, template, instruction, signal }) => {
           const metadataIndex = groundingMetadata.push(null) - 1
@@ -375,10 +1186,12 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
               },
               target,
             )
+            callMetadata.push(generated.metadata)
             groundingMetadata[metadataIndex] = generated.metadata
             groundingOutcomes[metadataIndex] = 'succeeded'
           } catch (error) {
             groundingMetadata[metadataIndex] = modelGenerationMetadata(error)
+            callMetadata.push(groundingMetadata[metadataIndex])
             groundingOutcomes[metadataIndex] = 'failed'
             throw error
           }
@@ -403,7 +1216,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
         grounded.evidenceLinks.map((link) => resultPathKey(link.resultPath)),
       )
       groundingDiagnostics = {
-        groundedPaths: populatedContentPaths(result).filter((path) =>
+        groundedPaths: populatedContentPaths(result, packageFields).filter((path) =>
           groundedPathKeys.has(resultPathKey(path)),
         ),
         ungroundedPaths: [...grounded.ungroundedPaths],
@@ -420,11 +1233,43 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
             durationMs: groundingMetadata[index]?.durationMs ?? 0,
           })) ?? [],
       }
+      if (catalogDiagnostics) {
+        const groundingFailure = grounded.issues[0]?.code ?? null
+        setCatalogStage('grounding', {
+          outcome:
+            groundingOutcomes.some((outcome) => outcome === 'failed') || groundingFailure
+              ? 'failed'
+              : 'succeeded',
+          finishReason:
+            groundingMetadata.find((item) => item?.finishReason !== null)?.finishReason ?? null,
+          calls: groundingMetadata.length,
+          inputTokens: groundingMetadata.every((item) => item?.inputTokens == null)
+            ? null
+            : groundingMetadata.reduce((sum, item) => sum + (item?.inputTokens ?? 0), 0),
+          outputTokens: groundingMetadata.every((item) => item?.outputTokens == null)
+            ? null
+            : groundingMetadata.reduce((sum, item) => sum + (item?.outputTokens ?? 0), 0),
+          durationMs: groundingMetadata.reduce((sum, item) => sum + (item?.durationMs ?? 0), 0),
+          failureCode: groundingFailure,
+        })
+      }
+      if (strategy === 'CATALOG') {
+        const all = callMetadata
+        finishReason =
+          catalogDiagnostics?.stages.find((stage) => stage.finishReason !== null)?.finishReason ?? null
+        inputTokens = all.every((item) => item?.inputTokens == null)
+          ? null
+          : all.reduce((sum, item) => sum + (item?.inputTokens ?? 0), 0)
+        outputTokens = all.every((item) => item?.outputTokens == null)
+          ? null
+          : all.reduce((sum, item) => sum + (item?.outputTokens ?? 0), 0)
+      }
       terminal = {
         outcome: 'SUCCEEDED',
         complete:
           finishReason !== 'length' &&
           groundingMetadata.every((item) => item?.finishReason !== 'length') &&
+          !strategyIncomplete &&
           grounded.ungroundedPaths.length === 0 &&
           grounded.issues.length === 0,
         modelAttribution: routeAttribution,
@@ -460,11 +1305,10 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     return persist({
       extractionId: request.id,
       sourceDocumentId: inputs.sourceDocumentId,
-      sourceRepresentationRevisionId:
-        request.sourceRepresentationRevisionId,
-      schemaRevisionId: request.schemaRevisionId,
-      strategy: request.strategy,
-      retryOfId: null,
+      sourceRepresentationRevisionId: inputs.sourceRepresentationRevisionId,
+      schemaRevisionId: inputs.schemaRevisionId,
+      strategy,
+      retryOfId: retryParent?.extractionId ?? null,
       ...terminal,
       diagnostics: {
         phase,
@@ -475,6 +1319,8 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
         outputTokens,
         values: valuesDiagnostics,
         grounding: groundingDiagnostics,
+        catalog: catalogDiagnostics,
+        retry: retrySelection,
       },
     })
   }
@@ -488,7 +1334,13 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     const identity = parsed.data
     const existing = active.get(identity.id)
     if (existing) {
-      if (!sameExtractionIdentity(existing.request, identity))
+      if (
+        !sameExtractionIdentity(existing.request, identity) ||
+        existing.request.retryDocument !== identity.retryDocument ||
+        existing.request.rediscover !== identity.rediscover ||
+        JSON.stringify([...existing.request.retryRecordStartBlockIds].sort()) !==
+          JSON.stringify([...identity.retryRecordStartBlockIds].sort())
+      )
         throw new ApiError(
           409,
           'extraction_id_conflict',
@@ -510,7 +1362,10 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     operation.promise = lookup
       .then(async (stored) => {
         if (stored) {
-          if (!sameExtractionIdentity(stored, identity))
+          if (
+            !sameExtractionIdentity(stored, identity) ||
+            !sameRetrySelection(stored, identity)
+          )
             throw new ApiError(
               409,
               'extraction_id_conflict',
@@ -518,7 +1373,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
             )
           return { attempt: stored, created: false }
         }
-        return runArticle(identity, operation.controller.signal, () => {
+        return runExtraction(identity, operation.controller.signal, () => {
           operation.persisting = true
         })
       })
@@ -557,6 +1412,8 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     } catch {
       throw new ApiError(422, 'invalid_review', 'The Extraction has no valid pinned Schema Revision.')
     }
+    const { packageNodes } = partitionSchemaNodes(schemaNodes)
+    const packageFields = new Set(packageNodes.map((node) => node.name))
     if (
       !resultPayload.success ||
       !resultMatchesSchema(resultPayload.data, schemaNodes) ||
@@ -567,7 +1424,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       reviewDecisions: parsed.data.reviewDecisions,
       occurrenceIdsByAnchor: occurrenceOwnership(document),
       requiredResultPathKeys: new Set(
-        populatedContentPaths(resultPayload.data).map(resultPathKey),
+        populatedContentPaths(resultPayload.data, packageFields).map(resultPathKey),
       ),
     })
     if (finalized.status === 'not-found')

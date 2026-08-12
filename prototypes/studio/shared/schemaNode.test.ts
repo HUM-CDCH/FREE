@@ -4,8 +4,10 @@ import {
   duplicateFieldKeys,
   enumerateFieldPaths,
   nodesToTemplate,
+  partitionSchemaNodes,
   parseSchemaDefinition,
   parseSchemaNodes,
+  restoreSchemaNodeOrder,
   schemaDefinitionToTemplate,
   templateToSchemaDefinition,
   templateToNodes,
@@ -14,10 +16,7 @@ import {
 
 // @ts-expect-error Closed-set values are valid only on string fields.
 const invalidClosedSetNode: SchemaNode = { id: 'count', name: 'count', type: 'number', allowedValues: ['one', 'two'] }
-// @ts-expect-error Schema values are always extracted from document content.
-const invalidValueSourceNode: SchemaNode = { id: 'title', name: 'title', type: 'string', valueSource: 'document' }
 void invalidClosedSetNode
-void invalidValueSourceNode
 
 describe('SchemaNode conversion', () => {
   it('round-trips closed sets, repeating groups, and repeating string lists', () => {
@@ -129,17 +128,48 @@ describe('SchemaNode conversion', () => {
     ).toThrow()
   })
 
-  it('rejects obsolete stored schema properties', () => {
+  it('accepts top-level value sources and rejects nested declarations', () => {
+    expect(parseSchemaNodes([
+      { id: 'title', name: 'title', type: 'string', valueSource: 'document' },
+    ])).toEqual([
+      { id: 'title', name: 'title', type: 'string', valueSource: 'document' },
+    ])
     expect(() => parseSchemaNodes({ zeta: 'string' })).toThrow()
     expect(() =>
       parseSchemaNodes([
         {
-          id: 'title',
-          name: 'title',
-          type: 'string',
-          valueSource: 'document',
+          id: 'group',
+          name: 'group',
+          type: 'object',
+          children: [
+            { id: 'title', name: 'title', type: 'string', valueSource: 'document' },
+          ],
         },
       ]),
     ).toThrow()
+  })
+
+  it('partitions complete top-level subtrees and restores model order', () => {
+    const nodes = parseSchemaNodes([
+      { id: 'title', name: 'title', type: 'string' },
+      {
+        id: 'details',
+        name: 'details',
+        type: 'object',
+        valueSource: 'document',
+        children: [{ id: 'year', name: 'year', type: 'integer' }],
+      },
+      { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+    ])
+    expect(partitionSchemaNodes(nodes)).toEqual({
+      documentNodes: [nodes[1]],
+      recordNodes: [nodes[0]],
+      packageNodes: [nodes[2]],
+    })
+    expect(restoreSchemaNodeOrder(
+      { details: { year: 2026 }, title: 'A title' },
+      [...partitionSchemaNodes(nodes).recordNodes, ...partitionSchemaNodes(nodes).documentNodes],
+    )).toEqual({ title: 'A title', details: { year: 2026 } })
+    expect(() => restoreSchemaNodeOrder({ title: 'A title', unknown: true }, nodes)).toThrow('Unexpected model key')
   })
 })

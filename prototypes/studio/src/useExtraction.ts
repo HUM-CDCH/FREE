@@ -9,6 +9,8 @@ import { anchorOccurrences } from './evidenceNavigation'
 import type { ParsedDocument } from '../shared/parsedDocument'
 import type {
   ExtractionAttempt,
+  ExtractionRetrySelection,
+  ExtractionStrategy,
   ReviewDecisionInput,
 } from '../shared/extraction.contract'
 
@@ -28,6 +30,20 @@ type UseExtractionOptions = {
 }
 
 export type ExtractionController = ReturnType<typeof useExtraction>
+
+type ExtractionRetryInput = Omit<ExtractionRetrySelection, 'retryOfId'>
+type ExtractionRunInput =
+  | {
+      sourceRepresentationRevisionId: string
+      schemaRevisionId: string
+      strategy: ExtractionStrategy
+    }
+  | {
+      retryOfId: string
+      retryDocument?: boolean
+      rediscover?: boolean
+      retryRecordStartBlockIds?: string[]
+    }
 
 function reviewDecisions(
   document: ParsedDocument,
@@ -159,27 +175,29 @@ export function useExtraction({
     }
   }
 
-  async function runExtraction() {
-    if (!canRun || !reviewTarget) return
+  async function runRequest(
+    request: ExtractionRunInput,
+    isRerun: boolean,
+  ) {
+    const targetedRetry = 'retryOfId' in request
+    if (
+      targetedRetry
+        ? !schemaReady || indexing || state.status === 'running'
+        : !canRun || !reviewTarget
+    )
+      return
     abandonRunning()
     const controller = new AbortController()
     const extractionId = crypto.randomUUID()
     abortRef.current = controller
     activeIdRef.current = extractionId
-    const isRerun = attempt !== null
     setReviewError(null)
     setCancellationRequested(false)
     setCancellationError(null)
     setState({ status: 'running', step: 'extraction' })
     try {
       const terminal = await requestExtraction(
-        {
-          id: extractionId,
-          sourceRepresentationRevisionId:
-            reviewTarget.sourceRepresentationId,
-          schemaRevisionId: reviewTarget.schemaRevisionId,
-          strategy: 'ARTICLE',
-        },
+        { ...request, id: extractionId },
         controller.signal,
       )
       if (controller.signal.aborted) return
@@ -196,6 +214,32 @@ export function useExtraction({
       if (activeIdRef.current === extractionId) activeIdRef.current = null
       if (abortRef.current === controller) abortRef.current = null
     }
+  }
+
+  async function runExtraction(strategy: ExtractionStrategy = 'ARTICLE') {
+    if (!reviewTarget) return
+    await runRequest(
+      {
+        sourceRepresentationRevisionId: reviewTarget.sourceRepresentationId,
+        schemaRevisionId: reviewTarget.schemaRevisionId,
+        strategy,
+      },
+      attempt !== null,
+    )
+  }
+
+  async function retryExtraction(selection: ExtractionRetryInput) {
+    const parent = attempt
+    if (!parent || parent.strategy !== 'CATALOG') return
+    await runRequest(
+      {
+        retryOfId: parent.extractionId,
+        retryDocument: selection.retryDocument,
+        rediscover: selection.rediscover,
+        retryRecordStartBlockIds: selection.retryRecordStartBlockIds,
+      },
+      true,
+    )
   }
 
   async function acceptResult() {
@@ -221,6 +265,7 @@ export function useExtraction({
     canRun,
     hasResults,
     runExtraction,
+    retryExtraction,
     requestCancellation,
     cancellationRequested,
     cancellationError,

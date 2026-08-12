@@ -6,7 +6,7 @@ import {
   extractionRequestSchema,
   extractionAttemptSchema,
   finalizeExtractionReviewSchema,
-  type ExtractionRequest,
+  type ExtractionRequestInput,
   type ExtractionAttempt,
   type ReviewDecisionInput,
 } from '../shared/extraction.contract'
@@ -154,12 +154,27 @@ async function extractionJson(
 }
 
 export async function requestExtraction(
-  input: ExtractionRequest,
+  input: ExtractionRequestInput,
   signal?: AbortSignal,
 ): Promise<ExtractionAttempt> {
   const request = extractionRequestSchema.parse(input)
+  const body =
+    request.retryOfId === null
+      ? {
+          id: request.id,
+          sourceRepresentationRevisionId: request.sourceRepresentationRevisionId,
+          schemaRevisionId: request.schemaRevisionId,
+          strategy: request.strategy,
+        }
+      : {
+          id: request.id,
+          retryOfId: request.retryOfId,
+          retryDocument: request.retryDocument,
+          rediscover: request.rediscover,
+          retryRecordStartBlockIds: request.retryRecordStartBlockIds,
+        }
   return extractionAttemptSchema.parse(
-    await extractionJson('/extractions', 'POST', request, signal),
+    await extractionJson('/extractions', 'POST', body, signal),
   )
 }
 

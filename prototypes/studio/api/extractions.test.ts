@@ -5,6 +5,8 @@ import type {
   TerminalExtractionInput,
 } from '../../../packages/db/src/project-store.js'
 import parsedDocument from '../src/assets/parsed_document.v2.json'
+import { extractionAttemptSchema } from '../shared/extraction.contract.js'
+import type { ParsedContentBlock, ParsedDocument } from '../shared/parsedDocument.js'
 import { createExtractionsApi } from './extractions.js'
 
 const extractionId = '11111111-1111-4111-8111-111111111111'
@@ -16,16 +18,22 @@ const alternateSchemaId = '55555555-5555-4555-8555-555555555555'
 function request(
   id = extractionId,
   schemaId = schemaRevisionId,
+  strategy: 'ARTICLE' | 'CATALOG' = 'ARTICLE',
+  extra: Record<string, unknown> = {},
 ) {
+  const body = extra.retryOfId
+    ? { id, ...extra }
+    : {
+        id,
+        sourceRepresentationRevisionId: representationId,
+        schemaRevisionId: schemaId,
+        strategy,
+        ...extra,
+      }
   return new Request('http://studio/api/extractions', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      id,
-      sourceRepresentationRevisionId: representationId,
-      schemaRevisionId: schemaId,
-      strategy: 'ARTICLE',
-    }),
+    body: JSON.stringify(body),
   })
 }
 
@@ -111,6 +119,51 @@ function generated(
   }
 }
 
+function catalogDocument(labels = ['First', 'Second']) {
+  const document = structuredClone(parsedDocument) as ParsedDocument
+  const existing = document.content_stream[0]
+  const blocks: ParsedContentBlock[] = [existing]
+  for (const [index, text] of labels.entries())
+    blocks.push({
+      ...existing,
+      block_id: `heading-${index}`,
+      kind: 'heading',
+      text,
+      markdown_span: null,
+      level: 1,
+    })
+  document.content_stream = blocks
+  document.pages[0].ordered_content = blocks.map((block: { block_id: string }) => block.block_id)
+  return document
+}
+
+it('rejects retry requests that include caller pins before doing any work', async () => {
+  const { store, persist } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+  const extract = vi.fn()
+  const handler = createExtractionsApi({
+    store,
+    readSource: async () => catalogDocument(),
+    resolveTarget: async () => target,
+    extract,
+  })
+
+  const response = await handler(new Request('http://studio/api/extractions', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      id: 'abababab-abab-4aba-8aba-abababababab',
+      retryOfId: extractionId,
+      sourceRepresentationRevisionId: representationId,
+      schemaRevisionId,
+      strategy: 'CATALOG',
+    }),
+  }))
+
+  expect(response.status).toBe(422)
+  expect(extract).not.toHaveBeenCalled()
+  expect(persist).not.toHaveBeenCalled()
+})
+
 describe('server-owned Article extraction route', () => {
   it('runs the whole-source values call for an empty schema', async () => {
     const { store } = fakeStore([])
@@ -131,6 +184,623 @@ describe('server-owned Article extraction route', () => {
       resultPayload: { records: [{}] },
       diagnostics: { modelCalls: 1 },
     })
+  })
+
+  it('executes Catalog through the server-owned lifecycle', async () => {
+    const { store, persist } = fakeStore([])
+    const readSource = vi.fn(async () => parsedDocument)
+    const resolveTarget = vi.fn(async () => target)
+    const extract = vi.fn()
+
+    const response = await createExtractionsApi({
+      store,
+      readSource,
+      resolveTarget,
+      extract,
+    })(request(extractionId, schemaRevisionId, 'CATALOG'))
+
+    expect(response.status).toBe(201)
+    expect(readSource).toHaveBeenCalledOnce()
+    expect(resolveTarget).toHaveBeenCalledOnce()
+    expect(extract).toHaveBeenCalledOnce()
+    expect(persist).toHaveBeenCalledOnce()
+  })
+
+  it('schedules one discovery call and one values call per canonical record slice', async () => {
+    const { store } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+    const document = catalogDocument()
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['First', 'Second'] }))
+      .mockResolvedValueOnce(generated({ records: [{ title: 'A' }] }))
+      .mockResolvedValueOnce(generated({ records: [{ title: 'B' }] }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+      .mockResolvedValueOnce(generated({ links: { C2: 'E1' } }))
+
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => document,
+      resolveTarget: async () => target,
+      extract,
+    })(request('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', schemaRevisionId, 'CATALOG'))
+
+    expect(response.status).toBe(201)
+    expect(extract).toHaveBeenCalledTimes(5)
+    expect(extract.mock.calls[1][0].document.markdown).toContain('First')
+    expect(extract.mock.calls[1][0].document.markdown).not.toContain('Second')
+    expect(extract.mock.calls[2][0].document.markdown).toContain('Second')
+    const resultBody = await response.json()
+    expect(resultBody).toMatchObject({
+      strategy: 'CATALOG',
+      outcome: 'SUCCEEDED',
+      resultPayload: { records: [{ title: 'A' }, { title: 'B' }] },
+      diagnostics: {
+        catalog: {
+          stages: [
+            { stage: 'document-values', outcome: 'not_attempted' },
+            { stage: 'discovery', outcome: 'succeeded', calls: 1 },
+            { stage: 'record-values', outcome: 'succeeded', calls: 2 },
+            { stage: 'grounding', outcome: 'succeeded', calls: 2 },
+          ],
+        },
+      },
+    })
+  })
+
+  it('keeps successful records around an individual record failure', async () => {
+    const { store } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['First', 'Second', 'Third'] }))
+      .mockResolvedValueOnce(generated({ records: [{ title: 'A' }] }))
+      .mockRejectedValueOnce(new Error('record unavailable'))
+      .mockResolvedValueOnce(generated({ records: [{ title: 'C' }] }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+      .mockResolvedValueOnce(generated({ links: { C2: 'E1' } }))
+
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(['First', 'Second', 'Third']),
+      resolveTarget: async () => target,
+      extract,
+    })(request('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', schemaRevisionId, 'CATALOG'))
+
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: 'SUCCEEDED',
+      complete: false,
+      resultPayload: { records: [{ title: 'A' }, { title: 'C' }] },
+      diagnostics: {
+        catalog: {
+          records: [
+            { ordinal: 0, outcome: 'succeeded' },
+            { ordinal: 1, outcome: 'failed', calls: 1 },
+            { ordinal: 2, outcome: 'succeeded' },
+          ],
+        },
+      },
+    })
+    expect(extract).toHaveBeenCalledTimes(6)
+  })
+
+  it('fails discovery without attempting record values', async () => {
+    const { store } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+    const extract = vi.fn().mockResolvedValueOnce(generated({ starts: ['Missing'] }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })(request('cccccccc-cccc-4ccc-8ccc-cccccccccccc', schemaRevisionId, 'CATALOG'))
+
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(body).toMatchObject({ outcome: 'FAILED', resultPayload: null })
+    expect(body.diagnostics.catalog!.records).toEqual([])
+    expect(body.diagnostics.catalog!.stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stage: 'discovery', outcome: 'failed', calls: 1, failureCode: 'unknown_label' }),
+        expect.objectContaining({ stage: 'record-values', outcome: 'not_attempted', calls: 0 }),
+      ]),
+    )
+    expect(extract).toHaveBeenCalledOnce()
+  })
+
+  it('caps Catalog boundaries at 100 without package-only record calls', async () => {
+    const labels = Array.from({ length: 101 }, (_, index) => `Record ${index + 1}`)
+    const { store } = fakeStore([
+      { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+    ])
+    const extract = vi.fn().mockResolvedValueOnce(generated({ starts: labels }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(labels),
+      resolveTarget: async () => target,
+      extract: extract as never,
+    })(request('dddddddd-dddd-4ddd-8ddd-dddddddddddd', schemaRevisionId, 'CATALOG'))
+
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(body).toMatchObject({ outcome: 'SUCCEEDED', complete: false })
+    expect(body.resultPayload!.records).toHaveLength(100)
+    expect(body.diagnostics.catalog!.records).toHaveLength(101)
+    expect(body.diagnostics.catalog!.records.slice(0, 100).every((record) =>
+      record.outcome === 'succeeded' && record.calls === 0,
+    )).toBe(true)
+    expect(body.diagnostics.catalog!.stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stage: 'record-values', outcome: 'succeeded', calls: 0 }),
+      ]),
+    )
+    expect(body.diagnostics.catalog!.records[100]).toMatchObject({
+      ordinal: 100,
+      outcome: 'not_attempted',
+      calls: 0,
+      failureCode: 'not_attempted_limit',
+    })
+    expect(extract).toHaveBeenCalledOnce()
+  })
+
+  it('extracts document-only fields once and skips record values calls', async () => {
+    const { store } = fakeStore([
+      { id: 'year', name: 'year', type: 'integer', valueSource: 'document' },
+    ])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ records: [{ year: 2026 }] }))
+      .mockResolvedValueOnce(generated({ starts: ['First', 'Second'] }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+      .mockResolvedValueOnce(generated({ links: { C2: 'E1' } }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })(request('ffffffff-ffff-4fff-8fff-ffffffffffff', schemaRevisionId, 'CATALOG'))
+
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(body.resultPayload).toEqual({ records: [{ year: 2026 }, { year: 2026 }] })
+    expect(body.diagnostics.catalog!.stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stage: 'document-values', outcome: 'succeeded', calls: 1 }),
+        expect.objectContaining({ stage: 'record-values', outcome: 'succeeded', calls: 0 }),
+      ]),
+    )
+    expect(extract).toHaveBeenCalledTimes(4)
+  })
+
+  it('retries one failed Catalog record and reuses its successful sibling', async () => {
+    const parentId = '12121212-1212-4121-8121-121212121212'
+    const childId = '13131313-1313-4131-8131-131313131313'
+    const { store } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['First', 'Second'] }))
+      .mockResolvedValueOnce(generated({ records: [{ title: 'A' }] }))
+      .mockRejectedValueOnce(new Error('record unavailable'))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+      .mockResolvedValueOnce(generated({ links: { C2: 'E1' } }))
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })
+    expect((await handler(request(parentId, schemaRevisionId, 'CATALOG'))).status).toBe(201)
+
+    extract.mockReset()
+    extract
+      .mockResolvedValueOnce(generated({ records: [{ title: 'B' }] }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+      .mockResolvedValueOnce(generated({ links: { C2: 'E1' } }))
+    const response = await handler(
+      request(childId, schemaRevisionId, 'CATALOG', {
+        retryOfId: parentId,
+        retryRecordStartBlockIds: ['heading-1'],
+      }),
+    )
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(response.status).toBe(201)
+    expect(body.retryOfId).toBe(parentId)
+    expect(body.resultPayload).toEqual({ records: [{ title: 'A' }, { title: 'B' }] })
+    expect(body.diagnostics.retry).toMatchObject({
+      retryOfId: parentId,
+      retryRecordStartBlockIds: ['heading-1'],
+    })
+    expect(body.diagnostics.catalog!.records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ordinal: 0, provenance: 'reused', calls: 0 }),
+        expect.objectContaining({ ordinal: 1, provenance: 'executed', calls: 1 }),
+      ]),
+    )
+    expect(extract).toHaveBeenCalledTimes(3)
+    expect(extract.mock.calls[0][0].document.markdown).toContain('Second')
+  })
+
+  it('can explicitly retry a limit-skipped record without spending reused-call budget', async () => {
+    const parentId = '25252525-2525-4252-8252-252525252525'
+    const childId = '26262626-2626-4262-8262-262626262626'
+    const labels = Array.from({ length: 101 }, (_, index) => `Record ${index + 1}`)
+    const { store, attempts } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const boundaries = labels.map((headingText, ordinal) => ({
+      startBlockId: `heading-${ordinal}`,
+      startContentIndex: ordinal + 1,
+      endContentIndex: ordinal + 2,
+      headingText,
+      headingLevel: 1,
+    }))
+    attempts.set(parentId, {
+      extractionId: parentId,
+      sourceDocumentId,
+      sourceRepresentationRevisionId: representationId,
+      sourceRepresentationRevisionNumber: 1,
+      schemaRevisionId,
+      extractionSchemaId: '66666666-6666-4666-8666-666666666666',
+      schemaRevisionNumber: 1,
+      schemaTree: {
+        recordDescription: 'One representative source record.',
+        schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+      },
+      createdAt: new Date('2026-08-10T00:00:00Z'),
+      reviewedAt: null,
+      strategy: 'CATALOG',
+      outcome: 'SUCCEEDED',
+      complete: false,
+      modelAttribution: target.attribution,
+      diagnostics: {
+        phase: 'grounding',
+        durationMs: 1,
+        modelCalls: 100,
+        finishReason: null,
+        inputTokens: null,
+        outputTokens: null,
+        values: null,
+        grounding: null,
+        catalog: {
+          stages: [
+            ...(['document-values', 'discovery'] as const).map((stage) => ({
+              stage,
+              provenance: 'executed' as const,
+              outcome: stage === 'discovery' ? 'succeeded' as const : 'not_attempted' as const,
+              finishReason: null,
+              calls: stage === 'discovery' ? 1 : 0,
+              inputTokens: null,
+              outputTokens: null,
+              durationMs: stage === 'discovery' ? 1 : 0,
+              failureCode: null,
+            })),
+            {
+              stage: 'record-values',
+              provenance: 'executed',
+              outcome: 'succeeded',
+              finishReason: null,
+              calls: 100,
+              inputTokens: null,
+              outputTokens: null,
+              durationMs: 1,
+              failureCode: null,
+            },
+            {
+              stage: 'grounding',
+              provenance: 'executed',
+              outcome: 'succeeded',
+              finishReason: null,
+              calls: 0,
+              inputTokens: null,
+              outputTokens: null,
+              durationMs: 0,
+              failureCode: null,
+            },
+          ],
+          records: boundaries.map((boundary, ordinal) => ({
+            ordinal,
+            boundary,
+            provenance: 'executed' as const,
+            outcome: ordinal === 100 ? 'not_attempted' as const : 'succeeded' as const,
+            finishReason: null,
+            calls: ordinal === 100 ? 0 : 1,
+            inputTokens: null,
+            outputTokens: null,
+            durationMs: ordinal === 100 ? 0 : 1,
+            failureCode: ordinal === 100 ? 'not_attempted_limit' : null,
+          })),
+        },
+      },
+      resultPayload: { records: Array.from({ length: 100 }, () => ({ title: 'old' })) },
+      evidenceLinks: [],
+      failure: null,
+      reviewable: false,
+      retryOfId: null,
+      reviewDecisions: [],
+    })
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ records: [{ title: 'new' }] }))
+      .mockImplementation(async (input: { template: { links?: Record<string, unknown> } }) =>
+        generated({
+          links: Object.fromEntries(
+            Object.keys(input.template.links ?? {}).map((label) => [label, 'E1']),
+          ),
+        }),
+      )
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(labels),
+      resolveTarget: async () => target,
+      extract,
+    })
+
+    const response = await handler(
+      request(childId, schemaRevisionId, 'CATALOG', {
+        retryOfId: parentId,
+        retryRecordStartBlockIds: ['heading-100'],
+      }),
+    )
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(response.status).toBe(201)
+    expect(body.complete).toBe(true)
+    const records = (body.resultPayload as { records: unknown[] }).records
+    expect(records).toHaveLength(101)
+    expect(records.at(-1)).toEqual({ title: 'new' })
+    expect(body.diagnostics.catalog?.records.at(-1)).toEqual(
+      expect.objectContaining({ ordinal: 100, outcome: 'succeeded', calls: 1 }),
+    )
+    expect(extract.mock.calls[0]?.[0].document.markdown).toContain('Record 101')
+  })
+
+  it('retries only the immediate parent of a retry child', async () => {
+    const parentId = '22222222-2222-4222-8222-222222222222'
+    const childId = '23232323-2323-4232-8232-232323232323'
+    const grandchildId = '24242424-2424-4242-8242-242424242424'
+    const { store, attempts } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generated({ starts: ['First', 'Second'] }, 'grandparent-discovery'),
+      )
+      .mockResolvedValueOnce(
+        generated({ records: [{ title: 'Grandparent' }] }, 'grandparent-record'),
+      )
+      .mockRejectedValueOnce(new Error('record unavailable'))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract,
+    })
+    const parentResponse = await handler(request(parentId, schemaRevisionId, 'CATALOG'))
+    expect(parentResponse.status).toBe(201)
+    const parentBody = extractionAttemptSchema.parse(await parentResponse.json())
+
+    extract.mockReset()
+    extract
+      .mockResolvedValueOnce(generated({ starts: ['First'] }, 'child-discovery'))
+      .mockResolvedValueOnce(
+        generated({ records: [{ title: 'Child' }] }, 'child-record'),
+      )
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const childResponse = await handler(
+      request(childId, schemaRevisionId, 'CATALOG', {
+        retryOfId: parentId,
+        rediscover: true,
+      }),
+    )
+    expect(childResponse.status).toBe(201)
+    const childBody = extractionAttemptSchema.parse(await childResponse.json())
+
+    // A grandparent mutation must not affect a retry that names the child.
+    attempts.get(parentId)!.resultPayload = {
+      records: [{ title: 'Grandparent mutation' }],
+    }
+    extract.mockReset().mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const grandchild = await handler(
+      request(grandchildId, schemaRevisionId, 'CATALOG', {
+        retryOfId: childId,
+      }),
+    )
+    const body = extractionAttemptSchema.parse(await grandchild.json())
+    expect(body.retryOfId).toBe(childId)
+    expect(body.diagnostics.retry?.retryOfId).toBe(childId)
+    expect(body.resultPayload).toEqual({ records: [{ title: 'Child' }] })
+    const parentDiscovery = parentBody.diagnostics.catalog!.stages.find(
+      (stage) => stage.stage === 'discovery',
+    )!
+    const childDiscovery = childBody.diagnostics.catalog!.stages.find(
+      (stage) => stage.stage === 'discovery',
+    )!
+    const parentRecord = parentBody.diagnostics.catalog!.records[0]
+    const childRecord = childBody.diagnostics.catalog!.records[0]
+    const grandchildDiscovery = body.diagnostics.catalog!.stages.find(
+      (stage) => stage.stage === 'discovery',
+    )!
+    const grandchildRecord = body.diagnostics.catalog!.records[0]
+    expect(childDiscovery.finishReason).toBe('child-discovery')
+    expect(parentDiscovery.finishReason).toBe('grandparent-discovery')
+    expect(grandchildDiscovery.finishReason).toBe(childDiscovery.finishReason)
+    expect(grandchildDiscovery.finishReason).not.toBe(parentDiscovery.finishReason)
+    expect(childRecord.finishReason).toBe('child-record')
+    expect(parentRecord.finishReason).toBe('grandparent-record')
+    expect(grandchildRecord.finishReason).toBe(childRecord.finishReason)
+    expect(grandchildRecord.finishReason).not.toBe(parentRecord.finishReason)
+    expect(extract).toHaveBeenCalledOnce()
+  })
+
+  it('performs a grounding-only retry without values or discovery calls', async () => {
+    const parentId = '14141414-1414-4141-8141-141414141414'
+    const childId = '15151515-1515-4151-8151-151515151515'
+    const { store } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['First'] }))
+      .mockResolvedValueOnce(generated({ records: [{ title: 'A' }] }, 'length'))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(['First']),
+      resolveTarget: async () => target,
+      extract,
+    })
+    expect((await handler(request(parentId, schemaRevisionId, 'CATALOG'))).status).toBe(201)
+
+    extract.mockReset().mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const response = await handler(
+      request(childId, schemaRevisionId, 'CATALOG', { retryOfId: parentId }),
+    )
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(body.resultPayload).toEqual({ records: [{ title: 'A' }] })
+    expect(body.complete).toBe(false)
+    expect(extract).toHaveBeenCalledOnce()
+    expect(body.diagnostics.catalog!.stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stage: 'discovery', provenance: 'reused', calls: 0 }),
+        expect.objectContaining({
+          stage: 'record-values',
+          provenance: 'reused',
+          calls: 0,
+          finishReason: 'length',
+        }),
+        expect.objectContaining({ stage: 'grounding', provenance: 'executed', calls: 1 }),
+      ]),
+    )
+    expect(body.diagnostics.catalog!.records).toEqual([
+      expect.objectContaining({ provenance: 'reused', calls: 0, finishReason: 'length' }),
+    ])
+  })
+
+  it('retries failed document metadata while reusing records', async () => {
+    const parentId = '16161616-1616-4161-8161-161616161616'
+    const childId = '17171717-1717-4171-8171-171717171717'
+    const { store } = fakeStore([
+      { id: 'year', name: 'year', type: 'integer', valueSource: 'document' },
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const extract = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('metadata unavailable'))
+      .mockResolvedValueOnce(generated({ starts: ['First'] }))
+      .mockResolvedValueOnce(generated({ records: [{ title: 'A' }] }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(['First']),
+      resolveTarget: async () => target,
+      extract,
+    })
+    expect((await handler(request(parentId, schemaRevisionId, 'CATALOG'))).status).toBe(201)
+
+    extract.mockReset()
+    extract
+      .mockResolvedValueOnce(generated({ records: [{ year: 2026 }] }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const response = await handler(
+      request(childId, schemaRevisionId, 'CATALOG', {
+        retryOfId: parentId,
+        retryDocument: true,
+      }),
+    )
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(body.resultPayload).toEqual({ records: [{ year: 2026, title: 'A' }] })
+    expect(extract).toHaveBeenCalledTimes(2)
+    expect(extract.mock.calls[0][0].template).toEqual({ records: [{ year: 'integer' }] })
+    expect(body.diagnostics.catalog!.stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stage: 'document-values', provenance: 'executed', calls: 1 }),
+        expect.objectContaining({ stage: 'discovery', provenance: 'reused', calls: 0 }),
+      ]),
+    )
+  })
+
+  it('rediscovers a failed Catalog parent and reruns dependent records', async () => {
+    const parentId = '18181818-1818-4181-8181-181818181818'
+    const childId = '19191919-1919-4191-8191-191919191919'
+    const { store } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['Missing'] }))
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(['First']),
+      resolveTarget: async () => target,
+      extract,
+    })
+    expect((await handler(request(parentId, schemaRevisionId, 'CATALOG'))).status).toBe(201)
+
+    extract.mockReset()
+    extract
+      .mockResolvedValueOnce(generated({ starts: ['First'] }))
+      .mockResolvedValueOnce(generated({ records: [{ title: 'A' }] }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'E1' } }))
+    const response = await handler(
+      request(childId, schemaRevisionId, 'CATALOG', {
+        retryOfId: parentId,
+        rediscover: true,
+      }),
+    )
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(body.outcome).toBe('SUCCEEDED')
+    expect(body.resultPayload).toEqual({ records: [{ title: 'A' }] })
+    expect(extract).toHaveBeenCalledTimes(3)
+    expect(body.diagnostics.catalog!.stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stage: 'discovery', provenance: 'executed', calls: 1 }),
+        expect.objectContaining({ stage: 'record-values', provenance: 'executed', calls: 1 }),
+      ]),
+    )
+  })
+
+  it('rejects Article targeted retries', async () => {
+    const parentId = '20202020-2020-4202-8202-202020202020'
+    const childId = '21212121-2121-4212-8212-212121212121'
+    const { store } = fakeStore([])
+    const extract = vi.fn().mockResolvedValue(generated({ records: [{}] }))
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract,
+    })
+    expect((await handler(request(parentId))).status).toBe(201)
+    const response = await handler(
+      request(childId, schemaRevisionId, 'ARTICLE', { retryOfId: parentId }),
+    )
+    expect(response.status).toBe(422)
+    expect(extract).toHaveBeenCalledOnce()
+  })
+
+  it('cancels Catalog without persisting records already extracted', async () => {
+    const { store, persist } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+    let rejectRecord!: (error: unknown) => void
+    const recordBlocked = new Promise<never>((_, reject) => {
+      rejectRecord = reject
+    })
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ starts: ['First'] }))
+      .mockImplementationOnce(async (input: { signal?: AbortSignal }) => {
+        input.signal?.addEventListener('abort', () => rejectRecord(new DOMException('Aborted', 'AbortError')), { once: true })
+        return recordBlocked
+      })
+    const handler = createExtractionsApi({
+      store,
+      readSource: async () => catalogDocument(),
+      resolveTarget: async () => target,
+      extract: extract as never,
+    })
+    const post = handler(request('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', schemaRevisionId, 'CATALOG'))
+    await vi.waitFor(() => expect(extract).toHaveBeenCalledTimes(2))
+    const cancellation = await handler(
+      new Request('http://studio/api/extractions/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', { method: 'DELETE' }),
+    )
+
+    expect(cancellation.status).toBe(202)
+    await expect(post.then((response) => response.json())).resolves.toMatchObject({
+      outcome: 'CANCELLED',
+      resultPayload: null,
+      evidenceLinks: null,
+    })
+    expect(persist).toHaveBeenCalledOnce()
   })
 
   it('preserves root and nested schema field order in the model request', async () => {
@@ -595,6 +1265,87 @@ describe('server-owned Article extraction route', () => {
     expect(replay.status).toBe(200)
     await expect(replay.json()).resolves.toMatchObject({ outcome: 'FAILED' })
     expect(extract).toHaveBeenCalledOnce()
+  })
+
+  it('overlays source-filename after one content call in schema order', async () => {
+    const { store } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+      { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+      { id: 'year', name: 'year', type: 'integer', valueSource: 'document' },
+    ])
+    const extract = vi
+      .fn()
+      .mockResolvedValueOnce(generated({ records: [{ year: 2026, title: 'A title' }] }))
+      .mockResolvedValueOnce(generated({ links: { C1: 'NONE', C2: 'NONE' } }))
+
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract,
+    })(request())
+
+    expect(extract).toHaveBeenCalledTimes(2)
+    await expect(response.json()).resolves.toMatchObject({
+      resultPayload: { records: [{ title: 'A title', filename: 'bundled.pdf', year: 2026 }] },
+    })
+    expect(Object.keys((extract.mock.calls[0][0].template as { records: Record<string, unknown>[] }).records[0])).toEqual([
+      'title',
+      'year',
+    ])
+  })
+
+  it('does not call the model for package-only fields', async () => {
+    const { store } = fakeStore([
+      { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+    ])
+    const extract = vi.fn()
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract,
+    })(request())
+
+    expect(extract).not.toHaveBeenCalled()
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: 'SUCCEEDED',
+      resultPayload: { records: [{ filename: 'bundled.pdf' }] },
+      evidenceLinks: [],
+    })
+  })
+
+  it('omits source-filename when canonical metadata has no original filename', async () => {
+    const { store } = fakeStore([
+      { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+    ])
+    const document = structuredClone(parsedDocument)
+    ;(document.document.source as { original_filename: string | null }).original_filename = null
+    const extract = vi.fn()
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => document,
+      resolveTarget: async () => target,
+      extract,
+    })(request())
+
+    expect(extract).not.toHaveBeenCalled()
+    const body = extractionAttemptSchema.parse(await response.json())
+    expect(body).toMatchObject({ outcome: 'SUCCEEDED', evidenceLinks: [] })
+    expect(body.resultPayload).toEqual({ records: [{}] })
+  })
+
+  it('rejects unexpected model keys', async () => {
+    const { store } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+    const extract = vi.fn().mockResolvedValue(generated({ records: [{ title: 'A title', extra: 'nope' }] }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract,
+    })(request())
+
+    await expect(response.json()).resolves.toMatchObject({ outcome: 'FAILED' })
   })
 
   it('rejects review when the stored result does not match its pinned schema', async () => {

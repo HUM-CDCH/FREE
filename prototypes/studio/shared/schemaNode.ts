@@ -11,7 +11,10 @@ type SchemaNodeBase = {
   id: string
   name: string
   description?: string
+  valueSource?: ValueSource
 }
+
+export type ValueSource = 'document' | 'source-filename'
 
 export type SchemaNode =
   | (SchemaNodeBase & { type: 'string'; allowedValues?: string[]; itemType?: never; children?: never })
@@ -23,6 +26,7 @@ const schemaNodeBaseShape = {
   id: z.string().min(1),
   name: z.string().trim().min(1),
   description: z.string().min(1).optional(),
+  valueSource: z.enum(['document', 'source-filename']).optional(),
 }
 
 export const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() =>
@@ -60,7 +64,10 @@ export const schemaNodeSchema: z.ZodType<SchemaNode> = z.lazy(() =>
   ]),
 )
 
-export const schemaNodesSchema = z.array(schemaNodeSchema)
+export const schemaNodesSchema = z.array(schemaNodeSchema).superRefine((nodes, context) => {
+  if (nodes.some((node) => node.children?.some(hasNestedValueSource)))
+    context.addIssue({ code: 'custom', message: 'valueSource is allowed only on top-level schema fields' })
+})
 export const recordDescriptionSchema = z.string().trim().min(1).max(1_000)
 export const schemaDefinitionSchema = z
   .object({
@@ -81,6 +88,59 @@ export function parseSchemaDefinition(value: unknown): SchemaDefinition {
 
 export function parseSchemaNodes(value: unknown): SchemaNode[] {
   return schemaNodesSchema.parse(value)
+}
+
+function hasNestedValueSource(node: SchemaNode): boolean {
+  return node.valueSource !== undefined || Boolean(node.children?.some(hasNestedValueSource))
+}
+
+export type SchemaNodePartition = {
+  documentNodes: SchemaNode[]
+  recordNodes: SchemaNode[]
+  packageNodes: SchemaNode[]
+}
+
+/** Partition complete top-level subtrees without changing their order. */
+export function partitionSchemaNodes(nodes: readonly SchemaNode[]): SchemaNodePartition {
+  const partition: SchemaNodePartition = {
+    documentNodes: [],
+    recordNodes: [],
+    packageNodes: [],
+  }
+  for (const node of nodes) {
+    if (node.valueSource === 'document') partition.documentNodes.push(node)
+    else if (node.valueSource === 'source-filename') partition.packageNodes.push(node)
+    else partition.recordNodes.push(node)
+  }
+  return partition
+}
+
+/** Restore model values to schema order while rejecting unknown keys. */
+export function restoreSchemaNodeOrder(
+  value: unknown,
+  nodes: readonly SchemaNode[],
+): Record<string, unknown> {
+  if (!isRecord(value)) throw new Error('Model output records must be objects.')
+  const byName = new Map(nodes.map((node) => [node.name, node]))
+  for (const key of Object.keys(value))
+    if (!byName.has(key)) throw new Error(`Unexpected model key: ${key}`)
+
+  const restored: Record<string, unknown> = {}
+  for (const node of nodes) {
+    if (!Object.hasOwn(value, node.name)) continue
+    const item = value[node.name]
+    if (node.children && item !== null) {
+      if (node.type === 'array') {
+        if (!Array.isArray(item)) throw new Error(`Model output field ${node.name} must be an array.`)
+        restored[node.name] = item.map((entry) => restoreSchemaNodeOrder(entry, node.children!))
+      } else {
+        restored[node.name] = restoreSchemaNodeOrder(item, node.children)
+      }
+    } else {
+      restored[node.name] = item
+    }
+  }
+  return restored
 }
 
 export type EnumeratedField = {

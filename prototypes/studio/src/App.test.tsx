@@ -67,7 +67,7 @@ const reopened: DocumentWorkspaceProps = {
     strategy: 'ARTICLE',
     outcome: 'SUCCEEDED',
     complete: true,
-    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null, catalog: null },
     failure: null,
     resultPayload: { place: 'Ellekilde' },
     evidenceLinks: [],
@@ -381,6 +381,124 @@ describe('reopened Source Document workspace', () => {
     expect(
       screen.getByRole('button', { name: '↻ Re-run extraction' }),
     ).toBeInTheDocument()
+  })
+
+  it('submits the selected Catalog strategy, resets the next run, and locks the selector while active', async () => {
+    let resolveExtraction!: (response: Response) => void
+    const extractionResponse = new Promise<Response>((resolve) => {
+      resolveExtraction = resolve
+    })
+    let extractionRequest: { strategy?: string } | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.endsWith('/api/extractions')) {
+          extractionRequest = JSON.parse(String(init?.body)) as { strategy?: string }
+          return extractionResponse
+        }
+        return Promise.resolve(new Response('# Beretning'))
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+
+    const selector = screen.getByLabelText('Extraction strategy')
+    fireEvent.change(selector, { target: { value: 'CATALOG' } })
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+
+    await waitFor(() =>
+      expect(extractionRequest).toEqual(expect.objectContaining({ strategy: 'CATALOG' })),
+    )
+    expect(selector).toHaveValue('ARTICLE')
+    await waitFor(() => expect(selector).toBeDisabled())
+
+    resolveExtraction(
+      Response.json({
+        extractionId: '51000000-0000-4000-8006-000000000010',
+        sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+        sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+        schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+        strategy: 'CATALOG',
+        outcome: 'SUCCEEDED',
+        complete: true,
+        modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+        diagnostics: {
+          phase: 'grounding', durationMs: 1, modelCalls: 1,
+          finishReason: 'stop', inputTokens: 1, outputTokens: 1,
+          values: null, grounding: null, catalog: { stages: [], records: [] },
+        },
+        failure: null,
+        resultPayload: { records: [{ place: 'Catalog' }] },
+        evidenceLinks: [], reviewable: true, retryOfId: null,
+        createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+      }),
+    )
+    await waitFor(() => expect(selector).toBeEnabled())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect((await screen.findAllByText('Catalog')).length).toBeGreaterThan(0)
+  })
+
+  it('ignores a second Extract click while a selected Catalog run waits for schema save', async () => {
+    let resolveExtraction!: (response: Response) => void
+    const extractionResponse = new Promise<Response>((resolve) => {
+      resolveExtraction = resolve
+    })
+    const extractionRequests: Array<{ strategy?: string }> = []
+    const queuedMicrotasks: Array<() => void> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.endsWith('/api/extractions')) {
+          extractionRequests.push(JSON.parse(String(init?.body)) as { strategy?: string })
+          return extractionResponse
+        }
+        return Promise.resolve(new Response('# Beretning'))
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    vi.stubGlobal('queueMicrotask', (callback: () => void) => {
+      queuedMicrotasks.push(callback)
+    })
+    fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
+    fireEvent.click(run)
+    await waitFor(() => expect(queuedMicrotasks).not.toHaveLength(0))
+    expect(run).toBeDisabled()
+    fireEvent.click(run)
+
+    expect(extractionRequests).toHaveLength(0)
+    queuedMicrotasks.at(-1)!()
+    await waitFor(() => expect(extractionRequests).toHaveLength(1))
+    expect(extractionRequests[0]).toEqual(expect.objectContaining({ strategy: 'CATALOG' }))
+
+    resolveExtraction(Response.json({
+      extractionId: '51000000-0000-4000-8006-000000000011',
+      sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      schemaRevisionId: '51000000-0000-4000-8005-000000000010',
+      strategy: 'CATALOG', outcome: 'SUCCEEDED', complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      diagnostics: {
+        phase: 'grounding', durationMs: 1, modelCalls: 1,
+        finishReason: 'stop', inputTokens: 1, outputTokens: 1,
+        values: null, grounding: null, catalog: { stages: [], records: [] },
+      },
+      failure: null, resultPayload: { records: [{ place: 'Catalog' }] },
+      evidenceLinks: [], reviewable: true, retryOfId: null,
+      createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+    }))
   })
 
   it('posts the accepted result with its pinned Schema Revision and canonical Review Decisions', async () => {

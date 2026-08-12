@@ -107,7 +107,7 @@ function RightRail({
     [extraction.state, inspection.attempt],
   )
   const displayedExtraction = inspection.readOnly && inspection.attempt
-    ? { ...extraction, attempt: inspection.attempt, state: inspectedState, canRun: false, review: { ...extraction.review, available: false, canAccept: false } }
+    ? { ...extraction, attempt: inspection.attempt, state: inspectedState, canRun: false, retryExtraction: async () => {}, review: { ...extraction.review, available: false, canAccept: false } }
     : extraction
 
   if (!open) {

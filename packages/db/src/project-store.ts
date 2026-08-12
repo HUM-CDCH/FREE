@@ -220,7 +220,7 @@ export type StoredExtractionAttempt = {
     schemaTree: unknown
     createdAt: Date
     reviewedAt: Date | null
-    strategy: 'ARTICLE'
+    strategy: 'ARTICLE' | 'CATALOG'
     outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
     complete: boolean | null
     modelAttribution: unknown | null
@@ -251,7 +251,7 @@ export type TerminalExtractionInput = {
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
-  strategy: 'ARTICLE'
+  strategy: 'ARTICLE' | 'CATALOG'
   outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
   complete: boolean | null
   modelAttribution: unknown | null

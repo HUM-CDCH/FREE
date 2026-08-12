@@ -200,15 +200,15 @@ export default class M extends Migration<Start, End> {
         },
       }),
       rawSql({
-        id: 'constraint.article-terminal-shape',
-        label: 'Enforce Article strategy and terminal shapes',
+        id: 'constraint.extraction-terminal-shape',
+        label: 'Enforce extraction strategy and terminal shapes',
         operationClass: 'additive',
         target: { id: 'postgres', details: { schema: 'public', objectType: 'constraint', name: 'extraction_terminal_shape_check', table: 'extraction' } },
         precheck: [],
         execute: [{
-          description: 'Install Article lifecycle and JSON shape checks',
+          description: 'Install extraction lifecycle and JSON shape checks',
           sql: `ALTER TABLE public.extraction
-            ADD CONSTRAINT extraction_strategy_check CHECK (strategy = 'ARTICLE'),
+            ADD CONSTRAINT extraction_strategy_check CHECK (strategy IN ('ARTICLE', 'CATALOG')),
             ADD CONSTRAINT extraction_terminal_shape_check CHECK (
               jsonb_typeof(diagnostics) = 'object'
               AND ("modelAttribution" IS NULL OR jsonb_typeof("modelAttribution") = 'object')
