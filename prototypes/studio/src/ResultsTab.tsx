@@ -111,7 +111,7 @@ function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
   const diagnostics = attempt.diagnostics
   const catalog = diagnostics.catalog
   return (
-    <section className="mt-3 border-t border-line pt-2.5" aria-label="Extraction diagnostics">
+    <section aria-label="Extraction diagnostics">
       <div className="mt-2 space-y-2">
         <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
           Extraction diagnostics
@@ -223,10 +223,9 @@ function CatalogRetryControls({
       aria-label="Targeted Catalog retry"
       className="mt-3 border-t border-line pt-2.5"
     >
-      <details open>
-        <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
           Retry failed Catalog components
-        </summary>
+        </p>
         <p className="mt-1.5 text-[11.5px] leading-snug text-ink-muted">
           Select failed or truncated work to execute again. Leave every box clear for grounding only; successful components are reused.
         </p>
@@ -305,8 +304,31 @@ function CatalogRetryControls({
             </Button>
           )}
         </div>
-      </details>
     </section>
+  )
+}
+
+function AttemptDetails({
+  controller,
+  attempt,
+  readOnly,
+}: {
+  controller: ExtractionController
+  attempt: ExtractionAttempt
+  readOnly: boolean
+}) {
+  return (
+    <details className="mt-3 border-t border-line pt-2.5">
+      <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+        Run details
+      </summary>
+      <div className="scrollbar-subtle max-h-64 overflow-y-auto pr-1">
+        <ExtractionDiagnostics attempt={attempt} />
+        {!readOnly && attempt.strategy === 'CATALOG' && (
+          <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
+        )}
+      </div>
+    </details>
   )
 }
 
@@ -379,6 +401,12 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
     setBackStack(prev => [...prev, navPath])
     setForwardStack([])
     setNavPath(newPath)
+  }
+
+  function clearNavigation() {
+    setNavPath([])
+    setBackStack([])
+    setForwardStack([])
   }
 
   function goBack() {
@@ -485,16 +513,13 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
                 {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded and will not create Evidence highlights.
               </p>
             )}
-            {attempt && <ExtractionDiagnostics attempt={attempt} />}
-            {!readOnly && attempt?.strategy === 'CATALOG' && (
-              <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
-            )}
+            {attempt && <AttemptDetails controller={controller} attempt={attempt} readOnly={readOnly} />}
           </div>
 
           {view === 'review' && (
             <div className="flex min-h-0 flex-1 flex-col">
               {/* Breadcrumb bar — always visible */}
-              <div className="flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-2 py-1">
+              <nav aria-label="Result navigation" className="flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-2 py-1">
                 <button
                   className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-bold leading-none text-ink-muted hover:bg-accent-ghost/40 hover:text-ink disabled:cursor-default disabled:opacity-30"
                   type="button"
@@ -510,25 +535,45 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
                   onClick={goForward}
                 >›</button>
                 <span className="mx-1 h-3.5 w-px shrink-0 bg-line" />
-                {navPath.map((seg, i) => {
-                  const idx = parseInt(seg, 10)
-                  const label = !isNaN(idx) && String(idx) === seg ? `Item ${idx + 1}` : seg
-                  return (
-                    <span key={i} className="flex items-center gap-0.5">
-                      {i > 0 && <span className="text-[11px] text-ink-faint">›</span>}
-                      {i < navPath.length - 1 ? (
-                        <button
-                          className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-ink-muted hover:text-accent"
-                          type="button"
-                          onClick={() => navTo(navPath.slice(0, i + 1))}
-                        >{label}</button>
-                      ) : (
-                        <span className="px-1.5 py-0.5 text-[12px] font-semibold text-ink">{label}</span>
-                      )}
-                    </span>
-                  )
-                })}
-              </div>
+                <div className="scrollbar-subtle flex min-w-0 flex-1 items-center overflow-x-auto">
+                  <button
+                    aria-current={navPath.length === 0 ? 'page' : undefined}
+                    className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-accent hover:bg-accent-ghost/40 disabled:cursor-default disabled:text-ink"
+                    type="button"
+                    disabled={navPath.length === 0}
+                    onClick={() => navTo([])}
+                  >Root</button>
+                  {navPath.map((seg, i) => {
+                    const idx = parseInt(seg, 10)
+                    const label = !isNaN(idx) && String(idx) === seg ? `Item ${idx + 1}` : seg
+                    return (
+                      <span key={i} className="flex items-center gap-0.5">
+                        <span className="text-[11px] text-ink-faint">›</span>
+                        {i < navPath.length - 1 ? (
+                          <button
+                            className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[12px] font-semibold text-ink-muted hover:text-accent"
+                            type="button"
+                            onClick={() => navTo(navPath.slice(0, i + 1))}
+                          >{label}</button>
+                        ) : (
+                          <span aria-current="page" className="shrink-0 px-1.5 py-0.5 text-[12px] font-semibold text-ink">{label}</span>
+                        )}
+                      </span>
+                    )
+                  })}
+                </div>
+                {navPath.length > 0 && (
+                  <>
+                    <span className="mx-1 h-3.5 w-px shrink-0 bg-line" />
+                    <button
+                      className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[11.5px] font-semibold text-ink-muted hover:bg-accent-ghost/40 hover:text-accent"
+                      type="button"
+                      title="Return to root"
+                      onClick={clearNavigation}
+                    >Clear</button>
+                  </>
+                )}
+              </nav>
               {/* Content */}
               <div className="scrollbar-subtle min-h-0 flex-1 overflow-auto bg-canvas px-3 py-2">
                 {currentEntries.map(({ pathKey, displayName, value: val }) => (
@@ -591,10 +636,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
               Retry extraction
             </Button>
           )}
-          {attempt && <ExtractionDiagnostics attempt={attempt} />}
-          {!readOnly && attempt?.strategy === 'CATALOG' && (
-            <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
-          )}
+          {attempt && <AttemptDetails controller={controller} attempt={attempt} readOnly={readOnly} />}
         </div>
       )}
 
@@ -626,7 +668,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
           {!readOnly && <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction()}>
             Run a new extraction
           </Button>}
-          {attempt && <ExtractionDiagnostics attempt={attempt} />}
+          {attempt && <AttemptDetails controller={controller} attempt={attempt} readOnly={readOnly} />}
         </div>
       )}
     </div>

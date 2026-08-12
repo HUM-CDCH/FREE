@@ -214,9 +214,14 @@ describe('ResultsTab grounded values', () => {
 
     expect(screen.getByText('Incomplete Extraction')).toBeInTheDocument()
     expect(screen.getAllByText('First place').length).toBeGreaterThan(0)
+    expect(screen.getByText('Run details')).toBeVisible()
+    expect(screen.getByText('discovery · succeeded')).not.toBeVisible()
+
+    fireEvent.click(screen.getByText('Run details'))
+
     expect(screen.queryByText('Second place', { exact: true })).toBeInTheDocument()
     expect(screen.queryByText('Missing')).not.toBeInTheDocument()
-    expect(screen.getByText('discovery · succeeded')).toBeInTheDocument()
+    expect(screen.getByText('discovery · succeeded')).toBeVisible()
     expect(screen.getByText('Record 1 · succeeded · First place')).toBeInTheDocument()
     expect(screen.getByText('Record 2 · not attempted · Second place')).toBeInTheDocument()
 
@@ -260,6 +265,12 @@ describe('ResultsTab grounded values', () => {
       />,
     )
 
+    const runDetails = screen.getByText('Run details').parentElement
+    expect(runDetails?.querySelector(':scope > div')).toHaveClass(
+      'max-h-64',
+      'overflow-y-auto',
+    )
+    fireEvent.click(screen.getByText('Run details'))
     expect(screen.getByTestId('catalog-record-diagnostics')).toHaveClass(
       'max-h-48',
       'overflow-y-auto',
@@ -296,7 +307,10 @@ describe('ResultsTab grounded values', () => {
     extraction.retryExtraction = retry
     render(<ResultsTab controller={extraction} schemaReady documentMarkdown="# Source" />)
 
-    expect(screen.getByRole('checkbox', { name: 'Retry failed or truncated document metadata' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Retry failed or truncated document metadata' })).not.toBeVisible()
+    fireEvent.click(screen.getByText('Run details'))
+
+    expect(screen.getByRole('checkbox', { name: 'Retry failed or truncated document metadata' })).toBeVisible()
     expect(screen.getByRole('checkbox', { name: 'Rediscover Catalog record boundaries' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Retry record 2: Second place' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Retry record 3: Third place' })).toBeInTheDocument()
@@ -324,6 +338,7 @@ describe('ResultsTab grounded values', () => {
   it('does not offer targeted retry controls for Article attempts', () => {
     const article = { ...catalogAttempt, strategy: 'ARTICLE' as const, diagnostics: { ...catalogAttempt.diagnostics, catalog: null } }
     render(<ResultsTab controller={controller({ status: 'ready', result: article.resultPayload!, evidenceLinks: [], ungroundedCount: 0 }, article)} schemaReady documentMarkdown="# Source" />)
+    fireEvent.click(screen.getByText('Run details'))
     expect(screen.queryByRole('region', { name: 'Targeted Catalog retry' })).not.toBeInTheDocument()
   })
 

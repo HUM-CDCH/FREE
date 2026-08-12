@@ -22,6 +22,8 @@
 - [x] 4.1 Add an Article-default strategy selector beside Extract and submit the selected strategy.
 - [x] 4.2 Render successful partial records under an Incomplete banner without placeholders.
 - [x] 4.3 Show stage/record summaries directly and technical diagnostics in expandable details.
+- [x] 4.4 Restore the result-first layout and move diagnostics and Catalog retries behind one collapsed, height-bounded disclosure.
+- [ ] 4.5 Restore explicit nested-result navigation with Root, ancestor breadcrumbs, Back/Forward, and Clear-to-root controls.
 
 ## 5. Acceptance gates
 

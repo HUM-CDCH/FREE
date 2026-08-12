@@ -54,9 +54,13 @@ This bounds synchronous work while preserving usable research output. Retrying a
 
 ### Diagnostics are contract data, not UI-derived inference
 
-The shared extraction contract records Catalog stage outcomes and per-record canonical boundaries, finish reason, usage, latency, and failure code. The UI displays compact stage/record summaries and details behind native expandable sections, rendering only successful records.
+The shared extraction contract records Catalog stage outcomes and per-record canonical boundaries, finish reason, usage, latency, and failure code. The UI renders only successful records in the primary tab space and keeps diagnostics and applicable retry controls behind one collapsed, height-bounded native disclosure.
 
 The durable contract makes partial/reopened runs explainable without re-running a provider.
+
+### Result navigation stays local and reversible
+
+The Review view uses local path and history stacks over the displayed result. Root is always visible, ancestors remain directly selectable, and Clear resets the path plus both history stacks without changing the stored extraction or Evidence paths.
 
 ## Risks / Trade-offs
 
