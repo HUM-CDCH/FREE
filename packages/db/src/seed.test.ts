@@ -179,8 +179,8 @@ describe('example database seed', () => {
   it('reasserts package retention after publishing its database reference', async () => {
     const database = fakeDatabase()
     const { ingest: baseIngest } = fakeIngest()
-    const ingest: Ingest = async (pdf, filename) => {
-      const representation = await baseIngest(pdf, filename)
+    const ingest: Ingest = async (pdf, filename, current) => {
+      const representation = await baseIngest(pdf, filename, current)
       return {
         ...representation,
         ensureRetained: async () => {
@@ -201,8 +201,8 @@ describe('example database seed', () => {
     const database = fakeDatabase()
     const { ingest: baseIngest } = fakeIngest()
     await seedExampleProjects(database as never, baseIngest, async () => true)
-    const ingest: Ingest = async (pdf, filename) => {
-      const representation = await baseIngest(pdf, filename)
+    const ingest: Ingest = async (pdf, filename, current) => {
+      const representation = await baseIngest(pdf, filename, current)
       return {
         ...representation,
         ensureRetained:
