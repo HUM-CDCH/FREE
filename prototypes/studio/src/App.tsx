@@ -18,6 +18,7 @@ import type { ParsedTable, EvidenceAnchor } from './parsedDocument'
 import { useExtraction } from './useExtraction'
 import EvidenceHighlightLayer from './EvidenceHighlightLayer'
 import { Button } from './ui'
+import { pickFloatingHighlightSide, type FloatingHighlightSide } from './floatingHighlight'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
@@ -28,24 +29,13 @@ const COLLAPSED_WIDTH = 46
 const RAIL_MIN = 264
 const RAIL_MAX = 560
 const ANNOTATION_HIGHLIGHT_COLORS = 'annotation=#FFF066'
+const FLOATING_HIGHLIGHT_HEIGHT = 34
+const FLOATING_HIGHLIGHT_MARGIN = 48
 
-function isFreeHighlightTarget(target: EventTarget | null) {
-  if (!(target instanceof Element)) {
-    return false
-  }
-
-  const textLayer = target.closest('.textLayer')
-  if (!textLayer) {
-    return false
-  }
-
-  return (
-    target === textLayer ||
-    target.getAttribute('role') === 'img' ||
-    target.classList.contains('endOfContent') ||
-    target.classList.contains('textLayerImages') ||
-    target.classList.contains('textLayerImagePlaceholder')
-  )
+function textLayerForRangeNode(node: Node | null): Element | null {
+  if (!node) return null
+  if (node instanceof Element) return node.closest('.textLayer')
+  return node.parentElement?.closest('.textLayer') ?? null
 }
 
 function isEditableTarget(target: EventTarget | null) {
@@ -121,7 +111,13 @@ export function DocumentWorkspace({
   const [toast, setToast] = useState<string | null>(null)
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null)
   const [activePdfViewer, setActivePdfViewer] = useState<PDFViewer | null>(null)
+  const [zoomPercent, setZoomPercent] = useState(100)
   const [focusPath, setFocusPath] = useState<string[] | null>(null)
+  const [floatingHighlight, setFloatingHighlight] = useState<{
+    left: number
+    top: number
+    side: FloatingHighlightSide
+  } | null>(null)
   const pdfSource = useMemo(
     () => ({ url: pdfUrl, filename }),
     [filename, pdfUrl],
@@ -162,7 +158,7 @@ export function DocumentWorkspace({
       viewer,
       eventBus,
       annotationMode: AnnotationMode.ENABLE,
-      annotationEditorMode: AnnotationEditorType.HIGHLIGHT,
+      annotationEditorMode: AnnotationEditorType.NONE,
       annotationEditorHighlightColors: ANNOTATION_HIGHLIGHT_COLORS,
     }
 
@@ -171,16 +167,10 @@ export function DocumentWorkspace({
       abortSignal: abortController.signal,
     } as PDFViewerOptions & { abortSignal: AbortSignal })
 
-    container.addEventListener(
-      'pointerdown',
-      (event) => {
-        if (isFreeHighlightTarget(event.target)) {
-          event.preventDefault()
-          event.stopPropagation()
-        }
-      },
-      { capture: true, signal: abortController.signal },
-    )
+    const syncZoom = ({ scale }: { scale: number }) => {
+      setZoomPercent(Math.round(scale * 100))
+    }
+    eventBus.on('scalechanging', syncZoom, { signal: abortController.signal })
 
     const loadingTask = pdfjsLib.getDocument({ url: pdfSource.url })
     pdfViewerRef.current = pdfViewer
@@ -240,6 +230,136 @@ export function DocumentWorkspace({
 
     eventBus.on('annotationeditoruimanager', onAnnotationEditorUIManager)
 
+    let pointerDownInViewer = false
+    let pointerDownY: number | null = null
+    let pointerUpY: number | null = null
+    const hideFloatingHighlight = () => setFloatingHighlight(null)
+    const updateFloatingHighlight = () => {
+      if (pointerDownInViewer) {
+        setFloatingHighlight(null)
+        return
+      }
+      const selection = window.getSelection()
+      if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+        setFloatingHighlight(null)
+        return
+      }
+      const textLayer = textLayerForRangeNode(
+        selection.getRangeAt(0).commonAncestorContainer,
+      )
+      if (!textLayer || !container.contains(textLayer)) {
+        setFloatingHighlight(null)
+        return
+      }
+      const rect = selection.getRangeAt(0).getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) {
+        setFloatingHighlight(null)
+        return
+      }
+      const containerRect = container.getBoundingClientRect()
+
+      // Chrome draws its native selection menu (Copy, ...) at the selection
+      // anchor (drag start). Place the Highlight button on the drag-end side so
+      // the two popups never overlap.
+      const dragUpward =
+        pointerDownY !== null &&
+        pointerUpY !== null &&
+        pointerUpY < pointerDownY - 4
+      const aboveTop = rect.top - containerRect.top
+      const belowTop = rect.bottom - containerRect.top
+      const side = pickFloatingHighlightSide({
+        dragUpward,
+        aboveFits: aboveTop - 8 >= 0,
+        belowFits:
+          belowTop + 8 + FLOATING_HIGHLIGHT_HEIGHT <= containerRect.height,
+      })
+
+      const center = rect.left + rect.width / 2 - containerRect.left
+      const left =
+        containerRect.width < 2 * FLOATING_HIGHLIGHT_MARGIN
+          ? center
+          : Math.min(
+              Math.max(center, FLOATING_HIGHLIGHT_MARGIN),
+              containerRect.width - FLOATING_HIGHLIGHT_MARGIN,
+            )
+
+      setFloatingHighlight({
+        left,
+        top: side === 'above' ? aboveTop : belowTop,
+        side,
+      })
+    }
+    container.addEventListener(
+      'pointerdown',
+      (event) => {
+        pointerDownInViewer = true
+        pointerDownY = event.clientY
+        setFloatingHighlight(null)
+      },
+      { signal: abortController.signal },
+    )
+    container.addEventListener(
+      'pointerup',
+      (event) => {
+        pointerUpY = event.clientY
+        pointerDownInViewer = false
+        updateFloatingHighlight()
+      },
+      { signal: abortController.signal },
+    )
+    container.addEventListener(
+      'pointercancel',
+      () => {
+        pointerDownInViewer = false
+      },
+      { signal: abortController.signal },
+    )
+    container.addEventListener('scroll', hideFloatingHighlight, {
+      signal: abortController.signal,
+    })
+    container.addEventListener(
+      'wheel',
+      (event) => {
+        if (!event.ctrlKey && !event.metaKey) return
+        event.preventDefault()
+        // Ctrl/Cmd + wheel zooms around the cursor; trackpad pinch arrives
+        // as ctrlKey wheel events with small deltas, so scale smoothly.
+        const lineHeight = event.deltaMode === 1 ? 25 : event.deltaMode === 2 ? 120 : 1
+        pdfViewer.updateScale({
+          scaleFactor: Math.exp(-event.deltaY * 0.0015 * lineHeight),
+          origin: [event.clientX, event.clientY],
+        })
+      },
+      { signal: abortController.signal, passive: false },
+    )
+    document.addEventListener(
+      'keydown',
+      (event) => {
+        if (isEditableTarget(event.target)) return
+        const key = event.key
+        if (key === '+' || key === '=' || key === 'Add') {
+          event.preventDefault()
+          event.stopPropagation()
+          pdfViewer.increaseScale()
+        } else if (key === '-' || key === 'Subtract') {
+          event.preventDefault()
+          event.stopPropagation()
+          pdfViewer.decreaseScale()
+        } else if (key === '0' || key === 'Numpad0') {
+          event.preventDefault()
+          event.stopPropagation()
+          pdfViewer.currentScale = 1
+        }
+      },
+      { signal: abortController.signal },
+    )
+    document.addEventListener('selectionchange', updateFloatingHighlight, {
+      signal: abortController.signal,
+    })
+    eventBus.on('scalechanging', hideFloatingHighlight, {
+      signal: abortController.signal,
+    })
+
     async function loadPdf() {
       try {
         const pdf = await loadingTask.promise
@@ -248,6 +368,13 @@ export function DocumentWorkspace({
         }
 
         pdfViewer.setDocument(pdf)
+        // The base scale stays unset until something calls setScale; pin it
+        // to the current (100%) value so updateScale() has a valid baseline.
+        if (!pdfViewer.currentScaleValue) {
+          const initialScale = pdfViewer.currentScale
+          pdfViewer.currentScale = initialScale
+        }
+        setZoomPercent(Math.round(pdfViewer.currentScale * 100))
         setLoadState({ status: 'ready', pageCount: pdf.numPages })
       } catch (error) {
         if (abortController.signal.aborted) {
@@ -417,6 +544,22 @@ export function DocumentWorkspace({
     setFocusPath(path)
   }
 
+  async function convertSelectionToHighlight() {
+    const uiManager = annotationManagerRef.current
+    const selection = window.getSelection()
+    if (!uiManager || !selection || selection.isCollapsed) {
+      return
+    }
+    try {
+      await uiManager.updateMode(AnnotationEditorType.HIGHLIGHT)
+      uiManager.highlightSelection('floating_button')
+      await uiManager.updateMode(AnnotationEditorType.NONE)
+    } finally {
+      selection.removeAllRanges()
+      setFloatingHighlight(null)
+    }
+  }
+
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
     if (
       isEditableTarget(event.target) ||
@@ -518,7 +661,7 @@ export function DocumentWorkspace({
       : schemaReady
         ? 'Press Run extraction to apply the schema across the whole document'
         : annotationItems.length === 0
-          ? 'Select any passage in the report to add it to the annotation set'
+          ? 'Select a passage, then press Highlight to add it to the annotation set'
           : 'Open the Schema tab to generate the extraction schema for this document'
 
   return (
@@ -552,6 +695,46 @@ export function DocumentWorkspace({
             {loadState.status === 'ready' && `${loadState.pageCount} pages - text highlights only`}
             {loadState.status === 'error' && loadState.message}
           </p>
+          {loadState.status === 'ready' && (
+            <div
+              className="flex shrink-0 items-center rounded-full border border-line bg-surface-muted p-0.5"
+              role="group"
+              aria-label="PDF zoom"
+            >
+              <button
+                type="button"
+                aria-label="Zoom out"
+                title="Zoom out (Ctrl + -)"
+                disabled={zoomPercent <= 10}
+                onClick={() => pdfViewerRef.current?.decreaseScale()}
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                aria-label="Reset zoom to 100%"
+                title="Reset zoom to 100%"
+                onClick={() => {
+                  const viewer = pdfViewerRef.current
+                  if (viewer) viewer.currentScale = 1
+                }}
+                className="min-w-12 cursor-pointer rounded-full px-1 py-1 text-center font-mono text-[11px] font-semibold text-ink outline-none transition-colors hover:bg-surface focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                {zoomPercent}%
+              </button>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                title="Zoom in (Ctrl + +)"
+                disabled={zoomPercent >= 2500}
+                onClick={() => pdfViewerRef.current?.increaseScale()}
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              >
+                +
+              </button>
+            </div>
+          )}
           <Button
             variant="primary"
             size="md"
@@ -579,6 +762,23 @@ export function DocumentWorkspace({
               anchors={documentAnchors}
             />
           </div>
+          {floatingHighlight && (
+            <button
+              type="button"
+              className={`absolute z-40 -translate-x-1/2 cursor-pointer rounded-full border border-accent bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold text-ink shadow-float outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${
+                floatingHighlight.side === 'above' ? '-translate-y-full' : ''
+              }`}
+              style={{
+                left: floatingHighlight.left,
+                top:
+                  floatingHighlight.top +
+                  (floatingHighlight.side === 'above' ? -8 : 8),
+              }}
+              onClick={() => void convertSelectionToHighlight()}
+            >
+              Highlight
+            </button>
+          )}
           {extraction.state.status === 'running' && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-canvas/85 backdrop-blur-[2px]">
               <div className="flex flex-col items-center gap-4 rounded-2xl border border-line bg-surface px-11 py-7.5 shadow-float">

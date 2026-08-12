@@ -4,7 +4,9 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ProjectNavigationProvider, ProjectRoutes } from './ProjectNavigation'
+// Note: explicit .tsx extension — on case-insensitive filesystems
+// './ProjectNavigation' can resolve to './projectNavigation' (.ts wins).
+import { ProjectNavigationProvider, ProjectRoutes } from './ProjectNavigation.tsx'
 
 vi.mock('./App', () => ({
   default: ({ filename }: { filename: string }) => <p>Opened {filename}</p>,

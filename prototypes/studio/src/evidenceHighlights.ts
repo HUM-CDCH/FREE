@@ -1,4 +1,5 @@
 import { isRecord } from './template'
+import { isTableLikeEvidence } from './tableEvidence'
 
 // Paul Tol's Muted palette — sky blue, olive, rose, teal
 // Distinguishable across deuteranopia, protanopia, and tritanopia.
@@ -174,7 +175,7 @@ function schemaArrayItem(schema: unknown): unknown {
 function collectEvidenceLeaf(
   resultValue: unknown,
   node: unknown,
-  schema: unknown,
+  _schema: unknown,
   color: string,
   path: string[],
   out: Highlight[],
@@ -187,17 +188,19 @@ function collectEvidenceLeaf(
     const v = primitiveText(resultValue)
     const s = node.snippet.trim()
     const sourceScope = sourceScopeFromEvidence(node)
+    const rowHeader = typeof node.row_header === 'string' && node.row_header.trim() ? node.row_header : null
+    const columnHeader = typeof node.column_header === 'string' && node.column_header.trim() ? node.column_header : null
     if (v && s && sourceScope) {
       const matchStrategy =
-        typeof resultValue === 'string' && schema === 'verbatim-string'
+        typeof resultValue === 'string' && !isTableLikeEvidence({ rowHeader, columnHeader, snippet: s })
           ? 'result-primary'
           : 'snippet-primary'
       out.push({
         value: v,
         snippet: s,
         hintPage: typeof node.page === 'number' ? node.page : null,
-        rowHeader: typeof node.row_header === 'string' && node.row_header.trim() ? node.row_header : null,
-        columnHeader: typeof node.column_header === 'string' && node.column_header.trim() ? node.column_header : null,
+        rowHeader,
+        columnHeader,
         sourceScope,
         canonicalSpan: canonicalSpanFromEvidence(markdown, v, s, matchStrategy, sourceScope),
         matchStrategy,

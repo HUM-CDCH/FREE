@@ -53,7 +53,7 @@ function AnnotationSidebar({ items, onSelectItem, onRemoveItem, annotationsMode,
             <p aria-hidden="true" className="text-lg leading-none text-ink-muted">✎</p>
             <p className="mt-2 text-[13px] font-semibold text-ink">Annotate the source</p>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
-              Select any passage in the report — it becomes a grounded annotation in the set.
+              Select a passage and press Highlight to add it to the annotation set.
             </p>
           </div>
         ) : (

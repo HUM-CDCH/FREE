@@ -91,7 +91,7 @@ describe('buildHighlights', () => {
     expect(resolvedInTraversalOrder([first, second], resolved)).toEqual([first, second])
   })
 
-  it('selects match strategy from the schema and keeps non-string primitive evidence', () => {
+  it('selects result-primary for non-table strings and snippet-primary for primitives', () => {
     const result = {
       title: 'Anchored title',
       summary: 'Normalized title',
@@ -113,9 +113,34 @@ describe('buildHighlights', () => {
       { title: 'verbatim-string', summary: 'string', count: 'number', published: 'boolean', missing: 'verbatim-string' },
     )).toMatchObject([
       { value: 'Anchored title', matchStrategy: 'result-primary', path: ['title'] },
-      { value: 'Normalized title', matchStrategy: 'snippet-primary', path: ['summary'] },
+      { value: 'Normalized title', matchStrategy: 'result-primary', path: ['summary'] },
       { value: '5', matchStrategy: 'snippet-primary', path: ['count'] },
       { value: 'true', matchStrategy: 'snippet-primary', path: ['published'] },
+    ])
+  })
+
+  it('keeps table-like string evidence snippet-primary', () => {
+    const result = { records: [{ material: 'jernspænde' }] }
+    const evidence = {
+      records: [{
+        material: {
+          value: 'jernspænde',
+          snippet: '| 8-2 | Jern | jernspænde |',
+          page: 1,
+          row_header: '8-2',
+          column_header: 'Beskrivelse',
+          source_scope: { segment_id: 'catalog:0', markdown_start: 0, markdown_end: 20, start_page: 1, end_page: 1 },
+        },
+      }],
+    }
+
+    expect(buildHighlights(
+      result,
+      evidence,
+      { material: 'yellow' },
+      { records: [{ material: 'string' }] },
+    )).toMatchObject([
+      { value: 'jernspænde', matchStrategy: 'snippet-primary', path: ['records', '0', 'material'] },
     ])
   })
 

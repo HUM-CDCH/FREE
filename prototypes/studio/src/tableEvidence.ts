@@ -1,6 +1,8 @@
 import type { Highlight } from './evidenceHighlights'
 
-export function isTableLikeEvidence(highlight: Highlight): boolean {
+export function isTableLikeEvidence(
+  highlight: Pick<Highlight, 'rowHeader' | 'columnHeader' | 'snippet'>,
+): boolean {
   return (
     highlight.rowHeader !== null ||
     highlight.columnHeader !== null ||
