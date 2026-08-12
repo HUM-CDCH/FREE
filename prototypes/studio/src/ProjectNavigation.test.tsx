@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DocumentWorkspaceProps } from './App'
@@ -147,6 +153,21 @@ function hydratedSnapshot() {
   }
 }
 
+// This jsdom build implements `<dialog>` and its `open` state but neither
+// modality method. The shim only opens and closes; React's own `autoFocus`
+// still moves focus, and real modality is the browser's.
+const dialogs = HTMLDialogElement.prototype as HTMLDialogElement & {
+  showModal: () => void
+  close: () => void
+}
+dialogs.showModal ??= function showModal(this: HTMLDialogElement) {
+  this.open = true
+}
+dialogs.close ??= function close(this: HTMLDialogElement) {
+  this.open = false
+  this.dispatchEvent(new Event('close'))
+}
+
 const failureResponse = (
   code: string,
   message: string,
@@ -186,6 +207,307 @@ function renderRoutes(fetch: ReturnType<typeof vi.fn> = studioFetch()) {
   return fetch
 }
 
+const secondProject = {
+  projectContextId: '51000000-0000-4000-8000-000000000002',
+  name: 'Fæstningen, TAK 1400',
+  createdAt: '2026-08-11T09:00:00.000Z',
+}
+
+/**
+ * The rail list, the routed branches, and the three Project Context writes —
+ * every write answers the shipped contract so the rail applies only what the
+ * server acknowledged.
+ */
+function lifecycleFetch(
+  options: {
+    projects?: unknown[]
+    list?: () => Response | Promise<Response>
+    branch?: () => Response | Promise<Response>
+    post?: () => Response
+    patch?: () => Response
+    remove?: () => Response
+  } = {},
+) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    switch (init?.method) {
+      case 'POST':
+        return (
+          options.post?.() ??
+          Response.json({ projectContext: secondProject }, { status: 201 })
+        )
+      case 'PATCH':
+        return (
+          options.patch?.() ??
+          Response.json({
+            projectContext: { ...project, name: 'Ellekilde II' },
+          })
+        )
+      case 'DELETE':
+        return options.remove?.() ?? new Response(null, { status: 204 })
+    }
+    if (url.endsWith(secondProject.projectContextId))
+      return Response.json({
+        projectContext: secondProject,
+        sourceDocuments: [],
+      })
+    if (url.endsWith(projectContextId))
+      return options.branch?.() ?? Response.json(detail)
+    return (
+      options.list?.() ??
+      Response.json({ projectContexts: options.projects ?? [project] })
+    )
+  })
+}
+
+describe('Project Context lifecycle in the rail', () => {
+  it('navigates to and expands an acknowledged new Project Context', async () => {
+    renderRoutes(lifecycleFetch())
+    fireEvent.click(await screen.findByRole('button', { name: '+ New project' }))
+
+    const name = screen.getByRole('textbox', { name: 'New Project Context name' })
+    // The field never narrows the contract: padding around a limit-length name
+    // still submits, because the name is trimmed before it is judged.
+    fireEvent.change(name, { target: { value: `  ${'x'.repeat(512)}  ` } })
+    expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled()
+    fireEvent.change(name, { target: { value: `  ${'x'.repeat(513)}  ` } })
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled()
+
+    fireEvent.change(name, { target: { value: '  Fæstningen, TAK 1400  ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(await screen.findByText('Empty Project Context.')).toBeInTheDocument()
+    expect(location.pathname).toBe(
+      `/projects/${secondProject.projectContextId}`,
+    )
+    expect(
+      screen.getByRole('button', { name: secondProject.name }),
+    ).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('retains the rename form on a failed write and applies the acknowledged one', async () => {
+    let attempts = 0
+    renderRoutes(
+      lifecycleFetch({
+        patch: () => {
+          attempts += 1
+          return attempts === 1
+            ? failureResponse(
+                'persistence_unavailable',
+                'Project Context storage is unavailable.',
+                503,
+              )
+            : Response.json({
+                projectContext: { ...project, name: 'Ellekilde II' },
+              })
+        },
+      }),
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: `Rename ${project.name}` }),
+    )
+    const name = screen.getByRole('textbox', { name: 'Project Context name' })
+    fireEvent.change(name, { target: { value: 'Ellekilde II' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
+
+    expect(
+      await screen.findByRole('alert'),
+    ).toHaveTextContent('Project Context storage is unavailable.')
+    expect(name).toHaveValue('Ellekilde II')
+    expect(
+      screen.queryByRole('button', { name: 'Ellekilde II' }),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Ellekilde II' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('textbox', { name: 'Project Context name' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('deletes the open Project Context only once confirmed, and leaves /projects open', async () => {
+    renderRoutes(lifecycleFetch())
+    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    await screen.findByText('Beretning.pdf')
+
+    fireEvent.click(screen.getByRole('button', { name: `Delete ${project.name}` }))
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Delete Project Context',
+    })
+    // Native modality: focus moves into the dialog, so the rail behind it is
+    // out of reach until the researcher answers.
+    expect(dialog).toContainElement(
+      document.activeElement as HTMLElement | null,
+    )
+    // Confirmation is required: the rail is untouched until it is given.
+    expect(screen.getByRole('button', { name: project.name })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'No Project Context open' }),
+    ).toBeInTheDocument()
+    expect(location.pathname).toBe('/projects')
+    expect(
+      screen.queryByRole('button', { name: project.name }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the confirmation and its retry while a deletion is in flight and fails', async () => {
+    const pending = Promise.withResolvers<Response>()
+    renderRoutes(lifecycleFetch({ remove: () => pending.promise as never }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: `Delete ${project.name}` }),
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete permanently' }),
+    )
+
+    // Escape dispatches `cancel`; a write already sent must survive it.
+    const dialog = screen.getByRole('dialog', { name: 'Delete Project Context' })
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    expect(dialog).toBeInTheDocument()
+
+    pending.resolve(
+      failureResponse(
+        'persistence_unavailable',
+        'Project Context storage is unavailable.',
+        503,
+      ),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Project Context storage is unavailable.',
+    )
+    expect(screen.getByRole('button', { name: project.name })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Delete permanently' }),
+    ).toBeEnabled()
+
+    // Once nothing is in flight, the same dismissal is honoured.
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    await waitFor(() => expect(dialog).not.toBeInTheDocument())
+  })
+
+  it('never lets a read that a write superseded revert the rail', async () => {
+    const list = Promise.withResolvers<Response>()
+    const branch = Promise.withResolvers<Response>()
+    history.replaceState(null, '', `/projects/${projectContextId}`)
+    renderRoutes(
+      lifecycleFetch({
+        list: () => list.promise,
+        branch: () => branch.promise,
+      }),
+    )
+    // The routed branch resolves first, so the rail knows this Project Context
+    // before its list read finishes.
+    branch.resolve(Response.json(detail))
+    fireEvent.click(
+      await screen.findByRole('button', { name: `Rename ${project.name}` }),
+    )
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'Project Context name' }),
+      { target: { value: 'Ellekilde II' } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
+    await screen.findByRole('button', { name: 'Ellekilde II' })
+
+    // This list read started before the rename and still carries the old name.
+    list.resolve(Response.json({ projectContexts: [project] }))
+
+    await waitFor(() =>
+      expect(screen.queryByText('Loading Project Contexts…')).not.toBeInTheDocument(),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Ellekilde II' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: project.name }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('re-reads a superseded initial list without hiding existing Project Contexts', async () => {
+    const initial = Promise.withResolvers<Response>()
+    let reads = 0
+    renderRoutes(
+      lifecycleFetch({
+        list: () => {
+          reads += 1
+          return reads === 1
+            ? initial.promise
+            : Response.json({ projectContexts: [secondProject, project] })
+        },
+      }),
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '+ New project' }))
+    fireEvent.change(
+      screen.getByRole('textbox', { name: 'New Project Context name' }),
+      { target: { value: secondProject.name } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await screen.findByRole('button', { name: secondProject.name })
+
+    initial.resolve(Response.json({ projectContexts: [project] }))
+
+    expect(
+      await screen.findByRole('button', { name: project.name }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: secondProject.name })).toBeInTheDocument()
+    expect(reads).toBe(2)
+  })
+
+  it('never lets a branch read resurrect a deleted Project Context', async () => {
+    const branch = Promise.withResolvers<Response>()
+    renderRoutes(lifecycleFetch({ branch: () => branch.promise }))
+    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    await screen.findByText('Loading…')
+
+    fireEvent.click(screen.getByRole('button', { name: `Delete ${project.name}` }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete permanently' }),
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: project.name }),
+      ).not.toBeInTheDocument(),
+    )
+
+    // The branch read started before the deletion; its Project Context is gone.
+    branch.resolve(Response.json(detail))
+
+    await waitFor(() =>
+      expect(screen.getByText('No Project Contexts yet.')).toBeInTheDocument(),
+    )
+    expect(
+      screen.queryByRole('button', { name: project.name }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Beretning.pdf')).not.toBeInTheDocument()
+  })
+
+  it('keeps the open route when another Project Context is deleted', async () => {
+    renderRoutes(lifecycleFetch({ projects: [project, secondProject] }))
+    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    await screen.findByText('Beretning.pdf')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: `Delete ${secondProject.name}` }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: secondProject.name }),
+      ).not.toBeInTheDocument(),
+    )
+    expect(location.pathname).toBe(`/projects/${projectContextId}`)
+    expect(screen.getByText('Beretning.pdf')).toBeInTheDocument()
+  })
+})
+
 describe('Project Context navigation', () => {
   it('keeps the persistent rail while navigating to a lazily loaded Project Context', async () => {
     const fetch = renderRoutes()
@@ -200,9 +522,8 @@ describe('Project Context navigation', () => {
     expect(
       screen.getByRole('heading', { name: 'No Source Document open' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '+ New project' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '+ Add sources' })).toBeDisabled()
-    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(1)
     expect(fetch).toHaveBeenCalledTimes(2)
 
     fireEvent.click(screen.getByRole('button', { name: 'Beretning.pdf' }))

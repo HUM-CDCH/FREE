@@ -4,25 +4,56 @@ import {
   projectContextErrorResponseSchema,
   projectContextErrorSchema,
   projectContextListResponseSchema,
+  projectContextResponseSchema,
   projectContextWithDocumentsResponseSchema,
 } from '../shared/projectContext.contract'
 
 /** The durable read that reopens a Source Document, as the browser receives it. */
 export type DocumentSnapshot = z.output<typeof documentReopenResponseSchema>
 
-async function request<T>(
-  url: string,
-  schema: { parse(value: unknown): T },
-  signal?: AbortSignal,
-): Promise<T> {
-  const response = await fetch(url, { signal })
-  const body: unknown = await response.json().catch(() => null)
+async function read(url: string, init?: RequestInit): Promise<unknown> {
+  const response = await fetch(url, init)
+  const body: unknown =
+    response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
     const error = projectContextErrorResponseSchema.safeParse(body)
     if (error.success) throw error.data.error
     throw new Error('Project Context request failed.')
   }
-  return schema.parse(body)
+  return body
+}
+
+async function request<T>(
+  url: string,
+  schema: { parse(value: unknown): T },
+  signal?: AbortSignal,
+): Promise<T> {
+  return schema.parse(await read(url, { signal }))
+}
+
+/** Every Project Context write sends and reads the same JSON name contract. */
+async function write(url: string, method: 'POST' | 'PATCH', name: string) {
+  return projectContextResponseSchema.parse(
+    await read(url, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }),
+  ).projectContext
+}
+
+export function createProjectContext(name: string) {
+  return write('/api/project-contexts', 'POST', name)
+}
+
+export function renameProjectContext(projectContextId: string, name: string) {
+  return write(`/api/project-contexts/${projectContextId}`, 'PATCH', name)
+}
+
+export async function deleteProjectContext(
+  projectContextId: string,
+): Promise<void> {
+  await read(`/api/project-contexts/${projectContextId}`, { method: 'DELETE' })
 }
 
 /** A read failure that is not one of the bounded codes is unreadable persistence. */

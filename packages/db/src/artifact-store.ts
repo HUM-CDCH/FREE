@@ -199,7 +199,48 @@ export function createCanonicalPackageStore(root: string = packageRoot()) {
     return { ...descriptor, document, manifest }
   }
 
-  return { save, read, available }
+  /**
+   * Quarantines a removal candidate, then either deletes it or restores it when
+   * a writer published a reference during cleanup.
+   */
+  async function remove(
+    descriptor: CanonicalPackageDescriptor,
+    isReferenced: () => Promise<boolean>,
+  ): Promise<boolean> {
+    const path = packagePath(descriptor)
+    const quarantine = join(root, `${descriptor.artifactReference}.${randomUUID()}.deleting`)
+    try {
+      await rename(path, quarantine)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw error
+    }
+
+    const restore = async () => {
+      try {
+        await rename(quarantine, path)
+      } catch (error) {
+        // A concurrent content-addressed save may already have restored the
+        // same valid package. In that case only its quarantined twin is stale.
+        if (!(await available(descriptor))) throw error
+        await rm(quarantine, { force: true })
+      }
+    }
+
+    try {
+      if (await isReferenced()) {
+        await restore()
+        return false
+      }
+      await rm(quarantine, { force: true })
+      return true
+    } catch (error) {
+      await restore()
+      throw error
+    }
+  }
+
+  return { save, read, available, remove }
 }
 
 export const canonicalPackageStore = createCanonicalPackageStore()

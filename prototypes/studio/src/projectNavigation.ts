@@ -75,7 +75,7 @@ export function parseRoute(pathname: string): Route {
 }
 
 export function href(route: NavigableRoute): string {
-  if (route.kind === 'root') return '/'
+  if (route.kind === 'root') return '/projects'
   const project = `/projects/${route.projectContextId}`
   return route.kind === 'project'
     ? project

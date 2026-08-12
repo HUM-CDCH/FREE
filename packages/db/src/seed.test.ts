@@ -58,6 +58,13 @@ function fakeDatabase() {
         created[name].push(row)
         return row
       },
+      async delete() {
+        for (const row of selected) {
+          const index = created[name].indexOf(row)
+          if (index >= 0) created[name].splice(index, 1)
+        }
+        selected = created[name]
+      },
     }
     return query
   }
@@ -89,6 +96,7 @@ function fakeIngest() {
       preprocessId: `sha256:${'b'.repeat(64)}`,
       parserName: 'docling_pdf',
       parserVersion: '2.0.0',
+      ensureRetained: async () => {},
     }
   }
   return { filenames, ingest }
@@ -109,7 +117,11 @@ describe('example database seed', () => {
     const database = fakeDatabase()
     const { ingest, filenames } = fakeIngest()
 
-    const first = await seedExampleProjects(database as never, ingest)
+    const first = await seedExampleProjects(
+      database as never,
+      ingest,
+      async () => true,
+    )
     const second = await seedExampleProjects(
       database as never,
       ingest,
@@ -141,7 +153,7 @@ describe('example database seed', () => {
     const database = fakeDatabase()
     const { ingest } = fakeIngest()
 
-    await seedExampleProjects(database as never, ingest)
+    await seedExampleProjects(database as never, ingest, async () => true)
 
     const representations = database.created.SourceRepresentationRevision
     assert.equal(representations.length, 3)
@@ -162,6 +174,71 @@ describe('example database seed', () => {
         project.documents.map((document) => document.sourceDocumentId),
       ),
     )
+  })
+
+  it('reasserts package retention after publishing its database reference', async () => {
+    const database = fakeDatabase()
+    const { ingest: baseIngest } = fakeIngest()
+    const ingest: Ingest = async (pdf, filename) => {
+      const representation = await baseIngest(pdf, filename)
+      return {
+        ...representation,
+        ensureRetained: async () => {
+          assert.ok(
+            database.created.SourceRepresentationRevision.some(
+              (row) =>
+                row.artifactReference === representation.artifactReference,
+            ),
+          )
+        },
+      }
+    }
+
+    await seedExampleProjects(database as never, ingest, async () => true)
+  })
+
+  it('removes a new revision when its post-reference retention fails', async () => {
+    const database = fakeDatabase()
+    const { ingest: baseIngest } = fakeIngest()
+    await seedExampleProjects(database as never, baseIngest, async () => true)
+    const ingest: Ingest = async (pdf, filename) => {
+      const representation = await baseIngest(pdf, filename)
+      return {
+        ...representation,
+        ensureRetained:
+          filename === exampleProjects[0].documents[0].filename
+            ? async () => Promise.reject(new Error('Package re-publish failed.'))
+            : representation.ensureRetained,
+      }
+    }
+
+    const result = await seedExampleProjects(
+      database as never,
+      ingest,
+      async ({ artifactReference }) => artifactReference !== 'task-1',
+    )
+
+    assert.equal(result.representationsCreated, 0)
+    assert.deepEqual(result.representationFailures, [
+      {
+        filename: exampleProjects[0].documents[0].filename,
+        reason: 'Package re-publish failed.',
+      },
+    ])
+    assert.equal(
+      database.created.SourceRepresentationRevision.some(
+        (row) => row.artifactReference === 'task-4',
+      ),
+      false,
+    )
+    assert.equal(
+      database.created.SourceRepresentationRevision.find(
+        (row) =>
+          row.id === exampleProjects[0].documents[0].sourceRepresentationId,
+      )?.artifactReference,
+      'task-1',
+    )
+    assert.equal(database.created.SourceRepresentationRevision.length, 3)
   })
 
   it('still seeds navigation when the Parsing Service is unavailable', async () => {
@@ -186,7 +263,11 @@ describe('example database seed', () => {
         ? Promise.reject(new Error('Parsing failed: ocr_fallback_failed.'))
         : ingest(pdf, filename)
 
-    const result = await seedExampleProjects(database as never, unparseable)
+    const result = await seedExampleProjects(
+      database as never,
+      unparseable,
+      async () => true,
+    )
 
     assert.equal(result.documentsCreated, 3)
     assert.equal(result.representationsCreated, 2)
@@ -214,7 +295,11 @@ describe('example database seed', () => {
     const { ingest } = fakeIngest()
 
     await seedExampleProjects(database as never, null)
-    const result = await seedExampleProjects(database as never, ingest)
+    const result = await seedExampleProjects(
+      database as never,
+      ingest,
+      async () => true,
+    )
 
     assert.deepEqual(result, {
       projectsCreated: 0,
@@ -228,7 +313,7 @@ describe('example database seed', () => {
     const database = fakeDatabase()
     const { ingest, filenames } = fakeIngest()
 
-    await seedExampleProjects(database as never, ingest)
+    await seedExampleProjects(database as never, ingest, async () => true)
     const retained = async ({ artifactReference }: { artifactReference: string }) =>
       artifactReference !== 'task-1'
     const failed = await seedExampleProjects(
@@ -257,15 +342,13 @@ describe('example database seed', () => {
     assert.equal(repaired.representationsCreated, 1)
     assert.deepEqual(repaired.representationFailures, [])
     assert.equal(database.created.SourceRepresentationRevision.length, 4)
-    assert.equal(
-      database.created.SourceRepresentationRevision.find(
-        (row) =>
-          row.sourceDocumentId ===
-            '51000000-0000-4000-8001-000000000001' &&
-          row.revisionNumber === 2,
-      )?.artifactReference,
-      'task-4',
+    const repair = database.created.SourceRepresentationRevision.find(
+      (row) =>
+        row.sourceDocumentId === '51000000-0000-4000-8001-000000000001' &&
+        row.revisionNumber === 2,
     )
+    assert.notEqual(repair?.id, '51000000-0000-4000-8002-000000000001')
+    assert.equal(repair?.artifactReference, 'task-4')
     assert.equal(filenames.length, 4)
   })
 

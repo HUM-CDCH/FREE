@@ -75,4 +75,37 @@ describe('canonical package store', () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+
+  it('removes an unreferenced package idempotently', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'free-package-removal-'))
+    try {
+      const store = createCanonicalPackageStore(root)
+      const stored = await store.save(canonicalPackage())
+      assert.equal(await store.remove(stored, async () => false), true)
+      assert.equal(await store.available(stored), false)
+      assert.equal(await store.remove(stored, async () => false), false)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a package republished while its removal is quarantined', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'free-package-republish-'))
+    try {
+      const bytes = canonicalPackage()
+      const store = createCanonicalPackageStore(root)
+      const stored = await store.save(bytes)
+
+      assert.equal(
+        await store.remove(stored, async () => {
+          await store.save(bytes)
+          return true
+        }),
+        false,
+      )
+      assert.equal(await store.available(stored), true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 })

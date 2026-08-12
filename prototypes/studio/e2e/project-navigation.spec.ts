@@ -295,17 +295,116 @@ const rail = (page: Page) =>
   page.getByRole('navigation', { name: 'Project Contexts' })
 const workspace = (page: Page) =>
   page.getByRole('region', { name: 'Source Document' })
+const projectRows = (page: Page) => rail(page).locator('button[aria-expanded]')
+const projectRow = (page: Page, name: string) =>
+  page.getByRole('button', { name, exact: true })
 const documentRow = (page: Page, name: string) =>
   page.getByRole('button', { name, exact: true })
 
 test.describe('rail navigation', () => {
+  test('returns focus to the delete control when cancellation closes the dialog', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await page.goto('/')
+
+    const remove = page.getByRole('button', { name: 'Delete Hørsholm, TAK 1402' })
+    await remove.click()
+    const dialog = page.getByRole('dialog', { name: 'Delete Project Context' })
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+
+    await expect(dialog).not.toBeVisible()
+    await expect(remove).toBeFocused()
+  })
+
+  test('returns focus to create and rename controls when name editing is cancelled', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await page.goto('/')
+
+    const create = page.getByRole('button', { name: '+ New project' })
+    await create.click()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(create).toBeFocused()
+
+    const rename = page.getByRole('button', { name: 'Rename Hørsholm, TAK 1402' })
+    await rename.click()
+    await page.getByRole('textbox', { name: 'Project Context name' }).press('Escape')
+    await expect(rename).toBeFocused()
+  })
+
+  test('moves focus deliberately after successful create and rename writes', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await page.route('**/api/project-contexts**', async (route) => {
+      const request = route.request()
+      if (request.method() === 'GET') return route.fallback()
+      if (request.method() === 'DELETE')
+        return route.fulfill({ status: 204, body: '' })
+      const name = (request.postDataJSON() as { name: string }).name.trim()
+      if (request.method() === 'POST')
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            projectContext: {
+              projectContextId: '00000000-0000-4000-8000-000000000047',
+              name,
+              createdAt: '2026-08-12T00:00:00.000Z',
+            },
+          }),
+        })
+      if (request.method() === 'PATCH')
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            projectContext: {
+              projectContextId: HORSHOLM,
+              name,
+              createdAt: SEED[0].createdAt,
+            },
+          }),
+        })
+      return route.fallback()
+    })
+    await page.goto('/')
+
+    await page.getByRole('button', { name: '+ New project' }).click()
+    await page
+      .getByRole('textbox', { name: 'New Project Context name' })
+      .fill('Created project')
+    await page.getByRole('button', { name: 'Create' }).click()
+    await expect(page.getByRole('button', { name: '+ New project' })).toBeFocused()
+
+    await page.getByRole('button', { name: 'Rename Hørsholm, TAK 1402' }).click()
+    const rename = page.getByRole('textbox', { name: 'Project Context name' })
+    await rename.fill('Renamed project')
+    await rename.press('Enter')
+    await expect(
+      page.getByRole('button', { name: 'Rename Renamed project' }),
+    ).toBeFocused()
+
+    await page.getByRole('button', { name: '+ New project' }).click()
+    const unfinished = page.getByRole('textbox', {
+      name: 'New Project Context name',
+    })
+    await unfinished.fill('Unfinished draft')
+    await page.getByRole('button', { name: 'Delete Renamed project' }).click()
+    await page.getByRole('button', { name: 'Delete permanently' }).click()
+    await expect(
+      page.getByRole('button', { name: 'Collapse Project Contexts' }),
+    ).toBeFocused()
+    await expect(unfinished).toHaveValue('Unfinished draft')
+  })
+
   test('lists Project Contexts newest first and opens one into the single shell', async ({
     page,
   }) => {
     await stubStudio(page)
 
     await page.goto('/')
-    await expect(rail(page).getByRole('button', { name: /TAK/ })).toHaveText([
+    await expect(projectRows(page)).toHaveText([
       /Hørsholm, TAK 1402/,
       /Ellekilde, TAK 1355/,
     ])
@@ -313,7 +412,7 @@ test.describe('rail navigation', () => {
       workspace(page).getByRole('heading', { name: 'No Project Context open' }),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: 'Ellekilde, TAK 1355' }).click()
+    await projectRow(page, 'Ellekilde, TAK 1355').click()
     await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
     await expect(documentRow(page, 'Beretning_Ellekilde_8_13.pdf')).toBeVisible()
     await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
@@ -334,7 +433,7 @@ test.describe('rail navigation', () => {
     await stubStudio(page)
 
     await page.goto(`/projects/${ELLEKILDE}`)
-    const project = page.getByRole('button', { name: 'Ellekilde, TAK 1355' })
+    const project = projectRow(page, 'Ellekilde, TAK 1355')
     await expect(project).toHaveAttribute('aria-current', 'page')
     await expect(project).toHaveAttribute('aria-expanded', 'true')
     await expect(documentRow(page, 'Beretning_Ellekilde_8_13.pdf')).toBeVisible()
@@ -353,7 +452,7 @@ test.describe('rail navigation', () => {
     const fundliste = `/projects/${ELLEKILDE}/documents/${FUNDLISTE}`
 
     await page.goto('/')
-    await page.getByRole('button', { name: 'Ellekilde, TAK 1355' }).click()
+    await projectRow(page, 'Ellekilde, TAK 1355').click()
     await documentRow(page, 'Beretning_Ellekilde_8_13.pdf').click()
     await expect(page).toHaveURL(beretning)
     await documentRow(page, 'Fundliste_Ellekilde.pdf').click()
@@ -403,7 +502,7 @@ test.describe('rail navigation', () => {
       workspace(page).getByText('Beretning_Ellekilde_8_13.pdf').first(),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: 'Hørsholm, TAK 1402' }).click()
+    await projectRow(page, 'Hørsholm, TAK 1402').click()
     release()
 
     await expect(page).toHaveURL(`/projects/${HORSHOLM}`)
@@ -549,7 +648,7 @@ test.describe('bad references and bounded failures', () => {
       }),
     ).toBeVisible()
     // The rail stays usable, so the researcher is never stranded.
-    await expect(rail(page).getByRole('button', { name: /TAK/ })).toHaveCount(2)
+    await expect(projectRows(page)).toHaveCount(2)
 
     await page.goto(`/projects/${ELLEKILDE}/documents/xyz`)
     await expect(
@@ -604,7 +703,7 @@ test.describe('bad references and bounded failures', () => {
       `/api/project-contexts/${ELLEKILDE}/source-documents/${OVERSIGT}/reopen`,
     )
 
-    await page.getByRole('button', { name: 'Hørsholm, TAK 1402' }).click()
+    await projectRow(page, 'Hørsholm, TAK 1402').click()
     await expect(page).toHaveURL(`/projects/${HORSHOLM}`)
     await expect(documentRow(page, 'Oversigt_Hoersholm.pdf')).toBeVisible()
   })
@@ -624,7 +723,7 @@ test.describe('bad references and bounded failures', () => {
         name: 'That Project Context no longer exists',
       }),
     ).toBeVisible()
-    await expect(rail(page).getByRole('button', { name: /TAK/ })).toHaveCount(2)
+    await expect(projectRows(page)).toHaveCount(2)
   })
 
   test('explains a contained Source Document with no durable snapshot', async ({

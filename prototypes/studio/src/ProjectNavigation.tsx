@@ -6,6 +6,7 @@ import {
   browserNavigationDeps,
   navigationMachine,
   parseRoute,
+  type NavigableRoute,
 } from './projectNavigation'
 import { useRailTree } from './useRailTree'
 
@@ -35,7 +36,11 @@ export function ProjectRoutes() {
   const actor = Navigation.useActorRef()
   const snapshot = Navigation.useSelector((state) => state)
   const { route, snapshot: openDocument, failure } = snapshot.context
-  const tree = useRailTree(route)
+  const navigate = useCallback(
+    (nextRoute: NavigableRoute) => actor.send({ type: 'NAVIGATE', route: nextRoute }),
+    [actor],
+  )
+  const tree = useRailTree(route, navigate)
   const routedBranch =
     route.kind === 'document' ? tree.branches[route.projectContextId] : undefined
   const opening =
@@ -74,9 +79,7 @@ export function ProjectRoutes() {
       openDocument={openDocument}
       opening={opening}
       failure={failure}
-      onNavigate={(nextRoute) =>
-        actor.send({ type: 'NAVIGATE', route: nextRoute })
-      }
+      onNavigate={navigate}
       onRetry={() => actor.send({ type: 'RETRY' })}
       onInitialResourceLoadFailure={onInitialResourceLoadFailure}
     />
