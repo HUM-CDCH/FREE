@@ -4,18 +4,29 @@ import type { AnnotationSetItem } from './AnnotationSidebar'
 import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
-import type { SchemaNode } from '../shared/schemaNode'
+import type { SchemaDefinition, SchemaNode } from '../shared/schemaNode'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
 import type { AnnotationsMode } from './api'
 import EvidenceTab from './EvidenceTab'
-import type { ParsedDocument, ParsedEvidenceAnchor } from './parsedDocument'
+import type { ParsedDocument, ParsedEvidenceAnchor } from '../shared/parsedDocument'
 import type {
   SchemaRevision,
   SchemaRevisionSummary,
 } from '../shared/schemaRevision.contract'
 
 export type RailTab = 'annot' | 'evidence' | 'chat' | 'schema' | 'results'
+
+export type ExtractionInspection = {
+  attempt: ExtractionAttempt | null
+  readOnly: boolean
+  documentMarkdown: string | null
+  parsedDocument: ParsedDocument | null
+  sourceStatus: { status: 'parsing' } | { status: 'ready' } | { status: 'error'; message: string } | null
+  reviewDecisions: ExtractionAttempt['reviewDecisions']
+  pinnedSchema: SchemaDefinition | null
+}
 
 type RightRailProps = {
   open: boolean
@@ -30,7 +41,12 @@ type RightRailProps = {
   schemaReady: boolean
   schemaFieldCount: number
   onGenerate: () => void
-  onNodesChange: (nodes: SchemaNode[], message: string) => void
+  onNodesChange: (
+    nodes: SchemaNode[],
+    message: string,
+    recordDescription?: string,
+  ) => void
+  onRecordDescriptionChange: (recordDescription: string) => void
   beforeSchemaEdit: () => Promise<void>
   schemaHistory: SchemaRevisionSummary[]
   currentSchemaRevisionNumber?: number
@@ -38,12 +54,10 @@ type RightRailProps = {
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
-  documentMarkdown: string | null
+  inspection: ExtractionInspection
   sourceDocumentName: string
-  parsedDocument: ParsedDocument | null
-  reviewedOccurrenceIdsByAnchor: ReadonlyMap<string, readonly string[]>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
-  onResultPathChange: (path: string[]) => void
+  onResultPathChange: (path: string[] | null) => void
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
@@ -73,6 +87,7 @@ function RightRail({
   schemaFieldCount,
   onGenerate,
   onNodesChange,
+  onRecordDescriptionChange,
   beforeSchemaEdit,
   schemaHistory,
   currentSchemaRevisionNumber,
@@ -80,13 +95,12 @@ function RightRail({
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
-  documentMarkdown,
+  inspection,
   sourceDocumentName,
-  parsedDocument,
-  reviewedOccurrenceIdsByAnchor,
   onSelectEvidence,
   onResultPathChange,
 }: RightRailProps) {
+  const { documentMarkdown, parsedDocument, reviewDecisions } = inspection
   if (!open) {
     return (
       <div className="flex h-full flex-col items-center">
@@ -153,6 +167,13 @@ function RightRail({
       </div>
 
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
+      {inspection.sourceStatus?.status !== 'ready' && inspection.sourceStatus && (
+        <p role={inspection.sourceStatus.status === 'error' ? 'alert' : 'status'} className="shrink-0 border-b border-line bg-surface-muted px-3 py-2 text-xs text-ink-muted">
+          {inspection.sourceStatus.status === 'parsing'
+            ? 'Loading historical source snapshot…'
+            : `Historical source snapshot unavailable: ${inspection.sourceStatus.message}`}
+        </p>
+      )}
       <div id="rail-panel-annot" aria-labelledby="rail-tab-annot" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'annot'}>
         <AnnotationSetTab
           items={annotationItems}
@@ -161,7 +182,7 @@ function RightRail({
         />
       </div>
       <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'evidence'}>
-        <EvidenceTab document={parsedDocument} reviewedOccurrenceIdsByAnchor={reviewedOccurrenceIdsByAnchor} onSelectAnchor={onSelectEvidence} />
+        <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />
       </div>
       <div id="rail-panel-chat" aria-labelledby="rail-tab-chat" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'chat'}>
         <ChatTab documentMarkdown={documentMarkdown} />
@@ -172,6 +193,7 @@ function RightRail({
           stale={schemaStale}
           onGenerate={onGenerate}
           onNodesChange={onNodesChange}
+          onRecordDescriptionChange={onRecordDescriptionChange}
           beforeSchemaEdit={beforeSchemaEdit}
           history={schemaHistory}
           currentRevisionNumber={currentSchemaRevisionNumber}
@@ -185,9 +207,13 @@ function RightRail({
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'results'}>
         <ResultsTab
+          key={inspection.attempt?.extractionId ?? 'none'}
           controller={extraction}
+          inspectedAttempt={inspection.readOnly ? inspection.attempt ?? undefined : undefined}
+          readOnly={inspection.readOnly}
           schemaReady={schemaReady}
           documentMarkdown={documentMarkdown}
+          pinnedSchema={inspection.pinnedSchema}
           onResultPathChange={onResultPathChange}
           onSelectEvidence={(anchorId) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(

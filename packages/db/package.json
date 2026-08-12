@@ -8,7 +8,7 @@
     "test": "tsx --test src/*.test.ts",
     "contract:emit": "prisma-next contract emit",
     "db:seed": "tsx src/seed.ts",
-    "db:init": "prisma-next db init",
+    "db:init": "prisma-next migrate --yes",
     "db:update": "prisma-next db update",
     "db:verify": "prisma-next db verify",
     "db:migrate": "prisma-next migrate",

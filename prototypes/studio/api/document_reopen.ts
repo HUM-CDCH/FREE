@@ -14,14 +14,12 @@ import {
   annotationSchema,
   canonicalUuidSchema,
   documentReopenResponseSchema,
-  reviewDecisionSchema,
 } from '../shared/projectContext.contract.js'
 import {
   evidenceLinksHaveUniqueScalarPaths,
-  groundedExtractionPayloadSchema,
-  groundedModelAttributionSchema,
 } from '../shared/groundedExtraction.js'
-import { schemaNodesSchema } from '../shared/schemaNode.js'
+import { extractionAttemptSchema } from '../shared/extraction.contract.js'
+import { schemaDefinitionSchema } from '../shared/schemaNode.js'
 import { z } from 'zod'
 
 const ROUTE =
@@ -30,7 +28,6 @@ const ROUTE =
 // `strip` so a persisted Annotation carrying more than Studio reopens is
 // projected down to the browser contract rather than rejected.
 const storedAnnotationsSchema = z.array(annotationSchema.strip())
-const failureSchema = z.object({ code: z.string(), message: z.string() })
 
 /** Durable state that cannot be projected is unreadable, not silently rewritten. */
 function durable<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -43,60 +40,87 @@ function durable<T>(schema: z.ZodType<T>, value: unknown): T {
   return parsed.data
 }
 
-function extractionDto(extraction: DocumentReopenSnapshot['extraction']) {
+function extractionDto(
+  extraction: DocumentReopenSnapshot['latestAttempt'],
+) {
   if (!extraction) return null
-  const identity = {
+  const attempt = durable(extractionAttemptSchema, {
     extractionId: extraction.extractionId,
+    sourceDocumentId: extraction.sourceDocumentId,
+    sourceRepresentationRevisionId:
+      extraction.sourceRepresentationRevisionId,
+    schemaRevisionId: extraction.schemaRevisionId,
+    strategy: extraction.strategy,
+    outcome: extraction.outcome,
+    complete: extraction.complete,
+    modelAttribution: extraction.modelAttribution,
+    diagnostics: extraction.diagnostics,
+    failure: extraction.failure,
+    resultPayload: extraction.resultPayload,
+    evidenceLinks: extraction.evidenceLinks,
+    reviewable: extraction.reviewable,
+    retryOfId: extraction.retryOfId,
     createdAt: extraction.createdAt.toISOString(),
-  }
-  if (extraction.outcome === 'CANCELLED')
-    return { ...identity, outcome: 'cancelled' as const }
-  if (extraction.outcome === 'FAILED')
-    return {
-      ...identity,
-      outcome: 'failed' as const,
-      failure: durable(failureSchema, extraction.failure),
-    }
-  const payload = durable(
-    groundedExtractionPayloadSchema,
-    extraction.resultPayload,
+    reviewedAt: extraction.reviewedAt?.toISOString() ?? null,
+    reviewDecisions: extraction.reviewDecisions.map((decision) => ({
+      reviewDecisionId: decision.reviewDecisionId,
+      evidenceAnchorId: decision.evidenceAnchorId,
+      reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+    })),
+  })
+  if (
+    attempt.resultPayload &&
+    attempt.evidenceLinks &&
+    !evidenceLinksHaveUniqueScalarPaths(
+      attempt.resultPayload,
+      attempt.evidenceLinks,
+    )
   )
-  if (!evidenceLinksHaveUniqueScalarPaths(payload.result, payload.evidenceLinks))
     throw persistenceUnavailable(
       new Error('The stored Extraction has invalid Evidence link paths.'),
       'Stored research state could not be read.',
     )
-  const reviewDecisions = extraction.reviewDecisions.map((decision) =>
-    durable(reviewDecisionSchema, {
-      reviewDecisionId: decision.reviewDecisionId,
-      evidenceAnchorId: decision.evidenceAnchorId,
-      reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
-    }),
-  )
   const linkedAnchors = new Set(
-    payload.evidenceLinks.map((link) => link.evidenceAnchorId),
+    attempt.evidenceLinks?.map((link) => link.evidenceAnchorId) ?? [],
   )
   const reviewedAnchors = new Set(
-    reviewDecisions.map((decision) => decision.evidenceAnchorId),
+    attempt.reviewDecisions.map((decision) => decision.evidenceAnchorId),
   )
   if (
-    reviewedAnchors.size !== reviewDecisions.length ||
-    linkedAnchors.size !== reviewedAnchors.size ||
-    [...linkedAnchors].some((anchorId) => !reviewedAnchors.has(anchorId))
+    reviewedAnchors.size !== attempt.reviewDecisions.length ||
+    (attempt.reviewedAt === null && reviewedAnchors.size > 0) ||
+    (attempt.reviewedAt !== null &&
+      (linkedAnchors.size !== reviewedAnchors.size ||
+        [...linkedAnchors].some((anchorId) => !reviewedAnchors.has(anchorId))))
   )
     throw persistenceUnavailable(
       new Error('The stored Extraction has incomplete Review Decisions.'),
       'Stored research state could not be read.',
     )
+  const schema = durable(schemaDefinitionSchema, extraction.schemaTree)
   return {
-    ...identity,
-    outcome: 'succeeded' as const,
-    ...payload,
-    modelAttribution: durable(
-      groundedModelAttributionSchema,
-      extraction.modelAttribution,
-    ),
-    reviewDecisions,
+    ...attempt,
+    sourceRepresentation: {
+      revisionNumber: extraction.sourceRepresentationRevisionNumber,
+      resources: representationResources(
+        extraction.sourceRepresentationRevisionId,
+      ),
+    },
+    extractionSchema: {
+      extractionSchemaId: extraction.extractionSchemaId,
+      revisionNumber: extraction.schemaRevisionNumber,
+      ...schema,
+    },
+  }
+}
+
+function representationResources(sourceRepresentationId: string) {
+  const resource = (artifact: string) =>
+    `/api/source-representations/${sourceRepresentationId}/${artifact}`
+  return {
+    sourcePdfUrl: resource('pdf'),
+    markdownUrl: resource('markdown'),
+    parsedDocumentUrl: resource('source'),
   }
 }
 
@@ -107,8 +131,9 @@ function extractionDto(extraction: DocumentReopenSnapshot['extraction']) {
  */
 function reopenResponse(snapshot: DocumentReopenSnapshot) {
   const { sourceRepresentation: representation } = snapshot
-  const resource = (artifact: string) =>
-    `/api/source-representations/${representation.sourceRepresentationId}/${artifact}`
+  const currentSchema = snapshot.extractionSchema
+    ? durable(schemaDefinitionSchema, snapshot.extractionSchema.schemaTree)
+    : null
   return documentReopenResponseSchema.parse({
     projectContext: {
       ...snapshot.projectContext,
@@ -121,11 +146,9 @@ function reopenResponse(snapshot: DocumentReopenSnapshot) {
     sourceRepresentation: {
       sourceRepresentationId: representation.sourceRepresentationId,
       revisionNumber: representation.revisionNumber,
-      resources: {
-        sourcePdfUrl: resource('pdf'),
-        markdownUrl: resource('markdown'),
-        parsedDocumentUrl: resource('source'),
-      },
+      resources: representationResources(
+        representation.sourceRepresentationId,
+      ),
     },
     annotationSet:
       snapshot.annotationSet &&
@@ -143,12 +166,10 @@ function reopenResponse(snapshot: DocumentReopenSnapshot) {
         extractionSchemaId: snapshot.extractionSchema.extractionSchemaId,
         schemaRevisionId: snapshot.extractionSchema.schemaRevisionId,
         revisionNumber: snapshot.extractionSchema.revisionNumber,
-        schemaNodes: durable(
-          schemaNodesSchema,
-          snapshot.extractionSchema.schemaTree,
-        ),
+        ...currentSchema!,
       },
-    extraction: extractionDto(snapshot.extraction),
+    latestAttempt: extractionDto(snapshot.latestAttempt),
+    latestReviewed: extractionDto(snapshot.latestReviewed),
   })
 }
 

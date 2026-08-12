@@ -60,9 +60,9 @@ Per-prototype guidance loads with the directory: `prototypes/parsing_service/CLA
 ## Persistence boundaries
 
 FREE persists Project Context and Source Document research state in PostgreSQL
-through `packages/db`. The explicit review action atomically stores a successful
-Extraction and its Review Decisions against pinned Source Representation and
-Schema Revisions.
+through `packages/db`. Every Article run stores one terminal Extraction against
+pinned Source Representation and Schema Revisions before the server responds.
+Explicit review later atomically stores that Extraction's Review Decisions.
 
 Each Source Representation owns a portable canonical ingestion package in the
 operating system's `FREE Studio` data directory. PostgreSQL stores its
@@ -74,10 +74,10 @@ Capability Routes live in `model-config.json` in the OS user config directory
 for `FREE Studio`, while FREE-managed credentials use the OS credential store.
 
 Studio keeps writes narrow: researcher schema edits append immutable Schema
-Revisions through `/api/schema-revisions`, and explicit review stores accepted
-Extractions and Review Decisions. Annotations are still passed inline with each
-`/api/generate_schema` request; seeded and accepted research state reopens
-through `ProjectStore`.
+Revisions through `/api/schema-revisions`, Article operations append terminal
+Extractions, and explicit review stores Review Decisions. Annotations are still
+passed inline with each `/api/generate_schema` request; seeded and accepted
+research state reopens through `ProjectStore`.
 
 ## Agent skills
 

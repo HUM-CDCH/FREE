@@ -54,16 +54,41 @@ const reopened: DocumentWorkspaceProps = {
     extractionSchemaId: '51000000-0000-4000-8005-000000000001',
     schemaRevisionId: '51000000-0000-4000-8005-000000000002',
     revisionNumber: 1,
+    recordDescription: 'One place record.',
     schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
   },
   persistedExtraction: {
     extractionId: '51000000-0000-4000-8006-000000000001',
+    sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+    sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
+    schemaRevisionId: '51000000-0000-4000-8005-000000000002',
     createdAt: '2026-07-31T12:03:00.000Z',
-    outcome: 'succeeded',
-    result: { place: 'Ellekilde' },
+    reviewedAt: null,
+    strategy: 'ARTICLE',
+    outcome: 'SUCCEEDED',
+    complete: true,
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null, catalog: null },
+    failure: null,
+    resultPayload: { place: 'Ellekilde' },
     evidenceLinks: [],
-    modelAttribution: { extraction: null, grounding: null },
+    modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+    reviewable: true,
+    retryOfId: null,
     reviewDecisions: [],
+    sourceRepresentation: {
+      revisionNumber: 1,
+      resources: {
+        sourcePdfUrl: '/api/source-representations/rep/pdf',
+        markdownUrl: '/api/source-representations/rep/markdown',
+        parsedDocumentUrl: '/api/source-representations/rep/source',
+      },
+    },
+    extractionSchema: {
+      extractionSchemaId: '51000000-0000-4000-8005-000000000001',
+      revisionNumber: 1,
+      recordDescription: 'One place record.',
+      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+    },
   },
 }
 
@@ -94,7 +119,7 @@ async function renderReopened() {
 describe('reopened Source Document workspace', () => {
   it('paints only canonical Evidence at the visible Results depth', async () => {
     const persistedExtraction = reopened.persistedExtraction
-    if (!persistedExtraction || persistedExtraction.outcome !== 'succeeded')
+    if (!persistedExtraction || persistedExtraction.outcome !== 'SUCCEEDED')
       throw new Error('Expected a successful reopened Extraction fixture')
     vi.stubGlobal(
       'fetch',
@@ -111,8 +136,9 @@ describe('reopened Source Document workspace', () => {
         {...reopened}
         persistedExtraction={{
           ...persistedExtraction,
-          result: { record: { place: 'Ellekilde' } },
+          resultPayload: { title: 'Beretning', record: { place: 'Ellekilde' } },
           evidenceLinks: [
+            { resultPath: ['title'], evidenceAnchorId: 'bundled-anchor' },
             { resultPath: ['record', 'place'], evidenceAnchorId: 'bundled-anchor' },
           ],
         }}
@@ -130,6 +156,9 @@ describe('reopened Source Document workspace', () => {
     expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0)
 
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
+    )
     fireEvent.click(screen.getByText('record', { exact: true }))
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
@@ -138,9 +167,33 @@ describe('reopened Source Document workspace', () => {
     expect(highlight.dataset.resultPath).toBe('["record","place"]')
     expect(highlight.style.background).toContain('0.28')
 
-    fireEvent.click(screen.getByTitle('Back'))
+    fireEvent.click(screen.getByRole('button', { name: 'Raw JSON' }))
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
+    )
+    fireEvent.click(screen.getByTitle('Back'))
+    await waitFor(() =>
+      expect(page.querySelector<HTMLElement>('[data-evidence-anchor-id]')?.dataset.resultPath).toBe('["title"]'),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Annot\./ }))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
+    )
+    fireEvent.click(screen.getByTitle('Collapse panel'))
+    await waitFor(() =>
+      expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
+    )
+    fireEvent.click(screen.getByTitle('Expand panel'))
+    await waitFor(() =>
+      expect(page.querySelector<HTMLElement>('[data-evidence-anchor-id]')?.dataset.resultPath).toBe('["title"]'),
     )
   })
 
@@ -156,7 +209,7 @@ describe('reopened Source Document workspace', () => {
         if (url.endsWith('/markdown')) return new Response('# Beretning')
         if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
         if (url.endsWith('/api/generate_schema'))
-          return Response.json({ template: { site: 'string' }, raw: '{}', pages: 1 })
+          return Response.json({ template: { _description: 'One site record.', site: 'string' }, raw: '{}', pages: 1 })
         if (url === '/api/schema-revisions' && init?.method === 'POST') {
           schemaNodes = (JSON.parse(String(init.body)) as { schemaNodes: unknown[] }).schemaNodes
           return Response.json({
@@ -166,6 +219,7 @@ describe('reopened Source Document workspace', () => {
               revisionNumber: 1,
               origin: 'suggestion',
               createdAt: '2026-08-09T10:00:00.000Z',
+              recordDescription: 'One site record.',
               schemaNodes,
             },
           }, { status: 201 })
@@ -250,12 +304,13 @@ describe('reopened Source Document workspace', () => {
               revisionNumber: 1,
               origin: 'suggestion',
               createdAt: '2026-08-09T10:00:00.000Z',
+              recordDescription: 'One historical record.',
               schemaNodes: historicalNodes,
             },
           })
         }
         if (url === '/api/schema-revisions' && method === 'POST') {
-          const request = body as { expectedRevisionNumber: number; schemaNodes: unknown[] }
+          const request = body as { expectedRevisionNumber: number; recordDescription: string; schemaNodes: unknown[] }
           return Response.json({
             revision: {
               schemaRevisionId: request.expectedRevisionNumber === 2
@@ -265,6 +320,7 @@ describe('reopened Source Document workspace', () => {
               revisionNumber: request.expectedRevisionNumber + 1,
               origin: 'researcher-edit',
               createdAt: '2026-08-09T10:02:00.000Z',
+              recordDescription: request.recordDescription,
               schemaNodes: request.schemaNodes,
             },
           }, { status: 201 })
@@ -305,6 +361,7 @@ describe('reopened Source Document workspace', () => {
       projectContextId: reopened.projectContextId,
       extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
       expectedRevisionNumber: 3,
+      recordDescription: 'One historical record.',
       schemaNodes: historicalNodes,
     })
     expect(await screen.findByText('historical_group')).toBeInTheDocument()
@@ -326,9 +383,146 @@ describe('reopened Source Document workspace', () => {
     ).toBeInTheDocument()
   })
 
+  it('submits the selected Catalog strategy, resets the next run, and locks the selector while active', async () => {
+    let resolveExtraction!: (response: Response) => void
+    const extractionResponse = new Promise<Response>((resolve) => {
+      resolveExtraction = resolve
+    })
+    let extractionRequest: { strategy?: string } | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.endsWith('/api/extractions')) {
+          extractionRequest = JSON.parse(String(init?.body)) as { strategy?: string }
+          return extractionResponse
+        }
+        return Promise.resolve(new Response('# Beretning'))
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+
+    const selector = screen.getByLabelText('Extraction strategy')
+    fireEvent.change(selector, { target: { value: 'CATALOG' } })
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+
+    await waitFor(() =>
+      expect(extractionRequest).toEqual(expect.objectContaining({ strategy: 'CATALOG' })),
+    )
+    expect(selector).toHaveValue('ARTICLE')
+    await waitFor(() => expect(selector).toBeDisabled())
+
+    resolveExtraction(
+      Response.json({
+        extractionId: '51000000-0000-4000-8006-000000000010',
+        sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+        sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+        schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+        strategy: 'CATALOG',
+        outcome: 'SUCCEEDED',
+        complete: true,
+        modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+        diagnostics: {
+          phase: 'grounding', durationMs: 1, modelCalls: 1,
+          finishReason: 'stop', inputTokens: 1, outputTokens: 1,
+          values: null, grounding: null, catalog: { stages: [], records: [] },
+        },
+        failure: null,
+        resultPayload: { records: [{ place: 'Catalog' }] },
+        evidenceLinks: [], reviewable: true, retryOfId: null,
+        createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+      }),
+    )
+    await waitFor(() => expect(selector).toBeEnabled())
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect((await screen.findAllByText('Catalog')).length).toBeGreaterThan(0)
+  })
+
+  it('waits for a dirty schema save before starting the selected Catalog run', async () => {
+    const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
+    let resolveExtraction!: (response: Response) => void
+    const extractionResponse = new Promise<Response>((resolve) => {
+      resolveExtraction = resolve
+    })
+    const extractionRequests: Array<{ strategy?: string; schemaRevisionId?: string }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const request = JSON.parse(String(init.body)) as {
+            recordDescription: string
+            schemaNodes: SchemaNode[]
+          }
+          return Promise.resolve(Response.json({
+            revision: {
+              schemaRevisionId: savedSchemaRevisionId,
+              extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+              revisionNumber: 2,
+              origin: 'researcher-edit',
+              createdAt: '2026-08-12T00:00:00.000Z',
+              recordDescription: request.recordDescription,
+              schemaNodes: request.schemaNodes,
+            },
+          }, { status: 201 }))
+        }
+        if (url.endsWith('/api/extractions')) {
+          extractionRequests.push(JSON.parse(String(init?.body)) as { strategy?: string; schemaRevisionId?: string })
+          return extractionResponse
+        }
+        return Promise.resolve(new Response('# Beretning'))
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    const description = screen.getByLabelText('One root record')
+    fireEvent.change(description, {
+      target: { value: 'Saved before extraction.' },
+    })
+    fireEvent.blur(description)
+    fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
+
+    const run = screen.getByRole('button', { name: '▶ Run extraction' })
+    fireEvent.click(run)
+    await waitFor(() => expect(run).toBeDisabled())
+    fireEvent.click(run)
+
+    await waitFor(() => expect(extractionRequests).toHaveLength(1))
+    expect(extractionRequests[0]).toEqual(expect.objectContaining({
+      strategy: 'CATALOG',
+      schemaRevisionId: savedSchemaRevisionId,
+    }))
+
+    resolveExtraction(Response.json({
+      extractionId: '51000000-0000-4000-8006-000000000011',
+      sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+      sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+      schemaRevisionId: '51000000-0000-4000-8005-000000000010',
+      strategy: 'CATALOG', outcome: 'SUCCEEDED', complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+      diagnostics: {
+        phase: 'grounding', durationMs: 1, modelCalls: 1,
+        finishReason: 'stop', inputTokens: 1, outputTokens: 1,
+        values: null, grounding: null, catalog: { stages: [], records: [] },
+      },
+      failure: null, resultPayload: { records: [{ place: 'Catalog' }] },
+      evidenceLinks: [], reviewable: true, retryOfId: null,
+      createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+    }))
+  })
+
   it('posts the accepted result with its pinned Schema Revision and canonical Review Decisions', async () => {
     const calls: Array<{ url: string; body: unknown }> = []
-    let extractCalls = 0
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
@@ -340,24 +534,44 @@ describe('reopened Source Document workspace', () => {
               typeof init.body === 'string' ? JSON.parse(init.body) : init.body,
           })
         if (url.endsWith('/source')) return Response.json(parsedDocument)
-        if (url.endsWith('/api/extract')) {
-          extractCalls += 1
+        if (url.endsWith('/api/extractions')) {
+          const request = JSON.parse(String(init?.body)) as { id: string }
           return Response.json({
-            result:
-              extractCalls === 1
-                ? { number: '24-1' }
-                : { links: { C1: 'E1' } },
-            raw: '{}',
-            reasoning: null,
-            pages: 1,
+            extractionId: request.id,
+            sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+            sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+            schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+            strategy: 'ARTICLE',
+            outcome: 'SUCCEEDED',
+            complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, values: { outcome: 'succeeded', finishReason: 'stop', inputTokens: 10, outputTokens: 4, durationMs: 1 }, grounding: null },
+            failure: null,
+            resultPayload: { records: [{ number: '24-1' }] },
+            evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
+            reviewable: true,
+            retryOfId: null,
+            createdAt: '2026-08-10T00:00:00.000Z',
+            reviewedAt: null,
+            reviewDecisions: [],
+          }, { status: 201 })
+        }
+        if (url.endsWith('/review')) {
+          const extractionId = url.split('/').at(-2)!
+          return Response.json({
+            extractionId,
+            sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+            sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+            schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+            strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
+            modelAttribution: { provider: 'ollama', modelId: 'test-model' },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, values: { outcome: 'succeeded', finishReason: 'stop', inputTokens: 10, outputTokens: 4, durationMs: 1 }, grounding: null },
+            failure: null, resultPayload: { records: [{ number: '24-1' }] },
+            evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
+            reviewable: true, retryOfId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',
+            reviewDecisions: [{ reviewDecisionId: '51000000-0000-4000-8007-000000000001', evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'] }],
           })
         }
-        if (url.endsWith('/extraction-reviews'))
-          return Response.json(
-            { extractionId: '51000000-0000-4000-8006-000000000002' },
-            { status: 201 },
-          )
         return new Response('# Beretning')
       }),
     )
@@ -374,35 +588,8 @@ describe('reopened Source Document workspace', () => {
       expect(screen.getByRole('button', { name: 'Review saved' })).toBeDisabled(),
     )
     const review = calls.at(-1)!
-    expect(review.url).toContain(
-      `/api/source-representations/${reopened.sourceRepresentationId}/extraction-reviews`,
-    )
+    expect(review.url).toMatch(/\/api\/extractions\/[0-9a-f-]+\/review$/)
     expect(review.body).toEqual({
-      schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-      result: { number: '24-1' },
-      evidenceLinks: [
-        {
-          resultPath: ['number'],
-          evidenceAnchorId: 'bundled-anchor',
-        },
-      ],
-      modelAttribution: {
-        extraction: { provider: 'ollama', modelId: 'test-model' },
-        grounding: {
-          strategy: 'retrieval_batched',
-          batches: [
-            {
-              resultPath: null,
-              candidateCount: 1,
-              fallback: true,
-              modelAttribution: {
-                provider: 'ollama',
-                modelId: 'test-model',
-              },
-            },
-          ],
-        },
-      },
       reviewDecisions: [
         {
           evidenceAnchorId: 'bundled-anchor',
@@ -410,6 +597,51 @@ describe('reopened Source Document workspace', () => {
         },
       ],
     })
+  })
+
+  it.each([
+    ['FAILED', 'Extraction failed — see details in Results'],
+    ['CANCELLED', 'Extraction cancelled — no result was saved'],
+  ] as const)('reports a persisted %s attempt without a success toast', async (outcome, message) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/api/extractions')) {
+          const request = JSON.parse(String(init?.body)) as { id: string }
+          return Response.json({
+            extractionId: request.id,
+            sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+            sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+            schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+            strategy: 'ARTICLE',
+            outcome,
+            complete: null,
+            modelAttribution: null,
+            diagnostics: { phase: 'extracting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null },
+            failure: outcome === 'FAILED' ? { code: 'extraction_failed', message: 'Extraction failed.' } : null,
+            resultPayload: null,
+            evidenceLinks: null,
+            reviewable: false,
+            retryOfId: null,
+            createdAt: '2026-08-10T00:00:00.000Z',
+            reviewedAt: null,
+            reviewDecisions: [],
+          }, { status: 201 })
+        }
+        return new Response('# Beretning')
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(screen.queryByText(/Extraction complete/)).not.toBeInTheDocument()
   })
 
   it('keeps a restored annotation usable without a pdf.js editor', async () => {
@@ -431,4 +663,103 @@ describe('reopened Source Document workspace', () => {
       }),
     ).not.toBeInTheDocument()
   })
+})
+
+
+describe('historical extraction inspection', () => {
+  it('switches pinned resources without disturbing the live schema draft', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input); calls.push(url)
+      return Promise.resolve(url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Historical'))
+    }))
+    const latest = reopened.persistedExtraction!
+    const reviewed = { ...latest, extractionId: '51000000-0000-4000-8006-000000000009', sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000099', reviewedAt: '2026-08-09T00:00:00.000Z', resultPayload: { place: 'Historical place' }, reviewDecisions: [{ reviewDecisionId: '51000000-0000-4000-8007-000000000009', evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'] }], sourceRepresentation: { revisionNumber: 9, resources: { sourcePdfUrl: '/api/source-representations/old/pdf', markdownUrl: '/api/source-representations/old/markdown', parsedDocumentUrl: '/api/source-representations/old/source' } }, extractionSchema: { ...latest.extractionSchema, revisionNumber: 9, recordDescription: 'Historical record.', schemaNodes: [{ id: 'old-place', name: 'historical_place', type: 'string' as const }] } }
+    render(<DocumentWorkspace {...reopened} latestReviewedExtraction={reviewed} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    const draft = screen.getByLabelText('One root record')
+    fireEvent.change(draft, { target: { value: 'Unsaved live draft.' } })
+    fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: reviewed.extractionId } })
+    await waitFor(() => { expect(calls).toContain('/api/source-representations/old/markdown'); expect(calls).toContain('/api/source-representations/old/source') })
+    expect(screen.getByTitle('Pinned Source Document')).toHaveAttribute('src', '/api/source-representations/old/pdf#page=1')
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(await screen.findByText('Historical place')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned schema' }))
+    expect(screen.getByText(/historical_place/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Accept result' })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: latest.extractionId } })
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    expect(screen.getByLabelText('One root record')).toHaveValue('Unsaved live draft.')
+  })
+
+  it('uses the latest attempt source pin when it differs from the open representation', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      calls.push(url)
+      return Promise.resolve(url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Pinned latest'))
+    }))
+    const latest = reopened.persistedExtraction!
+    const pinnedLatest = {
+      ...latest,
+      sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000099',
+      sourceRepresentation: {
+        revisionNumber: 9,
+        resources: {
+          sourcePdfUrl: '/api/source-representations/old/pdf',
+          markdownUrl: '/api/source-representations/old/markdown',
+          parsedDocumentUrl: '/api/source-representations/old/source',
+        },
+      },
+    }
+
+    render(<DocumentWorkspace {...reopened} persistedExtraction={pinnedLatest} />)
+
+    await waitFor(() => {
+      expect(calls).toContain('/api/source-representations/old/markdown')
+      expect(calls).toContain('/api/source-representations/old/source')
+    })
+    expect(screen.getByTitle('Pinned Source Document')).toHaveAttribute(
+      'src',
+      '/api/source-representations/old/pdf#page=1',
+    )
+  })
+})
+
+
+describe('updated latest reviewed extraction', () => {
+  it('refreshes the historical choice after rerender', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) =>
+      Promise.resolve(String(input).endsWith('/source') ? Response.json(parsedDocument) : new Response('# Source')),
+    ))
+    const latest = reopened.persistedExtraction!
+    const first = { ...latest, extractionId: '51000000-0000-4000-8006-000000000008', reviewedAt: '2026-08-08T00:00:00.000Z' }
+    const second = { ...first, extractionId: '51000000-0000-4000-8006-000000000009', reviewedAt: '2026-08-09T00:00:00.000Z' }
+    const { rerender } = render(<DocumentWorkspace {...reopened} latestReviewedExtraction={first} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+    rerender(<DocumentWorkspace {...reopened} latestReviewedExtraction={second} />)
+    expect(screen.getByRole<HTMLOptionElement>('option', { name: 'Latest reviewed' }).value).toBe(second.extractionId)
+  })
+
+  it('fails closed when the pinned source snapshot cannot be loaded', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/old/')) return Promise.resolve(new Response('gone', { status: 404 }))
+      return Promise.resolve(url.endsWith('/source') ? Response.json(parsedDocument) : new Response('# Current source'))
+    }))
+    const latest = reopened.persistedExtraction!
+    const reviewed = { ...latest, extractionId: '51000000-0000-4000-8006-000000000009', sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000099', reviewedAt: '2026-08-09T00:00:00.000Z', sourceRepresentation: { revisionNumber: 9, resources: { sourcePdfUrl: '/api/source-representations/old/pdf', markdownUrl: '/api/source-representations/old/markdown', parsedDocumentUrl: '/api/source-representations/old/source' } } }
+    render(<DocumentWorkspace {...reopened} latestReviewedExtraction={reviewed} />)
+    await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText('Extraction snapshot'), { target: { value: reviewed.extractionId } })
+    expect(screen.getByRole('status')).toHaveTextContent('Loading historical source snapshot')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Historical source snapshot unavailable')
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Markdown' }))
+    expect(screen.getByText('Markdown unavailable')).toBeInTheDocument()
+    expect(screen.queryByText('# Current source')).not.toBeInTheDocument()
+  })
+
 })

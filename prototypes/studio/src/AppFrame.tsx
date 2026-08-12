@@ -195,7 +195,8 @@ export default function AppFrame({
       openDocument.sourceRepresentation.resources.parsedDocumentUrl,
     annotationSet: openDocument.annotationSet,
     extractionSchema: openDocument.extractionSchema,
-    persistedExtraction: openDocument.extraction,
+    persistedExtraction: openDocument.latestAttempt,
+    latestReviewedExtraction: openDocument.latestReviewed,
   }
   const workspace = devDocument
     ? {
@@ -207,6 +208,7 @@ export default function AppFrame({
         annotationSet: null,
         extractionSchema: null,
         persistedExtraction: null,
+        latestReviewedExtraction: null,
       }
     : reopened
 

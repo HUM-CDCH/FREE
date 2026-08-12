@@ -42,6 +42,29 @@ export type ExtractModelInput = {
   readonly template: unknown
   readonly instruction?: string
   readonly temperature?: number
+  readonly signal?: AbortSignal
+}
+
+export type ModelGenerationMetadata = {
+  readonly finishReason: string | null
+  readonly inputTokens: number | null
+  readonly outputTokens: number | null
+  readonly durationMs: number
+}
+
+const generationMetadataByError = new WeakMap<object, ModelGenerationMetadata>()
+
+export function modelGenerationMetadata(
+  error: unknown,
+): ModelGenerationMetadata | null {
+  return typeof error === 'object' && error !== null
+    ? generationMetadataByError.get(error) ?? null
+    : null
+}
+
+type GeneratedText = {
+  readonly response: string
+  readonly metadata: ModelGenerationMetadata
 }
 
 export type SchemaModelInput = {
@@ -117,22 +140,21 @@ export async function streamChatWithModel(
 }
 
 export async function extractWithModel(
-  { document, template, instruction, temperature }: ExtractModelInput,
+  { document, template, instruction, temperature, signal }: ExtractModelInput,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<{
   readonly result: Record<string, unknown>
-  readonly raw: string
   readonly reasoning: null
   readonly pages: number | null
   readonly modelAttribution: ModelAttribution | null
+  readonly metadata: ModelGenerationMetadata
 }> {
   const resolved = await operationTarget('extraction', temperature, target, dependencies)
   const documentParts = await documentContentParts(document)
   const extractionTemplate = template ?? {}
   const callerInstruction = instruction?.trim()
-  let generated: { readonly response: string }
-  let parsed: Record<string, unknown>
+  let generated: GeneratedText
   if (resolved.profile === 'general') {
     const request = [
       'Extract information from the Source Document using this Extraction Schema:',
@@ -149,8 +171,8 @@ export async function extractWithModel(
       request,
       documentParts: documentParts.parts,
       temperature,
+      signal,
     })
-    parsed = await parseExtractionResult(generated.response, extractionTemplate)
   } else {
     generated = await generateWithNuExtractRawPrompt('extraction', resolved, {
       mode: 'structured',
@@ -158,17 +180,29 @@ export async function extractWithModel(
       instructions: callerInstruction || null,
       documentParts: documentParts.parts,
       temperature,
+      signal,
     }, dependencies.fetch)
-    parsed = await parseExtractionResult(generated.response, extractionTemplate)
   }
-  const normalized = applyAllowedValues(parsed, extractionTemplate)
+
+  let normalized: Record<string, unknown>
+  try {
+    const parsed = await parseExtractionResult(
+      generated.response,
+      extractionTemplate,
+    )
+    normalized = applyAllowedValues(parsed, extractionTemplate)
+  } catch (error) {
+    if (typeof error === 'object' && error !== null)
+      generationMetadataByError.set(error, generated.metadata)
+    throw error
+  }
 
   return {
     result: normalized,
-    raw: generated.response,
     reasoning: null,
     pages: documentParts.pages ?? document.pages,
     modelAttribution: resolved.attribution ?? null,
+    metadata: generated.metadata,
   }
 }
 
@@ -201,6 +235,15 @@ export async function generateSchemaWithModel(
           temperature,
         }, dependencies.fetch)
   const parsed = await parseTemplate(generated.response)
+  if (
+    typeof parsed._description !== 'string' ||
+    parsed._description.trim().length === 0
+  )
+    throw new ApiError(
+      502,
+      'invalid_model_output',
+      'The generated Extraction Schema has no root record description.',
+    )
   return {
     template: parsed,
     raw: generated.response,
@@ -215,8 +258,10 @@ async function generateWithGenericJsonPrompt(
     readonly request: string
     readonly documentParts: readonly DocumentContentPart[]
     readonly temperature?: number
+    readonly signal?: AbortSignal
   },
-): Promise<{ readonly response: string }> {
+): Promise<GeneratedText> {
+  const startedAt = performance.now()
   try {
     const generated = await generateText({
       model: target.model,
@@ -233,12 +278,29 @@ async function generateWithGenericJsonPrompt(
         },
       ],
       reasoning: 'none',
+      abortSignal: input.signal,
       ...(input.temperature === undefined ? {} : { temperature: input.temperature }),
     })
-    return { response: generated.text }
+    return {
+      response: generated.text,
+      metadata: {
+        finishReason: generated.finishReason ?? null,
+        inputTokens: generated.usage?.inputTokens ?? null,
+        outputTokens: generated.usage?.outputTokens ?? null,
+        durationMs: Math.round(performance.now() - startedAt),
+      },
+    }
   } catch (error) {
     if (target.jsonOutput === 'native' && NoObjectGeneratedError.isInstance(error) && error.text) {
-      return { response: error.text }
+      return {
+        response: error.text,
+        metadata: {
+          finishReason: error.finishReason ?? null,
+          inputTokens: error.usage?.inputTokens ?? null,
+          outputTokens: error.usage?.outputTokens ?? null,
+          durationMs: Math.round(performance.now() - startedAt),
+        },
+      }
     }
     throw asModelOperationError(error)
   }
@@ -253,9 +315,11 @@ async function generateWithNuExtractRawPrompt(
     readonly instructions: string | null
     readonly documentParts: readonly DocumentContentPart[]
     readonly temperature?: number
+    readonly signal?: AbortSignal
   },
   requestFetch: typeof fetch = fetch,
-): Promise<{ readonly response: string }> {
+): Promise<GeneratedText> {
+  const startedAt = performance.now()
   const rendered = renderNuExtractPrompt(input)
   const url = appendProviderResource(target.baseUrl, 'api/generate')
   const requestBody = JSON.stringify({
@@ -264,7 +328,11 @@ async function generateWithNuExtractRawPrompt(
     images: rendered.images.length > 0 ? rendered.images : undefined,
     raw: true,
     stream: false,
-    options: { temperature: input.temperature ?? NON_THINKING_TEMPERATURE },
+    options: {
+      temperature: input.temperature ?? NON_THINKING_TEMPERATURE,
+      num_ctx: 32768,
+      num_predict: 8192,
+    },
   })
   let response: Response
   try {
@@ -279,6 +347,7 @@ async function generateWithNuExtractRawPrompt(
           ...(target.authorization === null ? {} : { authorization: target.authorization }),
         },
         body: requestBody,
+        signal: input.signal,
       }),
     )
   } catch (error) {
@@ -303,11 +372,26 @@ async function generateWithNuExtractRawPrompt(
       cause: parsed.error,
     })
   }
-  return { response: parsed.data.response }
+  return {
+    response: parsed.data.response,
+    metadata: {
+      finishReason: parsed.data.done_reason ?? null,
+      inputTokens: parsed.data.prompt_eval_count ?? null,
+      outputTokens: parsed.data.eval_count ?? null,
+      durationMs:
+        parsed.data.total_duration === undefined
+          ? Math.round(performance.now() - startedAt)
+          : Math.round(parsed.data.total_duration / 1_000_000),
+    },
+  }
 }
 
 const ollamaGenerateResponseSchema = z.object({
   response: z.string(),
+  done_reason: z.string().optional(),
+  prompt_eval_count: z.number().int().nonnegative().optional(),
+  eval_count: z.number().int().nonnegative().optional(),
+  total_duration: z.number().int().nonnegative().optional(),
 })
 
 export function renderNuExtractPrompt({

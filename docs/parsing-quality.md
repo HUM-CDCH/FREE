@@ -8,7 +8,9 @@ The typed page-scoped semantic stream is authoritative for canonical Markdown,
 table placement, physical-page coverage, and Evidence. Every emitted span is a
 half-open UTF-8 byte range into the exact Markdown bytes; character indices are
 not part of the contract. Page markers are renderer metadata and stay outside
-text Evidence spans.
+text Evidence spans. When a producer flattens an explicit decimal outline,
+canonical heading levels follow the source-visible numbering depth (`2.` → 1,
+`2.9.` → 2, `2.9.1.` → 3); non-outline numbers retain the producer level.
 
 ## Tables
 

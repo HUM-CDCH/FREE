@@ -1,548 +1,724 @@
-import { readFile } from 'node:fs/promises'
-import { fileURLToPath } from 'node:url'
-import { expect, test, type Page } from '@playwright/test'
-import type {
-  DocumentReopenSnapshot,
-  ProjectStore,
-} from '../../../packages/db/src/project-store.js'
-import { createGetDocumentReopen } from '../api/document_reopen.js'
-import { createGetProjectContexts } from '../api/project_contexts.js'
-import { createPersistReviewedExtraction } from '../api/source_representations.js'
+import { expect, test } from '@playwright/test'
+import { createHash, randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import { join, resolve } from 'node:path'
+import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
+import { db } from '../../../packages/db/src/prisma/db.js'
+import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
+import type { ParsedContentBlock, ParsedDocument } from '../shared/parsedDocument.js'
 
-const id = {
-  project: '72000000-0000-4000-8000-000000000001',
-  document: '72000000-0000-4000-8001-000000000001',
-  representation: '72000000-0000-4000-8002-000000000001',
-  extraction: '72000000-0000-4000-8003-000000000001',
-  extractionSchema: '72000000-0000-4000-8005-000000000002',
-  schemaRevision: '72000000-0000-4000-8005-000000000001',
-} as const
+const nodeRequire = createRequire(import.meta.url)
 
-const pdfPath = fileURLToPath(
-  new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
-)
-const semanticGoldenPath = fileURLToPath(
-  new URL(
-    '../../parsing_service/tests/golden/Beretning_Ellekilde_8_13.golden.json',
-    import.meta.url,
-  ),
-)
+test.describe.configure({ mode: 'serial' })
 
-const groundedValues = {
-  find_number: '24-1',
-  description: 'Lerkar, ornamenteret sortbrunt',
-  remarks: 'Fundet stående på gravens bundlag, 30 cm dybde.',
-} as const
+const sha256 = (value: Uint8Array) =>
+  createHash('sha256').update(value).digest('hex')
 
-const accepted = {
-  records: [
-    {
-      ...groundedValues,
-      unattested: 'Visible but ungrounded',
-    },
-  ],
-} as const
+async function canonicalPackage(
+  originalFilename: string,
+  sourceDocument?: ParsedDocument,
+) {
+  const { strToU8, zipSync } = await import(
+    createRequire(
+      resolve(import.meta.dirname, '../../../packages/db/package.json'),
+    ).resolve('fflate')
+  )
+  const pdf = await readFile(
+    resolve(import.meta.dirname, '../../../examples/Beretning_Ellekilde_8_13.pdf'),
+  )
+  const sourceHash = sha256(pdf)
+  const document = structuredClone(
+    sourceDocument ??
+      JSON.parse(
+        await readFile(
+          resolve(import.meta.dirname, '../src/assets/parsed_document.v2.json'),
+          'utf8',
+        ),
+      ),
+  ) as ParsedDocument
+  document.document.content_sha256 = sourceHash
+  document.document.source.original_filename = originalFilename
+  document.document.source.byte_size = pdf.byteLength
+  for (const anchor of document.evidence_index.anchors)
+    anchor.content_sha256 = sourceHash
 
-const rowAnchorIds = [
-  'anchor_442f28492c1da6d8adda29faf541ed29ecfe5a8c36304aa584a147057b3188b8',
-  'anchor_3f8b634336fd171fe4c4b258d5c189fb28e876e34e4a236b1aa8e102ec5c1a36',
-  'anchor_8843344f881452f4eb509820cc92a44778ec08fad14d1069f02b77a3781e14e3',
-] as const
-
-const rowAnchors = Object.values(groundedValues).map((_, column) => ({
-  kind: 'table_cell',
-  anchor_id: rowAnchorIds[column],
-  content_sha256: 'fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679',
-  preprocess_id:
-    'sha256:4e311f639c276f6da0d11f7289cdc015c7b3353495c469a1b4696f02e112ee4c',
-  logical_table_id:
-    'table_ce3ef0d0ea9fd296f55fb277c8ee95ab56b5563244e9340cad7853f4a9858c6e',
-  cell_id: `row-24-1-column-${column}`,
-  canonical_row: 1,
-  canonical_column: column,
-  producer_observations: [
-    {
-      occurrence_id: `${rowAnchorIds[column]}@p3`,
-      page_number: 3,
-      producer_ref: 'ellekilde-row-24-1',
-      row_offset: 1,
-      column_offset: column,
-      row_span: 1,
-      column_span: 1,
-      bbox: { x0: 60 + column * 150, y0: 180, x1: 190 + column * 150, y1: 202 },
-    },
-  ],
-}))
-
-const rotatedAnchor = {
-  kind: 'text',
-  anchor_id: 'anchor_rotated_geometry',
-  occurrence_id: 'occurrence_rotated_geometry',
-  content_sha256: rowAnchors[0].content_sha256,
-  preprocess_id: rowAnchors[0].preprocess_id,
-  block_id: 'block-rotated-geometry',
-  page_number: 2,
-  markdown_span: { start: 0, end: 1 },
-  bbox: { x0: 10, y0: 10, x1: 80, y1: 20 },
-} as const
-
-const parsedDocument = {
-  schema_version: 'parsed_document.v2',
-  document: {
-    document_id: 'document_ellekilde_lifecycle',
-    content_sha256: rowAnchors[0].content_sha256,
-    source: {
-      kind: 'upload',
-      original_filename: 'Beretning_Ellekilde_8_13.pdf',
-      media_type: 'application/pdf',
-      byte_size: null,
-    },
-    created_at: '2026-08-07T00:00:00Z',
-    page_count: 6,
-    language_hints: ['da'],
-    is_encrypted: false,
-    input_profile: {
-      file_kind: 'pdf',
-      detected_mime: 'application/pdf',
-      pdf_version: null,
-      has_text_layer: true,
-      has_images: true,
-    },
-  },
-  preprocessing: {
-    preprocess_id: rowAnchors[0].preprocess_id,
-    profile: 'production_default',
-    service_version: 'lifecycle-fixture',
-    started_at: null,
-    finished_at: null,
-    status: 'completed',
-    warnings: [],
-  },
-  page_count: 6,
-  page_mapping_verified: true,
-  artifacts: {
-    source_ref: 'source.pdf',
-    parsed_json_ref: 'parsed_document.json',
-    markdown_ref: 'artifacts/document.llm.md',
-  },
-  parser_runs: [],
-  arbitration: null,
-  diagnostics: [],
-  content_stream: [
-    {
-      kind: 'paragraph',
-      block_id: 'block-rotated-geometry',
-      page_number: 2,
-      parser: 'fixture',
-      bbox: rotatedAnchor.bbox,
-      markdown_span: rotatedAnchor.markdown_span,
-      text: 'Rotated geometry',
-    },
-  ],
-  pages: Array.from({ length: 6 }, (_, index) => ({
-    page_number: index + 1,
-    width_pt: 612,
-    height_pt: 792,
-    rotation: index === 1 ? 90 : 0,
-    ordered_content:
-      index === 1
-          ? ['block-rotated-geometry']
-          : [],
-    unplaced_content:
-      index === 2 ? [rowAnchors[0].logical_table_id] : [],
-    markdown_span: null,
-  })),
-  tables: [
-    {
-      table_id: rowAnchors[0].logical_table_id,
-      rows: 2,
-      cols: 3,
-      cells: rowAnchors.map((anchor, column) => ({
-        cell_id: anchor.cell_id,
-        row: 1,
-        column,
-        text: Object.values(groundedValues)[column],
-        role: null,
-        rowspan: 1,
-        colspan: 1,
-        bbox: anchor.producer_observations[0].bbox,
-        evidence_anchor_id: anchor.anchor_id,
+  const entries = [
+    ['source.pdf', pdf, 'application/pdf'],
+    ['parsed_document.json', strToU8(JSON.stringify(document)), 'application/json'],
+    ['artifacts/document.llm.md', strToU8('# Article fixture\n\nGrav 8\n'), 'text/markdown; charset=utf-8'],
+  ] as const
+  const manifest = strToU8(
+    JSON.stringify({
+      package_version: 'canonical-ingestion-package.v1',
+      parsed_document_schema_version: 'parsed_document.v2',
+      source_sha256: sourceHash,
+      preprocess_id: document.preprocessing.preprocess_id,
+      entries: entries.map(([path, bytes, mediaType]) => ({
+        path,
+        media_type: mediaType,
+        size: bytes.byteLength,
+        sha256: sha256(bytes),
       })),
-      spans: [
-        {
-          page_number: 3,
-          producer_table_ref: 'ellekilde-row-24-1',
-          page_local_row_start: 0,
-          page_local_row_end: 1,
-          page_local_col_count: 3,
-        },
-      ],
-      parser_attribution: {
-        content_parser: { parser: 'docling_table', version: null },
-        structure_parser: { parser: 'docling_table', version: null },
-        geometry_parser: { parser: 'docling_table', version: null },
-      },
-      continuation: 'page_local',
-    },
-  ],
-  evidence_index: { anchors: [rotatedAnchor, ...rowAnchors] },
-}
-
-type State = {
-  extraction: DocumentReopenSnapshot['extraction']
-  modelRequests: string[]
-}
-
-const createdAt = {
-  project: new Date('2026-08-07T00:00:00.000Z'),
-  document: new Date('2026-08-07T00:01:00.000Z'),
-  extraction: new Date('2026-08-07T00:02:00.000Z'),
-}
-
-function evidenceLabelFor(requestBody: string, value: string): string {
-  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const match = new RegExp(
-    `\\[(E\\d+)\\]\\s+${escaped}(?=\\s*(?:\\||\\r?\\n))`,
-    'u',
-  ).exec(requestBody)
-  if (!match)
-    throw new Error(`Grounding request omitted the candidate for ${value}.`)
-  return match[1]
-}
-
-function lifecycleStore(state: State): Pick<
-  ProjectStore,
-  | 'listProjectContexts'
-  | 'getProjectContextWithDocuments'
-  | 'getDocumentReopenSnapshot'
-  | 'getSourceRepresentation'
-  | 'persistReviewedExtraction'
-> {
-  const projectContext = {
-    projectContextId: id.project,
-    name: 'Ellekilde lifecycle',
-    createdAt: createdAt.project,
-  }
-  const sourceDocument = {
-    sourceDocumentId: id.document,
-    name: 'Beretning_Ellekilde_8_13.pdf',
-    createdAt: createdAt.document,
-  }
-  return {
-    async listProjectContexts() {
-      return [projectContext]
-    },
-    async getProjectContextWithDocuments(projectContextId) {
-      return projectContextId === id.project
-        ? { projectContext, sourceDocuments: [sourceDocument] }
-        : null
-    },
-    async getDocumentReopenSnapshot(projectContextId, sourceDocumentId) {
-      if (projectContextId !== id.project || sourceDocumentId !== id.document)
-        return null
-      return {
-        projectContext,
-        sourceDocument,
-        sourceRepresentation: {
-          sourceRepresentationId: id.representation,
-          revisionNumber: 1,
-          createdAt: createdAt.document,
-        },
-        annotationSet: null,
-        extractionSchema: {
-          extractionSchemaId: id.extractionSchema,
-          schemaRevisionId: id.schemaRevision,
-          revisionNumber: 1,
-          schemaTree: [
-            { id: 'find-number', name: 'find_number', type: 'string' },
-            { id: 'description', name: 'description', type: 'string' },
-            { id: 'remarks', name: 'remarks', type: 'string' },
-            { id: 'unattested', name: 'unattested', type: 'string' },
-          ],
-        },
-        extraction: state.extraction,
-      }
-    },
-    async getSourceRepresentation(sourceRepresentationId) {
-      return sourceRepresentationId === id.representation
-        ? { artifactReference: 'ellekilde-lifecycle', artifactSha256: 'f'.repeat(64) }
-        : null
-    },
-    async persistReviewedExtraction(sourceRepresentationId, input) {
-      if (sourceRepresentationId !== id.representation) return null
-      state.extraction = {
-        extractionId: id.extraction,
-        createdAt: createdAt.extraction,
-        outcome: 'SUCCEEDED',
-        resultPayload: input.resultPayload,
-        modelAttribution: input.modelAttribution,
-        failure: null,
-        reviewDecisions: input.reviewDecisions.map((decision, index) => ({
-          reviewDecisionId: `72000000-0000-4000-8004-00000000000${index + 1}`,
-          ...decision,
-        })),
-      }
-      return { extractionId: id.extraction, createdAt: createdAt.extraction }
-    },
-  }
-}
-
-async function installLifecycleFixture(page: Page, state: State) {
-  const pdf = await readFile(pdfPath)
-  const store = lifecycleStore(state)
-  const projectContexts = createGetProjectContexts(store)
-  const reopen = createGetDocumentReopen(store)
-  const parsedSource = new TextEncoder().encode(JSON.stringify(parsedDocument))
-  const persist = createPersistReviewedExtraction(
-    store,
-    async () => ({
-      bytes: parsedSource,
-      mediaType: 'application/json',
     }),
   )
-  await page.route('**/api/**', async (route) => {
-    const request = route.request()
-    const path = new URL(request.url()).pathname
-    const fulfill = async (response: Response) =>
-      route.fulfill({
-        status: response.status,
-        headers: Object.fromEntries(response.headers),
-        body: await response.text(),
-      })
-    if (path.startsWith('/api/project-contexts'))
-      return fulfill(
-        await (path.endsWith('/reopen') ? reopen : projectContexts)(
-          new Request(request.url()),
-        ),
-      )
-    if (path.endsWith('/extraction-reviews'))
-      return fulfill(
-        await persist(
-          new Request(request.url(), {
-            method: request.method(),
-            headers: request.headers(),
-            body: request.postData(),
-          }),
-        ),
-      )
-    if (path.endsWith('/extract')) {
-      state.modelRequests.push(request.postData() ?? '')
-      if (state.modelRequests.length === 1)
-        return route.fulfill({
-          json: {
-            result: accepted,
-            reasoning: null,
-            raw: JSON.stringify(accepted),
-            pages: null,
-            modelAttribution: {
-              provider: 'fixture',
-              modelId: 'frozen-values-output',
-            },
-          },
-        })
-      if (state.modelRequests.length === 2) {
-        const requestBody = state.modelRequests[1]
-        const [findNumber, description, remarks] = Object.values(
-          groundedValues,
-        ).map((value) => evidenceLabelFor(requestBody, value))
-        const links = {
-          C1: findNumber,
-          C2: description,
-          C3: remarks,
-          C4: 'NONE',
-        }
-        return route.fulfill({
-          json: {
-            result: { links },
-            reasoning: null,
-            raw: JSON.stringify({ links }),
-            pages: null,
-            modelAttribution: {
-              provider: 'fixture',
-              modelId: 'frozen-grounding-output',
-            },
-          },
-        })
-      }
-      return route.fulfill({
-        status: 500,
-        json: {
-          error: {
-            code: 'unexpected_model_call',
-            message: 'Only two model stages are expected.',
-          },
-        },
-      })
-    }
-    if (path.endsWith('/pdf'))
-      return route.fulfill({ body: pdf, contentType: 'application/pdf' })
-    if (path.endsWith('/markdown'))
-      return route.fulfill({ body: '# Ellekilde\n\n24-1', contentType: 'text/markdown' })
-    if (path.endsWith('/source'))
-      return route.fulfill({ json: parsedDocument })
-    return route.fulfill({
-      status: 404,
-      json: { error: { code: 'not_found', message: 'Fixture route missing.' } },
-    })
-  })
+  return {
+    bytes: zipSync(
+      Object.fromEntries([
+        ['manifest.json', manifest],
+        ...entries.map(([path, bytes]) => [path, bytes]),
+      ]),
+      { level: 0 },
+    ),
+    sourceHash,
+  }
 }
 
-test('canonical Evidence survives persist, fresh reopen, and safe rendering @deterministic', async ({
+function catalogDocument(labels: readonly string[]) {
+  const document = structuredClone(
+    JSON.parse(
+      nodeRequire('node:fs').readFileSync(
+        resolve(import.meta.dirname, '../src/assets/parsed_document.v2.json'),
+        'utf8',
+      ),
+    ),
+  ) as ParsedDocument
+  const existing = document.content_stream[0]
+  const blocks = [
+    existing,
+    ...labels.map(
+      (text, index) =>
+        ({
+          ...existing,
+          block_id: `catalog-heading-${index}`,
+          kind: 'heading',
+          text,
+          markdown_span: null,
+          level: 1,
+        }) as ParsedContentBlock,
+    ),
+  ]
+  document.content_stream = blocks
+  document.pages[0].ordered_content = blocks.map((block: { block_id: string }) => block.block_id)
+  return document
+}
+
+test('real Article lifecycle persists review and reopens newer unreviewed pins independently', async ({
   browser,
   page,
 }) => {
-  const golden = JSON.parse(await readFile(semanticGoldenPath, 'utf8')) as {
-    schema_version: string
-    page_count: number
-  }
-  expect(parsedDocument.schema_version).toBe(golden.schema_version)
-  expect(parsedDocument.page_count).toBe(golden.page_count)
-
-  const state: State = { extraction: null, modelRequests: [] }
-  await installLifecycleFixture(page, state)
-  await page.goto(
-    `/projects/${id.project}/documents/${id.document}`,
+  test.skip(
+    !process.env.EXTRACTION_TEST_DATABASE_URL ||
+      process.env.DATABASE_URL !== process.env.EXTRACTION_TEST_DATABASE_URL,
+    'DATABASE_URL must equal the disposable EXTRACTION_TEST_DATABASE_URL',
   )
-  await expect(page.getByText('6 pages · text highlights only')).toBeVisible({
-    timeout: 15_000,
+
+  const configHome = resolve(import.meta.dirname, '../test-results/config-home')
+  const configRoot =
+    process.platform === 'win32'
+      ? join(configHome, 'FREE Studio-nodejs', 'Config')
+      : join(configHome, 'free-studio-nodejs')
+  await rm(configHome, { recursive: true, force: true })
+
+  let delayNextResponse = false
+  const modelServer = createServer((request, response) => {
+    let body = ''
+    request.setEncoding('utf8')
+    request.on('data', (chunk) => {
+      body += chunk
+    })
+    request.on('end', () => {
+      const prompt = JSON.parse(body) as { prompt: string }
+      const generated = prompt.prompt.includes('"links"')
+        ? '{"links":{"C1":"E1"}}'
+        : '{"records":[{"title":"Grav 8"}]}'
+      const send = () => {
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ response: generated, done_reason: 'stop', prompt_eval_count: 10, eval_count: 4, total_duration: 1_000_000 }))
+      }
+      if (delayNextResponse) {
+        delayNextResponse = false
+        setTimeout(send, 1_000)
+      } else send()
+    })
   })
-
-  const run = page.getByRole('button', { name: '▶ Run extraction' })
-  await expect(run).toBeEnabled()
-  await run.click()
-  await expect(page.getByRole('button', { name: 'Accept result' })).toBeVisible({
-    timeout: 15_000,
-  })
-
-  expect(state.modelRequests).toHaveLength(2)
-  expect(state.modelRequests[0]).toContain('"records"')
-  expect(state.modelRequests[0]).not.toContain('"links"')
-  expect(state.modelRequests[0]).not.toContain('anchor_id')
-  expect(state.modelRequests[0]).not.toContain('_evidence')
-  expect(state.modelRequests[1]).toContain('"links"')
-  expect(state.modelRequests[1]).toContain('C4')
-  expect(state.modelRequests[1]).toContain('NONE')
-
-  await page.getByRole('button', { name: 'Raw JSON' }).click()
-  await expect(page.getByText('Visible but ungrounded')).toBeVisible()
-  await expect(page.getByText('Grounded: 3')).toBeVisible()
-  await expect(page.locator('.parsed-evidence-focus')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Review', exact: true }).click()
-  await page.getByText('records', { exact: true }).click()
-  await page.getByText('Item 1', { exact: true }).click()
-  await expect(
-    page.getByRole('button', { name: 'View Evidence for unattested' }),
-  ).toHaveCount(0)
-  await page
-    .getByRole('button', { name: 'View Evidence for find_number' })
-    .click()
-  await expect(
-    page.locator(
-      `.parsed-evidence-focus[data-occurrence-id="${rowAnchors[0].producer_observations[0].occurrence_id}"]`,
-    ),
-  ).toHaveCount(1)
-
-  const reviewDecisions = rowAnchors.map((anchor) => ({
-    evidenceAnchorId: anchor.anchor_id,
-    reviewedOccurrenceIds: [anchor.producer_observations[0].occurrence_id],
-  }))
-  const evidenceLinks = Object.keys(groundedValues).map((field, index) => ({
-    resultPath: ['records', 0, field],
-    evidenceAnchorId: rowAnchors[index].anchor_id,
-  }))
-
-  await page.getByRole('button', { name: 'Accept result' }).click()
-  await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
-  const persisted = state.extraction
-  expect(persisted).not.toBeNull()
-  if (!persisted) throw new Error('The UI did not persist the accepted result.')
-  expect(persisted.resultPayload).toEqual({ result: accepted, evidenceLinks })
-  expect(persisted.modelAttribution).toEqual({
-    extraction: {
-      provider: 'fixture',
-      modelId: 'frozen-values-output',
-    },
-    grounding: {
-      strategy: 'retrieval_batched',
-      batches: [
+  await new Promise<void>((resolveListen) =>
+    modelServer.listen(0, '127.0.0.1', resolveListen),
+  )
+  const address = modelServer.address()
+  if (!address || typeof address === 'string')
+    throw new Error('The deterministic model server did not start.')
+  const connectionId = randomUUID()
+  await mkdir(configRoot, { recursive: true })
+  await writeFile(
+    join(configRoot, 'model-config.json'),
+    JSON.stringify({
+      connections: [
         {
-          resultPath: ['records', 0],
-          candidateCount: 3,
-          fallback: false,
-          modelAttribution: {
-            provider: 'fixture',
-            modelId: 'frozen-grounding-output',
-          },
+          id: connectionId,
+          name: 'Article lifecycle fixture',
+          provider: 'ollama',
+          baseUrl: `http://127.0.0.1:${address.port}`,
         },
       ],
+      routes: {
+        extraction: {
+          connectionId,
+          modelId: 'fixture/nuextract',
+          nuextractRaw: true,
+        },
+        interaction: null,
+      },
+    }),
+    'utf8',
+  )
+
+  try {
+  const projectContextId = randomUUID()
+  const sourceDocumentId = randomUUID()
+  const extractionSchemaId = randomUUID()
+  const firstRepresentationId = randomUUID()
+  const secondRepresentationId = randomUUID()
+  const firstSchemaRevisionId = randomUUID()
+  const secondSchemaRevisionId = randomUUID()
+  const packageStore = createCanonicalPackageStore()
+  const firstPackage = await canonicalPackage('reviewed.pdf')
+  const firstDescriptor = await packageStore.save(firstPackage.bytes)
+
+  await db.orm.public.ProjectContext.create({
+    id: projectContextId,
+    name: 'Article lifecycle E2E',
+  })
+  await db.orm.public.SourceDocument.create({
+    id: sourceDocumentId,
+    projectContextId,
+    contentSha256: firstPackage.sourceHash,
+    mediaType: 'application/pdf',
+    originalName: 'article-lifecycle.pdf',
+  })
+  await db.orm.public.SourceRepresentationRevision.create({
+    id: firstRepresentationId,
+    sourceDocumentId,
+    revisionNumber: 1,
+    artifactReference: firstDescriptor.artifactReference,
+    artifactSha256: firstDescriptor.artifactSha256,
+    contractVersion: 'parsed_document.v2',
+    preprocessId: 'bundled-fixture',
+    parserName: 'fixture',
+    parserVersion: '1',
+  })
+  await db.orm.public.ExtractionSchema.create({
+    id: extractionSchemaId,
+    projectContextId,
+    name: 'Article lifecycle schema',
+  })
+  await db.orm.public.SchemaRevision.create({
+    id: firstSchemaRevisionId,
+    extractionSchemaId,
+    revisionNumber: 1,
+    origin: 'RESEARCHER_EDIT',
+    schemaTree: {
+      recordDescription: 'One lifecycle fixture record.',
+      schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
     },
   })
+
+  const url = `/projects/${projectContextId}/documents/${sourceDocumentId}`
+  await page.goto(url)
+  await expect(page.getByText(/6 pages · text highlights only/)).toBeVisible({
+    timeout: 20_000,
+  })
+  await page.getByRole('button', { name: '▶ Run extraction' }).click()
+  await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible()
+  await page.getByRole('tab', { name: /Results/ }).click()
+  await expect(
+    page.getByRole('button', { name: 'View Evidence for title' }),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Accept result' }).click()
+  await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
+
+  const reviewed = await db.orm.public.Extraction.where({ sourceDocumentId })
+    .select('id', 'reviewedAt')
+    .orderBy((attempt) => attempt.createdAt.desc())
+    .first()
+  expect(reviewed?.reviewedAt).not.toBeNull()
   expect(
-    persisted.reviewDecisions.map((decision) => ({
-      evidenceAnchorId: decision.evidenceAnchorId,
-      reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
-    })),
-  ).toEqual(reviewDecisions)
-  expect(evidenceLinks).not.toContainEqual({
-    resultPath: ['records', 0, 'unattested'],
-    evidenceAnchorId: expect.any(String),
+    await db.orm.public.ReviewDecision.where({ extractionId: reviewed!.id })
+      .select('id')
+      .all(),
+  ).toHaveLength(1)
+
+  const secondPackage = await canonicalPackage('newer-unreviewed.pdf')
+  const secondDescriptor = await packageStore.save(secondPackage.bytes)
+  await db.orm.public.SourceRepresentationRevision.create({
+    id: secondRepresentationId,
+    sourceDocumentId,
+    revisionNumber: 2,
+    artifactReference: secondDescriptor.artifactReference,
+    artifactSha256: secondDescriptor.artifactSha256,
+    contractVersion: 'parsed_document.v2',
+    preprocessId: 'bundled-fixture',
+    parserName: 'fixture',
+    parserVersion: '1',
+  })
+  await db.orm.public.SchemaRevision.create({
+    id: secondSchemaRevisionId,
+    extractionSchemaId,
+    revisionNumber: 2,
+    origin: 'RESEARCHER_EDIT',
+    schemaTree: {
+      recordDescription: 'One lifecycle fixture record.',
+      schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+    },
   })
 
-  await page.close()
-  const reopenedContext = await browser.newContext()
-  const reopened = await reopenedContext.newPage()
-  await installLifecycleFixture(reopened, state)
-  await reopened.goto(
-    `/projects/${id.project}/documents/${id.document}`,
+  const newerExtractionId = randomUUID()
+  const created = await page.request.post('/api/extractions', {
+    data: {
+      id: newerExtractionId,
+      sourceRepresentationRevisionId: secondRepresentationId,
+      schemaRevisionId: secondSchemaRevisionId,
+      strategy: 'ARTICLE',
+    },
+  })
+  expect(created.status()).toBe(201)
+
+  const fresh = await browser.newContext()
+  const freshPage = await fresh.newPage()
+  await freshPage.goto(url)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
+  await expect(
+    freshPage.getByRole('button', { name: 'View Evidence for title' }),
+  ).toBeVisible()
+  await expect(
+    freshPage.getByRole('button', { name: 'Accept result' }),
+  ).toBeVisible()
+  const reopened = documentReopenResponseSchema.parse(
+    await (
+      await freshPage.request.get(
+        `/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/reopen`,
+      )
+    ).json(),
   )
-  await expect(reopened.getByText('6 pages · text highlights only')).toBeVisible({
-    timeout: 15_000,
+  expect(reopened.latestAttempt).toMatchObject({
+    extractionId: newerExtractionId,
+    sourceRepresentationRevisionId: secondRepresentationId,
+    schemaRevisionId: secondSchemaRevisionId,
+    reviewedAt: null,
   })
-  await reopened.getByRole('tab', { name: /Results/ }).click()
-  await reopened.getByRole('button', { name: 'Raw JSON' }).click()
-  await expect(reopened.getByText('Visible but ungrounded')).toBeVisible()
-  await expect(reopened.getByText('Grounded: 3')).toBeVisible()
-  await expect(reopened.getByRole('button', { name: 'Review saved' })).toBeVisible()
-  await expect(reopened.locator('.parsed-evidence-focus')).toHaveCount(0)
-  await reopened
-    .getByRole('button', { name: 'Review', exact: true })
-    .click()
-  await reopened.getByText('records', { exact: true }).click()
-  await reopened.getByText('Item 1', { exact: true }).click()
+  expect(reopened.latestReviewed).toMatchObject({
+    extractionId: reviewed?.id,
+    sourceRepresentationRevisionId: firstRepresentationId,
+    schemaRevisionId: firstSchemaRevisionId,
+  })
+  await expect(freshPage.getByLabel('Extraction snapshot')).toBeVisible()
+  await freshPage.getByLabel('Extraction snapshot').selectOption(String(reviewed?.id))
+  await expect(freshPage.getByTitle('Pinned Source Document')).toBeVisible()
+  await freshPage.getByRole('button', { name: 'Pinned schema' }).click()
+  await expect(freshPage.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
+  await freshPage.getByLabel('Extraction snapshot').selectOption(newerExtractionId)
+  await expect(freshPage.getByTitle('Pinned Source Document')).toHaveCount(0)
+  delayNextResponse = true
+  await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
+  await freshPage.getByRole('button', { name: 'Cancel extraction' }).click()
   await expect(
-    reopened.getByRole('button', { name: 'View Evidence for unattested' }),
-  ).toHaveCount(0)
-  expect(state.modelRequests).toHaveLength(2)
-  await reopened.getByRole('tab', { name: /Evidence/ }).click()
+    freshPage.getByRole('tabpanel', { name: 'Results' }).getByText('Extraction cancelled', { exact: true }),
+  ).toBeVisible()
+  await fresh.close()
+  } finally {
+    await new Promise<void>((resolveClose, reject) =>
+      modelServer.close((error) => (error ? reject(error) : resolveClose())),
+    )
+    await rm(configHome, { recursive: true, force: true })
+  }
+})
 
-  for (const decision of reviewDecisions)
+test('real Catalog lifecycle covers partials, retry, truncation, cancellation, review, and reopen', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(120_000)
+  test.skip(
+    !process.env.EXTRACTION_TEST_DATABASE_URL ||
+      process.env.DATABASE_URL !== process.env.EXTRACTION_TEST_DATABASE_URL,
+    'DATABASE_URL must equal the disposable EXTRACTION_TEST_DATABASE_URL',
+  )
+
+  const configHome = resolve(import.meta.dirname, '../test-results/config-home')
+  const configRoot =
+    process.platform === 'win32'
+      ? join(configHome, 'FREE Studio-nodejs', 'Config')
+      : join(configHome, 'free-studio-nodejs')
+  await rm(configHome, { recursive: true, force: true })
+
+  type FixtureResponse = {
+    result?: Record<string, unknown>
+    status?: number
+    delayMs?: number
+    grounding?: boolean
+  }
+  type FixtureStage = 'document' | 'discovery' | 'record' | 'grounding'
+  const queues: Record<FixtureStage, FixtureResponse[]> = {
+    document: [],
+    discovery: [],
+    record: [],
+    grounding: [],
+  }
+  const resetQueues = () => {
+    for (const queue of Object.values(queues)) queue.length = 0
+  }
+  let callCount = 0
+  const waiters: Array<{ count: number; resolve: () => void }> = []
+  const enqueue = (stage: FixtureStage, ...responses: FixtureResponse[]) =>
+    queues[stage].push(...responses)
+  const waitForCalls = (count: number) => {
+    if (callCount >= count) return Promise.resolve()
+    return new Promise<void>((resolveWait) => waiters.push({ count, resolve: resolveWait }))
+  }
+  const modelServer = createServer((request, response) => {
+    let body = ''
+    request.setEncoding('utf8')
+    request.on('data', (chunk) => (body += chunk))
+    request.on('end', () => {
+      callCount += 1
+      for (const waiter of waiters.splice(0))
+        if (callCount >= waiter.count) waiter.resolve()
+        else waiters.push(waiter)
+      const payload = JSON.parse(body) as { prompt?: string }
+      const prompt = payload.prompt ?? ''
+      const stage: FixtureStage =
+        prompt.includes('### Claims') || prompt.includes('"links"')
+          ? 'grounding'
+          : prompt.includes('Identify every catalog record start') || prompt.includes('"starts"')
+            ? 'discovery'
+            : prompt.includes('"title"')
+              ? 'record'
+              : 'document'
+      const fixture = queues[stage].shift()
+      if (!fixture) {
+        response.writeHead(500)
+        response.end('fixture response queue exhausted')
+        return
+      }
+      if (fixture.status && fixture.status !== 200) {
+        response.writeHead(fixture.status)
+        response.end('deterministic fixture failure')
+        return
+      }
+      let result = fixture.result ?? {}
+      if (fixture.grounding) {
+        const labels = [...prompt.matchAll(/(?:^|\n)\s*\[C(\d+)\]/g)].map((match) => match[1])
+        result = {
+          links: Object.fromEntries([...new Set(labels)].map((label) => [`C${label}`, 'E1'])),
+        }
+      }
+      const send = () => {
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            response: JSON.stringify(result),
+            done_reason: 'stop',
+            prompt_eval_count: 10,
+            eval_count: 4,
+            total_duration: 1_000_000,
+          }),
+        )
+      }
+      if (fixture.delayMs) setTimeout(send, fixture.delayMs)
+      else send()
+    })
+  })
+  await new Promise<void>((resolveListen) => modelServer.listen(0, '127.0.0.1', resolveListen))
+  const address = modelServer.address()
+  if (!address || typeof address === 'string') throw new Error('The deterministic Catalog model server did not start.')
+  const connectionId = randomUUID()
+  await mkdir(configRoot, { recursive: true })
+  await writeFile(
+    join(configRoot, 'model-config.json'),
+    JSON.stringify({
+      connections: [{ id: connectionId, name: 'Catalog lifecycle fixture', provider: 'ollama', baseUrl: `http://127.0.0.1:${address.port}` }],
+      routes: { extraction: { connectionId, modelId: 'fixture/nuextract', nuextractRaw: true }, interaction: null },
+    }),
+    'utf8',
+  )
+
+  const projectContextId = randomUUID()
+  const sourceDocumentId = randomUUID()
+  const extractionSchemaId = randomUUID()
+  const firstRepresentationId = randomUUID()
+  const truncationRepresentationId = randomUUID()
+  const cancellationRepresentationId = randomUUID()
+  const firstSchemaRevisionId = randomUUID()
+  const packageSchemaRevisionId = randomUUID()
+  const packageStore = createCanonicalPackageStore()
+  const firstPackage = await canonicalPackage('catalog.pdf', catalogDocument(['First', 'Second', 'Third']))
+  const truncationPackage = await canonicalPackage(
+    'catalog-truncation.pdf',
+    catalogDocument(Array.from({ length: 101 }, (_, index) => `Record ${index + 1}`)),
+  )
+  const cancellationPackage = await canonicalPackage('catalog-cancellation.pdf', catalogDocument(['First', 'Second', 'Third']))
+  const firstDescriptor = await packageStore.save(firstPackage.bytes)
+  const truncationDescriptor = await packageStore.save(truncationPackage.bytes)
+  const cancellationDescriptor = await packageStore.save(cancellationPackage.bytes)
+  const url = `/projects/${projectContextId}/documents/${sourceDocumentId}`
+  const addRepresentation = async (id: string, revisionNumber: number, descriptor: { artifactReference: string; artifactSha256: string }) =>
+    db.orm.public.SourceRepresentationRevision.create({
+      id,
+      sourceDocumentId,
+      revisionNumber,
+      artifactReference: descriptor.artifactReference,
+      artifactSha256: descriptor.artifactSha256,
+      contractVersion: 'parsed_document.v2',
+      preprocessId: 'bundled-fixture',
+      parserName: 'fixture',
+      parserVersion: '1',
+    })
+  try {
+    await db.orm.public.ProjectContext.create({ id: projectContextId, name: 'Catalog lifecycle E2E' })
+    await db.orm.public.SourceDocument.create({
+      id: sourceDocumentId,
+      projectContextId,
+      contentSha256: firstPackage.sourceHash,
+      mediaType: 'application/pdf',
+      originalName: 'catalog-lifecycle.pdf',
+    })
+    await addRepresentation(firstRepresentationId, 1, firstDescriptor)
+    await addRepresentation(truncationRepresentationId, 2, truncationDescriptor)
+    await addRepresentation(cancellationRepresentationId, 3, cancellationDescriptor)
+    await db.orm.public.ExtractionSchema.create({ id: extractionSchemaId, projectContextId, name: 'Catalog lifecycle schema' })
+    await db.orm.public.SchemaRevision.create({
+      id: firstSchemaRevisionId,
+      extractionSchemaId,
+      revisionNumber: 1,
+      origin: 'RESEARCHER_EDIT',
+      schemaTree: {
+        recordDescription: 'One catalog record.',
+        schemaNodes: [
+          { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+          { id: 'year', name: 'year', type: 'integer', valueSource: 'document' },
+          { id: 'title', name: 'title', type: 'string' },
+        ],
+      },
+    })
+    await db.orm.public.SchemaRevision.create({
+      id: packageSchemaRevisionId,
+      extractionSchemaId,
+      revisionNumber: 2,
+      origin: 'RESEARCHER_EDIT',
+      schemaTree: {
+        recordDescription: 'One package-only catalog record.',
+        schemaNodes: [{ id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' }],
+      },
+    })
+
+    await page.goto(url)
+    await expect(page.getByText(/6 pages · text highlights only/)).toBeVisible({ timeout: 20_000 })
+
+    resetQueues()
+    enqueue('document', { result: { records: [{ year: 2026 }] } })
+    enqueue('discovery', { result: { starts: ['First', 'Second'] } })
+    enqueue('record', { result: { records: [{ title: 'A' }] } }, { result: { records: [{ title: 'B' }] } })
+    enqueue('grounding', { grounding: true }, { grounding: true })
+    await page.getByLabel('Extraction strategy').selectOption('CATALOG')
+    await page.getByRole('button', { name: '▶ Run extraction' }).click()
+    await expect(page.getByRole('tab', { name: /Results/ })).toBeVisible({ timeout: 30_000 })
+    await page.getByRole('tab', { name: /Results/ }).click()
+    await expect(page.getByText('catalog', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Accept result' })).toBeVisible()
+    await page.getByRole('button', { name: 'Accept result' }).click()
+    await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
+    const complete = await db.orm.public.Extraction.where({ sourceDocumentId }).orderBy((attempt) => attempt.createdAt.asc()).first()
+    expect(complete?.outcome).toBe('SUCCEEDED')
+    expect(complete?.complete).toBe(true)
+
+    resetQueues()
+    enqueue('document', { result: { records: [{ year: 2026 }] } })
+    enqueue('discovery', { result: { starts: ['First', 'Second', 'Third'] } })
+    enqueue('record', { result: { records: [{ title: 'A' }] } }, { status: 500 }, { result: { records: [{ title: 'C' }] } })
+    enqueue('grounding', { grounding: true }, { grounding: true })
+    const partialId = randomUUID()
+    const partialResponse = await page.request.post('/api/extractions', {
+      data: { id: partialId, sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },
+    })
+    expect(partialResponse.status()).toBe(201)
+    const partial = await partialResponse.json()
+    expect(partial).toMatchObject({
+      outcome: 'SUCCEEDED',
+      complete: false,
+      resultPayload: {
+        records: [
+          { filename: 'catalog.pdf', year: 2026, title: 'A' },
+          { filename: 'catalog.pdf', year: 2026, title: 'C' },
+        ],
+      },
+    })
+    expect(partial.resultPayload.records).not.toContainEqual({})
+    expect(partial.diagnostics.catalog.records[1]).toMatchObject({ outcome: 'failed', calls: 1 })
+
+    resetQueues()
+    enqueue('document', { result: { records: [{ year: 2026 }] } })
+    enqueue('discovery', { result: { starts: ['Missing'] } })
+    const discoveryFailureResponse = await page.request.post('/api/extractions', {
+      data: { id: randomUUID(), sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },
+    })
+    expect(discoveryFailureResponse.status()).toBe(201)
+    const discoveryFailure = await discoveryFailureResponse.json()
+    expect(discoveryFailure).toMatchObject({ outcome: 'FAILED', resultPayload: null })
+    expect(discoveryFailure.diagnostics.catalog.records).toEqual([])
+    expect(discoveryFailure.diagnostics.catalog.stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ stage: 'discovery', outcome: 'failed', failureCode: 'unknown_label' }),
+        expect.objectContaining({ stage: 'record-values', outcome: 'not_attempted', calls: 0 }),
+      ]),
+    )
+
+    const failedRecordStart = partial.diagnostics.catalog.records[1].boundary.startBlockId
+    resetQueues()
+    enqueue('record', { result: { records: [{ title: 'B' }] } })
+    enqueue('grounding', { grounding: true }, { grounding: true }, { grounding: true })
+    const retryId = randomUUID()
+    const retryResponse = await page.request.post('/api/extractions', {
+      data: {
+        id: retryId,
+        retryOfId: partialId,
+        retryDocument: false,
+        rediscover: false,
+        retryRecordStartBlockIds: [failedRecordStart],
+      },
+    })
+    expect(retryResponse.status()).toBe(201)
+    const retry = await retryResponse.json()
+    expect(retry).toMatchObject({ outcome: 'SUCCEEDED', resultPayload: { records: [{ title: 'A' }, { title: 'B' }, { title: 'C' }] } })
+    expect(retry.diagnostics.catalog.records.map((record: { provenance: string }) => record.provenance)).toEqual(['reused', 'executed', 'reused'])
+    const reviewResponse = await page.request.post(`/api/extractions/${retryId}/review`, {
+      data: { reviewDecisions: [{ evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'] }] },
+    })
+    expect(reviewResponse.status()).toBe(200)
+    const finalizedRetry = await reviewResponse.json()
+    expect(finalizedRetry).toMatchObject({
+      extractionId: retryId,
+      sourceRepresentationRevisionId: firstRepresentationId,
+      schemaRevisionId: firstSchemaRevisionId,
+      strategy: 'CATALOG',
+      retryOfId: partialId,
+      outcome: 'SUCCEEDED',
+      reviewable: true,
+      reviewedAt: expect.any(String),
+    })
+
+    resetQueues()
+    enqueue('discovery', { result: { starts: Array.from({ length: 101 }, (_, index) => `Record ${index + 1}`) } })
+    const truncationResponse = await page.request.post('/api/extractions', {
+      data: { id: randomUUID(), sourceRepresentationRevisionId: truncationRepresentationId, schemaRevisionId: packageSchemaRevisionId, strategy: 'CATALOG' },
+    })
+    expect(truncationResponse.status()).toBe(201)
+    const truncation = await truncationResponse.json()
+    expect(truncation).toMatchObject({ outcome: 'SUCCEEDED', complete: false })
+    expect(truncation.resultPayload.records).toHaveLength(100)
+    expect(truncation.diagnostics.catalog.records).toHaveLength(101)
+    expect(truncation.diagnostics.catalog.records[100]).toMatchObject({ outcome: 'not_attempted', failureCode: 'not_attempted_limit', calls: 0 })
+
+    const cancellationId = randomUUID()
+    const callsBeforeCancellation = callCount
+    resetQueues()
+    enqueue('document', { result: { records: [{ year: 2026 }] } })
+    enqueue('discovery', { result: { starts: ['First', 'Second', 'Third'] } })
+    enqueue('record', { result: { records: [{ title: 'A' }] } }, { result: { records: [{ title: 'B' }] }, delayMs: 10_000 })
+    const cancellationPost = page.request.post('/api/extractions', {
+      data: { id: cancellationId, sourceRepresentationRevisionId: cancellationRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },
+    })
+    await waitForCalls(callsBeforeCancellation + 4)
+    const cancellationDelete = await page.request.delete(`/api/extractions/${cancellationId}`)
+    expect(cancellationDelete.status()).toBe(202)
+    const cancelledResponse = await cancellationPost
+    expect(cancelledResponse.status()).toBe(201)
+    const cancelled = await cancelledResponse.json()
+    expect(cancelled).toMatchObject({ outcome: 'CANCELLED', resultPayload: null })
+
+    const fresh = await browser.newContext()
+    const freshPage = await fresh.newPage()
+    await freshPage.goto(url)
+    await freshPage.getByRole('tab', { name: /Results/ }).click()
     await expect(
-      reopened.getByRole('button', {
-        name: new RegExp(`Evidence anchor ${decision.evidenceAnchorId}`),
-      }),
-    ).toContainText('reviewed occurrence')
-
-  const valid = reviewDecisions[0].reviewedOccurrenceIds[0]
-  await reopened
-    .getByRole('button', {
-      name: new RegExp(`Evidence anchor ${reviewDecisions[0].evidenceAnchorId}`),
+      freshPage.getByRole('tabpanel', { name: 'Results' }).getByText('Extraction cancelled', { exact: true }),
+    ).toBeVisible()
+    const reopened = documentReopenResponseSchema.parse(
+      await (await freshPage.request.get(`/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/reopen`)).json(),
+    )
+    expect(reopened.latestAttempt).toMatchObject({ extractionId: cancellationId, sourceRepresentationRevisionId: cancellationRepresentationId, schemaRevisionId: firstSchemaRevisionId, outcome: 'CANCELLED' })
+    expect(reopened.latestReviewed).toMatchObject(finalizedRetry)
+    expect(reopened.latestReviewed?.extractionId).toBe(finalizedRetry.extractionId)
+    expect(reopened.latestReviewed?.sourceRepresentationRevisionId).toBe(
+      finalizedRetry.sourceRepresentationRevisionId,
+    )
+    expect(reopened.latestReviewed?.schemaRevisionId).toBe(finalizedRetry.schemaRevisionId)
+    expect(reopened.latestReviewed?.strategy).toBe(finalizedRetry.strategy)
+    expect(reopened.latestReviewed?.retryOfId).toBe(finalizedRetry.retryOfId)
+    expect(reopened.latestReviewed?.resultPayload).toEqual(finalizedRetry.resultPayload)
+    expect(reopened.latestReviewed?.complete).toBe(finalizedRetry.complete)
+    expect(reopened.latestReviewed?.reviewable).toBe(finalizedRetry.reviewable)
+    expect(reopened.latestReviewed?.reviewedAt).toBe(finalizedRetry.reviewedAt)
+    expect(reopened.latestReviewed?.diagnostics).toEqual(finalizedRetry.diagnostics)
+    expect(reopened.latestReviewed?.evidenceLinks).toEqual(finalizedRetry.evidenceLinks)
+    expect(reopened.latestReviewed?.modelAttribution).toEqual(finalizedRetry.modelAttribution)
+    expect(reopened.latestReviewed?.failure).toEqual(finalizedRetry.failure)
+    expect(reopened.latestReviewed?.reviewDecisions).toEqual(finalizedRetry.reviewDecisions)
+    expect(reopened.latestReviewed?.sourceRepresentation).toMatchObject({
+      revisionNumber: 1,
+      resources: {
+        sourcePdfUrl: expect.stringContaining(firstRepresentationId),
+        markdownUrl: expect.stringContaining(firstRepresentationId),
+        parsedDocumentUrl: expect.stringContaining(firstRepresentationId),
+      },
     })
-    .click()
-  await expect(
-    reopened.locator(
-      `.parsed-evidence-focus[data-occurrence-id="${valid}"]`,
-    ),
-  ).toHaveCount(1)
-
-  await reopened
-    .getByRole('button', {
-      name: new RegExp(`Evidence anchor ${rotatedAnchor.anchor_id}`),
+    expect(reopened.latestReviewed?.extractionSchema).toMatchObject({
+      extractionSchemaId,
+      revisionNumber: 1,
+      recordDescription: 'One catalog record.',
+      schemaNodes: [
+        { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+        { id: 'year', name: 'year', type: 'integer', valueSource: 'document' },
+        { id: 'title', name: 'title', type: 'string' },
+      ],
     })
-    .click()
-  await expect(
-    reopened.locator(
-      `.parsed-evidence-focus[data-occurrence-id="${rotatedAnchor.occurrence_id}"]`,
-    ),
-  ).toHaveCount(1)
-  await reopenedContext.close()
+    expect(reopened.latestAttempt?.sourceRepresentation).toMatchObject({
+      revisionNumber: 3,
+      resources: {
+        sourcePdfUrl: expect.stringContaining(cancellationRepresentationId),
+        markdownUrl: expect.stringContaining(cancellationRepresentationId),
+        parsedDocumentUrl: expect.stringContaining(cancellationRepresentationId),
+      },
+    })
+    expect(reopened.latestAttempt?.extractionSchema).toMatchObject({
+      extractionSchemaId,
+      revisionNumber: 1,
+      recordDescription: 'One catalog record.',
+      schemaNodes: [
+        { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+        { id: 'year', name: 'year', type: 'integer', valueSource: 'document' },
+        { id: 'title', name: 'title', type: 'string' },
+      ],
+    })
+    expect(reopened.sourceRepresentation).toMatchObject({
+      sourceRepresentationId: cancellationRepresentationId,
+      revisionNumber: 3,
+      resources: {
+        sourcePdfUrl: expect.stringContaining(cancellationRepresentationId),
+        markdownUrl: expect.stringContaining(cancellationRepresentationId),
+        parsedDocumentUrl: expect.stringContaining(cancellationRepresentationId),
+      },
+    })
+    expect(reopened.extractionSchema).toMatchObject({
+      extractionSchemaId,
+      schemaRevisionId: packageSchemaRevisionId,
+      revisionNumber: 2,
+      recordDescription: 'One package-only catalog record.',
+      schemaNodes: [{ id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' }],
+    })
+    await fresh.close()
+  } finally {
+    await new Promise<void>((resolveClose, reject) => modelServer.close((error) => (error ? reject(error) : resolveClose())))
+    await rm(configHome, { recursive: true, force: true })
+  }
 })

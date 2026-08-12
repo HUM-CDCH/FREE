@@ -2,21 +2,20 @@ import type {
   EvidenceLink,
   GroundedModelAttribution,
   ResultPath,
-} from '../shared/groundedExtraction'
-import { isPopulatedResultScalar } from '../shared/groundedExtraction'
+} from './groundedExtraction.js'
+import { isPopulatedResultScalar } from './groundedExtraction.js'
 import {
   anchoredSource,
   canonicalAnchorInventory,
-  type CanonicalAnchorInventoryEntry,
-} from './anchoredDocument'
-import type { ParsedDocument } from './parsedDocument'
+} from './anchoredDocument.js'
+import type { ParsedDocument } from './parsedDocument.js'
 
 export type {
   EvidenceLink,
   GroundedExtractionPayload,
   GroundedModelAttribution,
   ResultPath,
-} from '../shared/groundedExtraction'
+} from './groundedExtraction.js'
 
 export type GroundingIssue =
   | {
@@ -40,10 +39,8 @@ export type GroundingIssue =
       resultPath: ResultPath
     }
   | {
-      code: 'conflicting_anchor_selection'
-      claimLabel: string
-      resultPath: ResultPath
-      anchorLabel: string
+      code: 'grounding_failed'
+      resultPath: ResultPath | null
     }
 
 export type GroundingOutcome = {
@@ -86,6 +83,8 @@ export type GroundingModelInvoker = (
 export type GroundExtractionInput = {
   document: ParsedDocument
   result: Record<string, unknown>
+  excludedRootFields?: ReadonlySet<string>
+  allowedAnchorIds?: ReadonlySet<string>
   signal?: AbortSignal
   invokeModel: GroundingModelInvoker
 }
@@ -114,10 +113,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function enumerateClaims(result: Record<string, unknown>): Claim[] {
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function enumerateClaims(
+  result: Record<string, unknown>,
+  excludedRootFields: ReadonlySet<string> = new Set(),
+): Claim[] {
   const claims: Claim[] = []
   const visit = (value: unknown, path: ResultPath) => {
     if (isPopulatedResultScalar(value)) {
+      const rootField =
+        path[0] === 'records' && typeof path[2] === 'string'
+          ? path[2]
+          : path[0]
+      if (typeof rootField === 'string' && excludedRootFields.has(rootField)) return
       claims.push({
         label: `C${claims.length + 1}`,
         resultPath: path,
@@ -137,6 +148,13 @@ function enumerateClaims(result: Record<string, unknown>): Claim[] {
 
   for (const [key, value] of Object.entries(result)) visit(value, [key])
   return claims
+}
+
+export function populatedContentPaths(
+  result: Record<string, unknown>,
+  excludedRootFields: ReadonlySet<string> = new Set(),
+): ResultPath[] {
+  return enumerateClaims(result, excludedRootFields).map((claim) => claim.resultPath)
 }
 
 function renderResultPath(path: ResultPath): string {
@@ -173,68 +191,6 @@ function claimBatches(
   return [...batches.values()]
 }
 
-function normalizeForRetrieval(value: string | number | boolean): string {
-  return String(value)
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function containsClaim(
-  source: string,
-  claimValue: string | number | boolean,
-): boolean {
-  const needle = normalizeForRetrieval(claimValue)
-  if (!needle || needle.length < 2) return false
-  const haystack = normalizeForRetrieval(source)
-  if (/^[+-]?(?:\d+[.,]?\d*|[.,]\d+)$/.test(needle)) {
-    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    return new RegExp(
-      `(^|[^\\p{L}\\p{N}])${escaped}([^\\p{L}\\p{N}]|$)`,
-      'u',
-    ).test(haystack)
-  }
-  return haystack.includes(needle)
-}
-
-function retrievalCandidates(
-  inventory: readonly CanonicalAnchorInventoryEntry[],
-  claims: readonly Claim[],
-): { anchorIds: readonly string[]; fallback: boolean } {
-  const seeds = new Set(
-    inventory
-      .filter((entry) =>
-        claims.some((claim) => containsClaim(entry.text, claim.value)),
-      )
-      .map((entry) => entry.anchorId),
-  )
-  if (seeds.size === 0)
-    return {
-      anchorIds: inventory.map((entry) => entry.anchorId),
-      fallback: true,
-    }
-
-  const seededTableRows = new Map<string, Set<number>>()
-  for (const entry of inventory) {
-    if (entry.kind !== 'table_cell' || !seeds.has(entry.anchorId)) continue
-    const rows = seededTableRows.get(entry.logicalTableId) ?? new Set<number>()
-    rows.add(entry.row)
-    seededTableRows.set(entry.logicalTableId, rows)
-  }
-  return {
-    anchorIds: inventory
-      .filter(
-        (entry) =>
-          seeds.has(entry.anchorId) ||
-          (entry.kind === 'table_cell' &&
-            seededTableRows.get(entry.logicalTableId)?.has(entry.row)),
-      )
-      .map((entry) => entry.anchorId),
-    fallback: false,
-  }
-}
-
 function groundingInstruction(batch: ClaimBatch): string {
   const renderedClaims = batch.claims.map(
     (claim) =>
@@ -268,7 +224,6 @@ function resolveGrounding(
   result: unknown,
   claims: readonly Claim[],
   anchorIdByLabel: ReadonlyMap<string, string>,
-  anchorTextByLabel: ReadonlyMap<string, string>,
 ): Pick<GroundingOutcome, 'evidenceLinks' | 'ungroundedPaths' | 'issues'> {
   const returned = strictLinks(result)
   const claimByLabel = new Map(claims.map((claim) => [claim.label, claim]))
@@ -309,21 +264,6 @@ function resolveGrounding(
       })
       continue
     }
-    const exactAnchorLabels = [...anchorTextByLabel]
-      .filter(([, text]) => containsClaim(text, claim.value))
-      .map(([label]) => label)
-    if (
-      exactAnchorLabels.length > 0 &&
-      !exactAnchorLabels.includes(anchorLabel)
-    ) {
-      issues.push({
-        code: 'conflicting_anchor_selection',
-        claimLabel: claim.label,
-        resultPath: claim.resultPath,
-        anchorLabel,
-      })
-      continue
-    }
     evidenceLinks.push({
       resultPath: claim.resultPath,
       evidenceAnchorId,
@@ -349,10 +289,13 @@ function resolveGrounding(
 export async function groundExtraction({
   document,
   result,
+  excludedRootFields,
+  allowedAnchorIds,
   signal,
   invokeModel,
 }: GroundExtractionInput): Promise<GroundingOutcome> {
-  const claims = enumerateClaims(result)
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  const claims = enumerateClaims(result, excludedRootFields)
   if (claims.length === 0)
     return {
       evidenceLinks: [],
@@ -361,45 +304,58 @@ export async function groundExtraction({
       modelAttribution: null,
     }
 
-  const inventory = canonicalAnchorInventory(document)
-  const anchorTextById = new Map(
-    inventory.map((entry) => [entry.anchorId, entry.text]),
+  const inventory = canonicalAnchorInventory(document).filter(
+    (entry) => !allowedAnchorIds || allowedAnchorIds.has(entry.anchorId),
   )
+  const anchorIds = inventory.map((entry) => entry.anchorId)
+  const source = anchoredSource(document, new Set(anchorIds))
   const batches = claimBatches(result, claims)
   const evidenceLinks: EvidenceLink[] = []
   const issues: GroundingIssue[] = []
   const attributions: GroundingStageAttribution['batches'][number][] = []
   for (const batch of batches) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    const candidates = retrievalCandidates(inventory, batch.claims)
-    const source = anchoredSource(document, new Set(candidates.anchorIds))
-    const generated = await invokeModel({
-      documentMarkdown: `### Canonical Evidence\n${source.text}`,
-      template: {
-        links: Object.fromEntries(
-          batch.claims.map((claim) => [claim.label, 'verbatim-string' as const]),
-        ),
-      },
-      instruction: groundingInstruction(batch),
-      signal,
-    })
-    const resolved = resolveGrounding(
-      generated.result,
-      batch.claims,
-      source.anchorIdByLabel,
-      new Map(
-        [...source.anchorIdByLabel].flatMap(([label, anchorId]) => {
-          const text = anchorTextById.get(anchorId)
-          return text === undefined ? [] : [[label, text] as const]
-        }),
-      ),
-    )
-    evidenceLinks.push(...resolved.evidenceLinks)
-    issues.push(...resolved.issues)
+    let generated: GroundingModelResponse
+    try {
+      generated = await invokeModel({
+        documentMarkdown: `### Canonical Evidence\n${source.text}`,
+        template: {
+          links: Object.fromEntries(
+            batch.claims.map((claim) => [claim.label, 'verbatim-string' as const]),
+          ),
+        },
+        instruction: groundingInstruction(batch),
+        signal,
+      })
+    } catch (error) {
+      if (signal?.aborted || isAbortError(error)) throw error
+      issues.push({ code: 'grounding_failed', resultPath: batch.resultPath })
+      attributions.push({
+        resultPath: batch.resultPath,
+        candidateCount: anchorIds.length,
+        fallback: true,
+        modelAttribution: null,
+      })
+      continue
+    }
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+
+    try {
+      const resolved = resolveGrounding(
+        generated.result,
+        batch.claims,
+        source.anchorIdByLabel,
+      )
+      evidenceLinks.push(...resolved.evidenceLinks)
+      issues.push(...resolved.issues)
+    } catch (error) {
+      if (!(error instanceof InvalidGroundingResponseError)) throw error
+      issues.push({ code: 'grounding_failed', resultPath: batch.resultPath })
+    }
     attributions.push({
       resultPath: batch.resultPath,
-      candidateCount: candidates.anchorIds.length,
-      fallback: candidates.fallback,
+      candidateCount: anchorIds.length,
+      fallback: true,
       modelAttribution: generated.modelAttribution,
     })
   }

@@ -4,7 +4,12 @@ import {
   duplicateFieldKeys,
   enumerateFieldPaths,
   nodesToTemplate,
+  partitionSchemaNodes,
+  parseSchemaDefinition,
   parseSchemaNodes,
+  restoreSchemaNodeOrder,
+  schemaDefinitionToTemplate,
+  templateToSchemaDefinition,
   templateToNodes,
   type SchemaNode,
 } from './schemaNode'
@@ -94,7 +99,77 @@ describe('SchemaNode conversion', () => {
     ).toEqual(['beta', 'alpha'])
   })
 
-  it('rejects an obsolete object-shaped stored schema', () => {
+  it('round-trips the explicit root record description separately from fields', () => {
+    const template = {
+      _description: 'One top-level numbered research article section.',
+      sectionNumber: 'integer',
+      sectionTitle: 'string',
+    }
+
+    const definition = templateToSchemaDefinition(template)
+
+    expect(definition.recordDescription).toBe(
+      'One top-level numbered research article section.',
+    )
+    expect(definition.schemaNodes.map((node) => node.name)).toEqual([
+      'sectionNumber',
+      'sectionTitle',
+    ])
+    expect(schemaDefinitionToTemplate(definition)).toEqual(template)
+    expect(parseSchemaDefinition(definition)).toEqual(definition)
+  })
+
+  it('rejects a schema without an explicit root record description', () => {
+    expect(() => templateToSchemaDefinition({ title: 'string' })).toThrow(
+      'record description',
+    )
+    expect(() =>
+      parseSchemaDefinition({ recordDescription: '', schemaNodes: [] }),
+    ).toThrow()
+  })
+
+  it('accepts top-level value sources and rejects nested declarations', () => {
+    expect(parseSchemaNodes([
+      { id: 'title', name: 'title', type: 'string', valueSource: 'document' },
+    ])).toEqual([
+      { id: 'title', name: 'title', type: 'string', valueSource: 'document' },
+    ])
     expect(() => parseSchemaNodes({ zeta: 'string' })).toThrow()
+    expect(() =>
+      parseSchemaNodes([
+        {
+          id: 'group',
+          name: 'group',
+          type: 'object',
+          children: [
+            { id: 'title', name: 'title', type: 'string', valueSource: 'document' },
+          ],
+        },
+      ]),
+    ).toThrow()
+  })
+
+  it('partitions complete top-level subtrees and restores model order', () => {
+    const nodes = parseSchemaNodes([
+      { id: 'title', name: 'title', type: 'string' },
+      {
+        id: 'details',
+        name: 'details',
+        type: 'object',
+        valueSource: 'document',
+        children: [{ id: 'year', name: 'year', type: 'integer' }],
+      },
+      { id: 'filename', name: 'filename', type: 'string', valueSource: 'source-filename' },
+    ])
+    expect(partitionSchemaNodes(nodes)).toEqual({
+      documentNodes: [nodes[1]],
+      recordNodes: [nodes[0]],
+      packageNodes: [nodes[2]],
+    })
+    expect(restoreSchemaNodeOrder(
+      { details: { year: 2026 }, title: 'A title' },
+      [...partitionSchemaNodes(nodes).recordNodes, ...partitionSchemaNodes(nodes).documentNodes],
+    )).toEqual({ title: 'A title', details: { year: 2026 } })
+    expect(() => restoreSchemaNodeOrder({ title: 'A title', unknown: true }, nodes)).toThrow('Unexpected model key')
   })
 })

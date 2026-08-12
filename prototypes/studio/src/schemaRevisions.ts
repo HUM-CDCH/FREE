@@ -1,4 +1,4 @@
-import type { SchemaNode } from '../shared/schemaNode'
+import type { SchemaDefinition } from '../shared/schemaNode'
 import {
   schemaRevisionListResponseSchema,
   schemaRevisionResponseSchema,
@@ -6,7 +6,7 @@ import {
   type SchemaRevision,
   type SchemaRevisionSummary,
 } from '../shared/schemaRevision.contract'
-import { isRecord } from './template'
+import { isRecord } from '../shared/template'
 
 export class SchemaRevisionConflictError extends Error {
   readonly currentRevision: SchemaRevision
@@ -90,21 +90,21 @@ async function writeSchemaRevision(
 
 export function initializeSchemaRevision(
   projectContextId: string,
-  schemaNodes: SchemaNode[],
+  definition: SchemaDefinition,
   signal?: AbortSignal,
 ): Promise<SchemaRevision> {
-  return writeSchemaRevision({ projectContextId, schemaNodes }, signal)
+  return writeSchemaRevision({ projectContextId, ...definition }, signal)
 }
 
 export function appendSchemaRevision(
   projectContextId: string,
   extractionSchemaId: string,
   expectedRevisionNumber: number,
-  schemaNodes: SchemaNode[],
+  definition: SchemaDefinition,
   signal?: AbortSignal,
 ): Promise<SchemaRevision> {
   return writeSchemaRevision(
-    { projectContextId, extractionSchemaId, expectedRevisionNumber, schemaNodes },
+    { projectContextId, extractionSchemaId, expectedRevisionNumber, ...definition },
     signal,
   )
 }

@@ -4,6 +4,7 @@ import {
   generateSchemaEditJson,
   extractWithModel,
   generateSchemaWithModel,
+  modelGenerationMetadata,
   renderNuExtractPrompt,
   streamChatWithModel,
 } from './_model.js'
@@ -114,7 +115,7 @@ describe('extractWithModel', () => {
       model: 'nuextract/manual',
       raw: true,
       stream: false,
-      options: { temperature: 0.2 },
+      options: { temperature: 0.2, num_ctx: 32768, num_predict: 8192 },
     })
     expect(body).not.toHaveProperty('chat_template_kwargs')
     expect(body.prompt).toContain('"name": "verbatim-string"')
@@ -161,7 +162,27 @@ describe('extractWithModel', () => {
 
     expect(request).toHaveBeenCalledOnce()
     expect(result.result).toEqual({ grave: [{ name: 'Repeated' }] })
+    expect(result.metadata.finishReason).toBe('length')
     expect(result).not.toHaveProperty('evidence')
+  })
+
+  it('retains length metadata when truncated output cannot be parsed', async () => {
+    stubOllamaResponses({ response: '[]', doneReason: 'length' })
+
+    let failure: unknown
+    try {
+      await extractWithModel(
+        { document, template: { grave: [{ name: 'verbatim-string' }] } },
+        rawTarget,
+      )
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeDefined()
+    expect(modelGenerationMetadata(failure)).toMatchObject({
+      finishReason: 'length',
+    })
   })
 
   it('preserves a path-prefixed Ollama server base for raw generation', async () => {
@@ -204,6 +225,7 @@ describe('extractWithModel', () => {
     expect(request).not.toHaveBeenCalled()
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('temperature')
     expect(generateTextMock.mock.calls[0][0]).toHaveProperty('reasoning', 'none')
+    expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('maxOutputTokens')
     const instructions = generateTextMock.mock.calls[0][0].instructions as string
     expect(instructions).not.toContain('_evidence')
     expect(instructions).not.toContain('source evidence')
@@ -259,7 +281,7 @@ describe('extractWithModel', () => {
     } | undefined
     expect(responseFormat).toEqual({ type: 'json' })
     expect(result.result).toMatchObject({ records: [{ grave_number: 8 }] })
-    expect(result.raw).toBe(rawOutput)
+    expect(result).not.toHaveProperty('raw')
     expect(result).not.toHaveProperty('evidence')
   })
 
@@ -306,16 +328,27 @@ describe('extractWithModel', () => {
 
 describe('generateSchemaWithModel', () => {
   it('repairs generated model JSON on the raw path', async () => {
-    stubOllamaResponse('{"grave":[{"name":"verbatim-string"}}]')
+    stubOllamaResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}}]')
     const result = await generateSchemaWithModel(
       { document, annotations: [], annotationsMode: 'hints' },
       rawTarget,
     )
-    expect(result.template).toEqual({ grave: [{ name: 'verbatim-string' }] })
+    expect(result.template).toEqual({ _description: 'One grave record.', grave: [{ name: 'verbatim-string' }] })
+  })
+
+  it('rejects a generated schema without a root record description', async () => {
+    stubOllamaResponse('{"grave":[{"name":"verbatim-string"}]}')
+
+    await expect(
+      generateSchemaWithModel(
+        { document, annotations: [], annotationsMode: 'hints' },
+        rawTarget,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_model_output' })
   })
 
   it('leads the raw template-generation message with schema guidance', async () => {
-    const request = stubOllamaResponse('{"grave":[{"name":"verbatim-string"}]}')
+    const request = stubOllamaResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
     await generateSchemaWithModel(
       { document, annotations: [], annotationsMode: 'hints' },
       rawTarget,
@@ -326,13 +359,13 @@ describe('generateSchemaWithModel', () => {
   })
 
   it('uses the selected general target for schema suggestion', async () => {
-    generateTextMock.mockResolvedValue({ text: '{"grave":[{"name":"verbatim-string"}]}' })
+    generateTextMock.mockResolvedValue({ text: '{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}' })
     const result = await generateSchemaWithModel(
       { document, annotations: [], annotationsMode: 'hints' },
       generalTarget,
     )
     expect(generateTextMock).toHaveBeenCalledOnce()
-    expect(result.template).toEqual({ grave: [{ name: 'verbatim-string' }] })
+    expect(result.template).toEqual({ _description: 'One grave record.', grave: [{ name: 'verbatim-string' }] })
   })
 })
 

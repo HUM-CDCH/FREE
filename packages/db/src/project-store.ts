@@ -78,14 +78,7 @@ export type SourceDocumentSummary = {
   createdAt: Date
 }
 
-/**
- * One Source Document's complete durable research state: the Source
- * Representation Revision owning its newest accepted Extraction (or the head
- * when none exists), the Annotation Set pinned to exactly that representation,
- * and that Extraction's pinned Schema Revision (or the shared Schema head when
- * no accepted Extraction exists).
- * Absent optional research state is `null`, not a reason to refuse reopening.
- */
+/** One Source Document's heads plus independent latest-attempt/review snapshots. */
 export type DocumentReopenSnapshot = {
   projectContext: ProjectContextSummary
   sourceDocument: SourceDocumentSummary
@@ -105,30 +98,178 @@ export type DocumentReopenSnapshot = {
     revisionNumber: number
     schemaTree: unknown
   } | null
-  extraction: {
+  latestAttempt: StoredExtractionAttempt | null
+  latestReviewed: StoredExtractionAttempt | null
+}
+
+type Orm = typeof db.orm
+
+async function loadStoredAttempt(
+  orm: Orm,
+  extractionId: string,
+): Promise<StoredExtractionAttempt | null> {
+  const attempt = await orm.public.Extraction.select(
+    'id',
+    'sourceDocumentId',
+    'sourceRepresentationRevisionId',
+    'schemaRevisionId',
+    'strategy',
+    'outcome',
+    'complete',
+    'modelAttribution',
+    'diagnostics',
+    'failure',
+    'resultPayload',
+    'evidenceLinks',
+    'reviewable',
+    'retryOfId',
+    'createdAt',
+    'reviewedAt',
+  ).first({ id: extractionId })
+  if (!attempt) return null
+  const representation =
+    await orm.public.SourceRepresentationRevision.select(
+      'revisionNumber',
+    ).first({
+      id: attempt.sourceRepresentationRevisionId,
+      sourceDocumentId: attempt.sourceDocumentId,
+    })
+  const schema = await orm.public.SchemaRevision.select(
+    'extractionSchemaId',
+    'revisionNumber',
+    'schemaTree',
+  ).first({ id: attempt.schemaRevisionId })
+  if (!representation || !schema)
+    throw new Error('Stored Extraction pins are unavailable.')
+  const decisions = await orm.public.ReviewDecision.where({ extractionId })
+    .select('id', 'evidenceAnchorId', 'reviewedOccurrenceIds')
+    .orderBy((decision) => decision.evidenceAnchorId.asc())
+    .all()
+  return {
+    extractionId: attempt.id,
+    sourceDocumentId: attempt.sourceDocumentId,
+    sourceRepresentationRevisionId: attempt.sourceRepresentationRevisionId,
+    sourceRepresentationRevisionNumber: representation.revisionNumber,
+    schemaRevisionId: attempt.schemaRevisionId,
+    extractionSchemaId: schema.extractionSchemaId,
+    schemaRevisionNumber: schema.revisionNumber,
+    schemaTree: schema.schemaTree,
+    createdAt: attempt.createdAt,
+    reviewedAt: attempt.reviewedAt,
+    strategy: attempt.strategy,
+    outcome: attempt.outcome,
+    complete: attempt.complete,
+    modelAttribution: attempt.modelAttribution,
+    diagnostics: attempt.diagnostics,
+    resultPayload: attempt.resultPayload,
+    evidenceLinks: attempt.evidenceLinks,
+    failure: attempt.failure,
+    reviewable: attempt.reviewable,
+    retryOfId: attempt.retryOfId,
+    reviewDecisions: decisions.map((decision) => ({
+      reviewDecisionId: decision.id,
+      evidenceAnchorId: decision.evidenceAnchorId,
+      reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+    })),
+  }
+}
+
+async function storedReviewDigest(
+  orm: Orm,
+  extractionId: string,
+): Promise<string | null> {
+  const review = await orm.public.ExtractionReview.select(
+    'decisionDigest',
+  ).first({ extractionId })
+  return review?.decisionDigest ?? null
+}
+
+function sameAttemptIdentity(
+  attempt: StoredExtractionAttempt,
+  input: TerminalExtractionInput,
+): boolean {
+  return (
+    attempt.sourceRepresentationRevisionId ===
+      input.sourceRepresentationRevisionId &&
+    attempt.schemaRevisionId === input.schemaRevisionId &&
+    attempt.strategy === input.strategy
+  )
+}
+
+function normalizeDecisionInput(
+  decisions: readonly FinalizeExtractionReviewInput['reviewDecisions'][number][],
+) {
+  return decisions
+    .map((decision) => ({
+      evidenceAnchorId: decision.evidenceAnchorId,
+      reviewedOccurrenceIds: [...new Set(decision.reviewedOccurrenceIds)].sort(),
+    }))
+    .sort((left, right) =>
+      left.evidenceAnchorId.localeCompare(right.evidenceAnchorId),
+    )
+}
+
+export type StoredExtractionAttempt = {
     extractionId: string
+    sourceDocumentId: string
+    sourceRepresentationRevisionId: string
+    sourceRepresentationRevisionNumber: number
+    schemaRevisionId: string
+    extractionSchemaId: string
+    schemaRevisionNumber: number
+    schemaTree: unknown
     createdAt: Date
+    reviewedAt: Date | null
+    strategy: 'ARTICLE' | 'CATALOG'
     outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
-    modelAttribution: unknown
-    resultPayload: unknown
-    failure: unknown
+    complete: boolean | null
+    modelAttribution: unknown | null
+    diagnostics: unknown
+    resultPayload: unknown | null
+    evidenceLinks: unknown | null
+    failure: unknown | null
+    reviewable: boolean
+    retryOfId: string | null
     reviewDecisions: Array<{
       reviewDecisionId: string
       evidenceAnchorId: string
       reviewedOccurrenceIds: unknown
     }>
-  } | null
 }
 
-export type ReviewedExtractionInput = {
-  /** The exact Schema Revision the accepted Extraction was produced with. */
+export type ExtractionInputs = {
+  sourceDocumentId: string
+  projectContextId: string
+  sourceRepresentationRevisionId: string
   schemaRevisionId: string
-  resultPayload: unknown
-  modelAttribution: unknown
+  schemaTree: unknown
+  descriptor: CanonicalPackageDescriptor
+}
+
+export type TerminalExtractionInput = {
+  extractionId: string
+  sourceDocumentId: string
+  sourceRepresentationRevisionId: string
+  schemaRevisionId: string
+  strategy: 'ARTICLE' | 'CATALOG'
+  outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+  complete: boolean | null
+  modelAttribution: unknown | null
+  diagnostics: unknown
+  failure: unknown | null
+  resultPayload: unknown | null
+  evidenceLinks: unknown | null
+  reviewable: boolean
+  retryOfId: string | null
+}
+
+export type FinalizeExtractionReviewInput = {
   reviewDecisions: Array<{
     evidenceAnchorId: string
     reviewedOccurrenceIds: string[]
   }>
+  occurrenceIdsByAnchor: ReadonlyMap<string, ReadonlySet<string>>
+  requiredResultPathKeys: ReadonlySet<string>
 }
 
 export type ProjectStore = {
@@ -144,6 +285,13 @@ export type ProjectStore = {
   getSourceRepresentation(
     sourceRepresentationId: string,
   ): Promise<CanonicalPackageDescriptor | null>
+  getExtractionInputs(
+    sourceRepresentationRevisionId: string,
+    schemaRevisionId: string,
+  ): Promise<ExtractionInputs | null>
+  getExtractionAttempt(
+    extractionId: string,
+  ): Promise<StoredExtractionAttempt | null>
   initializeSchemaRevision(
     projectContextId: string,
     schemaTree: unknown,
@@ -164,10 +312,18 @@ export type ProjectStore = {
     extractionSchemaId: string,
     schemaRevisionId: string,
   ): Promise<SchemaRevisionRecord | null>
-  persistReviewedExtraction(
-    sourceRepresentationId: string,
-    input: ReviewedExtractionInput,
-  ): Promise<{ extractionId: string; createdAt: Date } | null>
+  persistExtractionAttempt(input: TerminalExtractionInput): Promise<
+    | { status: 'created' | 'replayed'; attempt: StoredExtractionAttempt }
+    | { status: 'conflict'; attempt: StoredExtractionAttempt }
+    | { status: 'invalid' }
+  >
+  finalizeExtractionReview(
+    extractionId: string,
+    input: FinalizeExtractionReviewInput,
+  ): Promise<
+    | { status: 'reviewed' | 'replayed'; attempt: StoredExtractionAttempt }
+    | { status: 'conflict' | 'invalid' | 'not-found' }
+  >
 }
 
 export function createProjectStore(database: Database = db): ProjectStore {
@@ -222,8 +378,6 @@ export function createProjectStore(database: Database = db): ProjectStore {
       }
     },
     async getDocumentReopenSnapshot(projectContextId, sourceDocumentId) {
-      // One transaction: a head advancing mid-read must not mix a new
-      // representation with annotations or an Extraction from the old one.
       return database.transaction(async ({ orm }) => {
         const project = await orm.public.ProjectContext.select(
           'id',
@@ -250,47 +404,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
             .all()
         if (!representations.length) return null
 
-        let representation = representations[0]
-        let extraction: {
-          id: string
-          createdAt: Date
-          outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
-          schemaRevisionId: string
-          modelAttribution: unknown
-          resultPayload: unknown
-          failure: unknown
-        } | null = null
-        for (const candidate of representations) {
-          const candidateExtraction = await orm.public.Extraction.where({
-            sourceRepresentationRevisionId: candidate.id,
-            outcome: 'SUCCEEDED',
-          })
-            .select(
-              'id',
-              'createdAt',
-              'outcome',
-              'schemaRevisionId',
-              'modelAttribution',
-              'resultPayload',
-              'failure',
-            )
-            .orderBy([
-              (attempt) => attempt.createdAt.desc(),
-              (attempt) => attempt.id.desc(),
-            ])
-            .first()
-          if (
-            candidateExtraction &&
-            (!extraction ||
-              candidateExtraction.createdAt > extraction.createdAt ||
-              (candidateExtraction.createdAt.getTime() ===
-                extraction.createdAt.getTime() &&
-                candidateExtraction.id > extraction.id))
-          ) {
-            representation = candidate
-            extraction = candidateExtraction
-          }
-        }
+        const representation = representations[0]
 
         const annotationSet = await orm.public.AnnotationSetRevision.where({
           sourceDocumentId,
@@ -300,62 +414,50 @@ export function createProjectStore(database: Database = db): ProjectStore {
           .orderBy((revision) => revision.revisionNumber.desc())
           .first()
 
-        let extractionSchema: { id: string } | null
-        let schemaRevision: {
-          id: string
-          extractionSchemaId: string
-          revisionNumber: number
-          schemaTree: unknown
-        } | null
-        if (extraction) {
-          schemaRevision = await orm.public.SchemaRevision.select(
-            'id',
-            'extractionSchemaId',
-            'revisionNumber',
-            'schemaTree',
-          ).first({ id: extraction.schemaRevisionId })
-          extractionSchema = schemaRevision
-            ? await orm.public.ExtractionSchema.select('id').first({
-                id: schemaRevision.extractionSchemaId,
-                projectContextId,
-              })
-            : null
-        } else {
-          // Every Source Document in a Project Context shares its Extraction Schema.
-          extractionSchema = await orm.public.ExtractionSchema.where({
-            projectContextId,
-          })
-            .select('id')
-            .orderBy([
-              (schema) => schema.createdAt.desc(),
-              (schema) => schema.id.desc(),
-            ])
-            .first()
-          schemaRevision = extractionSchema
-            ? await orm.public.SchemaRevision.where({
-                extractionSchemaId: extractionSchema.id,
-              })
-                .select(
-                  'id',
-                  'extractionSchemaId',
-                  'revisionNumber',
-                  'schemaTree',
-                )
-                .orderBy((revision) => revision.revisionNumber.desc())
-                .first()
-            : null
-        }
-
-        const reviewDecisions = extraction
-          ? await orm.public.ReviewDecision.where({ extractionId: extraction.id })
+        // Every Source Document in a Project Context shares its Extraction Schema.
+        const extractionSchema = await orm.public.ExtractionSchema.where({
+          projectContextId,
+        })
+          .select('id')
+          .orderBy([
+            (schema) => schema.createdAt.desc(),
+            (schema) => schema.id.desc(),
+          ])
+          .first()
+        const schemaRevision = extractionSchema
+          ? await orm.public.SchemaRevision.where({
+              extractionSchemaId: extractionSchema.id,
+            })
               .select(
                 'id',
-                'evidenceAnchorId',
-                'reviewedOccurrenceIds',
+                'extractionSchemaId',
+                'revisionNumber',
+                'schemaTree',
               )
-              .orderBy((decision) => decision.id.asc())
-              .all()
-          : []
+              .orderBy((revision) => revision.revisionNumber.desc())
+              .first()
+          : null
+
+        const latestAttempt = await orm.public.Extraction.where({
+          sourceDocumentId,
+        })
+          .select('id')
+          .orderBy([
+            (attempt) => attempt.createdAt.desc(),
+            (attempt) => attempt.id.desc(),
+          ])
+          .first()
+        const latestReviewed = await orm.public.Extraction.where({
+          sourceDocumentId,
+        })
+          .where((attempt) => attempt.reviewedAt.isNotNull())
+          .select('id')
+          .orderBy([
+            (attempt) => attempt.reviewedAt.desc(),
+            (attempt) => attempt.createdAt.desc(),
+            (attempt) => attempt.id.desc(),
+          ])
+          .first()
 
         return {
           projectContext: {
@@ -387,19 +489,12 @@ export function createProjectStore(database: Database = db): ProjectStore {
                   schemaTree: schemaRevision.schemaTree,
                 }
               : null,
-          extraction: extraction && {
-            extractionId: extraction.id,
-            createdAt: extraction.createdAt,
-            outcome: extraction.outcome,
-            modelAttribution: extraction.modelAttribution,
-            resultPayload: extraction.resultPayload,
-            failure: extraction.failure,
-            reviewDecisions: reviewDecisions.map((decision) => ({
-              reviewDecisionId: decision.id,
-              evidenceAnchorId: decision.evidenceAnchorId,
-              reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
-            })),
-          },
+          latestAttempt: latestAttempt
+            ? await loadStoredAttempt(orm, latestAttempt.id)
+            : null,
+          latestReviewed: latestReviewed
+            ? await loadStoredAttempt(orm, latestReviewed.id)
+            : null,
         }
       })
     },
@@ -416,6 +511,53 @@ export function createProjectStore(database: Database = db): ProjectStore {
           artifactSha256: row.artifactSha256,
         }
       )
+    },
+    async getExtractionInputs(
+      sourceRepresentationRevisionId,
+      schemaRevisionId,
+    ) {
+      return database.transaction(async ({ orm }) => {
+        const representation =
+          await orm.public.SourceRepresentationRevision.select(
+            'id',
+            'sourceDocumentId',
+            'artifactReference',
+            'artifactSha256',
+          ).first({ id: sourceRepresentationRevisionId })
+        if (!representation) return null
+        const document = await orm.public.SourceDocument.select(
+          'projectContextId',
+        ).first({ id: representation.sourceDocumentId })
+        const schema = await orm.public.SchemaRevision.select(
+          'id',
+          'extractionSchemaId',
+          'schemaTree',
+        ).first({ id: schemaRevisionId })
+        if (!document || !schema) return null
+        const extractionSchema =
+          await orm.public.ExtractionSchema.select('projectContextId').first({
+            id: schema.extractionSchemaId,
+          })
+        if (
+          !extractionSchema ||
+          extractionSchema.projectContextId !== document.projectContextId
+        )
+          return null
+        return {
+          sourceDocumentId: representation.sourceDocumentId,
+          projectContextId: document.projectContextId,
+          sourceRepresentationRevisionId: representation.id,
+          schemaRevisionId: schema.id,
+          schemaTree: schema.schemaTree,
+          descriptor: {
+            artifactReference: representation.artifactReference,
+            artifactSha256: representation.artifactSha256,
+          },
+        }
+      })
+    },
+    async getExtractionAttempt(extractionId) {
+      return loadStoredAttempt(database.orm, extractionId)
     },
     async initializeSchemaRevision(projectContextId, schemaTree) {
       return database.transaction(async ({ orm }) => {
@@ -546,49 +688,177 @@ export function createProjectStore(database: Database = db): ProjectStore {
       ).first({ id: schemaRevisionId, extractionSchemaId })
       return row ? schemaRevision(row as StoredSchemaRevision) : null
     },
-    async persistReviewedExtraction(sourceRepresentationId, input) {
-      return database.transaction(async ({ orm }) => {
-        const representation =
-          await orm.public.SourceRepresentationRevision.select(
+    async persistExtractionAttempt(input) {
+      try {
+        const created = await database.transaction(async ({ orm }) => {
+          const representation =
+            await orm.public.SourceRepresentationRevision.select(
+              'id',
+              'sourceDocumentId',
+            ).first({
+              id: input.sourceRepresentationRevisionId,
+              sourceDocumentId: input.sourceDocumentId,
+            })
+          const document = representation
+            ? await orm.public.SourceDocument.select('projectContextId').first({
+                id: representation.sourceDocumentId,
+              })
+            : null
+          const schema = await orm.public.SchemaRevision.select(
             'id',
-            'sourceDocumentId',
-          ).first({ id: sourceRepresentationId })
-        if (!representation) return null
-        const sourceDocument = await orm.public.SourceDocument.select(
-          'projectContextId',
-        ).first({ id: representation.sourceDocumentId })
-        if (!sourceDocument) return null
-        // The write pins the Schema Revision the Extraction actually used; the
-        // head may already have advanced past it.
-        const schemaRevision = await orm.public.SchemaRevision.select(
-          'id',
-          'extractionSchemaId',
-        ).first({ id: input.schemaRevisionId })
-        if (!schemaRevision) return null
-        const extractionSchema = await orm.public.ExtractionSchema.select(
-          'projectContextId',
-        ).first({ id: schemaRevision.extractionSchemaId })
-        if (
-          !extractionSchema ||
-          extractionSchema.projectContextId !== sourceDocument.projectContextId
-        )
-          return null
-
-        const extraction = await orm.public.Extraction.create({
-          schemaRevisionId: schemaRevision.id,
-          sourceRepresentationRevisionId: representation.id,
-          outcome: 'SUCCEEDED',
-          modelAttribution: input.modelAttribution,
-          resultPayload: input.resultPayload,
-        })
-        for (const decision of input.reviewDecisions)
-          await orm.public.ReviewDecision.create({
-            extractionId: extraction.id,
-            evidenceAnchorId: decision.evidenceAnchorId,
-            reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+            'extractionSchemaId',
+          ).first({ id: input.schemaRevisionId })
+          const extractionSchema = schema
+            ? await orm.public.ExtractionSchema.select('projectContextId').first({
+                id: schema.extractionSchemaId,
+              })
+            : null
+          if (
+            !representation ||
+            !document ||
+            !schema ||
+            !extractionSchema ||
+            extractionSchema.projectContextId !== document.projectContextId
+          )
+            return false
+          await orm.public.Extraction.create({
+            id: input.extractionId,
+            sourceDocumentId: input.sourceDocumentId,
+            sourceRepresentationRevisionId:
+              input.sourceRepresentationRevisionId,
+            schemaRevisionId: input.schemaRevisionId,
+            strategy: input.strategy,
+            outcome: input.outcome,
+            complete: input.complete,
+            modelAttribution: input.modelAttribution,
+            diagnostics: input.diagnostics,
+            failure: input.failure,
+            resultPayload: input.resultPayload,
+            evidenceLinks: input.evidenceLinks,
+            reviewable: input.reviewable,
+            retryOfId: input.retryOfId,
           })
-        return { extractionId: extraction.id, createdAt: extraction.createdAt }
-      })
+          return true
+        })
+        if (!created) return { status: 'invalid' }
+        const attempt = await loadStoredAttempt(database.orm, input.extractionId)
+        if (!attempt) throw new Error('Persisted Extraction could not be read.')
+        return { status: 'created', attempt }
+      } catch (error) {
+        if (!uniqueConstraint(error)) throw error
+        const attempt = await loadStoredAttempt(database.orm, input.extractionId)
+        if (!attempt) throw error
+        return sameAttemptIdentity(attempt, input)
+          ? { status: 'replayed', attempt }
+          : { status: 'conflict', attempt }
+      }
+    },
+    async finalizeExtractionReview(extractionId, input) {
+      const submitted = normalizeDecisionInput(input.reviewDecisions)
+      const decisionDigest = JSON.stringify(submitted)
+      if (
+        submitted.length !== input.reviewDecisions.length ||
+        new Set(submitted.map((decision) => decision.evidenceAnchorId)).size !==
+          submitted.length
+      )
+        return { status: 'invalid' }
+
+      let status:
+        | 'not-found'
+        | 'invalid'
+        | 'conflict'
+        | 'replayed'
+        | 'reviewed'
+      try {
+        status = await database.transaction(async ({ orm }) => {
+          const attempt = await loadStoredAttempt(orm, extractionId)
+          if (!attempt) return 'not-found' as const
+          if (
+            attempt.outcome !== 'SUCCEEDED' ||
+            !attempt.reviewable ||
+            !Array.isArray(attempt.evidenceLinks)
+          )
+            return 'invalid' as const
+          const citedAnchors = new Set<string>()
+          const citedPaths = new Set<string>()
+          for (const link of attempt.evidenceLinks) {
+            if (
+              !link ||
+              typeof link !== 'object' ||
+              typeof (link as { evidenceAnchorId?: unknown })
+                .evidenceAnchorId !== 'string' ||
+              !Array.isArray((link as { resultPath?: unknown }).resultPath) ||
+              !(link as { resultPath: unknown[] }).resultPath.every(
+                (segment) =>
+                  typeof segment === 'string' ||
+                  (Number.isInteger(segment) && (segment as number) >= 0),
+              )
+            )
+              return 'invalid' as const
+            citedAnchors.add(
+              (link as { evidenceAnchorId: string }).evidenceAnchorId,
+            )
+            const pathKey = JSON.stringify(
+              (link as { resultPath: unknown[] }).resultPath,
+            )
+            if (citedPaths.has(pathKey)) return 'invalid' as const
+            citedPaths.add(pathKey)
+          }
+          if (
+            citedPaths.size !== input.requiredResultPathKeys.size ||
+            [...input.requiredResultPathKeys].some(
+              (pathKey) => !citedPaths.has(pathKey),
+            ) ||
+            citedAnchors.size !== submitted.length ||
+            submitted.some(
+              (decision) => !citedAnchors.has(decision.evidenceAnchorId),
+            ) ||
+            submitted.some((decision) => {
+              const owned = input.occurrenceIdsByAnchor.get(
+                decision.evidenceAnchorId,
+              )
+              return (
+                !owned ||
+                decision.reviewedOccurrenceIds.some((id) => !owned.has(id))
+              )
+            })
+          )
+            return 'invalid' as const
+
+          if (attempt.reviewedAt)
+            return (await storedReviewDigest(orm, extractionId)) ===
+              decisionDigest
+              ? 'replayed'
+              : 'conflict'
+
+          await orm.public.ExtractionReview.create({
+            extractionId,
+            decisionDigest,
+          })
+          for (const decision of submitted)
+            await orm.public.ReviewDecision.create({
+              extractionId,
+              evidenceAnchorId: decision.evidenceAnchorId,
+              reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+            })
+          await orm.public.Extraction.where({ id: extractionId }).update({
+            reviewedAt: new Date(),
+          })
+          return 'reviewed' as const
+        })
+      } catch (error) {
+        if (!uniqueConstraint(error)) throw error
+        status =
+          (await storedReviewDigest(database.orm, extractionId)) ===
+          decisionDigest
+            ? 'replayed'
+            : 'conflict'
+      }
+      if (status === 'not-found' || status === 'invalid' || status === 'conflict')
+        return { status }
+      const attempt = await loadStoredAttempt(database.orm, extractionId)
+      if (!attempt) throw new Error('Reviewed Extraction could not be read.')
+      return { status, attempt }
     },
   }
 }

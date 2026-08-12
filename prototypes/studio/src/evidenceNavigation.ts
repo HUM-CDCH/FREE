@@ -3,7 +3,7 @@ import type {
   ParsedDocument,
   ProducerObservation,
   TextEvidenceAnchor,
-} from './parsedDocument'
+} from '../shared/parsedDocument'
 
 export type EvidenceOccurrence = Pick<
   TextEvidenceAnchor,
@@ -14,6 +14,15 @@ export function anchorOccurrences(anchor: ParsedEvidenceAnchor): EvidenceOccurre
   return anchor.kind === 'text'
     ? [anchor]
     : anchor.producer_observations
+}
+
+export function reviewedAnchorOccurrences(
+  anchor: ParsedEvidenceAnchor,
+  reviewedOccurrenceIds?: readonly string[],
+): EvidenceOccurrence[] {
+  return anchorOccurrences(anchor).filter(
+    (occurrence) => !reviewedOccurrenceIds || reviewedOccurrenceIds.includes(occurrence.occurrence_id),
+  )
 }
 
 export function verifiedEvidenceBbox(

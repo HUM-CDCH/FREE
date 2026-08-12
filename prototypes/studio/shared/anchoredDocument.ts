@@ -1,4 +1,4 @@
-import type { ParsedDocument, ParsedLogicalTable } from './parsedDocument'
+import type { ParsedDocument, ParsedLogicalTable } from './parsedDocument.js'
 
 export type AnchoredSource = {
   /** The canonical content the model reads, each passage labelled. */
@@ -75,6 +75,7 @@ export function canonicalAnchorInventory(
 
 function projectCanonicalSource(
   document: ParsedDocument,
+  selectedBlockIds?: ReadonlySet<string>,
 ): string {
   const tables = new Map(document.tables.map((table) => [table.table_id, table]))
   const renderedTableIds = new Set<string>()
@@ -97,8 +98,22 @@ function projectCanonicalSource(
   }
 
   for (const page of document.pages) {
+    const selectedOrderedBlocks = page.ordered_content.filter((blockId) =>
+      selectedBlockIds ? selectedBlockIds.has(blockId) : true,
+    )
+    const selectedUnplacedTables = page.unplaced_content.filter((tableId) => {
+      if (!selectedBlockIds) return true
+      return document.content_stream.some(
+        (block) =>
+          selectedBlockIds.has(block.block_id) &&
+          block.kind === 'table' &&
+          block.table_id === tableId,
+      )
+    })
+    if (selectedBlockIds && selectedOrderedBlocks.length === 0 && selectedUnplacedTables.length === 0)
+      continue
     lines.push(`## Page ${page.page_number}`)
-    for (const blockId of page.ordered_content) {
+    for (const blockId of selectedOrderedBlocks) {
       const block = document.content_stream.find(
         (candidate) => candidate.block_id === blockId,
       )
@@ -112,7 +127,7 @@ function projectCanonicalSource(
       if (!text.trim()) continue
       lines.push(text)
     }
-    for (const tableId of page.unplaced_content) tableLines(tables.get(tableId))
+    for (const tableId of selectedUnplacedTables) tableLines(tables.get(tableId))
   }
   return lines.join('\n')
 }
@@ -120,6 +135,22 @@ function projectCanonicalSource(
 /** Canonical parser content for value extraction, without citation labels. */
 export function canonicalSource(document: ParsedDocument): string {
   return projectCanonicalSource(document)
+}
+
+/** Canonical parser content for one end-exclusive content-stream slice. */
+export function canonicalSourceSlice(
+  document: ParsedDocument,
+  startContentIndex: number,
+  endContentIndex: number,
+): string {
+  return projectCanonicalSource(
+    document,
+    new Set(
+      document.content_stream
+        .slice(startContentIndex, endContentIndex)
+        .map((block) => block.block_id),
+    ),
+  )
 }
 
 /**

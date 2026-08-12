@@ -1,324 +1,256 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  postExtractionReview,
+  cancelExtraction,
+  finalizeExtractionReview,
   requestExtraction,
-  requestGrounding,
 } from './api'
 import type { ExtractionState } from './extraction'
-import { stripDescriptions, compileInstructions } from './template'
 import { anchorOccurrences } from './evidenceNavigation'
-import type { ParsedDocument } from './parsedDocument'
-import { groundExtraction } from './extractionGrounding'
-import { canonicalSource } from './anchoredDocument'
+import type { ParsedDocument } from '../shared/parsedDocument'
 import type {
-  EvidenceLink,
-  GroundedModelAttribution,
-} from '../shared/groundedExtraction'
+  ExtractionAttempt,
+  ExtractionRetrySelection,
+  ExtractionStrategy,
+  ReviewDecisionInput,
+} from '../shared/extraction.contract'
 
-type PdfSource = { url: string; filename: string }
-
-/**
- * What an accepted Extraction Result is written against: the exact retained
- * Source Representation and the Schema Revision the extraction used.
- */
 export type ReviewTarget = {
   sourceRepresentationId: string
   schemaRevisionId: string
 }
 
 type UseExtractionOptions = {
-  pdfSource: PdfSource | null
-  template: unknown
   schemaReady: boolean
-  markdown: string | null
   indexing: boolean
-  onComplete: (isRerun: boolean) => void
+  onTerminal: (attempt: ExtractionAttempt, isRerun: boolean) => void
   onError: (message: string) => void
-  initialState?: ExtractionState
-  /** The canonical Evidence the model may cite and the review write validates. */
+  initialAttempt?: ExtractionAttempt | null
   parsedDocument?: ParsedDocument | null
-  /** Null while the result cannot be attributed to a durable review target. */
   reviewTarget?: ReviewTarget | null
-  /** The Extraction this result was reopened from, if it is already persisted. */
-  persistedExtractionId?: string | null
 }
 
 export type ExtractionController = ReturnType<typeof useExtraction>
 
+type ExtractionRetryInput = Omit<ExtractionRetrySelection, 'retryOfId'>
+type ExtractionRunInput =
+  | {
+      sourceRepresentationRevisionId: string
+      schemaRevisionId: string
+      strategy: ExtractionStrategy
+    }
+  | {
+      retryOfId: string
+      retryDocument?: boolean
+      rediscover?: boolean
+      retryRecordStartBlockIds?: string[]
+    }
+
 function reviewDecisions(
   document: ParsedDocument,
-  evidenceLinks: readonly EvidenceLink[],
-) {
+  attempt: ExtractionAttempt,
+): ReviewDecisionInput[] {
   const anchors = new Map(
-    document.evidence_index.anchors.map((anchor) => [
-      anchor.anchor_id,
-      anchor,
-    ]),
+    document.evidence_index.anchors.map((anchor) => [anchor.anchor_id, anchor]),
   )
-  // Only exact links to anchors the Parsing Service published are reviewable.
-  return [...new Set(evidenceLinks.map((link) => link.evidenceAnchorId))].flatMap(
-    (evidenceAnchorId) => {
-      const anchor = anchors.get(evidenceAnchorId)
-      if (!anchor) return []
-      return [
-        {
-          evidenceAnchorId,
-          reviewedOccurrenceIds: anchorOccurrences(anchor).map(
-            (occurrence) => occurrence.occurrence_id,
-          ),
-        },
-      ]
-    },
-  )
+  return [
+    ...new Set(
+      (attempt.evidenceLinks ?? []).map((link) => link.evidenceAnchorId),
+    ),
+  ].flatMap((evidenceAnchorId) => {
+    const anchor = anchors.get(evidenceAnchorId)
+    return anchor
+      ? [
+          {
+            evidenceAnchorId,
+            reviewedOccurrenceIds: anchorOccurrences(anchor).map(
+              (occurrence) => occurrence.occurrence_id,
+            ),
+          },
+        ]
+      : []
+  })
 }
 
-type GroundingContext = {
-  document: ParsedDocument
-  result: Record<string, unknown>
-  extractionAttribution: GroundedModelAttribution['extraction']
-  isRerun: boolean
-  reviewTarget: ReviewTarget | null
+export function extractionStateFromAttempt(attempt: ExtractionAttempt | null): ExtractionState {
+  if (!attempt) return { status: 'idle' }
+  if (attempt.outcome === 'CANCELLED') return { status: 'cancelled' }
+  if (attempt.outcome === 'FAILED')
+    return {
+      status: 'error',
+      message: attempt.failure?.message ?? 'Extraction failed.',
+    }
+  if (!attempt.resultPayload || !attempt.evidenceLinks)
+    return { status: 'error', message: 'The stored Extraction Result is invalid.' }
+  return {
+    status: 'ready',
+    result: attempt.resultPayload,
+    evidenceLinks: attempt.evidenceLinks,
+    ungroundedCount:
+      attempt.diagnostics.grounding?.ungroundedPaths.length ?? 0,
+  }
 }
 
-function sameReviewTarget(
-  left: ReviewTarget | null,
-  right: ReviewTarget | null,
-): boolean {
+function sameTarget(
+  attempt: ExtractionAttempt | null,
+  target: ReviewTarget | null,
+) {
   return (
-    left?.sourceRepresentationId === right?.sourceRepresentationId &&
-    left?.schemaRevisionId === right?.schemaRevisionId
+    attempt?.sourceRepresentationRevisionId ===
+      target?.sourceRepresentationId &&
+    attempt?.schemaRevisionId === target?.schemaRevisionId
   )
 }
 
 export function useExtraction({
-  pdfSource,
-  template,
   schemaReady,
-  markdown,
   indexing,
-  onComplete,
+  onTerminal,
   onError,
-  initialState = { status: 'idle' },
+  initialAttempt = null,
   parsedDocument = null,
   reviewTarget = null,
-  persistedExtractionId = null,
 }: UseExtractionOptions) {
-  const [state, setState] = useState<ExtractionState>(initialState)
-  const [modelAttribution, setModelAttribution] =
-    useState<GroundedModelAttribution | null>(null)
-  const [completedReviewTarget, setCompletedReviewTarget] =
-    useState<ReviewTarget | null>(null)
-  const [reviewedExtractionId, setReviewedExtractionId] = useState<string | null>(
-    persistedExtractionId,
+  const [attempt, setAttempt] = useState<ExtractionAttempt | null>(
+    initialAttempt,
+  )
+  const [state, setState] = useState<ExtractionState>(() =>
+    extractionStateFromAttempt(initialAttempt),
   )
   const [saving, setSaving] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [cancellationRequested, setCancellationRequested] = useState(false)
+  const [cancellationError, setCancellationError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const groundingContextRef = useRef<GroundingContext | null>(null)
-  const runInputsKey = [
-    pdfSource?.url ?? '',
-    reviewTarget?.sourceRepresentationId ?? '',
-    reviewTarget?.schemaRevisionId ?? '',
-    parsedDocument?.document.content_sha256 ?? '',
-    parsedDocument?.preprocessing.preprocess_id ?? '',
-  ].join('\n')
-  const previousRunInputsKeyRef = useRef(runInputsKey)
+  const activeIdRef = useRef<string | null>(null)
+  const runInputsKey = `${reviewTarget?.sourceRepresentationId ?? ''}\n${reviewTarget?.schemaRevisionId ?? ''}`
+  const previousInputsRef = useRef(runInputsKey)
 
-  useEffect(() => () => abortRef.current?.abort(), [])
-  useEffect(() => {
-    if (previousRunInputsKeyRef.current === runInputsKey) return
-    previousRunInputsKeyRef.current = runInputsKey
+  function abandonRunning() {
+    const id = activeIdRef.current
+    if (id) void cancelExtraction(id).catch(() => {})
+    activeIdRef.current = null
     abortRef.current?.abort()
-    groundingContextRef.current = null
-    setCompletedReviewTarget(null)
-    setModelAttribution(null)
+    abortRef.current = null
+  }
+
+  useEffect(() => () => abandonRunning(), [])
+  useEffect(() => {
+    if (previousInputsRef.current === runInputsKey) return
+    previousInputsRef.current = runInputsKey
+    abandonRunning()
     setState((current) =>
       current.status === 'running' ? { status: 'idle' } : current,
     )
+    setReviewError(null)
   }, [runInputsKey])
 
-  const hasResults =
-    state.status === 'ready' ||
-    (state.status === 'running' && state.step === 'grounding')
+  const hasResults = state.status === 'ready'
   const canRun =
-    Boolean(pdfSource) &&
+    reviewTarget !== null &&
     schemaReady &&
     state.status !== 'running' &&
     !indexing
   const pendingDecisions =
-    state.status === 'ready' &&
-    reviewTarget &&
-    parsedDocument &&
-    reviewedExtractionId === null
-      ? reviewDecisions(parsedDocument, state.evidenceLinks)
+    attempt?.outcome === 'SUCCEEDED' && parsedDocument
+      ? reviewDecisions(parsedDocument, attempt)
       : []
-  const canAccept =
+  const reviewAvailable = Boolean(
+    attempt?.outcome === 'SUCCEEDED' &&
+    attempt.reviewable &&
+    sameTarget(attempt, reviewTarget),
+  )
+  const canAccept = Boolean(
     !saving &&
-    modelAttribution !== null &&
-    pendingDecisions.length > 0 &&
-    sameReviewTarget(completedReviewTarget, reviewTarget)
+    reviewAvailable &&
+    attempt?.reviewedAt === null
+  )
 
-  async function performGrounding(
-    context: GroundingContext,
-    abortController: AbortController,
-  ) {
-    setState({
-      status: 'running',
-      step: 'grounding',
-      result: context.result,
-    })
+  async function requestCancellation() {
+    const id = activeIdRef.current
+    if (state.status !== 'running' || !id || cancellationRequested) return
+    setCancellationRequested(true)
+    setCancellationError(null)
     try {
-      const grounded = await groundExtraction({
-        document: context.document,
-        result: context.result,
-        signal: abortController.signal,
-        invokeModel: requestGrounding,
-      })
-      if (abortController.signal.aborted) return
-      setState({
-        status: 'ready',
-        result: context.result,
-        evidenceLinks: grounded.evidenceLinks,
-        groundingIssues: grounded.issues,
-      })
-      setModelAttribution({
-        extraction: context.extractionAttribution,
-        grounding: grounded.modelAttribution,
-      })
-      setCompletedReviewTarget(context.reviewTarget)
-      setReviewedExtractionId(null)
-      setReviewError(null)
-      onComplete(context.isRerun)
+      await cancelExtraction(id)
     } catch (error) {
-      if (abortController.signal.aborted) return
-      const message =
-        error instanceof Error ? error.message : 'Evidence grounding failed.'
-      setState({
-        status: 'ready',
-        result: context.result,
-        evidenceLinks: [],
-        groundingIssues: [],
-        groundingError: message,
-      })
-      setModelAttribution({
-        extraction: context.extractionAttribution,
-        grounding: null,
-      })
-      setCompletedReviewTarget(null)
-      setReviewedExtractionId(null)
+      setCancellationRequested(false)
+      setCancellationError(error instanceof Error ? error.message : 'Cancellation failed.')
     }
   }
 
-  async function runExtraction() {
-    if (state.status === 'running' || !pdfSource) {
+  async function runRequest(
+    request: ExtractionRunInput,
+    isRerun: boolean,
+  ) {
+    const targetedRetry = 'retryOfId' in request
+    if (
+      targetedRetry
+        ? !schemaReady || indexing || state.status === 'running'
+        : !canRun || !reviewTarget
+    )
       return
-    }
-    abortRef.current?.abort()
-    const abortController = new AbortController()
-    abortRef.current = abortController
-    const isRerun = hasResults
-    groundingContextRef.current = null
-    setCompletedReviewTarget(null)
+    abandonRunning()
+    const controller = new AbortController()
+    const extractionId = crypto.randomUUID()
+    abortRef.current = controller
+    activeIdRef.current = extractionId
+    setReviewError(null)
+    setCancellationRequested(false)
+    setCancellationError(null)
     setState({ status: 'running', step: 'extraction' })
-
     try {
-      const blob = await (
-        await fetch(pdfSource.url, { signal: abortController.signal })
-      ).blob()
-      const cleanTemplate = stripDescriptions(template)
-      const rawInstructions = compileInstructions(template)
-      const extracted = await requestExtraction(
-        blob,
-        pdfSource.filename,
-        { records: [cleanTemplate] },
-        abortController.signal,
-        parsedDocument ? canonicalSource(parsedDocument) : markdown,
-        rawInstructions ? `Field descriptions:\n${rawInstructions}` : undefined,
+      const terminal = await requestExtraction(
+        { ...request, id: extractionId },
+        controller.signal,
       )
-      if (abortController.signal.aborted) return
-      if (
-        !extracted.result ||
-        typeof extracted.result !== 'object' ||
-        Array.isArray(extracted.result)
-      )
-        throw new Error('Model returned a non-object Extraction result.')
-      const result = extracted.result as Record<string, unknown>
-      setReviewedExtractionId(null)
-      setReviewError(null)
-      if (parsedDocument) {
-        const context: GroundingContext = {
-          document: parsedDocument,
-          result,
-          extractionAttribution: extracted.modelAttribution,
-          isRerun,
-          reviewTarget,
-        }
-        groundingContextRef.current = context
-        await performGrounding(context, abortController)
-        return
-      }
-      setState({
-        status: 'ready',
-        result,
-        evidenceLinks: [],
-        groundingIssues: [],
-      })
-      setModelAttribution({
-        extraction: extracted.modelAttribution,
-        grounding: null,
-      })
-      setCompletedReviewTarget(reviewTarget)
-      onComplete(isRerun)
+      if (controller.signal.aborted) return
+      setAttempt(terminal)
+      setState(extractionStateFromAttempt(terminal))
+      onTerminal(terminal, isRerun)
     } catch (error) {
-      if (abortController.signal.aborted) {
-        return
-      }
-      const message = error instanceof Error ? error.message : 'Extraction failed.'
+      if (controller.signal.aborted) return
+      const message =
+        error instanceof Error ? error.message : 'Extraction failed.'
       setState({ status: 'error', message })
       onError(message)
+    } finally {
+      if (activeIdRef.current === extractionId) activeIdRef.current = null
+      if (abortRef.current === controller) abortRef.current = null
     }
   }
 
-  async function retryGrounding() {
-    const context = groundingContextRef.current
-    if (
-      !context ||
-      state.status === 'running' ||
-      !sameReviewTarget(context.reviewTarget, reviewTarget)
+  async function runExtraction(strategy: ExtractionStrategy = 'ARTICLE') {
+    if (!reviewTarget) return
+    await runRequest(
+      {
+        sourceRepresentationRevisionId: reviewTarget.sourceRepresentationId,
+        schemaRevisionId: reviewTarget.schemaRevisionId,
+        strategy,
+      },
+      attempt !== null,
     )
-      return
-    abortRef.current?.abort()
-    const abortController = new AbortController()
-    abortRef.current = abortController
-    await performGrounding(context, abortController)
   }
 
-  // The researcher's explicit accept: the result, the Schema Revision it was
-  // produced with, and one Review Decision per cited canonical anchor.
-  async function acceptResult() {
-    const acceptedTarget = completedReviewTarget
-    if (
-      state.status !== 'ready' ||
-      !acceptedTarget ||
-      !modelAttribution ||
-      !canAccept ||
-      !sameReviewTarget(acceptedTarget, reviewTarget)
+  async function retryExtraction(selection: ExtractionRetryInput) {
+    const parent = attempt
+    if (!parent || parent.strategy !== 'CATALOG') return
+    await runRequest(
+      {
+        retryOfId: parent.extractionId,
+        ...selection,
+      },
+      true,
     )
-      return
+  }
+
+  async function acceptResult() {
+    if (!attempt || !canAccept) return
     setSaving(true)
     setReviewError(null)
     try {
-      const { extractionId } = await postExtractionReview(
-        acceptedTarget.sourceRepresentationId,
-        {
-          schemaRevisionId: acceptedTarget.schemaRevisionId,
-          result: state.result,
-          evidenceLinks: [...state.evidenceLinks],
-          modelAttribution,
-          reviewDecisions: pendingDecisions,
-        },
+      setAttempt(
+        await finalizeExtractionReview(attempt.extractionId, pendingDecisions),
       )
-      setReviewedExtractionId(extractionId)
     } catch (error) {
       setReviewError(
         error instanceof Error ? error.message : 'Saving the review failed.',
@@ -330,15 +262,21 @@ export function useExtraction({
 
   return {
     state,
+    attempt,
     canRun,
     hasResults,
     runExtraction,
-    retryGrounding,
+    retryExtraction,
+    requestCancellation,
+    cancellationRequested,
+    cancellationError,
     review: {
-      available: reviewTarget !== null,
+      available: reviewAvailable,
       canAccept,
       saving,
-      reviewedExtractionId,
+      reviewedExtractionId: attempt?.reviewedAt
+        ? attempt.extractionId
+        : null,
       error: reviewError,
       accept: acceptResult,
     },

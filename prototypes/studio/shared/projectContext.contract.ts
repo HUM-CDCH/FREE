@@ -1,10 +1,9 @@
 import { z } from 'zod'
+import { extractionAttemptSchema } from './extraction.contract'
 import {
-  cleanExtractionResultSchema,
-  evidenceLinkSchema,
-  groundedModelAttributionSchema,
-} from './groundedExtraction'
-import { schemaNodesSchema } from './schemaNode'
+  recordDescriptionSchema,
+  schemaNodesSchema,
+} from './schemaNode'
 
 export const canonicalUuidSchema = z
   .string()
@@ -56,13 +55,6 @@ export const projectContextErrorResponseSchema = z
 
 const revisionNumber = z.number().int().positive()
 
-export const reviewDecisionSchema = z
-  .object({
-    reviewDecisionId: canonicalUuidSchema,
-    evidenceAnchorId: z.string().min(1),
-    reviewedOccurrenceIds: z.array(z.string().min(1)).default([]),
-  })
-  .strict()
 /**
  * Annotations project only what Studio needs to reopen. Geometry, offsets, and
  * anchor internals stay in the source resource.
@@ -85,34 +77,24 @@ export const sourceRepresentationResourcesSchema = z
   })
   .strict()
 
-export const extractionSchema = z.discriminatedUnion('outcome', [
-  z
-    .object({
-      extractionId: canonicalUuidSchema,
-      createdAt: timestamp,
-      outcome: z.literal('succeeded'),
-      result: cleanExtractionResultSchema,
-      evidenceLinks: z.array(evidenceLinkSchema),
-      modelAttribution: groundedModelAttributionSchema,
-      reviewDecisions: z.array(reviewDecisionSchema),
-    })
-    .strict(),
-  z
-    .object({
-      extractionId: canonicalUuidSchema,
-      createdAt: timestamp,
-      outcome: z.literal('failed'),
-      failure: z.object({ code: z.string(), message: z.string() }).strict(),
-    })
-    .strict(),
-  z
-    .object({
-      extractionId: canonicalUuidSchema,
-      createdAt: timestamp,
-      outcome: z.literal('cancelled'),
-    })
-    .strict(),
-])
+export const reopenedExtractionSchema = extractionAttemptSchema
+  .extend({
+    sourceRepresentation: z
+      .object({
+        revisionNumber,
+        resources: sourceRepresentationResourcesSchema,
+      })
+      .strict(),
+    extractionSchema: z
+      .object({
+        extractionSchemaId: canonicalUuidSchema,
+        revisionNumber,
+        recordDescription: recordDescriptionSchema,
+        schemaNodes: schemaNodesSchema,
+      })
+      .strict(),
+  })
+  .strict()
 
 export const documentReopenResponseSchema = z
   .object({
@@ -138,10 +120,12 @@ export const documentReopenResponseSchema = z
         extractionSchemaId: canonicalUuidSchema,
         schemaRevisionId: canonicalUuidSchema,
         revisionNumber,
+        recordDescription: recordDescriptionSchema,
         schemaNodes: schemaNodesSchema,
       })
       .strict()
       .nullable(),
-    extraction: extractionSchema.nullable(),
+    latestAttempt: reopenedExtractionSchema.nullable(),
+    latestReviewed: reopenedExtractionSchema.nullable(),
   })
   .strict()

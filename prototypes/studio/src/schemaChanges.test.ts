@@ -36,10 +36,20 @@ describe('summarizeSchemaRevision', () => {
       { id: 'a', name: 'site', type: 'string' },
     ]
 
-    expect(summarizeSchemaRevision(previous, current)).toBe(
+    expect(
+      summarizeSchemaRevision(
+        { recordDescription: 'One record.', schemaNodes: previous },
+        { recordDescription: 'One record.', schemaNodes: current },
+      ),
+    ).toBe(
       '1 added, 1 renamed, 1 retyped, 1 description updated, 2 moved',
     )
-    expect(summarizeSchemaRevision(null, current)).toBe('Initial schema')
+    expect(
+      summarizeSchemaRevision(null, {
+        recordDescription: 'One record.',
+        schemaNodes: current,
+      }),
+    ).toBe('Initial schema')
   })
 })
 

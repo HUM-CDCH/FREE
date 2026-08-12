@@ -1,15 +1,15 @@
-import { isRecord } from './template'
+import { isRecord } from '../shared/template'
 import type { SchemaNode } from '../shared/schemaNode'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
-import { decodeParsedDocument, type ParsedDocument } from './parsedDocument'
-import type {
-  GroundingModelRequest,
-  GroundingModelResponse,
-} from './extractionGrounding'
-import type {
-  EvidenceLink,
-  GroundedModelAttribution,
-} from '../shared/groundedExtraction'
+import { decodeParsedDocument, type ParsedDocument } from '../shared/parsedDocument'
+import {
+  extractionRequestSchema,
+  extractionAttemptSchema,
+  finalizeExtractionReviewSchema,
+  type ExtractionRequestInput,
+  type ExtractionAttempt,
+  type ReviewDecisionInput,
+} from '../shared/extraction.contract'
 
 export const API_BASE = '/api'
 
@@ -31,14 +31,6 @@ type TemplateOptions = {
   markdown?: string | null
 }
 
-export type ExtractDone = {
-  result: Record<string, unknown>
-  reasoning: string | null
-  raw: string
-  pages: number | null
-  /** What produced this result, as the review write records it. */
-  modelAttribution: GroundedModelAttribution['extraction']
-}
 export type SchemaDone = { template: unknown; raw: string; pages: number | null }
 
 export function decodeSchemaDone(data: unknown): SchemaDone {
@@ -46,13 +38,6 @@ export function decodeSchemaDone(data: unknown): SchemaDone {
     throw new Error("generate_schema: response missing 'template' — API contract drift?")
   }
   return data as SchemaDone
-}
-
-export function decodeExtractDone(data: unknown): ExtractDone {
-  if (!isRecord(data) || !isRecord(data.result)) {
-    throw new Error("extract: response missing 'result' — API contract drift?")
-  }
-  return data as ExtractDone
 }
 
 async function readErrorDetail(response: Response): Promise<string> {
@@ -149,77 +134,66 @@ export async function requestSchema(
   return done.template
 }
 
-export async function requestExtraction(
-  file: Blob,
-  fileName: string,
-  template: unknown,
+async function extractionJson(
+  path: string,
+  method: 'POST' | 'DELETE',
+  body: unknown,
   signal?: AbortSignal,
-  markdown?: string | null,
-  instruction?: string,
-): Promise<{
-  result: unknown
-  modelAttribution: GroundedModelAttribution['extraction']
-}> {
-  const form = new FormData()
-  form.append('template', JSON.stringify(template ?? {}))
-  if (markdown) {
-    form.append('document_markdown', markdown)
-  } else {
-    form.append('file', file, fileName)
-  }
-  if (instruction) form.append('instruction', instruction)
-
-  const done = await postForm('/extract', form, decodeExtractDone, signal)
-  return { result: done.result, modelAttribution: done.modelAttribution ?? null }
-}
-
-/** One buffered grounding operation over the provider-neutral model route. */
-export async function requestGrounding({
-  documentMarkdown,
-  template,
-  instruction,
-  signal,
-}: GroundingModelRequest): Promise<GroundingModelResponse> {
-  const form = new FormData()
-  form.append('template', JSON.stringify(template))
-  form.append('document_markdown', documentMarkdown)
-  form.append('instruction', instruction)
-
-  const done = await postForm('/extract', form, decodeExtractDone, signal)
-  return { result: done.result, modelAttribution: done.modelAttribution ?? null }
-}
-
-export type ExtractionReview = {
-  schemaRevisionId: string
-  result: unknown
-  evidenceLinks: EvidenceLink[]
-  modelAttribution: GroundedModelAttribution
-  reviewDecisions: Array<{
-    evidenceAnchorId: string
-    reviewedOccurrenceIds: string[]
-  }>
-}
-
-/** The researcher's accepted Extraction Result and its canonical Review Decisions. */
-export async function postExtractionReview(
-  sourceRepresentationId: string,
-  review: ExtractionReview,
-  signal?: AbortSignal,
-): Promise<{ extractionId: string }> {
-  const response = await fetch(
-    `${API_BASE}/source-representations/${sourceRepresentationId}/extraction-reviews`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify(review),
-      signal,
-    },
-  )
+): Promise<unknown> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: method === 'POST' ? JSON.stringify(body) : undefined,
+    signal,
+  })
   if (!response.ok) {
     const detail = await readErrorDetail(response)
-    throw new Error(detail || `Saving the review failed (HTTP ${response.status})`)
+    throw new Error(detail || `Extraction failed (HTTP ${response.status})`)
   }
-  return (await response.json()) as { extractionId: string }
+  return response.json()
+}
+
+export async function requestExtraction(
+  input: ExtractionRequestInput,
+  signal?: AbortSignal,
+): Promise<ExtractionAttempt> {
+  const request = extractionRequestSchema.parse(input)
+  const body =
+    request.retryOfId === null
+      ? {
+          id: request.id,
+          sourceRepresentationRevisionId: request.sourceRepresentationRevisionId,
+          schemaRevisionId: request.schemaRevisionId,
+          strategy: request.strategy,
+        }
+      : {
+          id: request.id,
+          retryOfId: request.retryOfId,
+          retryDocument: request.retryDocument,
+          rediscover: request.rediscover,
+          retryRecordStartBlockIds: request.retryRecordStartBlockIds,
+        }
+  return extractionAttemptSchema.parse(
+    await extractionJson('/extractions', 'POST', body, signal),
+  )
+}
+
+export async function cancelExtraction(extractionId: string) {
+  await extractionJson(`/extractions/${extractionId}`, 'DELETE', null)
+}
+
+export async function finalizeExtractionReview(
+  extractionId: string,
+  reviewDecisions: readonly ReviewDecisionInput[],
+): Promise<ExtractionAttempt> {
+  const review = finalizeExtractionReviewSchema.parse({ reviewDecisions })
+  return extractionAttemptSchema.parse(
+    await extractionJson(
+      `/extractions/${extractionId}/review`,
+      'POST',
+      review,
+    ),
+  )
 }
 
 // export async function requestMarkdown(

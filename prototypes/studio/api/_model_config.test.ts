@@ -118,7 +118,8 @@ describe('model configuration storage', () => {
     await writeModelConfig(config, { configRoot: root })
 
     await expect(readModelConfig({ configRoot: root })).resolves.toEqual(config)
-    expect((await stat(modelConfigPath(root))).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32')
+      expect((await stat(modelConfigPath(root))).mode & 0o777).toBe(0o600)
     expect(appendProviderResource(config.connections[1].baseUrl, 'models')).toBe(
       'https://gateway.example/proxy/openai/v1/models',
     )
