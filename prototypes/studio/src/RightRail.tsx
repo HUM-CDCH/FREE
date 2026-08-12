@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import PanelToggleIcon from './PanelToggleIcon'
 import AnnotationSetTab from './AnnotationSidebar'
 import type { AnnotationSetItem } from './AnnotationSidebar'
@@ -7,7 +6,7 @@ import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
 import type { SchemaDefinition, SchemaNode } from '../shared/schemaNode'
 import ResultsTab from './ResultsTab'
-import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
+import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import type { AnnotationsMode } from './api'
 import EvidenceTab from './EvidenceTab'
@@ -102,14 +101,6 @@ function RightRail({
   onResultPathChange,
 }: RightRailProps) {
   const { documentMarkdown, parsedDocument, reviewDecisions } = inspection
-  const inspectedState = useMemo(
-    () => inspection.attempt ? extractionStateFromAttempt(inspection.attempt) : extraction.state,
-    [extraction.state, inspection.attempt],
-  )
-  const displayedExtraction = inspection.readOnly && inspection.attempt
-    ? { ...extraction, attempt: inspection.attempt, state: inspectedState, canRun: false, retryExtraction: async () => {}, review: { ...extraction.review, available: false, canAccept: false } }
-    : extraction
-
   if (!open) {
     return (
       <div className="flex h-full flex-col items-center">
@@ -216,7 +207,10 @@ function RightRail({
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'results'}>
         <ResultsTab
-          controller={displayedExtraction}
+          key={inspection.attempt?.extractionId ?? 'none'}
+          controller={extraction}
+          inspectedAttempt={inspection.readOnly ? inspection.attempt ?? undefined : undefined}
+          readOnly={inspection.readOnly}
           schemaReady={schemaReady}
           documentMarkdown={documentMarkdown}
           pinnedSchema={inspection.pinnedSchema}

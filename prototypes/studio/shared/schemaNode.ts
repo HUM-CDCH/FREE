@@ -79,11 +79,7 @@ export const schemaDefinitionSchema = z
 export type SchemaDefinition = z.infer<typeof schemaDefinitionSchema>
 
 export function parseSchemaDefinition(value: unknown): SchemaDefinition {
-  const definition = schemaDefinitionSchema.parse(value)
-  return {
-    recordDescription: definition.recordDescription,
-    schemaNodes: parseSchemaNodes(definition.schemaNodes),
-  }
+  return schemaDefinitionSchema.parse(value)
 }
 
 export function parseSchemaNodes(value: unknown): SchemaNode[] {
@@ -132,7 +128,7 @@ export function restoreSchemaNodeOrder(
     if (node.children && item !== null) {
       if (node.type === 'array') {
         if (!Array.isArray(item)) throw new Error(`Model output field ${node.name} must be an array.`)
-        restored[node.name] = item.map((entry) => restoreSchemaNodeOrder(entry, node.children!))
+        restored[node.name] = item.map((entry) => restoreSchemaNodeOrder(entry, node.children))
       } else {
         restored[node.name] = restoreSchemaNodeOrder(item, node.children)
       }

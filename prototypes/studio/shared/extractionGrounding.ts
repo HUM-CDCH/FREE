@@ -308,13 +308,13 @@ export async function groundExtraction({
     (entry) => !allowedAnchorIds || allowedAnchorIds.has(entry.anchorId),
   )
   const anchorIds = inventory.map((entry) => entry.anchorId)
+  const source = anchoredSource(document, new Set(anchorIds))
   const batches = claimBatches(result, claims)
   const evidenceLinks: EvidenceLink[] = []
   const issues: GroundingIssue[] = []
   const attributions: GroundingStageAttribution['batches'][number][] = []
   for (const batch of batches) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    const source = anchoredSource(document, new Set(anchorIds))
     let generated: GroundingModelResponse
     try {
       generated = await invokeModel({

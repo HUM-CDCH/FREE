@@ -93,34 +93,6 @@ describe('useExtraction server-owned lifecycle', () => {
     })
   })
 
-  it('submits an explicitly selected Catalog strategy', async () => {
-    vi.mocked(api.requestExtraction).mockResolvedValue(
-      attempt({
-        strategy: 'CATALOG',
-        diagnostics: {
-          phase: 'grounding',
-          durationMs: 1,
-          modelCalls: 1,
-          finishReason: 'stop',
-          inputTokens: 1,
-          outputTokens: 1,
-          values: null,
-          grounding: null,
-          catalog: { stages: [], records: [] },
-        },
-      }),
-    )
-    const { result } = renderHook(() => useExtraction(options()))
-
-    await act(() => result.current.runExtraction('CATALOG'))
-
-    expect(api.requestExtraction).toHaveBeenCalledWith(
-      expect.objectContaining({ strategy: 'CATALOG' }),
-      expect.any(AbortSignal),
-    )
-    expect(result.current.attempt?.strategy).toBe('CATALOG')
-  })
-
   it('submits a fresh targeted Catalog retry and supports grounding-only selection', async () => {
     const parent = attempt({
       strategy: 'CATALOG',

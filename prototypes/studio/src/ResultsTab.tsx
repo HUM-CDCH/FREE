@@ -4,7 +4,7 @@ import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from '../shared/schemaNode'
 import { resultStats } from './resultStats'
-import type { ExtractionController } from './useExtraction'
+import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
 import type { ExtractionAttempt, ExtractionRetrySelection } from '../shared/extraction.contract'
 
 type ResultsTabProps = {
@@ -14,6 +14,8 @@ type ResultsTabProps = {
   onSelectEvidence?: (anchorId: string) => void
   onResultPathChange?: (path: string[] | null) => void
   pinnedSchema?: SchemaDefinition | null
+  inspectedAttempt?: ExtractionAttempt
+  readOnly?: boolean
 }
 
 type View = 'review' | 'json' | 'markdown' | 'schema'
@@ -185,24 +187,6 @@ const emptyRetrySelection: RetrySelection = {
   retryRecordStartBlockIds: [],
 }
 
-function incompleteDiagnostic(
-  diagnostic: { outcome: string; finishReason: string | null },
-) {
-  return diagnostic.outcome === 'failed' || diagnostic.finishReason === 'length'
-}
-
-function failedDiagnostic(
-  diagnostic: { outcome: string },
-) {
-  return diagnostic.outcome === 'failed'
-}
-
-function retryableRecordDiagnostic(
-  diagnostic: { outcome: string },
-) {
-  return diagnostic.outcome === 'failed' || diagnostic.outcome === 'not_attempted'
-}
-
 function CatalogRetryControls({
   controller,
   attempt,
@@ -217,9 +201,13 @@ function CatalogRetryControls({
   const documentStage = catalog.stages.find((stage) => stage.stage === 'document-values')
   const discoveryStage = catalog.stages.find((stage) => stage.stage === 'discovery')
   // The server accepts document retries only for a failed document-values stage.
-  const retryDocument = documentStage ? failedDiagnostic(documentStage) : false
-  const rediscover = discoveryStage ? incompleteDiagnostic(discoveryStage) : false
-  const records = catalog.records.filter((record) => retryableRecordDiagnostic(record))
+  const retryDocument = documentStage?.outcome === 'failed'
+  const rediscover =
+    discoveryStage?.outcome === 'failed' ||
+    discoveryStage?.finishReason === 'length'
+  const records = catalog.records.filter(
+    (record) => record.outcome === 'failed' || record.outcome === 'not_attempted',
+  )
   const canGroundOnly = attempt.outcome === 'SUCCEEDED' && attempt.resultPayload !== null
   if (!retryDocument && !rediscover && records.length === 0 && !canGroundOnly) return null
 
@@ -332,8 +320,11 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = null, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
-  const { state } = controller
+function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
+  const attempt = inspectedAttempt ?? controller.attempt
+  const state = inspectedAttempt
+    ? extractionStateFromAttempt(inspectedAttempt)
+    : controller.state
   const [view, setView] = useState<View>('review')
   const articleRecords =
     state.status === 'ready' &&
@@ -362,7 +353,6 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
   const [navPath, setNavPath] = useState<string[]>([])
   const [backStack, setBackStack] = useState<string[][]>([])
   const [forwardStack, setForwardStack] = useState<string[][]>([])
-  const [previousState, setPreviousState] = useState(state)
 
   useEffect(
     () => onResultPathChange?.(
@@ -370,15 +360,6 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
     ),
     [articlePathPrefix, navPath, onResultPathChange, view],
   )
-
-
-  if (previousState !== state) {
-    setPreviousState(state)
-    setNavPath([])
-    setBackStack([])
-    setForwardStack([])
-  }
-
   const evidenceAnchorIdByPath = useMemo(
     () =>
       new Map(
@@ -435,10 +416,9 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
             <div className="flex flex-wrap gap-1.5">
               {summaryItem(
                 'Status',
-                controller.attempt?.complete === false ? 'incomplete' : 'ready',
+                attempt?.complete === false ? 'incomplete' : 'ready',
               )}
-              {controller.attempt &&
-                summaryItem('Strategy', controller.attempt.strategy.toLowerCase())}
+              {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())}
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
@@ -457,7 +437,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
                 ]}
               />
               <div className="flex gap-1.5">
-                {controller.review.available && (
+                {!readOnly && controller.review.available && (
                   <Button
                     variant="primary"
                     size="sm"
@@ -476,14 +456,14 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
                         : 'Accept result'}
                   </Button>
                 )}
-                {controller.attempt?.strategy !== 'CATALOG' && (
+                {!readOnly && attempt?.strategy !== 'CATALOG' && (
                   <Button variant="secondary" size="sm" onClick={() => void controller.runExtraction()}>
                     Rerun
                   </Button>
                 )}
               </div>
             </div>
-            {controller.attempt?.complete === false && (
+            {attempt?.complete === false && (
               <div
                 className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
                 role="status"
@@ -505,9 +485,9 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
                 {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded and will not create Evidence highlights.
               </p>
             )}
-            {controller.attempt && <ExtractionDiagnostics attempt={controller.attempt} />}
-            {controller.attempt?.strategy === 'CATALOG' && (
-              <CatalogRetryControls key={controller.attempt.extractionId} controller={controller} attempt={controller.attempt} />
+            {attempt && <ExtractionDiagnostics attempt={attempt} />}
+            {!readOnly && attempt?.strategy === 'CATALOG' && (
+              <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
             )}
           </div>
 
@@ -606,14 +586,14 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
           <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
-          {controller.attempt?.strategy !== 'CATALOG' && (
+          {!readOnly && attempt?.strategy !== 'CATALOG' && (
             <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction()}>
               Retry extraction
             </Button>
           )}
-          {controller.attempt && <ExtractionDiagnostics attempt={controller.attempt} />}
-          {controller.attempt?.strategy === 'CATALOG' && (
-            <CatalogRetryControls key={controller.attempt.extractionId} controller={controller} attempt={controller.attempt} />
+          {attempt && <ExtractionDiagnostics attempt={attempt} />}
+          {!readOnly && attempt?.strategy === 'CATALOG' && (
+            <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
           )}
         </div>
       )}
@@ -626,25 +606,27 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
               ? 'Run extraction to apply the schema across the source document.'
               : 'Generate a schema in the Schema tab first, then run extraction.'}
           </p>
-          <Button
-            variant="primary"
-            size="md"
-            className="mt-4"
-            disabled={!controller.canRun}
-            onClick={() => void controller.runExtraction()}
-          >
-            {schemaReady ? 'Run extraction' : 'Generate a schema first'}
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="primary"
+              size="md"
+              className="mt-4"
+              disabled={!controller.canRun}
+              onClick={() => void controller.runExtraction()}
+            >
+              {schemaReady ? 'Run extraction' : 'Generate a schema first'}
+            </Button>
+          )}
         </div>
       )}
 
       {state.status === 'cancelled' && (
         <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-ink">Extraction cancelled</p>
-          <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction()}>
+          {!readOnly && <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction()}>
             Run a new extraction
-          </Button>
-          {controller.attempt && <ExtractionDiagnostics attempt={controller.attempt} />}
+          </Button>}
+          {attempt && <ExtractionDiagnostics attempt={attempt} />}
         </div>
       )}
     </div>

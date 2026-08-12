@@ -154,12 +154,15 @@ export function useExtraction({
     attempt?.outcome === 'SUCCEEDED' && parsedDocument
       ? reviewDecisions(parsedDocument, attempt)
       : []
-  const canAccept = Boolean(
-    !saving &&
+  const reviewAvailable = Boolean(
     attempt?.outcome === 'SUCCEEDED' &&
     attempt.reviewable &&
-    attempt.reviewedAt === null &&
     sameTarget(attempt, reviewTarget),
+  )
+  const canAccept = Boolean(
+    !saving &&
+    reviewAvailable &&
+    attempt?.reviewedAt === null
   )
 
   async function requestCancellation() {
@@ -234,9 +237,7 @@ export function useExtraction({
     await runRequest(
       {
         retryOfId: parent.extractionId,
-        retryDocument: selection.retryDocument,
-        rediscover: selection.rediscover,
-        retryRecordStartBlockIds: selection.retryRecordStartBlockIds,
+        ...selection,
       },
       true,
     )
@@ -270,11 +271,7 @@ export function useExtraction({
     cancellationRequested,
     cancellationError,
     review: {
-      available: Boolean(
-        attempt?.outcome === 'SUCCEEDED' &&
-        attempt.reviewable &&
-        sameTarget(attempt, reviewTarget),
-      ),
+      available: reviewAvailable,
       canAccept,
       saving,
       reviewedExtractionId: attempt?.reviewedAt

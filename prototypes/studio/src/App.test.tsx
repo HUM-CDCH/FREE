@@ -443,21 +443,38 @@ describe('reopened Source Document workspace', () => {
     expect((await screen.findAllByText('Catalog')).length).toBeGreaterThan(0)
   })
 
-  it('ignores a second Extract click while a selected Catalog run waits for schema save', async () => {
+  it('waits for a dirty schema save before starting the selected Catalog run', async () => {
+    const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
     let resolveExtraction!: (response: Response) => void
     const extractionResponse = new Promise<Response>((resolve) => {
       resolveExtraction = resolve
     })
-    const extractionRequests: Array<{ strategy?: string }> = []
-    const queuedMicrotasks: Array<() => void> = []
+    const extractionRequests: Array<{ strategy?: string; schemaRevisionId?: string }> = []
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string | URL | Request, init?: RequestInit) => {
         const url = String(input)
         if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
         if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const request = JSON.parse(String(init.body)) as {
+            recordDescription: string
+            schemaNodes: SchemaNode[]
+          }
+          return Promise.resolve(Response.json({
+            revision: {
+              schemaRevisionId: savedSchemaRevisionId,
+              extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+              revisionNumber: 2,
+              origin: 'researcher-edit',
+              createdAt: '2026-08-12T00:00:00.000Z',
+              recordDescription: request.recordDescription,
+              schemaNodes: request.schemaNodes,
+            },
+          }, { status: 201 }))
+        }
         if (url.endsWith('/api/extractions')) {
-          extractionRequests.push(JSON.parse(String(init?.body)) as { strategy?: string })
+          extractionRequests.push(JSON.parse(String(init?.body)) as { strategy?: string; schemaRevisionId?: string })
           return extractionResponse
         }
         return Promise.resolve(new Response('# Beretning'))
@@ -467,21 +484,24 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
-    vi.stubGlobal('queueMicrotask', (callback: () => void) => {
-      queuedMicrotasks.push(callback)
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    const description = screen.getByLabelText('One root record')
+    fireEvent.change(description, {
+      target: { value: 'Saved before extraction.' },
     })
+    fireEvent.blur(description)
     fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
 
     const run = screen.getByRole('button', { name: '▶ Run extraction' })
     fireEvent.click(run)
-    await waitFor(() => expect(queuedMicrotasks).not.toHaveLength(0))
-    expect(run).toBeDisabled()
+    await waitFor(() => expect(run).toBeDisabled())
     fireEvent.click(run)
 
-    expect(extractionRequests).toHaveLength(0)
-    queuedMicrotasks.at(-1)!()
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
-    expect(extractionRequests[0]).toEqual(expect.objectContaining({ strategy: 'CATALOG' }))
+    expect(extractionRequests[0]).toEqual(expect.objectContaining({
+      strategy: 'CATALOG',
+      schemaRevisionId: savedSchemaRevisionId,
+    }))
 
     resolveExtraction(Response.json({
       extractionId: '51000000-0000-4000-8006-000000000011',

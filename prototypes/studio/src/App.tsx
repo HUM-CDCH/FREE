@@ -281,7 +281,7 @@ export function DocumentWorkspace({
   const [schemaHistory, setSchemaHistory] = useState<SchemaRevisionSummary[]>([])
   const schemaSaveCoordinatorRef = useRef<SchemaSaveCoordinator | null>(null)
   const [extractAfterSave, setExtractAfterSave] =
-    useState<ExtractionStrategy | null>(null)
+    useState<{ strategy: ExtractionStrategy; saved: boolean } | null>(null)
   const [nextExtractionStrategy, setNextExtractionStrategy] =
     useState<ExtractionStrategy>('ARTICLE')
   const [railOpen, setRailOpen] = useState(true)
@@ -965,13 +965,13 @@ export function DocumentWorkspace({
   ])
 
   useEffect(() => {
-    if (!extractAfterSave || schemaSaveState?.status !== 'saved') return
+    if (!extractAfterSave?.saved) return
     queueMicrotask(() => {
-      const strategy = extractAfterSave
+      const { strategy } = extractAfterSave
       setExtractAfterSave(null)
       void extraction.runExtraction(strategy)
     })
-  }, [extractAfterSave, extraction, schemaSaveState?.status])
+  }, [extractAfterSave, extraction])
 
   async function runExtraction() {
     if (extractAfterSave !== null) return
@@ -979,9 +979,10 @@ export function DocumentWorkspace({
     setNextExtractionStrategy('ARTICLE')
     const coordinator = schemaSaveCoordinatorRef.current
     if (!coordinator) return extraction.runExtraction(strategy)
-    setExtractAfterSave(strategy)
+    setExtractAfterSave({ strategy, saved: false })
     try {
       await coordinator.flush()
+      setExtractAfterSave({ strategy, saved: true })
     } catch (error) {
       setExtractAfterSave(null)
       showToast(
@@ -1069,7 +1070,9 @@ export function DocumentWorkspace({
             disabled={
               !running &&
               (extractAfterSave !== null ||
-                !extraction.canRun ||
+                !sourceRepresentationId ||
+                !schemaReady ||
+                indexing ||
                 schemaSaveState?.status === 'conflict' ||
                 schemaSaveState?.status === 'error')
             }
