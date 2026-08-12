@@ -1,0 +1,118 @@
+{
+  "document": {
+    "document_id": "sha256:fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+    "content_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+    "source": {
+      "kind": "upload",
+      "original_filename": "Beretning_Ellekilde_8_13.pdf",
+      "submitted_url": null,
+      "resolved_url": null,
+      "media_type": "application/pdf",
+      "byte_size": 118108
+    },
+    "created_at": "2026-08-03T11:57:12.422907+00:00",
+    "page_count": 6,
+    "language_hints": [],
+    "is_encrypted": false,
+    "input_profile": {
+      "file_kind": "pdf",
+      "detected_mime": "application/pdf",
+      "pdf_version": null,
+      "has_text_layer": true,
+      "has_images": null
+    }
+  },
+  "parser_runs": [
+    {
+      "parser": "pymupdf_inspect",
+      "version": "1.28.0",
+      "status": "success",
+      "started_at": "2026-08-03T11:57:12.431220+00:00",
+      "finished_at": "2026-08-03T11:57:12.491126+00:00",
+      "duration_ms": 59,
+      "input_ref": "data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+      "output_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/pymupdf_inspection.json",
+      "metrics": {
+        "pages": 6,
+        "char_count": 17949,
+        "word_count": 2678,
+        "is_encrypted": false,
+        "input_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679"
+      },
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_doctags",
+      "version": "2.111.0",
+      "status": "success",
+      "started_at": "2026-08-03T11:57:12.493562+00:00",
+      "finished_at": "2026-08-03T11:57:30.992036+00:00",
+      "duration_ms": 18498,
+      "input_ref": "data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+      "output_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.llm.md",
+      "metrics": {
+        "char_count": 18441,
+        "raw_doctags_char_count": 24867,
+        "input_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+        "page_mapping_verified": true,
+        "physical_page_export_complete": true,
+        "table_inventory_count": 14,
+        "raw_docling_json_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.docling.json",
+        "raw_doctags_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.doctags",
+        "aggregate_doctags_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.aggregate.doctags",
+        "llm_markdown_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.llm.md",
+        "output_sha256": "1af499ba20817010e88ba0fb2e52f359c13dcb59ffeee2234092085898532cb1",
+        "diagnostic_markdown_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.diagnostic.md"
+      },
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_inventory_camelot_fallback",
+      "version": null,
+      "status": "success",
+      "started_at": "2026-08-03T11:57:30.996149+00:00",
+      "finished_at": "2026-08-03T11:57:31.242200+00:00",
+      "duration_ms": 246,
+      "input_ref": "data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+      "output_ref": null,
+      "metrics": {
+        "tables_found": 14,
+        "tables_kept": 14,
+        "docling_tables": 14,
+        "camelot_candidates": 14,
+        "input_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679"
+      },
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "artifacts": {
+    "source_ref": "data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+    "parsed_json_ref": "data/tasks/472b7d45-1dbe-47e1-a7df-80febf1ed6d9/parsed_document.json",
+    "canonical_parsed_json_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/parsed_document.json",
+    "raw_docling_json_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.docling.json",
+    "raw_doctags_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.doctags",
+    "llm_markdown_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.llm.md",
+    "page_images": [],
+    "debug_refs": [
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/pymupdf_inspection.json",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.docling.json",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.doctags",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.aggregate.doctags",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.llm.md",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.llm.md",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.diagnostic.md",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.llm.md"
+    ]
+  },
+  "resolved_artifacts": {
+    "source_ref": "/Users/yishi/Desktop/FREE/prototypes/parsing_service/data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+    "parsed_json_ref": "/Users/yishi/Desktop/FREE/prototypes/parsing_service/data/tasks/472b7d45-1dbe-47e1-a7df-80febf1ed6d9/parsed_document.json",
+    "canonical_parsed_json_ref": "/Users/yishi/Desktop/FREE/prototypes/parsing_service/data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/parsed_document.json",
+    "raw_docling_json_ref": "/Users/yishi/Desktop/FREE/prototypes/parsing_service/data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.docling.json",
+    "raw_doctags_ref": "/Users/yishi/Desktop/FREE/prototypes/parsing_service/data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.doctags",
+    "llm_markdown_ref": "/Users/yishi/Desktop/FREE/prototypes/parsing_service/data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-ff030ec901444fca85fff5dcf9b2e1ad/artifacts/docling/document.llm.md"
+  }
+}

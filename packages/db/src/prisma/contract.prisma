@@ -1,0 +1,208 @@
+// use prisma-next
+types {
+  Uuid         = String @db.Uuid
+  Timestamptz6 = DateTime @db.Timestamptz(6)
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String?
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt temporal.updatedAt()
+}
+
+enum AttemptOutcome {
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum AnnotationMode {
+  hints
+  fields
+}
+
+enum SchemaRevisionOrigin {
+  SUGGESTION
+  RESEARCHER_EDIT
+  MODEL_EDIT
+}
+
+model ProjectContext {
+  id                Uuid               @id @default(uuid())
+  name              String
+  createdAt         Timestamptz6       @default(now())
+  sourceDocuments   SourceDocument[]
+  extractionSchemas ExtractionSchema[]
+}
+
+model SourceDocument {
+  id                     Uuid                           @id @default(uuid())
+  projectContextId       Uuid
+  contentSha256          String
+  mediaType              String
+  originalName           String?
+  createdAt              Timestamptz6                   @default(now())
+  projectContext         ProjectContext                 @relation(fields: [projectContextId], references: [id], onDelete: Restrict)
+  representations        SourceRepresentationRevision[]
+  annotationSetRevisions AnnotationSetRevision[]
+
+  @@index([projectContextId])
+  @@index([contentSha256])
+}
+
+model SourceRepresentationRevision {
+  id                     Uuid                       @id @default(uuid())
+  sourceDocumentId       Uuid
+  revisionNumber         Int
+  artifactReference      String
+  artifactSha256         String
+  contractVersion        String
+  preprocessId           String
+  parserName             String
+  parserVersion          String
+  createdAt              Timestamptz6               @default(now())
+  sourceDocument         SourceDocument             @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  annotationSetRevisions AnnotationSetRevision[]
+  schemaSuggestionInputs SchemaSuggestionInput[]
+  conversationalEdits    ConversationalSchemaEdit[]
+  extractions            Extraction[]
+
+  @@unique([sourceDocumentId, revisionNumber])
+}
+
+model AnnotationSetRevision {
+  id                             Uuid                         @id @default(uuid())
+  sourceDocumentId               Uuid
+  sourceRepresentationRevisionId Uuid
+  revisionNumber                 Int
+  snapshot                       Json
+  createdAt                      Timestamptz6                 @default(now())
+  sourceDocument                 SourceDocument               @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Restrict)
+  schemaSuggestionInputs         SchemaSuggestionInput[]
+  conversationalEdits            ConversationalSchemaEdit[]
+
+  @@unique([sourceDocumentId, revisionNumber])
+}
+
+model ExtractionSchema {
+  id                  Uuid                       @id @default(uuid())
+  projectContextId    Uuid
+  name                String
+  createdAt           Timestamptz6               @default(now())
+  projectContext      ProjectContext             @relation(fields: [projectContextId], references: [id], onDelete: Restrict)
+  promptRevisions     PromptRevision[]
+  schemaRevisions     SchemaRevision[]
+  suggestions         SchemaSuggestion[]
+  conversationalEdits ConversationalSchemaEdit[]
+
+  @@index([projectContextId])
+}
+
+model PromptRevision {
+  id                  Uuid                       @id @default(uuid())
+  extractionSchemaId  Uuid
+  revisionNumber      Int
+  text                String
+  createdAt           Timestamptz6               @default(now())
+  extractionSchema    ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Restrict)
+  suggestions         SchemaSuggestion[]
+  conversationalEdits ConversationalSchemaEdit[]
+
+  @@unique([extractionSchemaId, revisionNumber])
+}
+
+model SchemaSuggestion {
+  id                 Uuid                    @id @default(uuid())
+  extractionSchemaId Uuid
+  promptRevisionId   Uuid?
+  annotationMode     AnnotationMode
+  outcome            AttemptOutcome
+  modelAttribution   Json
+  rawModelOutput     String?
+  failure            Json?
+  proposedTree       Json?
+  createdAt          Timestamptz6            @default(now())
+  extractionSchema   ExtractionSchema        @relation(fields: [extractionSchemaId], references: [id], onDelete: Restrict)
+  promptRevision     PromptRevision?         @relation(fields: [promptRevisionId], references: [id], onDelete: Restrict)
+  inputs             SchemaSuggestionInput[]
+  seededRevision     SchemaRevision?
+
+  @@index([extractionSchemaId])
+}
+
+model ConversationalSchemaEdit {
+  id                             Uuid                         @id @default(uuid())
+  extractionSchemaId             Uuid
+  baseSchemaRevisionId           Uuid
+  sourceRepresentationRevisionId Uuid
+  annotationSetRevisionId        Uuid?
+  promptRevisionId               Uuid?
+  instruction                    String
+  operations                     Json?
+  outcome                        AttemptOutcome
+  modelAttribution               Json
+  rawModelOutput                 String?
+  failure                        Json?
+  proposedTree                   Json?
+  createdAt                      Timestamptz6                 @default(now())
+  extractionSchema               ExtractionSchema             @relation(fields: [extractionSchemaId], references: [id], onDelete: Restrict)
+  baseSchemaRevision             SchemaRevision               @relation("ConversationalEditBase", fields: [baseSchemaRevisionId], references: [id], onDelete: Restrict)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Restrict)
+  annotationSetRevision          AnnotationSetRevision?       @relation(fields: [annotationSetRevisionId], references: [id], onDelete: Restrict)
+  promptRevision                 PromptRevision?              @relation(fields: [promptRevisionId], references: [id], onDelete: Restrict)
+  appliedRevision                SchemaRevision?              @relation("ConversationalEditApplied")
+
+  @@index([extractionSchemaId])
+}
+
+model SchemaSuggestionInput {
+  schemaSuggestionId             Uuid
+  sourceRepresentationRevisionId Uuid
+  annotationSetRevisionId        Uuid?
+  schemaSuggestion               SchemaSuggestion             @relation(fields: [schemaSuggestionId], references: [id], onDelete: Restrict)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Restrict)
+  annotationSetRevision          AnnotationSetRevision?       @relation(fields: [annotationSetRevisionId], references: [id], onDelete: Restrict)
+
+  @@id([schemaSuggestionId, sourceRepresentationRevisionId])
+}
+
+model SchemaRevision {
+  id                         Uuid                       @id @default(uuid())
+  extractionSchemaId         Uuid
+  schemaSuggestionId         Uuid?                      @unique
+  revisionNumber             Int
+  origin                     SchemaRevisionOrigin
+  schemaTree                 Json
+  modelAttribution           Json?
+  createdAt                  Timestamptz6               @default(now())
+  extractionSchema           ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Restrict)
+  schemaSuggestion           SchemaSuggestion?          @relation(fields: [schemaSuggestionId], references: [id], onDelete: Restrict)
+  conversationalSchemaEditId Uuid?                      @unique
+  conversationalSchemaEdit   ConversationalSchemaEdit?  @relation("ConversationalEditApplied", fields: [conversationalSchemaEditId], references: [id], onDelete: Restrict)
+  conversationalEditBases    ConversationalSchemaEdit[] @relation("ConversationalEditBase")
+  extractions                Extraction[]
+
+  @@unique([extractionSchemaId, revisionNumber])
+}
+
+model Extraction {
+  id                             Uuid                         @id @default(uuid())
+  schemaRevisionId               Uuid
+  sourceRepresentationRevisionId Uuid
+  outcome                        AttemptOutcome
+  modelAttribution               Json
+  rawModelOutput                 String?
+  failure                        Json?
+  resultPayload                  Json?
+  createdAt                      Timestamptz6                 @default(now())
+  schemaRevision                 SchemaRevision               @relation(fields: [schemaRevisionId], references: [id], onDelete: Restrict)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Restrict)
+
+  @@index([schemaRevisionId])
+  @@index([sourceRepresentationRevisionId])
+}
+

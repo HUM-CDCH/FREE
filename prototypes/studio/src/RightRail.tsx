@@ -4,9 +4,11 @@ import type { AnnotationSetItem } from './AnnotationSidebar'
 import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
+import type { SchemaNode } from './schemaNode'
+import type { SchemaHistoryEntry } from './schemaHistory'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
-import type { AnnotationsMode } from './api'
+import type { AnnotationsMode, ExtractionStrategy } from './api'
 
 export type RailTab = 'annot' | 'chat' | 'schema' | 'results'
 
@@ -23,12 +25,18 @@ type RightRailProps = {
   schemaReady: boolean
   schemaFieldCount: number
   onGenerate: () => void
-  onTemplateChange: (template: unknown, message: string) => void
+  onNodesChange: (nodes: SchemaNode[], message: string) => void
+  onChatSchemaChange: (nodes: SchemaNode[], message: string) => void
+  schemaHistory: SchemaHistoryEntry[]
+  extractionStrategy: ExtractionStrategy
+  onExtractionStrategyChange: (strategy: ExtractionStrategy) => void
   annotationsMode: AnnotationsMode
   onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
-  pdfSource: { url: string; filename: string } | null
   documentMarkdown: string | null
+  onValueClick?: (path: string[], value: string) => void
+  focusPath?: string[] | null
+  onClearFocus?: () => void
 }
 
 function TabBadge({ label, active, done }: { label: string; active: boolean; done?: boolean }) {
@@ -57,12 +65,18 @@ function RightRail({
   schemaReady,
   schemaFieldCount,
   onGenerate,
-  onTemplateChange,
+  onNodesChange,
+  onChatSchemaChange,
+  schemaHistory,
+  extractionStrategy,
+  onExtractionStrategyChange,
   annotationsMode,
   onAnnotationsModeChange,
   extraction,
-  pdfSource,
   documentMarkdown,
+  onValueClick,
+  focusPath,
+  onClearFocus,
 }: RightRailProps) {
   if (!open) {
     return (
@@ -103,7 +117,7 @@ function RightRail({
           return (
             <button
               key={key}
-              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-xs font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
+              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 border-b-2 px-1 pb-2.5 pt-3 text-[13px] font-bold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
                 active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
               }`}
               type="button"
@@ -132,24 +146,31 @@ function RightRail({
           items={annotationItems}
           onSelectItem={onSelectAnnotation}
           onRemoveItem={onRemoveAnnotation}
+          annotationsMode={annotationsMode}
+          onAnnotationsModeChange={onAnnotationsModeChange}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'chat'}>
-        <ChatTab pdfSource={pdfSource} />
+        <ChatTab documentMarkdown={documentMarkdown} />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'schema'}>
         <SchemaPanel
           state={schemaState}
           stale={schemaStale}
           onGenerate={onGenerate}
-          onTemplateChange={onTemplateChange}
+          onNodesChange={onNodesChange}
+          onChatSchemaChange={onChatSchemaChange}
+          history={schemaHistory}
+          extractionStrategy={extractionStrategy}
+          onExtractionStrategyChange={onExtractionStrategyChange}
           annotationCount={annotationItems.length}
           annotationsMode={annotationsMode}
           onAnnotationsModeChange={onAnnotationsModeChange}
+          documentMarkdown={documentMarkdown}
         />
       </div>
       <div className="min-h-0 flex-1" hidden={tab !== 'results'}>
-        <ResultsTab controller={extraction} schemaReady={schemaReady} pdfSource={pdfSource} documentMarkdown={documentMarkdown} />
+        <ResultsTab controller={extraction} schemaReady={schemaReady} documentMarkdown={documentMarkdown} onValueClick={onValueClick} focusPath={focusPath} onClearFocus={onClearFocus} />
       </div>
     </div>
   )

@@ -57,7 +57,7 @@ A structured value or attribute that can appear in an extraction schema.
 _Avoid_: property, column, metadata
 
 **Extraction Schema**:
-A researcher-approved structure that belongs to a single source document and describes which entities and fields FREE should extract.
+A researcher-approved structure that belongs to at least a ProjectContext and describes which entities and fields FREE should extract.
 _Avoid_: template, extraction target, target list
 
 **Extraction**:
@@ -65,13 +65,48 @@ A run that applies an extraction schema to source context from its source docume
 _Avoid_: schema, suggestion
 
 **Extraction Result**:
-A value or set of values produced by an extraction.
+A source-grounded value or set of values produced by an extraction and linked to
+validated evidence.
 _Avoid_: extraction, output, response
 
 **Review Decision**:
-A researcher's choice to approve, edit, or reject a schema suggestion or extraction result.
+A researcher's choice to approve, edit, or reject a schema suggestion or
+extraction result.
 _Avoid_: status, vote
 
 **Evidence**:
-Source material kept to show that a schema suggestion, extraction result, or review decision is grounded in the source document rather than invented.
+Source material linked to an exact location in a source document and kept to show
+that a schema suggestion, extraction result, or review decision is grounded
+rather than invented.
 _Avoid_: citation, source, provenance, annotation text
+
+**Evidence Anchor**:
+An exact location in a source document to which evidence is linked, identifying
+source text or a table cell without requiring visual geometry.
+_Avoid_: citation anchor, model reference, highlight
+
+**Model Connection**:
+A machine-wide description of how FREE can reach a model provider for one
+humanities researcher. It may represent a local service, a remote service, or
+an authenticated local model harness.
+_Avoid_: provider configuration, endpoint, account
+
+**Capability Route**:
+A machine-wide choice of Model Connection and model for a related family of
+FREE model work. Project Contexts do not own or override Capability Routes.
+_Avoid_: task route, model setting, project model
+
+**Extraction Route**:
+The Capability Route used for Extraction and Schema Suggestion.
+_Avoid_: extraction model, ext route
+
+**Interaction Route**:
+The Capability Route used for document chat and conversational Extraction
+Schema editing.
+_Avoid_: chat model, chat route
+
+**Model Attribution**:
+A sanitized snapshot of the Model Connection, model, and execution profile used
+for a specific piece of model work. It identifies how that work was produced
+without containing credentials and does not replace source-backed Evidence.
+_Avoid_: model provenance, current model, evidence

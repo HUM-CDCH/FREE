@@ -1,4 +1,7 @@
 import { isRecord } from './template'
+import { type SchemaNode, nodesToTemplate } from './schemaNode'
+import type { SchemaOp } from './schemaOps'
+import { type ParsedTable, parseParsedTables, type EvidenceAnchor, parseEvidenceAnchors } from './parsedDocument'
 
 export const API_BASE = '/api'
 
@@ -14,10 +17,19 @@ export type TemplateAnnotation = { text: string; pageNumber: number }
 
 export type AnnotationsMode = 'hints' | 'fields'
 
+// The researcher's explicit choice of extraction pipeline for the current
+// schema — 'catalog' documents (many structurally similar records, e.g. one
+// section per grave) get heading-based per-section extraction; 'article'
+// documents (one continuous document, e.g. a journal article) always run a
+// single whole-document extraction, even if their heading structure would
+// otherwise look sectionable. See _catalog_sections.ts's getExtractionStrategy.
+export type ExtractionStrategy = 'catalog' | 'article'
+
 type TemplateOptions = {
   annotations?: TemplateAnnotation[]
   annotationsMode?: AnnotationsMode
   markdown?: string | null
+  strategy?: ExtractionStrategy
 }
 
 export type ExtractDone = {
@@ -28,7 +40,6 @@ export type ExtractDone = {
   pages: number | null
 }
 export type SchemaDone = { template: unknown; raw: string; pages: number | null }
-export type MarkdownDone = { markdown: string; pages: number | null }
 
 export function decodeSchemaDone(data: unknown): SchemaDone {
   if (!isRecord(data) || !('template' in data)) {
@@ -47,21 +58,11 @@ export function decodeExtractDone(data: unknown): ExtractDone {
   return data as ExtractDone
 }
 
-export function decodeMarkdownDone(data: unknown): MarkdownDone {
-  if (!isRecord(data) || typeof data.markdown !== 'string') {
-    throw new Error("markdown: response missing 'markdown' — API contract drift?")
-  }
-  return data as MarkdownDone
-}
-
 async function readErrorDetail(response: Response): Promise<string> {
   const body = await response.json().catch(() => null)
-  const detail = isRecord(body) ? body.detail : null
-  if (typeof detail === 'string') {
-    return detail
-  }
-  if (isRecord(detail) && typeof detail.message === 'string') {
-    return detail.message
+  const error = isRecord(body) && isRecord(body.error) ? body.error : null
+  if (error && typeof error.code === 'string' && typeof error.message === 'string') {
+    return `${error.code}: ${error.message}`
   }
   return ''
 }
@@ -95,7 +96,7 @@ export async function parseDocumentToMarkdown(
   file: Blob,
   fileName: string,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<{ taskId: string; markdown: string }> {
   const form = new FormData()
   form.append('file', file, fileName)
   form.append('pipeline', 'docling_pdf')
@@ -123,14 +124,34 @@ export async function parseDocumentToMarkdown(
     if (meta.status === 'failed') {
       throw new Error(meta.error || 'Document parsing failed')
     }
-    await new Promise((resolve) => setTimeout(resolve, PARSE_POLL_MS))
+    const { promise, resolve } = Promise.withResolvers<void>()
+    setTimeout(resolve, PARSE_POLL_MS)
+    await promise
   }
 
   const md = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}/markdown`, { signal })
   if (!md.ok) {
     throw new Error(`Could not fetch parsed Markdown (HTTP ${md.status})`)
   }
-  return md.text()
+  return { taskId, markdown: await md.text() }
+}
+
+// Best-effort: table geometry and evidence anchors are enhancements (see
+// design.md), never a hard dependency, so callers should treat a rejected
+// promise the same as "no tables, no anchors".
+export async function fetchParsedDocumentExtras(
+  taskId: string,
+  signal?: AbortSignal,
+): Promise<{ tables: ParsedTable[]; anchors: EvidenceAnchor[] }> {
+  const response = await fetch(`${PARSING_SERVICE_BASE}/tasks/${taskId}/document`, { signal })
+  if (!response.ok) {
+    throw new Error(`Could not fetch parsed document (HTTP ${response.status})`)
+  }
+  const data = (await response.json()) as { tables?: unknown; evidence_index?: { anchors?: unknown } }
+  return {
+    tables: parseParsedTables(data.tables),
+    anchors: parseEvidenceAnchors(data.evidence_index?.anchors),
+  }
 }
 
 // ---------- request wrappers ----------
@@ -151,6 +172,9 @@ export async function requestSchema(
     form.append('annotations', JSON.stringify(options.annotations))
     form.append('annotations_mode', options.annotationsMode ?? 'hints')
   }
+  if (options?.strategy) {
+    form.append('strategy', options.strategy)
+  }
 
   const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)
   return done.template
@@ -162,6 +186,8 @@ export async function requestExtraction(
   template: unknown,
   signal?: AbortSignal,
   markdown?: string | null,
+  instruction?: string,
+  hasTables?: boolean,
 ): Promise<{ result: unknown; evidence: unknown }> {
   const form = new FormData()
   form.append('template', JSON.stringify(template ?? {}))
@@ -170,22 +196,44 @@ export async function requestExtraction(
   } else {
     form.append('file', file, fileName)
   }
+  if (instruction) form.append('instruction', instruction)
+  form.append('has_tables', hasTables ? 'true' : 'false')
 
   const done = await postForm('/extract', form, decodeExtractDone, signal)
   return { result: done.result, evidence: done.evidence }
 }
 
-export async function requestMarkdown(
-  file: Blob,
-  fileName: string,
-  signal?: AbortSignal,
-  markdown?: string | null,
-): Promise<MarkdownDone> {
-  const form = new FormData()
-  form.append('file', file, fileName)
-  if (markdown) {
-    form.append('document_markdown', markdown)
-  }
+// export async function requestMarkdown(
+//   file: Blob,
+//   fileName: string,
+//   signal?: AbortSignal,
+//   markdown?: string | null,
+// ): Promise<MarkdownDone> {
+//   const form = new FormData()
+//   form.append('file', file, fileName)
+//   if (markdown) {
+//     form.append('document_markdown', markdown)
+//   }
 
-  return postForm('/markdown', form, decodeMarkdownDone, signal)
+//   return postForm('/markdown', form, decodeMarkdownDone, signal)
+// }
+
+function decodeSchemaOps(data: unknown): SchemaOp[] {
+  if (!isRecord(data) || !Array.isArray(data.ops)) {
+    throw new Error("edit_schema: response missing 'ops' — API contract drift?")
+  }
+  return data.ops as SchemaOp[]
+}
+
+export async function requestSchemaEdit(
+  nodes: SchemaNode[],
+  instruction: string,
+  documentMarkdown: string | null,
+  signal?: AbortSignal,
+): Promise<SchemaOp[]> {
+  const form = new FormData()
+  form.append('current_template', JSON.stringify(nodesToTemplate(nodes)))
+  form.append('instruction', instruction)
+  if (documentMarkdown !== null) form.append('document_markdown', documentMarkdown)
+  return postForm('/edit_schema', form, decodeSchemaOps, signal)
 }

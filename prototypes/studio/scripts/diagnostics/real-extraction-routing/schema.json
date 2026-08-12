@@ -1,0 +1,11 @@
+{
+  "_strategy": "catalog",
+  "records": [
+    {
+      "grav_id": "verbatim-string",
+      "table_number": "verbatim-string",
+      "table_description": "verbatim-string",
+      "table_notes": "verbatim-string"
+    }
+  ]
+}

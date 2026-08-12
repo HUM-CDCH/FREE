@@ -1,0 +1,8 @@
+id: free-no-inline-parsing-worker
+language: Python
+files:
+  - prototypes/parsing_service/app/api/**/*.py
+rule:
+  pattern: run_extraction_task($$$ARGS)
+message: Schedule run_extraction_task through BackgroundTasks; running the parsing worker inline blocks the FastAPI request path.
+severity: warning

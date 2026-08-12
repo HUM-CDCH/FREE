@@ -1,8 +1,16 @@
 packages:
+  - packages/*
   - prototypes/*
 
 allowBuilds:
+  '@prisma/engines': true
   esbuild: true
+  prisma: true
+
+minimumReleaseAgeExclude:
+  - tsx@4.23.4
 
 onlyBuiltDependencies:
+  - '@prisma/engines'
   - esbuild
+  - prisma

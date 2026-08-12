@@ -1,7 +1,7 @@
 # nuextract-few-shot Specification
 
 ## Purpose
-TBD
+Defines the static NuExtract structured-extraction few-shot example used to demonstrate the expected schema, result, evidence, snippet, and page-number shape.
 
 ## Requirements
 

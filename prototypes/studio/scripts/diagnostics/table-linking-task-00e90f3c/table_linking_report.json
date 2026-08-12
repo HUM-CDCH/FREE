@@ -1,0 +1,830 @@
+{
+  "document": {
+    "document_id": "sha256:fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+    "content_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+    "source": {
+      "kind": "upload",
+      "original_filename": "Beretning_Ellekilde_8_13.pdf",
+      "submitted_url": null,
+      "resolved_url": null,
+      "media_type": "application/pdf",
+      "byte_size": 118108
+    },
+    "created_at": "2026-08-03T09:51:46.174964+00:00",
+    "page_count": 6,
+    "language_hints": [],
+    "is_encrypted": false,
+    "input_profile": {
+      "file_kind": "pdf",
+      "detected_mime": "application/pdf",
+      "pdf_version": null,
+      "has_text_layer": true,
+      "has_images": null
+    }
+  },
+  "parser_runs": [
+    {
+      "parser": "pymupdf_inspect",
+      "version": "1.28.0",
+      "status": "success",
+      "started_at": "2026-07-30T08:59:25.980889+00:00",
+      "finished_at": "2026-07-30T08:59:26.116338+00:00",
+      "duration_ms": 135,
+      "input_ref": "data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+      "output_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/pymupdf_inspection.json",
+      "metrics": {
+        "pages": 6,
+        "char_count": 17949,
+        "word_count": 2678,
+        "is_encrypted": false,
+        "input_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679"
+      },
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_doctags",
+      "version": "2.111.0",
+      "status": "success",
+      "started_at": "2026-07-30T08:59:26.120438+00:00",
+      "finished_at": "2026-07-30T09:00:18.467588+00:00",
+      "duration_ms": 52347,
+      "input_ref": "data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+      "output_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.llm.md",
+      "metrics": {
+        "char_count": 18441,
+        "raw_doctags_char_count": 24867,
+        "input_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679",
+        "page_mapping_verified": true,
+        "physical_page_export_complete": true,
+        "table_inventory_count": 14,
+        "raw_docling_json_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.docling.json",
+        "raw_doctags_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.doctags",
+        "aggregate_doctags_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.aggregate.doctags",
+        "llm_markdown_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.llm.md",
+        "output_sha256": "1af499ba20817010e88ba0fb2e52f359c13dcb59ffeee2234092085898532cb1",
+        "diagnostic_markdown_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.diagnostic.md"
+      },
+      "warnings": [],
+      "error": null
+    },
+    {
+      "parser": "docling_inventory_camelot_fallback",
+      "version": null,
+      "status": "success",
+      "started_at": "2026-07-30T09:00:18.482160+00:00",
+      "finished_at": "2026-07-30T09:00:19.037526+00:00",
+      "duration_ms": 555,
+      "input_ref": "data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+      "output_ref": null,
+      "metrics": {
+        "tables_found": 14,
+        "tables_kept": 14,
+        "docling_tables": 14,
+        "camelot_candidates": 14,
+        "input_sha256": "fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679"
+      },
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "artifacts": {
+    "source_ref": "data/sources/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679.pdf",
+    "parsed_json_ref": "data/tasks/00e90f3c-92c3-4ca6-a6f5-9bf866ba8600/parsed_document.json",
+    "canonical_parsed_json_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/parsed_document.json",
+    "raw_docling_json_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.docling.json",
+    "raw_doctags_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.doctags",
+    "llm_markdown_ref": "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.llm.md",
+    "page_images": [],
+    "debug_refs": [
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/pymupdf_inspection.json",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.docling.json",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.doctags",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.aggregate.doctags",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.llm.md",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.llm.md",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.diagnostic.md",
+      "data/documents/fbd6884163b68656687d4c6ab7395be6ea306a5faf7b94253f18eb50c60b9679/generations/d2beb5a951c76a04-8f855a4bed0e4232863f6481fc5fac76/artifacts/docling/document.llm.md"
+    ]
+  },
+  "sections": [
+    {
+      "segment_id": "catalog:0",
+      "heading": "Grav 8",
+      "start": 0,
+      "end": 1971,
+      "start_page": 1,
+      "end_page": 1,
+      "has_table": true
+    },
+    {
+      "segment_id": "catalog:1",
+      "heading": "Grav 13",
+      "start": 1973,
+      "end": 5044,
+      "start_page": 1,
+      "end_page": 2,
+      "has_table": true
+    },
+    {
+      "segment_id": "catalog:2",
+      "heading": "Grav 24",
+      "start": 5046,
+      "end": 9170,
+      "start_page": 2,
+      "end_page": 3,
+      "has_table": true
+    },
+    {
+      "segment_id": "catalog:3",
+      "heading": "Grav 26",
+      "start": 9172,
+      "end": 13220,
+      "start_page": 3,
+      "end_page": 5,
+      "has_table": true
+    },
+    {
+      "segment_id": "catalog:4",
+      "heading": "Grav 28",
+      "start": 13222,
+      "end": 14375,
+      "start_page": 5,
+      "end_page": 5,
+      "has_table": true
+    },
+    {
+      "segment_id": "catalog:5",
+      "heading": "Grav 30",
+      "start": 14377,
+      "end": 15970,
+      "start_page": 5,
+      "end_page": 6,
+      "has_table": true
+    },
+    {
+      "segment_id": "catalog:6",
+      "heading": "Grav 31",
+      "start": 15972,
+      "end": 18441,
+      "start_page": 6,
+      "end_page": 6,
+      "has_table": true
+    }
+  ],
+  "tables": [
+    {
+      "table_id": "p01_t01",
+      "page_number": 1,
+      "source_parser": "docling_table",
+      "rows": 4,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 0,
+        "end": 3438
+      },
+      "markdown_view_chars": 180,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        1338
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 1338,
+          "end": 1518,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 8-1 | Kæbe og tænder | |",
+            "| 8-3 | Dele af lårben | Meget fragmenteret |",
+            "| 8-4 | Dele af lårben | Meget fragmenteret |",
+            "| N ummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 8-1 | Kæbe og tænder |  |\n| 8-3 | Dele af lårben | Meget fragmenteret |\n| 8-4 | Dele af lårben | Meget fragmenteret |"
+        },
+        {
+          "start": 1810,
+          "end": 1901,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 8-2 | Jern | jernspænde |"
+        }
+      ],
+      "markdown_view_preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 8-1 | Kæbe og tænder |  |\n| 8-3 | Dele af lårben | Meget fragmenteret |\n| 8-4 | Dele af lårben | Meget fragmenteret |"
+    },
+    {
+      "table_id": "p01_t02",
+      "page_number": 1,
+      "source_parser": "docling_table",
+      "rows": 2,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 0,
+        "end": 3438
+      },
+      "markdown_view_chars": 91,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        1810
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 1810,
+          "end": 1901,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 8-2 | Jern | jernspænde |",
+            "| Fundnummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 8-2 | Jern | jernspænde |"
+        },
+        {
+          "start": 1338,
+          "end": 1518,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 8-1 | Kæbe og tænder |  |\n| 8-3 | Dele af lårben | Meget fragmenteret |\n| 8-4 | Dele af lårben | Meget fragmenteret |"
+        }
+      ],
+      "markdown_view_preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 8-2 | Jern | jernspænde |"
+    },
+    {
+      "table_id": "p02_t01",
+      "page_number": 2,
+      "source_parser": "docling_table",
+      "rows": 9,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 3445,
+        "end": 6754
+      },
+      "markdown_view_chars": 557,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        4273
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 4273,
+          "end": 4830,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 13-1 | Del af lårben | Meget fragmenteret |",
+            "| 13-2 | Del af lårben | |",
+            "| 13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. |",
+            "| 13-4 | Dele af fingerknogler | 4 forskellige, udgår som følge af dårlig bevaring. |",
+            "| 13-5 | Overarm | Meget fragmenteret |"
+          ],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 13-1 | Del af lårben | Meget fragmenteret |\n| 13-2 | Del af lårben |  |\n| 13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. |\n| 13-4 | Dele af f"
+        }
+      ],
+      "markdown_view_preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 13-1 | Del af lårben | Meget fragmenteret |\n| 13-2 | Del af lårben |  |\n| 13-3 | Knoglefragment | Måske del af bækkenet, udgår som følge af dårlig bevaring. |\n| 13-4 | Dele af f"
+    },
+    {
+      "table_id": "p03_t01",
+      "page_number": 3,
+      "source_parser": "docling_table",
+      "rows": 9,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 6761,
+        "end": 10459
+      },
+      "markdown_view_chars": 324,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        7376
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 7376,
+          "end": 7700,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 24-10 | Lårbensknogle | |",
+            "| 24-11 | Lårbensknogle | |",
+            "| 24-12 | Skinnebensknogler | 2 stk. |",
+            "| 24-13 | Skinnebensknogle | |",
+            "| 24-17 | Overarmsknogle | - |"
+          ],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 24-8 | Overarmsknogle |  |\n| 24-9 | Underarmsknogler | 2 stk. |\n| 24-10 | Lårbensknogle |  |\n| 24-11 | Lårbensknogle |  |\n| 24-12 | Skinnebensknogler | 2 stk. |\n| 24-13 | Skinne"
+        },
+        {
+          "start": 8252,
+          "end": 9020,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. |\n| 24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i kar"
+        }
+      ],
+      "markdown_view_preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 24-8 | Overarmsknogle |  |\n| 24-9 | Underarmsknogler | 2 stk. |\n| 24-10 | Lårbensknogle |  |\n| 24-11 | Lårbensknogle |  |\n| 24-12 | Skinnebensknogler | 2 stk. |\n| 24-13 | Skinne"
+    },
+    {
+      "table_id": "p03_t02",
+      "page_number": 3,
+      "source_parser": "docling_table",
+      "rows": 11,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 6761,
+        "end": 10459
+      },
+      "markdown_view_chars": 768,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        8252
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 8252,
+          "end": 9020,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. |",
+            "| 24-14 | Miniaturelerkar | Lå med bunden i vejret. Sortglittet gods med stregeornamentik |",
+            "| 24-15 | Fragmenteret Haraldstedfibel | Dårligt bevaret. Men nåleholderen tydelig. |",
+            "| 24-16 | Haraldstedfibel | Lå mellem de to underarmsknogler (24-18) |",
+            "| 24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i karret. |"
+          ],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. |\n| 24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i kar"
+        },
+        {
+          "start": 7376,
+          "end": 7700,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 24-8 | Overarmsknogle |  |\n| 24-9 | Underarmsknogler | 2 stk. |\n| 24-10 | Lårbensknogle |  |\n| 24-11 | Lårbensknogle |  |\n| 24-12 | Skinnebensknogler | 2 stk. |\n| 24-13 | Skinne"
+        }
+      ],
+      "markdown_view_preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 24-1 | Lerkar, ornamenteret sortbrunt | Fundet stående på gravens bundlag, 30 cm dybde. |\n| 24-2 | Lerkarskår | Skårene hører til x24-1, men har ikke kunnet indplaceres i kar"
+    },
+    {
+      "table_id": "p04_t01",
+      "page_number": 4,
+      "source_parser": "docling_table",
+      "rows": 17,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 10466,
+        "end": 12613
+      },
+      "markdown_view_chars": 649,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        11056
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 11056,
+          "end": 11705,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 26-12 | Tand, human | Fragmenteret. Niv 6 |",
+            "| 26-13 | Tand, human | Kindtand, velbevaret. Niv.6 |",
+            "| 26-14 | Tand, human | Niv. 6 |",
+            "| 26-18 | Tand, human | Niv. 6 |",
+            "| 26-19 | Tand, human | Niv. 6 |"
+          ],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-3 | Knogle | Små fragmenter, dårligt bevaret. Niv. 1 |\n| 26-12 | Tand, human | Fragmenteret. Niv 6 |\n| 26-13 | Tand, human | Kindtand, velbevaret. Niv.6 |\n| 26-14 | Tand, hum"
+        },
+        {
+          "start": 12165,
+          "end": 12613,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 |\n| 26-2 | Keramik | Små fragmenter. Niv. 1 |\n| 26-4 | Keramik | Små skår. Niv 3 |\n| 26-5 | - | Udgår |\n| 26-6 | Jern | Fragmenter"
+        }
+      ],
+      "markdown_view_preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-3 | Knogle | Små fragmenter, dårligt bevaret. Niv. 1 |\n| 26-12 | Tand, human | Fragmenteret. Niv 6 |\n| 26-13 | Tand, human | Kindtand, velbevaret. Niv.6 |\n| 26-14 | Tand, hum"
+    },
+    {
+      "table_id": "p04_t02",
+      "page_number": 4,
+      "source_parser": "docling_table",
+      "rows": 10,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 10466,
+        "end": 12613
+      },
+      "markdown_view_chars": 448,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        12165
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 12165,
+          "end": 12613,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 |",
+            "| 26-10 | Keramik | Hank, fragmenteret. Niv. 4. |",
+            "| 26-2 | Keramik | Små fragmenter. Niv. 1 |",
+            "| 26-4 | Keramik | Små skår. Niv 3 |",
+            "| 26-5 | - | Udgår |"
+          ],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 |\n| 26-2 | Keramik | Små fragmenter. Niv. 1 |\n| 26-4 | Keramik | Små skår. Niv 3 |\n| 26-5 | - | Udgår |\n| 26-6 | Jern | Fragmenter"
+        },
+        {
+          "start": 11056,
+          "end": 11705,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-3 | Knogle | Små fragmenter, dårligt bevaret. Niv. 1 |\n| 26-12 | Tand, human | Fragmenteret. Niv 6 |\n| 26-13 | Tand, human | Kindtand, velbevaret. Niv.6 |\n| 26-14 | Tand, hum"
+        }
+      ],
+      "markdown_view_preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-1 | Keramik | Lille skår, 2x4 cm. Niv. 1 |\n| 26-2 | Keramik | Små fragmenter. Niv. 1 |\n| 26-4 | Keramik | Små skår. Niv 3 |\n| 26-5 | - | Udgår |\n| 26-6 | Jern | Fragmenter"
+    },
+    {
+      "table_id": "p05_t01",
+      "page_number": 5,
+      "source_parser": "docling_table",
+      "rows": 8,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 12620,
+        "end": 15185
+      },
+      "markdown_view_chars": 323,
+      "occurrences_on_page": 0,
+      "occurrence_offsets": [],
+      "owner_sections": [],
+      "failure_reason": "markdown_view_not_found_on_page",
+      "closest_canonical_tables": [
+        {
+          "start": 12620,
+          "end": 12987,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 26-11 | Keramik | Fragmenter af ornamenteret skår. Niv. 6 |",
+            "| 26-15 | Keramik | Niv. 6 |",
+            "| 26-16 | Ravperle | Niv. 6 |",
+            "| 26-17 | Glasperle | Hvid. Niv. 6 |",
+            "| 26-23 | Glasperle | Blå, facetteret. Niv. 6 |"
+          ],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-11 | Keramik | Fragmenter af ornamenteret skår. Niv. 6 |\n| 26-15 | Keramik | Niv. 6 |\n| 26-16 | Ravperle | Niv. 6 |\n| 26-17 | Glasperle | Hvid. Niv. 6 |\n| 26-23 | Glasperl"
+        },
+        {
+          "start": 13896,
+          "end": 14009,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 28-1 | Knogle - lårben | Lå ikke på gravens bund |"
+        },
+        {
+          "start": 14206,
+          "end": 14311,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 28-2 | Lille keramikskår | Bundniveau |"
+        }
+      ],
+      "markdown_view_preview": "| 26-11 | Keramik | Fragmenter af ornamenteret skår. Niv. 6 |\n| --- | --- | --- |\n| 26-15 | Keramik | Niv. 6 |\n| 26-16 | Ravperle | Niv. 6 |\n| 26-17 | Glasperle | Hvid. Niv. 6 |\n| 26-23 | Glasperle | Blå, facetteret. Niv. 6 |\n| 26-25 | Ravp"
+    },
+    {
+      "table_id": "p05_t02",
+      "page_number": 5,
+      "source_parser": "docling_table",
+      "rows": 2,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 12620,
+        "end": 15185
+      },
+      "markdown_view_chars": 113,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        13896
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 13896,
+          "end": 14009,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 28-1 | Knogle - lårben | Lå ikke på gravens bund |",
+            "| N ummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 28-1 | Knogle - lårben | Lå ikke på gravens bund |"
+        },
+        {
+          "start": 15062,
+          "end": 15185,
+          "row_overlap_score": 0.5,
+          "shared_rows": [
+            "| N ummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 30-1 | Skeletdele, tand |  |\n| 30-3 | Knoglefragmenter, |  |"
+        },
+        {
+          "start": 12620,
+          "end": 12987,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-11 | Keramik | Fragmenter af ornamenteret skår. Niv. 6 |\n| 26-15 | Keramik | Niv. 6 |\n| 26-16 | Ravperle | Niv. 6 |\n| 26-17 | Glasperle | Hvid. Niv. 6 |\n| 26-23 | Glasperl"
+        }
+      ],
+      "markdown_view_preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 28-1 | Knogle - lårben | Lå ikke på gravens bund |"
+    },
+    {
+      "table_id": "p05_t03",
+      "page_number": 5,
+      "source_parser": "docling_table",
+      "rows": 2,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 12620,
+        "end": 15185
+      },
+      "markdown_view_chars": 105,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        14206
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 14206,
+          "end": 14311,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 28-2 | Lille keramikskår | Bundniveau |",
+            "| Fundnummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 28-2 | Lille keramikskår | Bundniveau |"
+        },
+        {
+          "start": 12620,
+          "end": 12987,
+          "row_overlap_score": 0.5,
+          "shared_rows": [
+            "| Fundnummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-11 | Keramik | Fragmenter af ornamenteret skår. Niv. 6 |\n| 26-15 | Keramik | Niv. 6 |\n| 26-16 | Ravperle | Niv. 6 |\n| 26-17 | Glasperle | Hvid. Niv. 6 |\n| 26-23 | Glasperl"
+        },
+        {
+          "start": 13896,
+          "end": 14009,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 28-1 | Knogle - lårben | Lå ikke på gravens bund |"
+        }
+      ],
+      "markdown_view_preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 28-2 | Lille keramikskår | Bundniveau |"
+    },
+    {
+      "table_id": "p05_t04",
+      "page_number": 5,
+      "source_parser": "docling_table",
+      "rows": 3,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 12620,
+        "end": 15185
+      },
+      "markdown_view_chars": 123,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        15062
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 15062,
+          "end": 15185,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 30-1 | Skeletdele, tand | |",
+            "| 30-3 | Knoglefragmenter, | |",
+            "| N ummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 30-1 | Skeletdele, tand |  |\n| 30-3 | Knoglefragmenter, |  |"
+        },
+        {
+          "start": 13896,
+          "end": 14009,
+          "row_overlap_score": 0.3333333333333333,
+          "shared_rows": [
+            "| N ummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 28-1 | Knogle - lårben | Lå ikke på gravens bund |"
+        },
+        {
+          "start": 12620,
+          "end": 12987,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 26-11 | Keramik | Fragmenter af ornamenteret skår. Niv. 6 |\n| 26-15 | Keramik | Niv. 6 |\n| 26-16 | Ravperle | Niv. 6 |\n| 26-17 | Glasperle | Hvid. Niv. 6 |\n| 26-23 | Glasperl"
+        }
+      ],
+      "markdown_view_preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 30-1 | Skeletdele, tand |  |\n| 30-3 | Knoglefragmenter, |  |"
+    },
+    {
+      "table_id": "p06_t01",
+      "page_number": 6,
+      "source_parser": "docling_table",
+      "rows": 3,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 15192,
+        "end": 18441
+      },
+      "markdown_view_chars": 159,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        15192
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 15192,
+          "end": 15351,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 30-4 | Knoglefragmenter, formodentlig skinneben | |",
+            "| 30-6 | Knoglefragmenter | Fundet ved afrensning |",
+            "| | formodentlig skinneben | |"
+          ],
+          "preview": "|  | formodentlig skinneben |  |\n| --- | --- | --- |\n| 30-4 | Knoglefragmenter, formodentlig skinneben |  |\n| 30-6 | Knoglefragmenter | Fundet ved afrensning |"
+        },
+        {
+          "start": 15561,
+          "end": 15780,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 30-2 | Lerkarskår | 6 stk. |\n| 30-5 | Dyretand | Fra hund |\n| 30-7 | Keramikskår | Fundet ved afrensning |\n| 30-8 | Flintafslag | Fundet ved afrensning |"
+        },
+        {
+          "start": 17587,
+          "end": 17687,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 31-7 | Tandemalje | Dårligt bevaret |"
+        }
+      ],
+      "markdown_view_preview": "|  | formodentlig skinneben |  |\n| --- | --- | --- |\n| 30-4 | Knoglefragmenter, formodentlig skinneben |  |\n| 30-6 | Knoglefragmenter | Fundet ved afrensning |"
+    },
+    {
+      "table_id": "p06_t02",
+      "page_number": 6,
+      "source_parser": "docling_table",
+      "rows": 5,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 15192,
+        "end": 18441
+      },
+      "markdown_view_chars": 219,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        15561
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 15561,
+          "end": 15780,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 30-2 | Lerkarskår | 6 stk. |",
+            "| 30-5 | Dyretand | Fra hund |",
+            "| 30-7 | Keramikskår | Fundet ved afrensning |",
+            "| 30-8 | Flintafslag | Fundet ved afrensning |",
+            "| Fundnummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 30-2 | Lerkarskår | 6 stk. |\n| 30-5 | Dyretand | Fra hund |\n| 30-7 | Keramikskår | Fundet ved afrensning |\n| 30-8 | Flintafslag | Fundet ved afrensning |"
+        },
+        {
+          "start": 15192,
+          "end": 15351,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "|  | formodentlig skinneben |  |\n| --- | --- | --- |\n| 30-4 | Knoglefragmenter, formodentlig skinneben |  |\n| 30-6 | Knoglefragmenter | Fundet ved afrensning |"
+        },
+        {
+          "start": 17587,
+          "end": 17687,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 31-7 | Tandemalje | Dårligt bevaret |"
+        }
+      ],
+      "markdown_view_preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 30-2 | Lerkarskår | 6 stk. |\n| 30-5 | Dyretand | Fra hund |\n| 30-7 | Keramikskår | Fundet ved afrensning |\n| 30-8 | Flintafslag | Fundet ved afrensning |"
+    },
+    {
+      "table_id": "p06_t03",
+      "page_number": 6,
+      "source_parser": "docling_table",
+      "rows": 2,
+      "cols": 3,
+      "canonical_markdown_start": null,
+      "canonical_markdown_end": null,
+      "linked": false,
+      "page_span": {
+        "start": 15192,
+        "end": 18441
+      },
+      "markdown_view_chars": 100,
+      "occurrences_on_page": 1,
+      "occurrence_offsets": [
+        17587
+      ],
+      "owner_sections": [],
+      "failure_reason": "unlinked_unknown",
+      "closest_canonical_tables": [
+        {
+          "start": 17587,
+          "end": 17687,
+          "row_overlap_score": 1.0,
+          "shared_rows": [
+            "| 31-7 | Tandemalje | Dårligt bevaret |",
+            "| N ummer | Beskrivelse | Bemærkninger |"
+          ],
+          "preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 31-7 | Tandemalje | Dårligt bevaret |"
+        },
+        {
+          "start": 15192,
+          "end": 15351,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "|  | formodentlig skinneben |  |\n| --- | --- | --- |\n| 30-4 | Knoglefragmenter, formodentlig skinneben |  |\n| 30-6 | Knoglefragmenter | Fundet ved afrensning |"
+        },
+        {
+          "start": 15561,
+          "end": 15780,
+          "row_overlap_score": 0.0,
+          "shared_rows": [],
+          "preview": "| Fundnummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 30-2 | Lerkarskår | 6 stk. |\n| 30-5 | Dyretand | Fra hund |\n| 30-7 | Keramikskår | Fundet ved afrensning |\n| 30-8 | Flintafslag | Fundet ved afrensning |"
+        }
+      ],
+      "markdown_view_preview": "| N ummer | Beskrivelse | Bemærkninger |\n| --- | --- | --- |\n| 31-7 | Tandemalje | Dårligt bevaret |"
+    }
+  ],
+  "summary": {
+    "section_count": 7,
+    "table_count": 14,
+    "linked_tables": 0,
+    "unlinked_tables": 14,
+    "repeated_unlinked_tables": 0,
+    "not_owned_tables": 0
+  }
+}

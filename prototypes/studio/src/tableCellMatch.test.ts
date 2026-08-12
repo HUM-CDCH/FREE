@@ -1,0 +1,321 @@
+import { describe, expect, it } from 'vitest'
+import { findTableCellMatch, computeOccurrenceIndices, resolveTableCellMatches } from './tableCellMatch'
+import type { ParsedTable, TableCell } from './parsedDocument'
+
+function cell(partial: Partial<TableCell> & Pick<TableCell, 'row' | 'col' | 'text'>): TableCell {
+  return { role: null, bbox: null, ...partial }
+}
+
+function table(tableId: string, pageNumber: number, cells: TableCell[]): ParsedTable {
+  return { tableId, pageNumber, canonicalMarkdownStart: null, canonicalMarkdownEnd: null, cells }
+}
+
+// Two-row grave table sharing the value "5" in a single "Count" column.
+function graveTable(): ParsedTable {
+  return table('t1', 1, [
+    cell({ row: 0, col: 0, text: 'Grave', role: 'header' }),
+    cell({ row: 0, col: 1, text: 'Count', role: 'header' }),
+    cell({ row: 1, col: 0, text: 'Grave 1', role: 'row_header' }),
+    cell({ row: 1, col: 1, text: '5', role: 'data', bbox: { x0: 0, y0: 10, x1: 10, y1: 20 } }),
+    cell({ row: 2, col: 0, text: 'Grave 2', role: 'row_header' }),
+    cell({ row: 2, col: 1, text: '5', role: 'data', bbox: { x0: 0, y0: 30, x1: 10, y1: 40 } }),
+  ])
+}
+
+describe('findTableCellMatch', () => {
+  it('resolves directly when exactly one cell matches the value', () => {
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: 'Depth', role: 'header' }),
+      cell({ row: 1, col: 0, text: '42 cm', role: 'data', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }),
+    ])
+
+    const match = findTableCellMatch([t], '42 cm', null, null, null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
+  })
+
+  it('narrows duplicate candidates using the row header hint alone', () => {
+    const match = findTableCellMatch([graveTable()], '5', 'Grave 2', null, null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 0, y0: 30, x1: 10, y1: 40 } })
+  })
+
+  it('narrows duplicate candidates using the column header hint alone', () => {
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: 'Label', role: 'header' }),
+      cell({ row: 0, col: 1, text: 'Weight', role: 'header' }),
+      cell({ row: 0, col: 2, text: 'Count', role: 'header' }),
+      cell({ row: 1, col: 0, text: 'Item A', role: 'row_header' }),
+      cell({ row: 1, col: 1, text: '5', role: 'data', bbox: { x0: 0, y0: 10, x1: 10, y1: 20 } }),
+      cell({ row: 1, col: 2, text: '5', role: 'data', bbox: { x0: 20, y0: 10, x1: 30, y1: 20 } }),
+    ])
+
+    const match = findTableCellMatch([t], '5', null, 'Count', null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 20, y0: 10, x1: 30, y1: 20 } })
+  })
+
+  it('narrows duplicate candidates using both row and column header hints', () => {
+    const match = findTableCellMatch([graveTable()], '5', 'Grave 1', 'Count', null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 0, y0: 10, x1: 10, y1: 20 } })
+  })
+
+  it('falls through to reading-order positional fallback when no header hints are given', () => {
+    const match = findTableCellMatch([graveTable()], '5', null, null, null, 1)
+
+    // Sorted by (page, y0, x0): index 0 -> y0=10, index 1 -> y0=30.
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 0, y0: 30, x1: 10, y1: 40 } })
+  })
+
+  it('falls through to positional fallback when header hints do not narrow to one', () => {
+    const match = findTableCellMatch([graveTable()], '5', 'Grave 3 (typo, matches nothing)', null, null, 0)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 0, y0: 10, x1: 10, y1: 20 } })
+  })
+
+  it('returns no match when the positional index is out of range', () => {
+    const match = findTableCellMatch([graveTable()], '5', null, null, null, 5)
+
+    expect(match).toBeNull()
+  })
+
+  it('returns no match when disambiguation is inconclusive and no occurrence index is available', () => {
+    const match = findTableCellMatch([graveTable()], '5', null, null, null, null)
+
+    expect(match).toBeNull()
+  })
+
+  it('narrows to the hinted page before considering header hints', () => {
+    const onPageOne = table('t1', 1, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 0, y0: 0, x1: 1, y1: 1 } })])
+    const onPageTwo = table('t2', 2, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 2, y0: 2, x1: 3, y1: 3 } })])
+
+    const match = findTableCellMatch([onPageOne, onPageTwo], '5', null, null, 2, null)
+
+    expect(match).toEqual({ pageNumber: 2, bbox: { x0: 2, y0: 2, x1: 3, y1: 3 } })
+  })
+
+  it('returns no match when no table cell contains the value', () => {
+    expect(findTableCellMatch([graveTable()], 'nonexistent', null, null, null, null)).toBeNull()
+  })
+
+  it('returns no match when no tables are supplied', () => {
+    expect(findTableCellMatch([], '5', null, null, null, null)).toBeNull()
+  })
+
+  it('returns no match when the sole candidate has no bbox', () => {
+    const t = table('t1', 1, [cell({ row: 0, col: 0, text: 'Unlocated' })])
+
+    expect(findTableCellMatch([t], 'Unlocated', null, null, null, null)).toBeNull()
+  })
+
+  it('falls back to a tolerant match when a cell has a trailing-unit formatting difference', () => {
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: 'Weight', role: 'header' }),
+      cell({ row: 1, col: 0, text: '1234 g', role: 'data', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }),
+    ])
+
+    const match = findTableCellMatch([t], '1234', null, null, null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
+  })
+
+  it('tolerates a dash-variant difference between value and cell text', () => {
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: 'Item', role: 'header' }),
+      cell({ row: 1, col: 0, text: '1234–05', role: 'data', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }),
+    ])
+
+    const match = findTableCellMatch([t], '1234-05', null, null, null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
+  })
+
+  it('does not let a short numeric value spuriously match inside a longer number', () => {
+    const t = table('t1', 1, [cell({ row: 0, col: 0, text: '420', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })])
+
+    expect(findTableCellMatch([t], '42', null, null, null, null)).toBeNull()
+  })
+
+  it('does not add a tolerant duplicate for a table where the exact tier already found a candidate', () => {
+    // '1234 g' would also satisfy the tolerant tier, but since this table
+    // already has an exact match, the tolerant tier must not run for it —
+    // otherwise this would become an ambiguous 2-candidate match instead of
+    // resolving directly (see spec: exact behavior unchanged where it succeeds).
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: '1234', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }),
+      cell({ row: 1, col: 0, text: '1234 g' }),
+    ])
+
+    const match = findTableCellMatch([t], '1234', null, null, null, null)
+
+    expect(match).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
+  })
+})
+
+describe('resolveTableCellMatches', () => {
+  it('restricts table candidates to a highlight source scope page range', () => {
+    const first = table('first', 1, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 0, y0: 0, x1: 1, y1: 1 } })])
+    const second = table('second', 2, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 2, y0: 2, x1: 3, y1: 3 } })])
+    const highlights = [{ path: ['records', '1', 'count'], value: '5', rowHeader: null, columnHeader: null, hintPage: null, sourceScope: { segmentId: 'catalog:1', markdownStart: 20, markdownEnd: 40, startPage: 2, endPage: 2 } }]
+    const matches = resolveTableCellMatches([first, second], highlights, computeOccurrenceIndices(highlights))
+
+    expect(matches.get(highlights[0])).toEqual({ pageNumber: 2, bbox: { x0: 2, y0: 2, x1: 3, y1: 3 } })
+  })
+
+  it('does not use a model page hint to select among scoped tables', () => {
+    const first = table('first', 1, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 0, y0: 0, x1: 1, y1: 1 } })])
+    const second = table('second', 2, [cell({ row: 0, col: 0, text: '5', bbox: { x0: 2, y0: 2, x1: 3, y1: 3 } })])
+    const highlights = [{
+      path: ['records', '1', 'count'],
+      value: '5',
+      rowHeader: null,
+      columnHeader: null,
+      hintPage: 2,
+      sourceScope: { segmentId: 'catalog:0', markdownStart: 0, markdownEnd: 40, startPage: 1, endPage: 2 },
+    }]
+
+    expect(resolveTableCellMatches(
+      [first, second],
+      highlights,
+      computeOccurrenceIndices(highlights),
+    ).get(highlights[0])).toEqual({
+      pageNumber: 1,
+      bbox: { x0: 0, y0: 0, x1: 1, y1: 1 },
+    })
+  })
+
+  // Two structurally identical tables (e.g. one per grave) that each have a
+  // "flint" cell — the kind of cross-table duplicate that a flattened
+  // `records[]` array (one record per table) commonly produces.
+  function twinTables(): [ParsedTable, ParsedTable] {
+    const tableA = table('tA', 1, [
+      cell({ row: 0, col: 0, text: 'ID', role: 'header' }),
+      cell({ row: 0, col: 1, text: 'Material', role: 'header' }),
+      cell({ row: 1, col: 0, text: 'Grave 1', role: 'row_header', bbox: { x0: 0, y0: 0, x1: 10, y1: 10 } }),
+      cell({ row: 1, col: 1, text: 'flint', role: 'data', bbox: { x0: 20, y0: 0, x1: 30, y1: 10 } }),
+    ])
+    const tableB = table('tB', 1, [
+      cell({ row: 0, col: 0, text: 'ID', role: 'header' }),
+      cell({ row: 0, col: 1, text: 'Material', role: 'header' }),
+      cell({ row: 1, col: 0, text: 'Grave 7', role: 'row_header', bbox: { x0: 0, y0: 100, x1: 10, y1: 110 } }),
+      cell({ row: 1, col: 1, text: 'flint', role: 'data', bbox: { x0: 20, y0: 100, x1: 30, y1: 110 } }),
+    ])
+    return [tableA, tableB]
+  }
+
+  it('keeps a record\'s ambiguous field on the same table as its unambiguously-resolved sibling field', () => {
+    const [tableA, tableB] = twinTables()
+    const highlights = [
+      { path: ['records', '3', 'gravnr'], value: 'Grave 7', rowHeader: null, columnHeader: null, hintPage: null },
+      { path: ['records', '3', 'material'], value: 'flint', rowHeader: null, columnHeader: null, hintPage: null },
+    ]
+    const occurrenceIndices = computeOccurrenceIndices(highlights)
+
+    // Without record-scoping, plain occurrence-index resolution picks table
+    // A's "flint" (it sorts first by y0) — the exact bug this fixes.
+    expect(findTableCellMatch([tableA, tableB], 'flint', null, null, null, 0)).toEqual({
+      pageNumber: 1,
+      bbox: { x0: 20, y0: 0, x1: 30, y1: 10 },
+    })
+
+    const matches = resolveTableCellMatches([tableA, tableB], highlights, occurrenceIndices)
+
+    expect(matches.get(highlights[0])).toEqual({ pageNumber: 1, bbox: { x0: 0, y0: 100, x1: 10, y1: 110 } })
+    // Record-scoped: 'material' follows 'gravnr' onto table B, not table A.
+    expect(matches.get(highlights[1])).toEqual({ pageNumber: 1, bbox: { x0: 20, y0: 100, x1: 30, y1: 110 } })
+  })
+
+  it('falls back to plain reading-order disambiguation when no sibling field resolved unambiguously', () => {
+    const [tableA, tableB] = twinTables()
+    // Only the ambiguous field is present for this record — nothing to vote
+    // with, so behavior matches findTableCellMatch's own positional fallback.
+    const highlights = [
+      { path: ['records', '3', 'material'], value: 'flint', rowHeader: null, columnHeader: null, hintPage: null },
+    ]
+    const occurrenceIndices = computeOccurrenceIndices(highlights)
+
+    const matches = resolveTableCellMatches([tableA, tableB], highlights, occurrenceIndices)
+
+    expect(matches.get(highlights[0])).toEqual({ pageNumber: 1, bbox: { x0: 20, y0: 0, x1: 30, y1: 10 } })
+  })
+
+  it('does not change already-unambiguous resolutions', () => {
+    const t = table('t1', 1, [
+      cell({ row: 0, col: 0, text: 'Depth', role: 'header' }),
+      cell({ row: 1, col: 0, text: '42 cm', role: 'data', bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } }),
+    ])
+    const highlights = [{ path: ['records', '0', 'depth'], value: '42 cm', rowHeader: null, columnHeader: null, hintPage: null }]
+    const occurrenceIndices = computeOccurrenceIndices(highlights)
+
+    const matches = resolveTableCellMatches([t], highlights, occurrenceIndices)
+
+    expect(matches.get(highlights[0])).toEqual({ pageNumber: 1, bbox: { x0: 1, y0: 2, x1: 3, y1: 4 } })
+  })
+})
+
+describe('computeOccurrenceIndices', () => {
+  it('ranks by occurrence among ties on the same field key and value, not by array position', () => {
+    // Mirrors the real case that exposed the bug: a flattened records array
+    // spanning multiple unrelated tables, where only two of many records
+    // share an identical value for the same field.
+    const highlights = [
+      { path: ['records', '0', 'beskrivelse'], value: '8-1 unrelated', hintPage: 1 },
+      { path: ['records', '1', 'beskrivelse'], value: 'Dele af lårben', hintPage: 1 },
+      { path: ['records', '2', 'beskrivelse'], value: 'Dele af lårben', hintPage: 1 },
+      { path: ['records', '3', 'beskrivelse'], value: '8-2 unrelated', hintPage: 1 },
+    ]
+
+    const indices = computeOccurrenceIndices(highlights)
+
+    expect(indices.get(highlights[0])).toBe(0)
+    expect(indices.get(highlights[1])).toBe(0) // first occurrence of the tied value
+    expect(indices.get(highlights[2])).toBe(1) // second occurrence, NOT its array index (2)
+    expect(indices.get(highlights[3])).toBe(0)
+  })
+
+  it('keys occurrence counts by field (last path segment), not just value', () => {
+    const highlights = [
+      { path: ['records', '0', 'nummer'], value: 'Meget fragmenteret', hintPage: 1 },
+      { path: ['records', '0', 'bemaerkninger'], value: 'Meget fragmenteret', hintPage: 1 },
+      { path: ['records', '1', 'bemaerkninger'], value: 'Meget fragmenteret', hintPage: 1 },
+    ]
+
+    const indices = computeOccurrenceIndices(highlights)
+
+    expect(indices.get(highlights[0])).toBe(0) // different field key -> its own count
+    expect(indices.get(highlights[1])).toBe(0)
+    expect(indices.get(highlights[2])).toBe(1)
+  })
+
+  it('normalizes whitespace/case when grouping ties', () => {
+    const highlights = [
+      { path: ['records', '0', 'name'], value: '  Grave   1  ', hintPage: 1 },
+      { path: ['records', '1', 'name'], value: 'grave 1', hintPage: 1 },
+    ]
+
+    const indices = computeOccurrenceIndices(highlights)
+
+    expect(indices.get(highlights[0])).toBe(0)
+    expect(indices.get(highlights[1])).toBe(1)
+  })
+
+  it('groups occurrence counts per hint page, matching how candidates get page-narrowed', () => {
+    // A second duplicate pair on a later page must restart its own count at 0,
+    // since findTableCellMatch narrows candidates to a single page before
+    // indexing into them (see the real Grav 8 / Grav 13 case this fixes).
+    const highlights = [
+      { path: ['records', '1', 'bemaerkninger'], value: 'Meget fragmenteret', hintPage: 1 },
+      { path: ['records', '2', 'bemaerkninger'], value: 'Meget fragmenteret', hintPage: 1 },
+      { path: ['records', '4', 'bemaerkninger'], value: 'Meget fragmenteret', hintPage: 2 },
+      { path: ['records', '8', 'bemaerkninger'], value: 'Meget fragmenteret', hintPage: 2 },
+    ]
+
+    const indices = computeOccurrenceIndices(highlights)
+
+    expect(indices.get(highlights[0])).toBe(0)
+    expect(indices.get(highlights[1])).toBe(1)
+    expect(indices.get(highlights[2])).toBe(0) // restarts for page 2, not global index 2
+    expect(indices.get(highlights[3])).toBe(1)
+  })
+})

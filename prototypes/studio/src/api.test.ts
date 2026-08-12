@@ -1,7 +1,9 @@
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ExtractionController } from './useExtraction'
 import {
   decodeExtractDone,
-  decodeMarkdownDone,
   decodeSchemaDone,
   parseDocumentToMarkdown,
   requestExtraction,
@@ -16,6 +18,15 @@ function jsonResponse(body: unknown): Response {
 }
 
 afterEach(() => vi.unstubAllGlobals())
+
+function readyController(): ExtractionController {
+  return {
+    state: { status: 'ready', result: { title: 'Report' }, evidence: null },
+    canRun: true,
+    hasResults: true,
+    runExtraction: async () => {},
+  }
+}
 
 describe('requestExtraction', () => {
   it('posts a blank template object when the UI passes null', async () => {
@@ -37,7 +48,7 @@ describe('requestExtraction', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ detail: 'Model endpoint error: boom' }), {
+        new Response(JSON.stringify({ error: { code: 'model_operation_failed', message: 'Model endpoint error.' } }), {
           status: 502,
           headers: { 'content-type': 'application/json' },
         }),
@@ -45,7 +56,7 @@ describe('requestExtraction', () => {
     )
 
     await expect(requestExtraction(new Blob(['pdf']), 'report.pdf', {})).rejects.toThrow(
-      'Model endpoint error: boom',
+      'model_operation_failed: Model endpoint error.',
     )
   })
 })
@@ -85,7 +96,10 @@ describe('parseDocumentToMarkdown', () => {
       }),
     )
 
-    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).resolves.toBe('# Doc')
+    await expect(parseDocumentToMarkdown(new Blob(['pdf']), 'report.pdf')).resolves.toEqual({
+      taskId: 'abc',
+      markdown: '# Doc',
+    })
   })
 
   it('throws the job error when parsing fails', async () => {
@@ -111,6 +125,31 @@ describe('decoders', () => {
     expect(() => decodeExtractDone({ raw: '{}' })).toThrow("extract: response missing 'result'")
     expect(() => decodeExtractDone({ result: {}, raw: '{}' })).toThrow("extract: response missing 'evidence'")
     expect(() => decodeSchemaDone({ raw: '{}' })).toThrow("generate_schema: response missing 'template'")
-    expect(() => decodeMarkdownDone({ pages: null })).toThrow("markdown: response missing 'markdown'")
+  })
+})
+
+describe('ResultsTab markdown', () => {
+  it('receives parsed document markdown directly', async () => {
+    vi.resetModules()
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react')
+      return {
+        ...actual,
+        useState: (initialState: unknown) =>
+          initialState === 'review' ? ['markdown', () => undefined] : actual.useState(initialState),
+      }
+    })
+    const { default: ResultsTab } = await import('./ResultsTab')
+    const html = renderToStaticMarkup(
+      createElement(ResultsTab, {
+        controller: readyController(),
+        schemaReady: true,
+        documentMarkdown: '# Parsed source',
+      }),
+    )
+
+    vi.doUnmock('react')
+    expect(html).toContain('Markdown')
+    expect(html).toContain('# Parsed source')
   })
 })

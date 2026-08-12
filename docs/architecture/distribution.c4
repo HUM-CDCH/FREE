@@ -1,0 +1,174 @@
+model {
+  target_researcher = person 'Humanities Researcher' 'Uses FREE through a browser and owns private Project Contexts.'
+  administrator = person 'FREE Administrator' 'Provision accounts, disable access, and operate the university-hosted deployment.'
+
+  free = system 'University-hosted FREE' 'A conventional multi-researcher web application hosted on university infrastructure.' {
+    web_gateway = container 'University web server and TLS gateway' 'Serves the built React assets and forwards same-origin /api requests to the Application Backend.' 'University web server / reverse proxy'
+    web_ui = container 'Hosted React UI' 'Source Document viewer, browser annotations, schema editor, extraction results, Evidence, and Model Connections.' 'React, Vite static assets'
+    application_backend = container 'Application Backend' 'Authenticates accounts, owns sessions and authorization, composes product operations, persists research state, and mediates all parsing and model access.' 'Persistent application runtime'
+    parsing_queue = container 'Parsing queue' 'Durable asynchronous work queue for Source Document parsing and OCR.' 'University-managed queue'
+    parsing_workers = container 'Parsing workers' 'Consumes parsing tasks and produces canonical Source Representation Revisions and parser artifacts.' 'Python workers'
+    project_store = datastore 'Application and Project Store' 'Application accounts, private Project Context data, Model Connection metadata, immutable research history, and audit records. PostgreSQL/Prisma is adopted behind ProjectStore, but no application runtime consumes it yet.' 'PostgreSQL, Prisma'
+    artifact_store = datastore 'Institution artifact store' 'Encrypted Source Documents, canonical Markdown, Source Representation Revisions, and parser artifacts.' 'University-managed object storage'
+    credential_vault = datastore 'Encrypted researcher credentials' 'Per-researcher closed-provider ciphertext, wrapped data key, nonce, authenticated context, and key version. Never plaintext.' 'University-managed secret store or database'
+    key_management = container 'Key management' 'Keeps key-encryption keys separate from application data; unwrap is restricted to the Application Backend workload and audited.' 'KMS, Vault Transit, or HSM'
+    institution_models = container 'Institution-managed open-weight models' 'Shared university-hosted Model Connections for open-weight models. Researchers select them through Capability Routes but do not manage provider credentials.' 'University model service'
+  }
+
+  closed_model_providers = external 'Closed model providers' 'Researcher-selected remote providers that require individual credentials.'
+
+  administrator -> free.web_gateway 'Uses the administration interface over TLS'
+  target_researcher -> free.web_gateway 'Uses FREE over TLS'
+  free.web_gateway -> free.web_ui 'Serves the versioned React assets'
+  free.web_gateway -> free.application_backend 'Forwards same-origin /api requests over the private application network'
+  free.application_backend -> free.project_store 'Reads and writes authenticated researcher data'
+  free.application_backend -> free.artifact_store 'Stores Source Documents and reads canonical representations'
+  free.application_backend -> free.parsing_queue 'Schedules and tracks parsing work'
+  free.parsing_queue -> free.parsing_workers 'Delivers parsing tasks'
+  free.parsing_workers -> free.artifact_store 'Publishes canonical representations and parser artifacts'
+  free.application_backend -> free.institution_models 'Executes institution-managed open-weight model work'
+  free.application_backend -> free.credential_vault 'Reads and writes this researcher encrypted credential record'
+  free.application_backend -> free.key_management 'Wraps and unwraps per-credential data keys using workload identity'
+  free.application_backend -> closed_model_providers 'Executes closed-provider work with the authenticated researcher credential'
+}
+
+views {
+  view index {
+    title 'FREE target architecture — university-hosted web application'
+    description '''
+      This is the approved target deployment for a classical web application.
+
+      The university web server serves the React assets and exposes one TLS origin.
+      Same-origin `/api` requests are forwarded to the Application Backend; the
+      browser never calls parsing workers, stores, key management, or model
+      providers directly. Project Contexts are private to their owning account;
+      collaboration and public registration are out of scope.
+
+      The implemented localhost runtime remains documented separately in
+      `current.c4`. PostgreSQL/Prisma is adopted for the Project Store; the
+      artifact store, queue, and key-management products remain unselected.
+    '''
+
+    include administrator, target_researcher, free, closed_model_providers
+
+    style free {
+      color amber
+    }
+
+    style free.project_store, free.artifact_store, free.credential_vault {
+      color secondary
+    }
+
+    style free.key_management, free.institution_models {
+      color green
+    }
+
+    autoLayout LeftRight
+  }
+
+  view target_runtime of free {
+    title 'FREE target runtime — conventional university-hosted web application'
+    description '''
+      **Status:** approved target deployment. PostgreSQL/Prisma is adopted for
+      the Project Store but is not consumed by an application runtime; other
+      storage and queue technologies remain unselected.
+
+      The web gateway serves static assets and routes `/api` to the persistent
+      Application Backend. Only the backend reaches stores, workers, key
+      management, and model services. Researchers have private Project Contexts
+      and administrators provision or disable accounts.
+    '''
+
+    include
+      administrator,
+      target_researcher,
+      *,
+      closed_model_providers,
+      -> free.* ->
+
+    style free.project_store, free.artifact_store, free.credential_vault {
+      color secondary
+    }
+
+    autoLayout LeftRight
+  }
+
+  dynamic view account_session {
+    title 'Account provisioning and authenticated session'
+    description 'Accounts are provisioned by a FREE Administrator. The browser receives a secure session, not backend credentials or store access.'
+
+    administrator -> free.web_gateway 'Open administration interface'
+    free.web_gateway -> free.application_backend 'Submit account administration request over TLS'
+    free.application_backend -> free.project_store 'Create or disable the application account'
+    free.application_backend -> free.web_gateway 'Return sanitized account state'
+    target_researcher -> free.web_gateway 'Open FREE and submit account credentials'
+    free.web_gateway -> free.application_backend 'Authenticate over TLS'
+    free.application_backend -> free.project_store 'Verify account and load private Project Context permissions'
+    free.application_backend -> free.web_gateway 'Set secure session cookie and return sanitized session state'
+    free.web_gateway -> free.web_ui 'Render authenticated application'
+  }
+
+  dynamic view target_source_document_ingestion {
+    title 'Target Source Document ingestion and asynchronous parsing'
+    description 'The Application Backend is the only browser-facing application boundary. Parsing workers never receive direct browser traffic.'
+
+    target_researcher -> free.web_ui 'Select a Source Document'
+    free.web_ui -> free.web_gateway 'Submit Source Document over TLS'
+    free.web_gateway -> free.application_backend 'Create authenticated ingestion operation'
+    free.application_backend -> free.artifact_store 'Store immutable Source Document bytes'
+    free.application_backend -> free.parsing_queue 'Enqueue parsing and OCR task'
+    free.parsing_queue -> free.parsing_workers 'Deliver task'
+    free.parsing_workers -> free.artifact_store 'Publish Source Representation Revision and artifacts'
+    loop 'until parsing completes' {
+      free.web_ui -> free.web_gateway 'Poll operation status'
+      free.web_gateway -> free.application_backend 'Read status for this researcher'
+    }
+    free.application_backend -> free.web_gateway 'Return canonical Markdown and status'
+    free.web_gateway -> free.web_ui 'Show Source Document ready for annotation'
+  }
+
+  dynamic view institution_model_flow {
+    title 'Institution-managed open-weight Model Connection'
+    description 'A shared university model service is available to authenticated researchers. No researcher credential is stored or returned.'
+
+    target_researcher -> free.web_ui 'Select the institution-managed Model Connection'
+    free.web_ui -> free.web_gateway 'Request schema suggestion or Extraction'
+    free.web_gateway -> free.application_backend 'Execute selected Capability Route'
+    free.application_backend -> free.project_store 'Load this researcher and Project Context authorization'
+    free.application_backend -> free.institution_models 'Execute model operation with workload identity'
+    free.institution_models -> free.application_backend 'Return model output'
+    free.application_backend -> free.project_store 'Append immutable operation history and Model Attribution'
+    free.application_backend -> free.web_gateway 'Return sanitized result and Evidence'
+    free.web_gateway -> free.web_ui 'Show result'
+  }
+
+  dynamic view researcher_credential_flow {
+    title 'Researcher-owned closed-provider Model Connection'
+    description '''
+      Envelope encryption keeps the key-encryption key outside application data.
+      Each researcher/provider record has its own data key and authenticated
+      context. Plaintext exists only in short-lived Application Backend memory
+      while saving or executing a provider call; it is never returned, logged,
+      cached, or included in telemetry.
+    '''
+
+    target_researcher -> free.web_ui 'Enter or update an individual closed-provider credential'
+    free.web_ui -> free.web_gateway 'Submit credential over TLS with the authenticated session'
+    free.web_gateway -> free.application_backend 'Validate credential ownership and provider'
+    free.application_backend -> free.key_management 'Request a unique data key and wrapped copy'
+    free.key_management -> free.application_backend 'Return plaintext data key plus wrapped data key'
+    free.application_backend -> free.credential_vault 'Store ciphertext, wrapped key, nonce, researcher/provider context, and key version'
+    free.application_backend -> free.web_gateway 'Return credential presence only'
+    target_researcher -> free.web_ui 'Select the private Model Connection and run Extraction'
+    free.web_ui -> free.web_gateway 'Request operation over TLS'
+    free.web_gateway -> free.application_backend 'Execute selected Capability Route'
+    free.application_backend -> free.credential_vault 'Load this researcher/provider encrypted record'
+    free.application_backend -> free.key_management 'Unwrap data key using restricted workload identity'
+    free.key_management -> free.application_backend 'Return data key to short-lived process memory'
+    free.application_backend -> closed_model_providers 'Decrypt and execute the model operation'
+    closed_model_providers -> free.application_backend 'Return model output'
+    free.application_backend -> free.project_store 'Append immutable operation history and sanitized Model Attribution'
+    free.application_backend -> free.web_gateway 'Clear secret material and return only the result'
+    free.web_gateway -> free.web_ui 'Show result'
+  }
+}

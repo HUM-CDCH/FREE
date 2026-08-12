@@ -1,0 +1,58 @@
+"""Parsed document routes: canonical ParsedDocument JSON and markdown views."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException, Response
+
+from app.api.deps import http_task_dir, load_metadata, require_completed
+from app.models.parsed_document import ParsedDocument
+from app.storage.manifests import read_parsed_document
+
+router = APIRouter()
+
+
+class MarkdownResponse(Response):
+    media_type = "text/markdown"
+
+
+def read_stored_parsed_document(task_id: str) -> ParsedDocument:
+    task_dir = http_task_dir(task_id)
+    try:
+        return read_parsed_document(task_dir)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=500, detail="Could not read parsed document JSON."
+        ) from exc
+
+
+def canonical_markdown(task_id: str) -> str:
+    parsed_document = read_stored_parsed_document(task_id)
+    return (
+        parsed_document.text_views.llm_markdown
+        or parsed_document.text_views.doc_tags_simplified
+        or parsed_document.text_views.page_marked_text
+    )
+
+
+@router.get(
+    "/tasks/{task_id}/markdown",
+    response_class=MarkdownResponse,
+)
+async def get_task_markdown(task_id: str):
+    metadata = load_metadata(task_id)
+    require_completed(metadata, "markdown")
+    return MarkdownResponse(content=canonical_markdown(task_id))
+
+
+@router.get("/tasks/{task_id}/document", response_model=ParsedDocument)
+@router.get(
+    "/tasks/{task_id}/parsed-document",
+    response_model=ParsedDocument,
+    include_in_schema=False,
+)
+async def get_task_document(task_id: str):
+    metadata = load_metadata(task_id)
+    require_completed(metadata, "parsed document")
+    return read_stored_parsed_document(task_id)

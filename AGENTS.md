@@ -37,13 +37,13 @@ Always use `uv run` for backend Python commands so dependencies come from the pr
 
 ```bash
 cd prototypes/parsing_service
-uv sync
-uv run python -m unittest discover -s tests
-uv run python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
-uv run fastapi run main.py
+uv sync --extra ocr-cpu  # use ocr-gpu instead on CUDA hosts
+uv run --no-sync python -m unittest discover -s tests
+uv run --no-sync python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
+uv run --no-sync fastapi run main.py
 ```
 
-Avoid running backend tests with bare `python -m unittest ...`; it may miss project dependencies such as `pydantic-settings` and `pypdfium2`.
+Use `uv run --no-sync` after selecting an OCR profile so normal dev/test commands do not replace a GPU environment with the CPU extra. Avoid running backend tests with bare `python -m unittest ...`; it may miss project dependencies such as `pydantic-settings` and `pypdfium2`.
 Use UTF-8 mode for local FastAPI dev on Windows; the CLI emits Unicode and redirected output can fail under legacy code pages.
 
 ### Frontend Commands (React + Vite + pnpm)
@@ -60,8 +60,8 @@ pnpm lint
 
 The frontend's model layer drives
 NuExtract3 with **hand-built raw prompts** sent to Ollama's `/api/generate`
-(`raw: true`), not `chat_template_kwargs`. The probe in
-`tools/provider-control-probe-results.md` showed Ollama ignores those kwargs
+(`raw: true`), not `chat_template_kwargs`. Historical control-channel evidence in
+`openspec/changes/archive/2026-06-17-select-nuextract-control-channel/` showed Ollama ignores those kwargs
 (`mode`/`template`/`enable_thinking`), so the control tokens are reconstructed in
 code to match `nuextract.template.jinja`. When editing prompts:
 
@@ -73,3 +73,14 @@ code to match `nuextract.template.jinja`. When editing prompts:
   it unset lets Ollama apply ~0.8.
 
 VS Code tasks should invoke the pnpm workspace scripts from the repository root, not duplicate `uv` or Vite command lines.
+
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->

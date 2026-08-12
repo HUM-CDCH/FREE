@@ -1,15 +1,42 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { requestExtraction } from './api'
+import type { ExtractionStrategy } from './api'
 import type { ExtractionState } from './extraction'
+import { isRecord } from './template'
 
 type PdfSource = { url: string; filename: string }
+
+// Article strategy always wraps the researcher's schema as `{ records: [template] }`
+// on the way in (see _catalog_sections.ts's findPrimaryArrayKey / _model.ts's
+// extractWithModel) purely as request plumbing to carry `_strategy` alongside a
+// `SchemaNode[]`-derived template that has no root-metadata slot — the array is
+// guaranteed to hold exactly one item for Article, never a real repeated group.
+// Catalog's `records` is a genuine multi-item array (one per detected section) and
+// must stay wrapped. Falls back to the original values unchanged when the response
+// isn't shaped as expected, rather than throwing.
+export function unwrapArticleResult(
+  strategy: ExtractionStrategy,
+  result: unknown,
+  evidence: unknown,
+): { result: unknown; evidence: unknown } {
+  if (strategy === 'catalog' || !isRecord(result) || !Array.isArray(result.records) || result.records.length === 0) {
+    return { result, evidence }
+  }
+  const unwrappedEvidence =
+    isRecord(evidence) && Array.isArray(evidence.records) && evidence.records.length > 0
+      ? evidence.records[0]
+      : null
+  return { result: result.records[0], evidence: unwrappedEvidence }
+}
 
 type UseExtractionOptions = {
   pdfSource: PdfSource | null
   template: unknown
   schemaReady: boolean
   markdown: string | null
+  hasTables: boolean
   indexing: boolean
+  extractionStrategy: ExtractionStrategy
   onComplete: (isRerun: boolean) => void
   onError: (message: string) => void
 }
@@ -21,14 +48,22 @@ export function useExtraction({
   template,
   schemaReady,
   markdown,
+  hasTables,
   indexing,
+  extractionStrategy,
   onComplete,
   onError,
 }: UseExtractionOptions) {
   const [state, setState] = useState<ExtractionState>({ status: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
+  const templateKey = useMemo(() => JSON.stringify(template ?? null), [template])
 
-  useEffect(() => () => abortRef.current?.abort(), [])
+  // Abort results tied to the outgoing PDF when the source changes.
+  useEffect(() => () => abortRef.current?.abort(), [pdfSource])
+  useEffect(() => {
+    abortRef.current?.abort()
+    setState({ status: 'idle' })
+  }, [pdfSource?.url, markdown, templateKey, schemaReady, extractionStrategy])
 
   const hasResults = state.status === 'ready'
   const canRun = Boolean(pdfSource) && schemaReady && state.status !== 'running' && !indexing
@@ -48,14 +83,20 @@ export function useExtraction({
       const { result, evidence } = await requestExtraction(
         blob,
         pdfSource.filename,
-        template,
+        // `_strategy` sits alongside `records`, not inside it — it's routing
+        // metadata for extractWithModel's Catalog/Article gate, not part of
+        // the researcher's own schema fields (see _catalog_sections.ts).
+        { records: [template], _strategy: extractionStrategy },
         abortController.signal,
         markdown,
+        undefined,
+        hasTables,
       )
       if (abortController.signal.aborted) {
         return
       }
-      setState({ status: 'ready', result, evidence })
+      const unwrapped = unwrapArticleResult(extractionStrategy, result, evidence)
+      setState({ status: 'ready', result: unwrapped.result, evidence: unwrapped.evidence })
       onComplete(isRerun)
     } catch (error) {
       if (abortController.signal.aborted) {

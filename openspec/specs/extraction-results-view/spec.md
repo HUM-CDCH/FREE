@@ -2,7 +2,6 @@
 
 ## Purpose
 TBD - created by archiving change simplify-results-json-viewer. Update Purpose after archive.
-
 ## Requirements
 ### Requirement: Read-only pretty-printed JSON result
 
@@ -45,13 +44,20 @@ When an extraction fails, the Results tab SHALL display the failure message and 
 
 ### Requirement: Re-run replaces the displayed result
 
-When a result is already displayed and the schema is ready, the user SHALL be able to re-run the extraction, and the newly produced result SHALL replace the previously displayed one without carrying over any prior per-field state.
+When a result is already displayed and the schema is ready, the researcher SHALL be able to re-run the extraction, and the newly produced result SHALL replace the previously displayed one without carrying over any prior per-field state. In addition, the result-tree navigator state (current path, back stack, forward stack) SHALL be reset to the root view whenever the extraction state changes away from `ready`.
 
 #### Scenario: Re-running after a result exists
 
-- **WHEN** a result is shown and the user triggers a re-run
-- **THEN** a new extraction runs and its result replaces the previously displayed JSON
+- **WHEN** a result is shown and the researcher triggers a re-run
+- **THEN** a new extraction runs and its result replaces the previously displayed result
 - **AND** no review decisions or staleness state from the previous run are preserved
+- **AND** the navigator resets to the root view (breadcrumb shows "Results", no back/forward buttons visible)
+
+#### Scenario: Navigator resets when extraction restarts
+
+- **WHEN** the researcher was navigated inside a node (navPath non-empty) and a new extraction is triggered
+- **THEN** navPath, backStack, and forwardStack are all cleared
+- **AND** the root view is shown as soon as the extraction completes
 
 ### Requirement: No export affordance
 
@@ -61,3 +67,19 @@ The Results tab SHALL NOT provide any export, download, or format-selection cont
 
 - **WHEN** a result is displayed
 - **THEN** there is no "Export", "Download", JSON/CSV, or scope-selection control in the Results tab
+
+### Requirement: Primitive result values trigger tracing on click
+
+In the review view, every `PrimitiveRow` component displaying a non-empty string value SHALL accept an `onValueClick?: (value: string) => void` prop. When the researcher clicks the value text span, `onValueClick` SHALL be called with the raw string value. The prop SHALL be threaded from `PrimitiveRow` through `ResultValue`, `ResultsTab`, and `RightRail` up to `App`.
+
+#### Scenario: onValueClick called on value click
+
+- **WHEN** the researcher clicks the value text in a `PrimitiveRow`
+- **THEN** `onValueClick(text)` is invoked with the displayed string
+- **AND** no edit mode is triggered by this click
+
+#### Scenario: Missing value does not trigger onValueClick
+
+- **WHEN** a `PrimitiveRow` displays a `MissingBadge` (empty/null value)
+- **THEN** clicking the badge does NOT call `onValueClick`
+
