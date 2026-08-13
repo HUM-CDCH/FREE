@@ -5,9 +5,15 @@ import {
   projectContextErrorSchema,
   projectContextListResponseSchema,
   projectContextResponseSchema,
+  projectContextSummarySchema,
   projectContextWithDocumentsResponseSchema,
-} from '../shared/projectContext.contract'
+} from '../../shared/projectContext.contract'
 
+export type ProjectContext = z.output<typeof projectContextSummarySchema>
+export type ProjectContextDetail = z.output<
+  typeof projectContextWithDocumentsResponseSchema
+>
+export type ProjectContextFailure = z.output<typeof projectContextErrorSchema>
 /** The durable read that reopens a Source Document, as the browser receives it. */
 export type DocumentSnapshot = z.output<typeof documentReopenResponseSchema>
 
@@ -31,7 +37,6 @@ async function request<T>(
   return schema.parse(await read(url, { signal }))
 }
 
-/** Every Project Context write sends and reads the same JSON name contract. */
 async function write(url: string, method: 'POST' | 'PATCH', name: string) {
   return projectContextResponseSchema.parse(
     await read(url, {
@@ -57,9 +62,7 @@ export async function deleteProjectContext(
 }
 
 /** A read failure that is not one of the bounded codes is unreadable persistence. */
-export function toFailure(
-  error: unknown,
-): z.output<typeof projectContextErrorSchema> {
+export function toProjectContextFailure(error: unknown): ProjectContextFailure {
   const parsed = projectContextErrorSchema.safeParse(error)
   if (parsed.success) return parsed.data
   return {
@@ -70,13 +73,19 @@ export function toFailure(
 
 export async function listProjectContexts(signal: AbortSignal) {
   return (
-    await request('/api/project-contexts', projectContextListResponseSchema, signal)
+    await request(
+      '/api/project-contexts',
+      projectContextListResponseSchema,
+      signal,
+    )
   ).projectContexts
 }
 
-export function getProjectContextWithDocuments(
+// No signal: branch reads fill an id-keyed cache and intentionally outlive
+// collapse and unmount; a generation fence, not an abort, keeps them honest.
+export async function getProjectContextWithDocuments(
   projectContextId: string,
-): Promise<z.output<typeof projectContextWithDocumentsResponseSchema>> {
+): Promise<ProjectContextDetail> {
   return request(
     `/api/project-contexts/${projectContextId}`,
     projectContextWithDocumentsResponseSchema,

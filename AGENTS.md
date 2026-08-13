@@ -1,6 +1,4 @@
-# AGENTS.md
-
-Guidance for coding agents working in this repository.
+# FREE agent guidance
 
 - Do not preserve backward compatibility. Remove obsolete paths instead of
   adding compatibility layers, fallbacks, or migrations.
@@ -26,109 +24,60 @@ Guidance for coding agents working in this repository.
 - Make architectural decisions for the long term. Do not accept a stopgap
   that only works for now and is meant to be replaced later.
 
-## Project Shape
+## Read only when relevant
 
-FREE is a document extraction and evaluation prototype for humanities researchers. Use the terminology in `CONTEXT.md` and the architecture notes in `CLAUDE.md`.
+- `CONTEXT.md`: product terminology and domain behavior.
+- `CLAUDE.md`: repository architecture and operational details.
+- `prototypes/studio/CLAUDE.md`: Studio-specific architecture.
+- `openspec/changes/archive/2026-06-17-select-nuextract-control-channel/`:
+  evidence behind NuExtract raw-prompt behavior.
 
-The active prototype code is under:
+Do not preload those files for unrelated work.
 
-- `prototypes/parsing_service` - FastAPI backend, Python 3.13+, managed with `uv`
-- `prototypes/studio` - React/Vite frontend, managed with `pnpm`
+## Project shape
 
-We use a **pnpm workspace** to orchestrate commands across the monorepo from the root directory, though each prototype remains self-contained.
+- `prototypes/parsing_service`: FastAPI, Python 3.13+, `uv`.
+- `prototypes/studio`: React/Vite, `pnpm`.
+- `packages/db`: PostgreSQL 17 schema and project store.
 
-## Workspace Commands
-
-Run commands from the workspace root:
+Run workspace commands from the repository root:
 
 ```bash
-pnpm install                   # Install JS deps, emit the DB contract, run uv sync
-pnpm start                     # Alias for pnpm dev
-pnpm dev                       # Run backend and frontend dev servers concurrently
-pnpm dev:gpu                   # The same, but install the GPU OCR profile first
-pnpm test                      # Run all backend and frontend tests recursively
-pnpm build                     # Compile the frontend assets
-pnpm db:reset                  # Destructively recreate only the local `free` database
-pnpm db:seed                   # Seed the example Project Contexts and Source Documents
+pnpm install
+pnpm dev
+pnpm test
+pnpm build
 ```
 
-FREE keeps its research state in PostgreSQL 17. Start the database with
-`docker compose -f packages/db/docker-compose.yml up -d`, copy
-`packages/db/.env.example` to `packages/db/.env`, then create the schema with
-`pnpm --filter db db:init`. `pnpm dev` fails before starting the servers when
-the database does not match the current branch. For a disposable local database,
-run `pnpm db:reset`, restart the servers, and re-run `pnpm db:seed`; the reset
-refuses remote URLs and database names other than `free`. `packages/db` also
-holds `db:verify`, `db:update`, and `db:studio`.
-
-`pnpm db:seed` ingests each example PDF through the Parsing Service so its Source
-Documents own portable canonical packages outside the disposable Parsing Service
-task cache, so start the Parsing Service first. Without it the seed still writes
-the Project Contexts and Source Documents and says which ones cannot be reopened;
-re-run it once the service is up. Re-running keeps valid packages and replaces a
-stale seeded representation only after its replacement package is durable.
-
-Python services opt into root install by exposing an `install:python` script. Do not hardcode each service in the root `postinstall`; use the workspace-recursive hook.
-
-## Local Prototype Commands
-
-You can still run commands from the individual folders:
-
-### Backend Commands (FastAPI + uv)
-
-Always use `uv run` for backend Python commands so dependencies come from the project environment instead of the system Python.
+Backend commands must use the selected `uv` environment:
 
 ```bash
 cd prototypes/parsing_service
-uv sync --extra ocr-cpu  # use ocr-gpu instead on CUDA hosts
+uv sync --extra ocr-cpu
 uv run --no-sync python -m unittest discover -s tests
-uv run --no-sync python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000
-uv run --no-sync fastapi run main.py
 ```
 
-Use `uv run --no-sync` after selecting an OCR profile so normal dev/test commands do not replace a GPU environment with the CPU extra. Avoid running backend tests with bare `python -m unittest ...`; it may miss project dependencies such as `pydantic-settings` and `pypdfium2`.
-Use UTF-8 mode for local FastAPI dev on Windows; the CLI emits Unicode and redirected output can fail under legacy code pages.
-
-### Frontend Commands (React + Vite + pnpm)
+Frontend checks:
 
 ```bash
-cd prototypes/studio
-pnpm install
-pnpm dev
-pnpm build
-pnpm lint
-pnpm test                      # Vitest
-pnpm test:e2e                  # Playwright
+pnpm --filter studio test
+pnpm --filter studio lint
+pnpm --filter studio build
 ```
 
-`pnpm install` does not install the Playwright browsers. Run
-`pnpm exec playwright install chromium` before the first `pnpm test:e2e`.
+Database setup and destructive reset details live in `CLAUDE.md`. Never reset a
+remote database or a local database not named `free`. Python workspaces expose
+`install:python`; do not hardcode services in the root `postinstall`.
 
-## NuExtract Prompting
+## NuExtract
 
-The frontend's model layer drives
-NuExtract3 with **hand-built raw prompts** sent to Ollama's `/api/generate`
-(`raw: true`), not `chat_template_kwargs`. Historical control-channel evidence in
-`openspec/changes/archive/2026-06-17-select-nuextract-control-channel/` showed Ollama ignores those kwargs
-(`mode`/`template`/`enable_thinking`), so the control tokens are reconstructed in
-code to match `nuextract.template.jinja`. When editing prompts:
+Studio sends hand-built raw prompts to Ollama `/api/generate`. Only structured
+mode has an `【instructions】` slot; template-generation and markdown guidance is
+inline. Default non-thinking temperature is `0.2`. Read the archived evidence
+above before changing prompt control tokens.
 
-- Only `structured` mode has an `【instructions】` slot. `template-generation` and
-  `markdown` carry all guidance inline in the message — lead with it.
-- `enable_thinking` is valid only for `structured`/`content`; other modes always
-  render the non-thinking `<think></think>` prompt.
-- Default temperature is `0.2` (non-thinking, `NON_THINKING_TEMPERATURE`); leaving
-  it unset lets Ollama apply ~0.8.
-
-VS Code tasks should invoke the pnpm workspace scripts from the repository root, not duplicate `uv` or Vite command lines.
-
-<!-- CODEGRAPH_START -->
 ## CodeGraph
 
-In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
-
-- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
-- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
-
-If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
-<!-- CODEGRAPH_END -->
+When `.codegraph/` exists, use `codegraph explore "<question>"` before grep or
+file-by-file reading for code discovery. It returns relevant source and call
+paths, including dynamic dispatch. Use `rg` for follow-up text searches.

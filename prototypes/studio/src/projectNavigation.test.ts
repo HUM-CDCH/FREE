@@ -7,7 +7,7 @@ import {
   type NavigableRoute,
   type Route,
 } from './projectNavigation'
-import type { DocumentSnapshot } from './projectContexts'
+import type { DocumentSnapshot } from './projectContexts/transport'
 
 const projectContextId = '00000000-0000-4000-8000-000000000044'
 const sourceDocumentId = '00000000-0000-4000-8000-000000000045'

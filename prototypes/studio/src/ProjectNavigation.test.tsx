@@ -13,7 +13,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DocumentWorkspaceProps } from './App'
 // The explicit extension is required: `./ProjectNavigation` resolves to
 // `projectNavigation.ts` on a case-insensitive filesystem.
-import { ProjectNavigationProvider, ProjectRoutes } from './ProjectNavigation.tsx'
+import {
+  ProjectNavigationProvider,
+  ProjectRoutes,
+} from './ProjectNavigation.tsx'
 
 vi.mock('./App', () => ({
   default: ({
@@ -35,7 +38,8 @@ vi.mock('./App', () => ({
         {persistedExtraction?.outcome ?? 'no extraction'}
       </p>
       <p data-testid="workspace-resources">
-        {sourceRepresentationId} · {pdfUrl} · {markdownUrl} · {parsedDocumentUrl}
+        {sourceRepresentationId} · {pdfUrl} · {markdownUrl} ·{' '}
+        {parsedDocumentUrl}
       </p>
       <p data-testid="workspace-schema">
         {JSON.stringify(extractionSchema?.schemaNodes ?? null)}
@@ -53,6 +57,7 @@ vi.mock('./App', () => ({
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const sourceDocumentId = '51000000-0000-4000-8001-000000000001'
 const otherSourceDocumentId = '51000000-0000-4000-8001-000000000002'
+const secondSourceDocumentId = '51000000-0000-4000-8001-000000000003'
 const representationId = '51000000-0000-4000-8002-000000000001'
 const project = {
   projectContextId,
@@ -68,6 +73,11 @@ const historical = {
   sourceDocumentId: otherSourceDocumentId,
   name: 'Historical.pdf',
   createdAt: '2026-07-31T12:02:00.000Z',
+}
+const secondDocument = {
+  sourceDocumentId: secondSourceDocumentId,
+  name: 'Second Context.pdf',
+  createdAt: '2026-07-31T12:03:00.000Z',
 }
 const detail = { projectContext: project, sourceDocuments: [beretning] }
 
@@ -91,6 +101,13 @@ function snapshot(sourceDocument = beretning) {
     extractionSchema: null,
     latestAttempt: null,
     latestReviewed: null,
+  }
+}
+
+function secondSnapshot() {
+  return {
+    ...snapshot(secondDocument),
+    projectContext: secondProject,
   }
 }
 
@@ -126,7 +143,16 @@ function hydratedSnapshot() {
       strategy: 'ARTICLE',
       outcome: 'SUCCEEDED',
       complete: true,
-      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null },
+      diagnostics: {
+        phase: 'grounding',
+        durationMs: 1,
+        modelCalls: 0,
+        finishReason: null,
+        inputTokens: null,
+        outputTokens: null,
+        values: null,
+        grounding: null,
+      },
       failure: null,
       resultPayload: { place: 'Ellekilde' },
       evidenceLinks: [],
@@ -223,9 +249,9 @@ function lifecycleFetch(
     projects?: unknown[]
     list?: () => Response | Promise<Response>
     branch?: () => Response | Promise<Response>
-    post?: () => Response
-    patch?: () => Response
-    remove?: () => Response
+    post?: () => Response | Promise<Response>
+    patch?: () => Response | Promise<Response>
+    remove?: () => Response | Promise<Response>
   } = {},
 ) {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -263,9 +289,13 @@ function lifecycleFetch(
 describe('Project Context lifecycle in the rail', () => {
   it('navigates to and expands an acknowledged new Project Context', async () => {
     renderRoutes(lifecycleFetch())
-    fireEvent.click(await screen.findByRole('button', { name: '+ New project' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: '+ New project' }),
+    )
 
-    const name = screen.getByRole('textbox', { name: 'New Project Context name' })
+    const name = screen.getByRole('textbox', {
+      name: 'New Project Context name',
+    })
     // The field never narrows the contract: padding around a limit-length name
     // still submits, because the name is trimmed before it is judged.
     fireEvent.change(name, { target: { value: `  ${'x'.repeat(512)}  ` } })
@@ -276,13 +306,72 @@ describe('Project Context lifecycle in the rail', () => {
     fireEvent.change(name, { target: { value: '  Fæstningen, TAK 1400  ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
-    expect(await screen.findByText('Empty Project Context.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Empty Project Context.'),
+    ).toBeInTheDocument()
     expect(location.pathname).toBe(
       `/projects/${secondProject.projectContextId}`,
     )
     expect(
       screen.getByRole('button', { name: secondProject.name }),
     ).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('keeps the native creation dialog pending on failure and restores focus after acknowledgement', async () => {
+    const pending = Promise.withResolvers<Response>()
+    let attempts = 0
+    const renderFetch = lifecycleFetch({
+      post: () => {
+        attempts += 1
+        return attempts === 1
+          ? pending.promise
+          : Response.json({ projectContext: secondProject }, { status: 201 })
+      },
+    })
+    renderRoutes(renderFetch)
+
+    const trigger = await screen.findByRole('button', { name: '+ New project' })
+    trigger.focus()
+    fireEvent.click(trigger)
+    const dialog = await screen.findByRole('dialog', {
+      name: 'New Project Context',
+    })
+    const name = screen.getByRole('textbox', {
+      name: 'New Project Context name',
+    })
+    expect(name).toHaveFocus()
+    expect(name).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled()
+
+    fireEvent.change(name, { target: { value: secondProject.name } })
+    expect(name).toHaveAttribute('aria-invalid', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled()
+    expect(dialog).toBeInTheDocument()
+
+    pending.resolve(
+      failureResponse(
+        'persistence_unavailable',
+        'Project Context storage is unavailable.',
+        503,
+      ),
+    )
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Project Context storage is unavailable.',
+    )
+    expect(
+      screen.getByRole('textbox', { name: 'New Project Context name' }),
+    ).toHaveValue(secondProject.name)
+    expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(
+      await screen.findByText('Empty Project Context.'),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(location.pathname).toBe(
+      `/projects/${secondProject.projectContextId}`,
+    )
   })
 
   it('retains the rename form on a failed write and applies the acknowledged one', async () => {
@@ -311,9 +400,9 @@ describe('Project Context lifecycle in the rail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
 
-    expect(
-      await screen.findByRole('alert'),
-    ).toHaveTextContent('Project Context storage is unavailable.')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Project Context storage is unavailable.',
+    )
     expect(name).toHaveValue('Ellekilde II')
     expect(
       screen.queryByRole('button', { name: 'Ellekilde II' }),
@@ -334,7 +423,9 @@ describe('Project Context lifecycle in the rail', () => {
     fireEvent.click(await screen.findByRole('button', { name: project.name }))
     await screen.findByText('Beretning.pdf')
 
-    fireEvent.click(screen.getByRole('button', { name: `Delete ${project.name}` }))
+    fireEvent.click(
+      screen.getByRole('button', { name: `Delete ${project.name}` }),
+    )
     const dialog = await screen.findByRole('dialog', {
       name: 'Delete Project Context',
     })
@@ -344,7 +435,9 @@ describe('Project Context lifecycle in the rail', () => {
       document.activeElement as HTMLElement | null,
     )
     // Confirmation is required: the rail is untouched until it is given.
-    expect(screen.getByRole('button', { name: project.name })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: project.name }),
+    ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
 
@@ -368,7 +461,9 @@ describe('Project Context lifecycle in the rail', () => {
     )
 
     // Escape dispatches `cancel`; a write already sent must survive it.
-    const dialog = screen.getByRole('dialog', { name: 'Delete Project Context' })
+    const dialog = screen.getByRole('dialog', {
+      name: 'Delete Project Context',
+    })
     fireEvent(dialog, new Event('cancel', { cancelable: true }))
     expect(dialog).toBeInTheDocument()
 
@@ -383,7 +478,9 @@ describe('Project Context lifecycle in the rail', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Project Context storage is unavailable.',
     )
-    expect(screen.getByRole('button', { name: project.name })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: project.name }),
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Delete permanently' }),
     ).toBeEnabled()
@@ -420,7 +517,9 @@ describe('Project Context lifecycle in the rail', () => {
     list.resolve(Response.json({ projectContexts: [project] }))
 
     await waitFor(() =>
-      expect(screen.queryByText('Loading Project Contexts…')).not.toBeInTheDocument(),
+      expect(
+        screen.queryByText('Loading Project Contexts…'),
+      ).not.toBeInTheDocument(),
     )
     expect(
       screen.getByRole('button', { name: 'Ellekilde II' }),
@@ -443,7 +542,9 @@ describe('Project Context lifecycle in the rail', () => {
         },
       }),
     )
-    fireEvent.click(await screen.findByRole('button', { name: '+ New project' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: '+ New project' }),
+    )
     fireEvent.change(
       screen.getByRole('textbox', { name: 'New Project Context name' }),
       { target: { value: secondProject.name } },
@@ -456,7 +557,9 @@ describe('Project Context lifecycle in the rail', () => {
     expect(
       await screen.findByRole('button', { name: project.name }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: secondProject.name })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: secondProject.name }),
+    ).toBeInTheDocument()
     expect(reads).toBe(2)
   })
 
@@ -466,7 +569,9 @@ describe('Project Context lifecycle in the rail', () => {
     fireEvent.click(await screen.findByRole('button', { name: project.name }))
     await screen.findByText('Loading…')
 
-    fireEvent.click(screen.getByRole('button', { name: `Delete ${project.name}` }))
+    fireEvent.click(
+      screen.getByRole('button', { name: `Delete ${project.name}` }),
+    )
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
     )
@@ -486,6 +591,29 @@ describe('Project Context lifecycle in the rail', () => {
       screen.queryByRole('button', { name: project.name }),
     ).not.toBeInTheDocument()
     expect(screen.queryByText('Beretning.pdf')).not.toBeInTheDocument()
+  })
+
+  it('moves focus to the stable rail toggle after a successful delete', async () => {
+    renderRoutes(lifecycleFetch())
+    fireEvent.click(
+      await screen.findByRole('button', { name: `Delete ${project.name}` }),
+    )
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete permanently' }),
+    )
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: project.name }),
+      ).not.toBeInTheDocument(),
+    )
+    // The deleted row's controls are gone, so a stable rail control takes
+    // focus instead of dropping it on <body>.
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Collapse Project Contexts' }),
+      ).toHaveFocus(),
+    )
   })
 
   it('keeps the open route when another Project Context is deleted', async () => {
@@ -519,11 +647,19 @@ describe('Project Context navigation', () => {
 
     expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
+    // The rail owns ordinary selection; the shell only supplies overrides for
+    // dev documents and in-flight document openings.
+    expect(screen.getByRole('button', { name: project.name })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
     expect(
       screen.getByRole('heading', { name: 'No Source Document open' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Add sources' })).toBeDisabled()
-    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(
+      1,
+    )
     expect(fetch).toHaveBeenCalledTimes(2)
 
     fireEvent.click(screen.getByRole('button', { name: 'Beretning.pdf' }))
@@ -576,6 +712,55 @@ describe('Project Context navigation', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('resolves a routed branch under a StrictMode remount', async () => {
+    // The dev build (and Playwright's server) double-mounts; the routed branch
+    // read must survive it and settle into the workspace, never hang loading.
+    history.replaceState(null, '', `/projects/${projectContextId}`)
+    vi.stubGlobal('fetch', studioFetch())
+    render(
+      <StrictMode>
+        <ProjectNavigationProvider>
+          <ProjectRoutes />
+        </ProjectNavigationProvider>
+      </StrictMode>,
+    )
+
+    expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'No Source Document open' }),
+    ).toBeInTheDocument()
+  })
+
+  it('re-reads an errored branch on re-expansion', async () => {
+    let branchReads = 0
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith(projectContextId)) {
+        branchReads += 1
+        return branchReads === 1
+          ? failureResponse(
+              'persistence_unavailable',
+              'Project Context storage is unavailable.',
+              503,
+            )
+          : Response.json(detail)
+      }
+      return Response.json({ projectContexts: [project] })
+    })
+    renderRoutes(fetch)
+    const row = await screen.findByRole('button', { name: project.name })
+
+    fireEvent.click(row)
+    await screen.findByText('Could not read Source Documents.')
+
+    // Collapsing and re-expanding retries the failed read; only ready and
+    // loading branches are cached.
+    fireEvent.click(row)
+    fireEvent.click(row)
+    expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
+    expect(branchReads).toBe(2)
+  })
+
   it('caches a loaded branch across collapse and re-expansion', async () => {
     const fetch = renderRoutes()
     const row = await screen.findByRole('button', { name: project.name })
@@ -619,10 +804,10 @@ describe('Project Context navigation', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: project.name }))
     expect(await screen.findByText('Loading…')).toBeInTheDocument()
-    pending.resolve(
-      Response.json({ ...detail, sourceDocuments: [] }),
-    )
-    expect(await screen.findByText('Empty Project Context.')).toBeInTheDocument()
+    pending.resolve(Response.json({ ...detail, sourceDocuments: [] }))
+    expect(
+      await screen.findByText('Empty Project Context.'),
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: 'No Source Document open' }),
     ).toBeInTheDocument()
@@ -680,8 +865,7 @@ describe('routed Source Document reopening', () => {
 
   it('keeps the workspace on the current head while displaying a historical latest attempt', async () => {
     const reopened = hydratedSnapshot()
-    const historicalRepresentationId =
-      '51000000-0000-4000-8002-000000000009'
+    const historicalRepresentationId = '51000000-0000-4000-8002-000000000009'
     reopened.latestAttempt = {
       ...reopened.latestAttempt,
       sourceRepresentationRevisionId: historicalRepresentationId,
@@ -723,7 +907,9 @@ describe('routed Source Document reopening', () => {
     renderRoutes()
 
     await screen.findByText(/Opened Beretning.pdf/)
-    fireEvent.click(screen.getByRole('button', { name: 'Fail retained artifact' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Fail retained artifact' }),
+    )
 
     expect(
       await screen.findByRole('heading', {
@@ -770,15 +956,74 @@ describe('routed Source Document reopening', () => {
     pending.resolve(Response.json(snapshot(historical)))
     expect(await screen.findByText(/Opened Historical.pdf/)).toBeInTheDocument()
     expect(document.title).toBe('FREE Studio — Historical.pdf')
-    expect(screen.queryByText('Opening Source Document…')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Opening Source Document…'),
+    ).not.toBeInTheDocument()
     expect(reads).toBe(2)
+  })
+
+  it('keeps the open selection paired to its Project Context during a cross-context opening', async () => {
+    history.replaceState(null, '', '/projects')
+    const pending = Promise.withResolvers<Response>()
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      const reopened = /source-documents\/([^/]+)\/reopen$/.exec(url)
+      if (reopened) {
+        return reopened[1] === secondSourceDocumentId
+          ? pending.promise
+          : Response.json(snapshot(beretning))
+      }
+      if (url.endsWith(secondProject.projectContextId))
+        return Response.json({
+          projectContext: secondProject,
+          sourceDocuments: [secondDocument],
+        })
+      if (url.endsWith(projectContextId)) return Response.json(detail)
+      return Response.json({ projectContexts: [project, secondProject] })
+    })
+    renderRoutes(fetch)
+
+    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    fireEvent.click(await screen.findByRole('button', { name: beretning.name }))
+    await screen.findByText(/Opened Beretning.pdf/)
+    history.pushState(
+      null,
+      '',
+      `/projects/${secondProject.projectContextId}/documents/${secondSourceDocumentId}`,
+    )
+    dispatchEvent(new PopStateEvent('popstate'))
+    await screen.findByRole('button', { name: secondDocument.name })
+
+    expect(
+      await screen.findByText('Opening Source Document…'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: project.name })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(
+      screen.getByRole('button', { name: secondProject.name }),
+    ).not.toHaveAttribute('aria-current')
+    expect(
+      screen.getByRole('button', { name: beretning.name }),
+    ).toHaveAttribute('aria-current', 'page')
+    expect(
+      screen.getByRole('button', { name: secondDocument.name }),
+    ).not.toHaveAttribute('aria-current')
+
+    pending.resolve(Response.json(secondSnapshot()))
+    expect(
+      await screen.findByText(/Opened Second Context.pdf/),
+    ).toBeInTheDocument()
   })
 
   it('explains a Source Document the routed Project Context does not contain', async () => {
     history.replaceState(null, '', documentPath(otherSourceDocumentId))
     const fetch = renderRoutes(
       studioFetch(() => {
-        throw new Error('A Source Document outside the branch must not be read.')
+        throw new Error(
+          'A Source Document outside the branch must not be read.',
+        )
       }),
     )
 
@@ -795,18 +1040,22 @@ describe('routed Source Document reopening', () => {
 
   it('waits for a failed rail branch to succeed before reopening', async () => {
     history.replaceState(null, '', documentPath())
-    const fetch = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json({ projectContexts: [project] }))
-      .mockResolvedValueOnce(
-        failureResponse(
-          'persistence_unavailable',
-          'Project Context storage is unavailable.',
-          503,
-        ),
-      )
-      .mockResolvedValueOnce(Response.json(detail))
-      .mockResolvedValueOnce(Response.json(snapshot()))
+    let branchReads = 0
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (/reopen$/.test(url)) return Response.json(snapshot())
+      if (url.endsWith(projectContextId)) {
+        branchReads += 1
+        return branchReads === 1
+          ? failureResponse(
+              'persistence_unavailable',
+              'Project Context storage is unavailable.',
+              503,
+            )
+          : Response.json(detail)
+      }
+      return Response.json({ projectContexts: [project] })
+    })
     renderRoutes(fetch)
 
     expect(

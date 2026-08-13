@@ -1,52 +1,37 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { z } from 'zod'
-import type {
-  projectContextErrorSchema,
-  projectContextSummarySchema,
-  projectContextWithDocumentsResponseSchema,
-} from '../shared/projectContext.contract'
-import type { NavigableRoute, Route } from './projectNavigation'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   createProjectContext,
   deleteProjectContext,
   getProjectContextWithDocuments,
   listProjectContexts,
   renameProjectContext,
-  toFailure as failure,
-} from './projectContexts'
+  toProjectContextFailure as failure,
+  type ProjectContext,
+} from './transport'
+import {
+  ProjectContextsContext,
+  type ProjectBranch,
+  type ProjectContextsValue,
+  type WriteResult,
+} from './useProjectContexts'
 
-type ProjectContext = z.output<typeof projectContextSummarySchema>
-type ProjectContextDetail = z.output<
-  typeof projectContextWithDocumentsResponseSchema
->
-type Failure = z.output<typeof projectContextErrorSchema>
-export type ProjectBranch =
-  | { status: 'loading' }
-  | { status: 'error'; failure: Failure }
-  | { status: 'ready'; detail: ProjectContextDetail }
-
-/** A write answers `null` when the rail already shows its acknowledged result. */
-export type RailWriteResult = Promise<Failure | null>
-
-export function useRailTree(
-  route: Route,
-  navigate: (route: NavigableRoute) => void,
-) {
+/**
+ * Owns the Project Context list, the id-keyed branch cache, and acknowledged
+ * writes. Every applied write bumps a generation; a read that started under an
+ * older generation predates acknowledged truth, so its payload is never merged
+ * — it would resurrect a deleted Project Context or an old name. Branch reads
+ * intentionally outlive collapse and unmount; the fence, not an abort, keeps
+ * them honest.
+ */
+export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectContext[]>([])
-  const [listState, setListState] = useState<
-    { status: 'loading' | 'ready' } | { status: 'error'; failure: Failure }
-  >({ status: 'loading' })
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
-  const [collapsedRouted, setCollapsedRouted] = useState<ReadonlySet<string>>(
-    new Set(),
+  const [listState, setListState] = useState<ProjectContextsValue['listState']>(
+    { status: 'loading' },
   )
   const [branches, setBranches] = useState<
     Readonly<Record<string, ProjectBranch>>
   >({})
   const branchesRef = useRef(branches)
-  // Every applied write bumps this. A read that started under an older
-  // generation predates acknowledged truth, so its payload is never merged —
-  // it would resurrect a deleted Project Context or an old name.
   const generation = useRef(0)
   const reloadBranch = useRef<(projectContextId: string) => void>(() => {})
   const reloadList = useRef<() => void>(() => {})
@@ -69,7 +54,6 @@ export function useRailTree(
       [projectContextId]: { status: 'loading' },
     }
     setBranches(branchesRef.current)
-    // Branch reads fill an id-keyed cache and intentionally outlive collapse.
     void getProjectContextWithDocuments(projectContextId).then(
       (detail) => {
         if (superseded()) return
@@ -78,6 +62,7 @@ export function useRailTree(
           [projectContextId]: { status: 'ready', detail },
         }
         setBranches(branchesRef.current)
+        // Preserve a routed Project Context resolved before recents finish.
         setProjects((current) =>
           current.some(
             (project) => project.projectContextId === projectContextId,
@@ -99,7 +84,8 @@ export function useRailTree(
   // Held in a ref so a superseded read can re-issue itself without making
   // `loadBranch` depend on its own identity.
   useEffect(() => {
-    reloadBranch.current = (projectContextId) => loadBranch(projectContextId, true)
+    reloadBranch.current = (projectContextId) =>
+      loadBranch(projectContextId, true)
   }, [loadBranch])
 
   const readProjects = useCallback((controller: AbortController) => {
@@ -145,54 +131,6 @@ export function useRailTree(
     readProjects(new AbortController())
   }, [readProjects])
 
-  const routedProjectContextId =
-    route.kind === 'project' || route.kind === 'document'
-      ? route.projectContextId
-      : null
-  const routedBranch = routedProjectContextId
-    ? branches[routedProjectContextId]
-    : undefined
-  const routedDocumentContained =
-    route.kind === 'document' && routedBranch?.status === 'ready'
-      ? routedBranch.detail.sourceDocuments.some(
-          (document) => document.sourceDocumentId === route.sourceDocumentId,
-        )
-      : null
-  useEffect(() => {
-    if (routedProjectContextId) loadBranch(routedProjectContextId)
-  }, [loadBranch, routedProjectContextId])
-
-  const visibleExpanded = useMemo(() => {
-    const visible = new Set(expanded)
-    if (
-      routedProjectContextId &&
-      !collapsedRouted.has(routedProjectContextId)
-    )
-      visible.add(routedProjectContextId)
-    return visible
-  }, [collapsedRouted, expanded, routedProjectContextId])
-
-  const toggle = useCallback(
-    (projectContextId: string) => {
-      const isExpanded = visibleExpanded.has(projectContextId)
-      setExpanded((current) => {
-        const next = new Set(current)
-        if (isExpanded) next.delete(projectContextId)
-        else next.add(projectContextId)
-        return next
-      })
-      setCollapsedRouted((current) => {
-        const next = new Set(current)
-        if (isExpanded && projectContextId === routedProjectContextId)
-          next.add(projectContextId)
-        else next.delete(projectContextId)
-        return next
-      })
-      if (!isExpanded) loadBranch(projectContextId)
-    },
-    [loadBranch, routedProjectContextId, visibleExpanded],
-  )
-
   const setBranch = useCallback(
     (projectContextId: string, branch: ProjectBranch | null) => {
       const next = { ...branchesRef.current }
@@ -207,26 +145,21 @@ export function useRailTree(
   // Every write applies to the rail only after the server acknowledges it, so a
   // failure leaves the rail exactly as the researcher last saw it.
   const createProject = useCallback(
-    async (name: string): RailWriteResult => {
+    async (name: string): ReturnType<ProjectContextsValue['createProject']> => {
       try {
         const created = await createProjectContext(name)
         generation.current += 1
         setProjects((current) => [created, ...current])
-        // Routing to it expands it and reads its (empty) branch.
-        navigate({
-          kind: 'project',
-          projectContextId: created.projectContextId,
-        })
-        return null
+        return { created }
       } catch (error) {
-        return failure(error)
+        return { failure: failure(error) }
       }
     },
-    [navigate],
+    [],
   )
 
   const renameProject = useCallback(
-    async (projectContextId: string, name: string): RailWriteResult => {
+    async (projectContextId: string, name: string): WriteResult => {
       try {
         const renamed = await renameProjectContext(projectContextId, name)
         generation.current += 1
@@ -250,7 +183,7 @@ export function useRailTree(
   )
 
   const deleteProject = useCallback(
-    async (projectContextId: string): RailWriteResult => {
+    async (projectContextId: string): WriteResult => {
       try {
         await deleteProjectContext(projectContextId)
         generation.current += 1
@@ -260,33 +193,28 @@ export function useRailTree(
           ),
         )
         setBranch(projectContextId, null)
-        // Only the open Project Context loses its route; any other one keeps it.
-        if (projectContextId === routedProjectContextId)
-          navigate({ kind: 'root' })
         return null
       } catch (error) {
         return failure(error)
       }
     },
-    [navigate, routedProjectContextId, setBranch],
+    [setBranch],
   )
 
-  return {
-    projects,
-    listState,
-    expanded: visibleExpanded,
-    branches,
-    activeProjectContextId: routedProjectContextId,
-    activeSourceDocumentId:
-      route.kind === 'document' ? route.sourceDocumentId : null,
-    routedDocumentContained,
-    toggle,
-    createProject,
-    renameProject,
-    deleteProject,
-    retryList,
-    retryBranch: (projectContextId: string) => loadBranch(projectContextId, true),
-  }
+  return (
+    <ProjectContextsContext
+      value={{
+        projects,
+        listState,
+        branches,
+        loadBranch,
+        retryList,
+        createProject,
+        renameProject,
+        deleteProject,
+      }}
+    >
+      {children}
+    </ProjectContextsContext>
+  )
 }
-
-export type RailTree = ReturnType<typeof useRailTree>

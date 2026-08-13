@@ -2,13 +2,14 @@ import { createActorContext } from '@xstate/react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect } from 'react'
 import AppFrame from './AppFrame'
+import { ProjectContextsProvider } from './projectContexts/ProjectContextsProvider'
+import { useProjectContextRouteState } from './projectContexts/useProjectContexts'
 import {
   browserNavigationDeps,
   navigationMachine,
   parseRoute,
   type NavigableRoute,
 } from './projectNavigation'
-import { useRailTree } from './useRailTree'
 
 const Navigation = createActorContext(navigationMachine)
 
@@ -27,7 +28,7 @@ export function ProjectNavigationProvider({
         },
       }}
     >
-      {children}
+      <ProjectContextsProvider>{children}</ProjectContextsProvider>
     </Navigation.Provider>
   )
 }
@@ -37,12 +38,13 @@ export function ProjectRoutes() {
   const snapshot = Navigation.useSelector((state) => state)
   const { route, snapshot: openDocument, failure } = snapshot.context
   const navigate = useCallback(
-    (nextRoute: NavigableRoute) => actor.send({ type: 'NAVIGATE', route: nextRoute }),
+    (nextRoute: NavigableRoute) =>
+      actor.send({ type: 'NAVIGATE', route: nextRoute }),
     [actor],
   )
-  const tree = useRailTree(route, navigate)
-  const routedBranch =
-    route.kind === 'document' ? tree.branches[route.projectContextId] : undefined
+  const routedProjectContext = useProjectContextRouteState(route)
+  const { branch: routedBranch, documentContained: routedDocumentContained } =
+    routedProjectContext
   const opening =
     snapshot.matches('opening') ||
     (snapshot.matches('routing') &&
@@ -54,13 +56,13 @@ export function ProjectRoutes() {
   )
 
   useEffect(() => {
-    if (route.kind !== 'document' || tree.routedDocumentContained === null) return
+    if (route.kind !== 'document' || routedDocumentContained === null) return
     actor.send({
-      type: tree.routedDocumentContained
+      type: routedDocumentContained
         ? 'DOCUMENT_CONTAINED'
         : 'DOCUMENT_NOT_CONTAINED',
     })
-  }, [actor, route, tree.routedDocumentContained])
+  }, [actor, route, routedDocumentContained])
 
   useEffect(() => {
     const changed = () =>
@@ -75,7 +77,7 @@ export function ProjectRoutes() {
   return (
     <AppFrame
       route={route}
-      tree={tree}
+      routedProjectContext={routedProjectContext}
       openDocument={openDocument}
       opening={opening}
       failure={failure}

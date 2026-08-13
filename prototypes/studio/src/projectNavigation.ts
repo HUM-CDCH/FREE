@@ -7,8 +7,8 @@ import {
 import {
   type DocumentSnapshot,
   getDocumentReopenSnapshot,
-  toFailure,
-} from './projectContexts'
+  toProjectContextFailure,
+} from './projectContexts/transport'
 
 export type Route =
   | { kind: 'root' }
@@ -196,7 +196,7 @@ export const navigationMachine = setup({
           actions: [
             assign({
               snapshot: null,
-              failure: ({ event }) => toFailure(event.error),
+              failure: ({ event }) => toProjectContextFailure(event.error),
             }),
           ],
         },

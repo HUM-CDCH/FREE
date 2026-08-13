@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import GearIcon from './GearIcon'
-import PanelToggleIcon from './PanelToggleIcon'
-import type { NavigableRoute } from './projectNavigation'
-import { projectContextNameSchema } from '../shared/projectContext.contract'
-import { Button, Overline } from './ui'
-import type { RailTree, RailWriteResult } from './useRailTree'
+import GearIcon from '../GearIcon'
+import PanelToggleIcon from '../PanelToggleIcon'
+import type { NavigableRoute } from '../projectNavigation'
+import { projectContextNameSchema } from '../../shared/projectContext.contract'
+import { Button, Overline } from '../ui'
+import { CreateProjectModal } from './CreateProjectModal'
+import { useProjectContexts, type WriteResult } from './useProjectContexts'
 
-type ProjectNavProps = {
-  tree: RailTree
+export type ProjectContextRailProps = {
   open: boolean
+  /** What the rail highlights; the shell computes it from route and overrides. */
+  selection: NavigableRoute | null
+  /** The routed Project Context; it stays expanded and loses its route on delete. */
+  routedProjectContextId: string | null
   onToggle: () => void
   onNavigate: (route: NavigableRoute) => void
   onConfigure: () => void
@@ -34,20 +38,16 @@ function RowMenu() {
 }
 
 /**
- * The one name form behind create and rename. It keeps the typed name and shows
- * a retryable failure in place; only an acknowledged write closes it.
+ * The inline rename form. It keeps the typed name and shows a retryable
+ * failure in place; only an acknowledged write closes it.
  */
-function NameForm({
-  label,
-  submitLabel,
-  initialName = '',
+function RenameForm({
+  initialName,
   onSubmit,
   onCancel,
 }: {
-  label: string
-  submitLabel: string
-  initialName?: string
-  onSubmit: (name: string) => RailWriteResult
+  initialName: string
+  onSubmit: (name: string) => WriteResult
   onCancel: () => void
 }) {
   const [name, setName] = useState(initialName)
@@ -75,17 +75,23 @@ function NameForm({
     >
       <input
         autoFocus
-        className="min-w-0 rounded-sm border border-line bg-canvas px-1.5 py-1 text-xs text-ink outline-none focus-visible:border-accent"
-        aria-label={label}
+        className="min-w-0 rounded-sm border border-line bg-canvas px-1.5 py-1 text-xs text-ink outline-none focus-visible:border-accent disabled:opacity-60"
+        aria-label="Project Context name"
         value={name}
         disabled={saving}
+        aria-invalid={!named.success}
+        aria-describedby={failure ? 'rename-project-context-error' : undefined}
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Escape') onCancel()
+          if (event.key === 'Escape' && !saving) onCancel()
         }}
       />
       {failure && (
-        <p className="text-[11px] leading-snug text-danger" role="alert">
+        <p
+          id="rename-project-context-error"
+          className="text-[11px] leading-snug text-danger"
+          role="alert"
+        >
           {failure}
         </p>
       )}
@@ -95,9 +101,9 @@ function NameForm({
           variant="primary"
           disabled={saving || !named.success}
         >
-          {submitLabel}
+          Rename
         </Button>
-        <Button onClick={onCancel} disabled={saving}>
+        <Button type="button" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
       </div>
@@ -112,24 +118,22 @@ function DeleteDialog({
   onCancel,
 }: {
   name: string
-  onConfirm: () => RailWriteResult
+  onConfirm: () => WriteResult
   onCancel: () => void
 }) {
   const [failure, setFailure] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const dialog = useRef<HTMLDialogElement>(null)
 
-  // Native modality owns focus: `showModal` moves focus in, contains Tab, and
-  // restores it to the Delete row on close. Nothing hand-rolled matches it.
+  // Native modality owns focus: `showModal` moves focus in and contains Tab.
   useEffect(() => {
     dialog.current?.showModal()
   }, [])
-  const close = () => dialog.current?.close()
 
   return (
     <dialog
-      className="w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
       ref={dialog}
+      className="m-auto w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
       aria-labelledby="delete-project-context-title"
       aria-describedby="delete-project-context-description"
       onClose={onCancel}
@@ -137,18 +141,18 @@ function DeleteDialog({
       // failure keeps the dialog and its retry.
       onCancel={(event) => {
         event.preventDefault()
-        if (!deleting) close()
+        if (!deleting) dialog.current?.close()
       }}
     >
       <h2
-        className="text-sm font-bold text-ink"
         id="delete-project-context-title"
+        className="text-sm font-bold text-ink"
       >
         Delete Project Context
       </h2>
       <p
-        className="mt-2 text-xs leading-relaxed text-ink-muted"
         id="delete-project-context-description"
+        className="mt-2 text-xs leading-relaxed text-ink-muted"
       >
         Deleting “{name}” permanently removes its Source Documents, Annotations,
         Extraction Schema, Extractions, and Review Decisions. This cannot be
@@ -160,7 +164,12 @@ function DeleteDialog({
         </p>
       )}
       <div className="mt-4 flex justify-end gap-2">
-        <Button autoFocus size="md" onClick={close} disabled={deleting}>
+        <Button
+          size="md"
+          autoFocus
+          onClick={() => dialog.current?.close()}
+          disabled={deleting}
+        >
           Cancel
         </Button>
         <Button
@@ -174,32 +183,78 @@ function DeleteDialog({
             if (rejected) {
               setDeleting(false)
               setFailure(rejected.message)
-            } else close()
+            } else dialog.current?.close()
           }}
         >
-          Delete permanently
+          {deleting ? 'Deleting…' : 'Delete permanently'}
         </Button>
       </div>
     </dialog>
   )
 }
 
-function ProjectNav({
-  tree,
+export function ProjectContextRail({
   open,
+  selection,
+  routedProjectContextId,
   onToggle,
   onNavigate,
   onConfigure,
   onOpenDevDocument,
-}: ProjectNavProps) {
+}: ProjectContextRailProps) {
+  const {
+    projects,
+    listState,
+    branches,
+    loadBranch,
+    retryList,
+    createProject,
+    renameProject,
+    deleteProject,
+  } = useProjectContexts()
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
+  const [collapsedRouted, setCollapsedRouted] = useState<ReadonlySet<string>>(
+    new Set(),
+  )
   const [creating, setCreating] = useState(false)
   const [renaming, setRenaming] = useState<string | null>(null)
-  const restoreNameFocus = useRef<'create' | string | null>(null)
-  const restoreDeleteFocus = useRef(false)
-  const railToggle = useRef<HTMLButtonElement>(null)
   const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(
     null,
   )
+  const restoreRenameFocus = useRef<string | null>(null)
+  const restoreCreateFocus = useRef(false)
+  const restoreDeleteFocus = useRef(false)
+  const createTrigger = useRef<HTMLButtonElement>(null)
+  const railToggle = useRef<HTMLButtonElement>(null)
+
+  const activeProjectContextId =
+    selection?.kind === 'project' || selection?.kind === 'document'
+      ? selection.projectContextId
+      : null
+  const activeSourceDocumentId =
+    selection?.kind === 'document' ? selection.sourceDocumentId : null
+  const visibleExpanded =
+    routedProjectContextId && !collapsedRouted.has(routedProjectContextId)
+      ? new Set(expanded).add(routedProjectContextId)
+      : expanded
+
+  const toggle = (projectContextId: string) => {
+    const isExpanded = visibleExpanded.has(projectContextId)
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (isExpanded) next.delete(projectContextId)
+      else next.add(projectContextId)
+      return next
+    })
+    setCollapsedRouted((current) => {
+      const next = new Set(current)
+      if (isExpanded && projectContextId === routedProjectContextId)
+        next.add(projectContextId)
+      else next.delete(projectContextId)
+      return next
+    })
+    if (!isExpanded) loadBranch(projectContextId)
+  }
 
   if (!open)
     return (
@@ -214,11 +269,11 @@ function ProjectNav({
           <PanelToggleIcon side="left" />
         </button>
         <ul className="mt-3 flex flex-col gap-2" aria-hidden="true">
-          {tree.projects.map((project) => (
+          {projects.map((project) => (
             <li
               key={project.projectContextId}
               className={`h-4 w-px ${
-                project.projectContextId === tree.activeProjectContextId
+                project.projectContextId === activeProjectContextId
                   ? 'bg-accent'
                   : 'bg-line-strong'
               }`}
@@ -248,121 +303,116 @@ function ProjectNav({
         className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto pb-3 pl-3 pr-2"
         aria-label="Project Contexts"
       >
-        {tree.listState.status === 'loading' && (
+        {listState.status === 'loading' && (
           <p className="py-6 pr-2 text-xs text-ink-muted" aria-live="polite">
             Loading Project Contexts…
           </p>
         )}
-        {tree.listState.status === 'error' && (
+        {listState.status === 'error' && (
           <p className="py-6 pr-2 text-xs leading-relaxed text-danger">
-            {tree.listState.failure.message}{' '}
+            {listState.failure.message}{' '}
             <button
               className="font-semibold underline"
               type="button"
-              onClick={() => tree.retryList()}
+              onClick={retryList}
             >
               Retry
             </button>
           </p>
         )}
-        {tree.listState.status === 'ready' && tree.projects.length === 0 && (
+        {listState.status === 'ready' && projects.length === 0 && (
           <p className="py-6 pr-2 text-xs leading-relaxed text-ink-muted">
             No Project Contexts yet.
           </p>
         )}
         <ul className="flex flex-col">
-          {tree.projects.map((project) => {
-            const expanded = tree.expanded.has(project.projectContextId)
-            const active =
-              project.projectContextId === tree.activeProjectContextId
-            const branch = tree.branches[project.projectContextId]
+          {projects.map((project) => {
+            const projectContextId = project.projectContextId
+            const isExpanded = visibleExpanded.has(projectContextId)
+            const active = projectContextId === activeProjectContextId
+            const branch = branches[projectContextId]
             return (
-              <li key={project.projectContextId} className="py-0.5">
-                {renaming === project.projectContextId ? (
-                  <NameForm
-                    label="Project Context name"
-                    submitLabel="Rename"
+              <li key={projectContextId} className="py-0.5">
+                {renaming === projectContextId ? (
+                  <RenameForm
                     initialName={project.name}
                     onSubmit={async (name) => {
-                      const rejected = await tree.renameProject(
-                        project.projectContextId,
+                      const rejected = await renameProject(
+                        projectContextId,
                         name,
                       )
                       if (!rejected) {
-                        restoreNameFocus.current = project.projectContextId
+                        restoreRenameFocus.current = projectContextId
                         setRenaming(null)
                       }
                       return rejected
                     }}
                     onCancel={() => {
-                      restoreNameFocus.current = project.projectContextId
+                      restoreRenameFocus.current = projectContextId
                       setRenaming(null)
                     }}
                   />
                 ) : (
-                <div className="group flex items-center">
-                  <button
-                    className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-1.5 rounded-sm py-1 pr-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-accent"
-                    type="button"
-                    aria-expanded={expanded}
-                    aria-current={active ? 'page' : undefined}
-                    onClick={() => {
-                      tree.toggle(project.projectContextId)
-                      if (!active)
-                        onNavigate({
-                          kind: 'project',
-                          projectContextId: project.projectContextId,
+                  <div className="group flex items-center">
+                    <button
+                      className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-1.5 rounded-sm py-1 pr-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-current={active ? 'page' : undefined}
+                      onClick={() => {
+                        toggle(projectContextId)
+                        if (!active)
+                          onNavigate({ kind: 'project', projectContextId })
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={active ? 'text-accent' : 'text-ink-faint'}
+                      >
+                        {isExpanded ? '▾' : '▸'}
+                      </span>
+                      <span
+                        className={`min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.07em] ${
+                          active ? 'text-accent' : 'text-ink-muted'
+                        }`}
+                      >
+                        {project.name}
+                      </span>
+                    </button>
+                    <button
+                      ref={(button) => {
+                        if (
+                          button &&
+                          restoreRenameFocus.current === projectContextId
+                        ) {
+                          restoreRenameFocus.current = null
+                          button.focus()
+                        }
+                      }}
+                      className={rowAction}
+                      type="button"
+                      aria-label={`Rename ${project.name}`}
+                      onClick={() => setRenaming(projectContextId)}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      className={`${rowAction} mr-1 hover:text-danger`}
+                      type="button"
+                      aria-label={`Delete ${project.name}`}
+                      onClick={() =>
+                        setDeleting({
+                          id: projectContextId,
+                          name: project.name,
                         })
-                    }}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={active ? 'text-accent' : 'text-ink-faint'}
-                    >
-                      {expanded ? '▾' : '▸'}
-                    </span>
-                    <span
-                      className={`min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.07em] ${
-                        active ? 'text-accent' : 'text-ink-muted'
-                      }`}
-                    >
-                      {project.name}
-                    </span>
-                  </button>
-                  <button
-                    ref={(button) => {
-                      if (
-                        button &&
-                        restoreNameFocus.current === project.projectContextId
-                      ) {
-                        restoreNameFocus.current = null
-                        button.focus()
                       }
-                    }}
-                    className={rowAction}
-                    type="button"
-                    aria-label={`Rename ${project.name}`}
-                    onClick={() => setRenaming(project.projectContextId)}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    className={`${rowAction} mr-1 hover:text-danger`}
-                    type="button"
-                    aria-label={`Delete ${project.name}`}
-                    onClick={() =>
-                      setDeleting({
-                        id: project.projectContextId,
-                        name: project.name,
-                      })
-                    }
-                  >
-                    Delete
-                  </button>
-                </div>
+                    >
+                      Delete
+                    </button>
+                  </div>
                 )}
 
-                {expanded && (
+                {isExpanded && (
                   <div className="ml-1.5">
                     {branch?.status === 'loading' && (
                       <p className={`py-1 text-[11px] text-ink-muted ${guide}`}>
@@ -377,9 +427,7 @@ function ProjectNav({
                         <button
                           className="font-semibold underline"
                           type="button"
-                          onClick={() =>
-                            tree.retryBranch(project.projectContextId)
-                          }
+                          onClick={() => loadBranch(projectContextId, true)}
                         >
                           Retry
                         </button>
@@ -396,14 +444,11 @@ function ProjectNav({
                     {branch?.status === 'ready' &&
                       branch.detail.sourceDocuments.map((document) => {
                         const documentActive =
-                          document.sourceDocumentId ===
-                          tree.activeSourceDocumentId
+                          document.sourceDocumentId === activeSourceDocumentId
                         return (
                           <div
                             className={`group flex items-center border-l pl-3 ${
-                              documentActive
-                                ? 'border-accent'
-                                : 'border-line'
+                              documentActive ? 'border-accent' : 'border-line'
                             }`}
                             key={document.sourceDocumentId}
                           >
@@ -421,7 +466,7 @@ function ProjectNav({
                                 if (documentActive) return
                                 onNavigate({
                                   kind: 'document',
-                                  projectContextId: project.projectContextId,
+                                  projectContextId,
                                   sourceDocumentId: document.sourceDocumentId,
                                 })
                               }}
@@ -472,64 +517,71 @@ function ProjectNav({
       </nav>
 
       <footer className="shrink-0 border-t border-line px-3 py-2.5">
-        {creating ? (
-          <NameForm
-            label="New Project Context name"
-            submitLabel="Create"
-            onSubmit={async (name) => {
-              const rejected = await tree.createProject(name)
-              if (!rejected) {
-                restoreNameFocus.current = 'create'
-                setCreating(false)
-              }
-              return rejected
-            }}
-            onCancel={() => {
-              restoreNameFocus.current = 'create'
-              setCreating(false)
-            }}
-          />
-        ) : (
-          <div className="flex items-center gap-2">
-            <button
-              ref={(button) => {
-                if (button && restoreNameFocus.current === 'create') {
-                  restoreNameFocus.current = null
-                  button.focus()
-                }
-              }}
-              className="flex cursor-pointer items-center gap-1.5 rounded-sm text-[11px] font-semibold text-ink-muted outline-none hover:text-accent focus-visible:ring-1 focus-visible:ring-accent"
-              type="button"
-              onClick={() => setCreating(true)}
-            >
-              + New project
-            </button>
-            <span className="flex-1" />
-            <button
-              className="rounded p-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
-              type="button"
-              aria-label="Configure providers"
-              title="Configure providers"
-              onClick={onConfigure}
-            >
-              <GearIcon />
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            ref={createTrigger}
+            className="flex cursor-pointer items-center gap-1.5 rounded-sm text-[11px] font-semibold text-ink-muted outline-none hover:text-accent focus-visible:ring-1 focus-visible:ring-accent"
+            type="button"
+            onClick={() => setCreating(true)}
+          >
+            + New project
+          </button>
+          <span className="flex-1" />
+          <button
+            className="rounded p-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+            type="button"
+            aria-label="Configure providers"
+            title="Configure providers"
+            onClick={onConfigure}
+          >
+            <GearIcon />
+          </button>
+        </div>
       </footer>
 
+      {creating && (
+        <CreateProjectModal
+          onSubmit={async (name) => {
+            const result = await createProject(name)
+            if (result.created) {
+              restoreCreateFocus.current = true
+              // Routing to the created Project Context expands it and reads
+              // its (empty) branch.
+              onNavigate({
+                kind: 'project',
+                projectContextId: result.created.projectContextId,
+              })
+            }
+            return result.failure ?? null
+          }}
+          onClose={() => {
+            setCreating(false)
+            if (restoreCreateFocus.current) {
+              restoreCreateFocus.current = false
+              createTrigger.current?.focus()
+            }
+          }}
+        />
+      )}
       {deleting && (
         <DeleteDialog
           name={deleting.name}
           onConfirm={async () => {
-            const rejected = await tree.deleteProject(deleting.id)
-            if (!rejected) restoreDeleteFocus.current = true
+            const rejected = await deleteProject(deleting.id)
+            if (!rejected) {
+              restoreDeleteFocus.current = true
+              // Only the routed Project Context loses its route; any other
+              // one keeps it.
+              if (deleting.id === routedProjectContextId)
+                onNavigate({ kind: 'root' })
+            }
             return rejected
           }}
           onCancel={() => {
             setDeleting(null)
             if (restoreDeleteFocus.current) {
               restoreDeleteFocus.current = false
+              // The row is gone; the stable rail toggle takes focus instead.
               railToggle.current?.focus()
             }
           }}
@@ -538,5 +590,3 @@ function ProjectNav({
     </div>
   )
 }
-
-export default ProjectNav

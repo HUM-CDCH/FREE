@@ -31,7 +31,7 @@ import { Button } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
-import type { DocumentSnapshot } from './projectContexts'
+import type { DocumentSnapshot } from './projectContexts/transport'
 import type {
   ExtractionAttempt,
   ExtractionStrategy,
