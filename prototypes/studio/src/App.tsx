@@ -35,7 +35,7 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 // Annotation tab. Left in place, commented out, rather than deleted.
 // import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 // import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
-import type { DocumentSnapshot } from './projectContexts'
+import type { DocumentSnapshot } from './projectContexts/transport'
 import type {
   ExtractionAttempt,
   ExtractionStrategy,

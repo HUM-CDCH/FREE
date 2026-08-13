@@ -17,7 +17,9 @@ const sourcePdf = fileURLToPath(
   new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
 )
 const parsedDocument = await readFile(
-  fileURLToPath(new URL('../src/assets/parsed_document.v2.json', import.meta.url)),
+  fileURLToPath(
+    new URL('../src/assets/parsed_document.v2.json', import.meta.url),
+  ),
   'utf8',
 )
 
@@ -100,12 +102,29 @@ const DURABLE = {
       recordDescription: 'One place record.',
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
     },
-    strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
+    strategy: 'ARTICLE',
+    outcome: 'SUCCEEDED',
+    complete: true,
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null, catalog: null },
-    failure: null, resultPayload: { place: 'Ellekilde' }, evidenceLinks: [],
-    reviewable: true, retryOfId: null, createdAt: new Date('2026-08-02T10:00:00.000Z'),
-    reviewedAt: null, reviewDecisions: [],
+    diagnostics: {
+      phase: 'grounding',
+      durationMs: 1,
+      modelCalls: 0,
+      finishReason: null,
+      inputTokens: null,
+      outputTokens: null,
+      values: null,
+      grounding: null,
+      catalog: null,
+    },
+    failure: null,
+    resultPayload: { place: 'Ellekilde' },
+    evidenceLinks: [],
+    reviewable: true,
+    retryOfId: null,
+    createdAt: new Date('2026-08-02T10:00:00.000Z'),
+    reviewedAt: null,
+    reviewDecisions: [],
   },
   latestReviewed: null,
 } satisfies Pick<
@@ -167,7 +186,9 @@ const base: NavigationStore = {
   },
 }
 
-const railStore = (overrides: Partial<NavigationStore> = {}): NavigationStore => ({
+const railStore = (
+  overrides: Partial<NavigationStore> = {},
+): NavigationStore => ({
   ...base,
   ...overrides,
 })
@@ -251,7 +272,9 @@ async function stubStudio(
           },
         }),
       })
-    const immutable = { 'cache-control': 'private, max-age=31536000, immutable' }
+    const immutable = {
+      'cache-control': 'private, max-age=31536000, immutable',
+    }
     if (pathname.endsWith('/pdf'))
       return settle({
         path: sourcePdf,
@@ -295,17 +318,122 @@ const rail = (page: Page) =>
   page.getByRole('navigation', { name: 'Project Contexts' })
 const workspace = (page: Page) =>
   page.getByRole('region', { name: 'Source Document' })
+const projectRows = (page: Page) => rail(page).locator('button[aria-expanded]')
+const projectRow = (page: Page, name: string) =>
+  page.getByRole('button', { name, exact: true })
 const documentRow = (page: Page, name: string) =>
   page.getByRole('button', { name, exact: true })
 
 test.describe('rail navigation', () => {
+  test('returns focus to the delete control when cancellation closes the dialog', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await page.goto('/')
+
+    const remove = page.getByRole('button', {
+      name: 'Delete Hørsholm, TAK 1402',
+    })
+    await remove.click()
+    const dialog = page.getByRole('dialog', { name: 'Delete Project Context' })
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+
+    await expect(dialog).not.toBeVisible()
+    await expect(remove).toBeFocused()
+  })
+
+  test('returns focus to create and rename controls when name editing is cancelled', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await page.goto('/')
+
+    const create = page.getByRole('button', { name: '+ New project' })
+    await create.click()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(create).toBeFocused()
+
+    const rename = page.getByRole('button', {
+      name: 'Rename Hørsholm, TAK 1402',
+    })
+    await rename.click()
+    await page
+      .getByRole('textbox', { name: 'Project Context name' })
+      .press('Escape')
+    await expect(rename).toBeFocused()
+  })
+
+  test('moves focus deliberately after successful create and rename writes', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await page.route('**/api/project-contexts**', async (route) => {
+      const request = route.request()
+      if (request.method() === 'GET') return route.fallback()
+      if (request.method() === 'DELETE')
+        return route.fulfill({ status: 204, body: '' })
+      const name = (request.postDataJSON() as { name: string }).name.trim()
+      if (request.method() === 'POST')
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            projectContext: {
+              projectContextId: '00000000-0000-4000-8000-000000000047',
+              name,
+              createdAt: '2026-08-12T00:00:00.000Z',
+            },
+          }),
+        })
+      if (request.method() === 'PATCH')
+        return route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            projectContext: {
+              projectContextId: HORSHOLM,
+              name,
+              createdAt: SEED[0].createdAt,
+            },
+          }),
+        })
+      return route.fallback()
+    })
+    await page.goto('/')
+
+    await page.getByRole('button', { name: '+ New project' }).click()
+    await page
+      .getByRole('textbox', { name: 'New Project Context name' })
+      .fill('Created project')
+    await page.getByRole('button', { name: 'Create' }).click()
+    await expect(
+      page.getByRole('button', { name: '+ New project' }),
+    ).toBeFocused()
+
+    await page
+      .getByRole('button', { name: 'Rename Hørsholm, TAK 1402' })
+      .click()
+    const rename = page.getByRole('textbox', { name: 'Project Context name' })
+    await rename.fill('Renamed project')
+    await rename.press('Enter')
+    await expect(
+      page.getByRole('button', { name: 'Rename Renamed project' }),
+    ).toBeFocused()
+
+    // The deleted row's controls are gone, so a stable rail control takes
+    // focus. Creation is modal, so no inline draft can coexist with deletion.
+    await page.getByRole('button', { name: 'Delete Renamed project' }).click()
+    await page.getByRole('button', { name: 'Delete permanently' }).click()
+    await expect(
+      page.getByRole('button', { name: 'Collapse Project Contexts' }),
+    ).toBeFocused()
+  })
+
   test('lists Project Contexts newest first and opens one into the single shell', async ({
     page,
   }) => {
     await stubStudio(page)
 
     await page.goto('/')
-    await expect(rail(page).getByRole('button', { name: /TAK/ })).toHaveText([
+    await expect(projectRows(page)).toHaveText([
       /Hørsholm, TAK 1402/,
       /Ellekilde, TAK 1355/,
     ])
@@ -313,9 +441,11 @@ test.describe('rail navigation', () => {
       workspace(page).getByRole('heading', { name: 'No Project Context open' }),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: 'Ellekilde, TAK 1355' }).click()
+    await projectRow(page, 'Ellekilde, TAK 1355').click()
     await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
-    await expect(documentRow(page, 'Beretning_Ellekilde_8_13.pdf')).toBeVisible()
+    await expect(
+      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+    ).toBeVisible()
     await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
     await expect(
       workspace(page).getByRole('heading', { name: 'No Source Document open' }),
@@ -334,15 +464,19 @@ test.describe('rail navigation', () => {
     await stubStudio(page)
 
     await page.goto(`/projects/${ELLEKILDE}`)
-    const project = page.getByRole('button', { name: 'Ellekilde, TAK 1355' })
+    const project = projectRow(page, 'Ellekilde, TAK 1355')
     await expect(project).toHaveAttribute('aria-current', 'page')
     await expect(project).toHaveAttribute('aria-expanded', 'true')
-    await expect(documentRow(page, 'Beretning_Ellekilde_8_13.pdf')).toBeVisible()
+    await expect(
+      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+    ).toBeVisible()
 
     await page.reload()
     await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
     await expect(project).toHaveAttribute('aria-current', 'page')
-    await expect(documentRow(page, 'Beretning_Ellekilde_8_13.pdf')).toBeVisible()
+    await expect(
+      documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
+    ).toBeVisible()
   })
 
   test('back and forward walk Source Documents as well as Project Contexts', async ({
@@ -353,7 +487,7 @@ test.describe('rail navigation', () => {
     const fundliste = `/projects/${ELLEKILDE}/documents/${FUNDLISTE}`
 
     await page.goto('/')
-    await page.getByRole('button', { name: 'Ellekilde, TAK 1355' }).click()
+    await projectRow(page, 'Ellekilde, TAK 1355').click()
     await documentRow(page, 'Beretning_Ellekilde_8_13.pdf').click()
     await expect(page).toHaveURL(beretning)
     await documentRow(page, 'Fundliste_Ellekilde.pdf').click()
@@ -403,7 +537,7 @@ test.describe('rail navigation', () => {
       workspace(page).getByText('Beretning_Ellekilde_8_13.pdf').first(),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: 'Hørsholm, TAK 1402' }).click()
+    await projectRow(page, 'Hørsholm, TAK 1402').click()
     release()
 
     await expect(page).toHaveURL(`/projects/${HORSHOLM}`)
@@ -436,13 +570,20 @@ test.describe('reopening a routed Source Document', () => {
       documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
     ).toHaveAttribute('aria-current', 'page')
 
-    // Every resource the snapshot offers is pinned to the reopened revision.
-    expect(Object.values(studio.snapshots[0].sourceRepresentation.resources)).toEqual([
-      `/api/source-representations/${DEMO_REPRESENTATION_ID}/pdf`,
-      `/api/source-representations/${DEMO_REPRESENTATION_ID}/markdown`,
-      `/api/source-representations/${DEMO_REPRESENTATION_ID}/source`,
-    ])
+    // Every resource the snapshot offers is pinned to the reopened revision;
+    // the version query only busts caches across representation revisions.
+    const resource = (artifact: string) =>
+      new RegExp(
+        `^/api/source-representations/${DEMO_REPRESENTATION_ID}/${artifact}\\?v=`,
+      )
+    const resources = Object.values(
+      studio.snapshots[0].sourceRepresentation.resources,
+    )
+    expect(resources[0]).toMatch(resource('pdf'))
+    expect(resources[1]).toMatch(resource('markdown'))
+    expect(resources[2]).toMatch(resource('source'))
     // And the two the workspace reads came from that revision, same-origin.
+    // Recorded paths carry no query, so they match the bare resource path.
     expect(studio.requests).toContain(
       `/api/source-representations/${DEMO_REPRESENTATION_ID}/pdf`,
     )
@@ -496,7 +637,9 @@ test.describe('reopening a routed Source Document', () => {
     await separator.focus()
     await separator.press('ArrowRight')
     await expect(separator).toHaveAttribute('aria-valuenow', '222')
-    await page.getByRole('button', { name: 'Collapse Project Contexts' }).click()
+    await page
+      .getByRole('button', { name: 'Collapse Project Contexts' })
+      .click()
     await expect(
       page.getByRole('button', { name: 'Expand Project Contexts' }),
     ).toBeVisible()
@@ -531,7 +674,9 @@ test.describe('reopening a routed Source Document', () => {
     ).toBeVisible()
     await expect(schemaTab).toHaveAttribute('aria-selected', 'true')
     await schemaTab.click()
-    await expect(rightRail.locator('textarea')).not.toHaveValue('{ "unsaved": "draft" }')
+    await expect(rightRail.locator('textarea')).not.toHaveValue(
+      '{ "unsaved": "draft" }',
+    )
     await expect(page.getByText(/pages · text highlights only/)).toBeVisible({
       timeout: 20_000,
     })
@@ -552,7 +697,7 @@ test.describe('bad references and bounded failures', () => {
       }),
     ).toBeVisible()
     // The rail stays usable, so the researcher is never stranded.
-    await expect(rail(page).getByRole('button', { name: /TAK/ })).toHaveCount(2)
+    await expect(projectRows(page)).toHaveCount(2)
 
     await page.goto(`/projects/${ELLEKILDE}/documents/xyz`)
     await expect(
@@ -607,7 +752,7 @@ test.describe('bad references and bounded failures', () => {
       `/api/project-contexts/${ELLEKILDE}/source-documents/${OVERSIGT}/reopen`,
     )
 
-    await page.getByRole('button', { name: 'Hørsholm, TAK 1402' }).click()
+    await projectRow(page, 'Hørsholm, TAK 1402').click()
     await expect(page).toHaveURL(`/projects/${HORSHOLM}`)
     await expect(documentRow(page, 'Oversigt_Hoersholm.pdf')).toBeVisible()
   })
@@ -616,9 +761,11 @@ test.describe('bad references and bounded failures', () => {
     page,
   }) => {
     await stubStudio(page, {
-      store: railStore({ async getProjectContextWithDocuments() {
-        return null
-      } }),
+      store: railStore({
+        async getProjectContextWithDocuments() {
+          return null
+        },
+      }),
     })
 
     await page.goto(`/projects/${ELLEKILDE}`)
@@ -627,16 +774,18 @@ test.describe('bad references and bounded failures', () => {
         name: 'That Project Context no longer exists',
       }),
     ).toBeVisible()
-    await expect(rail(page).getByRole('button', { name: /TAK/ })).toHaveCount(2)
+    await expect(projectRows(page)).toHaveCount(2)
   })
 
   test('explains a contained Source Document with no durable snapshot', async ({
     page,
   }) => {
     await stubStudio(page, {
-      store: railStore({ async getDocumentReopenSnapshot() {
-        return null
-      } }),
+      store: railStore({
+        async getDocumentReopenSnapshot() {
+          return null
+        },
+      }),
     })
 
     await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
@@ -658,7 +807,10 @@ test.describe('bad references and bounded failures', () => {
       store: railStore({
         async getDocumentReopenSnapshot(projectContextId, sourceDocumentId) {
           if (unavailable) throw new Error(`connection refused: ${internal}`)
-          return base.getDocumentReopenSnapshot(projectContextId, sourceDocumentId)
+          return base.getDocumentReopenSnapshot(
+            projectContextId,
+            sourceDocumentId,
+          )
         },
       }),
     })

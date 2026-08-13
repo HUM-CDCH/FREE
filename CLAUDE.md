@@ -73,11 +73,23 @@ Model configuration remains separate: non-secret Model Connections and
 Capability Routes live in `model-config.json` in the OS user config directory
 for `FREE Studio`, while FREE-managed credentials use the OS credential store.
 
-Studio keeps writes narrow: researcher schema edits append immutable Schema
-Revisions through `/api/schema-revisions`, Article operations append terminal
-Extractions, and explicit review stores Review Decisions. Annotations are still
-passed inline with each `/api/generate_schema` request; seeded and accepted
-research state reopens through `ProjectStore`.
+Studio keeps writes narrow: the persistent rail creates, renames, and
+permanently deletes a Project Context through `/api/project-contexts`,
+researcher schema edits append immutable Schema Revisions through
+`/api/schema-revisions`, Article operations append terminal Extractions, and
+explicit review stores Review Decisions. Deleting a Project Context deletes its whole owned relational
+graph through the database cascade, then removes the canonical packages no
+remaining Source Representation references. That cascade is a PostgreSQL
+behaviour, so it is proven against PostgreSQL:
+`PROJECT_STORE_POSTGRES_URL=<a disposable free_test_* database> pnpm --filter db
+test:postgres`, which fails rather than skips when the database is missing.
+Package cleanup quarantines each candidate and rechecks its reference before
+unlinking it, so a concurrent content-addressed publish is restored instead of
+leaving PostgreSQL pointed at a missing package. The current package writer,
+`pnpm db:seed`, also reasserts the already-downloaded package after inserting its
+reference; it never re-runs ingestion for this cleanup handshake.
+Annotations are still passed inline with each `/api/generate_schema` request;
+seeded and accepted research state reopens through `ProjectStore`.
 
 ## Agent skills
 

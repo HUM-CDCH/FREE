@@ -1,12 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import ProjectNav from './ProjectNav'
+import { ProjectContextRail } from './projectContexts/ProjectContextRail'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import type { NavigableRoute, Route } from './projectNavigation'
-import type { DocumentSnapshot } from './projectContexts'
+import type { DocumentSnapshot } from './projectContexts/transport'
+import type { ProjectContextRouteState } from './projectContexts/useProjectContexts'
 import type { projectContextErrorSchema } from '../shared/projectContext.contract'
 import type { z } from 'zod'
 import { Button, EmptyState } from './ui'
-import type { ProjectBranch, RailTree } from './useRailTree'
 
 const collapsedWidth = 46
 const navMin = 150
@@ -18,7 +18,7 @@ type Failure = z.output<typeof projectContextErrorSchema>
 
 type AppFrameProps = {
   route: Route
-  tree: RailTree
+  routedProjectContext: ProjectContextRouteState
   openDocument: DocumentSnapshot | null
   opening: boolean
   failure: Failure | null
@@ -38,7 +38,7 @@ function EmptyWorkspace({
   onRetry,
 }: {
   route: Route
-  branch: ProjectBranch | undefined
+  branch: ProjectContextRouteState['branch']
   routedDocumentContained: boolean | null
   failure: Failure | null
   onRetry: () => void
@@ -119,7 +119,7 @@ function EmptyWorkspace({
 
 export default function AppFrame({
   route,
-  tree,
+  routedProjectContext,
   openDocument,
   opening,
   failure,
@@ -158,30 +158,28 @@ export default function AppFrame({
 
   const effectiveNavOpen = navOpen && viewportWidth >= 860
   const effectiveNavWidth = effectiveNavOpen ? navWidth : collapsedWidth
+  const { branch: routedBranch, documentContained: routedDocumentContained } =
+    routedProjectContext
   const routedProjectContextId =
     route.kind === 'project' || route.kind === 'document'
       ? route.projectContextId
       : null
-  const branch = routedProjectContextId
-    ? tree.branches[routedProjectContextId]
-    : undefined
-
-  // Selection stays on the Source Document that is actually open; the requested
-  // one becomes active only once it has opened.
-  let activeProjectContextId = tree.activeProjectContextId
-  let activeSourceDocumentId = tree.activeSourceDocumentId
-  if (devDocument) {
-    activeProjectContextId = null
-    activeSourceDocumentId = null
-  } else if (opening) {
-    activeSourceDocumentId =
-      openDocument?.sourceDocument.sourceDocumentId ?? null
-  }
-  const railTree = {
-    ...tree,
-    activeProjectContextId,
-    activeSourceDocumentId,
-  }
+  // Selection stays on the Source Document that is actually open; the
+  // requested one becomes active only once it has opened, and a dev PDF
+  // clears the selection entirely.
+  const selection: NavigableRoute | null = devDocument
+    ? null
+    : opening && route.kind === 'document'
+      ? openDocument
+        ? {
+            kind: 'document',
+            projectContextId: openDocument.projectContext.projectContextId,
+            sourceDocumentId: openDocument.sourceDocument.sourceDocumentId,
+          }
+        : { kind: 'project', projectContextId: route.projectContextId }
+      : route.kind === 'badReference'
+        ? null
+        : route
   // Durable hydration: the PDF, its name, and its Markdown all come from the
   // reopened representation. Rail state, PDF position, focus, and drafts do not.
   const reopened = openDocument && {
@@ -259,9 +257,10 @@ export default function AppFrame({
           )}
         </div>
         <aside className="min-h-0 flex-1" aria-label="Project navigation">
-          <ProjectNav
-            tree={railTree}
+          <ProjectContextRail
             open={effectiveNavOpen}
+            selection={selection}
+            routedProjectContextId={routedProjectContextId}
             onToggle={() => setNavOpen((open) => !open)}
             onNavigate={(nextRoute) => {
               setDevDocument(null)
@@ -304,9 +303,7 @@ export default function AppFrame({
       >
         {workspace ? (
           <Suspense
-            fallback={
-              <div aria-busy="true">Loading Source Document…</div>
-            }
+            fallback={<div aria-busy="true">Loading Source Document…</div>}
           >
             {/* Keyed so a different Source Document starts with no carried-over
                 annotations, schema draft, focus, or scroll position. */}
@@ -321,8 +318,8 @@ export default function AppFrame({
         ) : (
           <EmptyWorkspace
             route={route}
-            branch={branch}
-            routedDocumentContained={tree.routedDocumentContained}
+            branch={routedBranch}
+            routedDocumentContained={routedDocumentContained}
             failure={failure}
             onRetry={onRetry}
           />

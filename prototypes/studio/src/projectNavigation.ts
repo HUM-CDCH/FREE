@@ -7,8 +7,8 @@ import {
 import {
   type DocumentSnapshot,
   getDocumentReopenSnapshot,
-  toFailure,
-} from './projectContexts'
+  toProjectContextFailure,
+} from './projectContexts/transport'
 
 export type Route =
   | { kind: 'root' }
@@ -75,7 +75,7 @@ export function parseRoute(pathname: string): Route {
 }
 
 export function href(route: NavigableRoute): string {
-  if (route.kind === 'root') return '/'
+  if (route.kind === 'root') return '/projects'
   const project = `/projects/${route.projectContextId}`
   return route.kind === 'project'
     ? project
@@ -196,7 +196,7 @@ export const navigationMachine = setup({
           actions: [
             assign({
               snapshot: null,
-              failure: ({ event }) => toFailure(event.error),
+              failure: ({ event }) => toProjectContextFailure(event.error),
             }),
           ],
         },

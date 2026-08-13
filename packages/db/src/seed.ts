@@ -55,6 +55,8 @@ export type IngestedRepresentation = {
   preprocessId: string
   parserName: string
   parserVersion: string
+  /** Re-publish the already-downloaded package if cleanup raced this write. */
+  ensureRetained?: () => Promise<void>
 }
 export type Ingest = (
   pdf: Uint8Array,
@@ -163,13 +165,12 @@ export const ingestThroughParsingService: Ingest = async (
 
   // Ownership crosses here: the Parsing Service task remains a disposable cache,
   // while the Project Context keeps the portable canonical package.
-  const stored = await canonicalPackageStore.save(
-    new Uint8Array(
-      await (
-        await parsingServiceRequest(`/tasks/${taskId}/download`)
-      ).arrayBuffer(),
-    ),
+  const packageBytes = new Uint8Array(
+    await (
+      await parsingServiceRequest(`/tasks/${taskId}/download`)
+    ).arrayBuffer(),
   )
+  const stored = await canonicalPackageStore.save(packageBytes)
   return {
     artifactReference: stored.artifactReference,
     artifactSha256: stored.artifactSha256,
@@ -177,6 +178,10 @@ export const ingestThroughParsingService: Ingest = async (
     preprocessId,
     parserName,
     parserVersion: resolvedParserVersion,
+    ensureRetained: async () => {
+      if (!(await canonicalPackageStore.available(stored)))
+        await canonicalPackageStore.save(packageBytes)
+    },
   }
 }
 
@@ -191,8 +196,8 @@ export async function parsingServiceReachable(): Promise<boolean> {
 /**
  * Seeds the example Project Contexts, their Source Documents, and — when an
  * `ingest` is supplied — the Source Representation Revision each one reopens
- * from. Fixed first-revision identities and preprocessing identity checks make
- * re-seeding idempotent.
+ * from. Fixed first-revision identities and monotonic revisions make re-seeding
+ * idempotent without rewriting research history.
  */
 export async function seedExampleProjects(
   database: SeedDatabase = db,
@@ -272,17 +277,28 @@ export async function seedExampleProjects(
           continue
         // Source Representation Revisions are immutable Extraction pins, so a
         // stale seeded artifact advances the head instead of rewriting history.
+        const { ensureRetained, ...storedRepresentation } = ingested
         const representation = {
           id: existingRepresentation
             ? randomUUID()
             : document.sourceRepresentationId,
           sourceDocumentId: document.sourceDocumentId,
           revisionNumber: (existingRepresentation?.revisionNumber ?? 0) + 1,
-          ...ingested,
+          ...storedRepresentation,
         }
         await database.orm.public.SourceRepresentationRevision.create(
           representation,
         )
+        try {
+          await ensureRetained?.()
+        } catch (cause) {
+          // This revision is not durable until its package is. Remove only the
+          // row this attempt just created; older research history stays intact.
+          await database.orm.public.SourceRepresentationRevision.where({
+            id: representation.id,
+          }).delete()
+          throw cause
+        }
         representationsCreated += 1
       } catch (cause) {
         representationFailures.push({

@@ -59,8 +59,8 @@ model {
   studio.browser_http -> studio.handlers 'Calls /api/*'
   studio.browser_http -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /markdown and /document'
   studio.handlers -> studio.provider_registry 'Resolves a Capability Route'
-  studio.handlers -> studio.project_store 'Reads a snapshot; appends a Schema Revision; stores a reviewed Extraction'
-  studio.handlers -> package_store 'Reads the pdf, markdown, and source entries'
+  studio.handlers -> studio.project_store 'Reads a snapshot; creates, renames, and deletes a Project Context; appends a Schema Revision; stores a reviewed Extraction'
+  studio.handlers -> package_store 'Reads the pdf, markdown, and source entries; removes the packages a deleted Project Context left unreferenced'
   studio.project_store -> project_db 'Reads and writes through Prisma Next'
   studio.provider_registry -> model_config 'Reads routes, connections, and credentials'
   studio.provider_registry -> model_connections 'Calls the resolved Model Connection'
@@ -79,7 +79,8 @@ views {
       store.
 
       The Project Store is consumed. Studio reads its research state from
-      PostgreSQL and writes Schema Revisions and reviewed Extractions to it.
+      PostgreSQL and creates, renames, and deletes Project Contexts, appends
+      Schema Revisions, and writes reviewed Extractions to it.
       The Parsing Service task directory stays a processor cache; the durable
       artifact is the canonical package.
     '''
@@ -97,7 +98,9 @@ views {
     description '''
       `pnpm db:seed` is the only writer of canonical packages today. It needs
       the Parsing Service. Without it the seed still writes the Project
-      Contexts and reports which Source Documents cannot be reopened.
+      Contexts and reports which Source Documents cannot be reopened. After it
+      inserts a package reference, it re-publishes the already-downloaded bytes
+      only if concurrent Project Context cleanup removed them.
     '''
     seed -> parsing_service.http_api 'POST /tasks with the example PDF'
     parsing_service.http_api -> parsing_service.parser 'Validate and parse the PDF'
@@ -109,6 +112,39 @@ views {
     parsing_service.http_api -> seed 'Return the canonical package'
     seed -> package_store 'Save the package under its content address'
     seed -> project_db 'Write the Project Context, Source Document, and Source Representation'
+  }
+
+  dynamic view project_context_lifecycle {
+    title 'Project Context lifecycle — current'
+    description '''
+      The rail owns create, rename, and permanent delete. Each write applies to
+      the rail only after the handler acknowledges it. Deletion removes the
+      whole owned relational graph through the database cascade, then removes
+      the canonical packages no remaining Source Representation references —
+      best effort, because the durable deletion has already succeeded.
+
+      Packages are content-addressed and shared, so each address is checked,
+      quarantined, then rechecked before unlinking. A concurrent publish restores
+      the package; an unreadable reference answer keeps it.
+    '''
+    researcher -> studio.ui 'Name a new Project Context in the rail'
+    studio.ui -> studio.handlers 'POST /api/project-contexts'
+    studio.handlers -> studio.project_store 'createProjectContext'
+    studio.project_store -> project_db 'Insert the Project Context'
+    studio.handlers -> studio.ui 'Return the durable identity; the rail opens and expands it'
+    researcher -> studio.ui 'Rename it in the rail'
+    studio.ui -> studio.handlers 'PATCH /api/project-contexts/:id'
+    studio.handlers -> studio.project_store 'renameProjectContext'
+    studio.project_store -> project_db 'Update the name'
+    researcher -> studio.ui 'Confirm permanent deletion'
+    studio.ui -> studio.handlers 'DELETE /api/project-contexts/:id'
+    studio.handlers -> studio.project_store 'deleteProjectContext'
+    studio.project_store -> project_db 'Delete the Project Context and its cascaded research state'
+    studio.project_store -> studio.handlers 'Return the pinned packages as removal candidates'
+    studio.handlers -> studio.project_store 'isPackageReferenced, per candidate address'
+    studio.handlers -> package_store 'Quarantine the unreferenced address'
+    package_store -> studio.project_store 'Recheck the address before unlinking it'
+    studio.handlers -> package_store 'Remove or restore the quarantined address, logging any failure'
   }
 
   dynamic view source_document_reopen {

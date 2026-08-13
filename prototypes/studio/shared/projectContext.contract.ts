@@ -29,6 +29,23 @@ export const sourceDocumentSummarySchema = z
     createdAt: timestamp,
   })
   .strict()
+/**
+ * One name contract for creating and renaming a Project Context. The durable
+ * limit lives in `ProjectStore`; `api/project_contexts.test.ts` fails if the two
+ * ever disagree.
+ */
+export const projectContextNameLimit = 512
+export const projectContextNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(projectContextNameLimit)
+export const projectContextWriteRequestSchema = z
+  .object({ name: projectContextNameSchema })
+  .strict()
+export const projectContextResponseSchema = z
+  .object({ projectContext: projectContextSummarySchema })
+  .strict()
 export const projectContextListResponseSchema = z
   .object({ projectContexts: z.array(projectContextSummarySchema) })
   .strict()

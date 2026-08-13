@@ -273,6 +273,22 @@ export type FinalizeExtractionReviewInput = {
 }
 
 export type ProjectStore = {
+  createProjectContext(name: string): Promise<ProjectContextSummary>
+  renameProjectContext(
+    projectContextId: string,
+    name: string,
+  ): Promise<ProjectContextSummary | null>
+  /**
+   * Deletes the Project Context and everything the relational cascade owns,
+   * and answers the canonical packages its Source Representation Revisions
+   * pinned. Packages are content-addressed and shareable, so the caller removes
+   * only candidates no surviving revision references.
+   */
+  deleteProjectContext(
+    projectContextId: string,
+  ): Promise<CanonicalPackageDescriptor[] | null>
+  /** Whether any surviving Source Representation Revision pins this package. */
+  isPackageReferenced(artifactReference: string): Promise<boolean>
   listProjectContexts(limit: number): Promise<ProjectContextSummary[]>
   getProjectContextWithDocuments(projectContextId: string): Promise<{
     projectContext: ProjectContextSummary
@@ -326,8 +342,85 @@ export type ProjectStore = {
   >
 }
 
+type StoredProjectContext = { id: string; name: string; createdAt: Date }
+
+export const PROJECT_CONTEXT_NAME_LIMIT = 512
+
+/**
+ * The durable name contract, enforced where the write happens: no caller can
+ * persist a blank, untrimmed, or oversized Project Context name.
+ */
+function projectContextName(name: string): string {
+  const trimmed = name.trim()
+  if (trimmed === '' || trimmed.length > PROJECT_CONTEXT_NAME_LIMIT)
+    throw new Error(
+      `A Project Context name must be 1 to ${PROJECT_CONTEXT_NAME_LIMIT} characters after trimming.`,
+    )
+  return trimmed
+}
+
+function projectContextSummary(row: StoredProjectContext): ProjectContextSummary {
+  return {
+    projectContextId: row.id,
+    name: row.name,
+    createdAt: row.createdAt,
+  }
+}
+
 export function createProjectStore(database: Database = db): ProjectStore {
   return {
+    async createProjectContext(name) {
+      return projectContextSummary(
+        (await database.orm.public.ProjectContext.create({
+          name: projectContextName(name),
+        })) as StoredProjectContext,
+      )
+    },
+    async renameProjectContext(projectContextId, name) {
+      const row = (await database.orm.public.ProjectContext.where({
+        id: projectContextId,
+      }).update({ name: projectContextName(name) })) as StoredProjectContext | null
+      return row && projectContextSummary(row)
+    },
+    async deleteProjectContext(projectContextId) {
+      return database.transaction(async ({ orm }) => {
+        const project = await orm.public.ProjectContext.select('id').first({
+          id: projectContextId,
+        })
+        if (!project) return null
+
+        const documents = await orm.public.SourceDocument.where({
+          projectContextId,
+        })
+          .select('id')
+          .all()
+        const candidates: CanonicalPackageDescriptor[] = []
+        for (const document of documents) {
+          const representations =
+            await orm.public.SourceRepresentationRevision.where({
+              sourceDocumentId: document.id,
+            })
+              .select('artifactReference', 'artifactSha256')
+              .all()
+          // Rebuilt, like every other descriptor boundary: no other persisted
+          // column leaves the store.
+          for (const row of representations)
+            candidates.push({
+              artifactReference: row.artifactReference,
+              artifactSha256: row.artifactSha256,
+            })
+        }
+
+        await orm.public.ProjectContext.where({ id: projectContextId }).delete()
+        return candidates
+      })
+    },
+    async isPackageReferenced(artifactReference) {
+      const row = await database.orm.public.SourceRepresentationRevision.select(
+        'id',
+      ).first({ artifactReference })
+      return row !== null
+    },
     async listProjectContexts(limit) {
       const rows = await database.orm.public.ProjectContext.select(
         'id',

@@ -51,7 +51,7 @@ model SourceDocument {
   mediaType              String
   originalName           String?
   createdAt              Timestamptz6                   @default(now())
-  projectContext         ProjectContext                 @relation(fields: [projectContextId], references: [id], onDelete: Restrict)
+  projectContext         ProjectContext                 @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
   representations        SourceRepresentationRevision[]
   annotationSetRevisions AnnotationSetRevision[]
 
@@ -70,7 +70,7 @@ model SourceRepresentationRevision {
   parserName             String
   parserVersion          String
   createdAt              Timestamptz6               @default(now())
-  sourceDocument         SourceDocument             @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  sourceDocument         SourceDocument             @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
   annotationSetRevisions AnnotationSetRevision[]
   schemaSuggestionInputs SchemaSuggestionInput[]
   conversationalEdits    ConversationalSchemaEdit[]
@@ -87,8 +87,8 @@ model AnnotationSetRevision {
   revisionNumber                 Int
   snapshot                       Json
   createdAt                      Timestamptz6                 @default(now())
-  sourceDocument                 SourceDocument               @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Restrict)
+  sourceDocument                 SourceDocument               @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Cascade)
   schemaSuggestionInputs         SchemaSuggestionInput[]
   conversationalEdits            ConversationalSchemaEdit[]
 
@@ -100,7 +100,7 @@ model ExtractionSchema {
   projectContextId    Uuid
   name                String
   createdAt           Timestamptz6               @default(now())
-  projectContext      ProjectContext             @relation(fields: [projectContextId], references: [id], onDelete: Restrict)
+  projectContext      ProjectContext             @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
   promptRevisions     PromptRevision[]
   schemaRevisions     SchemaRevision[]
   suggestions         SchemaSuggestion[]
@@ -115,7 +115,7 @@ model PromptRevision {
   revisionNumber      Int
   text                String
   createdAt           Timestamptz6               @default(now())
-  extractionSchema    ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Restrict)
+  extractionSchema    ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
   suggestions         SchemaSuggestion[]
   conversationalEdits ConversationalSchemaEdit[]
 
@@ -133,8 +133,8 @@ model SchemaSuggestion {
   failure            Json?
   proposedTree       Json?
   createdAt          Timestamptz6            @default(now())
-  extractionSchema   ExtractionSchema        @relation(fields: [extractionSchemaId], references: [id], onDelete: Restrict)
-  promptRevision     PromptRevision?         @relation(fields: [promptRevisionId], references: [id], onDelete: Restrict)
+  extractionSchema   ExtractionSchema        @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
+  promptRevision     PromptRevision?         @relation(fields: [promptRevisionId], references: [id], onDelete: Cascade)
   inputs             SchemaSuggestionInput[]
   seededRevision     SchemaRevision?
 
@@ -156,11 +156,11 @@ model ConversationalSchemaEdit {
   failure                        Json?
   proposedTree                   Json?
   createdAt                      Timestamptz6                 @default(now())
-  extractionSchema               ExtractionSchema             @relation(fields: [extractionSchemaId], references: [id], onDelete: Restrict)
-  baseSchemaRevision             SchemaRevision               @relation("ConversationalEditBase", fields: [baseSchemaRevisionId], references: [id], onDelete: Restrict)
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Restrict)
-  annotationSetRevision          AnnotationSetRevision?       @relation(fields: [annotationSetRevisionId], references: [id], onDelete: Restrict)
-  promptRevision                 PromptRevision?              @relation(fields: [promptRevisionId], references: [id], onDelete: Restrict)
+  extractionSchema               ExtractionSchema             @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
+  baseSchemaRevision             SchemaRevision               @relation("ConversationalEditBase", fields: [baseSchemaRevisionId], references: [id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Cascade)
+  annotationSetRevision          AnnotationSetRevision?       @relation(fields: [annotationSetRevisionId], references: [id], onDelete: Cascade)
+  promptRevision                 PromptRevision?              @relation(fields: [promptRevisionId], references: [id], onDelete: Cascade)
   appliedRevision                SchemaRevision?              @relation("ConversationalEditApplied")
 
   @@index([extractionSchemaId])
@@ -170,9 +170,9 @@ model SchemaSuggestionInput {
   schemaSuggestionId             Uuid
   sourceRepresentationRevisionId Uuid
   annotationSetRevisionId        Uuid?
-  schemaSuggestion               SchemaSuggestion             @relation(fields: [schemaSuggestionId], references: [id], onDelete: Restrict)
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Restrict)
-  annotationSetRevision          AnnotationSetRevision?       @relation(fields: [annotationSetRevisionId], references: [id], onDelete: Restrict)
+  schemaSuggestion               SchemaSuggestion             @relation(fields: [schemaSuggestionId], references: [id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Cascade)
+  annotationSetRevision          AnnotationSetRevision?       @relation(fields: [annotationSetRevisionId], references: [id], onDelete: Cascade)
 
   @@id([schemaSuggestionId, sourceRepresentationRevisionId])
 }
@@ -186,10 +186,10 @@ model SchemaRevision {
   schemaTree                 Json
   modelAttribution           Json?
   createdAt                  Timestamptz6               @default(now())
-  extractionSchema           ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Restrict)
-  schemaSuggestion           SchemaSuggestion?          @relation(fields: [schemaSuggestionId], references: [id], onDelete: Restrict)
+  extractionSchema           ExtractionSchema           @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
+  schemaSuggestion           SchemaSuggestion?          @relation(fields: [schemaSuggestionId], references: [id], onDelete: Cascade)
   conversationalSchemaEditId Uuid?                      @unique
-  conversationalSchemaEdit   ConversationalSchemaEdit?  @relation("ConversationalEditApplied", fields: [conversationalSchemaEditId], references: [id], onDelete: Restrict)
+  conversationalSchemaEdit   ConversationalSchemaEdit?  @relation("ConversationalEditApplied", fields: [conversationalSchemaEditId], references: [id], onDelete: Cascade)
   conversationalEditBases    ConversationalSchemaEdit[] @relation("ConversationalEditBase")
   extractions                Extraction[]
 
@@ -213,9 +213,9 @@ model Extraction {
   retryOfId                      Uuid?
   createdAt                      Timestamptz6                 @default(now())
   reviewedAt                     Timestamptz6?
-  schemaRevision                 SchemaRevision               @relation(fields: [schemaRevisionId], references: [id], onDelete: Restrict)
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId, sourceDocumentId], references: [id, sourceDocumentId], onDelete: Restrict)
-  retryOf                        Extraction?                  @relation("ExtractionRetries", fields: [retryOfId, sourceRepresentationRevisionId, schemaRevisionId, strategy], references: [id, sourceRepresentationRevisionId, schemaRevisionId, strategy], onDelete: Restrict, map: "extraction_retry_pin_fkey")
+  schemaRevision                 SchemaRevision               @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId, sourceDocumentId], references: [id, sourceDocumentId], onDelete: Cascade)
+  retryOf                        Extraction?                  @relation("ExtractionRetries", fields: [retryOfId, sourceRepresentationRevisionId, schemaRevisionId, strategy], references: [id, sourceRepresentationRevisionId, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_retry_pin_fkey")
   retries                        Extraction[]                 @relation("ExtractionRetries")
   review                         ExtractionReview?
   reviewDecisions                ReviewDecision[]
@@ -234,7 +234,7 @@ model ExtractionReview {
   extractionId   Uuid         @unique
   decisionDigest String
   createdAt      Timestamptz6 @default(now())
-  extraction     Extraction   @relation(fields: [extractionId], references: [id], onDelete: Restrict)
+  extraction     Extraction   @relation(fields: [extractionId], references: [id], onDelete: Cascade)
 }
 
 model ReviewDecision {
@@ -243,8 +243,7 @@ model ReviewDecision {
   evidenceAnchorId      String
   reviewedOccurrenceIds Json
   createdAt             Timestamptz6 @default(now())
-  extraction            Extraction @relation(fields: [extractionId], references: [id], onDelete: Restrict)
+  extraction            Extraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
 
   @@unique([extractionId, evidenceAnchorId])
 }
-
