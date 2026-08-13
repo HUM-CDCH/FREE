@@ -29,6 +29,9 @@ export const sourceDocumentSummarySchema = z
     createdAt: timestamp,
   })
   .strict()
+const projectContextSourceDocumentSchema = sourceDocumentSummarySchema
+  .extend({ pageCount: z.number().int().positive().nullable() })
+  .strict()
 /**
  * One name contract for creating and renaming a Project Context. The durable
  * limit lives in `ProjectStore`; `api/project_contexts.test.ts` fails if the two
@@ -52,7 +55,7 @@ export const projectContextListResponseSchema = z
 export const projectContextWithDocumentsResponseSchema = z
   .object({
     projectContext: projectContextSummarySchema,
-    sourceDocuments: z.array(sourceDocumentSummarySchema),
+    sourceDocuments: z.array(projectContextSourceDocumentSchema),
   })
   .strict()
 export const projectContextErrorSchema = z

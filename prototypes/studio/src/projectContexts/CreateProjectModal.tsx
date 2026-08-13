@@ -45,13 +45,13 @@ export function CreateProjectModal({
         id="create-project-context-title"
         className="text-sm font-bold text-ink"
       >
-        New Project Context
+        New Project
       </h2>
       <p
         id="create-project-context-description"
         className="mt-2 text-xs leading-relaxed text-ink-muted"
       >
-        Give this research workspace a name.
+        Give this project a name.
       </p>
       <form
         className="mt-4 flex flex-col gap-2"
@@ -72,7 +72,7 @@ export function CreateProjectModal({
           className="text-xs font-semibold text-ink"
           htmlFor="new-project-context-name"
         >
-          New Project Context name
+          Project name
         </label>
         <input
           id="new-project-context-name"

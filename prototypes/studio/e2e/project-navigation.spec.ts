@@ -45,6 +45,7 @@ const SEED = [
         sourceDocumentId: OVERSIGT,
         name: 'Oversigt_Hoersholm.pdf',
         createdAt: '2026-08-02T09:01:00.000Z',
+        pageCount: 3,
       },
     ],
   },
@@ -57,11 +58,13 @@ const SEED = [
         sourceDocumentId: BERETNING,
         name: 'Beretning_Ellekilde_8_13.pdf',
         createdAt: '2026-07-31T12:01:00.000Z',
+        pageCount: 6,
       },
       {
         sourceDocumentId: FUNDLISTE,
         name: 'Fundliste_Ellekilde.pdf',
         createdAt: '2026-07-31T12:02:00.000Z',
+        pageCount: 2,
       },
     ],
   },
@@ -321,9 +324,15 @@ const workspace = (page: Page) =>
 /** The management page for the routed Project Context. */
 const projectPage = (page: Page) =>
   page.getByRole('region', { name: 'Project Context' })
-const projectRows = (page: Page) => rail(page).locator('button[aria-expanded]')
+const projectRows = (page: Page) => rail(page).locator('[data-project-row]')
+/** The name control; it navigates and never discloses. */
 const projectRow = (page: Page, name: string) =>
   rail(page).getByRole('button', { name, exact: true })
+/** The disclosure control beside it; it discloses and never navigates. */
+const disclosure = (page: Page, name: string) =>
+  rail(page).getByRole('button', {
+    name: new RegExp(`Source Documents in ${name}$`),
+  })
 // The page lists the same Source Documents as cards, so navigation rows are
 // always addressed inside the rail.
 const documentRow = (page: Page, name: string) =>
@@ -404,7 +413,7 @@ test.describe('rail navigation', () => {
 
     await page.getByRole('button', { name: '+ New project' }).click()
     await page
-      .getByRole('textbox', { name: 'New Project Context name' })
+      .getByRole('textbox', { name: 'Project name' })
       .fill('Created project')
     await page.getByRole('button', { name: 'Create' }).click()
     await expect(
@@ -441,7 +450,7 @@ test.describe('rail navigation', () => {
       /Ellekilde, TAK 1355/,
     ])
     await expect(
-      workspace(page).getByRole('heading', { name: 'No Project Context open' }),
+      workspace(page).getByRole('heading', { name: 'No project open' }),
     ).toBeVisible()
 
     await projectRow(page, 'Ellekilde, TAK 1355').click()
@@ -457,8 +466,39 @@ test.describe('rail navigation', () => {
     await page.goBack()
     await expect(page).toHaveURL('/')
     await expect(
-      workspace(page).getByRole('heading', { name: 'No Project Context open' }),
+      workspace(page).getByRole('heading', { name: 'No project open' }),
     ).toBeVisible()
+  })
+
+  test('separates disclosure from navigation and keeps several branches open', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+
+    await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
+
+    // Disclosure alone: the other Project Context opens without leaving this
+    // Source Document, and both branches stay open at once.
+    await disclosure(page, 'Hørsholm, TAK 1402').click()
+    await expect(documentRow(page, 'Oversigt_Hoersholm.pdf')).toBeVisible()
+    await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
+    await expect(page).toHaveURL(
+      `/projects/${ELLEKILDE}/documents/${BERETNING}`,
+    )
+
+    // The name navigates even from the open Source Document of that very
+    // Project Context.
+    await projectRow(page, 'Ellekilde, TAK 1355').click()
+    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await expect(
+      projectPage(page).getByRole('heading', { name: 'Ellekilde, TAK 1355' }),
+    ).toBeVisible()
+
+    // And its disclosure collapses it while it stays the routed page.
+    await disclosure(page, 'Ellekilde, TAK 1355').click()
+    await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeHidden()
+    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
   })
 
   test('reopens a directly routed Project Context across a refresh', async ({
@@ -469,7 +509,10 @@ test.describe('rail navigation', () => {
     await page.goto(`/projects/${ELLEKILDE}`)
     const project = projectRow(page, 'Ellekilde, TAK 1355')
     await expect(project).toHaveAttribute('aria-current', 'page')
-    await expect(project).toHaveAttribute('aria-expanded', 'true')
+    await expect(disclosure(page, 'Ellekilde, TAK 1355')).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
     await expect(
       documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
     ).toBeVisible()

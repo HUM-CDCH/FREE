@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import parsedDocument from '../src/assets/parsed_document.v2.json'
 import {
   createProjectStore,
   PROJECT_CONTEXT_NAME_LIMIT,
@@ -34,7 +35,13 @@ describe('Project Context routes', () => {
   })
 
   it('returns no-store list and detail DTOs, and bounds invalid input', async () => {
-    const GET = createGetProjectContexts(projectContextFixture())
+    const GET = createGetProjectContexts(
+      projectContextFixture(),
+      async () => ({
+        bytes: new TextEncoder().encode(JSON.stringify(parsedDocument)),
+        mediaType: 'application/json',
+      }),
+    )
     const list = await GET(
       new Request('http://test/api/project-contexts?limit=1'),
     )
@@ -51,7 +58,12 @@ describe('Project Context routes', () => {
     expect(
       projectContextWithDocumentsResponseSchema.parse(detailBody),
     ).toMatchObject({
-      sourceDocuments: [{ name: 'Beretning_Ellekilde_8_13.pdf' }],
+      sourceDocuments: [
+        {
+          name: 'Beretning_Ellekilde_8_13.pdf',
+          pageCount: parsedDocument.page_count,
+        },
+      ],
     })
     const invalid = await GET(
       new Request('http://test/api/project-contexts?limit=0'),

@@ -12,6 +12,7 @@ describe('ingestSourceDocument', () => {
         createdAt: '2026-08-12T10:00:00.000Z',
         sourceRepresentationId: '44444444-4444-4444-8444-444444444444',
         revisionNumber: 1,
+        pageCount: 12,
       }),
     )
     vi.stubGlobal('fetch', fetcher)

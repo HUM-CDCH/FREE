@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NavigableRoute } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
-import { Button, EmptyState, Overline } from '../ui'
+import { Button, EmptyState } from '../ui'
 import { useProjectContexts, type WriteResult } from './useProjectContexts'
 
 export type ProjectContextPageProps = {
@@ -31,7 +31,7 @@ function RenameForm({
 
   return (
     <form
-      className="flex flex-col gap-2"
+      className="flex flex-wrap items-center gap-2"
       onSubmit={async (event) => {
         event.preventDefault()
         if (!named.success) return
@@ -47,7 +47,7 @@ function RenameForm({
     >
       <input
         autoFocus
-        className="w-full max-w-md rounded-sm border border-line bg-canvas px-2 py-1.5 text-lg font-bold text-ink outline-none focus-visible:border-accent disabled:opacity-60"
+        className="h-7 min-w-0 max-w-md flex-1 border-b border-line-strong bg-transparent px-0 py-0 text-lg font-bold leading-7 text-ink outline-none focus-visible:border-accent disabled:opacity-60"
         aria-label="Project Context name"
         value={name}
         disabled={saving}
@@ -61,24 +61,31 @@ function RenameForm({
       {failure && (
         <p
           id="rename-project-context-error"
-          className="text-[11px] leading-snug text-danger"
+          className="basis-full text-[11px] leading-snug text-danger"
           role="alert"
         >
           {failure}
         </p>
       )}
-      <div className="flex gap-1.5">
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={saving || !named.success}
-        >
-          Rename
-        </Button>
-        <Button type="button" onClick={onCancel} disabled={saving}>
-          Cancel
-        </Button>
-      </div>
+      <button
+        className="rounded-md p-1.5 leading-none text-accent outline-none transition-colors hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+        type="submit"
+        aria-label="Rename"
+        title="Rename"
+        disabled={saving || !named.success}
+      >
+        <span aria-hidden="true">✓</span>
+      </button>
+      <button
+        className="rounded-md p-1.5 leading-none text-ink-muted outline-none transition-colors hover:bg-line/60 hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+        type="button"
+        aria-label="Cancel"
+        title="Cancel"
+        onClick={onCancel}
+        disabled={saving}
+      >
+        <span aria-hidden="true">×</span>
+      </button>
     </form>
   )
 }
@@ -168,6 +175,22 @@ function DeleteDialog({
 const card =
   'flex flex-col gap-2 rounded-lg border border-line bg-surface p-3 text-left'
 
+function PencilIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 20 20" fill="none">
+      <path d="M3.5 5.5h13M8 2.5h4l1 3H7l1-3ZM5.5 5.5l.75 11h7.5l.75-11M8.25 8.5v5M11.75 8.5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 /**
  * Managing one Project Context: its name, its Source Documents, and adding
  * more. An ingesting file renders as the same card it will become, so the grid
@@ -238,8 +261,7 @@ export default function ProjectContextPage({
   return (
     <div className="scrollbar-subtle h-full overflow-y-auto">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
-        <header className="flex flex-col gap-3">
-          <Overline as="p">Project Context</Overline>
+        <header>
           {renaming && project ? (
             <RenameForm
               initialName={project.name}
@@ -257,12 +279,11 @@ export default function ProjectContextPage({
               }}
             />
           ) : (
-            <div className="flex flex-wrap items-baseline gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-bold text-ink">
                 {project?.name ?? 'Project Context'}
               </h1>
-              <span className="flex-1" />
-              <Button
+              <button
                 ref={(button) => {
                   if (button && restoreRenameFocus.current) {
                     restoreRenameFocus.current = false
@@ -270,18 +291,27 @@ export default function ProjectContextPage({
                   }
                   renameTrigger.current = button
                 }}
+                className="rounded-md p-1.5 text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-60"
+                type="button"
+                aria-label="Rename"
+                title="Rename"
                 onClick={() => setRenaming(true)}
                 disabled={!project}
               >
-                Rename
-              </Button>
-              <Button
+                <PencilIcon />
+              </button>
+              <span className="flex-1" />
+              <button
                 ref={deleteTrigger}
+                className="rounded-md p-1.5 text-danger outline-none transition-colors hover:bg-danger/10 focus-visible:ring-2 focus-visible:ring-danger/30 disabled:opacity-60"
+                type="button"
+                aria-label="Delete"
+                title="Delete"
                 onClick={() => setDeleting(true)}
                 disabled={!project}
               >
-                Delete
-              </Button>
+                <TrashIcon />
+              </button>
             </div>
           )}
         </header>
@@ -309,9 +339,6 @@ export default function ProjectContextPage({
           <span className="text-sm font-semibold text-ink">
             Drop PDFs here or browse
           </span>
-          <span className="text-[11px] text-ink-muted">
-            Each PDF becomes a Source Document in this Project Context.
-          </span>
           <input
             className="sr-only"
             type="file"
@@ -333,7 +360,7 @@ export default function ProjectContextPage({
         )}
 
         {(queued.length > 0 || branch?.status === 'ready') && (
-          <ul className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
+          <ul className="flex flex-col gap-3">
             {/* In-flight first: new work stays visible without scrolling. */}
             {queued.map((source) => (
               <li
@@ -347,8 +374,8 @@ export default function ProjectContextPage({
                   {source.file.name}
                 </span>
                 {source.status === 'failed' ? (
-                  <>
-                    <span className="text-[11px] leading-snug text-danger">
+                  <div className="flex items-end gap-3">
+                    <span className="min-w-0 flex-1 text-[11px] leading-snug text-danger">
                       {source.failure}
                     </span>
                     <Button
@@ -357,7 +384,7 @@ export default function ProjectContextPage({
                     >
                       Retry
                     </Button>
-                  </>
+                  </div>
                 ) : (
                   <>
                     <span className="text-[11px] text-ink-faint">
@@ -397,7 +424,16 @@ export default function ProjectContextPage({
                       {document.name}
                     </span>
                     <span className="text-[11px] text-ink-faint">
-                      Source Document
+                      {document.pageCount !== null && (
+                        <>
+                          {document.pageCount}{' '}
+                          {document.pageCount === 1 ? 'page' : 'pages'} ·{' '}
+                        </>
+                      )}
+                      Added{' '}
+                      {new Date(document.createdAt).toLocaleDateString(undefined, {
+                        dateStyle: 'medium',
+                      })}
                     </span>
                   </button>
                 </li>
@@ -405,13 +441,6 @@ export default function ProjectContextPage({
           </ul>
         )}
 
-        {branch?.status === 'ready' &&
-          branch.detail.sourceDocuments.length === 0 &&
-          queued.length === 0 && (
-            <p className="text-xs leading-relaxed text-ink-muted">
-              Empty Project Context. Add a PDF to start annotating it.
-            </p>
-          )}
       </div>
 
       {deleting && project && (

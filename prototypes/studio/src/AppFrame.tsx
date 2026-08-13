@@ -45,9 +45,8 @@ function EmptyWorkspace({
   failure: Failure | null
   onRetry: () => void
 }) {
-  let title = 'No Project Context open'
-  let description =
-    'Choose a Project Context in the rail to browse its Source Documents.'
+  let title = 'No project open'
+  let description = 'Choose one from the rail.'
   let tone: 'neutral' | 'danger' = 'neutral'
   let retry = false
 
@@ -106,7 +105,7 @@ function EmptyWorkspace({
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-8">
         <EmptyState
           className="max-w-sm bg-surface"
-          icon="▢"
+          icon={route.kind === 'root' ? undefined : '▢'}
           title={title}
           description={description}
           tone={tone}

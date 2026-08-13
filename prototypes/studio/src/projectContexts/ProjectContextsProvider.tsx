@@ -213,6 +213,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
           sourceDocumentId: document.sourceDocumentId,
           name: document.name,
           createdAt: document.createdAt,
+          pageCount: document.pageCount,
         },
       ].sort(
         (left, right) =>

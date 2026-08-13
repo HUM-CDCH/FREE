@@ -13,6 +13,7 @@ import {
 } from '../../../packages/db/src/project-store.js'
 import {
   canonicalPackageStore,
+  type CanonicalArtifactRead,
   type CanonicalPackageDescriptor,
 } from '../../../packages/db/src/artifact-store.js'
 import {
@@ -20,6 +21,46 @@ import {
   projectContextNameLimit,
   projectContextWriteRequestSchema,
 } from '../shared/projectContext.contract.js'
+import { decodeParsedDocument } from '../shared/parsedDocument.js'
+
+type ProjectContextReadStore = Pick<
+  ProjectStore,
+  'listProjectContexts' | 'getProjectContextWithDocuments'
+> &
+  Partial<
+    Pick<ProjectStore, 'getDocumentReopenSnapshot' | 'getSourceRepresentation'>
+  >
+type ReadArtifact = (
+  descriptor: CanonicalPackageDescriptor,
+  artifact: 'source',
+) => Promise<CanonicalArtifactRead>
+
+async function sourceDocumentPageCount(
+  store: ProjectContextReadStore,
+  readArtifact: ReadArtifact,
+  projectContextId: string,
+  sourceDocumentId: string,
+): Promise<number | null> {
+  if (!store.getDocumentReopenSnapshot || !store.getSourceRepresentation)
+    return null
+  try {
+    const snapshot = await store.getDocumentReopenSnapshot(
+      projectContextId,
+      sourceDocumentId,
+    )
+    if (!snapshot) return null
+    const descriptor = await store.getSourceRepresentation(
+      snapshot.sourceRepresentation.sourceRepresentationId,
+    )
+    if (!descriptor) return null
+    const artifact = await readArtifact(descriptor, 'source')
+    return decodeParsedDocument(
+      JSON.parse(new TextDecoder().decode(artifact.bytes)) as unknown,
+    ).page_count
+  } catch {
+    return null
+  }
+}
 
 /** Best-effort removal of one package the deletion left unreferenced. */
 export type RemovePackage = (
@@ -102,10 +143,8 @@ async function removeUnreferenced(
 }
 
 export function createGetProjectContexts(
-  store: Pick<
-    ProjectStore,
-    'listProjectContexts' | 'getProjectContextWithDocuments'
-  > = createProjectStore(),
+  store: ProjectContextReadStore = createProjectStore(),
+  readArtifact: ReadArtifact = canonicalPackageStore.read,
 ) {
   return async function getProjectContexts(
     request: Request,
@@ -128,7 +167,21 @@ export function createGetProjectContexts(
         })
       if (!projectContext)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
-      return json(projectContext, { headers: noStore })
+      const sourceDocuments = await Promise.all(
+        projectContext.sourceDocuments.map(async (document) => ({
+          ...document,
+          pageCount: await sourceDocumentPageCount(
+            store,
+            readArtifact,
+            id,
+            document.sourceDocumentId,
+          ),
+        })),
+      )
+      return json(
+        { projectContext: projectContext.projectContext, sourceDocuments },
+        { headers: noStore },
+      )
     } catch (error) {
       return noStoreError(error)
     }

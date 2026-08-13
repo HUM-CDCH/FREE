@@ -71,6 +71,19 @@ export function ProjectContextRail({
     if (!isExpanded) loadBranch(projectContextId)
   }
 
+  // Navigating to a Project Context expands it for good, so its Source
+  // Documents stay listed once the route moves on to another one.
+  const navigate = (projectContextId: string) => {
+    setExpanded((current) => new Set(current).add(projectContextId))
+    setCollapsedRouted((current) => {
+      if (!current.has(projectContextId)) return current
+      const next = new Set(current)
+      next.delete(projectContextId)
+      return next
+    })
+    onNavigate({ kind: 'project', projectContextId })
+  }
+
   if (!open)
     return (
       <div className="flex h-full flex-col items-center py-3">
@@ -102,7 +115,7 @@ export function ProjectContextRail({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-center justify-between py-3 pl-4 pr-2.5">
-        <Overline as="h2">Project Contexts</Overline>
+        <Overline as="h2">Project</Overline>
         <button
           data-rail-toggle
           className="cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
@@ -149,31 +162,41 @@ export function ProjectContextRail({
             const branch = branches[projectContextId]
             return (
               <li key={projectContextId} className="py-0.5">
+                {/* Two controls: the chevron only discloses Source Documents,
+                    the name only navigates — including from an open one. */}
                 <div className="flex items-center">
                   <button
-                    className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-1.5 rounded-sm py-1 pr-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                    className={`cursor-pointer rounded-sm px-1 py-1 outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:bg-accent-ghost focus-visible:text-accent focus-visible:ring-1 focus-visible:ring-accent ${
+                      active ? 'text-accent' : 'text-ink-faint'
+                    }`}
                     type="button"
                     aria-expanded={isExpanded}
+                    aria-label={`${
+                      isExpanded ? 'Collapse' : 'Expand'
+                    } Source Documents in ${project.name}`}
+                    onClick={() => toggle(projectContextId)}
+                  >
+                    <span aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
+                  </button>
+                  <button
+                    data-project-row
+                    className={`min-w-0 flex-1 cursor-pointer truncate rounded-sm py-1 pl-0.5 pr-1 text-left text-[11px] font-bold uppercase tracking-[0.07em] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-accent ${
+                      active ? 'text-accent' : 'text-ink-muted hover:text-ink'
+                    }`}
+                    type="button"
                     aria-current={active ? 'page' : undefined}
                     onClick={() => {
-                      toggle(projectContextId)
-                      if (!active)
-                        onNavigate({ kind: 'project', projectContextId })
+                      // Reopening the routed Project Context page would push a
+                      // duplicate history entry.
+                      if (
+                        selection?.kind === 'project' &&
+                        selection.projectContextId === projectContextId
+                      )
+                        return
+                      navigate(projectContextId)
                     }}
                   >
-                    <span
-                      aria-hidden="true"
-                      className={active ? 'text-accent' : 'text-ink-faint'}
-                    >
-                      {isExpanded ? '▾' : '▸'}
-                    </span>
-                    <span
-                      className={`min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.07em] ${
-                        active ? 'text-accent' : 'text-ink-muted'
-                      }`}
-                    >
-                      {project.name}
-                    </span>
+                    {project.name}
                   </button>
                 </div>
 

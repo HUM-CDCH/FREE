@@ -82,7 +82,10 @@ const secondDocument = {
   name: 'Second Context.pdf',
   createdAt: '2026-07-31T12:03:00.000Z',
 }
-const detail = { projectContext: project, sourceDocuments: [beretning] }
+const detail = {
+  projectContext: project,
+  sourceDocuments: [{ ...beretning, pageCount: 6 }],
+}
 
 const documentPath = (documentId = sourceDocumentId) =>
   `/projects/${projectContextId}/documents/${documentId}`
@@ -241,6 +244,11 @@ function renderRoutes(fetch: ReturnType<typeof vi.fn> = studioFetch()) {
  * lists the same ones as cards, so every name-based query says which it means.
  */
 const rail = () => within(screen.getByRole('navigation', { name: 'Project Contexts' }))
+/** The disclosure beside a project name; it never navigates. */
+const disclosure = (name = project.name) =>
+  screen.getByRole('button', {
+    name: new RegExp(`Source Documents in ${name}$`),
+  })
 /** Opens the routed Project Context page and waits for it. */
 async function openProjectPage(name = project.name) {
   fireEvent.click(await screen.findByRole('button', { name }))
@@ -308,7 +316,7 @@ describe('Project Context lifecycle in the rail', () => {
     )
 
     const name = screen.getByRole('textbox', {
-      name: 'New Project Context name',
+      name: 'Project name',
     })
     // The field never narrows the contract: padding around a limit-length name
     // still submits, because the name is trimmed before it is judged.
@@ -348,10 +356,10 @@ describe('Project Context lifecycle in the rail', () => {
     trigger.focus()
     fireEvent.click(trigger)
     const dialog = await screen.findByRole('dialog', {
-      name: 'New Project Context',
+      name: 'New Project',
     })
     const name = screen.getByRole('textbox', {
-      name: 'New Project Context name',
+      name: 'Project name',
     })
     expect(name).toHaveFocus()
     expect(name).toHaveAttribute('aria-invalid', 'true')
@@ -374,7 +382,7 @@ describe('Project Context lifecycle in the rail', () => {
       'Project Context storage is unavailable.',
     )
     expect(
-      screen.getByRole('textbox', { name: 'New Project Context name' }),
+      screen.getByRole('textbox', { name: 'Project name' }),
     ).toHaveValue(secondProject.name)
     expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled()
 
@@ -453,7 +461,7 @@ describe('Project Context lifecycle in the rail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'No Project Context open' }),
+      await screen.findByRole('heading', { name: 'No project open' }),
     ).toBeInTheDocument()
     expect(location.pathname).toBe('/projects')
     expect(
@@ -559,7 +567,7 @@ describe('Project Context lifecycle in the rail', () => {
       await screen.findByRole('button', { name: '+ New project' }),
     )
     fireEvent.change(
-      screen.getByRole('textbox', { name: 'New Project Context name' }),
+      screen.getByRole('textbox', { name: 'Project name' }),
       { target: { value: secondProject.name } },
     )
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -654,7 +662,7 @@ describe('Project Context navigation', () => {
     const fetch = renderRoutes()
 
     expect(
-      await screen.findByRole('heading', { name: 'No Project Context open' }),
+      await screen.findByRole('heading', { name: 'No project open' }),
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: project.name }))
 
@@ -675,8 +683,9 @@ describe('Project Context navigation', () => {
     expect(screen.getByText('Drop PDFs here or browse')).toBeInTheDocument()
     expect(screen.getByLabelText('Add sources')).toHaveAttribute('multiple')
     expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
-    // Exactly two: the Project Context row and its one Source Document.
-    expect(rail().getAllByRole('button')).toHaveLength(2)
+    // Exactly three: the disclosure, the Project Context name, and its one
+    // Source Document.
+    expect(rail().getAllByRole('button')).toHaveLength(3)
     expect(fetch).toHaveBeenCalledTimes(2)
 
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
@@ -686,7 +695,7 @@ describe('Project Context navigation', () => {
 
   it('lets keyboard users resize the Project Context rail', async () => {
     renderRoutes()
-    await screen.findByRole('heading', { name: 'No Project Context open' })
+    await screen.findByRole('heading', { name: 'No project open' })
     const separator = screen.getByRole('separator', {
       name: 'Resize Project Context rail',
     })
@@ -765,30 +774,76 @@ describe('Project Context navigation', () => {
       return Response.json({ projectContexts: [project] })
     })
     renderRoutes(fetch)
-    const row = await screen.findByRole('button', { name: project.name })
+    await screen.findByRole('button', { name: project.name })
 
-    fireEvent.click(row)
+    fireEvent.click(disclosure())
     await screen.findByText('Could not read Source Documents.')
 
     // Collapsing and re-expanding retries the failed read; only ready and
     // loading branches are cached.
-    fireEvent.click(row)
-    fireEvent.click(row)
+    fireEvent.click(disclosure())
+    fireEvent.click(disclosure())
     expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(branchReads).toBe(2)
   })
 
   it('caches a loaded branch across collapse and re-expansion', async () => {
     const fetch = renderRoutes()
-    const row = await screen.findByRole('button', { name: project.name })
+    await screen.findByRole('button', { name: project.name })
 
-    fireEvent.click(row)
+    fireEvent.click(disclosure())
     await rail().findByText('Beretning.pdf')
-    fireEvent.click(row)
+    fireEvent.click(disclosure())
     expect(rail().queryByText('Beretning.pdf')).not.toBeInTheDocument()
-    fireEvent.click(row)
+    fireEvent.click(disclosure())
     expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  // Variant A: the chevron only discloses and the name only navigates, so
+  // neither control can do the other's job.
+  it('separates disclosure from navigation and keeps several branches open', async () => {
+    renderRoutes(
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (/reopen$/.test(url)) return Response.json(snapshot())
+        if (url.endsWith(secondProject.projectContextId))
+          return Response.json({
+            projectContext: secondProject,
+            sourceDocuments: [],
+          })
+        if (url.endsWith(projectContextId)) return Response.json(detail)
+        return Response.json({ projectContexts: [project, secondProject] })
+      }),
+    )
+    await screen.findByRole('button', { name: project.name })
+
+    fireEvent.click(disclosure())
+    expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
+    // Disclosure alone never routes.
+    expect(location.pathname).toBe('/')
+    expect(
+      screen.getByRole('button', { name: project.name }),
+    ).not.toHaveAttribute('aria-current')
+
+    fireEvent.click(disclosure(secondProject.name))
+    expect(await rail().findByText('Empty Project Context.')).toBeInTheDocument()
+    // Both branches stay open; expansion is not an accordion.
+    expect(rail().getByText('Beretning.pdf')).toBeInTheDocument()
+
+    // The name navigates, and keeps navigating from an open Source Document of
+    // that same Project Context.
+    fireEvent.click(screen.getByRole('button', { name: project.name }))
+    await screen.findByRole('region', { name: 'Project Context' })
+    fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
+    await screen.findByText(/Opened Beretning.pdf/)
+    expect(location.pathname).toBe(documentPath())
+
+    fireEvent.click(screen.getByRole('button', { name: project.name }))
+    expect(
+      await screen.findByRole('region', { name: 'Project Context' }),
+    ).toBeInTheDocument()
+    expect(location.pathname).toBe(`/projects/${projectContextId}`)
   })
 
   it('retries only the failed branch', async () => {
@@ -845,7 +900,7 @@ describe('Project Context navigation', () => {
 
   it('updates from the back/forward listener without pushing another history entry', async () => {
     renderRoutes()
-    await screen.findByRole('heading', { name: 'No Project Context open' })
+    await screen.findByRole('heading', { name: 'No project open' })
 
     history.pushState(null, '', `/projects/${projectContextId}`)
     dispatchEvent(new PopStateEvent('popstate'))
@@ -860,21 +915,25 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     sourceDocumentId: '51000000-0000-4000-8001-000000000101',
     name: 'A.pdf',
     createdAt: '2026-08-12T10:01:00.000Z',
+    pageCount: 1,
   }
   const uploadedB = {
     sourceDocumentId: '51000000-0000-4000-8001-000000000102',
     name: 'B.pdf',
     createdAt: '2026-08-12T10:02:00.000Z',
+    pageCount: 2,
   }
   const uploadedC = {
     sourceDocumentId: '51000000-0000-4000-8001-000000000103',
     name: 'C.pdf',
     createdAt: '2026-08-12T10:03:00.000Z',
+    pageCount: 3,
   }
   const uploadedD = {
     sourceDocumentId: '51000000-0000-4000-8001-000000000104',
     name: 'D.pdf',
     createdAt: '2026-08-12T10:04:00.000Z',
+    pageCount: 4,
   }
   const ingestionKeys = {
     A: '51000000-0000-4000-9000-000000000101',
@@ -892,6 +951,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       ...sourceDocument,
       sourceRepresentationId: representationId,
       revisionNumber: 1,
+      pageCount: 1,
     })
   }
 
@@ -940,7 +1000,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       }
       if (url.endsWith(projectContextId)) {
         branchCalls += 1
-        return branch([beretning])
+        return branch(detail.sourceDocuments)
       }
       return Response.json({ projectContexts: [project] })
     })
@@ -1137,7 +1197,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
         return new Promise<Response>((resolve) => pending.push({ response, resolve }))
       }
       if (url.includes('/reopen')) return Response.json(snapshot(beretning))
-      if (url.endsWith(projectContextId)) return branch([beretning])
+      if (url.endsWith(projectContextId)) return branch(detail.sourceDocuments)
       return Response.json({ projectContexts: [project] })
     })
 
@@ -1184,7 +1244,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       if (init?.method === 'DELETE') return new Response(null, { status: 204 })
       if (url.endsWith(projectContextId)) {
         branchCalls += 1
-        return branch([beretning])
+        return branch(detail.sourceDocuments)
       }
       if (url.includes('/reopen')) throw new Error('stale navigation')
       return Response.json({ projectContexts: [project] })
@@ -1201,7 +1261,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Delete permanently' }))
     expect(
-      await screen.findByRole('heading', { name: 'No Project Context open' }),
+      await screen.findByRole('heading', { name: 'No project open' }),
     ).toBeInTheDocument()
     expect(location.pathname).toBe('/projects')
 
@@ -1305,7 +1365,13 @@ describe('routed Source Document reopening', () => {
             ? Response.json(snapshot(beretning))
             : pending.promise
         },
-        { projectContext: project, sourceDocuments: [beretning, historical] },
+        {
+          projectContext: project,
+          sourceDocuments: [
+            { ...beretning, pageCount: 6 },
+            { ...historical, pageCount: 4 },
+          ],
+        },
       ),
     )
     await screen.findByText(/Opened Beretning.pdf/)
@@ -1348,7 +1414,7 @@ describe('routed Source Document reopening', () => {
       if (url.endsWith(secondProject.projectContextId))
         return Response.json({
           projectContext: secondProject,
-          sourceDocuments: [secondDocument],
+          sourceDocuments: [{ ...secondDocument, pageCount: 2 }],
         })
       if (url.endsWith(projectContextId)) return Response.json(detail)
       return Response.json({ projectContexts: [project, secondProject] })

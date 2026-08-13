@@ -96,6 +96,12 @@ function required(value: unknown, what: string): string {
   return value
 }
 
+function positiveInteger(value: unknown, what: string): number {
+  if (!Number.isInteger(value) || Number(value) < 1)
+    throw new Error(`The parsed document is missing ${what}.`)
+  return Number(value)
+}
+
 function record(value: unknown, what: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new Error(`The parsed document is missing ${what}.`)
@@ -128,6 +134,7 @@ function provenance(document: unknown) {
       identity.content_sha256,
       'a Source Document content hash',
     ),
+    pageCount: positiveInteger(parsed.page_count, 'a physical page count'),
     contractVersion,
     preprocessId: required(
       preprocessing.preprocess_id,
@@ -412,7 +419,10 @@ export function createSourceDocumentIngestion(
       // first-published package when no durable representation references it.
       if (!sameDescriptor(descriptor, saved))
         await removePublishedPackage(saved, store, packageStore)
-      return json(sourceDocument, { status: 201, headers: noStore })
+      return json(
+        { ...sourceDocument, pageCount: parsed.pageCount },
+        { status: 201, headers: noStore },
+      )
     } catch (error) {
       if (saved) await removePublishedPackage(saved, store, packageStore)
       return noStoreError(error)

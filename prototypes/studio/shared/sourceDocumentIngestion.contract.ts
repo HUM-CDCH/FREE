@@ -12,6 +12,7 @@ export const sourceDocumentIngestionResponseSchema = z
     createdAt: timestamp,
     sourceRepresentationId: canonicalUuidSchema,
     revisionNumber: z.literal(1),
+    pageCount: z.number().int().positive(),
   })
   .strict()
 

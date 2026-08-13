@@ -10,6 +10,7 @@ const ids = {
 }
 const packageDocument = {
   schema_version: 'parsed_document.v2',
+  page_count: 12,
   document: {
     content_sha256:
       '0716f9264c9fe19f5d7455276107f3ddcc1d3497f63d60689a73558ae8a1bf5e',
@@ -153,6 +154,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       sourceDocumentId: ids.source,
       sourceRepresentationId: ids.representation,
       revisionNumber: 1,
+      pageCount: 12,
     })
     expect(store.ingestSourceDocument).toHaveBeenCalledWith(
       ids.project,

@@ -20,6 +20,7 @@ function result(sourceDocumentId: string, name: string) {
     createdAt: '2026-08-12T10:00:00.000Z',
     sourceRepresentationId: '51000000-0000-4000-8002-000000000001',
     revisionNumber: 1,
+    pageCount: 12,
   } satisfies SourceDocumentIngestionResponse
 }
 
