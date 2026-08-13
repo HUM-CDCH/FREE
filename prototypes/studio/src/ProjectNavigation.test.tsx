@@ -16,15 +16,17 @@ vi.mock('./App', () => ({
     markdownUrl,
     parsedDocumentUrl,
     sourceRepresentationId,
-    annotationSet,
     extractionSchema,
     persistedExtraction,
     onInitialResourceLoadFailure,
   }: DocumentWorkspaceProps) => (
     <>
       <p>
+        {/* DocumentWorkspace no longer reads annotationSet — the Annotation
+            tab was retired in favor of SchemaPanel's own doc chat. Left in
+            place, commented out, rather than deleted.
+            {annotationSet?.annotations[0]?.text ?? 'no annotation'} ·{' '} */}
         Opened {filename} · {pdfUrl} · {String(markdownUrl)} ·{' '}
-        {annotationSet?.annotations[0]?.text ?? 'no annotation'} ·{' '}
         {JSON.stringify(extractionSchema?.schemaNodes ?? 'no schema')} ·{' '}
         {persistedExtraction?.outcome ?? 'no extraction'}
       </p>
@@ -353,7 +355,7 @@ describe('routed Source Document reopening', () => {
     renderRoutes(studioFetch(() => Response.json(hydratedSnapshot())))
 
     expect(
-      await screen.findByText(/The restored annotation.*place.*SUCCEEDED/),
+      await screen.findByText(/place.*SUCCEEDED/),
     ).toBeInTheDocument()
   })
 

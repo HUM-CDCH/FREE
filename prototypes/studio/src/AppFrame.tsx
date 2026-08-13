@@ -193,7 +193,11 @@ export default function AppFrame({
     markdownUrl: openDocument.sourceRepresentation.resources.markdownUrl,
     parsedDocumentUrl:
       openDocument.sourceRepresentation.resources.parsedDocumentUrl,
-    annotationSet: openDocument.annotationSet,
+    // DocumentWorkspace no longer reads annotationSet — the Annotation tab was
+    // retired in favor of SchemaPanel's own doc chat. The DB layer still
+    // returns it; only this pass-through stopped. Left in place, commented
+    // out, rather than deleted.
+    // annotationSet: openDocument.annotationSet,
     extractionSchema: openDocument.extractionSchema,
     persistedExtraction: openDocument.latestAttempt,
     latestReviewedExtraction: openDocument.latestReviewed,
@@ -205,7 +209,7 @@ export default function AppFrame({
         sourceRepresentationId: null,
         markdownUrl: null,
         parsedDocumentUrl: null,
-        annotationSet: null,
+        // annotationSet: null,
         extractionSchema: null,
         persistedExtraction: null,
         latestReviewedExtraction: null,

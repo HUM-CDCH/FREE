@@ -70,17 +70,36 @@ describe('Studio API endpoints', () => {
     await expect(response.text()).resolves.toBe('stream')
   })
 
-  it('rejects a File annotations entry before schema generation', async () => {
+  // Superseded by the instruction-field test below — schema generation no
+  // longer accepts highlighted-passage annotations. Left in place, commented
+  // out, rather than deleted.
+  //
+  // it('rejects a File annotations entry before schema generation', async () => {
+  //   const form = new FormData()
+  //   form.append('document_markdown', '# Report')
+  //   form.append('annotations', new File(['[]'], 'annotations.json', { type: 'application/json' }))
+  //   const response = await schemaPost(
+  //     new Request('http://local.test/api/generate_schema', { method: 'POST', body: form }),
+  //   )
+  //
+  //   expect(response.status).toBe(400)
+  //   await expect(response.json()).resolves.toEqual({
+  //     error: { code: 'invalid_request', message: 'annotations must be text' },
+  //   })
+  //   expect(generateSchemaWithModel).not.toHaveBeenCalled()
+  // })
+
+  it('rejects a File instruction entry before schema generation', async () => {
     const form = new FormData()
     form.append('document_markdown', '# Report')
-    form.append('annotations', new File(['[]'], 'annotations.json', { type: 'application/json' }))
+    form.append('instruction', new File(['hi'], 'instruction.txt', { type: 'text/plain' }))
     const response = await schemaPost(
       new Request('http://local.test/api/generate_schema', { method: 'POST', body: form }),
     )
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({
-      error: { code: 'invalid_request', message: 'annotations must be text' },
+      error: { code: 'invalid_request', message: 'instruction must be text' },
     })
     expect(generateSchemaWithModel).not.toHaveBeenCalled()
   })

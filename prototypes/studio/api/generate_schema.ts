@@ -2,13 +2,12 @@ import { apiErrorResponse, assertFormFields, parseFormRequest } from './_http.js
 import {
   generateSchemaWithModel,
   json,
-  parseAnnotationMode,
-  parseAnnotations,
   parseDocument,
+  parseInstruction,
   parseTemperature,
 } from './_model.js'
 
-const FIELDS = ['file', 'document_markdown', 'annotations', 'annotations_mode', 'temperature'] as const
+const FIELDS = ['file', 'document_markdown', 'instruction', 'temperature'] as const
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -16,8 +15,7 @@ export async function POST(request: Request): Promise<Response> {
     assertFormFields(form, FIELDS)
     const result = await generateSchemaWithModel({
       document: await parseDocument(form),
-      annotations: parseAnnotations(form.get('annotations')),
-      annotationsMode: parseAnnotationMode(form.get('annotations_mode')),
+      instruction: parseInstruction(form.get('instruction')),
       temperature: parseTemperature(form.get('temperature')),
     })
     return json(result)

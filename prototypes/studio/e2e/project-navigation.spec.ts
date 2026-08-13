@@ -477,10 +477,12 @@ test.describe('reopening a routed Source Document', () => {
     })
 
     await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
-    const annotation = page.getByRole('tab', { name: 'Annot. 1' })
+    // The Annotation tab was retired in favor of SchemaPanel's own doc chat —
+    // this locator and its visibility checks are commented out, not deleted.
+    // const annotation = page.getByRole('tab', { name: 'Annot. 1' })
     const schemaTab = page.getByRole('tab', { name: /^Schema\s*1$/ })
     const rerun = page.getByRole('button', { name: '↻ Re-run extraction' })
-    await expect(annotation).toBeVisible()
+    // await expect(annotation).toBeVisible()
     await expect(schemaTab).toBeVisible()
     await expect(rerun).toBeVisible()
     await expect(page.getByText(/pages · text highlights only/)).toBeVisible({
@@ -498,7 +500,7 @@ test.describe('reopening a routed Source Document', () => {
     await expect(
       page.getByRole('button', { name: 'Expand Project Contexts' }),
     ).toBeVisible()
-    const rightRail = page.getByLabel('Annotations, chat and schema')
+    const rightRail = page.getByLabel('Evidence, schema and results')
     await schemaTab.click()
     await page.getByRole('button', { name: 'JSON' }).click()
     await page.getByRole('button', { name: 'Edit' }).click()
@@ -511,10 +513,14 @@ test.describe('reopening a routed Source Document', () => {
       .poll(() => pdf.evaluate((element) => element.scrollTop))
       .toBeGreaterThan(0)
 
+    // Navigate off the Schema tab so reload's reset-to-default is provable
+    // below (the default tab is Schema, same as the tab just edited above).
+    await page.getByRole('tab', { name: /^Evidence/ }).click()
+
     await page.reload()
 
-    // Durable: the Annotation Set, Extraction Schema, and compatible Extraction.
-    await expect(annotation).toBeVisible()
+    // Durable: the Annotation Set (persisted, no longer surfaced in the UI),
+    // Extraction Schema, and compatible Extraction.
     await expect(schemaTab).toBeVisible()
     await expect(rerun).toBeVisible()
     // Ephemeral: rail width and expansion, the right rail tab, the unsaved
@@ -523,10 +529,7 @@ test.describe('reopening a routed Source Document', () => {
     await expect(
       page.getByRole('button', { name: 'Collapse Project Contexts' }),
     ).toBeVisible()
-    await expect(page.getByRole('tab', { name: /^Annot\./ })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
+    await expect(schemaTab).toHaveAttribute('aria-selected', 'true')
     await schemaTab.click()
     await expect(rightRail.locator('textarea')).not.toHaveValue('{ "unsaved": "draft" }')
     await expect(page.getByText(/pages · text highlights only/)).toBeVisible({

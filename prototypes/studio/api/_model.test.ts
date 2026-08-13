@@ -330,7 +330,7 @@ describe('generateSchemaWithModel', () => {
   it('repairs generated model JSON on the raw path', async () => {
     stubOllamaResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}}]')
     const result = await generateSchemaWithModel(
-      { document, annotations: [], annotationsMode: 'hints' },
+      { document, instruction: '' },
       rawTarget,
     )
     expect(result.template).toEqual({ _description: 'One grave record.', grave: [{ name: 'verbatim-string' }] })
@@ -341,7 +341,7 @@ describe('generateSchemaWithModel', () => {
 
     await expect(
       generateSchemaWithModel(
-        { document, annotations: [], annotationsMode: 'hints' },
+        { document, instruction: '' },
         rawTarget,
       ),
     ).rejects.toMatchObject({ code: 'invalid_model_output' })
@@ -350,7 +350,7 @@ describe('generateSchemaWithModel', () => {
   it('leads the raw template-generation message with schema guidance', async () => {
     const request = stubOllamaResponse('{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}')
     await generateSchemaWithModel(
-      { document, annotations: [], annotationsMode: 'hints' },
+      { document, instruction: '' },
       rawTarget,
     )
     const body = request.mock.calls[0][1].body as string
@@ -361,7 +361,7 @@ describe('generateSchemaWithModel', () => {
   it('uses the selected general target for schema suggestion', async () => {
     generateTextMock.mockResolvedValue({ text: '{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}' })
     const result = await generateSchemaWithModel(
-      { document, annotations: [], annotationsMode: 'hints' },
+      { document, instruction: '' },
       generalTarget,
     )
     expect(generateTextMock).toHaveBeenCalledOnce()

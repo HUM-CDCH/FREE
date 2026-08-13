@@ -22,16 +22,12 @@ const nodes: SchemaNode[] = [
 function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes) {
   render(<SchemaPanel
     state={{ status: 'ready', recordDescription: 'One test record.', nodes: panelNodes, inputsKey: 'test' }}
-    stale={false}
     onGenerate={vi.fn()}
     onNodesChange={onNodesChange}
     onRecordDescriptionChange={vi.fn()}
     beforeSchemaEdit={vi.fn()}
     history={[]}
     loadRevision={vi.fn()}
-    annotationCount={0}
-    annotationsMode="hints"
-    onAnnotationsModeChange={vi.fn()}
     documentMarkdown={null}
     sourceDocumentName="test.pdf"
   />)
@@ -83,14 +79,10 @@ function renderHistoryPanel({
 }: HistoryPanelOptions = {}) {
   render(<SchemaPanel
     state={{ status: 'ready', recordDescription: 'One test record.', nodes: panelNodes, inputsKey: 'test' }}
-    stale={false}
     onGenerate={vi.fn()}
     onNodesChange={onNodesChange}
     onRecordDescriptionChange={vi.fn()}
     beforeSchemaEdit={beforeSchemaEdit}
-    annotationCount={0}
-    annotationsMode="hints"
-    onAnnotationsModeChange={vi.fn()}
     documentMarkdown={null}
     sourceDocumentName="test.pdf"
     history={schemaHistory}

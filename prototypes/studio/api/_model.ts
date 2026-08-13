@@ -9,7 +9,7 @@ import {
 } from 'ai'
 import type { UIMessage } from 'ai'
 import { z } from 'zod'
-import type { Annotation, AnnotationMode, DocumentInput } from './_document.js'
+import type { DocumentInput } from './_document.js'
 import { documentFileParts, type DocumentFilePart } from './_pdf.js'
 import { schemaPrompt } from './_schema.js'
 import {
@@ -32,7 +32,7 @@ import {
   type RouteResolverDependencies,
 } from './_provider.js'
 
-export { parseAnnotationMode, parseAnnotations, parseDocument } from './_document.js'
+export { parseInstruction, parseDocument } from './_document.js'
 export { json, parseTemperature, type FormValue } from './_http.js'
 
 const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
@@ -69,8 +69,7 @@ type GeneratedText = {
 
 export type SchemaModelInput = {
   readonly document: DocumentInput
-  readonly annotations: readonly Annotation[]
-  readonly annotationsMode: AnnotationMode
+  readonly instruction: string
   readonly temperature?: number
 }
 
@@ -207,7 +206,7 @@ export async function extractWithModel(
 }
 
 export async function generateSchemaWithModel(
-  { document, annotations, annotationsMode, temperature }: SchemaModelInput,
+  { document, instruction, temperature }: SchemaModelInput,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<{
@@ -217,7 +216,7 @@ export async function generateSchemaWithModel(
 }> {
   const resolved = await operationTarget('schema-suggestion', temperature, target, dependencies)
   const documentParts = await documentContentParts(document)
-  const guidance = schemaPrompt(annotations, annotationsMode)
+  const guidance = schemaPrompt(instruction)
   const generated =
     resolved.profile === 'general'
       ? await generateWithGenericJsonPrompt(resolved, {
