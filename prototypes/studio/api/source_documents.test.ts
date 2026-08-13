@@ -1,0 +1,326 @@
+import { describe, expect, it, vi } from 'vitest'
+import { IngestionKeyConflictError } from '../../../packages/db/src/project-store.js'
+import { createSourceDocumentIngestion } from './source_documents.js'
+
+const ids = {
+  project: '11111111-1111-4111-8111-111111111111',
+  ingestion: '22222222-2222-4222-8222-222222222222',
+  source: '33333333-3333-4333-8333-333333333333',
+  representation: '44444444-4444-4444-8444-444444444444',
+}
+const packageDocument = {
+  schema_version: 'parsed_document.v2',
+  document: {
+    content_sha256:
+      '0716f9264c9fe19f5d7455276107f3ddcc1d3497f63d60689a73558ae8a1bf5e',
+  },
+  preprocessing: { preprocess_id: 'preprocess-1' },
+  arbitration: { primary_document_parser: 'docling' },
+  parser_runs: [{ parser: 'docling', version: '2.0' }],
+}
+
+function request(
+  projectContextId = ids.project,
+  fields: Array<[string, string | File]> = [
+    ['file', new File(['%PDF-1.7\n'], 'report.pdf', { type: 'application/pdf' })],
+    ['ingestionKey', ids.ingestion],
+  ],
+) {
+  const form = new FormData()
+  for (const [key, value] of fields) form.append(key, value)
+  return new Request(
+    `http://test/api/project-contexts/${projectContextId}/source-documents`,
+    { method: 'POST', body: form },
+  )
+}
+
+function parser(fetcher: ReturnType<typeof vi.fn>, status: unknown = { status: 'completed' }) {
+  fetcher
+    .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }, { status: 202 }))
+    .mockResolvedValueOnce(Response.json(status))
+    .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
+}
+
+function stalledBody(signal: AbortSignal | null | undefined): Response {
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        const abort = () =>
+          controller.error(signal?.reason ?? new Error('aborted'))
+        if (signal?.aborted) abort()
+        else signal?.addEventListener('abort', abort, { once: true })
+      },
+    }),
+    { headers: { 'content-type': 'application/json' } },
+  )
+}
+
+function dependencies(overrides: Record<string, unknown> = {}) {
+  const fetcher = vi.fn()
+  parser(fetcher)
+  const store = {
+    ingestSourceDocument: vi.fn().mockResolvedValue({
+      sourceDocumentId: ids.source,
+      name: 'report.pdf',
+      createdAt: new Date('2026-08-12T10:00:00.000Z'),
+      sourceRepresentationId: ids.representation,
+      revisionNumber: 1,
+      descriptor: {
+        artifactReference: 'a'.repeat(64),
+        artifactSha256: 'a'.repeat(64),
+      },
+    }),
+    isPackageReferenced: vi.fn().mockResolvedValue(false),
+  }
+  const packageStore = {
+    save: vi.fn().mockResolvedValue({
+      artifactReference: 'a'.repeat(64),
+      artifactSha256: 'a'.repeat(64),
+      document: packageDocument,
+      published: true,
+    }),
+    available: vi.fn().mockResolvedValue(true),
+    remove: vi.fn().mockResolvedValue(true),
+  }
+  return {
+    fetcher,
+    store,
+    packageStore,
+    handler: createSourceDocumentIngestion({
+      fetcher,
+      store,
+      packageStore,
+      parsingServiceBase: 'http://parser.test',
+      sleep: async () => {},
+      ...overrides,
+    }),
+  }
+}
+
+describe('POST /api/project-contexts/:id/source-documents', () => {
+  it('rejects malformed multipart input before parsing', async () => {
+    const { handler, fetcher } = dependencies()
+    const invalid = await handler(
+      new Request('http://test/api/project-contexts/not-a-uuid/source-documents', {
+        method: 'POST',
+        body: JSON.stringify({}),
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    expect(invalid.status).toBe(422)
+    expect(fetcher).not.toHaveBeenCalled()
+
+    const missingFile = await handler(request(ids.project, [['ingestionKey', ids.ingestion]]))
+    expect(missingFile.status).toBe(400)
+    expect(fetcher).not.toHaveBeenCalled()
+
+    const wrongMime = await handler(
+      request(ids.project, [
+        ['file', new File(['%PDF-'], 'report.pdf', { type: 'text/plain' })],
+        ['ingestionKey', ids.ingestion],
+      ]),
+    )
+    expect(wrongMime.status).toBe(400)
+    expect(fetcher).not.toHaveBeenCalled()
+
+    const oversized = await handler(
+      request(ids.project, [
+        [
+          'file',
+          new File([new Uint8Array(50 * 1024 * 1024 + 1)], 'large.pdf', {
+            type: 'application/pdf',
+          }),
+        ],
+        ['ingestionKey', ids.ingestion],
+      ]),
+    )
+    expect(oversized.status).toBe(413)
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('parses, validates provenance, and persists one sanitized PDF', async () => {
+    const { handler, fetcher, store } = dependencies()
+    const longName = `${'A'.repeat(220)}.pdf`
+    const response = await handler(
+      request(ids.project, [
+        ['file', new File(['%PDF-1.7\n'], `C:\\unsafe\\${longName}`, { type: 'application/pdf' })],
+        ['ingestionKey', ids.ingestion],
+      ]),
+    )
+    expect(response.status).toBe(201)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    await expect(response.json()).resolves.toMatchObject({
+      sourceDocumentId: ids.source,
+      sourceRepresentationId: ids.representation,
+      revisionNumber: 1,
+    })
+    expect(store.ingestSourceDocument).toHaveBeenCalledWith(
+      ids.project,
+      expect.objectContaining({
+        ingestionKey: ids.ingestion,
+        originalName: expect.stringMatching(/^A+\.pdf$/),
+        contractVersion: 'parsed_document.v2',
+        parserName: 'docling',
+        parserVersion: '2.0',
+      }),
+    )
+    const upload = fetcher.mock.calls[0]?.[1]?.body as FormData
+    expect((upload.get('file') as File).name.length).toBeLessThanOrEqual(180)
+  })
+
+  it('returns the durable store result when the same request is replayed', async () => {
+    const { handler, fetcher, store } = dependencies()
+    parser(fetcher)
+
+    const first = await handler(request())
+    const replay = await handler(request())
+
+    expect(first.status).toBe(201)
+    expect(replay.status).toBe(201)
+    await expect(replay.json()).resolves.toMatchObject({
+      sourceDocumentId: ids.source,
+      sourceRepresentationId: ids.representation,
+      revisionNumber: 1,
+    })
+    expect(store.ingestSourceDocument).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns the durable winner and cleans a newly published losing package', async () => {
+    const { handler, store, packageStore } = dependencies()
+    const winner = {
+      artifactReference: 'b'.repeat(64),
+      artifactSha256: 'b'.repeat(64),
+    }
+    store.ingestSourceDocument.mockImplementationOnce(
+      async (
+        _projectContextId: string,
+        input: {
+          ensureRetained: (descriptor: typeof winner) => Promise<void>
+        },
+      ) => {
+        await input.ensureRetained(winner)
+        return {
+          sourceDocumentId: ids.source,
+          name: 'report.pdf',
+          createdAt: new Date('2026-08-12T10:00:00.000Z'),
+          sourceRepresentationId: ids.representation,
+          revisionNumber: 1,
+          descriptor: winner,
+        }
+      },
+    )
+
+    const response = await handler(request())
+
+    expect(response.status).toBe(201)
+    expect(packageStore.available).toHaveBeenCalledWith(winner)
+    expect(packageStore.remove).toHaveBeenCalledOnce()
+    expect(await response.json()).not.toHaveProperty('descriptor')
+  })
+
+  it('rejects a key reused for different content and cleans its new package', async () => {
+    const { handler, store, packageStore } = dependencies()
+    store.ingestSourceDocument.mockRejectedValueOnce(
+      new IngestionKeyConflictError(),
+    )
+
+    const response = await handler(request())
+
+    expect(response.status).toBe(409)
+    expect(packageStore.remove).toHaveBeenCalledOnce()
+  })
+
+  it('does not publish or persist when parsing fails or times out', async () => {
+    const failed = dependencies()
+    failed.fetcher.mockReset()
+    parser(failed.fetcher, { status: 'failed', error: 'bad PDF' })
+    const failedResponse = await failed.handler(request())
+    expect(failedResponse.status).toBe(422)
+    expect(failed.packageStore.save).not.toHaveBeenCalled()
+    expect(failed.store.ingestSourceDocument).not.toHaveBeenCalled()
+
+    const timeout = dependencies({ timeoutMs: 0 })
+    timeout.fetcher.mockReset()
+    timeout.fetcher.mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
+      .mockResolvedValueOnce(Response.json({ status: 'pending' }))
+    const timeoutResponse = await timeout.handler(request())
+    expect(timeoutResponse.status).toBe(504)
+    expect(timeout.packageStore.save).not.toHaveBeenCalled()
+
+    const stalled = dependencies({ timeoutMs: 1 })
+    stalled.fetcher.mockReset()
+    stalled.fetcher.mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) =>
+          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+        ),
+    )
+    const stalledResponse = await stalled.handler(request())
+    expect(stalledResponse.status).toBe(504)
+    expect(stalled.packageStore.save).not.toHaveBeenCalled()
+
+    const stalledStatus = dependencies({ timeoutMs: 10 })
+    stalledStatus.fetcher.mockReset()
+    stalledStatus.fetcher
+      .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
+      .mockImplementationOnce((_url: string, init?: RequestInit) =>
+        Promise.resolve(stalledBody(init?.signal)),
+      )
+    const stalledStatusResponse = await stalledStatus.handler(request())
+    expect(stalledStatusResponse.status).toBe(504)
+    expect(stalledStatus.packageStore.save).not.toHaveBeenCalled()
+
+    const stalledDownload = dependencies({ timeoutMs: 10 })
+    stalledDownload.fetcher.mockReset()
+    stalledDownload.fetcher
+      .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
+      .mockResolvedValueOnce(Response.json({ status: 'completed' }))
+      .mockImplementationOnce((_url: string, init?: RequestInit) =>
+        Promise.resolve(stalledBody(init?.signal)),
+      )
+    const stalledDownloadResponse = await stalledDownload.handler(request())
+    expect(stalledDownloadResponse.status).toBe(504)
+    expect(stalledDownload.packageStore.save).not.toHaveBeenCalled()
+  })
+
+  it('maps invalid package retention and cleans only a first-published package after persistence failure', async () => {
+    const invalid = dependencies()
+    invalid.packageStore.save.mockRejectedValueOnce(new Error('bad archive'))
+    const invalidResponse = await invalid.handler(request())
+    expect(invalidResponse.status).toBe(502)
+    expect(invalid.store.ingestSourceDocument).not.toHaveBeenCalled()
+
+    const mismatched = dependencies()
+    mismatched.packageStore.save.mockResolvedValueOnce({
+      artifactReference: 'c'.repeat(64),
+      artifactSha256: 'c'.repeat(64),
+      document: {
+        ...packageDocument,
+        document: { content_sha256: '0'.repeat(64) },
+      },
+      published: true,
+    })
+    const mismatchResponse = await mismatched.handler(request())
+    expect(mismatchResponse.status).toBe(502)
+    expect(mismatched.store.ingestSourceDocument).not.toHaveBeenCalled()
+    expect(mismatched.packageStore.remove).toHaveBeenCalledOnce()
+
+    const failed = dependencies()
+    failed.store.ingestSourceDocument.mockRejectedValueOnce(new Error('db down'))
+    const failedResponse = await failed.handler(request())
+    expect(failedResponse.status).toBe(503)
+    expect(failed.packageStore.remove).toHaveBeenCalledOnce()
+    await expect(failed.packageStore.remove.mock.calls[0][1]()).resolves.toBe(false)
+
+    const replay = dependencies()
+    replay.packageStore.save.mockResolvedValueOnce({
+      artifactReference: 'b'.repeat(64),
+      artifactSha256: 'b'.repeat(64),
+      document: packageDocument,
+      published: false,
+    })
+    replay.store.ingestSourceDocument.mockRejectedValueOnce(new Error('db down'))
+    await replay.handler(request())
+    expect(replay.packageStore.remove).not.toHaveBeenCalled()
+  })
+})

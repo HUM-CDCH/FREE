@@ -56,10 +56,12 @@ describe('canonical package store', () => {
     try {
       const firstCheckout = createCanonicalPackageStore(root)
       const stored = await firstCheckout.save(canonicalPackage())
+      assert.equal(stored.published, true)
 
       // A fresh store instance stands in for another checkout/process. It knows
       // only the durable descriptor, never the Parsing Service task identity.
       const secondCheckout = createCanonicalPackageStore(root)
+      assert.equal((await secondCheckout.save(canonicalPackage())).published, false)
       const source = await secondCheckout.read(stored, 'source')
       const document = JSON.parse(new TextDecoder().decode(source.bytes))
 

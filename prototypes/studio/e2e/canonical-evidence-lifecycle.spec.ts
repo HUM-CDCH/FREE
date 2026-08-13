@@ -193,6 +193,7 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   await db.orm.public.SourceDocument.create({
     id: sourceDocumentId,
     projectContextId,
+    ingestionKey: sourceDocumentId,
     contentSha256: firstPackage.sourceHash,
     mediaType: 'application/pdf',
     originalName: 'article-lifecycle.pdf',
@@ -480,6 +481,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     await db.orm.public.SourceDocument.create({
       id: sourceDocumentId,
       projectContextId,
+      ingestionKey: sourceDocumentId,
       contentSha256: firstPackage.sourceHash,
       mediaType: 'application/pdf',
       originalName: 'catalog-lifecycle.pdf',

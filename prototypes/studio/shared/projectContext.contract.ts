@@ -62,6 +62,8 @@ export const projectContextErrorSchema = z
       'not_found',
       'persistence_unavailable',
       'source_artifact_unavailable',
+      'source_ingestion_failed',
+      'source_ingestion_timeout',
     ]),
     message: z.string(),
   })
