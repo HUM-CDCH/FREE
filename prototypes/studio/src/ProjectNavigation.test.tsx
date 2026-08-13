@@ -649,8 +649,8 @@ describe('Project Context navigation', () => {
 
     expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
-    // The rail owns ordinary selection; the shell only supplies overrides for
-    // dev documents and in-flight document openings.
+    // The rail owns ordinary selection; the shell only overrides it while a
+    // document opening is in flight.
     expect(screen.getByRole('button', { name: project.name })).toHaveAttribute(
       'aria-current',
       'page',
@@ -658,7 +658,9 @@ describe('Project Context navigation', () => {
     expect(
       screen.getByRole('heading', { name: 'No Source Document open' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '+ Add sources' })).toBeDisabled()
+    expect(screen.getByText('+ Add sources')).toBeInTheDocument()
+    expect(screen.getByLabelText('Add sources')).toHaveAttribute('multiple')
+    expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(
       1,
     )
@@ -840,6 +842,326 @@ describe('Project Context navigation', () => {
 
     expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
+  })
+})
+
+describe('multi-PDF source rail', () => {
+  const uploadedA = {
+    sourceDocumentId: '51000000-0000-4000-8001-000000000101',
+    name: 'A.pdf',
+    createdAt: '2026-08-12T10:01:00.000Z',
+  }
+  const uploadedB = {
+    sourceDocumentId: '51000000-0000-4000-8001-000000000102',
+    name: 'B.pdf',
+    createdAt: '2026-08-12T10:02:00.000Z',
+  }
+  const uploadedC = {
+    sourceDocumentId: '51000000-0000-4000-8001-000000000103',
+    name: 'C.pdf',
+    createdAt: '2026-08-12T10:03:00.000Z',
+  }
+  const uploadedD = {
+    sourceDocumentId: '51000000-0000-4000-8001-000000000104',
+    name: 'D.pdf',
+    createdAt: '2026-08-12T10:04:00.000Z',
+  }
+  const ingestionKeys = {
+    A: '51000000-0000-4000-9000-000000000101',
+    B: '51000000-0000-4000-9000-000000000102',
+    C: '51000000-0000-4000-9000-000000000103',
+    D: '51000000-0000-4000-9000-000000000104',
+  }
+
+  function branch(sourceDocuments: typeof detail.sourceDocuments = []) {
+    return Response.json({ projectContext: project, sourceDocuments })
+  }
+
+  function ingestionResult(sourceDocument: typeof beretning) {
+    return Response.json({
+      ...sourceDocument,
+      sourceRepresentationId: representationId,
+      revisionNumber: 1,
+    })
+  }
+
+  it('writes selected PDFs in order, caches acknowledgements, and retries by the same key', async () => {
+    const randomUUID = vi
+      .fn()
+      .mockReturnValueOnce(ingestionKeys.A)
+      .mockReturnValueOnce(ingestionKeys.B)
+      .mockReturnValueOnce(ingestionKeys.C)
+      .mockReturnValueOnce(ingestionKeys.D)
+    vi.stubGlobal('crypto', { randomUUID })
+
+    let branchCalls = 0
+    const attempts = new Map<string, number>()
+    const writes: { name: string; ingestionKey: string }[] = []
+    const pending: { response: Response; resolve: (response: Response) => void }[] = []
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        const form = init.body as FormData
+        const file = form.get('file') as File
+        const ingestionKey = String(form.get('ingestionKey'))
+        writes.push({ name: file.name, ingestionKey })
+        const attempt = (attempts.get(file.name) ?? 0) + 1
+        attempts.set(file.name, attempt)
+        const document =
+          file.name === 'A.pdf'
+            ? uploadedA
+            : file.name === 'B.pdf'
+              ? uploadedB
+              : file.name === 'C.pdf'
+                ? uploadedC
+                : uploadedD
+        const response =
+          file.name === 'B.pdf' && attempt === 1
+            ? failureResponse('source_ingestion_failed', 'B failed', 422)
+            : ingestionResult(document)
+        return new Promise<Response>((resolve) => pending.push({ response, resolve }))
+      }
+      const reopened = /source-documents\/([^/]+)\/reopen$/.exec(url)
+      if (reopened) {
+        const document = [uploadedA, uploadedB, uploadedC, uploadedD].find(
+          (item) => item.sourceDocumentId === reopened[1],
+        )
+        return Response.json(snapshot(document ?? uploadedA))
+      }
+      if (url.endsWith(projectContextId)) {
+        branchCalls += 1
+        return branch([beretning])
+      }
+      return Response.json({ projectContexts: [project] })
+    })
+
+    renderRoutes(fetcher)
+    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    await screen.findByText('Beretning.pdf')
+
+    fireEvent.change(screen.getByLabelText('Add sources'), {
+      target: {
+        files: [
+          new File(['a'], 'A.pdf', { type: 'application/pdf' }),
+          new File(['b'], 'B.pdf', { type: 'application/pdf' }),
+          new File(['c'], 'C.pdf', { type: 'application/pdf' }),
+        ],
+      },
+    })
+
+    await waitFor(() => expect(writes).toHaveLength(1))
+    expect(writes[0]).toMatchObject({ name: 'A.pdf', ingestionKey: ingestionKeys.A })
+    expect(pending).toHaveLength(1)
+    const firstRequest = pending.shift()!
+    firstRequest.resolve(firstRequest.response)
+    await waitFor(() => expect(writes).toHaveLength(2))
+    expect(writes[1]).toMatchObject({ name: 'B.pdf', ingestionKey: ingestionKeys.B })
+    expect(pending).toHaveLength(1)
+    const secondRequest = pending.shift()!
+    secondRequest.resolve(secondRequest.response)
+    await waitFor(() => expect(writes).toHaveLength(3))
+    expect(writes[2]).toMatchObject({ name: 'C.pdf', ingestionKey: ingestionKeys.C })
+    expect(pending).toHaveLength(1)
+    const thirdRequest = pending.shift()!
+    thirdRequest.resolve(thirdRequest.response)
+
+    expect(await screen.findByText(/B\.pdf: Failed: B failed/)).toBeInTheDocument()
+    expect(await screen.findByText('C.pdf: Saved')).toBeInTheDocument()
+    expect(await screen.findByText(/Opened A\.pdf/)).toBeInTheDocument()
+    expect(writes.map(({ name }) => name)).toEqual(['A.pdf', 'B.pdf', 'C.pdf'])
+    expect(writes.map(({ ingestionKey }) => ingestionKey)).toEqual([
+      ingestionKeys.A,
+      ingestionKeys.B,
+      ingestionKeys.C,
+    ])
+    // Acknowledged writes update the ready branch without a refresh.
+    expect(branchCalls).toBe(1)
+    expect(screen.getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'C.pdf' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Add sources'), {
+      target: {
+        files: [new File(['d'], 'D.pdf', { type: 'application/pdf' })],
+      },
+    })
+    await waitFor(() => expect(writes).toHaveLength(4))
+    expect(screen.getByText(/B\.pdf: Failed: B failed/)).toBeInTheDocument()
+    expect(writes[3]).toMatchObject({ name: 'D.pdf', ingestionKey: ingestionKeys.D })
+    expect(pending).toHaveLength(1)
+    const laterRequest = pending.shift()!
+    laterRequest.resolve(laterRequest.response)
+    expect(await screen.findByText('D.pdf: Saved')).toBeInTheDocument()
+    expect(await screen.findByText(/Opened A\.pdf/)).toBeInTheDocument()
+    expect(branchCalls).toBe(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(writes).toHaveLength(5))
+    expect(writes[4]).toMatchObject({ name: 'B.pdf', ingestionKey: ingestionKeys.B })
+    expect(pending).toHaveLength(1)
+    const retryRequest = pending.shift()!
+    retryRequest.resolve(retryRequest.response)
+    expect(await screen.findByText('B.pdf: Saved')).toBeInTheDocument()
+    expect(await screen.findByText(/Opened A\.pdf/)).toBeInTheDocument()
+    expect(writes.map(({ name }) => name)).toEqual([
+      'A.pdf',
+      'B.pdf',
+      'C.pdf',
+      'D.pdf',
+      'B.pdf',
+    ])
+    expect(writes.at(-1)?.ingestionKey).toBe(ingestionKeys.B)
+    expect(branchCalls).toBe(1)
+    expect(screen.getByRole('button', { name: 'B.pdf' })).toBeInTheDocument()
+    expect(
+      screen
+        .getAllByRole('button')
+        .filter((button) => ['A.pdf', 'B.pdf', 'C.pdf', 'D.pdf'].includes(button.textContent ?? ''))
+        .map((button) => button.textContent),
+    ).toEqual(['A.pdf', 'B.pdf', 'C.pdf', 'D.pdf'])
+  })
+
+  it('deduplicates acknowledged retries by Source Document id in the rail', async () => {
+    vi.stubGlobal('crypto', {
+      randomUUID: vi
+        .fn()
+        .mockReturnValueOnce(ingestionKeys.A)
+        .mockReturnValueOnce(ingestionKeys.B),
+    })
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') return ingestionResult(uploadedA)
+      if (url.includes('/reopen')) return Response.json(snapshot(uploadedA))
+      if (url.endsWith(projectContextId)) return branch([])
+      return Response.json({ projectContexts: [project] })
+    })
+
+    renderRoutes(fetcher)
+    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    await screen.findByText('Empty Project Context.')
+    fireEvent.change(screen.getByLabelText('Add sources'), {
+      target: {
+        files: [
+          new File(['a'], 'A.pdf', { type: 'application/pdf' }),
+          new File(['a'], 'A retry.pdf', { type: 'application/pdf' }),
+        ],
+      },
+    })
+
+    await screen.findByText('A retry.pdf: Saved')
+    expect(screen.getAllByRole('button', { name: 'A.pdf' })).toHaveLength(1)
+  })
+
+  it('stays on the Project Context route when every selected PDF fails', async () => {
+    const randomUUID = vi
+      .fn()
+      .mockReturnValueOnce(ingestionKeys.A)
+      .mockReturnValueOnce(ingestionKeys.B)
+    vi.stubGlobal('crypto', { randomUUID })
+
+    let branchReads = 0
+    const writes: string[] = []
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        const form = init.body as FormData
+        writes.push((form.get('file') as File).name)
+        return failureResponse('source_ingestion_failed', 'No usable PDF', 422)
+      }
+      if (url.endsWith(projectContextId)) {
+        branchReads += 1
+        return branch([])
+      }
+      return Response.json({ projectContexts: [project] })
+    })
+
+    renderRoutes(fetcher)
+    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    await screen.findByText('Empty Project Context.')
+    fireEvent.change(screen.getByLabelText('Add sources'), {
+      target: {
+        files: [
+          new File(['a'], 'A.pdf', { type: 'application/pdf' }),
+          new File(['b'], 'B.pdf', { type: 'application/pdf' }),
+        ],
+      },
+    })
+
+    expect(await screen.findByText(/A\.pdf: Failed: No usable PDF/)).toBeInTheDocument()
+    expect(await screen.findByText(/B\.pdf: Failed: No usable PDF/)).toBeInTheDocument()
+    expect(writes).toEqual(['A.pdf', 'B.pdf'])
+    expect(branchReads).toBe(1)
+    expect(location.pathname).toBe(`/projects/${projectContextId}`)
+    expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
+  })
+
+  it('keeps navigation usable and does not hijack a route chosen during ingestion', async () => {
+    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValue(ingestionKeys.A) })
+    const request = Promise.withResolvers<Response>()
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') return request.promise
+      if (url.includes('/reopen')) return Response.json(snapshot(beretning))
+      if (url.endsWith(projectContextId)) return branch([beretning])
+      return Response.json({ projectContexts: [project] })
+    })
+
+    renderRoutes(fetcher)
+    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    await screen.findByText('Beretning.pdf')
+    fireEvent.change(screen.getByLabelText('Add sources'), {
+      target: { files: [new File(['a'], 'A.pdf', { type: 'application/pdf' })] },
+    })
+    expect(await screen.findByText('A.pdf: Parsing…')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Beretning.pdf' }))
+    expect(await screen.findByText(/Opened Beretning\.pdf/)).toBeInTheDocument()
+    request.resolve(ingestionResult(uploadedA))
+
+    expect(await screen.findByText('A.pdf: Saved')).toBeInTheDocument()
+    expect(screen.getByText(/Opened Beretning\.pdf/)).toBeInTheDocument()
+    expect(location.pathname).toBe(documentPath())
+    expect(screen.getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
+  })
+
+  it('does not mutate the rail or navigate after its Project Context is deleted mid-ingestion', async () => {
+    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValue(ingestionKeys.A) })
+    let branchCalls = 0
+    const pending: { response: Response; resolve: (response: Response) => void }[] = []
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        const response = ingestionResult(uploadedA)
+        return new Promise<Response>((resolve) => pending.push({ response, resolve }))
+      }
+      if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+      if (url.endsWith(projectContextId)) {
+        branchCalls += 1
+        return branch([beretning])
+      }
+      if (url.includes('/reopen')) throw new Error('stale navigation')
+      return Response.json({ projectContexts: [project] })
+    })
+
+    renderRoutes(fetcher)
+    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    await screen.findByText('Beretning.pdf')
+    fireEvent.change(screen.getByLabelText('Add sources'), {
+      target: { files: [new File(['a'], 'A.pdf', { type: 'application/pdf' })] },
+    })
+    await waitFor(() => expect(pending).toHaveLength(1))
+
+    fireEvent.click(screen.getByRole('button', { name: `Delete ${project.name}` }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete permanently' }))
+    expect(
+      await screen.findByRole('heading', { name: 'No Project Context open' }),
+    ).toBeInTheDocument()
+    expect(location.pathname).toBe('/projects')
+
+    const request = pending.shift()!
+    request.resolve(request.response)
+    await waitFor(() => expect(branchCalls).toBe(1))
+    expect(screen.queryByText(/Opened A\.pdf/)).not.toBeInTheDocument()
+    expect(screen.queryByText('A.pdf: Saved')).not.toBeInTheDocument()
   })
 })
 

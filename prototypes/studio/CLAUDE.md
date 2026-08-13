@@ -7,9 +7,9 @@ Model endpoints are served from same-origin `/api`. Set `VITE_PARSING_SERVICE_UR
 - The PDF viewer uses `pdfjs-dist`'s `PDFViewer` component with `AnnotationEditorType.HIGHLIGHT`. Only text-selection highlights are allowed; free rectangular highlights are blocked by intercepting `pointerdown` during the capture phase.
 - `pdf.js` has no public event for editor add/remove. `App.tsx` monkey-patches `uiManager.addEditor` / `removeEditor` to keep the annotation sidebar in sync.
 - Every model operation resolves its provider from saved configuration through `resolveCapabilityRoute` in `api/_provider.ts`. There are no `AI_*` environment settings; `api/_environment.test.ts` fails the build if one reappears.
-- Configuration routes are reached through `src/providerConfig/providerConfig.data.ts`; parsing routes stay under `VITE_PARSING_SERVICE_URL`.
+- Configuration routes are reached through `src/providerConfig/providerConfig.data.ts`. The browser never calls the Parsing Service; the ingestion handler does, under `VITE_PARSING_SERVICE_URL`.
 - There is no hardcoded Source Document. `AppFrame.tsx` lists Project Contexts from `/api/project-contexts` and opens the selected Source Document through `/api/project-contexts/{id}/source-documents/{id}/reopen`. `pnpm db:seed` writes the example Project Contexts from `examples/`.
-- A reopened Source Document reads its PDF, Markdown, and `parsed_document.v2` from `/api/source-representations/{id}/…`. A Source Document that you open from disk has no durable Source Representation, so `App.tsx` uploads it to the Parsing Service instead. Set `VITE_DEV_TASK_ID` to read an existing Parsing Service task and skip that upload.
+- `+ Add sources` submits PDFs sequentially through the same-origin Project Context ingestion route. The handler retains each canonical package before its Source Document and revision 1 Source Representation become visible. Reopening reads the PDF, Markdown, and `parsed_document.v2` from `/api/source-representations/{id}/…`.
 
 ## Annotation modes
 

@@ -45,7 +45,7 @@ model {
   model_connections = external 'Model Connections' 'Configured external HTTP or local CLI model providers.'
 
   researcher -> studio 'Uses in a browser'
-  studio -> parsing_service 'Parses a PDF opened from disk'
+  studio -> parsing_service 'Parses selected PDFs through same-origin ingestion'
   studio -> project_db 'Reads research state and appends durable writes'
   studio -> package_store 'Reads the pinned canonical package'
   studio -> model_config 'Reads and updates machine-wide model configuration'
@@ -57,7 +57,7 @@ model {
   researcher -> studio.ui 'Uses'
   studio.ui -> studio.browser_http 'Starts product flows'
   studio.browser_http -> studio.handlers 'Calls /api/*'
-  studio.browser_http -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /markdown and /document'
+  studio.handlers -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /tasks/:id/download'
   studio.handlers -> studio.provider_registry 'Resolves a Capability Route'
   studio.handlers -> studio.project_store 'Reads a snapshot; creates, renames, and deletes a Project Context; appends a Schema Revision; stores a reviewed Extraction'
   studio.handlers -> package_store 'Reads the pdf, markdown, and source entries; removes the packages a deleted Project Context left unreferenced'
@@ -165,24 +165,28 @@ views {
     studio.handlers -> studio.ui 'Return the PDF, canonical Markdown, and parsed_document.v2'
   }
 
-  dynamic view local_document_ingestion {
-    title 'Open a Source Document from disk — current'
+  dynamic view source_document_ingestion {
+    title 'Add Source Documents — current'
     description '''
-      The developer path. A file opened from disk has no durable Source
-      Representation, so it cannot be reviewed. Set `VITE_DEV_TASK_ID` to read
-      an existing Parsing Service task instead of a new upload.
+      The rail submits selected PDFs one at a time. The same-origin handler
+      retains each canonical package before publishing its durable Source
+      Document and revision 1 Source Representation.
     '''
-    researcher -> studio.ui 'Open a PDF from disk'
-    studio.ui -> studio.browser_http 'Load the PDF locally and begin document indexing'
-    studio.browser_http -> parsing_service.http_api 'POST /tasks'
+    researcher -> studio.ui 'Add one or more PDFs'
+    studio.ui -> studio.browser_http 'POST one PDF and its stable ingestion key'
+    studio.browser_http -> studio.handlers 'POST /api/project-contexts/:id/source-documents'
+    studio.handlers -> parsing_service.http_api 'POST /tasks'
     parsing_service.http_api -> parsing_service.parser 'Validate and parse the PDF'
     parsing_service.parser -> parsing_service.task_cache 'Publish the generation'
     loop 'until parsing completes' {
-      studio.browser_http -> parsing_service.http_api 'GET /tasks/:taskId'
+      studio.handlers -> parsing_service.http_api 'GET /tasks/:taskId'
     }
-    studio.browser_http -> parsing_service.http_api 'GET /tasks/:taskId/markdown and /document'
-    parsing_service.http_api -> studio.browser_http 'Return canonical Markdown and parsed_document.v2'
-    studio.browser_http -> studio.ui 'Show the PDF and its canonical index'
+    studio.handlers -> parsing_service.http_api 'GET /tasks/:taskId/download'
+    parsing_service.http_api -> studio.handlers 'Return the canonical package'
+    studio.handlers -> package_store 'Retain and validate the canonical package'
+    studio.handlers -> studio.project_store 'Create Source Document and revision 1'
+    studio.project_store -> project_db 'Commit the durable ingestion result'
+    studio.handlers -> studio.ui 'Return the saved Source Document'
   }
 
   dynamic view schema_guided_extraction {

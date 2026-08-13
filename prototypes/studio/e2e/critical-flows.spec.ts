@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
+import { createGetDocumentReopen } from '../api/document_reopen.js'
+import { createGetProjectContexts } from '../api/project_contexts.js'
 import { projectContextFixture } from '../api/project_contexts.fixture.js'
 
-const sourceDocument = fileURLToPath(
+const sourcePdf = fileURLToPath(
   new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
 )
 const parsedDocument = await readFile(
@@ -19,25 +21,30 @@ const schemaResponse = {
 
 test('bundled parsed document exposes page-scoped source Evidence @deterministic', async ({ page }) => {
   const store = projectContextFixture()
+  const projectContexts = createGetProjectContexts(store)
+  const reopen = createGetDocumentReopen(store)
   await page.route('**/api/project-contexts**', async (route) => {
-    const id = new URL(route.request().url()).pathname.split('/').at(-1)
+    const request = new Request(route.request().url())
+    const response = await (request.url.endsWith('/reopen')
+      ? reopen(request)
+      : projectContexts(request))
     await route.fulfill({
-      json:
-        id === 'project-contexts'
-          ? { projectContexts: await store.listProjectContexts(20) }
-          : await store.getProjectContextWithDocuments(id!),
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      body: await response.text(),
     })
   })
-  await page.route('http://127.0.0.1:8000/**', (route) => {
+  await page.route('**/api/source-representations/**', (route) => {
     const path = new URL(route.request().url()).pathname
-    if (path === '/tasks') return route.fulfill({ json: { task_id: 'evidence-source-document' } })
-    if (path.endsWith('/markdown')) return route.fulfill({ body: '# Source Document\n\nGrav 8' })
-    if (path.endsWith('/document')) return route.fulfill({ body: parsedDocument, contentType: 'application/json' })
-    return route.fulfill({ json: { status: 'completed' } })
+    if (path.endsWith('/pdf'))
+      return route.fulfill({ path: sourcePdf, contentType: 'application/pdf' })
+    if (path.endsWith('/source'))
+      return route.fulfill({ body: parsedDocument, contentType: 'application/json' })
+    return route.fulfill({ body: '# Source Document\n\nGrav 8' })
   })
   await page.goto('/')
-  await page.getByRole('button', { name: 'Ellekilde, TAK 1355' }).click()
-  await page.getByLabel('Open a PDF (dev)').setInputFiles(sourceDocument)
+  await page.getByRole('button', { name: 'Ellekilde, TAK 1355', exact: true }).click()
+  await page.getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
   await expect(page.getByText('6 pages · text highlights only')).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   await expect(page.locator('.pdfViewer .page')).toHaveCount(6)
@@ -47,35 +54,57 @@ test('bundled parsed document exposes page-scoped source Evidence @deterministic
   await page.getByRole('button', { name: /Evidence anchor bundled-anchor/ }).click()
 })
 
-test('application editors retain clipboard and keyboard ownership with a stale PDF selection @deterministic', async ({
+test('application editors retain clipboard and keyboard ownership in a reopened Source Document @deterministic', async ({
   page,
 }) => {
   const store = projectContextFixture()
+  const projectContexts = createGetProjectContexts(store)
+  const reopen = createGetDocumentReopen(store)
   await page.route('**/api/project-contexts**', async (route) => {
-    const id = new URL(route.request().url()).pathname.split('/').at(-1)
+    const request = new Request(route.request().url())
+    const response = await (request.url.endsWith('/reopen')
+      ? reopen(request)
+      : projectContexts(request))
     await route.fulfill({
-      json:
-        id === 'project-contexts'
-          ? { projectContexts: await store.listProjectContexts(20) }
-          : await store.getProjectContextWithDocuments(id!),
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      body: await response.text(),
     })
+  })
+  await page.route('**/api/source-representations/**', (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/pdf'))
+      return route.fulfill({ path: sourcePdf, contentType: 'application/pdf' })
+    if (path.endsWith('/source'))
+      return route.fulfill({ body: parsedDocument, contentType: 'application/json' })
+    return route.fulfill({ body: '# Source Document\n\nGrav 8', contentType: 'text/markdown' })
   })
   await page.route('**/api/generate_schema', (route) =>
     route.fulfill({ json: schemaResponse }),
   )
-  await page.route('http://127.0.0.1:8000/**', (route) => {
-    const path = new URL(route.request().url()).pathname
-    if (path === '/tasks')
-      return route.fulfill({ json: { task_id: 'dev-source-document' } })
-    if (path.endsWith('/markdown'))
-      return route.fulfill({ body: '# Source Document\n\nGrav 8' })
-    if (path.endsWith('/document'))
-      return route.fulfill({ body: parsedDocument, contentType: 'application/json' })
-    return route.fulfill({ json: { status: 'completed' } })
+  await page.route('**/api/schema-revisions', (route) => {
+    const { recordDescription, schemaNodes } = route.request().postDataJSON() as {
+      recordDescription: string
+      schemaNodes: unknown[]
+    }
+    return route.fulfill({
+      status: 201,
+      json: {
+        revision: {
+          schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
+          extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
+          revisionNumber: 1,
+          origin: 'suggestion',
+          createdAt: '2026-08-12T10:00:00.000Z',
+          recordDescription,
+          schemaNodes,
+        },
+      },
+    })
   })
   await page.goto('/')
-  await page.getByRole('button', { name: 'Ellekilde, TAK 1355' }).click()
-  await page.getByLabel('Open a PDF (dev)').setInputFiles(sourceDocument)
+  await page.getByRole('button', { name: 'Ellekilde, TAK 1355', exact: true }).click()
+  await page.getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
   await expect(page.getByText('6 pages · text highlights only')).toBeVisible({
     timeout: 15_000,
   })

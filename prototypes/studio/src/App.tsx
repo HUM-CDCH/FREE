@@ -15,7 +15,7 @@ import {
   templateToSchemaDefinition,
 } from '../shared/schemaNode'
 import { countTemplateFields } from '../shared/template'
-import { requestSchema, parseDocument, fetchParsedDocument } from './api'
+import { requestSchema } from './api'
 import {
   decodeParsedDocument,
   type ParsedDocument,
@@ -213,11 +213,10 @@ async function readParsedDocument(
 export type DocumentWorkspaceProps = {
   pdfUrl: string
   filename: string
-  /** Null for a dev-opened local file, which has nothing durable to review against. */
-  projectContextId: string | null
-  sourceRepresentationId: string | null
-  markdownUrl: string | null
-  parsedDocumentUrl: string | null
+  projectContextId: string
+  sourceRepresentationId: string
+  markdownUrl: string
+  parsedDocumentUrl: string
   // The persisted annotationSet is no longer threaded into the UI — the
   // Annotation tab was retired in favor of SchemaPanel's own doc chat. The DB
   // layer and AppFrame's fetch of it are untouched; only this prop pass-through
@@ -578,40 +577,18 @@ export function DocumentWorkspace({
     }
   }, [onInitialResourceLoadFailure, pdfSource])
 
-  // Index the source document via the parsing service as soon as it is opened.
-  // Kept separate from the viewer effect so a finished parse never re-loads the
-  // PDF or clears annotations.
+  // Read the retained canonical index separately from the viewer so it never
+  // reloads the PDF or clears annotations.
   useEffect(() => {
     const abortController = new AbortController()
 
     void (async () => {
       setDocIndex({ status: 'parsing' })
       try {
-        const devTaskId = import.meta.env.VITE_DEV_TASK_ID as
-          | string
-          | undefined
-        const parsed = markdownUrl && parsedDocumentUrl
-          ? await Promise.all([
-              readMarkdown(markdownUrl, abortController.signal),
-              readParsedDocument(parsedDocumentUrl, abortController.signal),
-            ]).then(([markdown, document]) => ({ markdown, document }))
-          : devTaskId
-            ? await Promise.all([
-                readMarkdown(
-                  `${import.meta.env.VITE_PARSING_SERVICE_URL ?? 'http://127.0.0.1:8000'}/tasks/${devTaskId}/markdown`,
-                  abortController.signal,
-                ),
-                fetchParsedDocument(devTaskId, abortController.signal),
-              ]).then(([markdown, document]) => ({ markdown, document }))
-            : await parseDocument(
-                await (
-                  await fetch(pdfSource.url, {
-                    signal: abortController.signal,
-                  })
-                ).blob(),
-                pdfSource.filename,
-                abortController.signal,
-              )
+        const parsed = await Promise.all([
+          readMarkdown(markdownUrl, abortController.signal),
+          readParsedDocument(parsedDocumentUrl, abortController.signal),
+        ]).then(([markdown, document]) => ({ markdown, document }))
         if (!abortController.signal.aborted) {
           setDocIndex({ status: 'ready', markdown: parsed.markdown, document: parsed.document })
         }
@@ -621,7 +598,7 @@ export function DocumentWorkspace({
           status: 'error',
           message: error instanceof Error ? error.message : 'Document indexing failed.',
         })
-        if (markdownUrl) onInitialResourceLoadFailure?.()
+        onInitialResourceLoadFailure?.()
       }
     })()
 

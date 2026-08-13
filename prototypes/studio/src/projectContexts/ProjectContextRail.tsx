@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { useMachine } from '@xstate/react'
 import GearIcon from '../GearIcon'
 import PanelToggleIcon from '../PanelToggleIcon'
-import type { NavigableRoute } from '../projectNavigation'
+import { parseRoute, type NavigableRoute } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { Button, Overline } from '../ui'
+import { sourceIngestionMachine } from '../sourceIngestionMachine'
 import { CreateProjectModal } from './CreateProjectModal'
+import { ingestSourceDocument, toProjectContextFailure } from './transport'
 import { useProjectContexts, type WriteResult } from './useProjectContexts'
 
 export type ProjectContextRailProps = {
@@ -16,7 +19,6 @@ export type ProjectContextRailProps = {
   onToggle: () => void
   onNavigate: (route: NavigableRoute) => void
   onConfigure: () => void
-  onOpenDevDocument: (sourceDocument: File) => void
 }
 
 const guide = 'border-l border-line pl-3'
@@ -200,7 +202,6 @@ export function ProjectContextRail({
   onToggle,
   onNavigate,
   onConfigure,
-  onOpenDevDocument,
 }: ProjectContextRailProps) {
   const {
     projects,
@@ -211,6 +212,7 @@ export function ProjectContextRail({
     createProject,
     renameProject,
     deleteProject,
+    acknowledgeSourceDocument,
   } = useProjectContexts()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [collapsedRouted, setCollapsedRouted] = useState<ReadonlySet<string>>(
@@ -226,6 +228,48 @@ export function ProjectContextRail({
   const restoreDeleteFocus = useRef(false)
   const createTrigger = useRef<HTMLButtonElement>(null)
   const railToggle = useRef<HTMLButtonElement>(null)
+  const completedSelections = useRef(new Set<string>())
+  const [ingestion, sendIngestion] = useMachine(sourceIngestionMachine, {
+    input: {
+      ingest: (source) =>
+        // The server owns ingestion once POSTed; actor shutdown only ignores its result.
+        ingestSourceDocument(
+          source.projectContextId,
+          source.file,
+          source.ingestionKey,
+        ),
+      toFailureMessage: (error) => toProjectContextFailure(error).message,
+      onIngested: ({ item, result }) => {
+        // The acknowledged response is the authority. Merging it into the rail
+        // cache is a view update that may not apply yet; the conditional open
+        // below never waits on it.
+        acknowledgeSourceDocument(item.projectContextId, result)
+        if (completedSelections.current.has(item.selectionKey)) return
+        completedSelections.current.add(item.selectionKey)
+        // Read live, not from a captured route: a researcher who navigated away
+        // while this was in flight keeps the route they chose.
+        const route = parseRoute(location.pathname)
+        if (
+          route.kind === 'project' &&
+          route.projectContextId === item.projectContextId
+        )
+          onNavigate({
+            kind: 'document',
+            projectContextId: item.projectContextId,
+            sourceDocumentId: result.sourceDocumentId,
+          })
+      },
+    },
+  })
+  const queuedSources = ingestion.context.items
+  useEffect(() => {
+    const retainedSelections = new Set(
+      queuedSources.map((source) => source.selectionKey),
+    )
+    for (const selectionKey of completedSelections.current)
+      if (!retainedSelections.has(selectionKey))
+        completedSelections.current.delete(selectionKey)
+  }, [queuedSources])
 
   const activeProjectContextId =
     selection?.kind === 'project' || selection?.kind === 'document'
@@ -479,33 +523,80 @@ export function ProjectContextRail({
                       })}
                     {branch?.status === 'ready' && (
                       <>
-                        <button
-                          className={`flex cursor-default items-center gap-1.5 py-1.5 text-[11px] font-semibold text-ink-faint opacity-60 ${guide}`}
-                          type="button"
-                          disabled
-                          title="Not available yet"
+                        {queuedSources
+                          .filter(
+                            (source) =>
+                              source.projectContextId === projectContextId,
+                          )
+                          .map((source) => (
+                            <p
+                              className={`py-1 text-[11px] leading-snug ${guide} ${
+                                source.status === 'failed'
+                                  ? 'text-danger'
+                                  : source.status === 'saved'
+                                    ? 'text-ink-muted'
+                                    : 'text-ink-faint'
+                              }`}
+                              key={source.ingestionKey}
+                              aria-live="polite"
+                            >
+                              {source.file.name}:{' '}
+                              {source.status === 'parsing'
+                                ? 'Parsing…'
+                                : source.status === 'saved'
+                                  ? 'Saved'
+                                  : source.status === 'failed'
+                                    ? `Failed: ${source.failure}`
+                                    : 'Queued'}
+                              {source.status === 'failed' && (
+                                <button
+                                  className="ml-1 font-semibold underline"
+                                  type="button"
+                                  onClick={() =>
+                                    sendIngestion({
+                                      type: 'source.retry',
+                                      ingestionKey: source.ingestionKey,
+                                    })
+                                  }
+                                >
+                                  Retry
+                                </button>
+                              )}
+                            </p>
+                          ))}
+                        <label
+                          className={`block cursor-pointer py-1.5 text-[11px] font-semibold text-ink-muted hover:text-accent ${guide}`}
                         >
                           + Add sources
-                        </button>
-                        {import.meta.env.DEV && (
-                          <label
-                            className={`block cursor-pointer py-1 text-[11px] font-medium text-ink-muted hover:text-accent ${guide}`}
-                          >
-                            Open a PDF (dev)
-                            <input
-                              className="sr-only"
-                              type="file"
-                              accept=".pdf,application/pdf"
-                              aria-label="Open a PDF (dev)"
-                              onChange={(event) => {
-                                const sourceDocument = event.target.files?.[0]
-                                if (sourceDocument)
-                                  onOpenDevDocument(sourceDocument)
-                                event.target.value = ''
-                              }}
-                            />
-                          </label>
-                        )}
+                          <input
+                            className="sr-only"
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            aria-label="Add sources"
+                            multiple
+                            onChange={(event) => {
+                              const files = Array.from(event.target.files ?? [])
+                              event.target.value = ''
+                              if (!files.length) return
+                              // One selection, one canonical ingestion key per
+                              // file; only the first success auto-opens.
+                              const selectionKey = crypto.randomUUID()
+                              const sources = files.map((file, index) => ({
+                                projectContextId,
+                                file,
+                                ingestionKey:
+                                  index === 0
+                                    ? selectionKey
+                                    : crypto.randomUUID(),
+                                selectionKey,
+                              }))
+                              sendIngestion({
+                                type: 'sources.added',
+                                items: sources,
+                              })
+                            }}
+                          />
+                        </label>
                       </>
                     )}
                   </div>
@@ -569,6 +660,12 @@ export function ProjectContextRail({
           onConfirm={async () => {
             const rejected = await deleteProject(deleting.id)
             if (!rejected) {
+              // Drops local ownership only; an already-POSTed ingestion still
+              // finishes on the server and its late result is ignored.
+              sendIngestion({
+                type: 'project.deleted',
+                projectContextId: deleting.id,
+              })
               restoreDeleteFocus.current = true
               // Only the routed Project Context loses its route; any other
               // one keeps it.

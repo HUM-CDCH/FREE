@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect } from 'react'
 import type { Route } from '../projectNavigation'
+import type { SourceDocumentIngestionResponse } from '../../shared/sourceDocumentIngestion.contract'
 import type {
   ProjectContext,
   ProjectContextDetail,
@@ -44,6 +45,15 @@ export type ProjectContextsValue = {
   renameProject: (projectContextId: string, name: string) => WriteResult
   /** Deletion never navigates; the caller routes away from a deleted selection. */
   deleteProject: (projectContextId: string) => WriteResult
+  /**
+   * Merges an acknowledged ingestion into an already-read branch and fences any
+   * branch read still in flight. Navigation never waits on it: the durable
+   * response is the authority, the rail cache is only a view of it.
+   */
+  acknowledgeSourceDocument: (
+    projectContextId: string,
+    document: SourceDocumentIngestionResponse,
+  ) => void
 }
 
 export const ProjectContextsContext =

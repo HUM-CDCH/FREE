@@ -27,7 +27,6 @@ type AppFrameProps = {
   onInitialResourceLoadFailure: () => void
 }
 
-type DevDocument = { pdfUrl: string; filename: string }
 const DocumentWorkspace = lazy(() => import('./App'))
 
 function EmptyWorkspace({
@@ -131,7 +130,6 @@ export default function AppFrame({
   const [navWidth, setNavWidth] = useState(212)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [providersOpen, setProvidersOpen] = useState(false)
-  const [devDocument, setDevDocument] = useState<DevDocument | null>(null)
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth)
@@ -148,14 +146,6 @@ export default function AppFrame({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [providersOpen])
 
-  useEffect(
-    () => () => {
-      if (devDocument?.pdfUrl.startsWith('blob:'))
-        URL.revokeObjectURL(devDocument.pdfUrl)
-    },
-    [devDocument],
-  )
-
   const effectiveNavOpen = navOpen && viewportWidth >= 860
   const effectiveNavWidth = effectiveNavOpen ? navWidth : collapsedWidth
   const { branch: routedBranch, documentContained: routedDocumentContained } =
@@ -165,11 +155,9 @@ export default function AppFrame({
       ? route.projectContextId
       : null
   // Selection stays on the Source Document that is actually open; the
-  // requested one becomes active only once it has opened, and a dev PDF
-  // clears the selection entirely.
-  const selection: NavigableRoute | null = devDocument
-    ? null
-    : opening && route.kind === 'document'
+  // requested one becomes active only once it has opened.
+  const selection: NavigableRoute | null =
+    opening && route.kind === 'document'
       ? openDocument
         ? {
             kind: 'document',
@@ -182,7 +170,7 @@ export default function AppFrame({
         : route
   // Durable hydration: the PDF, its name, and its Markdown all come from the
   // reopened representation. Rail state, PDF position, focus, and drafts do not.
-  const reopened = openDocument && {
+  const workspace = openDocument && {
     projectContextId: openDocument.projectContext.projectContextId,
     pdfUrl: openDocument.sourceRepresentation.resources.sourcePdfUrl,
     filename: openDocument.sourceDocument.name,
@@ -200,19 +188,6 @@ export default function AppFrame({
     persistedExtraction: openDocument.latestAttempt,
     latestReviewedExtraction: openDocument.latestReviewed,
   }
-  const workspace = devDocument
-    ? {
-        ...devDocument,
-        projectContextId: null,
-        sourceRepresentationId: null,
-        markdownUrl: null,
-        parsedDocumentUrl: null,
-        // annotationSet: null,
-        extractionSchema: null,
-        persistedExtraction: null,
-        latestReviewedExtraction: null,
-      }
-    : reopened
 
   function startResize(event: React.MouseEvent) {
     event.preventDefault()
@@ -262,17 +237,8 @@ export default function AppFrame({
             selection={selection}
             routedProjectContextId={routedProjectContextId}
             onToggle={() => setNavOpen((open) => !open)}
-            onNavigate={(nextRoute) => {
-              setDevDocument(null)
-              onNavigate(nextRoute)
-            }}
+            onNavigate={onNavigate}
             onConfigure={() => setProvidersOpen(true)}
-            onOpenDevDocument={(sourceDocument) =>
-              setDevDocument({
-                pdfUrl: URL.createObjectURL(sourceDocument),
-                filename: sourceDocument.name,
-              })
-            }
           />
         </aside>
       </div>
@@ -310,9 +276,7 @@ export default function AppFrame({
             <DocumentWorkspace
               key={workspace.pdfUrl}
               {...workspace}
-              onInitialResourceLoadFailure={
-                devDocument ? undefined : onInitialResourceLoadFailure
-              }
+              onInitialResourceLoadFailure={onInitialResourceLoadFailure}
             />
           </Suspense>
         ) : (

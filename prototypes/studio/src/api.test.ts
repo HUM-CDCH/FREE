@@ -4,9 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ExtractionController } from './useExtraction'
 import {
   decodeSchemaDone,
-  fetchParsedDocument,
   finalizeExtractionReview,
-  parseDocument,
   requestExtraction,
   requestSchema,
 } from './api'
@@ -19,24 +17,6 @@ function jsonResponse(body: unknown): Response {
 }
 
 afterEach(() => vi.unstubAllGlobals())
-
-function minimalParsedDocument() {
-  return {
-    schema_version: 'parsed_document.v2',
-    document: {
-      document_id: 'document-a', content_sha256: 'a'.repeat(64),
-      source: { kind: 'upload', original_filename: 'source.pdf', media_type: 'application/pdf', byte_size: null },
-      created_at: 'now', page_count: 1, language_hints: [], is_encrypted: false,
-      input_profile: { file_kind: 'pdf', detected_mime: 'application/pdf', pdf_version: null, has_text_layer: true, has_images: false },
-    },
-    preprocessing: { preprocess_id: 'test', profile: 'production_default', service_version: null, started_at: null, finished_at: null, status: 'completed', warnings: [] },
-    page_count: 1, page_mapping_verified: true,
-    artifacts: { source_ref: 'source.pdf', parsed_json_ref: 'parsed_document.json', markdown_ref: 'artifacts/document.llm.md' },
-    parser_runs: [], arbitration: null, diagnostics: [],
-    pages: [{ page_number: 1, width_pt: 100, height_pt: 100, rotation: 0, ordered_content: [], unplaced_content: [], markdown_span: null }],
-    content_stream: [], tables: [], evidence_index: { anchors: [] },
-  }
-}
 
 function readyController(): ExtractionController {
   return {
@@ -178,65 +158,6 @@ describe('requestSchema', () => {
     await requestSchema(new Blob(['pdf']), 'report.pdf')
 
     expect(submittedUrl).toBe('/api/generate_schema')
-  })
-})
-
-describe('fetchParsedDocument', () => {
-  it('decodes the strict v2 document route', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(minimalParsedDocument())))
-    const document = await fetchParsedDocument('task-1')
-    expect(document.page_count).toBe(1)
-  })
-
-  it('rejects alternate or unknown document fields', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
-      schema_version: 'parsed_document.v2', future_field: 'not allowed',
-    })))
-    await expect(fetchParsedDocument('task-1')).rejects.toThrow()
-  })
-})
-
-describe('parseDocument', () => {
-  it('starts a job, polls until completed, and returns the markdown and document', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (url.endsWith('/tasks')) {
-          return Promise.resolve(jsonResponse({ task_id: 'abc', status: 'pending' }))
-        }
-        if (url.endsWith('/tasks/abc')) {
-          return Promise.resolve(jsonResponse({ status: 'completed' }))
-        }
-        if (url.endsWith('/tasks/abc/markdown')) {
-          return Promise.resolve(new Response('# Doc', { status: 200 }))
-        }
-        if (url.endsWith('/tasks/abc/document')) {
-          return Promise.resolve(jsonResponse(minimalParsedDocument()))
-        }
-        return Promise.reject(new Error(`unexpected ${url}`))
-      }),
-    )
-
-    const parsed = await parseDocument(new Blob(['pdf']), 'report.pdf')
-    expect(parsed.markdown).toBe('# Doc')
-    expect(parsed.document.page_count).toBe(1)
-  })
-
-  it('throws the job error when parsing fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((url: string) => {
-        if (url.endsWith('/tasks')) {
-          return Promise.resolve(jsonResponse({ task_id: 'abc' }))
-        }
-        if (url.endsWith('/tasks/abc')) {
-          return Promise.resolve(jsonResponse({ status: 'failed', error: 'boom' }))
-        }
-        return Promise.reject(new Error(`unexpected ${url}`))
-      }),
-    )
-
-    await expect(parseDocument(new Blob(['pdf']), 'report.pdf')).rejects.toThrow('boom')
   })
 })
 

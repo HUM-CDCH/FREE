@@ -14,6 +14,7 @@ import {
   type ProjectContextsValue,
   type WriteResult,
 } from './useProjectContexts'
+import type { SourceDocumentIngestionResponse } from '../../shared/sourceDocumentIngestion.contract'
 
 /**
  * Owns the Project Context list, the id-keyed branch cache, and acknowledged
@@ -201,6 +202,38 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
     [setBranch],
   )
 
+  // An acknowledged ingestion is durable truth the rail may not have read yet.
+  // A read of this branch already in flight predates the write, so it is fenced
+  // and re-issued rather than showing the branch without its new Source
+  // Document. Only this branch's read is fenced: researchers browse other
+  // Project Contexts while the queue runs, and their reads are not stale.
+  const acknowledgeSourceDocument = useCallback(
+    (projectContextId: string, document: SourceDocumentIngestionResponse) => {
+      const branch = branchesRef.current[projectContextId]
+      if (branch?.status === 'loading') generation.current += 1
+      if (branch?.status !== 'ready') return
+      const sourceDocuments = [
+        ...branch.detail.sourceDocuments.filter(
+          (item) => item.sourceDocumentId !== document.sourceDocumentId,
+        ),
+        {
+          sourceDocumentId: document.sourceDocumentId,
+          name: document.name,
+          createdAt: document.createdAt,
+        },
+      ].sort(
+        (left, right) =>
+          left.createdAt.localeCompare(right.createdAt) ||
+          left.sourceDocumentId.localeCompare(right.sourceDocumentId),
+      )
+      setBranch(projectContextId, {
+        status: 'ready',
+        detail: { ...branch.detail, sourceDocuments },
+      })
+    },
+    [setBranch],
+  )
+
   return (
     <ProjectContextsContext
       value={{
@@ -212,6 +245,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         createProject,
         renameProject,
         deleteProject,
+        acknowledgeSourceDocument,
       }}
     >
       {children}
