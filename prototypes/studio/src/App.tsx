@@ -249,6 +249,7 @@ export function DocumentWorkspace({
     restoredAnnotations,
   )
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
+  const [zoomPercent, setZoomPercent] = useState(100)
   const [templateState, setTemplateState] = useState<TemplateState>(() =>
     extractionSchema
       ? {
@@ -420,6 +421,45 @@ export function DocumentWorkspace({
       )
     }
 
+    const syncZoom = ({ scale }: { scale: number }) => {
+      setZoomPercent(Math.round(scale * 100))
+    }
+    eventBus.on('scalechanging', syncZoom, { signal: abortController.signal })
+
+    container.addEventListener(
+      'wheel',
+      (event) => {
+        if (!event.ctrlKey && !event.metaKey) return
+        event.preventDefault()
+        // Ctrl/Cmd + wheel zooms around the cursor; trackpad pinch arrives
+        // as ctrlKey wheel events with small deltas, so scale smoothly.
+        const lineHeight = event.deltaMode === 1 ? 25 : event.deltaMode === 2 ? 120 : 1
+        pdfViewer.updateScale({
+          scaleFactor: Math.exp(-event.deltaY * 0.0015 * lineHeight),
+          origin: [event.clientX, event.clientY],
+        })
+      },
+      { signal: abortController.signal, passive: false },
+    )
+    document.addEventListener(
+      'keydown',
+      (event) => {
+        if (isEditableTarget(event.target)) return
+        const key = event.key
+        if (key === '+' || key === '=' || key === 'Add') {
+          event.preventDefault()
+          pdfViewer.increaseScale()
+        } else if (key === '-' || key === 'Subtract') {
+          event.preventDefault()
+          pdfViewer.decreaseScale()
+        } else if (key === '0' || key === 'Numpad0') {
+          event.preventDefault()
+          pdfViewer.currentScale = 1
+        }
+      },
+      { signal: abortController.signal },
+    )
+
     const loadingTask = pdfjsLib.getDocument({ url: pdfSource.url })
     pdfViewerRef.current = pdfViewer
     annotationManagerRef.current = null
@@ -488,6 +528,12 @@ export function DocumentWorkspace({
         }
 
         pdfViewer.setDocument(pdf)
+        // The base scale stays unset until something calls setScale; pin it
+        // to the current (100%) value so updateScale() has a valid baseline.
+        if (!pdfViewer.currentScaleValue) {
+          pdfViewer.currentScale = pdfViewer.currentScale
+        }
+        setZoomPercent(Math.round(pdfViewer.currentScale * 100))
         setLoadState({ status: 'ready', pageCount: pdf.numPages })
       } catch (error) {
         if (abortController.signal.aborted) {
@@ -1016,6 +1062,45 @@ export function DocumentWorkspace({
             {loadState.status === 'ready' && `${loadState.pageCount} pages · text highlights only`}
             {loadState.status === 'error' && loadState.message}
           </p>
+          {loadState.status === 'ready' && (
+            <div
+              className="flex shrink-0 items-center rounded-full border border-line bg-surface-muted p-0.5"
+              role="group"
+              aria-label="PDF zoom"
+            >
+              <button
+                type="button"
+                aria-label="Zoom out"
+                title="Zoom out (Ctrl + -)"
+                disabled={zoomPercent <= 10}
+                onClick={() => pdfViewerRef.current?.decreaseScale()}
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              >
+                −
+              </button>
+              <button
+                type="button"
+                aria-label="Reset zoom to 100%"
+                title="Reset zoom to 100%"
+                onClick={() => {
+                  if (pdfViewerRef.current) pdfViewerRef.current.currentScale = 1
+                }}
+                className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                {zoomPercent}%
+              </button>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                title="Zoom in (Ctrl + +)"
+                disabled={zoomPercent >= 2500}
+                onClick={() => pdfViewerRef.current?.increaseScale()}
+                className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+              >
+                +
+              </button>
+            </div>
+          )}
           <label className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-ink-muted">
             <span>Strategy</span>
             <select

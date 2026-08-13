@@ -80,6 +80,10 @@ test('application editors retain clipboard and keyboard ownership with a stale P
     timeout: 15_000,
   })
 
+  // Highlight-on-selection is disabled (HIGHLIGHT_ANNOTATIONS_ENABLED in
+  // App.tsx) so native copy/paste works; selecting PDF text is a stale
+  // selection that must not steal clipboard/keyboard ownership from the
+  // app's own editors below.
   const text = page
     .locator('.textLayer span')
     .filter({ hasText: 'Grav 8' })
@@ -92,24 +96,7 @@ test('application editors retain clipboard and keyboard ownership with a stale P
     steps: 8,
   })
   await page.mouse.up()
-
-  const annotation = page.locator('.highlightEditor.selectedEditor')
-  await expect(annotation).toHaveCount(1)
-  await expect(
-    page.getByLabel('Annotations, chat and schema').getByText('"Grav 8"'),
-  ).toBeVisible()
-
-  const pdfCopy = await annotation.evaluate((target) => {
-    const clipboardData = new DataTransfer()
-    const event = new ClipboardEvent('copy', {
-      bubbles: true,
-      cancelable: true,
-      clipboardData,
-    })
-    target.dispatchEvent(event)
-    return event.defaultPrevented
-  })
-  expect(pdfCopy).toBe(true)
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain('Grav 8')
 
   await page.getByRole('tab', { name: 'Chat' }).click()
   const chatInput = page.getByPlaceholder('Ask about this source document...')
@@ -162,6 +149,5 @@ test('application editors retain clipboard and keyboard ownership with a stale P
   await textarea.press(isMac ? 'Meta+Shift+Z' : 'Control+Y')
   await expect(textarea).toHaveValue('')
 
-  await expect(page.locator('.highlightEditor')).toHaveCount(1)
-  await expect(page.getByRole('tab', { name: 'Annot. 1' })).toBeVisible()
+  await expect(page.locator('.highlightEditor')).toHaveCount(0)
 })
