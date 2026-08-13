@@ -21,13 +21,16 @@ export const PARSING_SERVICE_BASE: string =
 
 const PARSE_POLL_MS = 1500
 
-export type TemplateAnnotation = { text: string; pageNumber: number }
-
-export type AnnotationsMode = 'hints' | 'fields'
+// Superseded by a free-text chat instruction (see TemplateOptions below) —
+// schema generation no longer takes highlighted-passage annotations as input.
+// Left in place, commented out, rather than deleted.
+//
+// export type TemplateAnnotation = { text: string; pageNumber: number }
+//
+// export type AnnotationsMode = 'hints' | 'fields'
 
 type TemplateOptions = {
-  annotations?: TemplateAnnotation[]
-  annotationsMode?: AnnotationsMode
+  instruction?: string
   markdown?: string | null
 }
 
@@ -125,9 +128,8 @@ export async function requestSchema(
   } else {
     form.append('file', file, fileName)
   }
-  if (options?.annotations?.length) {
-    form.append('annotations', JSON.stringify(options.annotations))
-    form.append('annotations_mode', options.annotationsMode ?? 'hints')
+  if (options?.instruction?.trim()) {
+    form.append('instruction', options.instruction.trim())
   }
 
   const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)

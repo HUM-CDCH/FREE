@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AnnotationsMode } from './api'
-import { requestSchemaEdit } from './api'
+import { DefaultChatTransport, readUIMessageStream } from 'ai'
+import type { UIMessage } from 'ai'
+import { API_BASE, requestSchemaEdit } from './api'
 import { countTemplateFields, isRecord } from '../shared/template'
 import { isAllowedValues, type FieldType } from '../shared/allowedValues'
 import {
@@ -27,6 +28,28 @@ import {
 } from './schemaChanges'
 
 // ────────────────────────────────────────────────────────────────────────────
+// Pre-generation doc chat (absorbed from the former standalone ChatTab)
+// ────────────────────────────────────────────────────────────────────────────
+
+const docChatTransport = new DefaultChatTransport<UIMessage>({
+  api: `${API_BASE}/chat`,
+  prepareSendMessagesRequest: ({ messages, body }) => ({
+    body: { messages, documentMarkdown: body?.documentMarkdown },
+  }),
+})
+
+function docChatMessageText(message: UIMessage): string {
+  return message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('')
+}
+
+function nextDocChatId(): string {
+  return crypto.randomUUID()
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Exported types (App.tsx depends on TemplateState)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -48,8 +71,7 @@ export type TemplateState =
 
 type SchemaPanelProps = {
   state: TemplateState
-  stale: boolean
-  onGenerate: () => void
+  onGenerate: (instruction: string) => void
   onNodesChange: (
     nodes: SchemaNode[],
     message: string,
@@ -60,9 +82,6 @@ type SchemaPanelProps = {
   history: SchemaRevisionSummary[]
   currentRevisionNumber?: number
   loadRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
-  annotationCount: number
-  annotationsMode: AnnotationsMode
-  onAnnotationsModeChange: (mode: AnnotationsMode) => void
   documentMarkdown: string | null
   sourceDocumentName: string
 }
@@ -381,16 +400,20 @@ function WorkingIndicator() {
 const genBtnCls =
   'inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:bg-accent-soft hover:text-accent focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60 disabled:hover:border-line disabled:hover:bg-surface disabled:hover:text-ink-muted'
 
-function AnnotationsModeToggle({ mode, onChange }: { mode: AnnotationsMode; onChange: (mode: AnnotationsMode) => void }) {
-  const seg = (active: boolean) =>
-    `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
-  return (
-    <div className="flex shrink-0 overflow-hidden rounded-md border border-line" role="group" aria-label="How highlights shape the schema">
-      <button className={seg(mode === 'hints')} type="button" aria-pressed={mode === 'hints'} onClick={() => onChange('hints')}>Hints</button>
-      <button className={seg(mode === 'fields')} type="button" aria-pressed={mode === 'fields'} onClick={() => onChange('fields')}>Fields</button>
-    </div>
-  )
-}
+// Superseded by the pre-generation doc chat (see below) — schema generation no
+// longer takes a highlights hints/fields mode. Left in place, commented out,
+// rather than deleted.
+//
+// function AnnotationsModeToggle({ mode, onChange }: { mode: AnnotationsMode; onChange: (mode: AnnotationsMode) => void }) {
+//   const seg = (active: boolean) =>
+//     `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
+//   return (
+//     <div className="flex shrink-0 overflow-hidden rounded-md border border-line" role="group" aria-label="How highlights shape the schema">
+//       <button className={seg(mode === 'hints')} type="button" aria-pressed={mode === 'hints'} onClick={() => onChange('hints')}>Hints</button>
+//       <button className={seg(mode === 'fields')} type="button" aria-pressed={mode === 'fields'} onClick={() => onChange('fields')}>Fields</button>
+//     </div>
+//   )
+// }
 
 // Field editing uses stable ids, not paths.
 function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
@@ -476,7 +499,6 @@ function DescriptionEditForm({ value, onChange, onSave, onDelete, onCancel }: {
 
 function SchemaPanel({
   state,
-  stale,
   onGenerate,
   onNodesChange,
   onRecordDescriptionChange,
@@ -484,9 +506,6 @@ function SchemaPanel({
   history,
   currentRevisionNumber,
   loadRevision,
-  annotationCount,
-  annotationsMode,
-  onAnnotationsModeChange,
   documentMarkdown,
   sourceDocumentName,
 }: SchemaPanelProps) {
@@ -519,6 +538,14 @@ function SchemaPanel({
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyRestoring, setHistoryRestoring] = useState(false)
+
+  // Pre-generation doc chat: free-form Q&A about the document, also the source
+  // of the instruction sent along with "Generate schema"/"Regenerate".
+  const [docChat, setDocChat] = useState<UIMessage[]>([])
+  const [docChatDraft, setDocChatDraft] = useState('')
+  const [docChatStatus, setDocChatStatus] = useState<'ready' | 'running' | 'error'>('ready')
+  const docChatAbortRef = useRef<AbortController | null>(null)
+  const docChatRef = useRef<HTMLDivElement>(null)
 
   // ── refs for event handlers (avoid stale closures) ──
   const nodesRef = useRef<SchemaNode[]>([])
@@ -566,6 +593,12 @@ function SchemaPanel({
     const el = chatRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [chat.length, pending])
+
+  // Keep the newest pre-generation doc-chat message visible.
+  useEffect(() => {
+    const el = docChatRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [docChat.length])
 
   // ── Auto-scroll helpers ──
   function stopScroll() {
@@ -903,6 +936,59 @@ function SchemaPanel({
 
   function cancelChat() {
     chatAbortRef.current?.abort()
+  }
+
+  // ── Pre-generation doc chat (Q&A about the document; also the instruction
+  // source for "Generate schema"/"Regenerate") ──
+  const docInstruction = docChat
+    .filter((m) => m.role === 'user')
+    .map(docChatMessageText)
+    .join('\n\n')
+    .trim()
+
+  async function sendDocChatMessage() {
+    const text = docChatDraft.trim()
+    if (!text || docChatStatus === 'running' || documentMarkdown === null) return
+
+    docChatAbortRef.current?.abort()
+    const abortController = new AbortController()
+    docChatAbortRef.current = abortController
+    setDocChatStatus('running')
+    setDocChatDraft('')
+
+    const nextMessages: UIMessage[] = [
+      ...docChat,
+      { id: nextDocChatId(), role: 'user', parts: [{ type: 'text', text }] },
+    ]
+    setDocChat(nextMessages)
+
+    try {
+      const stream = await docChatTransport.sendMessages({
+        chatId: 'free-schema-doc-chat',
+        messages: nextMessages,
+        trigger: 'submit-message',
+        messageId: undefined,
+        abortSignal: abortController.signal,
+        body: { documentMarkdown },
+      })
+
+      for await (const assistantMessage of readUIMessageStream({ stream, terminateOnError: true })) {
+        setDocChat([...nextMessages, assistantMessage])
+      }
+      setDocChatStatus('ready')
+    } catch (error) {
+      if (abortController.signal.aborted) return
+      const message = error instanceof Error ? error.message : 'Chat failed.'
+      setDocChat([
+        ...nextMessages,
+        { id: nextDocChatId(), role: 'assistant', parts: [{ type: 'text', text: message }] },
+      ])
+      setDocChatStatus('error')
+    }
+  }
+
+  function cancelDocChat() {
+    docChatAbortRef.current?.abort()
   }
 
   // Apply pending proposal.
@@ -1254,14 +1340,9 @@ function SchemaPanel({
             <p className="text-[13px] font-semibold text-ink">No schema yet</p>
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
               FREE produces the extraction schema from the document with the extraction model.
+              {docInstruction && ' Chat below to add instructions before generating.'}
             </p>
-            {annotationCount > 0 && (
-              <div className="mt-3 flex items-center justify-center gap-2">
-                <span className="text-[11px] text-ink-faint">Use highlights as</span>
-                <AnnotationsModeToggle mode={annotationsMode} onChange={onAnnotationsModeChange} />
-              </div>
-            )}
-            <button className={`${genBtnCls} mt-3`} type="button" onClick={onGenerate}>Generate schema</button>
+            <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerate(docInstruction)}>Generate schema</button>
           </div>
         )}
 
@@ -1270,7 +1351,7 @@ function SchemaPanel({
         {state.status === 'error' && (
           <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
             <p className="text-[13px] leading-snug text-danger">{state.message}</p>
-            <button className={`${genBtnCls} mt-3`} type="button" onClick={onGenerate}>Retry</button>
+            <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerate(docInstruction)}>Retry</button>
           </div>
         )}
 
@@ -1434,6 +1515,72 @@ function SchemaPanel({
         )}
       </div>
 
+      {/* Pre-generation doc chat: Q&A about the document, and the instruction
+          source for "Generate schema". Hidden once ready, where the bottom slot
+          switches to the schema edit-chat below — a different mechanism (it
+          walks proposed changes node by node) that this doesn't replace. */}
+      {!ready && (
+        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
+          <div className="flex shrink-0 items-center border-b border-line px-3.5 py-1">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
+          </div>
+          <div ref={docChatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
+            <div className="flex flex-col gap-2">
+              {docChat.length === 0 && (
+                <p className="text-[11.5px] leading-relaxed text-ink-faint">
+                  Ask about this document, or add instructions for the schema the model will generate.
+                </p>
+              )}
+              {docChat.map((message) => (
+                <div key={message.id} className={msgCls(message.role === 'user' ? 'user' : 'assistant')}>
+                  {docChatMessageText(message)}
+                </div>
+              ))}
+              {docChatStatus === 'running' && (
+                <div className="self-start rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2">
+                  <span className="flex gap-1">
+                    <span className="animate-pulse text-ink-faint text-sm">•</span>
+                    <span className="animate-pulse text-ink-faint text-sm" style={{ animationDelay: '0.15s' }}>•</span>
+                    <span className="animate-pulse text-ink-faint text-sm" style={{ animationDelay: '0.3s' }}>•</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="shrink-0 px-3.5 pb-3 pt-1.5">
+            <div className="flex items-center gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">
+              <input
+                className="min-w-0 flex-1 bg-transparent font-sans text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
+                placeholder="Ask about the document, or add a generation instruction…"
+                value={docChatDraft}
+                disabled={documentMarkdown === null}
+                onChange={e => setDocChatDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') void sendDocChatMessage() }}
+              />
+              {docChatStatus === 'running' ? (
+                <button
+                  type="button"
+                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108"
+                  onClick={cancelDocChat}
+                  title="Stop generation"
+                >
+                  ■
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
+                  disabled={!docChatDraft.trim() || documentMarkdown === null}
+                  onClick={() => void sendDocChatMessage()}
+                >
+                  ↑
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Chat panel */}
       {ready && (
         <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
@@ -1569,21 +1716,13 @@ function SchemaPanel({
               Producing schema from the document…
             </span>
           )}
-          {ready && (stale ? (
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-amber-500" />
-              Highlights changed — regenerate to update the schema
-            </span>
-          ) : (
-            `${displayedFieldCount} field${displayedFieldCount === 1 ? '' : 's'} `
-          ))}
+          {ready && `${displayedFieldCount} field${displayedFieldCount === 1 ? '' : 's'} `}
           {state.status === 'idle' && 'Generate to produce the schema from the document'}
           {state.status === 'error' && 'Generation failed'}
         </p>
         {ready && (
           <div className="flex shrink-0 items-center gap-2">
-            {annotationCount > 0 && <AnnotationsModeToggle mode={annotationsMode} onChange={onAnnotationsModeChange} />}
-            <button className={genBtnCls} type="button" onClick={onGenerate}>Regenerate</button>
+            <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>Regenerate</button>
           </div>
         )}
       </footer>

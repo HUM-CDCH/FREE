@@ -1,14 +1,16 @@
 import PanelToggleIcon from './PanelToggleIcon'
-import AnnotationSetTab from './AnnotationSidebar'
-import type { AnnotationSetItem } from './AnnotationSidebar'
-import ChatTab from './ChatTab'
+// The Annotation and Chat tabs were retired: the Annotation tab's highlight-set
+// list and the generic document Chat tab were folded into SchemaPanel's own
+// pre-generation chat. Left in place, commented out, rather than deleted.
+// import AnnotationSetTab from './AnnotationSidebar'
+// import type { AnnotationSetItem } from './AnnotationSidebar'
+// import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
 import type { SchemaDefinition, SchemaNode } from '../shared/schemaNode'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
-import type { AnnotationsMode } from './api'
 import EvidenceTab from './EvidenceTab'
 import type { ParsedDocument, ParsedEvidenceAnchor } from '../shared/parsedDocument'
 import type {
@@ -16,7 +18,7 @@ import type {
   SchemaRevisionSummary,
 } from '../shared/schemaRevision.contract'
 
-export type RailTab = 'annot' | 'evidence' | 'chat' | 'schema' | 'results'
+export type RailTab = 'evidence' | 'schema' | 'results'
 
 export type ExtractionInspection = {
   attempt: ExtractionAttempt | null
@@ -32,14 +34,10 @@ type RightRailProps = {
   onToggle: () => void
   tab: RailTab
   onTabChange: (tab: RailTab) => void
-  annotationItems: AnnotationSetItem[]
-  onSelectAnnotation: (id: string) => void
-  onRemoveAnnotation: (id: string) => void
   schemaState: TemplateState
-  schemaStale: boolean
   schemaReady: boolean
   schemaFieldCount: number
-  onGenerate: () => void
+  onGenerate: (instruction: string) => void
   onNodesChange: (
     nodes: SchemaNode[],
     message: string,
@@ -50,8 +48,6 @@ type RightRailProps = {
   schemaHistory: SchemaRevisionSummary[]
   currentSchemaRevisionNumber?: number
   loadSchemaRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
-  annotationsMode: AnnotationsMode
-  onAnnotationsModeChange: (mode: AnnotationsMode) => void
   extraction: ExtractionController
   inspection: ExtractionInspection
   sourceDocumentName: string
@@ -77,11 +73,7 @@ function RightRail({
   onToggle,
   tab,
   onTabChange,
-  annotationItems,
-  onSelectAnnotation,
-  onRemoveAnnotation,
   schemaState,
-  schemaStale,
   schemaReady,
   schemaFieldCount,
   onGenerate,
@@ -91,8 +83,6 @@ function RightRail({
   schemaHistory,
   currentSchemaRevisionNumber,
   loadSchemaRevision,
-  annotationsMode,
-  onAnnotationsModeChange,
   extraction,
   inspection,
   sourceDocumentName,
@@ -112,7 +102,7 @@ function RightRail({
           <PanelToggleIcon side="right" />
         </button>
         <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
-          Annot · Evidence · Chat · Schema · Results
+          Evidence · Schema · Results
         </span>
       </div>
     )
@@ -121,13 +111,7 @@ function RightRail({
   const resultsBadge = extraction.hasResults ? { label: '✓', done: true } : null
 
   const tabs: { key: RailTab; label: string; badge?: { label: string; done?: boolean } | null }[] = [
-    {
-      key: 'annot',
-      label: 'Annot.',
-      badge: annotationItems.length ? { label: String(annotationItems.length) } : null,
-    },
     { key: 'evidence', label: 'Evidence', badge: parsedDocument ? { label: String(parsedDocument.evidence_index.anchors.length) } : null },
-    { key: 'chat', label: 'Chat' },
     { key: 'schema', label: 'Schema', badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null },
     { key: 'results', label: 'Results', badge: resultsBadge },
   ]
@@ -166,6 +150,9 @@ function RightRail({
       </div>
 
       {/* All tab bodies stay mounted so chat drafts and schema edit state survive tab switches. */}
+      {/* The Annotation tab (highlight-set list) and the generic document Chat
+          tab were retired — folded into SchemaPanel's own pre-generation chat.
+          Left in place, commented out, rather than deleted.
       <div id="rail-panel-annot" aria-labelledby="rail-tab-annot" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'annot'}>
         <AnnotationSetTab
           items={annotationItems}
@@ -173,16 +160,18 @@ function RightRail({
           onRemoveItem={onRemoveAnnotation}
         />
       </div>
+      */}
       <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'evidence'}>
         <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />
       </div>
+      {/*
       <div id="rail-panel-chat" aria-labelledby="rail-tab-chat" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'chat'}>
         <ChatTab documentMarkdown={documentMarkdown} />
       </div>
+      */}
       <div id="rail-panel-schema" aria-labelledby="rail-tab-schema" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'schema'}>
         <SchemaPanel
           state={schemaState}
-          stale={schemaStale}
           onGenerate={onGenerate}
           onNodesChange={onNodesChange}
           onRecordDescriptionChange={onRecordDescriptionChange}
@@ -190,9 +179,6 @@ function RightRail({
           history={schemaHistory}
           currentRevisionNumber={currentSchemaRevisionNumber}
           loadRevision={loadSchemaRevision}
-          annotationCount={annotationItems.length}
-          annotationsMode={annotationsMode}
-          onAnnotationsModeChange={onAnnotationsModeChange}
           documentMarkdown={documentMarkdown}
           sourceDocumentName={sourceDocumentName}
         />

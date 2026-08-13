@@ -41,18 +41,21 @@ const reopened: DocumentWorkspaceProps = {
   sourceRepresentationId: '51000000-0000-4000-8002-000000000001',
   markdownUrl: '/api/source-representations/rep/markdown',
   parsedDocumentUrl: '/api/source-representations/rep/source',
-  annotationSet: {
-    annotationSetId: '51000000-0000-4000-8003-000000000001',
-    revisionNumber: 1,
-    annotations: [
-      {
-        annotationId: '51000000-0000-4000-8004-000000000001',
-        evidenceAnchorId: 'anchor-1',
-        text: 'The restored annotation',
-        pageNumber: 2,
-      },
-    ],
-  },
+  // DocumentWorkspace no longer reads annotationSet — the Annotation tab was
+  // retired in favor of SchemaPanel's own doc chat. Left in place, commented
+  // out, rather than deleted.
+  // annotationSet: {
+  //   annotationSetId: '51000000-0000-4000-8003-000000000001',
+  //   revisionNumber: 1,
+  //   annotations: [
+  //     {
+  //       annotationId: '51000000-0000-4000-8004-000000000001',
+  //       evidenceAnchorId: 'anchor-1',
+  //       text: 'The restored annotation',
+  //       pageNumber: 2,
+  //     },
+  //   ],
+  // },
   extractionSchema: {
     extractionSchemaId: '51000000-0000-4000-8005-000000000001',
     schemaRevisionId: '51000000-0000-4000-8005-000000000002',
@@ -183,7 +186,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() =>
       expect(page.querySelector<HTMLElement>('[data-evidence-anchor-id]')?.dataset.resultPath).toBe('["title"]'),
     )
-    fireEvent.click(screen.getByRole('tab', { name: /^Annot\./ }))
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
     )
@@ -475,14 +478,17 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByText('historical_title')).toBeInTheDocument()
   })
 
-  it('hydrates the annotation set, Extraction Schema, and Extraction Result', async () => {
+  it('hydrates the Extraction Schema and Extraction Result', async () => {
     await renderReopened()
 
-    expect(
-      screen.getByRole('button', {
-        name: 'Remove highlight: The restored annotation',
-      }),
-    ).toBeInTheDocument()
+    // Annotation-set hydration was covered here too before the Annotation tab
+    // was retired (see the commented-out test below). Left in place, rather
+    // than deleted.
+    // expect(
+    //   screen.getByRole('button', {
+    //     name: 'Remove highlight: The restored annotation',
+    //   }),
+    // ).toBeInTheDocument()
     // The Schema tab's badge is the field count derived from the reopened template.
     expect(screen.getByRole('tab', { name: /^Schema\s*1$/ })).toBeInTheDocument()
     expect(
@@ -751,25 +757,28 @@ describe('reopened Source Document workspace', () => {
     expect(screen.queryByText(/Extraction complete/)).not.toBeInTheDocument()
   })
 
-  it('keeps a restored annotation usable without a pdf.js editor', async () => {
-    await renderReopened()
-
-    fireEvent.click(
-      screen.getByTitle('Go to highlight on page 2: The restored annotation'),
-    )
-    expect(scrollPageIntoView).toHaveBeenCalledWith({ pageNumber: 2 })
-
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Remove highlight: The restored annotation',
-      }),
-    )
-    expect(
-      screen.queryByRole('button', {
-        name: 'Remove highlight: The restored annotation',
-      }),
-    ).not.toBeInTheDocument()
-  })
+  // Retired along with the Annotation tab (no more highlight-set list to
+  // select/remove from). Left in place, commented out, rather than deleted.
+  //
+  // it('keeps a restored annotation usable without a pdf.js editor', async () => {
+  //   await renderReopened()
+  //
+  //   fireEvent.click(
+  //     screen.getByTitle('Go to highlight on page 2: The restored annotation'),
+  //   )
+  //   expect(scrollPageIntoView).toHaveBeenCalledWith({ pageNumber: 2 })
+  //
+  //   fireEvent.click(
+  //     screen.getByRole('button', {
+  //       name: 'Remove highlight: The restored annotation',
+  //     }),
+  //   )
+  //   expect(
+  //     screen.queryByRole('button', {
+  //       name: 'Remove highlight: The restored annotation',
+  //     }),
+  //   ).not.toBeInTheDocument()
+  // })
 })
 
 
