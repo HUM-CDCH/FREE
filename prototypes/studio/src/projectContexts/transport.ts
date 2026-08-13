@@ -8,6 +8,10 @@ import {
   projectContextSummarySchema,
   projectContextWithDocumentsResponseSchema,
 } from '../../shared/projectContext.contract'
+import {
+  sourceDocumentIngestionResponseSchema,
+  type SourceDocumentIngestionResponse,
+} from '../../shared/sourceDocumentIngestion.contract'
 
 export type ProjectContext = z.output<typeof projectContextSummarySchema>
 export type ProjectContextDetail = z.output<
@@ -89,6 +93,29 @@ export async function getProjectContextWithDocuments(
   return request(
     `/api/project-contexts/${projectContextId}`,
     projectContextWithDocumentsResponseSchema,
+  )
+}
+
+/**
+ * Sends one PDF with the researcher's stable ingestion key, which is the
+ * server's retry authority: replaying the same key returns the same Source
+ * Document instead of persisting a second one.
+ */
+export async function ingestSourceDocument(
+  projectContextId: string,
+  file: File,
+  ingestionKey: string,
+  signal?: AbortSignal,
+): Promise<SourceDocumentIngestionResponse> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  form.append('ingestionKey', ingestionKey)
+  return sourceDocumentIngestionResponseSchema.parse(
+    await read(`/api/project-contexts/${projectContextId}/source-documents`, {
+      method: 'POST',
+      body: form,
+      signal,
+    }),
   )
 }
 

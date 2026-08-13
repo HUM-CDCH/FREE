@@ -10,11 +10,15 @@ import { ApiError, apiErrorResponse } from './api/_http.js'
 // The leading [a-z] keeps `_`-prefixed private modules such as /api/_model_config
 // unreachable; handlers themselves declare which methods they export.
 const API_ROUTE = /^\/api\/([a-z][a-z_]*)$/
+const SOURCE_DOCUMENT_INGESTION_ROUTE =
+  /^\/api\/project-contexts\/[^/]+\/source-documents$/
+const SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT = 51 * 1024 * 1024
 
 // Parameterized resources cannot be named by their pathname, so they are the one
 // explicit table; every other route stays discoverable from `api/`. Each pattern
 // only picks the module — the handler owns its exact grammar and answers 404.
 const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
+  [SOURCE_DOCUMENT_INGESTION_ROUTE, 'source_documents'],
   [/^\/api\/project-contexts\/[^/]+\/source-documents\//, 'document_reopen'],
   [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
   [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
@@ -89,7 +93,14 @@ export function apiFunctions(): Plugin {
             const request = new Request(`http://localhost${req.url}`, {
               method: req.method,
               headers,
-              body: hasBody ? await readBody(req) : undefined,
+              body: hasBody
+                ? await readBody(
+                    req,
+                    SOURCE_DOCUMENT_INGESTION_ROUTE.test(pathname)
+                      ? SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT
+                      : undefined,
+                  )
+                : undefined,
             })
             await send(await handler(request), res)
           } catch (error) {
@@ -101,9 +112,27 @@ export function apiFunctions(): Plugin {
   }
 }
 
-async function readBody(req: IncomingMessage): Promise<Buffer> {
+export async function readBody(
+  req: IncomingMessage,
+  maxBytes?: number,
+): Promise<Buffer> {
+  const declared = req.headers['content-length']
+  if (
+    maxBytes !== undefined &&
+    typeof declared === 'string' &&
+    /^\d+$/.test(declared) &&
+    Number(declared) > maxBytes
+  )
+    throw new ApiError(413, 'invalid_request', 'The request body is too large.')
   const chunks: Buffer[] = []
-  for await (const chunk of req) chunks.push(chunk as Buffer)
+  let bytes = 0
+  for await (const chunk of req) {
+    const buffer = chunk as Buffer
+    bytes += buffer.byteLength
+    if (maxBytes !== undefined && bytes > maxBytes)
+      throw new ApiError(413, 'invalid_request', 'The request body is too large.')
+    chunks.push(buffer)
+  }
   return Buffer.concat(chunks)
 }
 

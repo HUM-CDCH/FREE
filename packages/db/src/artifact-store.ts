@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { link, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import envPaths from 'env-paths'
 import { strFromU8, unzipSync } from 'fflate'
@@ -179,7 +179,8 @@ export function createCanonicalPackageStore(root: string = packageRoot()) {
       artifactSha256,
     }
     const { manifest, document } = validateEntries(unzipSync(packageBytes))
-    if (await available(descriptor)) return { ...descriptor, document, manifest }
+    if (await available(descriptor))
+      return { ...descriptor, document, manifest, published: false }
 
     await mkdir(root, { recursive: true })
     const destination = packagePath(descriptor)
@@ -187,16 +188,18 @@ export function createCanonicalPackageStore(root: string = packageRoot()) {
     try {
       await writeFile(temporary, packageBytes, { flag: 'wx', mode: 0o600 })
       try {
-        await rename(temporary, destination)
+        await link(temporary, destination)
       } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
         if (!(await available(descriptor))) throw error
+        return { ...descriptor, document, manifest, published: false }
       }
     } finally {
       await rm(temporary, { force: true })
     }
     if (!(await available(descriptor)))
       throw new Error('Canonical package was not published.')
-    return { ...descriptor, document, manifest }
+    return { ...descriptor, document, manifest, published: true }
   }
 
   /**

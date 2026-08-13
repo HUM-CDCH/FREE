@@ -18,7 +18,28 @@ const OWN_PACKAGE = 'b'.repeat(64)
 
 const nodes = (name: string) => [{ id: `node-${name}`, name, type: 'string' }]
 
-function fakeDatabase(options: { raceOnCreate?: boolean } = {}) {
+const ingestion = (overrides: Partial<Row> = {}): Row => ({
+  ingestionKey: '51000000-0000-4000-9000-000000000001',
+  contentSha256: 'c'.repeat(64),
+  mediaType: 'application/pdf',
+  originalName: 'Ellekilde.pdf',
+  artifactReference: 'd'.repeat(64),
+  artifactSha256: 'd'.repeat(64),
+  contractVersion: 'parsed_document.v2',
+  preprocessId: `sha256:${'e'.repeat(64)}`,
+  parserName: 'docling_pdf',
+  parserVersion: '2.0.0',
+  ensureRetained: async () => {},
+  ...overrides,
+})
+
+function fakeDatabase(
+  options: {
+    raceOnCreate?: boolean
+    raceOnIngestion?: boolean
+    failRepresentationCreate?: boolean
+  } = {},
+) {
   const tables: Record<string, Row[]> = {
     ProjectContext: [
       { id: PROJECT, name: 'Ellekilde, TAK 1355', createdAt: new Date('2026-08-01T11:00:00Z') },
@@ -66,6 +87,7 @@ function fakeDatabase(options: { raceOnCreate?: boolean } = {}) {
     ],
   }
   let raced = false
+  let ingestionRaced = false
   const orderProbe = () =>
     new Proxy({}, {
       get: (_target, field: string) => ({
@@ -108,6 +130,29 @@ function fakeDatabase(options: { raceOnCreate?: boolean } = {}) {
         return (await query.all())[0] ?? null
       },
       async create(input: Row) {
+        if (
+          table === 'SourceDocument' &&
+          rows.some((row) => row.ingestionKey === input.ingestionKey)
+        )
+          throw Object.assign(new Error('unique constraint'), {
+            sqlState: '23505',
+          })
+        if (
+          table === 'SourceDocument' &&
+          options.raceOnIngestion &&
+          !ingestionRaced
+        ) {
+          ingestionRaced = true
+          throw Object.assign(new Error('unique constraint'), {
+            sqlState: '23505',
+            ingestionInput: input,
+          })
+        }
+        if (
+          table === 'SourceRepresentationRevision' &&
+          options.failRepresentationCreate
+        )
+          throw new Error('representation write failed')
         if (options.raceOnCreate && !raced) {
           raced = true
           rows.push({
@@ -147,7 +192,47 @@ function fakeDatabase(options: { raceOnCreate?: boolean } = {}) {
   return {
     tables,
     orm,
-    transaction: async <T>(run: (tx: { orm: typeof orm }) => Promise<T>) => run({ orm }),
+    transaction: async <T>(run: (tx: { orm: typeof orm }) => Promise<T>) => {
+      const snapshot = Object.fromEntries(
+        Object.entries(tables).map(([name, rows]) => [
+          name,
+          rows.map((row) => ({ ...row })),
+        ]),
+      )
+      try {
+        return await run({ orm })
+      } catch (error) {
+        const concurrentSchemaWinner =
+          options.raceOnCreate &&
+          typeof error === 'object' &&
+          error !== null &&
+          'sqlState' in error &&
+          error.sqlState === '23505'
+        if (!concurrentSchemaWinner)
+          for (const [name, rows] of Object.entries(snapshot))
+            tables[name].splice(0, tables[name].length, ...rows)
+        const racedInput =
+          typeof error === 'object' && error !== null && 'ingestionInput' in error
+            ? (error.ingestionInput as Row)
+            : null
+        if (racedInput) {
+          const sourceDocumentId =
+            '51000000-0000-4000-8001-000000000099'
+          tables.SourceDocument.push({
+            ...racedInput,
+            id: sourceDocumentId,
+            createdAt: new Date('2026-08-01T12:05:00Z'),
+          })
+          tables.SourceRepresentationRevision.push({
+            id: '51000000-0000-4000-8002-000000000099',
+            sourceDocumentId,
+            revisionNumber: 1,
+            artifactReference: 'd'.repeat(64),
+          })
+        }
+        throw error
+      }
+    },
   }
 }
 
@@ -250,6 +335,160 @@ describe('ProjectStore Project Context lifecycle', () => {
     assert.equal(database.tables.ProjectContext.length, 3)
   })
 
+})
+
+describe('ProjectStore Source Document ingestion', () => {
+  it('creates one Source Document and revision 1 together', async () => {
+    const database = fakeDatabase()
+    const store = createProjectStore(database as never)
+
+    const result = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+
+    assert.equal(result?.name, 'Ellekilde.pdf')
+    assert.equal(result?.revisionNumber, 1)
+    assert.equal(database.tables.SourceDocument.length, 3)
+    assert.equal(database.tables.SourceRepresentationRevision.length, 4)
+    assert.deepEqual(database.tables.SourceDocument.at(-1), {
+      projectContextId: EMPTY_PROJECT,
+      ingestionKey: '51000000-0000-4000-9000-000000000001',
+      contentSha256: 'c'.repeat(64),
+      mediaType: 'application/pdf',
+      originalName: 'Ellekilde.pdf',
+      id: result?.sourceDocumentId,
+      createdAt: result?.createdAt,
+    })
+    assert.deepEqual(database.tables.SourceRepresentationRevision.at(-1), {
+      sourceDocumentId: result?.sourceDocumentId,
+      revisionNumber: 1,
+      artifactReference: 'd'.repeat(64),
+      artifactSha256: 'd'.repeat(64),
+      contractVersion: 'parsed_document.v2',
+      preprocessId: `sha256:${'e'.repeat(64)}`,
+      parserName: 'docling_pdf',
+      parserVersion: '2.0.0',
+      id: result?.sourceRepresentationId,
+      createdAt: database.tables.SourceRepresentationRevision.at(-1)?.createdAt,
+    })
+  })
+
+  it('does not make a package visible when the Project Context is absent', async () => {
+    const database = fakeDatabase()
+    const store = createProjectStore(database as never)
+
+    assert.equal(
+      await store.ingestSourceDocument(
+        '51000000-0000-4000-8000-000000000099',
+        ingestion(),
+      ),
+      null,
+    )
+    assert.equal(database.tables.SourceDocument.length, 2)
+    assert.equal(database.tables.SourceRepresentationRevision.length, 3)
+
+    await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    assert.equal(
+      await store.ingestSourceDocument(
+        '51000000-0000-4000-8000-000000000099',
+        ingestion(),
+      ),
+      null,
+    )
+  })
+
+  it('rolls back the Source Document when its first representation fails', async () => {
+    const database = fakeDatabase({ failRepresentationCreate: true })
+    const store = createProjectStore(database as never)
+
+    await assert.rejects(
+      store.ingestSourceDocument(EMPTY_PROJECT, ingestion()),
+      /representation write failed/,
+    )
+    assert.equal(database.tables.SourceDocument.length, 2)
+    assert.equal(database.tables.SourceRepresentationRevision.length, 3)
+  })
+
+  it('removes only its new Source Document when post-commit retention fails', async () => {
+    const database = fakeDatabase()
+    const store = createProjectStore(database as never)
+
+    await assert.rejects(
+      store.ingestSourceDocument(
+        EMPTY_PROJECT,
+        ingestion({
+          ensureRetained: async () => {
+            throw new Error('package unavailable')
+          },
+        }),
+      ),
+      /package unavailable/,
+    )
+    assert.equal(database.tables.SourceDocument.length, 2)
+    // The fake intentionally does not reproduce PostgreSQL cascades; the real
+    // check proves the owned representation is removed with this document.
+    assert.equal(database.tables.SourceRepresentationRevision.length, 4)
+  })
+
+  it('returns the durable result for replay and a concurrent unique-key winner', async () => {
+    const database = fakeDatabase()
+    const store = createProjectStore(database as never)
+    const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    const replay = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+
+    assert.deepEqual(replay, first)
+    assert.equal(database.tables.SourceDocument.length, 3)
+    assert.equal(database.tables.SourceRepresentationRevision.length, 4)
+
+    const racedDatabase = fakeDatabase({ raceOnIngestion: true })
+    const race = createProjectStore(racedDatabase as never)
+    const winner = await race.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    assert.equal(winner?.sourceDocumentId, '51000000-0000-4000-8001-000000000099')
+    assert.equal(winner?.sourceRepresentationId, '51000000-0000-4000-8002-000000000099')
+    assert.equal(racedDatabase.tables.SourceDocument.length, 3)
+    assert.equal(racedDatabase.tables.SourceRepresentationRevision.length, 4)
+  })
+
+  it('makes distinct Source Documents for distinct keys, even with the same bytes', async () => {
+    const database = fakeDatabase()
+    const store = createProjectStore(database as never)
+    const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    const second = await store.ingestSourceDocument(
+      EMPTY_PROJECT,
+      ingestion({ ingestionKey: '51000000-0000-4000-9000-000000000002' }),
+    )
+
+    assert.notEqual(first?.sourceDocumentId, second?.sourceDocumentId)
+    assert.equal(database.tables.SourceDocument.length, 4)
+    assert.equal(database.tables.SourceRepresentationRevision.length, 5)
+  })
+
+  it('does not disclose another Project Context\'s ingestion key', async () => {
+    const database = fakeDatabase()
+    const store = createProjectStore(database as never)
+    await store.ingestSourceDocument(PROJECT, ingestion())
+
+    await assert.rejects(
+      store.ingestSourceDocument(EMPTY_PROJECT, ingestion()),
+      /already belongs to another Source Document/,
+    )
+  })
+
+  it('rejects one ingestion key reused for different content', async () => {
+    const database = fakeDatabase()
+    const store = createProjectStore(database as never)
+    await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+
+    await assert.rejects(
+      store.ingestSourceDocument(
+        EMPTY_PROJECT,
+        ingestion({
+          contentSha256: 'f'.repeat(64),
+          artifactReference: 'f'.repeat(64),
+          artifactSha256: 'f'.repeat(64),
+        }),
+      ),
+      /already belongs to another Source Document/,
+    )
+  })
 })
 
 describe('ProjectStore Schema Revisions', () => {

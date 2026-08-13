@@ -47,6 +47,7 @@ model ProjectContext {
 model SourceDocument {
   id                     Uuid                           @id @default(uuid())
   projectContextId       Uuid
+  ingestionKey           Uuid                           @unique
   contentSha256          String
   mediaType              String
   originalName           String?

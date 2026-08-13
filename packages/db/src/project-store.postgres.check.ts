@@ -6,6 +6,11 @@ import { after, test } from 'node:test'
  * check is deliberately outside the `src/*.test.ts` unit glob and never skips:
  * `pnpm --filter db test:postgres` fails loudly when it has no database, so a
  * green run always means the cascade actually ran.
+ *
+ * Give it a freshly created database every run. Ingestion keys are globally
+ * unique and fixed here, and the check only cleans up when it passes, so
+ * re-running against a database a previous failure dirtied reports
+ * `IngestionKeyConflictError` instead of the original failure.
  */
 const databaseUrl = process.env.PROJECT_STORE_POSTGRES_URL
 
@@ -25,31 +30,62 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     ])
     after(() => db.close())
 
+    const store = createProjectStore(db)
     const project = await db.orm.public.ProjectContext.create({ name: 'Doomed' })
     const survivor = await db.orm.public.ProjectContext.create({ name: 'Survivor' })
-    const document = await db.orm.public.SourceDocument.create({
-      projectContextId: project.id,
+    const ingestion = {
+      ingestionKey: '51000000-0000-4000-9000-000000000001',
       contentSha256: 'a'.repeat(64),
       mediaType: 'application/pdf',
       originalName: 'doomed.pdf',
-    })
+      artifactReference: 'c'.repeat(64),
+      artifactSha256: 'c'.repeat(64),
+      contractVersion: 'parsed_document.v2',
+      preprocessId: `sha256:${'d'.repeat(64)}`,
+      parserName: 'test',
+      parserVersion: '1',
+      ensureRetained: async () => {},
+    }
+    await assert.rejects(
+      store.ingestSourceDocument(survivor.id, {
+        ...ingestion,
+        ingestionKey: '51000000-0000-4000-9000-000000000099',
+        ensureRetained: async () => {
+          throw new Error('package unavailable')
+        },
+      }),
+      /package unavailable/,
+    )
+    assert.equal(
+      await db.orm.public.SourceDocument.select('id').first({
+        ingestionKey: '51000000-0000-4000-9000-000000000099',
+      }),
+      null,
+    )
+    const [ingested, concurrentReplay] = await Promise.all([
+      store.ingestSourceDocument(project.id, ingestion),
+      store.ingestSourceDocument(project.id, ingestion),
+    ])
+    assert.ok(ingested)
+    assert.deepEqual(concurrentReplay, ingested)
+    assert.equal(ingested.revisionNumber, 1)
+    assert.deepEqual(
+      await store.ingestSourceDocument(project.id, ingestion),
+      ingested,
+    )
+    const document = { id: ingested.sourceDocumentId }
+    const representation = {
+      id: ingested.sourceRepresentationId,
+      artifactReference: ingestion.artifactReference,
+      artifactSha256: ingestion.artifactSha256,
+    }
     const survivingDocument = await db.orm.public.SourceDocument.create({
       projectContextId: survivor.id,
+      ingestionKey: '51000000-0000-4000-9000-000000000002',
       contentSha256: 'b'.repeat(64),
       mediaType: 'application/pdf',
       originalName: 'survivor.pdf',
     })
-    const representation =
-      await db.orm.public.SourceRepresentationRevision.create({
-        sourceDocumentId: document.id,
-        revisionNumber: 1,
-        artifactReference: 'c'.repeat(64),
-        artifactSha256: 'c'.repeat(64),
-        contractVersion: 'parsed_document.v2',
-        preprocessId: `sha256:${'d'.repeat(64)}`,
-        parserName: 'test',
-        parserVersion: '1',
-      })
     await db.orm.public.SourceRepresentationRevision.create({
       sourceDocumentId: survivingDocument.id,
       revisionNumber: 1,
@@ -114,11 +150,15 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
       schemaTree: [],
     })
     const extraction = await db.orm.public.Extraction.create({
+      sourceDocumentId: document.id,
       schemaRevisionId: appliedRevision.id,
       sourceRepresentationRevisionId: representation.id,
+      strategy: 'whole_document',
       outcome: 'SUCCEEDED',
+      diagnostics: {},
       modelAttribution: {},
       resultPayload: {},
+      reviewable: true,
     })
     await db.orm.public.ReviewDecision.create({
       extractionId: extraction.id,
@@ -126,7 +166,7 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
       reviewedOccurrenceIds: [],
     })
 
-    const candidates = await createProjectStore(db).deleteProjectContext(project.id)
+    const candidates = await store.deleteProjectContext(project.id)
 
     assert.deepEqual(candidates, [
       {
@@ -143,7 +183,7 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
       [survivingDocument.id],
     )
     assert.equal(
-      await createProjectStore(db).isPackageReferenced(
+      await store.isPackageReferenced(
         representation.artifactReference,
       ),
       true,
@@ -161,5 +201,5 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     ])
       assert.deepEqual(await table.all(), [])
 
-    await createProjectStore(db).deleteProjectContext(survivor.id)
+    await store.deleteProjectContext(survivor.id)
 })

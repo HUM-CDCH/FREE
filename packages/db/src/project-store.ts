@@ -78,6 +78,33 @@ export type SourceDocumentSummary = {
   createdAt: Date
 }
 
+export type IngestSourceDocumentInput = {
+  ingestionKey: string
+  contentSha256: string
+  mediaType: string
+  originalName: string | null
+  artifactReference: string
+  artifactSha256: string
+  contractVersion: string
+  preprocessId: string
+  parserName: string
+  parserVersion: string
+  /** Re-publish the retained package after its database reference commits. */
+  ensureRetained: () => Promise<void>
+}
+
+export type IngestedSourceDocument = SourceDocumentSummary & {
+  sourceRepresentationId: string
+  revisionNumber: 1
+}
+
+export class IngestionKeyConflictError extends Error {
+  constructor() {
+    super('The ingestion key already belongs to another Source Document.')
+    this.name = 'IngestionKeyConflictError'
+  }
+}
+
 /** One Source Document's head plus its current attempt/review snapshots. */
 export type DocumentReopenSnapshot = {
   projectContext: ProjectContextSummary
@@ -308,6 +335,14 @@ export type ProjectStore = {
   getExtractionAttempt(
     extractionId: string,
   ): Promise<StoredExtractionAttempt | null>
+  /**
+   * Makes a retained canonical package visible as one Source Document and its
+   * first representation. The unique ingestion key is the retry authority.
+   */
+  ingestSourceDocument(
+    projectContextId: string,
+    input: IngestSourceDocumentInput,
+  ): Promise<IngestedSourceDocument | null>
   initializeSchemaRevision(
     projectContextId: string,
     schemaTree: unknown,
@@ -364,6 +399,32 @@ function projectContextSummary(row: StoredProjectContext): ProjectContextSummary
     projectContextId: row.id,
     name: row.name,
     createdAt: row.createdAt,
+  }
+}
+
+type StoredIngestedSourceDocument = {
+  id: string
+  originalName: string | null
+  contentSha256: string
+  createdAt: Date
+}
+
+type StoredSourceRepresentation = {
+  id: string
+  revisionNumber: number
+  artifactReference: string
+}
+
+function ingestedSourceDocument(
+  document: StoredIngestedSourceDocument,
+  representation: StoredSourceRepresentation,
+): IngestedSourceDocument {
+  return {
+    sourceDocumentId: document.id,
+    name: document.originalName ?? 'Untitled source document',
+    createdAt: document.createdAt,
+    sourceRepresentationId: representation.id,
+    revisionNumber: 1,
   }
 }
 
@@ -651,6 +712,100 @@ export function createProjectStore(database: Database = db): ProjectStore {
     },
     async getExtractionAttempt(extractionId) {
       return loadStoredAttempt(database.orm, extractionId)
+    },
+    async ingestSourceDocument(projectContextId, input) {
+      const project = await database.orm.public.ProjectContext.select('id').first({
+        id: projectContextId,
+      })
+      if (!project) return null
+
+      const existing = async (): Promise<IngestedSourceDocument | null> => {
+        const document = await database.orm.public.SourceDocument.select(
+          'id',
+          'originalName',
+          'contentSha256',
+          'createdAt',
+        ).first({
+          ingestionKey: input.ingestionKey,
+          projectContextId,
+        })
+        if (!document) return null
+        const representation =
+          await database.orm.public.SourceRepresentationRevision.select(
+            'id',
+            'revisionNumber',
+            'artifactReference',
+          ).first({ sourceDocumentId: document.id, revisionNumber: 1 })
+        if (
+          representation &&
+          (document.contentSha256 !== input.contentSha256 ||
+            representation.artifactReference !== input.artifactReference)
+        )
+          throw new IngestionKeyConflictError()
+        return representation
+          ? ingestedSourceDocument(
+              document as StoredIngestedSourceDocument,
+              representation as StoredSourceRepresentation,
+            )
+          : null
+      }
+
+      const persisted = await existing()
+      if (persisted) {
+        await input.ensureRetained()
+        return persisted
+      }
+
+      let createdSourceDocumentId: string | null = null
+      try {
+        const result = await database.transaction(async ({ orm }) => {
+          const project = await orm.public.ProjectContext.select('id').first({
+            id: projectContextId,
+          })
+          if (!project) return null
+
+          const document = await orm.public.SourceDocument.create({
+            projectContextId,
+            ingestionKey: input.ingestionKey,
+            contentSha256: input.contentSha256,
+            mediaType: input.mediaType,
+            originalName: input.originalName,
+          })
+          createdSourceDocumentId = document.id
+          const representation =
+            await orm.public.SourceRepresentationRevision.create({
+              sourceDocumentId: document.id,
+              revisionNumber: 1,
+              artifactReference: input.artifactReference,
+              artifactSha256: input.artifactSha256,
+              contractVersion: input.contractVersion,
+              preprocessId: input.preprocessId,
+              parserName: input.parserName,
+              parserVersion: input.parserVersion,
+            })
+          return ingestedSourceDocument(
+            document as StoredIngestedSourceDocument,
+            representation as StoredSourceRepresentation,
+          )
+        })
+        if (!result) return null
+        try {
+          await input.ensureRetained()
+        } catch (error) {
+          await database.orm.public.SourceDocument.where({
+            id: createdSourceDocumentId,
+            ingestionKey: input.ingestionKey,
+          }).delete()
+          throw error
+        }
+        return result
+      } catch (error) {
+        if (!uniqueConstraint(error)) throw error
+        const winner = await existing()
+        if (winner) await input.ensureRetained()
+        if (!winner) throw new IngestionKeyConflictError()
+        return winner
+      }
     },
     async initializeSchemaRevision(projectContextId, schemaTree) {
       return database.transaction(async ({ orm }) => {

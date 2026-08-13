@@ -233,6 +233,7 @@ export async function seedExampleProjects(
         await database.orm.public.SourceDocument.create({
           id: document.sourceDocumentId,
           projectContextId: project.projectContextId,
+          ingestionKey: document.sourceDocumentId,
           contentSha256: createHash('sha256').update(pdf).digest('hex'),
           mediaType: 'application/pdf',
           originalName: basename(document.filename),
