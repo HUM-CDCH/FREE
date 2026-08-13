@@ -37,6 +37,7 @@ type CanonicalPackage = {
 
 type PackageStore = {
   save(packageBytes: Uint8Array): Promise<CanonicalPackage>
+  available(descriptor: CanonicalPackageDescriptor): Promise<boolean>
   remove(
     descriptor: CanonicalPackageDescriptor,
     isReferenced: () => Promise<boolean>,
@@ -145,12 +146,13 @@ async function readJson(response: Response, what: string): Promise<Record<string
   }
 }
 
-async function parsingRequest(
+async function parsingRequest<T>(
   fetcher: typeof fetch,
   base: string,
   path: string,
+  consume: (response: Response) => Promise<T>,
   init?: RequestInit,
-): Promise<Response> {
+): Promise<T> {
   try {
     const response = await fetcher(`${base.replace(/\/$/, '')}${path}`, init)
     if (!response.ok)
@@ -159,9 +161,8 @@ async function parsingRequest(
         'source_ingestion_failed',
         `The Parsing Service rejected ${path}.`,
       )
-    return response
+    return await consume(response)
   } catch (error) {
-    if (error instanceof ApiError) throw error
     if (init?.signal?.aborted)
       throw new ApiError(
         504,
@@ -169,6 +170,7 @@ async function parsingRequest(
         'Source Document parsing did not finish within ten minutes.',
         { cause: error },
       )
+    if (error instanceof ApiError) throw error
     throw new ApiError(
       502,
       'source_ingestion_failed',
@@ -176,6 +178,16 @@ async function parsingRequest(
       { cause: error },
     )
   }
+}
+
+function sameDescriptor(
+  left: CanonicalPackageDescriptor,
+  right: CanonicalPackageDescriptor,
+): boolean {
+  return (
+    left.artifactReference === right.artifactReference &&
+    left.artifactSha256 === right.artifactSha256
+  )
 }
 
 async function completedTask(
@@ -190,9 +202,12 @@ async function completedTask(
 ): Promise<void> {
   const deadline = now() + timeoutMs
   for (;;) {
-    const status = await readJson(
-      await parsingRequest(fetcher, base, `/tasks/${taskId}`, { signal }),
-      'task status',
+    const status = await parsingRequest(
+      fetcher,
+      base,
+      `/tasks/${taskId}`,
+      (response) => readJson(response, 'task status'),
+      { signal },
     )
     if (status.status === 'completed') return
     if (status.status === 'failed')
@@ -296,13 +311,16 @@ export function createSourceDocumentIngestion(
 
       const upload = new FormData()
       upload.append('file', new Blob([pdf], { type: 'application/pdf' }), originalName)
-      const created = await readJson(
-        await parsingRequest(fetcher(dependencies), base, '/tasks', {
+      const created = await parsingRequest(
+        fetcher(dependencies),
+        base,
+        '/tasks',
+        (response) => readJson(response, 'task creation response'),
+        {
           method: 'POST',
           body: upload,
           signal: parsingDeadline,
-        }),
-        'task creation response',
+        },
       )
       let taskId: string
       try {
@@ -326,14 +344,13 @@ export function createSourceDocumentIngestion(
         parsingDeadline,
       )
       const packageBytes = new Uint8Array(
-        await (
-          await parsingRequest(
-            fetcher(dependencies),
-            base,
-            `/tasks/${taskId}/download`,
-            { signal: parsingDeadline },
-          )
-        ).arrayBuffer(),
+        await parsingRequest(
+          fetcher(dependencies),
+          base,
+          `/tasks/${taskId}/download`,
+          (response) => response.arrayBuffer(),
+          { signal: parsingDeadline },
+        ),
       )
       try {
         saved = await packageStore.save(packageBytes)
@@ -345,6 +362,7 @@ export function createSourceDocumentIngestion(
           { cause },
         )
       }
+      const requestPackage = saved
       let parsed: ReturnType<typeof provenance>
       try {
         parsed = provenance(saved.document)
@@ -373,8 +391,13 @@ export function createSourceDocumentIngestion(
         preprocessId: parsed.preprocessId,
         parserName: parsed.parserName,
         parserVersion: parsed.parserVersion,
-        ensureRetained: async () => {
-          await packageStore.save(packageBytes)
+        ensureRetained: async (descriptor) => {
+          if (await packageStore.available(descriptor)) return
+          if (!sameDescriptor(descriptor, requestPackage))
+            throw new Error('The durable canonical package is unavailable.')
+          const retained = await packageStore.save(packageBytes)
+          if (!sameDescriptor(descriptor, retained))
+            throw new Error('The canonical package could not be retained.')
         },
       }
       const persisted = await store.ingestSourceDocument(id, input).catch((cause) => {
@@ -384,7 +407,12 @@ export function createSourceDocumentIngestion(
       })
       if (!persisted)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
-      return json(persisted, { status: 201, headers: noStore })
+      const { descriptor, ...sourceDocument } = persisted
+      // A replay may select an older package; discard only this request's
+      // first-published package when no durable representation references it.
+      if (!sameDescriptor(descriptor, saved))
+        await removePublishedPackage(saved, store, packageStore)
+      return json(sourceDocument, { status: 201, headers: noStore })
     } catch (error) {
       if (saved) await removePublishedPackage(saved, store, packageStore)
       return noStoreError(error)

@@ -228,6 +228,7 @@ function fakeDatabase(
             sourceDocumentId,
             revisionNumber: 1,
             artifactReference: 'd'.repeat(64),
+            artifactSha256: 'd'.repeat(64),
           })
         }
         throw error
@@ -428,21 +429,51 @@ describe('ProjectStore Source Document ingestion', () => {
     assert.equal(database.tables.SourceRepresentationRevision.length, 4)
   })
 
-  it('returns the durable result for replay and a concurrent unique-key winner', async () => {
+  it('returns the durable result when equal content is replayed with a different package', async () => {
     const database = fakeDatabase()
     const store = createProjectStore(database as never)
     const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
-    const replay = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    let retained: unknown
+    const replay = await store.ingestSourceDocument(
+      EMPTY_PROJECT,
+      ingestion({
+        artifactReference: 'f'.repeat(64),
+        artifactSha256: 'f'.repeat(64),
+        ensureRetained: async (descriptor: unknown) => {
+          retained = descriptor
+        },
+      }),
+    )
 
     assert.deepEqual(replay, first)
+    assert.deepEqual(retained, {
+      artifactReference: 'd'.repeat(64),
+      artifactSha256: 'd'.repeat(64),
+    })
     assert.equal(database.tables.SourceDocument.length, 3)
     assert.equal(database.tables.SourceRepresentationRevision.length, 4)
+  })
 
+  it('returns and reasserts a concurrent unique-key winner', async () => {
     const racedDatabase = fakeDatabase({ raceOnIngestion: true })
     const race = createProjectStore(racedDatabase as never)
-    const winner = await race.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    let retained: unknown
+    const winner = await race.ingestSourceDocument(
+      EMPTY_PROJECT,
+      ingestion({
+        artifactReference: 'f'.repeat(64),
+        artifactSha256: 'f'.repeat(64),
+        ensureRetained: async (descriptor: unknown) => {
+          retained = descriptor
+        },
+      }),
+    )
     assert.equal(winner?.sourceDocumentId, '51000000-0000-4000-8001-000000000099')
     assert.equal(winner?.sourceRepresentationId, '51000000-0000-4000-8002-000000000099')
+    assert.deepEqual(retained, {
+      artifactReference: 'd'.repeat(64),
+      artifactSha256: 'd'.repeat(64),
+    })
     assert.equal(racedDatabase.tables.SourceDocument.length, 3)
     assert.equal(racedDatabase.tables.SourceRepresentationRevision.length, 4)
   })

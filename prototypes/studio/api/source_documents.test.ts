@@ -41,6 +41,20 @@ function parser(fetcher: ReturnType<typeof vi.fn>, status: unknown = { status: '
     .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
 }
 
+function stalledBody(signal: AbortSignal | null | undefined): Response {
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        const abort = () =>
+          controller.error(signal?.reason ?? new Error('aborted'))
+        if (signal?.aborted) abort()
+        else signal?.addEventListener('abort', abort, { once: true })
+      },
+    }),
+    { headers: { 'content-type': 'application/json' } },
+  )
+}
+
 function dependencies(overrides: Record<string, unknown> = {}) {
   const fetcher = vi.fn()
   parser(fetcher)
@@ -51,6 +65,10 @@ function dependencies(overrides: Record<string, unknown> = {}) {
       createdAt: new Date('2026-08-12T10:00:00.000Z'),
       sourceRepresentationId: ids.representation,
       revisionNumber: 1,
+      descriptor: {
+        artifactReference: 'a'.repeat(64),
+        artifactSha256: 'a'.repeat(64),
+      },
     }),
     isPackageReferenced: vi.fn().mockResolvedValue(false),
   }
@@ -61,6 +79,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
       document: packageDocument,
       published: true,
     }),
+    available: vi.fn().mockResolvedValue(true),
     remove: vi.fn().mockResolvedValue(true),
   }
   return {
@@ -166,6 +185,39 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect(store.ingestSourceDocument).toHaveBeenCalledTimes(2)
   })
 
+  it('returns the durable winner and cleans a newly published losing package', async () => {
+    const { handler, store, packageStore } = dependencies()
+    const winner = {
+      artifactReference: 'b'.repeat(64),
+      artifactSha256: 'b'.repeat(64),
+    }
+    store.ingestSourceDocument.mockImplementationOnce(
+      async (
+        _projectContextId: string,
+        input: {
+          ensureRetained: (descriptor: typeof winner) => Promise<void>
+        },
+      ) => {
+        await input.ensureRetained(winner)
+        return {
+          sourceDocumentId: ids.source,
+          name: 'report.pdf',
+          createdAt: new Date('2026-08-12T10:00:00.000Z'),
+          sourceRepresentationId: ids.representation,
+          revisionNumber: 1,
+          descriptor: winner,
+        }
+      },
+    )
+
+    const response = await handler(request())
+
+    expect(response.status).toBe(201)
+    expect(packageStore.available).toHaveBeenCalledWith(winner)
+    expect(packageStore.remove).toHaveBeenCalledOnce()
+    expect(await response.json()).not.toHaveProperty('descriptor')
+  })
+
   it('rejects a key reused for different content and cleans its new package', async () => {
     const { handler, store, packageStore } = dependencies()
     store.ingestSourceDocument.mockRejectedValueOnce(
@@ -206,6 +258,29 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const stalledResponse = await stalled.handler(request())
     expect(stalledResponse.status).toBe(504)
     expect(stalled.packageStore.save).not.toHaveBeenCalled()
+
+    const stalledStatus = dependencies({ timeoutMs: 10 })
+    stalledStatus.fetcher.mockReset()
+    stalledStatus.fetcher
+      .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
+      .mockImplementationOnce((_url: string, init?: RequestInit) =>
+        Promise.resolve(stalledBody(init?.signal)),
+      )
+    const stalledStatusResponse = await stalledStatus.handler(request())
+    expect(stalledStatusResponse.status).toBe(504)
+    expect(stalledStatus.packageStore.save).not.toHaveBeenCalled()
+
+    const stalledDownload = dependencies({ timeoutMs: 10 })
+    stalledDownload.fetcher.mockReset()
+    stalledDownload.fetcher
+      .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
+      .mockResolvedValueOnce(Response.json({ status: 'completed' }))
+      .mockImplementationOnce((_url: string, init?: RequestInit) =>
+        Promise.resolve(stalledBody(init?.signal)),
+      )
+    const stalledDownloadResponse = await stalledDownload.handler(request())
+    expect(stalledDownloadResponse.status).toBe(504)
+    expect(stalledDownload.packageStore.save).not.toHaveBeenCalled()
   })
 
   it('maps invalid package retention and cleans only a first-published package after persistence failure', async () => {

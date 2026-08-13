@@ -89,13 +89,17 @@ export type IngestSourceDocumentInput = {
   preprocessId: string
   parserName: string
   parserVersion: string
-  /** Re-publish the retained package after its database reference commits. */
-  ensureRetained: () => Promise<void>
+  /** Verify or re-publish the package selected by the durable ingestion result. */
+  ensureRetained: (descriptor: CanonicalPackageDescriptor) => Promise<void>
 }
 
 export type IngestedSourceDocument = SourceDocumentSummary & {
   sourceRepresentationId: string
   revisionNumber: 1
+}
+
+type PersistedSourceDocument = IngestedSourceDocument & {
+  descriptor: CanonicalPackageDescriptor
 }
 
 export class IngestionKeyConflictError extends Error {
@@ -342,7 +346,7 @@ export type ProjectStore = {
   ingestSourceDocument(
     projectContextId: string,
     input: IngestSourceDocumentInput,
-  ): Promise<IngestedSourceDocument | null>
+  ): Promise<PersistedSourceDocument | null>
   initializeSchemaRevision(
     projectContextId: string,
     schemaTree: unknown,
@@ -413,18 +417,23 @@ type StoredSourceRepresentation = {
   id: string
   revisionNumber: number
   artifactReference: string
+  artifactSha256: string
 }
 
 function ingestedSourceDocument(
   document: StoredIngestedSourceDocument,
   representation: StoredSourceRepresentation,
-): IngestedSourceDocument {
+): PersistedSourceDocument {
   return {
     sourceDocumentId: document.id,
     name: document.originalName ?? 'Untitled source document',
     createdAt: document.createdAt,
     sourceRepresentationId: representation.id,
     revisionNumber: 1,
+    descriptor: {
+      artifactReference: representation.artifactReference,
+      artifactSha256: representation.artifactSha256,
+    },
   }
 }
 
@@ -719,7 +728,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
       })
       if (!project) return null
 
-      const existing = async (): Promise<IngestedSourceDocument | null> => {
+      const existing = async (): Promise<PersistedSourceDocument | null> => {
         const document = await database.orm.public.SourceDocument.select(
           'id',
           'originalName',
@@ -735,12 +744,11 @@ export function createProjectStore(database: Database = db): ProjectStore {
             'id',
             'revisionNumber',
             'artifactReference',
+            'artifactSha256',
           ).first({ sourceDocumentId: document.id, revisionNumber: 1 })
-        if (
-          representation &&
-          (document.contentSha256 !== input.contentSha256 ||
-            representation.artifactReference !== input.artifactReference)
-        )
+        // Parser-run metadata may change package identity; uploaded content is
+        // the stable identity for a retry using the same ingestion key.
+        if (representation && document.contentSha256 !== input.contentSha256)
           throw new IngestionKeyConflictError()
         return representation
           ? ingestedSourceDocument(
@@ -752,7 +760,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
 
       const persisted = await existing()
       if (persisted) {
-        await input.ensureRetained()
+        await input.ensureRetained(persisted.descriptor)
         return persisted
       }
 
@@ -790,7 +798,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
         })
         if (!result) return null
         try {
-          await input.ensureRetained()
+          await input.ensureRetained(result.descriptor)
         } catch (error) {
           await database.orm.public.SourceDocument.where({
             id: createdSourceDocumentId,
@@ -802,7 +810,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
       } catch (error) {
         if (!uniqueConstraint(error)) throw error
         const winner = await existing()
-        if (winner) await input.ensureRetained()
+        if (winner) await input.ensureRetained(winner.descriptor)
         if (!winner) throw new IngestionKeyConflictError()
         return winner
       }
