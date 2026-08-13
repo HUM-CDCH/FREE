@@ -25,7 +25,7 @@ Implemented runtime:
 2. `current_modules` — the module seams inside each system.
 3. `document_seeding` — `pnpm db:seed` writes the durable package.
 4. `source_document_reopen` — the durable path a researcher uses.
-5. `source_document_ingestion` — the durable multi-PDF rail flow.
+5. `source_document_ingestion` — the durable multi-PDF ingestion flow.
 6. `schema_guided_extraction` — schema, Schema Revision, Extraction, grounding, and review.
 7. `model_configuration` — Model Connections, advisory discovery, and Apply.
 

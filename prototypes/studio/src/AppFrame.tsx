@@ -28,6 +28,9 @@ type AppFrameProps = {
 }
 
 const DocumentWorkspace = lazy(() => import('./App'))
+const ProjectContextPage = lazy(
+  () => import('./projectContexts/ProjectContextPage'),
+)
 
 function EmptyWorkspace({
   route,
@@ -52,7 +55,9 @@ function EmptyWorkspace({
     title = 'That Project Context reference is invalid'
     description = 'Choose a valid Project Context from the rail.'
     tone = 'danger'
-  } else if (route.kind === 'project' || route.kind === 'document') {
+    // A `project` route renders ProjectContextPage, which owns its own loading
+    // and failure copy; only a `document` route falls through to here.
+  } else if (route.kind === 'document') {
     if (branch?.status === 'loading') {
       return (
         <div className="flex h-full flex-col">
@@ -265,7 +270,9 @@ export default function AppFrame({
       )}
       <section
         className="relative min-h-0 min-w-0 flex-1"
-        aria-label="Source Document"
+        aria-label={
+          route.kind === 'project' ? 'Project Context' : 'Source Document'
+        }
       >
         {workspace ? (
           <Suspense
@@ -277,6 +284,15 @@ export default function AppFrame({
               key={workspace.pdfUrl}
               {...workspace}
               onInitialResourceLoadFailure={onInitialResourceLoadFailure}
+            />
+          </Suspense>
+        ) : route.kind === 'project' ? (
+          <Suspense
+            fallback={<div aria-busy="true">Loading Project Context…</div>}
+          >
+            <ProjectContextPage
+              projectContextId={route.projectContextId}
+              onNavigate={onNavigate}
             />
           </Suspense>
         ) : (

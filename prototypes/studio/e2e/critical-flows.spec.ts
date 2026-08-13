@@ -44,7 +44,7 @@ test('bundled parsed document exposes page-scoped source Evidence @deterministic
   })
   await page.goto('/')
   await page.getByRole('button', { name: 'Ellekilde, TAK 1355', exact: true }).click()
-  await page.getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
+  await page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
   await expect(page.getByText('6 pages · text highlights only')).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   await expect(page.locator('.pdfViewer .page')).toHaveCount(6)
@@ -104,7 +104,7 @@ test('application editors retain clipboard and keyboard ownership in a reopened 
   })
   await page.goto('/')
   await page.getByRole('button', { name: 'Ellekilde, TAK 1355', exact: true }).click()
-  await page.getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
+  await page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
   await expect(page.getByText('6 pages · text highlights only')).toBeVisible({
     timeout: 15_000,
   })

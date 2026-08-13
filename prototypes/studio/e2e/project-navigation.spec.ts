@@ -318,11 +318,16 @@ const rail = (page: Page) =>
   page.getByRole('navigation', { name: 'Project Contexts' })
 const workspace = (page: Page) =>
   page.getByRole('region', { name: 'Source Document' })
+/** The management page for the routed Project Context. */
+const projectPage = (page: Page) =>
+  page.getByRole('region', { name: 'Project Context' })
 const projectRows = (page: Page) => rail(page).locator('button[aria-expanded]')
 const projectRow = (page: Page, name: string) =>
-  page.getByRole('button', { name, exact: true })
+  rail(page).getByRole('button', { name, exact: true })
+// The page lists the same Source Documents as cards, so navigation rows are
+// always addressed inside the rail.
 const documentRow = (page: Page, name: string) =>
-  page.getByRole('button', { name, exact: true })
+  rail(page).getByRole('button', { name, exact: true })
 
 test.describe('rail navigation', () => {
   test('returns focus to the delete control when cancellation closes the dialog', async ({
@@ -330,10 +335,9 @@ test.describe('rail navigation', () => {
   }) => {
     await stubStudio(page)
     await page.goto('/')
+    await projectRow(page, 'Hørsholm, TAK 1402').click()
 
-    const remove = page.getByRole('button', {
-      name: 'Delete Hørsholm, TAK 1402',
-    })
+    const remove = projectPage(page).getByRole('button', { name: 'Delete' })
     await remove.click()
     const dialog = page.getByRole('dialog', { name: 'Delete Project Context' })
     await dialog.getByRole('button', { name: 'Cancel' }).click()
@@ -353,9 +357,8 @@ test.describe('rail navigation', () => {
     await page.getByRole('button', { name: 'Cancel' }).click()
     await expect(create).toBeFocused()
 
-    const rename = page.getByRole('button', {
-      name: 'Rename Hørsholm, TAK 1402',
-    })
+    await projectRow(page, 'Hørsholm, TAK 1402').click()
+    const rename = projectPage(page).getByRole('button', { name: 'Rename' })
     await rename.click()
     await page
       .getByRole('textbox', { name: 'Project Context name' })
@@ -408,19 +411,19 @@ test.describe('rail navigation', () => {
       page.getByRole('button', { name: '+ New project' }),
     ).toBeFocused()
 
-    await page
-      .getByRole('button', { name: 'Rename Hørsholm, TAK 1402' })
-      .click()
+    await projectRow(page, 'Hørsholm, TAK 1402').click()
+    await projectPage(page).getByRole('button', { name: 'Rename' }).click()
     const rename = page.getByRole('textbox', { name: 'Project Context name' })
     await rename.fill('Renamed project')
     await rename.press('Enter')
     await expect(
-      page.getByRole('button', { name: 'Rename Renamed project' }),
+      projectPage(page).getByRole('button', { name: 'Rename' }),
     ).toBeFocused()
 
-    // The deleted row's controls are gone, so a stable rail control takes
-    // focus. Creation is modal, so no inline draft can coexist with deletion.
-    await page.getByRole('button', { name: 'Delete Renamed project' }).click()
+    // The whole page goes with its Project Context, so a stable rail control
+    // takes focus. Creation is modal, so no inline draft can coexist with
+    // deletion.
+    await projectPage(page).getByRole('button', { name: 'Delete' }).click()
     await page.getByRole('button', { name: 'Delete permanently' }).click()
     await expect(
       page.getByRole('button', { name: 'Collapse Project Contexts' }),
@@ -448,7 +451,7 @@ test.describe('rail navigation', () => {
     ).toBeVisible()
     await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
     await expect(
-      workspace(page).getByRole('heading', { name: 'No Source Document open' }),
+      projectPage(page).getByRole('heading', { name: 'Ellekilde, TAK 1355' }),
     ).toBeVisible()
 
     await page.goBack()
@@ -505,7 +508,7 @@ test.describe('rail navigation', () => {
     await page.goBack()
     await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
     await expect(
-      workspace(page).getByRole('heading', { name: 'No Source Document open' }),
+      projectPage(page).getByRole('heading', { name: 'Ellekilde, TAK 1355' }),
     ).toBeVisible()
     await page.goBack()
     await expect(page).toHaveURL('/')
@@ -542,7 +545,7 @@ test.describe('rail navigation', () => {
 
     await expect(page).toHaveURL(`/projects/${HORSHOLM}`)
     await expect(
-      workspace(page).getByRole('heading', { name: 'No Source Document open' }),
+      projectPage(page).getByRole('heading', { name: 'Hørsholm, TAK 1402' }),
     ).toBeVisible()
     await expect(page.getByText('Opening Source Document…')).toBeHidden()
     expect(studio.cancelled).toContain(
@@ -770,7 +773,7 @@ test.describe('bad references and bounded failures', () => {
 
     await page.goto(`/projects/${ELLEKILDE}`)
     await expect(
-      workspace(page).getByRole('heading', {
+      projectPage(page).getByRole('heading', {
         name: 'That Project Context no longer exists',
       }),
     ).toBeVisible()

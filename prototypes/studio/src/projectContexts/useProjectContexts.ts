@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect } from 'react'
 import type { Route } from '../projectNavigation'
+import type { SourceIngestionItem } from '../sourceIngestionMachine'
 import type { SourceDocumentIngestionResponse } from '../../shared/sourceDocumentIngestion.contract'
 import type {
   ProjectContext,
@@ -54,6 +55,16 @@ export type ProjectContextsValue = {
     projectContextId: string,
     document: SourceDocumentIngestionResponse,
   ) => void
+  /**
+   * Source Documents being ingested right now, across every Project Context.
+   * The queue outlives any one page: navigating away mid-queue must not drop
+   * the files still waiting.
+   */
+  ingestingSources: readonly SourceIngestionItem[]
+  addSources: (
+    sources: readonly { projectContextId: string; file: File }[],
+  ) => void
+  retrySource: (ingestionKey: string) => void
 }
 
 export const ProjectContextsContext =

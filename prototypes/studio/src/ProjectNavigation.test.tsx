@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -235,6 +236,17 @@ function renderRoutes(fetch: ReturnType<typeof vi.fn> = studioFetch()) {
   return fetch
 }
 
+/**
+ * The rail lists Source Documents for navigation and the Project Context page
+ * lists the same ones as cards, so every name-based query says which it means.
+ */
+const rail = () => within(screen.getByRole('navigation', { name: 'Project Contexts' }))
+/** Opens the routed Project Context page and waits for it. */
+async function openProjectPage(name = project.name) {
+  fireEvent.click(await screen.findByRole('button', { name }))
+  return await screen.findByRole('region', { name: 'Project Context' })
+}
+
 const secondProject = {
   projectContextId: '51000000-0000-4000-8000-000000000002',
   name: 'Fæstningen, TAK 1400',
@@ -394,9 +406,8 @@ describe('Project Context lifecycle in the rail', () => {
         },
       }),
     )
-    fireEvent.click(
-      await screen.findByRole('button', { name: `Rename ${project.name}` }),
-    )
+    const page = await openProjectPage()
+    fireEvent.click(within(page).getByRole('button', { name: 'Rename' }))
     const name = screen.getByRole('textbox', { name: 'Project Context name' })
     fireEvent.change(name, { target: { value: 'Ellekilde II' } })
 
@@ -422,12 +433,10 @@ describe('Project Context lifecycle in the rail', () => {
 
   it('deletes the open Project Context only once confirmed, and leaves /projects open', async () => {
     renderRoutes(lifecycleFetch())
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    await screen.findByText('Beretning.pdf')
+    const page = await openProjectPage()
+    await rail().findByText('Beretning.pdf')
 
-    fireEvent.click(
-      screen.getByRole('button', { name: `Delete ${project.name}` }),
-    )
+    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
     const dialog = await screen.findByRole('dialog', {
       name: 'Delete Project Context',
     })
@@ -455,9 +464,8 @@ describe('Project Context lifecycle in the rail', () => {
   it('keeps the confirmation and its retry while a deletion is in flight and fails', async () => {
     const pending = Promise.withResolvers<Response>()
     renderRoutes(lifecycleFetch({ remove: () => pending.promise as never }))
-    fireEvent.click(
-      await screen.findByRole('button', { name: `Delete ${project.name}` }),
-    )
+    const page = await openProjectPage()
+    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
     )
@@ -505,8 +513,11 @@ describe('Project Context lifecycle in the rail', () => {
     // The routed branch resolves first, so the rail knows this Project Context
     // before its list read finishes.
     branch.resolve(Response.json(detail))
+    // The route is already the Project Context page; renaming happens there.
     fireEvent.click(
-      await screen.findByRole('button', { name: `Rename ${project.name}` }),
+      within(
+        await screen.findByRole('region', { name: 'Project Context' }),
+      ).getByRole('button', { name: 'Rename' }),
     )
     fireEvent.change(
       screen.getByRole('textbox', { name: 'Project Context name' }),
@@ -568,12 +579,10 @@ describe('Project Context lifecycle in the rail', () => {
   it('never lets a branch read resurrect a deleted Project Context', async () => {
     const branch = Promise.withResolvers<Response>()
     renderRoutes(lifecycleFetch({ branch: () => branch.promise }))
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    await screen.findByText('Loading…')
+    const page = await openProjectPage()
+    await rail().findByText('Loading…')
 
-    fireEvent.click(
-      screen.getByRole('button', { name: `Delete ${project.name}` }),
-    )
+    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
     )
@@ -597,9 +606,8 @@ describe('Project Context lifecycle in the rail', () => {
 
   it('moves focus to the stable rail toggle after a successful delete', async () => {
     renderRoutes(lifecycleFetch())
-    fireEvent.click(
-      await screen.findByRole('button', { name: `Delete ${project.name}` }),
-    )
+    const page = await openProjectPage()
+    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
     )
@@ -609,8 +617,8 @@ describe('Project Context lifecycle in the rail', () => {
         screen.queryByRole('button', { name: project.name }),
       ).not.toBeInTheDocument(),
     )
-    // The deleted row's controls are gone, so a stable rail control takes
-    // focus instead of dropping it on <body>.
+    // The whole page is gone with its Project Context, so a stable rail
+    // control takes focus instead of dropping it on <body>.
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: 'Collapse Project Contexts' }),
@@ -618,23 +626,26 @@ describe('Project Context lifecycle in the rail', () => {
     )
   })
 
-  it('keeps the open route when another Project Context is deleted', async () => {
+  // Deletion is reachable only from the deleted Project Context's own page, so
+  // the remaining ones must survive it untouched in the rail.
+  it('leaves the other Project Contexts listed after deleting the open one', async () => {
     renderRoutes(lifecycleFetch({ projects: [project, secondProject] }))
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    await screen.findByText('Beretning.pdf')
+    const page = await openProjectPage()
+    await rail().findByText('Beretning.pdf')
 
-    fireEvent.click(
-      screen.getByRole('button', { name: `Delete ${secondProject.name}` }),
-    )
+    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
 
     await waitFor(() =>
       expect(
-        screen.queryByRole('button', { name: secondProject.name }),
+        screen.queryByRole('button', { name: project.name }),
       ).not.toBeInTheDocument(),
     )
-    expect(location.pathname).toBe(`/projects/${projectContextId}`)
-    expect(screen.getByText('Beretning.pdf')).toBeInTheDocument()
+    expect(location.pathname).toBe('/projects')
+    expect(
+      screen.getByRole('button', { name: secondProject.name }),
+    ).toBeInTheDocument()
+    expect(rail().queryByText('Beretning.pdf')).not.toBeInTheDocument()
   })
 })
 
@@ -647,7 +658,7 @@ describe('Project Context navigation', () => {
     ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: project.name }))
 
-    expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
+    expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
     // The rail owns ordinary selection; the shell only overrides it while a
     // document opening is in flight.
@@ -655,18 +666,20 @@ describe('Project Context navigation', () => {
       'aria-current',
       'page',
     )
+    // Managing the Project Context — its name and its sources — is the page's
+    // job, so the rail lists nothing but persisted Source Documents.
+    const page = screen.getByRole('region', { name: 'Project Context' })
     expect(
-      screen.getByRole('heading', { name: 'No Source Document open' }),
+      within(page).getByRole('heading', { name: project.name }),
     ).toBeInTheDocument()
-    expect(screen.getByText('+ Add sources')).toBeInTheDocument()
+    expect(screen.getByText('Drop PDFs here or browse')).toBeInTheDocument()
     expect(screen.getByLabelText('Add sources')).toHaveAttribute('multiple')
     expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(
-      1,
-    )
+    // Exactly two: the Project Context row and its one Source Document.
+    expect(rail().getAllByRole('button')).toHaveLength(2)
     expect(fetch).toHaveBeenCalledTimes(2)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Beretning.pdf' }))
+    fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
     expect(await screen.findByText(/Opened Beretning.pdf/)).toBeInTheDocument()
     expect(location.pathname).toBe(documentPath())
   })
@@ -729,9 +742,9 @@ describe('Project Context navigation', () => {
       </StrictMode>,
     )
 
-    expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
+    expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(
-      await screen.findByRole('heading', { name: 'No Source Document open' }),
+      await screen.findByRole('region', { name: 'Project Context' }),
     ).toBeInTheDocument()
   })
 
@@ -761,7 +774,7 @@ describe('Project Context navigation', () => {
     // loading branches are cached.
     fireEvent.click(row)
     fireEvent.click(row)
-    expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
+    expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(branchReads).toBe(2)
   })
 
@@ -770,11 +783,11 @@ describe('Project Context navigation', () => {
     const row = await screen.findByRole('button', { name: project.name })
 
     fireEvent.click(row)
-    await screen.findByText('Beretning.pdf')
+    await rail().findByText('Beretning.pdf')
     fireEvent.click(row)
-    expect(screen.queryByText('Beretning.pdf')).not.toBeInTheDocument()
+    expect(rail().queryByText('Beretning.pdf')).not.toBeInTheDocument()
     fireEvent.click(row)
-    expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
+    expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
@@ -793,8 +806,8 @@ describe('Project Context navigation', () => {
     renderRoutes(fetch)
 
     fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
-    expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
+    fireEvent.click(await rail().findByRole('button', { name: 'Retry' }))
+    expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledTimes(3)
   })
 
@@ -807,13 +820,10 @@ describe('Project Context navigation', () => {
     renderRoutes(fetch)
 
     fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    expect(await screen.findByText('Loading…')).toBeInTheDocument()
+    expect(await rail().findByText('Loading…')).toBeInTheDocument()
     pending.resolve(Response.json({ ...detail, sourceDocuments: [] }))
     expect(
-      await screen.findByText('Empty Project Context.'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: 'No Source Document open' }),
+      await rail().findByText('Empty Project Context.'),
     ).toBeInTheDocument()
   })
 
@@ -840,12 +850,12 @@ describe('Project Context navigation', () => {
     history.pushState(null, '', `/projects/${projectContextId}`)
     dispatchEvent(new PopStateEvent('popstate'))
 
-    expect(await screen.findByText('Beretning.pdf')).toBeInTheDocument()
+    expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
   })
 })
 
-describe('multi-PDF source rail', () => {
+describe('multi-PDF ingestion on the Project Context page', () => {
   const uploadedA = {
     sourceDocumentId: '51000000-0000-4000-8001-000000000101',
     name: 'A.pdf',
@@ -936,8 +946,8 @@ describe('multi-PDF source rail', () => {
     })
 
     renderRoutes(fetcher)
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    await screen.findByText('Beretning.pdf')
+    const page = await openProjectPage()
+    await rail().findByText('Beretning.pdf')
 
     fireEvent.change(screen.getByLabelText('Add sources'), {
       target: {
@@ -949,6 +959,9 @@ describe('multi-PDF source rail', () => {
       },
     })
 
+    // Three selected PDFs are three cards, never more: the grid never claims
+    // more Source Documents than there are.
+    await waitFor(() => expect(within(page).getAllByText(/^[ABC]\.pdf$/)).toHaveLength(3))
     await waitFor(() => expect(writes).toHaveLength(1))
     expect(writes[0]).toMatchObject({ name: 'A.pdf', ingestionKey: ingestionKeys.A })
     expect(pending).toHaveLength(1)
@@ -965,9 +978,13 @@ describe('multi-PDF source rail', () => {
     const thirdRequest = pending.shift()!
     thirdRequest.resolve(thirdRequest.response)
 
-    expect(await screen.findByText(/B\.pdf: Failed: B failed/)).toBeInTheDocument()
-    expect(await screen.findByText('C.pdf: Saved')).toBeInTheDocument()
-    expect(await screen.findByText(/Opened A\.pdf/)).toBeInTheDocument()
+    expect(await screen.findByText('B failed')).toBeInTheDocument()
+    // A saved card is replaced by the Source Document it became — never both.
+    expect(await rail().findByRole('button', { name: 'C.pdf' })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(within(page).getAllByText(/^[ABC]\.pdf$/)).toHaveLength(3),
+    )
+    expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
     expect(writes.map(({ name }) => name)).toEqual(['A.pdf', 'B.pdf', 'C.pdf'])
     expect(writes.map(({ ingestionKey }) => ingestionKey)).toEqual([
       ingestionKeys.A,
@@ -976,8 +993,8 @@ describe('multi-PDF source rail', () => {
     ])
     // Acknowledged writes update the ready branch without a refresh.
     expect(branchCalls).toBe(1)
-    expect(screen.getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'C.pdf' })).toBeInTheDocument()
+    expect(rail().getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
+    expect(rail().getByRole('button', { name: 'C.pdf' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Add sources'), {
       target: {
@@ -985,23 +1002,24 @@ describe('multi-PDF source rail', () => {
       },
     })
     await waitFor(() => expect(writes).toHaveLength(4))
-    expect(screen.getByText(/B\.pdf: Failed: B failed/)).toBeInTheDocument()
+    expect(screen.getByText('B failed')).toBeInTheDocument()
     expect(writes[3]).toMatchObject({ name: 'D.pdf', ingestionKey: ingestionKeys.D })
     expect(pending).toHaveLength(1)
     const laterRequest = pending.shift()!
     laterRequest.resolve(laterRequest.response)
-    expect(await screen.findByText('D.pdf: Saved')).toBeInTheDocument()
-    expect(await screen.findByText(/Opened A\.pdf/)).toBeInTheDocument()
+    expect(await rail().findByRole('button', { name: 'D.pdf' })).toBeInTheDocument()
+    expect(within(page).getAllByText('D.pdf')).toHaveLength(1)
     expect(branchCalls).toBe(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry B.pdf' }))
     await waitFor(() => expect(writes).toHaveLength(5))
     expect(writes[4]).toMatchObject({ name: 'B.pdf', ingestionKey: ingestionKeys.B })
     expect(pending).toHaveLength(1)
     const retryRequest = pending.shift()!
     retryRequest.resolve(retryRequest.response)
-    expect(await screen.findByText('B.pdf: Saved')).toBeInTheDocument()
-    expect(await screen.findByText(/Opened A\.pdf/)).toBeInTheDocument()
+    expect(await rail().findByRole('button', { name: 'B.pdf' })).toBeInTheDocument()
+    // The retried card became its Source Document in place: one B.pdf, always.
+    await waitFor(() => expect(within(page).getAllByText('B.pdf')).toHaveLength(1))
     expect(writes.map(({ name }) => name)).toEqual([
       'A.pdf',
       'B.pdf',
@@ -1011,9 +1029,8 @@ describe('multi-PDF source rail', () => {
     ])
     expect(writes.at(-1)?.ingestionKey).toBe(ingestionKeys.B)
     expect(branchCalls).toBe(1)
-    expect(screen.getByRole('button', { name: 'B.pdf' })).toBeInTheDocument()
     expect(
-      screen
+      rail()
         .getAllByRole('button')
         .filter((button) => ['A.pdf', 'B.pdf', 'C.pdf', 'D.pdf'].includes(button.textContent ?? ''))
         .map((button) => button.textContent),
@@ -1036,8 +1053,8 @@ describe('multi-PDF source rail', () => {
     })
 
     renderRoutes(fetcher)
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    await screen.findByText('Empty Project Context.')
+    await openProjectPage()
+    await rail().findByText('Empty Project Context.')
     fireEvent.change(screen.getByLabelText('Add sources'), {
       target: {
         files: [
@@ -1047,8 +1064,11 @@ describe('multi-PDF source rail', () => {
       },
     })
 
-    await screen.findByText('A retry.pdf: Saved')
-    expect(screen.getAllByRole('button', { name: 'A.pdf' })).toHaveLength(1)
+    // Both writes acknowledge the same Source Document; it is listed once.
+    await waitFor(() =>
+      expect(screen.queryByText('A retry.pdf')).not.toBeInTheDocument(),
+    )
+    expect(rail().getAllByRole('button', { name: 'A.pdf' })).toHaveLength(1)
   })
 
   it('stays on the Project Context route when every selected PDF fails', async () => {
@@ -1075,8 +1095,8 @@ describe('multi-PDF source rail', () => {
     })
 
     renderRoutes(fetcher)
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    await screen.findByText('Empty Project Context.')
+    await openProjectPage()
+    await rail().findByText('Empty Project Context.')
     fireEvent.change(screen.getByLabelText('Add sources'), {
       target: {
         files: [
@@ -1086,41 +1106,69 @@ describe('multi-PDF source rail', () => {
       },
     })
 
-    expect(await screen.findByText(/A\.pdf: Failed: No usable PDF/)).toBeInTheDocument()
-    expect(await screen.findByText(/B\.pdf: Failed: No usable PDF/)).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getAllByText('No usable PDF')).toHaveLength(2),
+    )
+    expect(screen.getByRole('button', { name: 'Retry A.pdf' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry B.pdf' })).toBeInTheDocument()
     expect(writes).toEqual(['A.pdf', 'B.pdf'])
     expect(branchReads).toBe(1)
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
     expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
   })
 
-  it('keeps navigation usable and does not hijack a route chosen during ingestion', async () => {
-    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValue(ingestionKeys.A) })
-    const request = Promise.withResolvers<Response>()
+  // The queue outlives the page that started it: opening a Source Document
+  // mid-queue must not drop the PDFs still waiting.
+  it('finishes the queue after the researcher navigates away from the page', async () => {
+    vi.stubGlobal('crypto', {
+      randomUUID: vi
+        .fn()
+        .mockReturnValueOnce(ingestionKeys.A)
+        .mockReturnValueOnce(ingestionKeys.B),
+    })
+    const writes: string[] = []
+    const pending: { response: Response; resolve: (response: Response) => void }[] = []
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
-      if (init?.method === 'POST') return request.promise
+      if (init?.method === 'POST') {
+        const file = (init.body as FormData).get('file') as File
+        writes.push(file.name)
+        const response = ingestionResult(file.name === 'A.pdf' ? uploadedA : uploadedB)
+        return new Promise<Response>((resolve) => pending.push({ response, resolve }))
+      }
       if (url.includes('/reopen')) return Response.json(snapshot(beretning))
       if (url.endsWith(projectContextId)) return branch([beretning])
       return Response.json({ projectContexts: [project] })
     })
 
     renderRoutes(fetcher)
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    await screen.findByText('Beretning.pdf')
+    await openProjectPage()
+    await rail().findByText('Beretning.pdf')
     fireEvent.change(screen.getByLabelText('Add sources'), {
-      target: { files: [new File(['a'], 'A.pdf', { type: 'application/pdf' })] },
+      target: {
+        files: [
+          new File(['a'], 'A.pdf', { type: 'application/pdf' }),
+          new File(['b'], 'B.pdf', { type: 'application/pdf' }),
+        ],
+      },
     })
-    expect(await screen.findByText('A.pdf: Parsing…')).toBeInTheDocument()
+    expect(await screen.findByText('Parsing…')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Beretning.pdf' }))
+    // Leaving the page unmounts it while A is in flight and B is queued.
+    fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
     expect(await screen.findByText(/Opened Beretning\.pdf/)).toBeInTheDocument()
-    request.resolve(ingestionResult(uploadedA))
+    const first = pending.shift()!
+    first.resolve(first.response)
 
-    expect(await screen.findByText('A.pdf: Saved')).toBeInTheDocument()
+    await waitFor(() => expect(writes).toEqual(['A.pdf', 'B.pdf']))
+    const second = pending.shift()!
+    second.resolve(second.response)
+
+    expect(await rail().findByRole('button', { name: 'B.pdf' })).toBeInTheDocument()
+    expect(rail().getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
+    // The chosen route is never hijacked by a completed ingestion.
     expect(screen.getByText(/Opened Beretning\.pdf/)).toBeInTheDocument()
     expect(location.pathname).toBe(documentPath())
-    expect(screen.getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
   })
 
   it('does not mutate the rail or navigate after its Project Context is deleted mid-ingestion', async () => {
@@ -1143,14 +1191,14 @@ describe('multi-PDF source rail', () => {
     })
 
     renderRoutes(fetcher)
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
-    await screen.findByText('Beretning.pdf')
+    const page = await openProjectPage()
+    await rail().findByText('Beretning.pdf')
     fireEvent.change(screen.getByLabelText('Add sources'), {
       target: { files: [new File(['a'], 'A.pdf', { type: 'application/pdf' })] },
     })
     await waitFor(() => expect(pending).toHaveLength(1))
 
-    fireEvent.click(screen.getByRole('button', { name: `Delete ${project.name}` }))
+    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Delete permanently' }))
     expect(
       await screen.findByRole('heading', { name: 'No Project Context open' }),
@@ -1161,7 +1209,7 @@ describe('multi-PDF source rail', () => {
     request.resolve(request.response)
     await waitFor(() => expect(branchCalls).toBe(1))
     expect(screen.queryByText(/Opened A\.pdf/)).not.toBeInTheDocument()
-    expect(screen.queryByText('A.pdf: Saved')).not.toBeInTheDocument()
+    expect(screen.queryByText('A.pdf')).not.toBeInTheDocument()
   })
 })
 

@@ -1,9 +1,9 @@
-import type { ButtonHTMLAttributes } from 'react'
+import type { ComponentPropsWithRef } from 'react'
 
 type Variant = 'primary' | 'secondary' | 'pill'
 type Size = 'sm' | 'md'
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+export type ButtonProps = ComponentPropsWithRef<'button'> & {
   /** Visual weight: terracotta `primary`, outline `secondary`, or rounded `pill`. */
   variant?: Variant
   size?: Size

@@ -117,8 +117,9 @@ views {
   dynamic view project_context_lifecycle {
     title 'Project Context lifecycle — current'
     description '''
-      The rail owns create, rename, and permanent delete. Each write applies to
-      the rail only after the handler acknowledges it. Deletion removes the
+      The Project Context page owns rename and permanent delete; the rail owns
+      create. Each write applies to the researcher's view only after the
+      handler acknowledges it. Deletion removes the
       whole owned relational graph through the database cascade, then removes
       the canonical packages no remaining Source Representation references —
       best effort, because the durable deletion has already succeeded.
@@ -131,8 +132,8 @@ views {
     studio.ui -> studio.handlers 'POST /api/project-contexts'
     studio.handlers -> studio.project_store 'createProjectContext'
     studio.project_store -> project_db 'Insert the Project Context'
-    studio.handlers -> studio.ui 'Return the durable identity; the rail opens and expands it'
-    researcher -> studio.ui 'Rename it in the rail'
+    studio.handlers -> studio.ui 'Return the durable identity; its Project Context page opens'
+    researcher -> studio.ui 'Rename it on its Project Context page'
     studio.ui -> studio.handlers 'PATCH /api/project-contexts/:id'
     studio.handlers -> studio.project_store 'renameProjectContext'
     studio.project_store -> project_db 'Update the name'
@@ -168,9 +169,11 @@ views {
   dynamic view source_document_ingestion {
     title 'Add Source Documents — current'
     description '''
-      The rail submits selected PDFs one at a time. The same-origin handler
-      retains each canonical package before publishing its durable Source
-      Document and revision 1 Source Representation.
+      The Project Context page submits selected PDFs one at a time. Each
+      in-flight PDF shows as the card it will become, and the acknowledged
+      Source Document replaces that card. The same-origin handler retains each
+      canonical package before publishing its durable Source Document and
+      revision 1 Source Representation.
     '''
     researcher -> studio.ui 'Add one or more PDFs'
     studio.ui -> studio.browser_http 'POST one PDF and its stable ingestion key'

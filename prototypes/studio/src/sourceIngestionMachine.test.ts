@@ -10,7 +10,6 @@ function item(name: string, ingestionKey: string) {
     projectContextId,
     file: new File([name], name),
     ingestionKey,
-    selectionKey: ingestionKey,
   }
 }
 
@@ -54,11 +53,11 @@ describe('sourceIngestionMachine', () => {
     pending.shift()!.resolve(result('51000000-0000-4000-8001-000000000003', 'C.pdf'))
 
     await vi.waitFor(() => expect(actor.getSnapshot().matches('idle')).toBe(true))
-    expect(actor.getSnapshot().context.items.map(({ status }) => status)).toEqual([
-      'saved',
-      'failed',
-      'saved',
-    ])
+    // An acknowledged Source Document leaves the queue in the same transition
+    // that reports it, so only the failure is still held.
+    expect(
+      actor.getSnapshot().context.items.map(({ file, status }) => [file.name, status]),
+    ).toEqual([['B.pdf', 'failed']])
     expect(ingested).toHaveBeenCalledTimes(2)
 
     actor.send({ type: 'source.retry', ingestionKey: 'key-b' })
@@ -67,8 +66,9 @@ describe('sourceIngestionMachine', () => {
     )
     pending.shift()!.resolve(result('51000000-0000-4000-8001-000000000002', 'B.pdf'))
     await vi.waitFor(() =>
-      expect(actor.getSnapshot().context.items[1].status).toBe('saved'),
+      expect(actor.getSnapshot().context.items).toEqual([]),
     )
+    expect(ingested).toHaveBeenCalledTimes(3)
   })
 
   it('drops a deleted project without cancelling or applying its late result', async () => {
@@ -118,36 +118,10 @@ describe('sourceIngestionMachine', () => {
       result('51000000-0000-4000-8001-000000000001', 'A.pdf'),
     )
     await vi.waitFor(() => expect(actor.getSnapshot().matches('idle')).toBe(true))
+    // The acknowledged source is gone, so its retry has nothing to repeat and
+    // its File is released.
     actor.send({ type: 'source.retry', ingestionKey: 'key-a' })
     expect(writes).toEqual(['key-a'])
-    expect(actor.getSnapshot().context.items[0].status).toBe('saved')
-  })
-
-  it('releases a saved File after its bounded confirmation', async () => {
-    vi.useFakeTimers()
-    const request = Promise.withResolvers<SourceDocumentIngestionResponse>()
-    const actor = createActor(sourceIngestionMachine, {
-      input: {
-        ingest: () => request.promise,
-        onIngested: vi.fn(),
-        toFailureMessage: String,
-      },
-    }).start()
-
-    try {
-      actor.send({ type: 'sources.added', items: [item('A.pdf', 'key-a')] })
-      await vi.advanceTimersByTimeAsync(0)
-      request.resolve(
-        result('51000000-0000-4000-8001-000000000001', 'A.pdf'),
-      )
-      await vi.advanceTimersByTimeAsync(0)
-      expect(actor.getSnapshot().context.items[0].status).toBe('saved')
-
-      await vi.advanceTimersByTimeAsync(3_000)
-      expect(actor.getSnapshot().context.items).toEqual([])
-    } finally {
-      actor.stop()
-      vi.useRealTimers()
-    }
+    expect(actor.getSnapshot().context.items).toEqual([])
   })
 })

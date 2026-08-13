@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useMachine } from '@xstate/react'
+import { sourceIngestionMachine } from '../sourceIngestionMachine'
 import {
   createProjectContext,
   deleteProjectContext,
   getProjectContextWithDocuments,
+  ingestSourceDocument,
   listProjectContexts,
   renameProjectContext,
   toProjectContextFailure as failure,
@@ -34,6 +37,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   >({})
   const branchesRef = useRef(branches)
   const generation = useRef(0)
+  const branchGenerations = useRef<Record<string, number>>({})
   const reloadBranch = useRef<(projectContextId: string) => void>(() => {})
   const reloadList = useRef<() => void>(() => {})
 
@@ -42,10 +46,16 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
     if (!retry && (branch?.status === 'loading' || branch?.status === 'ready'))
       return
     const startedAt = generation.current
+    const branchStartedAt = branchGenerations.current[projectContextId] ?? 0
     // A superseded read is dropped, then re-issued — unless the write that
     // superseded it was the deletion of this very Project Context.
     const superseded = () => {
-      if (startedAt === generation.current) return false
+      const branchGeneration = branchGenerations.current[projectContextId] ?? 0
+      if (
+        startedAt === generation.current &&
+        branchStartedAt === branchGeneration
+      )
+        return false
       if (branchesRef.current[projectContextId])
         reloadBranch.current(projectContextId)
       return true
@@ -183,25 +193,6 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
     [setBranch],
   )
 
-  const deleteProject = useCallback(
-    async (projectContextId: string): WriteResult => {
-      try {
-        await deleteProjectContext(projectContextId)
-        generation.current += 1
-        setProjects((current) =>
-          current.filter(
-            (project) => project.projectContextId !== projectContextId,
-          ),
-        )
-        setBranch(projectContextId, null)
-        return null
-      } catch (error) {
-        return failure(error)
-      }
-    },
-    [setBranch],
-  )
-
   // An acknowledged ingestion is durable truth the rail may not have read yet.
   // A read of this branch already in flight predates the write, so it is fenced
   // and re-issued rather than showing the branch without its new Source
@@ -210,7 +201,9 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   const acknowledgeSourceDocument = useCallback(
     (projectContextId: string, document: SourceDocumentIngestionResponse) => {
       const branch = branchesRef.current[projectContextId]
-      if (branch?.status === 'loading') generation.current += 1
+      if (branch?.status === 'loading')
+        branchGenerations.current[projectContextId] =
+          (branchGenerations.current[projectContextId] ?? 0) + 1
       if (branch?.status !== 'ready') return
       const sourceDocuments = [
         ...branch.detail.sourceDocuments.filter(
@@ -234,6 +227,64 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
     [setBranch],
   )
 
+  // The ingestion queue lives here, not in a page: it must keep running while
+  // the researcher navigates between Source Documents and Project Contexts.
+  const [ingestion, sendIngestion] = useMachine(sourceIngestionMachine, {
+    input: {
+      ingest: (source) =>
+        // The server owns ingestion once POSTed; actor shutdown only ignores
+        // its result.
+        ingestSourceDocument(
+          source.projectContextId,
+          source.file,
+          source.ingestionKey,
+        ),
+      toFailureMessage: (error) => failure(error).message,
+      onIngested: ({ item, result }) =>
+        acknowledgeSourceDocument(item.projectContextId, result),
+    },
+  })
+
+  const addSources = useCallback<ProjectContextsValue['addSources']>(
+    (sources) =>
+      sendIngestion({
+        type: 'sources.added',
+        items: sources.map((source) => ({
+          ...source,
+          ingestionKey: crypto.randomUUID(),
+        })),
+      }),
+    [sendIngestion],
+  )
+
+  const retrySource = useCallback(
+    (ingestionKey: string) =>
+      sendIngestion({ type: 'source.retry', ingestionKey }),
+    [sendIngestion],
+  )
+
+  const deleteProject = useCallback(
+    async (projectContextId: string): WriteResult => {
+      try {
+        await deleteProjectContext(projectContextId)
+        generation.current += 1
+        setProjects((current) =>
+          current.filter(
+            (project) => project.projectContextId !== projectContextId,
+          ),
+        )
+        setBranch(projectContextId, null)
+        // Drops local ownership only; an already-POSTed ingestion still
+        // finishes on the server and its late result is ignored.
+        sendIngestion({ type: 'project.deleted', projectContextId })
+        return null
+      } catch (error) {
+        return failure(error)
+      }
+    },
+    [sendIngestion, setBranch],
+  )
+
   return (
     <ProjectContextsContext
       value={{
@@ -246,6 +297,9 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         renameProject,
         deleteProject,
         acknowledgeSourceDocument,
+        ingestingSources: ingestion.context.items,
+        addSources,
+        retrySource,
       }}
     >
       {children}

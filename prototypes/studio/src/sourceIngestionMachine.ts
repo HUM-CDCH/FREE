@@ -1,15 +1,14 @@
-import { assign, fromPromise, raise, setup } from 'xstate'
+import { assign, fromPromise, setup } from 'xstate'
 import type { SourceDocumentIngestionResponse } from '../shared/sourceDocumentIngestion.contract'
 
 type AddedSource = {
   projectContextId: string
   file: File
   ingestionKey: string
-  selectionKey: string
 }
 
-type SourceIngestionItem = AddedSource & {
-  status: 'queued' | 'parsing' | 'saved' | 'failed'
+export type SourceIngestionItem = AddedSource & {
+  status: 'queued' | 'parsing' | 'failed'
   failure?: string
 }
 
@@ -18,8 +17,6 @@ type Ingested = {
   item: SourceIngestionItem
   result: SourceDocumentIngestionResponse
 }
-
-const SAVED_STATUS_MS = 3_000
 
 export const sourceIngestionMachine = setup({
   types: {
@@ -32,7 +29,6 @@ export const sourceIngestionMachine = setup({
     events: {} as
       | { type: 'sources.added'; items: AddedSource[] }
       | { type: 'source.retry'; ingestionKey: string }
-      | { type: 'source.saved.dismissed'; ingestionKey: string }
       | { type: 'project.deleted'; projectContextId: string },
     input: {} as {
       ingest: Ingest
@@ -79,16 +75,6 @@ export const sourceIngestionMachine = setup({
             )
           : context.items,
     }),
-    dismissSaved: assign({
-      items: ({ context, event }) =>
-        event.type === 'source.saved.dismissed'
-          ? context.items.filter(
-              (item) =>
-                item.ingestionKey !== event.ingestionKey ||
-                item.status !== 'saved',
-            )
-          : context.items,
-    }),
     startNext: assign({
       items: ({ context }) => {
         const index = context.items.findIndex((item) => item.status === 'queued')
@@ -122,7 +108,6 @@ export const sourceIngestionMachine = setup({
       guard: 'isFailedSource',
       actions: [{ type: 'retrySource' }],
     },
-    'source.saved.dismissed': { actions: [{ type: 'dismissSaved' }] },
     // No target: remove local ownership without stopping the server-owned POST.
     'project.deleted': { actions: [{ type: 'removeProject' }] },
   },
@@ -150,26 +135,17 @@ export const sourceIngestionMachine = setup({
               ),
             target: 'idle',
             actions: [
+              // Dropping the in-flight entry and acknowledging the persisted
+              // Source Document in one transition: the card is replaced by the
+              // document it became, with no duplicate and no gap.
               assign({
                 items: ({ context, event }) =>
-                  context.items.map((item) =>
-                    item.ingestionKey === event.output.item.ingestionKey
-                      ? {
-                          ...item,
-                          status: 'saved' as const,
-                          failure: undefined,
-                        }
-                      : item,
+                  context.items.filter(
+                    (item) =>
+                      item.ingestionKey !== event.output.item.ingestionKey,
                   ),
               }),
               ({ context, event }) => context.onIngested(event.output),
-              raise(
-                ({ event }) => ({
-                  type: 'source.saved.dismissed' as const,
-                  ingestionKey: event.output.item.ingestionKey,
-                }),
-                { delay: SAVED_STATUS_MS },
-              ),
             ],
           },
           { target: 'idle' },
