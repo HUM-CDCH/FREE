@@ -117,6 +117,13 @@ function appendEvidenceOverlay(
   return overlay
 }
 
+// Highlight-on-selection is temporarily disabled: pdf.js's HIGHLIGHT editor
+// mode calls `selection.empty()` on mouseup to turn a text selection into a
+// highlight annotation, which left nothing for the browser's native copy to
+// act on. Flip this back to true to restore highlight creation once that's
+// worth the copy/paste tradeoff again.
+const HIGHLIGHT_ANNOTATIONS_ENABLED = false
+
 // Mirrors the target check in pdf.js's free-highlight pointerdown handler
 // (AnnotationEditorLayer #textLayerPointerDown): the text-layer background
 // and its non-text children.
@@ -381,7 +388,9 @@ export function DocumentWorkspace({
       viewer,
       eventBus,
       annotationMode: AnnotationMode.ENABLE,
-      annotationEditorMode: AnnotationEditorType.HIGHLIGHT,
+      annotationEditorMode: HIGHLIGHT_ANNOTATIONS_ENABLED
+        ? AnnotationEditorType.HIGHLIGHT
+        : AnnotationEditorType.NONE,
       annotationEditorHighlightColors: ANNOTATION_HIGHLIGHT_COLORS,
     }
 
@@ -396,16 +405,20 @@ export function DocumentWorkspace({
     // pdf.js starts a free (rectangular) highlight from pointerdown on blank
     // text-layer areas; intercept those during capture, before its own
     // text-layer listener, so only text selections can create highlights.
-    container.addEventListener(
-      'pointerdown',
-      (event) => {
-        if (isFreeHighlightTarget(event.target)) {
-          event.preventDefault()
-          event.stopPropagation()
-        }
-      },
-      { capture: true, signal: abortController.signal },
-    )
+    // Moot while highlight creation is disabled, but kept alongside the flag
+    // so re-enabling HIGHLIGHT_ANNOTATIONS_ENABLED restores this too.
+    if (HIGHLIGHT_ANNOTATIONS_ENABLED) {
+      container.addEventListener(
+        'pointerdown',
+        (event) => {
+          if (isFreeHighlightTarget(event.target)) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+        },
+        { capture: true, signal: abortController.signal },
+      )
+    }
 
     const loadingTask = pdfjsLib.getDocument({ url: pdfSource.url })
     pdfViewerRef.current = pdfViewer
