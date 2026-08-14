@@ -38,12 +38,13 @@ type RightRailProps = {
   schemaReady: boolean
   schemaFieldCount: number
   onGenerate: (instruction: string) => void
+  onCancelGenerate: () => void
+  onResetSchema: () => void
   onNodesChange: (
     nodes: SchemaNode[],
     message: string,
     recordDescription?: string,
   ) => void
-  onRecordDescriptionChange: (recordDescription: string) => void
   beforeSchemaEdit: () => Promise<void>
   schemaHistory: SchemaRevisionSummary[]
   currentSchemaRevisionNumber?: number
@@ -77,8 +78,9 @@ function RightRail({
   schemaReady,
   schemaFieldCount,
   onGenerate,
+  onCancelGenerate,
+  onResetSchema,
   onNodesChange,
-  onRecordDescriptionChange,
   beforeSchemaEdit,
   schemaHistory,
   currentSchemaRevisionNumber,
@@ -173,8 +175,9 @@ function RightRail({
         <SchemaPanel
           state={schemaState}
           onGenerate={onGenerate}
+          onCancelGenerate={onCancelGenerate}
+          onResetSchema={onResetSchema}
           onNodesChange={onNodesChange}
-          onRecordDescriptionChange={onRecordDescriptionChange}
           beforeSchemaEdit={beforeSchemaEdit}
           history={schemaHistory}
           currentRevisionNumber={currentSchemaRevisionNumber}

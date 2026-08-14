@@ -583,7 +583,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
                     value={val}
                     path={[...navPath, pathKey]}
                     onNavigateTo={isRecord(val) || Array.isArray(val) ? navTo : undefined}
-                    defaultExpanded={navPath.length === 0}
+                    defaultExpanded={false}
                     expandText={navPath.length > 0}
                     getEvidenceAnchorId={(path) =>
                       evidenceAnchorIdByPath.get(JSON.stringify(path))

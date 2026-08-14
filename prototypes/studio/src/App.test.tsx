@@ -478,6 +478,20 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByText('historical_title')).toBeInTheDocument()
   })
 
+  it('resets a reopened schema to its initial state without deleting saved history', async () => {
+    await renderReopened()
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    expect(screen.getByTitle('Edit place')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete schema and history' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(screen.getByText('No schema yet')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate schema' })).toBeInTheDocument()
+    expect(screen.queryByTitle('Edit place')).not.toBeInTheDocument()
+  })
+
   it('hydrates the Extraction Schema and Extraction Result', async () => {
     await renderReopened()
 
@@ -598,11 +612,9 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    const description = screen.getByLabelText('One root record')
-    fireEvent.change(description, {
-      target: { value: 'Saved before extraction.' },
-    })
-    fireEvent.blur(description)
+    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     fireEvent.change(screen.getByLabelText('Extraction strategy'), { target: { value: 'CATALOG' } })
 
     const run = screen.getByRole('button', { name: '▶ Run extraction' })

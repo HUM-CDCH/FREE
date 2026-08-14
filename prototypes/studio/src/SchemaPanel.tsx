@@ -3,7 +3,7 @@ import { DefaultChatTransport, readUIMessageStream } from 'ai'
 import type { UIMessage } from 'ai'
 import { API_BASE, requestSchemaEdit } from './api'
 import { countTemplateFields, isRecord } from '../shared/template'
-import { isAllowedValues, type FieldType } from '../shared/allowedValues'
+import type { FieldType } from '../shared/allowedValues'
 import {
   duplicateFieldKeys,
   countSchemaMetadata,
@@ -72,12 +72,13 @@ export type TemplateState =
 type SchemaPanelProps = {
   state: TemplateState
   onGenerate: (instruction: string) => void
+  onCancelGenerate: () => void
+  onResetSchema: () => void
   onNodesChange: (
     nodes: SchemaNode[],
     message: string,
     recordDescription?: string,
   ) => void
-  onRecordDescriptionChange: (recordDescription: string) => void
   beforeSchemaEdit: () => Promise<void>
   history: SchemaRevisionSummary[]
   currentRevisionNumber?: number
@@ -97,30 +98,10 @@ type DropTarget =
   | { type: 'slot'; parentId: string | null; index: number }
   | { type: 'group'; id: string; name: string }
 
-type FieldEditing = { id: string; name: string; type: FieldType; allowedValuesText: string }
+type FieldEditing = { id: string; name: string; type: FieldType }
 
-/**
- * Fewer than two values is a scalar array to the model, not a closed set, so the
- * field stays an ordinary one until a second value is typed.
- */
-type ParsedAllowedValues =
-  | { valid: true; value: string[] | undefined }
-  | { valid: false }
-
-function parseAllowedValues(text: string): ParsedAllowedValues {
-  if (text.trim() === '') return { valid: true, value: undefined }
-  const values = [...new Set(text.split(',').map(value => value.trim()).filter(Boolean))]
-  return isAllowedValues(values) ? { valid: true, value: values } : { valid: false }
-}
-
-function editedField(
-  node: SchemaNode,
-  name: string,
-  editing: FieldEditing,
-  allowedValues: string[] | undefined,
-): SchemaNode {
+function editedField(node: SchemaNode, name: string, editing: FieldEditing): SchemaNode {
   const base = { id: node.id, name, ...(node.description && { description: node.description }) }
-  if (allowedValues) return { ...base, type: 'string', allowedValues }
   if (editing.type === 'object') {
     return { ...base, type: 'object', children: node.children ?? [] }
   }
@@ -129,11 +110,14 @@ function editedField(
       ? { ...base, type: 'array', children: node.children }
       : { ...base, type: 'array', itemType: node.type === 'array' ? node.itemType : 'string' }
   }
+  if (editing.type === 'string' && node.type === 'string' && node.allowedValues) {
+    return { ...base, type: 'string', allowedValues: node.allowedValues }
+  }
   return { ...base, type: editing.type }
 }
 
 function editingOf(node: SchemaNode): FieldEditing {
-  return { id: node.id, name: node.name, type: node.type, allowedValuesText: node.allowedValues?.join(', ') ?? '' }
+  return { id: node.id, name: node.name, type: node.type }
 }
 
 function AllowedValuesBadge({ node }: { node: SchemaNode }) {
@@ -247,10 +231,7 @@ function FieldChangeLabel({ node, change }: { node: SchemaNode; change?: Change 
       ? 'text-danger line-through'
       : 'text-ink'
   return (
-    <>
-      <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${tone}`}>{node.name}</span>
-      <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 font-mono text-[9px] text-ink-muted">{fieldTypeLabel(node)}</span>
-    </>
+    <span className={`min-w-0 truncate font-mono text-[13.5px] font-medium ${tone}`}>{node.name}</span>
   )
 }
 
@@ -387,12 +368,13 @@ function ancestorIdsOf(nodes: readonly SchemaNode[], targetIds: ReadonlySet<stri
 // Shared UI sub-components
 // ────────────────────────────────────────────────────────────────────────────
 
-function WorkingIndicator() {
+function WorkingIndicator({ onStop }: { onStop: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-md border border-line bg-canvas px-4 py-8 text-center" aria-live="polite">
       <span aria-hidden="true" className="animate-spin-slow size-7 rounded-full border-[3px] border-line border-t-accent" />
       <p className="text-[13px] font-semibold text-ink">Producing schema…</p>
       <p className="max-w-[34ch] text-xs leading-snug text-ink-muted">This can take a while on large documents.</p>
+      <button className={`${genBtnCls} mt-1`} type="button" onClick={onStop}>Stop</button>
     </div>
   )
 }
@@ -433,16 +415,6 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
         onChange={e => onChange({ ...editing, name: e.target.value })}
         onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
       />
-      {editing.type !== 'object' && editing.type !== 'array' && (
-        <input
-          aria-label="Allowed values"
-          className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-xs text-ink outline-none focus-visible:border-accent"
-          value={editing.allowedValuesText}
-          placeholder="allowed values (2+, comma-separated)"
-          onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
-          onChange={e => onChange({ ...editing, allowedValuesText: e.target.value })}
-        />
-      )}
       <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
       <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✗</button>
       {error && <span className="text-[10px] font-semibold text-danger" role="alert">{error}</span>}
@@ -500,8 +472,9 @@ function DescriptionEditForm({ value, onChange, onSave, onDelete, onCancel }: {
 function SchemaPanel({
   state,
   onGenerate,
+  onCancelGenerate,
+  onResetSchema,
   onNodesChange,
-  onRecordDescriptionChange,
   beforeSchemaEdit,
   history,
   currentRevisionNumber,
@@ -538,6 +511,7 @@ function SchemaPanel({
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyRestoring, setHistoryRestoring] = useState(false)
+  const [confirmingDeleteSchema, setConfirmingDeleteSchema] = useState(false)
 
   // Pre-generation doc chat: free-form Q&A about the document, also the source
   // of the instruction sent along with "Generate schema"/"Regenerate".
@@ -559,10 +533,8 @@ function SchemaPanel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const onNodesChangeRef = useRef(onNodesChange)
-  const onRecordDescriptionChangeRef = useRef(onRecordDescriptionChange)
   const historyRestoringRef = useRef(false)
   onNodesChangeRef.current = onNodesChange
-  onRecordDescriptionChangeRef.current = onRecordDescriptionChange
 
   const ready = state.status === 'ready'
   const fieldCount = ready ? countTemplateFields(nodesToTemplate(state.nodes)) : 0
@@ -670,6 +642,30 @@ function SchemaPanel({
       historyRestoringRef.current = false
       setHistoryRestoring(false)
     }
+  }
+
+  function deleteSchema() {
+    setConfirmingDeleteSchema(false)
+    setHistoryOpen(false)
+    nodesRef.current = []
+    setNodes([])
+    setChat([
+      { role: 'assistant', text: "Edit through drag and drop, or describe a change. I'll show a diff to review first." },
+    ])
+    setPending(null)
+    setAcceptedChangeIds(new Set())
+    setSelectedIds(new Set())
+    setEditing(null)
+    setEditingError(null)
+    setMutationError(null)
+    setOpenDescId(null)
+    setJsonEditMode(false)
+    setJsonEditError(null)
+    setView('fields')
+    setHistoryError(null)
+    setDocChat([])
+    setDocChatDraft('')
+    onResetSchema()
   }
 
   function commitDrop() {
@@ -819,16 +815,11 @@ function SchemaPanel({
   // ── Inline editing ──
   function saveEdit() {
     if (!editing) return
-    const parsedAllowedValues = parseAllowedValues(editing.allowedValuesText)
-    if (!parsedAllowedValues.valid) {
-      setEditingError('Enter at least two values that are not field-type names.')
-      return
-    }
     const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_') || 'field'
     const newNodes = updateNodeById(
       nodesRef.current,
       editing.id,
-      (node) => editedField(node, name, editing, parsedAllowedValues.value),
+      (node) => editedField(node, name, editing),
     )
     if (duplicateFieldKeys(enumerateFieldPaths(newNodes)).length > 0) {
       setEditingError(`A sibling field already uses “${name}”.`)
@@ -882,7 +873,7 @@ function SchemaPanel({
     setNodes(newNodes)
     onNodesChange(newNodes, '✎ Schema updated')
     setView('fields')
-    setEditing({ id, name, type: 'verbatim-string', allowedValuesText: '' })
+    setEditing({ id, name, type: 'verbatim-string' })
   }
 
   // ── Chat ──
@@ -1328,6 +1319,43 @@ function SchemaPanel({
               <button className={tabCls(view === 'fields')} type="button" aria-pressed={view === 'fields'} onClick={() => setView('fields')}>Fields</button>
               <button className={`${tabCls(view === 'json')} font-mono`} type="button" aria-pressed={view === 'json'} onClick={() => setView('json')}>{'JSON'}</button>
             </div>
+            <div className="relative">
+              <button
+                className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-danger/50 hover:text-danger"
+                type="button"
+                aria-label="Delete schema and history"
+                title="Delete schema and start over"
+                onClick={() => setConfirmingDeleteSchema((open) => !open)}
+              >
+                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 2a1 1 0 00-1 1v1H4a1 1 0 000 2h12a1 1 0 100-2h-3V3a1 1 0 00-1-1H8zM5 7a1 1 0 011 1v8a2 2 0 002 2h4a2 2 0 002-2V8a1 1 0 112 0v8a4 4 0 01-4 4H8a4 4 0 01-4-4V8a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {confirmingDeleteSchema && (
+                <div className="absolute right-0 top-full z-30 mt-1.5 w-64 rounded-lg border border-danger/30 bg-surface p-3 shadow-float">
+                  <p className="text-[12px] font-semibold text-ink">Delete this schema and its history?</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+                    The panel returns to its initial, ungenerated state. Already-saved Schema Revisions are kept for the record.
+                  </p>
+                  <div className="mt-2.5 flex justify-end gap-1.5">
+                    <button
+                      className="cursor-pointer rounded-md px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none hover:text-ink"
+                      type="button"
+                      onClick={() => setConfirmingDeleteSchema(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="cursor-pointer rounded-md bg-danger px-2.5 py-1 text-[11px] font-semibold text-white outline-none hover:brightness-110"
+                      type="button"
+                      onClick={deleteSchema}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </header>
@@ -1346,7 +1374,7 @@ function SchemaPanel({
           </div>
         )}
 
-        {state.status === 'generating' && <WorkingIndicator />}
+        {state.status === 'generating' && <WorkingIndicator onStop={onCancelGenerate} />}
 
         {state.status === 'error' && (
           <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
@@ -1444,37 +1472,6 @@ function SchemaPanel({
 
         {ready && view === 'fields' && (
           <>
-            <div className="mb-3 rounded-lg border border-line bg-surface-muted p-2.5">
-              <label
-                className="text-[10px] font-bold uppercase tracking-[0.1em] text-ink-muted"
-                htmlFor="root-record-description"
-              >
-                One root record
-              </label>
-              <textarea
-                id="root-record-description"
-                className="mt-1.5 w-full resize-y rounded-md border border-line-strong bg-surface px-2.5 py-2 text-[11.5px] leading-snug text-ink outline-none focus:border-accent"
-                rows={3}
-                maxLength={1000}
-                value={recordDescriptionDraft}
-                onChange={(event) =>
-                  setRecordDescriptionDraft(event.target.value)
-                }
-                onBlur={() => {
-                  const description = recordDescriptionDraft.trim()
-                  if (!description) {
-                    setRecordDescriptionDraft(state.recordDescription)
-                    setMutationError('A root record description is required.')
-                    return
-                  }
-                  if (description !== state.recordDescription)
-                    onRecordDescriptionChangeRef.current(description)
-                }}
-              />
-              <p className="mt-1 text-[10.5px] leading-snug text-ink-faint">
-                Describes the single record extracted from this Source Document.
-              </p>
-            </div>
             {mutationError && <p className="mb-2 text-[11px] font-semibold text-danger" role="alert">{mutationError}</p>}
             {selectedIds.size > 0 && (
               <div className="mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5">
@@ -1521,14 +1518,17 @@ function SchemaPanel({
           walks proposed changes node by node) that this doesn't replace. */}
       {!ready && (
         <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
-          <div className="flex shrink-0 items-center border-b border-line px-3.5 py-1">
+          {/* <div className="flex shrink-0 items-center border-b border-line px-3.5 py-1">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
-          </div>
+          </div> */}
           <div ref={docChatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
               {docChat.length === 0 && (
-                <p className="text-[11.5px] leading-relaxed text-ink-faint">
-                  Ask about this document, or add instructions for the schema the model will generate.
+                <p className="flex items-center gap-1.5 text-[11.5px] leading-relaxed text-ink-faint">
+                  Add instructions for schema generation.
+                  <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ink-faint">
+                    Optional
+                  </span>
                 </p>
               )}
               {docChat.map((message) => (
@@ -1548,14 +1548,20 @@ function SchemaPanel({
             </div>
           </div>
           <div className="shrink-0 px-3.5 pb-3 pt-1.5">
-            <div className="flex items-center gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">
-              <input
-                className="min-w-0 flex-1 bg-transparent font-sans text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
-                placeholder="Ask about the document, or add a generation instruction…"
+            <div className="flex items-end gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">
+              <textarea
+                className="min-w-0 flex-1 resize-none bg-transparent font-sans text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
+                rows={2}
+                placeholder='Add a generation instruction (e.g. "Focus on names, dates, and locations")…'
                 value={docChatDraft}
                 disabled={documentMarkdown === null}
                 onChange={e => setDocChatDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') void sendDocChatMessage() }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    void sendDocChatMessage()
+                  }
+                }}
               />
               {docChatStatus === 'running' ? (
                 <button

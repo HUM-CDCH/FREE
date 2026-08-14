@@ -246,6 +246,7 @@ export function DocumentWorkspace({
   const pdfViewerRef = useRef<PDFViewer | null>(null)
   // const annotationManagerRef = useRef<AnnotationEditorUIManager | null>(null)
   const templateAbortRef = useRef<AbortController | null>(null)
+  const templatePrevStateRef = useRef<TemplateState>({ status: 'idle' })
   const toastTimerRef = useRef<number | undefined>(undefined)
   // const restoredAnnotations = (annotationSet?.annotations ?? []).map(
   //   ({ annotationId, text, pageNumber }) => ({
@@ -684,6 +685,7 @@ export function DocumentWorkspace({
     templateAbortRef.current?.abort()
     const abortController = new AbortController()
     templateAbortRef.current = abortController
+    templatePrevStateRef.current = templateState
     const inputsKey = instruction
     setPinnedSchemaRevisionId(null)
     setTemplateState({ status: 'generating' })
@@ -741,6 +743,27 @@ export function DocumentWorkspace({
     }
   }
 
+  function cancelGenerateSchema() {
+    templateAbortRef.current?.abort()
+    setTemplateState(templatePrevStateRef.current)
+  }
+
+  // Front-end reset only: drops the current schema thread so the panel looks
+  // untouched and a future "Generate schema" starts a brand-new
+  // ExtractionSchema. Already-saved Schema Revisions stay in Postgres — they
+  // are append-only and Extractions may still reference them (see
+  // packages/db's restrict FKs) — this just stops the workspace from
+  // pointing at them.
+  function resetSchema() {
+    templateAbortRef.current?.abort()
+    templatePrevStateRef.current = { status: 'idle' }
+    setTemplateState({ status: 'idle' })
+    setPinnedSchemaRevisionId(null)
+    setSchemaSaveState(null)
+    setSchemaHistory([])
+    setDurableSchema(null)
+  }
+
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
     if (
       isEditableTarget(event.target) ||
@@ -784,17 +807,6 @@ export function DocumentWorkspace({
       edited: true,
     })
     showToast(message)
-  }
-
-  function changeRecordDescription(recordDescription: string) {
-    if (templateState.status !== 'ready') return
-    setPinnedSchemaRevisionId(null)
-    schemaSaveCoordinatorRef.current?.edit({
-      recordDescription,
-      schemaNodes: templateState.nodes,
-    })
-    setTemplateState({ ...templateState, recordDescription, edited: true })
-    showToast('✎ Root record description updated')
   }
 
   function startResize(event: React.MouseEvent) {
@@ -1182,8 +1194,9 @@ export function DocumentWorkspace({
             schemaReady={schemaReady}
             schemaFieldCount={schemaFieldCount}
             onGenerate={(instruction) => void generateSchema(instruction)}
+            onCancelGenerate={cancelGenerateSchema}
+            onResetSchema={resetSchema}
             onNodesChange={changeNodes}
-            onRecordDescriptionChange={changeRecordDescription}
             beforeSchemaEdit={flushSchemaEdits}
             schemaHistory={schemaHistory}
             currentSchemaRevisionNumber={schemaSaveState?.acknowledged.revisionNumber}

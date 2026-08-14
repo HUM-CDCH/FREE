@@ -49,6 +49,16 @@ function CollapseArrow({ expanded }: { expanded: boolean }) {
   )
 }
 
+// "Row drills into a deeper screen" accessory, placed right after the name so
+// it's never lost off the end of a wide row — reuses the breadcrumb bar's own
+// '›' separator glyph so the same glyph always means "navigate", never "expand
+// in place".
+function EnterChevron() {
+  return (
+    <span className="shrink-0 text-[15px] font-bold leading-none text-ink-muted">›</span>
+  )
+}
+
 function PencilIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
@@ -209,8 +219,9 @@ function ObjectSection({
         className="-mx-2 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
-        <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>
+        {onNavigateTo ? <span className="w-2 shrink-0" /> : <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
         <span className="shrink-0 truncate font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        {onNavigateTo && <EnterChevron />}
         {expanded ? (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white">
             {entries.length} field{entries.length !== 1 ? 's' : ''}
@@ -251,9 +262,9 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, depth, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void }) {
-  const [expanded, setExpanded] = useState(true)
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void }) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
     <div>
@@ -261,8 +272,9 @@ function ArraySection({
         className="-mx-2 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
-        <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>
+        {onNavigateTo ? <span className="w-2 shrink-0" /> : <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
         <span className="min-w-0 truncate font-mono text-[13.5px] font-medium text-ink">{name}</span>
+        {onNavigateTo && <EnterChevron />}
         <span className="shrink-0 whitespace-nowrap rounded-full bg-surface-muted px-2.5 py-0.5 font-sans text-[10.5px] font-semibold text-ink-muted">
           {value.length} item{value.length !== 1 ? 's' : ''}
         </span>
@@ -298,7 +310,7 @@ function ArraySection({
 
 function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} />
   }
   if (isRecord(value)) {
     return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} />

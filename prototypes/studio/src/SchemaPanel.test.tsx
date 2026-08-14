@@ -19,12 +19,13 @@ const nodes: SchemaNode[] = [
   { id: 'gender', name: 'gender', type: 'string', allowedValues: ['woman', 'man'] },
 ]
 
-function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes) {
+function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes, onResetSchema = vi.fn()) {
   render(<SchemaPanel
     state={{ status: 'ready', recordDescription: 'One test record.', nodes: panelNodes, inputsKey: 'test' }}
     onGenerate={vi.fn()}
+    onCancelGenerate={vi.fn()}
+    onResetSchema={onResetSchema}
     onNodesChange={onNodesChange}
-    onRecordDescriptionChange={vi.fn()}
     beforeSchemaEdit={vi.fn()}
     history={[]}
     loadRevision={vi.fn()}
@@ -80,8 +81,9 @@ function renderHistoryPanel({
   render(<SchemaPanel
     state={{ status: 'ready', recordDescription: 'One test record.', nodes: panelNodes, inputsKey: 'test' }}
     onGenerate={vi.fn()}
+    onCancelGenerate={vi.fn()}
+    onResetSchema={vi.fn()}
     onNodesChange={onNodesChange}
-    onRecordDescriptionChange={vi.fn()}
     beforeSchemaEdit={beforeSchemaEdit}
     documentMarkdown={null}
     sourceDocumentName="test.pdf"
@@ -248,33 +250,18 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(onNodesChange).not.toHaveBeenCalled()
   })
 
-  it('keeps an existing closed set when replacement values are invalid', () => {
+  it('preserves an existing closed set when the field is renamed', () => {
     const onNodesChange = renderPanel()
 
     fireEvent.click(screen.getByTitle('Edit gender'))
-    fireEvent.change(screen.getByLabelText('Allowed values'), { target: { value: 'string, date' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Enter at least two values that are not field-type names.')
-    expect(screen.getByDisplayValue('string, date')).toBeInTheDocument()
-    expect(onNodesChange).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    ['blank input clears it', '', undefined],
-    ['valid input replaces it', 'known, unknown', ['known', 'unknown']],
-  ])('%s for an existing closed set', (_case, value, allowedValues) => {
-    const onNodesChange = renderPanel()
-
-    fireEvent.click(screen.getByTitle('Edit gender'))
-    fireEvent.change(screen.getByLabelText('Allowed values'), { target: { value } })
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'sex' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(onNodesChange.mock.calls[0][0][1]).toEqual({
       id: 'gender',
-      name: 'gender',
+      name: 'sex',
       type: 'string',
-      ...(allowedValues && { allowedValues }),
+      allowedValues: ['woman', 'man'],
     })
   })
 
@@ -640,5 +627,32 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     expect(await screen.findByText(message)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+  })
+})
+
+describe('SchemaPanel delete schema', () => {
+  it('requires confirmation before resetting the schema', () => {
+    const onResetSchema = vi.fn()
+    renderPanel(vi.fn(), nodes, onResetSchema)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete schema and history' }))
+    expect(screen.getByText('Delete this schema and its history?')).toBeInTheDocument()
+    expect(onResetSchema).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('Delete this schema and its history?')).not.toBeInTheDocument()
+    expect(onResetSchema).not.toHaveBeenCalled()
+  })
+
+  it('clears local schema state and notifies the workspace on confirmed delete', () => {
+    const onResetSchema = vi.fn()
+    renderPanel(vi.fn(), nodes, onResetSchema)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete schema and history' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(onResetSchema).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Delete this schema and its history?')).not.toBeInTheDocument()
+    expect(screen.queryByText(nodes[0].name)).not.toBeInTheDocument()
   })
 })
