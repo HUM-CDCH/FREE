@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ResultValue from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from '../shared/template'
@@ -11,9 +12,12 @@ type ResultsTabProps = {
   controller: ExtractionController
   schemaReady: boolean
   documentMarkdown: string | null
+  sourceDocumentName: string
   onSelectEvidence?: (anchorId: string) => void
   onResultPathChange?: (path: string[] | null) => void
   pinnedSchema?: SchemaDefinition | null
+  /** Extraction Schema of the displayed Extraction Result; leads the export columns. */
+  exportSchema?: SchemaDefinition | null
   inspectedAttempt?: ExtractionAttempt
   readOnly?: boolean
 }
@@ -342,7 +346,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
+function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
   const state = inspectedAttempt
     ? extractionStateFromAttempt(inspectedAttempt)
@@ -465,6 +469,11 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, pinnedSchema = 
                 ]}
               />
               <div className="flex gap-1.5">
+                <ExtractionResultExportControl
+                  result={displayResult}
+                  schema={exportSchema}
+                  sourceDocumentName={sourceDocumentName}
+                />
                 {!readOnly && controller.review.available && (
                   <Button
                     variant="primary"

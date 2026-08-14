@@ -27,6 +27,8 @@ export type ExtractionInspection = {
   parsedDocument: ParsedDocument | null
   reviewDecisions: ExtractionAttempt['reviewDecisions']
   pinnedSchema: SchemaDefinition | null
+  /** Extraction Schema of the inspected Extraction Result, current or historical. */
+  exportSchema: SchemaDefinition | null
 }
 
 type RightRailProps = {
@@ -195,6 +197,8 @@ function RightRail({
           schemaReady={schemaReady}
           documentMarkdown={documentMarkdown}
           pinnedSchema={inspection.pinnedSchema}
+          exportSchema={inspection.exportSchema}
+          sourceDocumentName={sourceDocumentName}
           onResultPathChange={onResultPathChange}
           onSelectEvidence={(anchorId) => {
             const anchor = parsedDocument?.evidence_index.anchors.find(

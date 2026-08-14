@@ -1210,7 +1210,21 @@ export function DocumentWorkspace({
               )
             }}
             extraction={extraction}
-            inspection={{ attempt: inspectedAttempt, readOnly: inspectionReadOnly, documentMarkdown, parsedDocument, reviewDecisions: inspectedAttempt?.reviewDecisions ?? [], pinnedSchema: pinnedAttempt?.extractionSchema ?? null }}
+            inspection={{
+              attempt: inspectedAttempt,
+              readOnly: inspectionReadOnly,
+              documentMarkdown,
+              parsedDocument,
+              reviewDecisions: inspectedAttempt?.reviewDecisions ?? [],
+              pinnedSchema: pinnedAttempt?.extractionSchema ?? null,
+              // A pinned historical Extraction carries its own Extraction Schema;
+              // the latest attempt shows against the current one.
+              exportSchema:
+                pinnedAttempt?.extractionSchema ??
+                (templateState.status === 'ready'
+                  ? { recordDescription: templateState.recordDescription, schemaNodes: templateState.nodes }
+                  : null),
+            }}
             sourceDocumentName={pdfSource.filename}
             onSelectEvidence={selectEvidenceAnchor}
             onResultPathChange={setResultPath}

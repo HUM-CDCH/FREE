@@ -2,12 +2,23 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { exportExtractionResult } from 'extraction-result-export'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { SchemaDefinition } from '../shared/schemaNode'
+
+vi.mock('extraction-result-export', () => ({
+  exportExtractionResult: vi.fn(async () => {}),
+}))
 
 afterEach(cleanup)
+
+beforeEach(() => {
+  vi.mocked(exportExtractionResult).mockReset()
+  vi.mocked(exportExtractionResult).mockResolvedValue(undefined)
+})
 
 function controller(
   state: ExtractionController['state'],
@@ -75,6 +86,33 @@ const catalogAttempt: ExtractionAttempt = {
   reviewDecisions: [],
 }
 
+const currentExportSchema: SchemaDefinition = {
+  recordDescription: 'Current findings',
+  schemaNodes: [
+    {
+      id: 'context',
+      name: 'context',
+      type: 'object',
+      children: [
+        { id: 'title', name: 'title', type: 'string' },
+        { id: 'tags', name: 'tags', type: 'array', itemType: 'string' },
+      ],
+    },
+  ],
+}
+
+const historicalExportSchema: SchemaDefinition = {
+  recordDescription: 'Historical findings',
+  schemaNodes: [
+    {
+      id: 'findings',
+      name: 'findings',
+      type: 'array',
+      children: [{ id: 'value', name: 'value', type: 'string' }],
+    },
+  ],
+}
+
 describe('ResultsTab grounded values', () => {
   it('shows one server-owned progress state without raw output', () => {
     render(
@@ -84,7 +122,7 @@ describe('ResultsTab grounded values', () => {
           step: 'extraction',
         })}
         schemaReady
-        documentMarkdown="# Source"
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
       />,
     )
 
@@ -105,7 +143,7 @@ describe('ResultsTab grounded values', () => {
           ungroundedCount: 0,
         })}
         schemaReady
-        documentMarkdown="# Source"
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
         onSelectEvidence={onSelectEvidence}
       />,
     )
@@ -131,7 +169,7 @@ describe('ResultsTab grounded values', () => {
           ungroundedCount: 2,
         })}
         schemaReady
-        documentMarkdown="# Source"
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
       />,
     )
 
@@ -159,7 +197,7 @@ describe('ResultsTab grounded values', () => {
           ungroundedCount: 0,
         })}
         schemaReady
-        documentMarkdown="# Source"
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
         onSelectEvidence={onSelectEvidence}
         onResultPathChange={onResultPathChange}
       />,
@@ -189,7 +227,7 @@ describe('ResultsTab grounded values', () => {
           ungroundedCount: 0,
         })}
         schemaReady
-        documentMarkdown="# Source"
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
       />,
     )
 
@@ -208,7 +246,7 @@ describe('ResultsTab grounded values', () => {
           ungroundedCount: 0,
         }, catalogAttempt)}
         schemaReady
-        documentMarkdown="# Source"
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
       />,
     )
 
@@ -261,7 +299,7 @@ describe('ResultsTab grounded values', () => {
           ungroundedCount: 0,
         }, attempt)}
         schemaReady
-        documentMarkdown="# Source"
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
       />,
     )
 
@@ -305,7 +343,7 @@ describe('ResultsTab grounded values', () => {
       ungroundedCount: 0,
     }, retryAttempt)
     extraction.retryExtraction = retry
-    render(<ResultsTab controller={extraction} schemaReady documentMarkdown="# Source" />)
+    render(<ResultsTab controller={extraction} schemaReady documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf" />)
 
     expect(screen.getByRole('checkbox', { name: 'Retry failed or truncated document metadata' })).not.toBeVisible()
     fireEvent.click(screen.getByText('Run details'))
@@ -337,7 +375,7 @@ describe('ResultsTab grounded values', () => {
 
   it('does not offer targeted retry controls for Article attempts', () => {
     const article = { ...catalogAttempt, strategy: 'ARTICLE' as const, diagnostics: { ...catalogAttempt.diagnostics, catalog: null } }
-    render(<ResultsTab controller={controller({ status: 'ready', result: article.resultPayload!, evidenceLinks: [], ungroundedCount: 0 }, article)} schemaReady documentMarkdown="# Source" />)
+    render(<ResultsTab controller={controller({ status: 'ready', result: article.resultPayload!, evidenceLinks: [], ungroundedCount: 0 }, article)} schemaReady documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf" />)
     fireEvent.click(screen.getByText('Run details'))
     expect(screen.queryByRole('region', { name: 'Targeted Catalog retry' })).not.toBeInTheDocument()
   })
@@ -347,11 +385,77 @@ describe('ResultsTab grounded values', () => {
       <ResultsTab
         controller={controller({ status: 'cancelled' })}
         schemaReady
-        documentMarkdown="# Source"
+        documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
       />,
     )
 
     expect(screen.getByText('Extraction cancelled')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run a new extraction' })).toBeInTheDocument()
+  })
+
+  it('exports the current displayed result to Excel with nested and scalar-array schema paths', () => {
+    const currentResult = { records: [{ context: { title: 'Current', tags: ['a'] } }] }
+    render(
+      <ResultsTab
+        controller={controller({
+          status: 'ready',
+          result: currentResult,
+          evidenceLinks: [],
+          ungroundedCount: 0,
+        })}
+        schemaReady
+        documentMarkdown="# Source"
+        sourceDocumentName="current.pdf"
+        exportSchema={currentExportSchema}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Excel' }))
+
+    expect(exportExtractionResult).toHaveBeenCalledWith(
+      { context: { title: 'Current', tags: ['a'] } },
+      {
+        format: 'xlsx',
+        filename: 'current.pdf',
+        columns: ['context.title', 'context.tags.0'],
+      },
+    )
+  })
+
+  it('exports the inspected historical result to CSV with its historical schema', () => {
+    const historicalAttempt: ExtractionAttempt = {
+      ...catalogAttempt,
+      extractionId: '55555555-5555-4555-8555-555555555555',
+      resultPayload: { records: [{ findings: [{ value: 'Historical' }] }] },
+    }
+    render(
+      <ResultsTab
+        controller={controller({
+          status: 'ready',
+          result: { records: [{ context: { title: 'Current' } }] },
+          evidenceLinks: [],
+          ungroundedCount: 0,
+        })}
+        inspectedAttempt={historicalAttempt}
+        readOnly
+        schemaReady
+        documentMarkdown="# Source"
+        sourceDocumentName="historical.pdf"
+        exportSchema={historicalExportSchema}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'CSV' }))
+
+    expect(exportExtractionResult).toHaveBeenCalledWith(
+      { findings: [{ value: 'Historical' }] },
+      {
+        format: 'csv',
+        filename: 'historical.pdf',
+        columns: ['findings.0.value'],
+      },
+    )
   })
 })

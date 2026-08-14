@@ -184,6 +184,7 @@ describe('ResultsTab markdown', () => {
         controller: readyController(),
         schemaReady: true,
         documentMarkdown: '# Parsed source',
+        sourceDocumentName: 'source.pdf',
       }),
     )
 

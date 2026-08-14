@@ -105,6 +105,9 @@ importers:
       env-paths:
         specifier: ^4.0.0
         version: 4.0.0
+      extraction-result-export:
+        specifier: workspace:*
+        version: link:../../packages/extraction-result-export
       pdfjs-dist:
         specifier: ^6.0.227
         version: 6.2.108
