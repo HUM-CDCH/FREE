@@ -3,12 +3,23 @@ import { test } from "node:test";
 import { exportExtractionResult } from "./index.js";
 import { stubBrowser } from "./test-browser.js";
 
+const field = (id: string, name: string, type: "string" | "number" | "boolean" = "string") =>
+  ({ id, name, type } as const);
+
 test("downloads the visible result as CSV with the derived name", async () => {
   const browser = stubBrowser();
   try {
     await exportExtractionResult(
       { name: "Ada", active: true, notes: { source: "=cmd" } },
-      { format: "csv", filename: "C:\\uploads\\source.pdf", columns: ["active", "name"] },
+      {
+        format: "csv",
+        filename: "C:\\uploads\\source.pdf",
+        schemaNodes: [
+          field("active", "active", "boolean"),
+          field("name", "name"),
+          { id: "notes", name: "notes", type: "object", children: [field("source", "source")] },
+        ],
+      },
     );
 
     const [download] = browser.downloads;
@@ -28,6 +39,7 @@ test("downloads the visible result as a workbook with the derived name", async (
     await exportExtractionResult([{ score: 1 }, { score: 2 }], {
       format: "xlsx",
       filename: "report.json",
+      schemaNodes: [field("score", "score", "number")],
     });
 
     const [download] = browser.downloads;
@@ -40,7 +52,7 @@ test("downloads the visible result as a workbook with the derived name", async (
 
 test("rejects an unsupported format before it reads the result", async () => {
   await assert.rejects(
-    exportExtractionResult({}, { format: "pdf" as "csv", filename: "source.pdf" }),
+    exportExtractionResult({}, { format: "pdf" as "csv", filename: "source.pdf", schemaNodes: [] }),
     /Unsupported export format: pdf/,
   );
 });
@@ -52,7 +64,11 @@ test("rejects an oversized XLSX record array before flattening it", async () => 
   });
 
   await assert.rejects(
-    exportExtractionResult(records, { format: "xlsx", filename: "source.pdf" }),
+    exportExtractionResult(records, {
+      format: "xlsx",
+      filename: "source.pdf",
+      schemaNodes: [field("score", "score", "number")],
+    }),
     /1,048,577/,
   );
 });

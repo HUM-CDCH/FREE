@@ -1,92 +1,141 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { flattenRecord, toTable } from "./table.js";
+import type { SchemaNode } from "../../../prototypes/studio/shared/schemaNode.js";
+import {
+  buildExportTable,
+  createExtractionResultExportControl,
+  deriveRowsRepresentOptions,
+  ROOT_ROWS,
+  type OtherRepeatedFields,
+} from "./table.js";
 
-test("flattens nested objects and indexed arrays", () => {
-  assert.deepEqual(
-    { ...flattenRecord({
-      title: "Paper",
-      author: { name: "Ada" },
-      contributors: [{ name: "Grace" }, { name: "Linus" }],
-    }) },
-    {
-      title: "Paper",
-      "author.name": "Ada",
-      "contributors.0.name": "Grace",
-      "contributors.1.name": "Linus",
-    },
-  );
-});
+const scalar = (id: string, name: string, type: "string" | "number" | "boolean" = "string"): SchemaNode =>
+  ({ id, name, type });
+const object = (id: string, name: string, children: SchemaNode[]): SchemaNode =>
+  ({ id, name, type: "object", children });
+const repeated = (id: string, name: string, children: SchemaNode[]): SchemaNode =>
+  ({ id, name, type: "array", children });
+const scalarArray = (id: string, name: string): SchemaNode =>
+  ({ id, name, type: "array", itemType: "string" });
+const choices = (rowsRepresent: string, otherRepeatedFields: OtherRepeatedFields = "preserve") =>
+  ({ rowsRepresent, otherRepeatedFields });
 
-test("escapes separators, so paths cannot collide", () => {
-  assert.deepEqual({ ...flattenRecord({ "a.b": 1, a: { b: 2 }, "a\\b": 3 }) }, {
-    "a\\.b": 1,
-    "a.b": 2,
-    "a\\\\b": 3,
-  });
-});
+const schema: SchemaNode[] = [
+  scalar("title", "title"),
+  object("meta", "meta", [
+    scalar("year", "year", "number"),
+    repeated("sections", "sections", [
+      scalar("heading", "heading"),
+      repeated("paragraphs", "paragraphs", [
+        scalar("text", "text"),
+        scalarArray("tags", "tags"),
+      ]),
+      repeated("notes", "notes", [scalar("kind", "kind")]),
+    ]),
+  ]),
+  repeated("contributors", "contributors", [scalar("name", "name")]),
+  scalar("evidence", "Evidence"),
+  scalar("internal", "_internal"),
+  scalar("after", "after"),
+];
 
-test("distinguishes array indexes from numeric object keys without changing schema array paths", () => {
-  const table = toTable(
-    [{ items: [{ name: "array" }] }, { items: { "0": { name: "object" } } }],
-    ["items.0.name"],
-  );
-
-  assert.deepEqual(table.columns, ["items.0.name", "items.\\0.name"]);
-  assert.equal(table.rows[0]!["items.0.name"], "array");
-  assert.equal(table.rows[1]!["items.\\0.name"], "object");
-});
-
-test("keeps object-prototype names as ordinary fields", () => {
-  const row = flattenRecord(JSON.parse('{"__proto__":"safe","constructor":"also safe"}'));
-  assert.deepEqual(Object.keys(row), ["__proto__", "constructor"]);
-  assert.equal(row["__proto__"], "safe");
-});
-
-test("keeps primitives native and writes null, undefined, and empty containers as empty", () => {
-  assert.deepEqual(
-    { ...flattenRecord({
-      number: 4.5,
-      enabled: false,
-      text: "4.5",
-      nothing: null,
-      absent: undefined,
-      emptyList: [],
-      emptyObject: {},
-    }) },
-    {
-      number: 4.5,
-      enabled: false,
-      text: "4.5",
-      nothing: null,
-      absent: null,
-      emptyList: null,
-      emptyObject: null,
-    },
-  );
-});
-
-test("rejects a number that a spreadsheet cannot hold", () => {
-  assert.throws(() => flattenRecord({ score: Number.NaN }), /score must hold a finite number/);
-});
-
-test("puts schema fields first and heterogeneous fields in first-seen order", () => {
-  const table = toTable(
-    [
-      { later: 1, name: "first" },
-      { extra: true, name: "second", final: 3 },
-    ],
-    ["name", "missing", "name"],
-  );
-
-  assert.deepEqual(table.columns, ["name", "missing", "later", "extra", "final"]);
-  assert.equal(table.rows.length, 2);
-});
-
-test("makes one row for each record, and one column for a primitive record", () => {
-  assert.deepEqual(toTable([1, null, true]).rows.map((row) => ({ ...row })), [
-    { value: 1 },
-    { value: null },
-    { value: true },
+test("derives the root and nested repeated-object paths through ordinary objects", () => {
+  assert.deepEqual(deriveRowsRepresentOptions(schema), [
+    { value: ROOT_ROWS, label: "Root result" },
+    { value: "meta.sections", label: "meta.sections[]" },
+    { value: "meta.sections.paragraphs", label: "meta.sections[].paragraphs[]" },
+    { value: "meta.sections.notes", label: "meta.sections[].notes[]" },
+    { value: "contributors", label: "contributors[]" },
   ]);
+  assert.equal(createExtractionResultExportControl(schema).otherRepeatedFields.value, "preserve");
+});
+
+test("projects a selected nested path with root and ancestor scalar context", () => {
+  const table = buildExportTable(schema, {
+    title: "Paper",
+    meta: { year: 2026, sections: [
+      { heading: "A", paragraphs: [{ text: "One", tags: ["x", "y"] }, { text: "Two", tags: [] }] },
+      { heading: "B", paragraphs: [{ text: "Three", tags: ["z"] }] },
+    ] },
+    after: "last",
+  }, choices("meta.sections.paragraphs", "omit"));
+
+  assert.deepEqual(table.columns, [
+    "title", "meta.year", "meta.sections.heading", "meta.sections.paragraphs.text",
+    "meta.sections.paragraphs.tags", "after",
+  ]);
+  assert.deepEqual(table.rows.map((row) => ({ ...row })), [
+    { title: "Paper", "meta.year": 2026, "meta.sections.heading": "A", "meta.sections.paragraphs.text": "One", "meta.sections.paragraphs.tags": "x, y", after: "last" },
+    { title: "Paper", "meta.year": 2026, "meta.sections.heading": "A", "meta.sections.paragraphs.text": "Two", "meta.sections.paragraphs.tags": "", after: "last" },
+    { title: "Paper", "meta.year": 2026, "meta.sections.heading": "B", "meta.sections.paragraphs.text": "Three", "meta.sections.paragraphs.tags": "z", after: "last" },
+  ]);
+});
+
+test("preserves sibling repeated fields as ordered indexed columns or omits them", () => {
+  const result = {
+    title: "Paper",
+    meta: { year: 2026, sections: [{
+      heading: "A",
+      paragraphs: [{ text: "One", tags: [] }],
+      notes: [{ kind: "first" }, { kind: "second" }],
+    }] },
+    contributors: [{ name: "Ada" }],
+    after: "last",
+  };
+  const preserved = buildExportTable(schema, result, choices("meta.sections.paragraphs"));
+  assert.deepEqual(preserved.columns, [
+    "title", "meta.year", "meta.sections.heading", "meta.sections.paragraphs.text",
+    "meta.sections.paragraphs.tags", "meta.sections.notes.0.kind", "meta.sections.notes.1.kind",
+    "contributors.0.name", "after",
+  ]);
+  const omitted = buildExportTable(schema, result, choices("meta.sections.paragraphs", "omit"));
+  assert.ok(!omitted.columns.some((column) => column.includes("notes") || column.includes("contributors")));
+});
+
+test("keeps schema-ordered headers for an empty selected collection", () => {
+  const table = buildExportTable(schema, {
+    title: "Empty", meta: { year: 2026, sections: [{ heading: "A", paragraphs: [] }] }, after: "last",
+  }, choices("meta.sections.paragraphs", "omit"));
+  assert.deepEqual(table.columns, [
+    "title", "meta.year", "meta.sections.heading", "meta.sections.paragraphs.text",
+    "meta.sections.paragraphs.tags", "after",
+  ]);
+  assert.deepEqual(table.rows, []);
+});
+
+test("supports one or many root records and excludes evidence/internal fields", () => {
+  const one = buildExportTable(schema, { title: "One", Evidence: "secret", _internal: "secret", after: "x" }, choices(ROOT_ROWS, "omit"));
+  assert.equal(one.rows.length, 1);
+  assert.deepEqual(one.columns, ["title", "meta.year", "after"]);
+  const many = buildExportTable(schema, [
+    { title: "One", meta: { year: 1 }, after: "a" },
+    { title: "Two", meta: { year: 2 }, after: "b" },
+  ], choices(ROOT_ROWS, "omit"));
+  assert.deepEqual(many.rows.map((row) => row.title), ["One", "Two"]);
+});
+
+test("emits selected rows across multiple root records", () => {
+  const table = buildExportTable(schema, [
+    { title: "One", meta: { sections: [{ paragraphs: [{ text: "A" }] }] } },
+    { title: "Two", meta: { sections: [{ paragraphs: [{ text: "B" }, { text: "C" }] }] } },
+  ], choices("meta.sections.paragraphs", "omit"));
+  assert.deepEqual(table.rows.map((row) => [row.title, row["meta.sections.paragraphs.text"]]), [
+    ["One", "A"], ["Two", "B"], ["Two", "C"],
+  ]);
+});
+
+test("preserves escaped schema paths and rejects non-finite numbers", () => {
+  const escaped = [
+    scalar("dot", "a.b", "number"),
+    object("a", "a", [scalar("b", "b", "number"), scalar("zero", "0")]),
+    scalar("slash", "a\\b"),
+    repeated("items", "items", [scalar("name", "name")]),
+  ];
+  const table = buildExportTable(
+    escaped,
+    { "a.b": 1, a: { b: 2, "0": "object key" }, "a\\b": "x", items: [{ name: "array item" }] },
+    choices(ROOT_ROWS),
+  );
+  assert.deepEqual(table.columns, ["a\\.b", "a.b", "a.\\0", "a\\\\b", "items.0.name"]);
+  assert.throws(() => buildExportTable([scalar("score", "score", "number")], { score: Number.NaN }, choices(ROOT_ROWS)), /finite number/);
 });

@@ -2,21 +2,34 @@ import { serializeCsv } from "./csv.js";
 import { downloadBlob } from "./download.js";
 import { createExportFilename, type ExportFormat } from "./filename.js";
 import { validateSpreadsheetDimensions } from "./safety.js";
-import { toTable } from "./table.js";
+import {
+  buildExportTable,
+  createExtractionResultExportControl,
+  ROOT_ROWS,
+  type ExportChoices,
+} from "./table.js";
 import { createXlsxBlob } from "./xlsx.js";
+import type { SchemaNode } from "../../../prototypes/studio/shared/schemaNode.js";
 
 export type { ExportFormat } from "./filename.js";
+export {
+  buildExportTable,
+  createExtractionResultExportControl,
+  deriveRowsRepresentOptions,
+  ROOT_ROWS,
+  type Choice,
+  type ExportChoices,
+  type ExtractionResultExportControlModel,
+  type OtherRepeatedFields,
+  type Table,
+} from "./table.js";
 
 export interface ExportExtractionResultOptions {
   readonly format: ExportFormat;
   /** Source Document name. The export replaces its extension. */
   readonly filename: string;
-  /**
-   * Extraction Schema fields as flattened paths, in schema order. They lead the
-   * columns. A path escapes `.` and `\` in an original field name, as in `a\.b`;
-   * numeric object keys use `\0`, while array indexes keep `0`.
-   */
-  readonly columns?: readonly string[];
+  readonly schemaNodes: readonly SchemaNode[];
+  readonly choices?: Partial<ExportChoices>;
 }
 
 /**
@@ -31,11 +44,16 @@ export async function exportExtractionResult(
     throw new TypeError(`Unsupported export format: ${String(options.format)}.`);
   }
 
-  if (options.format === "xlsx" && Array.isArray(result)) {
+  const control = createExtractionResultExportControl(options.schemaNodes, options.choices);
+  const choices: ExportChoices = {
+    rowsRepresent: control.rowsRepresent.value,
+    otherRepeatedFields: control.otherRepeatedFields.value,
+  };
+  if (options.format === "xlsx" && choices.rowsRepresent === ROOT_ROWS && Array.isArray(result)) {
     validateSpreadsheetDimensions(result.length, 0);
   }
 
-  const table = toTable(result, options.columns);
+  const table = buildExportTable(options.schemaNodes, result, choices);
   const blob =
     options.format === "csv"
       ? new Blob([serializeCsv(table)], { type: "text/csv;charset=utf-8" })

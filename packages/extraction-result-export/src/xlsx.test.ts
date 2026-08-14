@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { strFromU8, unzipSync } from "fflate";
-import { toTable, type Table } from "./table.js";
+import type { Table } from "./table.js";
+import { serializeCsv } from "./csv.js";
 import { createXlsxBlob } from "./xlsx.js";
 
 async function workbookFiles(table: Table): Promise<Record<string, string>> {
@@ -15,10 +16,10 @@ async function workbookFiles(table: Table): Promise<Record<string, string>> {
 
 test("writes a Results sheet with a bold frozen header, filters, and native cells", async () => {
   const files = await workbookFiles(
-    toTable([
+    { columns: ["name", "score", "active", "missing"], rows: [
       { name: "=2+2", score: 7, active: true, missing: null },
       { name: "Ada", score: 9.5, active: false },
-    ]),
+    ] },
   );
 
   assert.match(files["xl/workbook.xml"]!, /<sheet[^>]*name="Results"/);
@@ -42,8 +43,16 @@ test("writes a Results sheet with a bold frozen header, filters, and native cell
 });
 
 test("keeps the filter reference inside the worksheet element order", async () => {
-  const files = await workbookFiles(toTable({ a: 1 }));
+  const files = await workbookFiles({ columns: ["a"], rows: [{ a: 1 }] });
   assert.match(files["xl/worksheets/sheet1.xml"]!, /<\/sheetData><autoFilter/);
+});
+
+test("feeds CSV and XLSX the identical canonical table", async () => {
+  const table: Table = { columns: ["name", "score"], rows: [{ name: "Ada", score: 7 }] };
+  assert.equal(serializeCsv(table), "name,score\r\nAda,7");
+  const files = await workbookFiles(table);
+  assert.match(files["xl/sharedStrings.xml"]!, /<t>name<\/t>.*<t>score<\/t>.*<t>Ada<\/t>/s);
+  assert.match(files["xl/worksheets/sheet1.xml"]!, /<c r="B2"[^>]*><v>7<\/v>/);
 });
 
 test("rejects a workbook beyond the Excel limits instead of truncating it", async () => {
