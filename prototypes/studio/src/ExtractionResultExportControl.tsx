@@ -1,24 +1,19 @@
 import { useRef, useState } from 'react'
-import { exportExtractionResult, type ExportFormat } from 'extraction-result-export'
-import type { SchemaDefinition, SchemaNode } from '../shared/schemaNode'
+import {
+  createExtractionResultExportControl,
+  deriveRowsRepresentOptions,
+  exportExtractionResult,
+  ROOT_ROWS,
+  type ExportFormat,
+  type OtherRepeatedFields,
+} from 'extraction-result-export'
+import type { SchemaDefinition } from '../shared/schemaNode'
 import { Button } from './ui'
 
 type ExtractionResultExportControlProps = {
   result: unknown | null
   schema: SchemaDefinition | null
   sourceDocumentName: string
-}
-
-function exportColumnsFor(nodes: readonly SchemaNode[], parent: readonly string[] = []): string[] {
-  return nodes.flatMap((node) => {
-    const escaped = node.name.replaceAll('\\', '\\\\').replaceAll('.', '\\.')
-    const path = [...parent, /^\d+$/.test(node.name) ? `\\${escaped}` : escaped]
-    const itemPath = node.type === 'array' ? [...path, '0'] : path
-    if (!node.children) return [itemPath.join('.')]
-    return node.children.length > 0
-      ? exportColumnsFor(node.children, itemPath)
-      : [path.join('.')]
-  })
 }
 
 function ExtractionResultExportControl({
@@ -29,11 +24,23 @@ function ExtractionResultExportControl({
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [rowsRepresent, setRowsRepresent] = useState(ROOT_ROWS)
+  const [otherRepeatedFields, setOtherRepeatedFields] = useState<OtherRepeatedFields>('preserve')
   const inFlight = useRef(false)
-  const unavailable = result === null
+  const unavailable = result === null || schema === null
+  const rowOptions = schema ? deriveRowsRepresentOptions(schema.schemaNodes) : []
+  const effectiveRows = rowOptions.some((option) => option.value === rowsRepresent)
+    ? rowsRepresent
+    : ROOT_ROWS
+  const control = schema
+    ? createExtractionResultExportControl(schema.schemaNodes, {
+        rowsRepresent: effectiveRows,
+        otherRepeatedFields,
+      })
+    : null
 
   async function exportResult(format: ExportFormat): Promise<void> {
-    if (unavailable || inFlight.current) return
+    if (result === null || schema === null || inFlight.current) return
     inFlight.current = true
     setOpen(false)
     setPending(true)
@@ -42,7 +49,8 @@ function ExtractionResultExportControl({
       await exportExtractionResult(result, {
         format,
         filename: sourceDocumentName,
-        columns: schema ? exportColumnsFor(schema.schemaNodes) : [],
+        schemaNodes: schema.schemaNodes,
+        choices: { rowsRepresent: effectiveRows, otherRepeatedFields },
       })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not export the Extraction Result.')
@@ -61,32 +69,57 @@ function ExtractionResultExportControl({
       <Button
         aria-busy={pending}
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         disabled={unavailable || pending}
         onClick={() => setOpen((current) => !current)}
       >
         {pending ? 'Exporting…' : 'Export'}
       </Button>
-      {open && !unavailable && !pending && (
+      {open && control && !pending && (
         <div
-          role="menu"
-          aria-label="Export format"
-          className="absolute right-0 top-full z-10 mt-1 min-w-28 rounded-md border border-line bg-surface p-1 shadow-float"
+          role="dialog"
+          aria-label="Export options"
+          className="absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-line bg-surface p-2 shadow-float"
         >
-          {([
-            ['xlsx', 'Excel'],
-            ['csv', 'CSV'],
-          ] as const).map(([format, label]) => (
-            <button
-              key={format}
-              className="block w-full cursor-pointer rounded px-2.5 py-1.5 text-left text-[11px] font-semibold text-ink hover:bg-accent-soft"
-              role="menuitem"
-              type="button"
-              onClick={() => void exportResult(format)}
+          <label className="mb-2 block text-[11px] font-semibold text-ink-muted">
+            Rows represent
+            <select
+              className="mt-1 block w-full rounded border border-line bg-canvas px-2 py-1 text-ink"
+              value={control.rowsRepresent.value}
+              onChange={(event) => setRowsRepresent(event.target.value)}
             >
-              {label}
-            </button>
-          ))}
+              {control.rowsRepresent.options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="mb-2 block text-[11px] font-semibold text-ink-muted">
+            Other repeated fields
+            <select
+              className="mt-1 block w-full rounded border border-line bg-canvas px-2 py-1 text-ink"
+              value={control.otherRepeatedFields.value}
+              onChange={(event) => setOtherRepeatedFields(event.target.value as OtherRepeatedFields)}
+            >
+              {control.otherRepeatedFields.options.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <div className="border-t border-line pt-1">
+            {([
+              ['xlsx', 'Excel'],
+              ['csv', 'CSV'],
+            ] as const).map(([format, label]) => (
+              <button
+                key={format}
+                className="block w-full cursor-pointer rounded px-2.5 py-1.5 text-left text-[11px] font-semibold text-ink hover:bg-accent-soft"
+                type="button"
+                onClick={() => void exportResult(format)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {error && <p role="alert" className="text-[11.5px] leading-snug text-danger">{error}</p>}

@@ -88,10 +88,9 @@ export function batchExtractionProgress(batch: BatchExtraction) {
     (member) => member.latestExtraction!.outcome === 'CANCELLED',
   )
   const reviewed = succeeded.filter(
-    (member) => member.latestExtraction!.reviewedAt !== null,
-  )
-  const unreviewable = succeeded.filter(
-    (member) => !member.latestExtraction!.reviewable,
+    (member) =>
+      member.latestExtraction!.reviewedAt !== null ||
+      !member.latestExtraction!.reviewable,
   )
   return {
     total: batch.members.length,
@@ -100,7 +99,7 @@ export function batchExtractionProgress(batch: BatchExtraction) {
     failed: failed.length,
     cancelled: cancelled.length,
     reviewed: reviewed.length,
-    unreviewable: unreviewable.length,
-    needsReview: succeeded.length - reviewed.length - unreviewable.length,
+    unreviewable: 0,
+    needsReview: succeeded.length - reviewed.length,
   }
 }

@@ -721,7 +721,7 @@ describe('Project Context navigation', () => {
       'true',
     )
     expect(sourceNames()[0]).toContain('Historical.pdf')
-    expect(within(page).getByText('Sort')).toBeVisible()
+    expect(within(page).queryByText('Sort')).not.toBeInTheDocument()
 
     const dropInput = within(page).getByLabelText('Drop PDFs here or browse')
     const dropTarget = dropInput.closest('label')!

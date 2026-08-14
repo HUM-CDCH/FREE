@@ -98,6 +98,37 @@ describe('BatchExtractionsPanel', () => {
     })
   })
 
+  it('labels a reviewed empty Extraction as reviewed', async () => {
+    const reviewedEmptyBatch = {
+      ...batch,
+      members: [
+        {
+          ...batch.members[0],
+          latestExtraction: {
+            ...batch.members[0].latestExtraction,
+            outcome: 'SUCCEEDED' as const,
+            complete: false,
+            reviewable: false,
+            reviewedAt: null,
+            failureMessage: null,
+          },
+        },
+      ],
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response({ batchExtractions: [reviewedEmptyBatch] })),
+    )
+    renderPanel()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Places/ }))
+
+    expect(screen.getAllByText('Reviewed')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: /Failed.pdf/ })).toHaveTextContent(
+      'Reviewed',
+    )
+  })
+
   it('opens at most one batch while the first open is pending', async () => {
     let resolveOpen!: (value: Response) => void
     const openPending = new Promise<Response>((resolve) => {
@@ -164,6 +195,55 @@ describe('BatchExtractionsPanel', () => {
       ),
     )
     expect(body).not.toHaveProperty('id')
+  })
+
+  it('shows the current member as in progress while its extraction is running', async () => {
+    const pendingBatch = {
+      ...batch,
+      members: [{ ...batch.members[0], latestExtraction: null }],
+    }
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return response({ batchExtractions: [] })
+      if (url.startsWith('/api/extraction-schemas?'))
+        return response({
+          extractionSchemas: [
+            {
+              extractionSchemaId: batch.extractionSchemaId,
+              name: 'Places',
+              createdAt: '2026-08-14T10:00:00.000Z',
+              currentRevision: {
+                schemaRevisionId,
+                revisionNumber: 1,
+                origin: 'researcher-edit',
+                createdAt: '2026-08-14T10:00:00.000Z',
+              },
+            },
+          ],
+        })
+      if (url === '/api/batch-extractions' && init?.method === 'POST')
+        return response({
+          batchExtraction: pendingBatch,
+          disposition: 'created',
+        })
+      if (url === '/api/extractions' && init?.method === 'POST')
+        return new Promise<Response>(() => {})
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Run 1 Source Document' }))
+    await screen.findByText('Running · 0 of 1')
+    fireEvent.click(screen.getByRole('button', { name: /Places/ }))
+
+    expect(screen.getByRole('button', { name: /Failed.pdf/ })).toHaveTextContent(
+      'In progress',
+    )
   })
 
   it('asks before forcing another matching running batch', async () => {

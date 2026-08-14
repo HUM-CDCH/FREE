@@ -383,7 +383,7 @@ export default function ProjectContextPage({
           )}
         </header>
 
-        <div className="flex items-end justify-between border-b border-line">
+        <div className="flex items-end border-b border-line">
           <div
             className="flex gap-5"
             role="tablist"
@@ -428,21 +428,6 @@ export default function ProjectContextPage({
               </button>
             ))}
           </div>
-          {tab === 'sources' && (
-            <label className="mb-1 flex items-center gap-1.5 text-[11px] text-ink-muted">
-              <span>Sort</span>
-              <select
-                className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink-muted outline-none hover:border-line-strong focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40"
-                aria-label="Sort sources"
-                value={sort}
-                onChange={(event) => setSort(event.target.value as typeof sort)}
-              >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="name">Name</option>
-              </select>
-            </label>
-          )}
         </div>
 
         {tab === 'extractions' ? (
@@ -527,39 +512,6 @@ export default function ProjectContextPage({
             <p className="sr-only" role="status" aria-atomic="true">
               {sourceStatus}
             </p>
-            <div className="relative mb-3">
-              <svg
-                aria-hidden="true"
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
-                width="14"
-                height="14"
-                viewBox="0 0 20 20"
-                fill="none"
-              >
-                <circle
-                  cx="8.5"
-                  cy="8.5"
-                  r="5.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-                <path
-                  d="m13 13 4 4"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <input
-                className="h-9 w-full rounded-md border border-line bg-surface pl-9 pr-3 text-xs text-ink outline-none placeholder:text-ink-faint focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent"
-                type="search"
-                aria-label="Filter sources"
-                placeholder="Filter sources"
-                value={filter}
-                onChange={(event) => setFilter(event.target.value)}
-              />
-            </div>
-
             <label
               className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-6 py-8 text-center outline-none transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40 ${
                 dragging
@@ -603,6 +555,51 @@ export default function ProjectContextPage({
                 }}
               />
             </label>
+
+            <div className="mt-3 flex items-center gap-3">
+              <div className="relative min-w-0 flex-1">
+                <svg
+                  aria-hidden="true"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                >
+                  <circle
+                    cx="8.5"
+                    cy="8.5"
+                    r="5.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    d="m13 13 4 4"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <input
+                  className="h-9 w-full rounded-md border border-line bg-surface pl-9 pr-3 text-xs text-ink outline-none placeholder:text-ink-faint focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent"
+                  type="search"
+                  aria-label="Filter sources"
+                  placeholder="Filter sources"
+                  value={filter}
+                  onChange={(event) => setFilter(event.target.value)}
+                />
+              </div>
+              <select
+                className="h-9 shrink-0 rounded-md border border-line bg-surface px-3 text-xs text-ink outline-none hover:border-line-strong focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30"
+                aria-label="Sort sources"
+                value={sort}
+                onChange={(event) => setSort(event.target.value as typeof sort)}
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
 
             {branch?.status === 'loading' && (
               <p className="py-4 text-xs text-ink-muted" aria-busy="true">

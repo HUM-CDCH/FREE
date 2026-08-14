@@ -49,12 +49,14 @@ function stamp(value: string): string {
   })
 }
 
-/** What one member is, read only from what the server stored for it. */
-function memberStatus(member: BatchExtractionMember): {
+/** What one member is, including the request currently running in this screen. */
+function memberStatus(member: BatchExtractionMember, running: boolean): {
   label: string
   tone: string
   message: string | null
 } {
+  if (running)
+    return { label: 'In progress', tone: 'text-accent', message: null }
   const extraction = member.latestExtraction
   if (!extraction)
     return { label: 'Not run', tone: 'text-ink-faint', message: null }
@@ -72,15 +74,9 @@ function memberStatus(member: BatchExtractionMember): {
       tone: 'text-ink-muted',
       message: 'The Extraction was cancelled before completion.',
     }
-  if (!extraction.reviewable)
-    return {
-      label: 'Completed without review',
-      tone: 'text-ink-muted',
-      message: 'No validated Evidence is available, so this result cannot be reviewed.',
-    }
-  return extraction.reviewedAt
-    ? { label: 'Reviewed', tone: 'text-success', message: null }
-    : { label: 'Needs review', tone: 'text-accent', message: null }
+  if (extraction.reviewedAt || !extraction.reviewable)
+    return { label: 'Reviewed', tone: 'text-success', message: null }
+  return { label: 'Needs review', tone: 'text-accent', message: null }
 }
 
 /** One Batch Extraction's state as a sentence, counted from its members. */
@@ -139,6 +135,7 @@ export default function BatchExtractionsPanel({
   const [reload, setReload] = useState(0)
   const [openBatchId, setOpenBatchId] = useState<string | null>(null)
   const [runningBatchId, setRunningBatchId] = useState<string | null>(null)
+  const [runningMemberId, setRunningMemberId] = useState<string | null>(null)
   const [openingBatch, setOpeningBatch] = useState(false)
   const [runFailure, setRunFailure] = useState<string | null>(null)
   const [schemas, setSchemas] = useState<Read<ExtractionSchemas>>({
@@ -234,6 +231,7 @@ export default function BatchExtractionsPanel({
     try {
       for (const member of members) {
         if (controller.signal.aborted) return
+        setRunningMemberId(member.sourceDocumentId)
         try {
           await requestExtraction(
             {
@@ -261,6 +259,7 @@ export default function BatchExtractionsPanel({
       if (run.current === controller) {
         run.current = null
         setRunningBatchId(null)
+        setRunningMemberId(null)
       }
     }
   }
@@ -330,18 +329,9 @@ export default function BatchExtractionsPanel({
     setScreen('members')
   }
 
-  const openProgress = openBatch
-    ? batchExtractionProgress(openBatch)
-    : {
-        total: 0,
-        extracted: 0,
-        pending: 0,
-        reviewed: 0,
-        unreviewable: 0,
-        failed: 0,
-        cancelled: 0,
-        needsReview: 0,
-      }
+  const openStatus = openBatch
+    ? batchStatus(openBatch, runningBatchId === openBatch.batchExtractionId)
+    : null
   const filtered = sourceDocuments.filter((document) =>
     document.name
       .toLocaleLowerCase()
@@ -605,23 +595,17 @@ export default function BatchExtractionsPanel({
                 {strategies.find((item) => item.value === openBatch.strategy)
                   ?.label ?? openBatch.strategy}
               </p>
-              <p
-                className={`text-xs font-semibold ${
-                  openProgress.failed
-                    ? 'text-danger'
-                    : openProgress.needsReview
-                      ? 'text-accent'
-                      : 'text-ink-muted'
-                }`}
-              >
-                {openProgress.reviewed} reviewed · {openProgress.unreviewable}{' '}
-                complete without review · {openProgress.failed} failed ·{' '}
-                {openProgress.cancelled} cancelled
+              <p className={`text-xs font-semibold ${openStatus!.tone}`}>
+                {openStatus!.label}
               </p>
             </div>
             <ul className="space-y-1" aria-label="Batch Extraction members">
               {openBatch.members.map((member) => {
-                const status = memberStatus(member)
+                const status = memberStatus(
+                  member,
+                  runningBatchId === openBatch.batchExtractionId &&
+                    runningMemberId === member.sourceDocumentId,
+                )
                 return (
                   <li key={member.sourceDocumentId}>
                     <button

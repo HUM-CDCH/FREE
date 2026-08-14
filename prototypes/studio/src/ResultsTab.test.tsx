@@ -9,7 +9,8 @@ import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import type { SchemaDefinition } from '../shared/schemaNode'
 
-vi.mock('extraction-result-export', () => ({
+vi.mock('extraction-result-export', async (importOriginal) => ({
+  ...await importOriginal<typeof import('extraction-result-export')>(),
   exportExtractionResult: vi.fn(async () => {}),
 }))
 
@@ -412,14 +413,15 @@ describe('ResultsTab grounded values', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Export' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Excel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
 
     expect(exportExtractionResult).toHaveBeenCalledWith(
       { context: { title: 'Current', tags: ['a'] } },
       {
         format: 'xlsx',
         filename: 'current.pdf',
-        columns: ['context.title', 'context.tags.0'],
+        schemaNodes: currentExportSchema.schemaNodes,
+        choices: { rowsRepresent: '$', otherRepeatedFields: 'preserve' },
       },
     )
   })
@@ -448,14 +450,16 @@ describe('ResultsTab grounded values', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Export' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'CSV' }))
+    fireEvent.change(screen.getByLabelText('Rows represent'), { target: { value: 'findings' } })
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }))
 
     expect(exportExtractionResult).toHaveBeenCalledWith(
       { findings: [{ value: 'Historical' }] },
       {
         format: 'csv',
         filename: 'historical.pdf',
-        columns: ['findings.0.value'],
+        schemaNodes: historicalExportSchema.schemaNodes,
+        choices: { rowsRepresent: 'findings', otherRepeatedFields: 'preserve' },
       },
     )
   })
