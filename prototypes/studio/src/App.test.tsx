@@ -478,18 +478,72 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByText('historical_title')).toBeInTheDocument()
   })
 
-  it('resets a reopened schema to its initial state without deleting saved history', async () => {
-    await renderReopened()
+  it('flushes edits before clearing, then regenerates onto the existing schema', async () => {
+    const savedRevisionId = '51000000-0000-4000-8005-000000000012'
+    const regeneratedRevisionId = '51000000-0000-4000-8005-000000000013'
+    const schemaPosts: Array<{
+      extractionSchemaId: string
+      expectedRevisionNumber: number
+      recordDescription: string
+      schemaNodes: SchemaNode[]
+    }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Response.json(parsedDocument)
+        if (url.endsWith('/markdown')) return new Response('# Beretning')
+        if (url.endsWith('/pdf')) return new Response(new Blob(['pdf']))
+        if (url.endsWith('/api/generate_schema')) {
+          return Response.json({
+            template: { _description: 'A regenerated place record.', locality: 'string' },
+            raw: '{}',
+            pages: 1,
+          })
+        }
+        if (url.startsWith('/api/schema-revisions?')) return Response.json({ revisions: [] })
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          const request = JSON.parse(String(init.body)) as typeof schemaPosts[number]
+          schemaPosts.push(request)
+          return Response.json({
+            revision: {
+              schemaRevisionId: request.expectedRevisionNumber === 1
+                ? savedRevisionId
+                : regeneratedRevisionId,
+              extractionSchemaId: request.extractionSchemaId,
+              revisionNumber: request.expectedRevisionNumber + 1,
+              origin: 'researcher-edit',
+              createdAt: '2026-08-14T10:00:00.000Z',
+              recordDescription: request.recordDescription,
+              schemaNodes: request.schemaNodes,
+            },
+          }, { status: 201 })
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
 
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
-    expect(screen.getByTitle('Edit place')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear schema' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete schema and history' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(await screen.findByText('No schema yet')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Generate schema' }))
 
-    expect(screen.getByText('No schema yet')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate schema' })).toBeInTheDocument()
-    expect(screen.queryByTitle('Edit place')).not.toBeInTheDocument()
+    await waitFor(() => expect(schemaPosts).toHaveLength(2), { timeout: 2_000 })
+    expect(schemaPosts[0]).toMatchObject({
+      extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+      expectedRevisionNumber: 1,
+    })
+    expect(schemaPosts[1]).toMatchObject({
+      extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
+      expectedRevisionNumber: 2,
+    })
   })
 
   it('hydrates the Extraction Schema and Extraction Result', async () => {

@@ -644,7 +644,12 @@ function SchemaPanel({
     }
   }
 
-  function deleteSchema() {
+  async function deleteSchema() {
+    try {
+      await onResetSchema()
+    } catch {
+      return
+    }
     setConfirmingDeleteSchema(false)
     setHistoryOpen(false)
     nodesRef.current = []
@@ -665,7 +670,6 @@ function SchemaPanel({
     setHistoryError(null)
     setDocChat([])
     setDocChatDraft('')
-    onResetSchema()
   }
 
   function commitDrop() {
@@ -1323,8 +1327,8 @@ function SchemaPanel({
               <button
                 className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-danger/50 hover:text-danger"
                 type="button"
-                aria-label="Delete schema and history"
-                title="Delete schema and start over"
+                aria-label="Clear current schema"
+                title="Clear current schema"
                 onClick={() => setConfirmingDeleteSchema((open) => !open)}
               >
                 <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
@@ -1333,9 +1337,9 @@ function SchemaPanel({
               </button>
               {confirmingDeleteSchema && (
                 <div className="absolute right-0 top-full z-30 mt-1.5 w-64 rounded-lg border border-danger/30 bg-surface p-3 shadow-float">
-                  <p className="text-[12px] font-semibold text-ink">Delete this schema and its history?</p>
+                  <p className="text-[12px] font-semibold text-ink">Clear current schema?</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
-                    The panel returns to its initial, ungenerated state. Already-saved Schema Revisions are kept for the record.
+                    This clears the current editor only. Saved Schema Revisions remain in history.
                   </p>
                   <div className="mt-2.5 flex justify-end gap-1.5">
                     <button
@@ -1350,7 +1354,7 @@ function SchemaPanel({
                       type="button"
                       onClick={deleteSchema}
                     >
-                      Delete
+                      Clear schema
                     </button>
                   </div>
                 </div>

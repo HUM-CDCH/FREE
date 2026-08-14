@@ -748,20 +748,19 @@ export function DocumentWorkspace({
     setTemplateState(templatePrevStateRef.current)
   }
 
-  // Front-end reset only: drops the current schema thread so the panel looks
-  // untouched and a future "Generate schema" starts a brand-new
-  // ExtractionSchema. Already-saved Schema Revisions stay in Postgres — they
-  // are append-only and Extractions may still reference them (see
-  // packages/db's restrict FKs) — this just stops the workspace from
-  // pointing at them.
-  function resetSchema() {
+  // Front-end reset only: the durable schema remains the save target, while
+  // the editor returns to its ungenerated state.
+  async function resetSchema() {
+    try {
+      await schemaSaveCoordinatorRef.current?.flush()
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Could not save the Current Schema Revision.')
+      throw error
+    }
     templateAbortRef.current?.abort()
     templatePrevStateRef.current = { status: 'idle' }
     setTemplateState({ status: 'idle' })
     setPinnedSchemaRevisionId(null)
-    setSchemaSaveState(null)
-    setSchemaHistory([])
-    setDurableSchema(null)
   }
 
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {

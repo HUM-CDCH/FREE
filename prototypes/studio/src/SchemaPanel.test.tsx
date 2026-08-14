@@ -630,29 +630,43 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   })
 })
 
-describe('SchemaPanel delete schema', () => {
+describe('SchemaPanel clear current schema', () => {
   it('requires confirmation before resetting the schema', () => {
     const onResetSchema = vi.fn()
     renderPanel(vi.fn(), nodes, onResetSchema)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete schema and history' }))
-    expect(screen.getByText('Delete this schema and its history?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
+    expect(screen.getByText('Clear current schema?')).toBeInTheDocument()
     expect(onResetSchema).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByText('Delete this schema and its history?')).not.toBeInTheDocument()
+    expect(screen.queryByText('Clear current schema?')).not.toBeInTheDocument()
     expect(onResetSchema).not.toHaveBeenCalled()
   })
 
-  it('clears local schema state and notifies the workspace on confirmed delete', () => {
+  it('clears local schema state after the workspace accepts the reset', async () => {
     const onResetSchema = vi.fn()
     renderPanel(vi.fn(), nodes, onResetSchema)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete schema and history' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear schema' }))
 
     expect(onResetSchema).toHaveBeenCalledTimes(1)
-    expect(screen.queryByText('Delete this schema and its history?')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Clear current schema?')).not.toBeInTheDocument())
     expect(screen.queryByText(nodes[0].name)).not.toBeInTheDocument()
+  })
+
+  it('keeps the editor when the workspace cannot flush the schema', async () => {
+    const onResetSchema = vi.fn(async () => {
+      throw new Error('The Current Schema Revision has changed.')
+    })
+    renderPanel(vi.fn(), nodes, onResetSchema)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear schema' }))
+
+    await waitFor(() => expect(onResetSchema).toHaveBeenCalledTimes(1))
+    expect(screen.getByText('Clear current schema?')).toBeInTheDocument()
+    expect(screen.getByTitle('Edit title')).toBeInTheDocument()
   })
 })
