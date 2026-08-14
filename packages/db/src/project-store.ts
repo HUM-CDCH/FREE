@@ -18,6 +18,16 @@ export type SchemaRevisionRecord = {
   createdAt: Date
 }
 
+export type ExtractionSchemaSummary = {
+  extractionSchemaId: string
+  name: string
+  createdAt: Date
+  currentRevision: Pick<
+    SchemaRevisionRecord,
+    'schemaRevisionId' | 'revisionNumber' | 'origin' | 'createdAt'
+  > | null
+}
+
 export type AppendSchemaRevisionResult =
   | { status: 'created'; revision: SchemaRevisionRecord }
   | { status: 'conflict'; currentRevision: SchemaRevisionRecord }
@@ -351,6 +361,10 @@ export type ProjectStore = {
     projectContextId: string,
     schemaTree: unknown,
   ): Promise<AppendSchemaRevisionResult | null>
+  listExtractionSchemas(
+    projectContextId: string,
+    limit: number,
+  ): Promise<ExtractionSchemaSummary[] | null>
   appendSchemaRevision(
     projectContextId: string,
     extractionSchemaId: string,
@@ -863,6 +877,51 @@ export function createProjectStore(database: Database = db): ProjectStore {
           status: 'created' as const,
           revision: schemaRevision(created as StoredSchemaRevision),
         }
+      })
+    },
+    async listExtractionSchemas(projectContextId, limit) {
+      return database.transaction(async ({ orm }) => {
+        const project = await orm.public.ProjectContext.select('id').first({
+          id: projectContextId,
+        })
+        if (!project) return null
+        const schemas = await orm.public.ExtractionSchema.where({
+          projectContextId,
+        })
+          .select('id', 'name', 'createdAt')
+          .orderBy([
+            (schema) => schema.createdAt.desc(),
+            (schema) => schema.id.desc(),
+          ])
+          .take(limit)
+          .all()
+        // ponytail: bounded to 50 schemas; use a window query if this becomes hot.
+        const summaries: ExtractionSchemaSummary[] = []
+        for (const schema of schemas) {
+          const revision = await orm.public.SchemaRevision.where({
+            extractionSchemaId: schema.id,
+          })
+            .select('id', 'revisionNumber', 'origin', 'createdAt')
+            .orderBy((row) => row.revisionNumber.desc())
+            .first()
+          summaries.push({
+            extractionSchemaId: schema.id,
+            name: schema.name,
+            createdAt: schema.createdAt,
+            currentRevision: revision
+              ? {
+                  schemaRevisionId: revision.id,
+                  revisionNumber: revision.revisionNumber,
+                  origin:
+                    revisionOrigins[
+                      revision.origin as StoredSchemaRevision['origin']
+                    ],
+                  createdAt: revision.createdAt,
+                }
+              : null,
+          })
+        }
+        return summaries
       })
     },
     async appendSchemaRevision(

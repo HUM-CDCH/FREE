@@ -219,11 +219,14 @@ function studioFetch(
       snapshot(documentId === sourceDocumentId ? beretning : historical),
     ),
   branch: unknown = detail,
+  schemas: () => Response | Promise<Response> = () =>
+    Response.json({ extractionSchemas: [] }),
 ) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     const reopened = /source-documents\/([^/]+)\/reopen$/.exec(url)
     if (reopened) return reopen(reopened[1])
+    if (url.startsWith('/api/extraction-schemas?')) return schemas()
     if (url.endsWith(projectContextId)) return Response.json(branch)
     return Response.json({ projectContexts: [project] })
   })
@@ -681,7 +684,9 @@ describe('Project Context navigation', () => {
       within(page).getByRole('heading', { name: project.name }),
     ).toBeInTheDocument()
     expect(screen.getByText('Drop PDFs here or browse')).toBeInTheDocument()
-    expect(screen.getByLabelText('Add sources')).toHaveAttribute('multiple')
+    expect(screen.getByLabelText('Drop PDFs here or browse')).toHaveAttribute(
+      'multiple',
+    )
     expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
     // Exactly three: the disclosure, the Project Context name, and its one
     // Source Document.
@@ -691,6 +696,120 @@ describe('Project Context navigation', () => {
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
     expect(await screen.findByText(/Opened Beretning.pdf/)).toBeInTheDocument()
     expect(location.pathname).toBe(documentPath())
+  })
+
+  it('filters, sorts, and switches the Project Context resource tabs', async () => {
+    renderRoutes(
+      studioFetch(undefined, {
+        ...detail,
+        sourceDocuments: [
+          { ...beretning, pageCount: 6 },
+          { ...historical, pageCount: 4 },
+        ],
+      }),
+    )
+
+    const page = await openProjectPage()
+    const sourceNames = () =>
+      within(within(page).getByRole('list'))
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+
+    expect(within(page).getByRole('tab', { name: 'Sources' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(sourceNames()[0]).toContain('Historical.pdf')
+    expect(within(page).getByText('Sort')).toBeVisible()
+
+    const dropInput = within(page).getByLabelText('Drop PDFs here or browse')
+    const dropTarget = dropInput.closest('label')!
+    expect(dropTarget).toHaveClass('focus-within:ring-2')
+    fireEvent.dragEnter(within(page).getByRole('tabpanel', { name: 'Sources' }))
+    expect(dropTarget).not.toHaveClass('border-accent')
+    fireEvent.dragEnter(dropTarget)
+    expect(dropTarget).toHaveClass('border-accent')
+    fireEvent.dragLeave(dropTarget, { relatedTarget: null })
+    expect(dropTarget).not.toHaveClass('border-accent')
+
+    fireEvent.change(within(page).getByLabelText('Sort sources'), {
+      target: { value: 'oldest' },
+    })
+    expect(sourceNames()[0]).toContain('Beretning.pdf')
+
+    fireEvent.change(within(page).getByLabelText('Filter sources'), {
+      target: { value: 'historical' },
+    })
+    expect(sourceNames()).toHaveLength(1)
+    expect(sourceNames()[0]).toContain('Historical.pdf')
+
+    fireEvent.keyDown(within(page).getByRole('tab', { name: 'Sources' }), {
+      key: 'ArrowLeft',
+    })
+    expect(within(page).getByRole('tab', { name: 'Schemas' })).toHaveFocus()
+    expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
+    expect(
+      within(page).getByRole('tabpanel', { name: 'Schemas' }),
+    ).toHaveAttribute('tabindex', '0')
+    expect(within(page).queryByLabelText('Filter sources')).not.toBeInTheDocument()
+  })
+
+  it('loads project schemas and retries an error', async () => {
+    const pending = Promise.withResolvers<Response>()
+    const schemas = vi
+      .fn<() => Response | Promise<Response>>()
+      .mockReturnValueOnce(pending.promise)
+      .mockReturnValueOnce(
+        Response.json({
+          extractionSchemas: [
+            {
+              extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+              name: 'Places',
+              createdAt: '2026-08-01T12:00:00.000Z',
+              currentRevision: {
+                schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+                revisionNumber: 2,
+                origin: 'researcher-edit',
+                createdAt: '2026-08-03T12:00:00.000Z',
+              },
+            },
+          ],
+        }),
+      )
+    renderRoutes(studioFetch(undefined, detail, schemas))
+
+    const page = await openProjectPage()
+    fireEvent.click(within(page).getByRole('tab', { name: 'Schemas' }))
+    expect(await within(page).findByText('Loading schemas…')).toBeInTheDocument()
+
+    pending.resolve(
+      failureResponse('persistence_unavailable', 'Schema storage is unavailable.', 503),
+    )
+    expect(await within(page).findByRole('alert')).toHaveTextContent(
+      'Could not load schemas. persistence_unavailable: Schema storage is unavailable.',
+    )
+
+    fireEvent.click(within(page).getByRole('button', { name: 'Retry' }))
+    expect(await within(page).findByText('Places')).toBeInTheDocument()
+    expect(within(page).getByText('Current Schema Revision 2')).toBeInTheDocument()
+    expect(within(page).getByText(/^Updated /)).toHaveAttribute(
+      'datetime',
+      '2026-08-03T12:00:00.000Z',
+    )
+    expect(schemas).toHaveBeenCalledTimes(2)
+  })
+
+  it('explains an empty Project Context on its page', async () => {
+    renderRoutes(
+      studioFetch(undefined, { ...detail, sourceDocuments: [] }),
+    )
+
+    const page = await openProjectPage()
+    expect(
+      await within(page).findByText(
+        'No Source Documents yet. Drop PDFs above to get started.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('lets keyboard users resize the Project Context rail', async () => {
@@ -1009,7 +1128,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     const page = await openProjectPage()
     await rail().findByText('Beretning.pdf')
 
-    fireEvent.change(screen.getByLabelText('Add sources'), {
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
       target: {
         files: [
           new File(['a'], 'A.pdf', { type: 'application/pdf' }),
@@ -1022,6 +1141,9 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     // Three selected PDFs are three cards, never more: the grid never claims
     // more Source Documents than there are.
     await waitFor(() => expect(within(page).getAllByText(/^[ABC]\.pdf$/)).toHaveLength(3))
+    expect(within(page).getByRole('status')).toHaveTextContent(
+      'A.pdf: parsing. B.pdf: queued. C.pdf: queued.',
+    )
     await waitFor(() => expect(writes).toHaveLength(1))
     expect(writes[0]).toMatchObject({ name: 'A.pdf', ingestionKey: ingestionKeys.A })
     expect(pending).toHaveLength(1)
@@ -1056,7 +1178,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     expect(rail().getByRole('button', { name: 'A.pdf' })).toBeInTheDocument()
     expect(rail().getByRole('button', { name: 'C.pdf' })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Add sources'), {
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
       target: {
         files: [new File(['d'], 'D.pdf', { type: 'application/pdf' })],
       },
@@ -1115,7 +1237,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     renderRoutes(fetcher)
     await openProjectPage()
     await rail().findByText('Empty Project Context.')
-    fireEvent.change(screen.getByLabelText('Add sources'), {
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
       target: {
         files: [
           new File(['a'], 'A.pdf', { type: 'application/pdf' }),
@@ -1157,7 +1279,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     renderRoutes(fetcher)
     await openProjectPage()
     await rail().findByText('Empty Project Context.')
-    fireEvent.change(screen.getByLabelText('Add sources'), {
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
       target: {
         files: [
           new File(['a'], 'A.pdf', { type: 'application/pdf' }),
@@ -1204,7 +1326,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     renderRoutes(fetcher)
     await openProjectPage()
     await rail().findByText('Beretning.pdf')
-    fireEvent.change(screen.getByLabelText('Add sources'), {
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
       target: {
         files: [
           new File(['a'], 'A.pdf', { type: 'application/pdf' }),
@@ -1253,7 +1375,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     renderRoutes(fetcher)
     const page = await openProjectPage()
     await rail().findByText('Beretning.pdf')
-    fireEvent.change(screen.getByLabelText('Add sources'), {
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
       target: { files: [new File(['a'], 'A.pdf', { type: 'application/pdf' })] },
     })
     await waitFor(() => expect(pending).toHaveLength(1))

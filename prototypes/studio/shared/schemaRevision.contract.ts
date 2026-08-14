@@ -41,6 +41,29 @@ export const schemaRevisionListResponseSchema = z
   })
   .strict()
 
+export const extractionSchemaListResponseSchema = z
+  .object({
+    extractionSchemas: z.array(
+      z
+        .object({
+          extractionSchemaId: canonicalUuidSchema,
+          name: z.string().min(1),
+          createdAt: timestamp,
+          currentRevision: z
+            .object({
+              schemaRevisionId: canonicalUuidSchema,
+              revisionNumber: z.number().int().positive(),
+              origin: schemaRevisionOriginSchema,
+              createdAt: timestamp,
+            })
+            .strict()
+            .nullable(),
+        })
+        .strict(),
+    ),
+  })
+  .strict()
+
 export const appendSchemaRevisionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
@@ -66,3 +89,6 @@ export type SchemaRevision = z.infer<typeof schemaRevisionSchema>
 export type SchemaRevisionSummary = z.infer<
   typeof schemaRevisionListResponseSchema
 >['revisions'][number]
+export type ExtractionSchemaSummary = z.infer<
+  typeof extractionSchemaListResponseSchema
+>['extractionSchemas'][number]

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NavigableRoute } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
+import { listExtractionSchemas } from '../schemaRevisions'
 import { Button, EmptyState } from '../ui'
 import { useProjectContexts, type WriteResult } from './useProjectContexts'
 
@@ -8,6 +9,11 @@ export type ProjectContextPageProps = {
   projectContextId: string
   onNavigate: (route: NavigableRoute) => void
 }
+
+type SchemaListState =
+  | { status: 'idle' | 'loading' }
+  | { status: 'ready'; schemas: Awaited<ReturnType<typeof listExtractionSchemas>> }
+  | { status: 'error'; message: string }
 
 /**
  * The inline rename form. It keeps the typed name and shows a retryable
@@ -172,14 +178,22 @@ function DeleteDialog({
   )
 }
 
-const card =
-  'flex flex-col gap-2 rounded-lg border border-line bg-surface p-3 text-left'
-
 function PencilIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
       <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
     </svg>
+  )
+}
+
+function PdfIcon() {
+  return (
+    <span
+      className="flex size-8 shrink-0 items-center justify-center rounded-md border border-line bg-surface text-[9px] font-bold tracking-tight text-danger"
+      aria-hidden="true"
+    >
+      PDF
+    </span>
   )
 }
 
@@ -193,7 +207,7 @@ function TrashIcon() {
 
 /**
  * Managing one Project Context: its name, its Source Documents, and adding
- * more. An ingesting file renders as the same card it will become, so the grid
+ * more. An ingesting file renders as the same row it will become, so the list
  * never shows more entries than there are Source Documents-to-be.
  */
 export default function ProjectContextPage({
@@ -213,6 +227,13 @@ export default function ProjectContextPage({
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [tab, setTab] = useState<'sources' | 'schemas'>('sources')
+  const [filter, setFilter] = useState('')
+  const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
+  const [schemaList, setSchemaList] = useState<SchemaListState>({
+    status: 'idle',
+  })
+  const [schemaRetry, setSchemaRetry] = useState(0)
   const renameTrigger = useRef<HTMLButtonElement>(null)
   const deleteTrigger = useRef<HTMLButtonElement>(null)
   const restoreRenameFocus = useRef(false)
@@ -226,11 +247,54 @@ export default function ProjectContextPage({
   const queued = ingestingSources.filter(
     (source) => source.projectContextId === projectContextId,
   )
+  const sourceDocuments =
+    branch?.status === 'ready'
+      ? branch.detail.sourceDocuments
+          .filter((document) =>
+            document.name
+              .toLocaleLowerCase()
+              .includes(filter.trim().toLocaleLowerCase()),
+          )
+          .toSorted((left, right) => {
+            if (sort === 'name') return left.name.localeCompare(right.name)
+            const difference =
+              new Date(left.createdAt).getTime() -
+              new Date(right.createdAt).getTime()
+            return sort === 'oldest' ? difference : -difference
+          })
+      : []
+  const sourceStatus =
+    branch?.status === 'loading'
+      ? 'Loading Source Documents…'
+      : queued
+          .map((source) =>
+            source.status === 'failed'
+              ? `${source.file.name}: failed. ${source.failure}`
+              : `${source.file.name}: ${source.status}.`,
+          )
+          .join(' ')
 
   const addFiles = (files: readonly File[]) => {
     if (!files.length) return
     addSources(files.map((file) => ({ projectContextId, file })))
   }
+
+  useEffect(() => {
+    if (tab !== 'schemas') return
+    const controller = new AbortController()
+    setSchemaList({ status: 'loading' })
+    listExtractionSchemas(projectContextId, undefined, controller.signal).then(
+      (schemas) => setSchemaList({ status: 'ready', schemas }),
+      (error: unknown) => {
+        if (controller.signal.aborted) return
+        setSchemaList({
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Unknown error.',
+        })
+      },
+    )
+    return () => controller.abort()
+  }, [projectContextId, schemaRetry, tab])
 
   if (branch?.status === 'error')
     return (
@@ -316,129 +380,303 @@ export default function ProjectContextPage({
           )}
         </header>
 
-        <label
-          className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-6 py-8 text-center transition-colors ${
-            dragging
-              ? 'border-accent bg-accent-soft'
-              : 'border-line-strong hover:border-accent'
-          }`}
-          onDragOver={(event) => {
-            event.preventDefault()
-            setDragging(true)
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => {
-            event.preventDefault()
-            setDragging(false)
-            // Unfiltered on purpose: the server owns PDF validation, so a
-            // wrong file answers with a failed card and a reason instead of
-            // being silently ignored.
-            addFiles(Array.from(event.dataTransfer.files))
-          }}
-        >
-          <span className="text-sm font-semibold text-ink">
-            Drop PDFs here or browse
-          </span>
-          <input
-            className="sr-only"
-            type="file"
-            accept=".pdf,application/pdf"
-            aria-label="Add sources"
-            multiple
-            onChange={(event) => {
-              const files = Array.from(event.target.files ?? [])
-              event.target.value = ''
-              addFiles(files)
-            }}
-          />
-        </label>
-
-        {branch?.status === 'loading' && (
-          <p className="text-xs text-ink-muted" aria-busy="true">
-            Loading Source Documents…
-          </p>
-        )}
-
-        {(queued.length > 0 || branch?.status === 'ready') && (
-          <ul className="flex flex-col gap-3">
-            {/* In-flight first: new work stays visible without scrolling. */}
-            {queued.map((source) => (
-              <li
-                className={`${card} ${
-                  source.status === 'failed' ? 'border-danger' : ''
+        <div className="flex items-end justify-between border-b border-line">
+          <div
+            className="flex gap-5"
+            role="tablist"
+            aria-label="Project resources"
+          >
+            {(['schemas', 'sources'] as const).map((value) => (
+              <button
+                key={value}
+                id={`project-${value}-tab`}
+                className={`border-b-2 px-0.5 pb-2 text-xs font-semibold capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                  tab === value
+                    ? 'border-accent text-ink'
+                    : 'border-transparent text-ink-muted hover:text-ink'
                 }`}
-                key={source.ingestionKey}
-                aria-live="polite"
+                type="button"
+                role="tab"
+                aria-selected={tab === value}
+                aria-controls={`project-${value}-panel`}
+                tabIndex={tab === value ? 0 : -1}
+                onClick={() => setTab(value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')
+                    return
+                  event.preventDefault()
+                  const sibling =
+                    value === 'sources'
+                      ? event.currentTarget.previousElementSibling
+                      : event.currentTarget.nextElementSibling
+                  if (sibling instanceof HTMLButtonElement) {
+                    sibling.click()
+                    sibling.focus()
+                  }
+                }}
               >
-                <span className="truncate text-xs font-medium text-ink-muted">
-                  {source.file.name}
-                </span>
-                {source.status === 'failed' ? (
-                  <div className="flex items-end gap-3">
-                    <span className="min-w-0 flex-1 text-[11px] leading-snug text-danger">
-                      {source.failure}
-                    </span>
-                    <Button
-                      onClick={() => retrySource(source.ingestionKey)}
-                      aria-label={`Retry ${source.file.name}`}
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <span className="text-[11px] text-ink-faint">
-                      {source.status === 'parsing' ? 'Parsing…' : 'Queued'}
-                    </span>
-                    <span
-                      className="h-0.5 overflow-hidden rounded-full bg-line"
-                      aria-hidden="true"
-                    >
-                      <span
-                        className={`block h-full bg-accent ${
-                          source.status === 'parsing'
-                            ? 'w-1/2 animate-pulse'
-                            : 'w-0'
-                        }`}
-                      />
-                    </span>
-                  </>
-                )}
-              </li>
+                {value === 'schemas' ? 'Schemas' : 'Sources'}
+              </button>
             ))}
-            {branch?.status === 'ready' &&
-              branch.detail.sourceDocuments.map((document) => (
-                <li key={document.sourceDocumentId}>
-                  <button
-                    className={`${card} w-full cursor-pointer outline-none transition-colors hover:border-accent focus-visible:ring-1 focus-visible:ring-accent`}
-                    type="button"
-                    onClick={() =>
-                      onNavigate({
-                        kind: 'document',
-                        projectContextId,
-                        sourceDocumentId: document.sourceDocumentId,
-                      })
-                    }
+          </div>
+          {tab === 'sources' && (
+            <label className="mb-1 flex items-center gap-1.5 text-[11px] text-ink-muted">
+              <span>Sort</span>
+              <select
+                className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink-muted outline-none hover:border-line-strong focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/40"
+                aria-label="Sort sources"
+                value={sort}
+                onChange={(event) => setSort(event.target.value as typeof sort)}
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="name">Name</option>
+              </select>
+            </label>
+          )}
+        </div>
+
+        {tab === 'schemas' ? (
+          <div
+            id="project-schemas-panel"
+            role="tabpanel"
+            aria-labelledby="project-schemas-tab"
+            className="py-4"
+            tabIndex={0}
+          >
+            {schemaList.status === 'ready' ? (
+              schemaList.schemas.length === 0 ? (
+                <p className="py-6 text-center text-xs text-ink-muted">
+                  No schemas yet.
+                </p>
+              ) : (
+                <ul className="divide-y divide-line">
+                  {schemaList.schemas.map((schema) => {
+                    const updatedAt =
+                      schema.currentRevision?.createdAt ?? schema.createdAt
+                    return (
+                      <li className="px-1 py-3" key={schema.extractionSchemaId}>
+                        <p className="text-xs font-semibold text-ink">{schema.name}</p>
+                        <dl className="mt-1 flex gap-3 text-[11px] text-ink-faint">
+                          <div>
+                            <dt className="sr-only">Current Schema Revision</dt>
+                            <dd>
+                              {schema.currentRevision
+                                ? `Current Schema Revision ${schema.currentRevision.revisionNumber}`
+                                : 'No Current Schema Revision'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="sr-only">Updated</dt>
+                            <dd>
+                              <time dateTime={updatedAt}>
+                                Updated{' '}
+                                {new Date(updatedAt).toLocaleDateString(undefined, {
+                                  dateStyle: 'medium',
+                                })}
+                              </time>
+                            </dd>
+                          </div>
+                        </dl>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )
+            ) : schemaList.status === 'error' ? (
+              <div className="flex flex-col items-center gap-3 py-6 text-center">
+                <p className="text-xs text-danger" role="alert">
+                  Could not load schemas. {schemaList.message}
+                </p>
+                <Button onClick={() => setSchemaRetry((attempt) => attempt + 1)}>
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <p className="py-6 text-center text-xs text-ink-muted" aria-busy="true">
+                Loading schemas…
+              </p>
+            )}
+          </div>
+        ) : (
+          <div
+            id="project-sources-panel"
+            role="tabpanel"
+            aria-labelledby="project-sources-tab"
+          >
+            <p className="sr-only" role="status" aria-atomic="true">
+              {sourceStatus}
+            </p>
+            <div className="relative mb-3">
+              <svg
+                aria-hidden="true"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
+                width="14"
+                height="14"
+                viewBox="0 0 20 20"
+                fill="none"
+              >
+                <circle
+                  cx="8.5"
+                  cy="8.5"
+                  r="5.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <path
+                  d="m13 13 4 4"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <input
+                className="h-9 w-full rounded-md border border-line bg-surface pl-9 pr-3 text-xs text-ink outline-none placeholder:text-ink-faint focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent"
+                type="search"
+                aria-label="Filter sources"
+                placeholder="Filter sources"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+              />
+            </div>
+
+            <label
+              className={`flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed px-6 py-8 text-center outline-none transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40 ${
+                dragging
+                  ? 'border-accent bg-accent-soft'
+                  : 'border-line-strong hover:border-accent'
+              }`}
+              onDragEnter={(event) => {
+                event.preventDefault()
+                setDragging(true)
+              }}
+              onDragOver={(event) => event.preventDefault()}
+              onDragLeave={(event) => {
+                const next = event.relatedTarget
+                if (!(next instanceof Node) || !event.currentTarget.contains(next))
+                  setDragging(false)
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                setDragging(false)
+                // The server owns file validation so invalid uploads remain
+                // visible, retryable failures instead of disappearing here.
+                addFiles(Array.from(event.dataTransfer.files))
+              }}
+            >
+              <span
+                id="project-source-drop-label"
+                className="text-sm font-semibold text-ink"
+              >
+                Drop PDFs here or browse
+              </span>
+              <input
+                className="sr-only"
+                type="file"
+                accept=".pdf,application/pdf"
+                aria-labelledby="project-source-drop-label"
+                multiple
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? [])
+                  event.target.value = ''
+                  addFiles(files)
+                }}
+              />
+            </label>
+
+            {branch?.status === 'loading' && (
+              <p className="py-4 text-xs text-ink-muted" aria-busy="true">
+                Loading Source Documents…
+              </p>
+            )}
+
+            {(queued.length > 0 || branch?.status === 'ready') && (
+              <ul className="divide-y divide-line">
+                {/* In-flight first: new work stays visible without scrolling. */}
+                {queued.map((source) => (
+                  <li
+                    className="flex items-center gap-3 px-1 py-3"
+                    key={source.ingestionKey}
                   >
-                    <span className="truncate text-xs font-bold text-ink">
-                      {document.name}
-                    </span>
-                    <span className="text-[11px] text-ink-faint">
-                      {document.pageCount !== null && (
-                        <>
-                          {document.pageCount}{' '}
-                          {document.pageCount === 1 ? 'page' : 'pages'} ·{' '}
-                        </>
+                    <PdfIcon />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-semibold text-ink">
+                        {source.file.name}
+                      </span>
+                      {source.status === 'failed' ? (
+                        <span className="block text-[11px] leading-snug text-danger">
+                          {source.failure}
+                        </span>
+                      ) : (
+                        <span className="block text-[11px] text-ink-faint">
+                          <span>
+                            {source.status === 'parsing'
+                              ? 'Parsing…'
+                              : 'Queued'}
+                          </span>
+                        </span>
                       )}
-                      Added{' '}
-                      {new Date(document.createdAt).toLocaleDateString(undefined, {
-                        dateStyle: 'medium',
-                      })}
                     </span>
-                  </button>
-                </li>
+                    {source.status === 'failed' && (
+                      <Button
+                        onClick={() => retrySource(source.ingestionKey)}
+                        aria-label={`Retry ${source.file.name}`}
+                      >
+                        Retry
+                      </Button>
+                    )}
+                  </li>
+                ))}
+                {sourceDocuments.map((document) => (
+                  <li key={document.sourceDocumentId}>
+                    <button
+                      className="flex w-full cursor-pointer items-center gap-3 px-1 py-3 text-left outline-none transition-colors hover:bg-line/20 focus-visible:ring-1 focus-visible:ring-accent"
+                      type="button"
+                      onClick={() =>
+                        onNavigate({
+                          kind: 'document',
+                          projectContextId,
+                          sourceDocumentId: document.sourceDocumentId,
+                        })
+                      }
+                    >
+                      <PdfIcon />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-semibold text-ink">
+                          {document.name}
+                        </span>
+                        <span className="block text-[11px] text-ink-faint">
+                          {document.pageCount !== null && (
+                            <>
+                              {document.pageCount}{' '}
+                              {document.pageCount === 1 ? 'page' : 'pages'}
+                              {' · '}
+                            </>
+                          )}
+                          {new Date(document.createdAt).toLocaleDateString(
+                            undefined,
+                            { dateStyle: 'medium' },
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {branch?.status === 'ready' &&
+              sourceDocuments.length === 0 &&
+              queued.length === 0 &&
+              (filter ? (
+                <p className="py-8 text-center text-xs text-ink-muted">
+                  No sources match “{filter}”.
+                </p>
+              ) : (
+                <p className="py-8 text-center text-xs text-ink-muted">
+                  No Source Documents yet. Drop PDFs above to get started.
+                </p>
               ))}
-          </ul>
+          </div>
         )}
 
       </div>

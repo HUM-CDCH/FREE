@@ -3,6 +3,7 @@ import {
   appendSchemaRevision,
   getSchemaRevision,
   initializeSchemaRevision,
+  listExtractionSchemas,
   listSchemaRevisions,
   SchemaRevisionConflictError,
 } from './schemaRevisions'
@@ -28,6 +29,33 @@ const definition = {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('schema revision client', () => {
+  it('lists project schemas through the bounded same-origin DTO', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      Response.json({
+        extractionSchemas: [
+          {
+            extractionSchemaId: SCHEMA,
+            name: 'Places',
+            createdAt: revision.createdAt,
+            currentRevision: {
+              schemaRevisionId: REVISION,
+              revisionNumber: 1,
+              origin: 'researcher-edit',
+              createdAt: revision.createdAt,
+            },
+          },
+        ],
+      }),
+    )
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(listExtractionSchemas(PROJECT, 10)).resolves.toHaveLength(1)
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/extraction-schemas?projectContextId=${PROJECT}&limit=10`,
+      { signal: undefined },
+    )
+  })
+
   it('initializes, lists, gets, and appends through validated same-origin DTOs', async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(Response.json({ revision }, { status: 201 }))

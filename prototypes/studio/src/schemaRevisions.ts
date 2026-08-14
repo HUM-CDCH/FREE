@@ -1,5 +1,6 @@
 import type { SchemaDefinition } from '../shared/schemaNode'
 import {
+  extractionSchemaListResponseSchema,
   schemaRevisionListResponseSchema,
   schemaRevisionResponseSchema,
   schemaRevisionSchema,
@@ -16,6 +17,18 @@ export class SchemaRevisionConflictError extends Error {
     this.name = 'SchemaRevisionConflictError'
     this.currentRevision = currentRevision
   }
+}
+
+export async function listExtractionSchemas(
+  projectContextId: string,
+  limit = 20,
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({ projectContextId, limit: String(limit) })
+  const response = await fetch(`/api/extraction-schemas?${query}`, { signal })
+  const value = await body(response)
+  if (!response.ok) throw failure(value, response.status)
+  return extractionSchemaListResponseSchema.parse(value).extractionSchemas
 }
 
 async function body(response: Response): Promise<unknown> {

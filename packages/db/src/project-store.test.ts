@@ -72,8 +72,18 @@ function fakeDatabase(
       },
     ],
     ExtractionSchema: [
-      { id: SCHEMA, projectContextId: PROJECT },
-      { id: '51000000-0000-4000-8003-000000000002', projectContextId: OTHER_PROJECT },
+      {
+        id: SCHEMA,
+        projectContextId: PROJECT,
+        name: 'Places',
+        createdAt: new Date('2026-08-01T11:10:00Z'),
+      },
+      {
+        id: '51000000-0000-4000-8003-000000000002',
+        projectContextId: OTHER_PROJECT,
+        name: 'Other schema',
+        createdAt: new Date('2026-08-01T11:11:00Z'),
+      },
     ],
     SchemaRevision: [
       {
@@ -523,6 +533,25 @@ describe('ProjectStore Source Document ingestion', () => {
 })
 
 describe('ProjectStore Schema Revisions', () => {
+  it('lists project-owned Extraction Schemas with their Current Schema Revision', async () => {
+    const store = createProjectStore(fakeDatabase() as never)
+
+    assert.deepEqual(await store.listExtractionSchemas(PROJECT, 20), [
+      {
+        extractionSchemaId: SCHEMA,
+        name: 'Places',
+        createdAt: new Date('2026-08-01T11:10:00Z'),
+        currentRevision: {
+          schemaRevisionId: REVISION_1,
+          revisionNumber: 1,
+          origin: 'suggestion',
+          createdAt: new Date('2026-08-01T12:00:00Z'),
+        },
+      },
+    ])
+    assert.equal(await store.listExtractionSchemas('51000000-0000-4000-8000-000000000099', 20), null)
+  })
+
   it('creates the shared Extraction Schema and its initial suggestion revision atomically', async () => {
     const database = fakeDatabase()
     const store = createProjectStore(database as never)
