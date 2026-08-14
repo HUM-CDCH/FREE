@@ -17,6 +17,7 @@ import {
   extractionFailureSchema,
   extractionModelAttributionSchema,
   extractionRetrySelectionSchema,
+  extractionReadResponseSchema,
   finalizeExtractionReviewSchema,
   sameExtractionIdentity,
   type ExtractionRequest,
@@ -120,6 +121,7 @@ function attemptDto(attempt: StoredExtractionAttempt) {
     evidenceLinks: attempt.evidenceLinks,
     reviewable: attempt.reviewable,
     retryOfId: attempt.retryOfId,
+    batchExtractionId: attempt.batchExtractionId,
     createdAt: attempt.createdAt.toISOString(),
     reviewedAt: attempt.reviewedAt?.toISOString() ?? null,
     reviewDecisions: attempt.reviewDecisions,
@@ -845,6 +847,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       | 'strategy'
       | 'diagnostics'
       | 'retryOfId'
+      | 'batchExtractionId'
     >
     try {
       if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
@@ -1063,7 +1066,10 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
         failure: null,
         resultPayload: result,
         evidenceLinks: [...grounded.evidenceLinks],
-        reviewable: grounded.ungroundedPaths.length === 0,
+        // An empty result has no decision-bearing Evidence. It is a successful
+        // terminal attempt, but never a reviewable one.
+        reviewable:
+          grounded.evidenceLinks.length > 0 && grounded.ungroundedPaths.length === 0,
       }
     } catch (error) {
       terminal = abortError(error) || signal.aborted
@@ -1096,6 +1102,11 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       schemaRevisionId: inputs.schemaRevisionId,
       strategy,
       retryOfId: retryParent?.extractionId ?? null,
+      // A retry stays in the Batch Extraction its parent belongs to.
+      batchExtractionId:
+        retryParent?.batchExtractionId ??
+        ('batchExtractionId' in request ? request.batchExtractionId : null) ??
+        null,
       ...terminal,
       diagnostics: {
         phase,
@@ -1175,6 +1186,60 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     })
   }
 
+  /**
+   * Reads one stored Extraction. Reviewing it needs the occurrences its cited
+   * Evidence Anchors own, which only the pinned Source Representation knows, so
+   * they are derived here instead of making every reader load the parsed
+   * document. `/review` still validates whatever the researcher submits.
+   */
+  async function read(extractionId: string) {
+    const attempt = await store.getExtractionAttempt(extractionId)
+    if (!attempt)
+      throw new ApiError(404, 'not_found', 'That Extraction was not found.')
+    const cited = [
+      ...new Set(
+        (Array.isArray(attempt.evidenceLinks) ? attempt.evidenceLinks : [])
+          .map((link) =>
+            isRecord(link) && typeof link.evidenceAnchorId === 'string'
+              ? link.evidenceAnchorId
+              : null,
+          )
+          .filter((anchorId): anchorId is string => anchorId !== null),
+      ),
+    ]
+    let pendingReviewDecisions: {
+      evidenceAnchorId: string
+      reviewedOccurrenceIds: string[]
+    }[] = []
+    if (attempt.outcome === 'SUCCEEDED' && attempt.reviewable && cited.length) {
+      const descriptor = await store.getSourceRepresentation(
+        attempt.sourceRepresentationRevisionId,
+      )
+      if (!descriptor)
+        throw new ApiError(
+          503,
+          'source_artifact_unavailable',
+          'The pinned Source Representation is unavailable.',
+        )
+      const owned = occurrenceOwnership(
+        decodeParsedDocument(await readSource(descriptor)),
+      )
+      pendingReviewDecisions = cited.flatMap((evidenceAnchorId) => {
+        const occurrences = owned.get(evidenceAnchorId)
+        return occurrences
+          ? [{ evidenceAnchorId, reviewedOccurrenceIds: [...occurrences] }]
+          : []
+      })
+    }
+    return json(
+      extractionReadResponseSchema.parse({
+        extraction: attemptDto(attempt),
+        pendingReviewDecisions,
+      }),
+      { headers: noStore },
+    )
+  }
+
   async function review(request: Request, extractionId: string) {
     const parsed = finalizeExtractionReviewSchema.safeParse(
       await parseJsonRequest(request),
@@ -1234,6 +1299,8 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       if (request.method === 'POST' && reviewMatch)
         return await review(request, reviewMatch[1])
       const itemMatch = ITEM_ROUTE.exec(pathname)
+      if (request.method === 'GET' && itemMatch)
+        return await read(itemMatch[1])
       if (request.method === 'DELETE' && itemMatch) {
         const operation = active.get(itemMatch[1])
         if (!operation || operation.persisting)
@@ -1251,5 +1318,6 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
 }
 
 const handle = createExtractionsApi()
+export const GET = handle
 export const POST = handle
 export const DELETE = handle

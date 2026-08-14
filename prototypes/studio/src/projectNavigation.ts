@@ -17,6 +17,7 @@ export type Route =
       kind: 'document'
       projectContextId: string
       sourceDocumentId: string
+      extractionId?: string
     }
   | { kind: 'badReference' }
 
@@ -44,11 +45,12 @@ type Event =
   | { type: 'DOCUMENT_CONTAINED' }
   | { type: 'DOCUMENT_NOT_CONTAINED' }
 
-export function parseRoute(pathname: string): Route {
+export function parseRoute(pathname: string, search = ''): Route {
+  const [pathOnly, inlineSearch = ''] = pathname.split('?', 2)
   const path =
-    pathname.length > 1 && pathname.endsWith('/')
-      ? pathname.slice(0, -1)
-      : pathname
+    pathOnly.length > 1 && pathOnly.endsWith('/')
+      ? pathOnly.slice(0, -1)
+      : pathOnly
   if (path === '/projects') return { kind: 'root' }
 
   const project = /^\/projects\/([^/]+)(?:\/documents)?$/.exec(path)
@@ -63,9 +65,18 @@ export function parseRoute(pathname: string): Route {
     /^\/projects\/([^/]+)\/documents\/([^/]+)$/.exec(path)
   if (document) {
     const [, projectContextId, sourceDocumentId] = document
+    const extractionId = new URLSearchParams(search || inlineSearch).get(
+      'extractionId',
+    )
     return canonicalUuidSchema.safeParse(projectContextId).success &&
-      canonicalUuidSchema.safeParse(sourceDocumentId).success
-      ? { kind: 'document', projectContextId, sourceDocumentId }
+      canonicalUuidSchema.safeParse(sourceDocumentId).success &&
+      (extractionId === null || canonicalUuidSchema.safeParse(extractionId).success)
+      ? {
+          kind: 'document',
+          projectContextId,
+          sourceDocumentId,
+          ...(extractionId ? { extractionId } : {}),
+        }
       : { kind: 'badReference' }
   }
 
@@ -79,7 +90,11 @@ export function href(route: NavigableRoute): string {
   const project = `/projects/${route.projectContextId}`
   return route.kind === 'project'
     ? project
-    : `${project}/documents/${route.sourceDocumentId}`
+    : `${project}/documents/${route.sourceDocumentId}${
+        route.extractionId
+          ? `?${new URLSearchParams({ extractionId: route.extractionId })}`
+          : ''
+      }`
 }
 
 /** Only `opening` reads, and `routing` holds document routes until containment. */
@@ -112,13 +127,14 @@ export const navigationMachine = setup({
   actors: {
     reopenDocument: fromPromise<
       DocumentSnapshot,
-      { projectContextId: string; sourceDocumentId: string }
+      { projectContextId: string; sourceDocumentId: string; extractionId?: string }
     >(({ input, signal }) =>
       settleUnlessAborted(
         getDocumentReopenSnapshot(
           input.projectContextId,
           input.sourceDocumentId,
           signal,
+          input.extractionId,
         ),
         signal,
       ),
@@ -181,10 +197,10 @@ export const navigationMachine = setup({
       invoke: {
         src: 'reopenDocument',
         input: ({ context }) => {
-          const { projectContextId, sourceDocumentId } = assertDocumentRoute(
+          const { projectContextId, sourceDocumentId, extractionId } = assertDocumentRoute(
             context.route,
           )
-          return { projectContextId, sourceDocumentId }
+          return { projectContextId, sourceDocumentId, extractionId }
         },
         // Inline so the done/error event payloads stay typed.
         onDone: {

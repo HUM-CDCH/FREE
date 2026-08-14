@@ -77,7 +77,13 @@ Studio keeps writes narrow: the persistent rail creates, renames, and
 permanently deletes a Project Context through `/api/project-contexts`,
 researcher schema edits append immutable Schema Revisions through
 `/api/schema-revisions`, Article operations append terminal Extractions, and
-explicit review stores Review Decisions. Deleting a Project Context deletes its whole owned relational
+explicit review stores Review Decisions. A Batch Extraction is opened through
+`/api/batch-extractions` before it runs: it pins one Schema Revision, one
+Extraction Strategy, and each selected Source Document's Current Source
+Representation Revision as its members, then every member's Extraction is
+appended to it one at a time. Members are stored up front so a batch's progress
+is counted from what is persisted, never from what the browser expects.
+Deleting a Project Context deletes its whole owned relational
 graph through the database cascade, then removes the canonical packages no
 remaining Source Representation references. That cascade is a PostgreSQL
 behaviour, so it is proven against PostgreSQL:

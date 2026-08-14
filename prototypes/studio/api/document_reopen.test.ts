@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { DocumentReopenSnapshot } from '../../../packages/db/src/project-store.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { createGetDocumentReopen } from './document_reopen.js'
@@ -39,6 +39,7 @@ function attempt(
     failure: null,
     reviewable: true,
     retryOfId: null,
+    batchExtractionId: null,
     reviewDecisions: reviewedAt
       ? [{ reviewDecisionId: '88888888-8888-4888-8888-888888888888', evidenceAnchorId: 'anchor-1', reviewedOccurrenceIds: ['occurrence-1'] }]
       : [],
@@ -91,6 +92,24 @@ describe('document reopen Article attempts', () => {
     expect(body.latestReviewed.sourceRepresentation.resources.sourcePdfUrl).toContain(latestRepresentationId)
     expect(body.latestReviewed.sourceRepresentation.resources.sourcePdfUrl).toContain(
       '?v=2026-08-10T01%3A00%3A00.000Z',
+    )
+  })
+
+  it('reopens a requested Extraction in the full document workspace', async () => {
+    const getDocumentReopenSnapshot = vi.fn(async () => snapshot())
+    const response = await createGetDocumentReopen({
+      getDocumentReopenSnapshot,
+    })(
+      new Request(
+        `http://studio/api/project-contexts/${projectId}/source-documents/${documentId}/reopen?extractionId=99999999-9999-4999-8999-999999999999`,
+      ),
+    )
+
+    expect(response.status).toBe(200)
+    expect(getDocumentReopenSnapshot).toHaveBeenCalledWith(
+      projectId,
+      documentId,
+      '99999999-9999-4999-8999-999999999999',
     )
   })
 

@@ -90,17 +90,6 @@ describe('ProjectStore Extraction lifecycle on PostgreSQL', { skip: !enabled }, 
         schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
       },
     })
-    await db.orm.public.SchemaRevision.create({
-      id: schemaRevision2,
-      extractionSchemaId,
-      revisionNumber: 2,
-      origin: 'RESEARCHER_EDIT',
-      schemaTree: {
-        recordDescription: 'One title record.',
-        schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
-      },
-    })
-
     const terminal = (
       extractionId: string,
       sourceRepresentationRevisionId = representation1,
@@ -121,6 +110,69 @@ describe('ProjectStore Extraction lifecycle on PostgreSQL', { skip: !enabled }, 
       evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }],
       reviewable: true,
       retryOfId: null,
+      batchExtractionId: null,
+    })
+
+    const batchExtractionId = randomUUID()
+    assert.equal(
+      (
+        await store.createBatchExtraction(projectContextId, {
+          batchExtractionId,
+          schemaRevisionId: schemaRevision1,
+          strategy: 'ARTICLE',
+          sourceDocumentIds: [sourceDocumentId],
+        })
+      )?.status,
+      'created',
+    )
+    const olderBatchExtractionId = randomUUID()
+    const olderBatchExtraction = terminal(
+      olderBatchExtractionId,
+      representation2,
+      schemaRevision1,
+    )
+    olderBatchExtraction.batchExtractionId = batchExtractionId
+    assert.equal(
+      (await store.persistExtractionAttempt(olderBatchExtraction)).status,
+      'created',
+    )
+    await db.orm.public.SchemaRevision.create({
+      id: schemaRevision2,
+      extractionSchemaId,
+      revisionNumber: 2,
+      origin: 'RESEARCHER_EDIT',
+      schemaTree: {
+        recordDescription: 'One title and year record.',
+        schemaNodes: [
+          { id: 'title', name: 'title', type: 'string' },
+          { id: 'year', name: 'year', type: 'string' },
+        ],
+      },
+    })
+    const reopenedOlderBatchExtraction = await store.getDocumentReopenSnapshot(
+      projectContextId,
+      sourceDocumentId,
+      olderBatchExtractionId,
+    )
+    assert.equal(
+      reopenedOlderBatchExtraction?.latestAttempt?.extractionId,
+      olderBatchExtractionId,
+    )
+    assert.equal(
+      reopenedOlderBatchExtraction?.sourceRepresentation.sourceRepresentationId,
+      representation2,
+    )
+    assert.equal(
+      reopenedOlderBatchExtraction?.extractionSchema?.schemaRevisionId,
+      schemaRevision1,
+    )
+    assert.equal(
+      reopenedOlderBatchExtraction?.extractionSchema?.revisionNumber,
+      1,
+    )
+    assert.deepEqual(reopenedOlderBatchExtraction?.extractionSchema?.schemaTree, {
+      recordDescription: 'One title record.',
+      schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
     })
 
     const idempotentId = randomUUID()

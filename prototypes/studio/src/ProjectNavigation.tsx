@@ -24,7 +24,7 @@ export function ProjectNavigationProvider({
       options={{
         input: {
           deps: browserNavigationDeps(),
-          initialRoute: parseRoute(location.pathname),
+          initialRoute: parseRoute(location.pathname, location.search),
         },
       }}
     >
@@ -68,7 +68,7 @@ export function ProjectRoutes() {
     const changed = () =>
       actor.send({
         type: 'ROUTE_CHANGED',
-        route: parseRoute(location.pathname),
+        route: parseRoute(location.pathname, location.search),
       })
     addEventListener('popstate', changed)
     return () => removeEventListener('popstate', changed)

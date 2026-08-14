@@ -3,6 +3,7 @@ import type { NavigableRoute } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { listExtractionSchemas } from '../schemaRevisions'
 import { Button, EmptyState } from '../ui'
+import BatchExtractionsPanel from './BatchExtractionsPanel'
 import { useProjectContexts, type WriteResult } from './useProjectContexts'
 
 export type ProjectContextPageProps = {
@@ -227,7 +228,9 @@ export default function ProjectContextPage({
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [dragging, setDragging] = useState(false)
-  const [tab, setTab] = useState<'sources' | 'schemas'>('sources')
+  const [tab, setTab] = useState<'sources' | 'schemas' | 'extractions'>(
+    'sources',
+  )
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
   const [schemaList, setSchemaList] = useState<SchemaListState>({
@@ -386,7 +389,7 @@ export default function ProjectContextPage({
             role="tablist"
             aria-label="Project resources"
           >
-            {(['schemas', 'sources'] as const).map((value) => (
+            {(['schemas', 'sources', 'extractions'] as const).map((value) => (
               <button
                 key={value}
                 id={`project-${value}-tab`}
@@ -406,16 +409,22 @@ export default function ProjectContextPage({
                     return
                   event.preventDefault()
                   const sibling =
-                    value === 'sources'
-                      ? event.currentTarget.previousElementSibling
-                      : event.currentTarget.nextElementSibling
+                    event.key === 'ArrowLeft'
+                      ? event.currentTarget.previousElementSibling ??
+                        event.currentTarget.parentElement?.lastElementChild
+                      : event.currentTarget.nextElementSibling ??
+                        event.currentTarget.parentElement?.firstElementChild
                   if (sibling instanceof HTMLButtonElement) {
                     sibling.click()
                     sibling.focus()
                   }
                 }}
               >
-                {value === 'schemas' ? 'Schemas' : 'Sources'}
+                {value === 'schemas'
+                  ? 'Schemas'
+                  : value === 'sources'
+                    ? 'Sources'
+                    : 'Extractions'}
               </button>
             ))}
           </div>
@@ -436,7 +445,18 @@ export default function ProjectContextPage({
           )}
         </div>
 
-        {tab === 'schemas' ? (
+        {tab === 'extractions' ? (
+          <BatchExtractionsPanel
+            // A different Project Context is different research state, never a
+            // continuation of what this panel currently shows.
+            key={projectContextId}
+            projectContextId={projectContextId}
+            sourceDocuments={
+              branch?.status === 'ready' ? branch.detail.sourceDocuments : []
+            }
+            onNavigate={onNavigate}
+          />
+        ) : tab === 'schemas' ? (
           <div
             id="project-schemas-panel"
             role="tabpanel"

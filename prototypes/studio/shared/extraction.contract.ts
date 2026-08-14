@@ -37,6 +37,8 @@ const extractionFreshRequestSchema = z
     sourceRepresentationRevisionId: z.uuid(),
     schemaRevisionId: z.uuid(),
     strategy: extractionStrategySchema,
+    /** Set when this Extraction is one member of a Batch Extraction. */
+    batchExtractionId: z.uuid().nullable().default(null),
     retryOfId: z.never().optional(),
     retryDocument: z.never().optional(),
     rediscover: z.never().optional(),
@@ -56,6 +58,8 @@ const extractionRetryRequestSchema = z
     id: z.uuid(),
     retryOfId: z.uuid(),
     ...retryFields,
+    // A retry inherits its parent's Batch Extraction, so it is never sent.
+    batchExtractionId: z.never().optional(),
     sourceRepresentationRevisionId: z.never().optional(),
     schemaRevisionId: z.never().optional(),
     strategy: z.never().optional(),
@@ -221,6 +225,7 @@ export const extractionAttemptSchema = z
     evidenceLinks: z.array(evidenceLinkSchema).nullable(),
     reviewable: z.boolean(),
     retryOfId: z.uuid().nullable(),
+    batchExtractionId: z.uuid().nullable(),
     createdAt: z.iso.datetime(),
     reviewedAt: z.iso.datetime().nullable(),
     reviewDecisions: z.array(
@@ -295,11 +300,24 @@ export const extractionAttemptSchema = z
 
 export type ExtractionAttempt = z.input<typeof extractionAttemptSchema>
 
+/**
+ * One stored Extraction, read back with the Review Decisions its stored
+ * Evidence requires. The decisions are derived from the pinned Source
+ * Representation, so the browser never needs the parsed document to review.
+ */
+export const extractionReadResponseSchema = z
+  .object({
+    extraction: extractionAttemptSchema,
+    pendingReviewDecisions: z.array(reviewDecisionInputSchema),
+  })
+  .strict()
+
 type ExtractionIdentity = {
   sourceRepresentationRevisionId?: string
   schemaRevisionId?: string
   strategy?: ExtractionStrategy
   retryOfId?: string | null
+  batchExtractionId?: string | null
 }
 
 export function sameExtractionIdentity(
@@ -313,6 +331,8 @@ export function sameExtractionIdentity(
     (request.schemaRevisionId === undefined ||
       attempt.schemaRevisionId === request.schemaRevisionId) &&
     (request.strategy === undefined || attempt.strategy === request.strategy) &&
+    (request.batchExtractionId === undefined ||
+      attempt.batchExtractionId === request.batchExtractionId) &&
     attempt.retryOfId === request.retryOfId
   )
 }

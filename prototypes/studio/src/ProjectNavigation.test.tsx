@@ -165,6 +165,7 @@ function hydratedSnapshot() {
       modelAttribution: { provider: 'ollama', modelId: 'fixture' },
       reviewable: true,
       retryOfId: null,
+      batchExtractionId: null,
       reviewDecisions: [],
       sourceRepresentation: {
         revisionNumber: 2,

@@ -165,6 +165,112 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
       evidenceAnchorId: 'anchor-1',
       reviewedOccurrenceIds: [],
     })
+    // Historical owned revisions cannot open a new batch: batches always pin
+    // the Current Schema Revision.
+    assert.deepEqual(
+      await store.createBatchExtraction(project.id, {
+        batchExtractionId: '51000000-0000-4000-9000-000000000100',
+        schemaRevisionId: baseRevision.id,
+        strategy: 'CATALOG',
+        sourceDocumentIds: [document.id],
+      }),
+      { status: 'invalid' },
+    )
+    const opened = await store.createBatchExtraction(project.id, {
+      batchExtractionId: '51000000-0000-4000-9000-000000000101',
+      schemaRevisionId: appliedRevision.id,
+      strategy: 'CATALOG',
+      sourceDocumentIds: [document.id],
+    })
+    assert.equal(opened?.status, 'created')
+    assert.deepEqual(opened?.status === 'created' ? opened.batch.members : null, [
+      {
+        sourceDocumentId: document.id,
+        sourceRepresentationRevisionId: representation.id,
+        latestExtraction: null,
+      },
+    ])
+    // A Source Document outside the Project Context can never join its batch.
+    assert.deepEqual(
+      await store.createBatchExtraction(project.id, {
+        batchExtractionId: '51000000-0000-4000-9000-000000000102',
+        schemaRevisionId: appliedRevision.id,
+        strategy: 'CATALOG',
+        sourceDocumentIds: [survivingDocument.id],
+      }),
+      { status: 'invalid' },
+    )
+    assert.deepEqual(
+      await store.createBatchExtraction(project.id, {
+        batchExtractionId: '51000000-0000-4000-9000-000000000101',
+        schemaRevisionId: appliedRevision.id,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: [document.id],
+      }),
+      { status: 'conflict' },
+    )
+    await db.orm.public.Extraction.create({
+      sourceDocumentId: document.id,
+      schemaRevisionId: appliedRevision.id,
+      sourceRepresentationRevisionId: representation.id,
+      batchExtractionId: '51000000-0000-4000-9000-000000000101',
+      strategy: 'CATALOG',
+      outcome: 'FAILED',
+      diagnostics: {},
+      failure: { code: 'extraction_failed', message: 'Extraction failed.' },
+      reviewable: false,
+    })
+    // The composite pin refuses an Extraction whose Schema Revision or
+    // Extraction Strategy disagrees with the Batch Extraction it claims.
+    await assert.rejects(
+      db.orm.public.Extraction.create({
+        sourceDocumentId: document.id,
+        schemaRevisionId: baseRevision.id,
+        sourceRepresentationRevisionId: representation.id,
+        batchExtractionId: '51000000-0000-4000-9000-000000000101',
+        strategy: 'CATALOG',
+        outcome: 'SUCCEEDED',
+        complete: true,
+        diagnostics: {},
+        modelAttribution: {},
+        resultPayload: {},
+        reviewable: true,
+      }),
+      /extraction_batch_pin_fkey/,
+    )
+    const newerRepresentation = await db.orm.public.SourceRepresentationRevision.create({
+      sourceDocumentId: document.id,
+      revisionNumber: 2,
+      artifactReference: 'e'.repeat(64),
+      artifactSha256: 'e'.repeat(64),
+      contractVersion: 'parsed_document.v2',
+      preprocessId: `sha256:${'e'.repeat(64)}`,
+      parserName: 'test',
+      parserVersion: '2',
+    })
+    // Matching the Batch's schema and strategy is not enough: the persisted
+    // attempt must also be for its selected Source Document revision.
+    await assert.rejects(
+      db.orm.public.Extraction.create({
+        sourceDocumentId: document.id,
+        schemaRevisionId: appliedRevision.id,
+        sourceRepresentationRevisionId: newerRepresentation.id,
+        batchExtractionId: '51000000-0000-4000-9000-000000000101',
+        strategy: 'CATALOG',
+        outcome: 'SUCCEEDED',
+        complete: true,
+        diagnostics: {},
+        modelAttribution: {},
+        resultPayload: {},
+        reviewable: true,
+      }),
+      /extraction_batch_member_fkey/,
+    )
+    const listed = await store.listBatchExtractions(project.id, 20)
+    assert.equal(listed?.length, 1)
+    assert.equal(listed?.[0].extractionSchemaName, 'Schema')
+    assert.equal(listed?.[0].schemaRevisionNumber, 2)
+    assert.equal(listed?.[0].members[0].latestExtraction?.outcome, 'FAILED')
 
     const candidates = await store.deleteProjectContext(project.id)
 
@@ -172,6 +278,10 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
       {
         artifactReference: representation.artifactReference,
         artifactSha256: representation.artifactSha256,
+      },
+      {
+        artifactReference: newerRepresentation.artifactReference,
+        artifactSha256: newerRepresentation.artifactSha256,
       },
     ])
     assert.deepEqual(
@@ -198,6 +308,8 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
       db.orm.public.ConversationalSchemaEdit,
       db.orm.public.Extraction,
       db.orm.public.ReviewDecision,
+      db.orm.public.BatchExtraction,
+      db.orm.public.BatchExtractionMember,
     ])
       assert.deepEqual(await table.all(), [])
 

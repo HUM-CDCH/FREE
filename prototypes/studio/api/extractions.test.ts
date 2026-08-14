@@ -5,7 +5,10 @@ import type {
   TerminalExtractionInput,
 } from '../../../packages/db/src/project-store.js'
 import parsedDocument from '../src/assets/parsed_document.v2.json'
-import { extractionAttemptSchema } from '../shared/extraction.contract.js'
+import {
+  extractionAttemptSchema,
+  extractionReadResponseSchema,
+} from '../shared/extraction.contract.js'
 import type { ParsedContentBlock, ParsedDocument } from '../shared/parsedDocument.js'
 import { createExtractionsApi } from './extractions.js'
 
@@ -162,6 +165,97 @@ it('rejects retry requests that include caller pins before doing any work', asyn
   expect(response.status).toBe(422)
   expect(extract).not.toHaveBeenCalled()
   expect(persist).not.toHaveBeenCalled()
+})
+
+describe('GET /api/extractions/:id', () => {
+  function stored(
+    overrides: Partial<StoredExtractionAttempt> = {},
+  ): StoredExtractionAttempt {
+    return {
+      extractionId,
+      sourceDocumentId,
+      sourceRepresentationRevisionId: representationId,
+      sourceRepresentationRevisionNumber: 1,
+      schemaRevisionId,
+      extractionSchemaId: '66666666-6666-4666-8666-666666666666',
+      schemaRevisionNumber: 1,
+      schemaTree: {
+        recordDescription: 'One representative source record.',
+        schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+      },
+      createdAt: new Date('2026-08-10T00:00:00Z'),
+      reviewedAt: null,
+      strategy: 'ARTICLE',
+      outcome: 'SUCCEEDED',
+      complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+      diagnostics: {
+        phase: 'grounding',
+        durationMs: 1,
+        modelCalls: 1,
+        finishReason: 'stop',
+        inputTokens: 10,
+        outputTokens: 4,
+        values: null,
+        grounding: null,
+        catalog: null,
+      },
+      resultPayload: { records: [{ title: 'Ellekilde' }] },
+      evidenceLinks: [
+        { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'bundled-anchor' },
+      ],
+      failure: null,
+      reviewable: true,
+      retryOfId: null,
+      batchExtractionId: null,
+      reviewDecisions: [],
+      ...overrides,
+    }
+  }
+
+  const read = (attempt: StoredExtractionAttempt | null) => {
+    const { store } = fakeStore([{ id: 'title', name: 'title', type: 'string' }])
+    return createExtractionsApi({
+      store: { ...store, getExtractionAttempt: async () => attempt },
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract: vi.fn(),
+    })(new Request(`http://studio/api/extractions/${extractionId}`))
+  }
+
+  it('answers the Review Decisions the stored Evidence requires', async () => {
+    const response = await read(stored())
+    const body = extractionReadResponseSchema.parse(await response.json())
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(body.extraction.extractionId).toBe(extractionId)
+    expect(body.pendingReviewDecisions).toEqual([
+      {
+        evidenceAnchorId: 'bundled-anchor',
+        reviewedOccurrenceIds: ['bundled-occurrence'],
+      },
+    ])
+  })
+
+  it('answers no Review Decisions for an Extraction that cannot be reviewed', async () => {
+    const failed = await read(
+      stored({
+        outcome: 'FAILED',
+        complete: null,
+        resultPayload: null,
+        evidenceLinks: null,
+        reviewable: false,
+        failure: { code: 'extraction_failed', message: 'Extraction failed.' },
+      }),
+    )
+
+    expect(
+      extractionReadResponseSchema.parse(await failed.json())
+        .pendingReviewDecisions,
+    ).toEqual([])
+    expect((await read(null)).status).toBe(404)
+  })
 })
 
 describe('server-owned Article extraction route', () => {
@@ -510,6 +604,7 @@ describe('server-owned Article extraction route', () => {
       failure: null,
       reviewable: false,
       retryOfId: null,
+      batchExtractionId: null,
       reviewDecisions: [],
     })
     const extract = vi
@@ -943,6 +1038,27 @@ describe('server-owned Article extraction route', () => {
       resultPayload: {
         records: [{ title: 'Ellekilde' }, { title: 'Tornby' }],
       },
+    })
+  })
+
+  it('completes an empty result without making it reviewable', async () => {
+    const { store } = fakeStore([
+      { id: 'title', name: 'title', type: 'string' },
+    ])
+    const extract = vi.fn().mockResolvedValueOnce(generated({ records: [{}] }))
+    const response = await createExtractionsApi({
+      store,
+      readSource: async () => parsedDocument,
+      resolveTarget: async () => target,
+      extract,
+    })(request())
+
+    await expect(response.json()).resolves.toMatchObject({
+      outcome: 'SUCCEEDED',
+      complete: true,
+      reviewable: false,
+      resultPayload: { records: [{}] },
+      evidenceLinks: [],
     })
   })
 

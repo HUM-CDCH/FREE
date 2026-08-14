@@ -164,6 +164,7 @@ async function loadStoredAttempt(
     'evidenceLinks',
     'reviewable',
     'retryOfId',
+    'batchExtractionId',
     'createdAt',
     'reviewedAt',
   ).first({ id: extractionId })
@@ -207,11 +208,94 @@ async function loadStoredAttempt(
     failure: attempt.failure,
     reviewable: attempt.reviewable,
     retryOfId: attempt.retryOfId,
+    batchExtractionId: attempt.batchExtractionId,
     reviewDecisions: decisions.map((decision) => ({
       reviewDecisionId: decision.id,
       evidenceAnchorId: decision.evidenceAnchorId,
       reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
     })),
+  }
+}
+
+/**
+ * Reads one Batch Extraction with its members and, per member, the Extraction
+ * the batch produced most recently. A retry appends a further Extraction to the
+ * same member, so the latest one is that member's current state.
+ */
+async function loadBatchExtraction(
+  orm: Orm,
+  projectContextId: string,
+  batchExtractionId: string,
+): Promise<BatchExtractionRecord | null> {
+  const batch = await orm.public.BatchExtraction.select(
+    'id',
+    'schemaRevisionId',
+    'strategy',
+    'createdAt',
+  ).first({ id: batchExtractionId, projectContextId })
+  if (!batch) return null
+  const schema = await orm.public.SchemaRevision.select(
+    'extractionSchemaId',
+    'revisionNumber',
+  ).first({ id: batch.schemaRevisionId })
+  const extractionSchema = schema
+    ? await orm.public.ExtractionSchema.select('name').first({
+        id: schema.extractionSchemaId,
+      })
+    : null
+  if (!schema || !extractionSchema)
+    throw new Error('Stored Batch Extraction pins are unavailable.')
+  const rows = await orm.public.BatchExtractionMember.where({ batchExtractionId })
+    .select('sourceDocumentId', 'sourceRepresentationRevisionId')
+    .orderBy((member) => member.sourceDocumentId.asc())
+    .all()
+  const members: BatchExtractionMemberRecord[] = []
+  for (const row of rows) {
+    const extraction = await orm.public.Extraction.where({
+      batchExtractionId,
+      sourceDocumentId: row.sourceDocumentId,
+      sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
+    })
+      .select(
+        'id',
+        'outcome',
+        'complete',
+        'reviewable',
+        'createdAt',
+        'reviewedAt',
+        'failure',
+      )
+      .orderBy([
+        (attempt) => attempt.createdAt.desc(),
+        (attempt) => attempt.id.desc(),
+      ])
+      .first()
+    members.push({
+      sourceDocumentId: row.sourceDocumentId,
+      sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
+      latestExtraction: extraction
+        ? {
+            extractionId: extraction.id,
+            outcome: extraction.outcome,
+            complete: extraction.complete,
+            reviewable: extraction.reviewable,
+            createdAt: extraction.createdAt,
+            reviewedAt: extraction.reviewedAt,
+            failure: extraction.failure,
+          }
+        : null,
+    })
+  }
+  return {
+    batchExtractionId: batch.id,
+    projectContextId,
+    schemaRevisionId: batch.schemaRevisionId,
+    extractionSchemaId: schema.extractionSchemaId,
+    extractionSchemaName: extractionSchema.name,
+    schemaRevisionNumber: schema.revisionNumber,
+    strategy: batch.strategy as ExtractionStrategy,
+    createdAt: batch.createdAt,
+    members,
   }
 }
 
@@ -233,7 +317,25 @@ function sameAttemptIdentity(
     attempt.sourceRepresentationRevisionId ===
       input.sourceRepresentationRevisionId &&
     attempt.schemaRevisionId === input.schemaRevisionId &&
-    attempt.strategy === input.strategy
+    attempt.strategy === input.strategy &&
+    attempt.batchExtractionId === input.batchExtractionId
+  )
+}
+
+function canonicalSourceDocumentIds(ids: readonly string[]): string[] {
+  return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
+}
+
+function sameBatchIdentity(
+  batch: BatchExtractionRecord,
+  input: CreateBatchExtractionInput,
+): boolean {
+  const selected = canonicalSourceDocumentIds(input.sourceDocumentIds)
+  return (
+    batch.schemaRevisionId === input.schemaRevisionId &&
+    batch.strategy === input.strategy &&
+    batch.members.length === selected.length &&
+    batch.members.every((member, index) => member.sourceDocumentId === selected[index])
   )
 }
 
@@ -271,6 +373,7 @@ export type StoredExtractionAttempt = {
     failure: unknown | null
     reviewable: boolean
     retryOfId: string | null
+    batchExtractionId: string | null
     reviewDecisions: Array<{
       reviewDecisionId: string
       evidenceAnchorId: string
@@ -302,6 +405,48 @@ export type TerminalExtractionInput = {
   evidenceLinks: unknown | null
   reviewable: boolean
   retryOfId: string | null
+  batchExtractionId: string | null
+}
+
+export type ExtractionStrategy = 'ARTICLE' | 'CATALOG'
+
+/** One selected Source Document, with the Extraction the batch produced for it. */
+export type BatchExtractionMemberRecord = {
+  sourceDocumentId: string
+  sourceRepresentationRevisionId: string
+  latestExtraction: {
+    extractionId: string
+    outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+    complete: boolean | null
+    reviewable: boolean
+    createdAt: Date
+    reviewedAt: Date | null
+    failure: unknown | null
+  } | null
+}
+
+/**
+ * One Batch Extraction and its intended selection. Members are stored when the
+ * batch is created, so counts stay truthful while its Extractions are still
+ * being appended: a member without an Extraction has not run yet.
+ */
+export type BatchExtractionRecord = {
+  batchExtractionId: string
+  projectContextId: string
+  schemaRevisionId: string
+  extractionSchemaId: string
+  extractionSchemaName: string
+  schemaRevisionNumber: number
+  strategy: ExtractionStrategy
+  createdAt: Date
+  members: BatchExtractionMemberRecord[]
+}
+
+export type CreateBatchExtractionInput = {
+  batchExtractionId: string
+  schemaRevisionId: string
+  strategy: ExtractionStrategy
+  sourceDocumentIds: readonly string[]
 }
 
 export type FinalizeExtractionReviewInput = {
@@ -338,6 +483,7 @@ export type ProjectStore = {
   getDocumentReopenSnapshot(
     projectContextId: string,
     sourceDocumentId: string,
+    extractionId?: string,
   ): Promise<DocumentReopenSnapshot | null>
   getSourceRepresentation(
     sourceRepresentationId: string,
@@ -381,6 +527,24 @@ export type ProjectStore = {
     extractionSchemaId: string,
     schemaRevisionId: string,
   ): Promise<SchemaRevisionRecord | null>
+  /**
+   * Opens one Batch Extraction over the researcher's selection, pinning the
+   * Schema Revision, the Extraction Strategy, and each Source Document's
+   * Current Source Representation Revision before any Extraction runs. The
+   * server-derived Batch Extraction ID is the retry authority.
+   */
+  createBatchExtraction(
+    projectContextId: string,
+    input: CreateBatchExtractionInput,
+  ): Promise<
+    | { status: 'created' | 'replayed'; batch: BatchExtractionRecord }
+    | { status: 'invalid' | 'conflict' }
+    | null
+  >
+  listBatchExtractions(
+    projectContextId: string,
+    limit: number,
+  ): Promise<BatchExtractionRecord[] | null>
   persistExtractionAttempt(input: TerminalExtractionInput): Promise<
     | { status: 'created' | 'replayed'; attempt: StoredExtractionAttempt }
     | { status: 'conflict'; attempt: StoredExtractionAttempt }
@@ -554,7 +718,11 @@ export function createProjectStore(database: Database = db): ProjectStore {
         ),
       }
     },
-    async getDocumentReopenSnapshot(projectContextId, sourceDocumentId) {
+    async getDocumentReopenSnapshot(
+      projectContextId,
+      sourceDocumentId,
+      extractionId,
+    ) {
       return database.transaction(async ({ orm }) => {
         const project = await orm.public.ProjectContext.select(
           'id',
@@ -572,13 +740,30 @@ export function createProjectStore(database: Database = db): ProjectStore {
         if (!document || document.projectContextId !== projectContextId)
           return null
 
-        const representation =
-          await orm.public.SourceRepresentationRevision.where({
-            sourceDocumentId,
-          })
-            .select('id', 'revisionNumber', 'createdAt')
-            .orderBy((revision) => revision.revisionNumber.desc())
-            .first()
+        const selectedAttempt = extractionId
+          ? await loadStoredAttempt(orm, extractionId)
+          : null
+        if (
+          extractionId &&
+          (!selectedAttempt || selectedAttempt.sourceDocumentId !== sourceDocumentId)
+        )
+          return null
+
+        const representation = selectedAttempt
+          ? await orm.public.SourceRepresentationRevision.select(
+              'id',
+              'revisionNumber',
+              'createdAt',
+            ).first({
+              id: selectedAttempt.sourceRepresentationRevisionId,
+              sourceDocumentId,
+            })
+          : await orm.public.SourceRepresentationRevision.where({
+              sourceDocumentId,
+            })
+              .select('id', 'revisionNumber', 'createdAt')
+              .orderBy((revision) => revision.revisionNumber.desc())
+              .first()
         if (!representation) return null
 
         const annotationSet = await orm.public.AnnotationSetRevision.where({
@@ -589,40 +774,51 @@ export function createProjectStore(database: Database = db): ProjectStore {
           .orderBy((revision) => revision.revisionNumber.desc())
           .first()
 
-        // Every Source Document in a Project Context shares its Extraction Schema.
-        const extractionSchema = await orm.public.ExtractionSchema.where({
-          projectContextId,
-        })
-          .select('id')
-          .orderBy([
-            (schema) => schema.createdAt.desc(),
-            (schema) => schema.id.desc(),
-          ])
-          .first()
-        const schemaRevision = extractionSchema
-          ? await orm.public.SchemaRevision.where({
-              extractionSchemaId: extractionSchema.id,
+        // An exact Extraction route must reopen the Schema Revision it pinned.
+        const extractionSchema = selectedAttempt
+          ? { id: selectedAttempt.extractionSchemaId }
+          : await orm.public.ExtractionSchema.where({
+              projectContextId,
             })
-              .select(
-                'id',
-                'extractionSchemaId',
-                'revisionNumber',
-                'schemaTree',
-              )
-              .orderBy((revision) => revision.revisionNumber.desc())
+              .select('id')
+              .orderBy([
+                (schema) => schema.createdAt.desc(),
+                (schema) => schema.id.desc(),
+              ])
               .first()
-          : null
+        const schemaRevision = selectedAttempt
+          ? {
+              id: selectedAttempt.schemaRevisionId,
+              extractionSchemaId: selectedAttempt.extractionSchemaId,
+              revisionNumber: selectedAttempt.schemaRevisionNumber,
+              schemaTree: selectedAttempt.schemaTree,
+            }
+          : extractionSchema
+            ? await orm.public.SchemaRevision.where({
+                extractionSchemaId: extractionSchema.id,
+              })
+                .select(
+                  'id',
+                  'extractionSchemaId',
+                  'revisionNumber',
+                  'schemaTree',
+                )
+                .orderBy((revision) => revision.revisionNumber.desc())
+                .first()
+            : null
 
-        const latestAttempt = await orm.public.Extraction.where({
-          sourceDocumentId,
-          sourceRepresentationRevisionId: representation.id,
-        })
-          .select('id')
-          .orderBy([
-            (attempt) => attempt.createdAt.desc(),
-            (attempt) => attempt.id.desc(),
-          ])
-          .first()
+        const latestAttempt = selectedAttempt
+          ? null
+          : await orm.public.Extraction.where({
+              sourceDocumentId,
+              sourceRepresentationRevisionId: representation.id,
+            })
+              .select('id')
+              .orderBy([
+                (attempt) => attempt.createdAt.desc(),
+                (attempt) => attempt.id.desc(),
+              ])
+              .first()
         const latestReviewed = await orm.public.Extraction.where({
           sourceDocumentId,
           sourceRepresentationRevisionId: representation.id,
@@ -666,10 +862,11 @@ export function createProjectStore(database: Database = db): ProjectStore {
                   schemaTree: schemaRevision.schemaTree,
                 }
               : null,
-          latestAttempt: latestAttempt
-            ? await loadStoredAttempt(orm, latestAttempt.id)
-            : null,
-          latestReviewed: latestReviewed
+          latestAttempt: selectedAttempt ??
+            (latestAttempt ? await loadStoredAttempt(orm, latestAttempt.id) : null),
+          latestReviewed: selectedAttempt?.reviewedAt
+            ? selectedAttempt
+            : latestReviewed
             ? await loadStoredAttempt(orm, latestReviewed.id)
             : null,
         }
@@ -1003,6 +1200,117 @@ export function createProjectStore(database: Database = db): ProjectStore {
       ).first({ id: schemaRevisionId, extractionSchemaId })
       return row ? schemaRevision(row as StoredSchemaRevision) : null
     },
+    async createBatchExtraction(projectContextId, input) {
+      const load = () =>
+        loadBatchExtraction(database.orm, projectContextId, input.batchExtractionId)
+      try {
+        const opened = await database.transaction(async ({ orm }) => {
+          const project = await orm.public.ProjectContext.select('id').first({
+            id: projectContextId,
+          })
+          if (!project) return 'missing' as const
+          if (input.sourceDocumentIds.length === 0) return 'invalid' as const
+          const schema = await orm.public.SchemaRevision.select(
+            'extractionSchemaId',
+          ).first({ id: input.schemaRevisionId })
+          if (!schema) return 'invalid' as const
+          const owner = await orm.public.ExtractionSchema.select(
+            'projectContextId',
+          ).first({
+            id: schema.extractionSchemaId,
+          })
+          if (!owner || owner.projectContextId !== projectContextId)
+            return 'invalid' as const
+          const currentSchemaRevision = await orm.public.SchemaRevision.where({
+            extractionSchemaId: schema.extractionSchemaId,
+          })
+            .select('id')
+            .orderBy((revision) => revision.revisionNumber.desc())
+            .first()
+          if (currentSchemaRevision?.id !== input.schemaRevisionId)
+            return 'invalid' as const
+
+          // Each member pins the Source Document's Current Source
+          // Representation Revision now, so a later ingestion cannot change what
+          // this Batch Extraction ran against.
+          const members: { sourceDocumentId: string; sourceRepresentationRevisionId: string }[] = []
+          for (const sourceDocumentId of canonicalSourceDocumentIds(
+            input.sourceDocumentIds,
+          )) {
+            const document = await orm.public.SourceDocument.select('id').first({
+              id: sourceDocumentId,
+              projectContextId,
+            })
+            if (!document) return 'invalid' as const
+            const representation =
+              await orm.public.SourceRepresentationRevision.where({
+                sourceDocumentId,
+              })
+                .select('id')
+                .orderBy((revision) => revision.revisionNumber.desc())
+                .first()
+            if (!representation) return 'invalid' as const
+            members.push({
+              sourceDocumentId,
+              sourceRepresentationRevisionId: representation.id,
+            })
+          }
+
+          await orm.public.BatchExtraction.create({
+            id: input.batchExtractionId,
+            projectContextId,
+            schemaRevisionId: input.schemaRevisionId,
+            strategy: input.strategy,
+          })
+          for (const member of members)
+            await orm.public.BatchExtractionMember.create({
+              batchExtractionId: input.batchExtractionId,
+              ...member,
+            })
+          return 'created' as const
+        })
+        if (opened === 'missing') return null
+        if (opened === 'invalid') return { status: 'invalid' as const }
+        const batch = await load()
+        if (!batch) throw new Error('Persisted Batch Extraction could not be read.')
+        return { status: 'created', batch }
+      } catch (error) {
+        if (!uniqueConstraint(error)) throw error
+        const batch = await load()
+        if (!batch || !sameBatchIdentity(batch, input))
+          return { status: 'conflict' }
+        return { status: 'replayed', batch }
+      }
+    },
+    async listBatchExtractions(projectContextId, limit) {
+      const project = await database.orm.public.ProjectContext.select('id').first({
+        id: projectContextId,
+      })
+      if (!project) return null
+      const rows = await database.orm.public.BatchExtraction.where({
+        projectContextId,
+      })
+        .select('id')
+        .orderBy([
+          (batch) => batch.createdAt.desc(),
+          (batch) => batch.id.desc(),
+        ])
+        .take(limit)
+        .all()
+      // ponytail: one member read per listed batch, bounded by `limit`; fold
+      // into a single joined query if a Project Context ever lists enough
+      // Batch Extractions for this to be hot.
+      const batches: BatchExtractionRecord[] = []
+      for (const row of rows) {
+        const batch = await loadBatchExtraction(
+          database.orm,
+          projectContextId,
+          row.id,
+        )
+        if (batch) batches.push(batch)
+      }
+      return batches
+    },
     async persistExtractionAttempt(input) {
       try {
         const created = await database.transaction(async ({ orm }) => {
@@ -1036,6 +1344,17 @@ export function createProjectStore(database: Database = db): ProjectStore {
             extractionSchema.projectContextId !== document.projectContextId
           )
             return false
+          if (input.batchExtractionId) {
+            const member = await orm.public.BatchExtractionMember.select(
+              'batchExtractionId',
+            ).first({
+              batchExtractionId: input.batchExtractionId,
+              sourceDocumentId: input.sourceDocumentId,
+              sourceRepresentationRevisionId:
+                input.sourceRepresentationRevisionId,
+            })
+            if (!member) return false
+          }
           await orm.public.Extraction.create({
             id: input.extractionId,
             sourceDocumentId: input.sourceDocumentId,
@@ -1052,6 +1371,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
             evidenceLinks: input.evidenceLinks,
             reviewable: input.reviewable,
             retryOfId: input.retryOfId,
+            batchExtractionId: input.batchExtractionId,
           })
           return true
         })

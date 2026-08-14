@@ -66,6 +66,7 @@ describe('Article extraction lifecycle client', () => {
       evidenceLinks: [],
       reviewable: true,
       retryOfId: null,
+      batchExtractionId: null,
       createdAt: '2026-08-10T00:00:00.000Z',
       reviewedAt: null,
       reviewDecisions: [],
@@ -90,7 +91,7 @@ describe('Article extraction lifecycle client', () => {
     expect(submitted).toEqual([
       {
         url: '/api/extractions',
-        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE' },
+        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE', batchExtractionId: null },
       },
       {
         url: `/api/extractions/${extractionId}/review`,
@@ -118,7 +119,7 @@ describe('Article extraction lifecycle client', () => {
         values: null, grounding: null, catalog: { stages: [], records: [] },
       },
       failure: null, resultPayload: { records: [] }, evidenceLinks: [],
-      reviewable: true, retryOfId: parentId,
+      reviewable: true, retryOfId: parentId, batchExtractionId: null,
       createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
     }
     vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, init: RequestInit) => {

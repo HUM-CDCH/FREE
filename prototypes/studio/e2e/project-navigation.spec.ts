@@ -125,6 +125,7 @@ const DURABLE = {
     evidenceLinks: [],
     reviewable: true,
     retryOfId: null,
+    batchExtractionId: null,
     createdAt: new Date('2026-08-02T10:00:00.000Z'),
     reviewedAt: null,
     reviewDecisions: [],

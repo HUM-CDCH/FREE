@@ -12,6 +12,7 @@ import type { DocumentSnapshot } from './projectContexts/transport'
 const projectContextId = '00000000-0000-4000-8000-000000000044'
 const sourceDocumentId = '00000000-0000-4000-8000-000000000045'
 const otherSourceDocumentId = '00000000-0000-4000-8000-000000000046'
+const extractionId = '00000000-0000-4000-8000-000000000047'
 
 describe('Project Context routes', () => {
   it.each([
@@ -24,6 +25,10 @@ describe('Project Context routes', () => {
     [
       `/projects/${projectContextId}/documents/${sourceDocumentId}`,
       { kind: 'document', projectContextId, sourceDocumentId },
+    ],
+    [
+      `/projects/${projectContextId}/documents/${sourceDocumentId}?extractionId=${extractionId}`,
+      { kind: 'document', projectContextId, sourceDocumentId, extractionId },
     ],
     ['/projects/NOT-A-UUID', { kind: 'badReference' }],
     [`/projects/${projectContextId}/documents/nope`, { kind: 'badReference' }],
@@ -39,6 +44,7 @@ describe('Project Context routes', () => {
     { kind: 'root' },
     { kind: 'project', projectContextId },
     { kind: 'document', projectContextId, sourceDocumentId },
+    { kind: 'document', projectContextId, sourceDocumentId, extractionId },
   ])('builds the canonical href for $kind routes', (route) => {
     expect(parseRoute(href(route))).toEqual(route)
   })

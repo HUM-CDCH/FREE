@@ -123,9 +123,13 @@ export function getDocumentReopenSnapshot(
   projectContextId: string,
   sourceDocumentId: string,
   signal?: AbortSignal,
+  extractionId?: string,
 ): Promise<DocumentSnapshot> {
+  const query = extractionId
+    ? `?${new URLSearchParams({ extractionId })}`
+    : ''
   return request(
-    `/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/reopen`,
+    `/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/reopen${query}`,
     documentReopenResponseSchema,
     signal,
   )

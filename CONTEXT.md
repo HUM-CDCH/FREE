@@ -92,6 +92,10 @@ _Avoid_: restore, rollback, checkout
 A run that applies an extraction schema to source context from its source document to produce extracted values.
 _Avoid_: schema, suggestion
 
+**Batch Extraction**:
+A researcher-initiated operation that applies one Current Schema Revision and one Extraction Strategy to a selected set of Source Documents, creating a separate Extraction and Extraction Result for each Source Document.
+_Avoid_: annotation set, combined extraction, project-wide extraction
+
 **Extraction Result**:
 A source-grounded value or set of values produced by an extraction and linked to
 validated evidence.

@@ -277,10 +277,10 @@ export default function AppFrame({
           <Suspense
             fallback={<div aria-busy="true">Loading Source Document…</div>}
           >
-            {/* Keyed so a different Source Document starts with no carried-over
-                annotations, schema draft, focus, or scroll position. */}
+            {/* Keyed so a different Source Document or pinned Extraction starts
+                with no carried-over annotations, schema draft, focus, or scroll. */}
             <DocumentWorkspace
-              key={workspace.pdfUrl}
+              key={workspace.persistedExtraction?.extractionId ?? workspace.pdfUrl}
               {...workspace}
               onInitialResourceLoadFailure={onInitialResourceLoadFailure}
             />

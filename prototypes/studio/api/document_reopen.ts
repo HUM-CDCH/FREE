@@ -61,6 +61,7 @@ function extractionDto(
     evidenceLinks: extraction.evidenceLinks,
     reviewable: extraction.reviewable,
     retryOfId: extraction.retryOfId,
+    batchExtractionId: extraction.batchExtractionId,
     createdAt: extraction.createdAt.toISOString(),
     reviewedAt: extraction.reviewedAt?.toISOString() ?? null,
     reviewDecisions: extraction.reviewDecisions.map((decision) => ({
@@ -190,9 +191,12 @@ export function createGetDocumentReopen(
       if (!match)
         throw new ApiError(404, 'not_found', 'API route not found.')
       const [, projectContextId, sourceDocumentId] = match
+      const extractionId = new URL(request.url).searchParams.get('extractionId')
       if (
         !canonicalUuidSchema.safeParse(projectContextId).success ||
-        !canonicalUuidSchema.safeParse(sourceDocumentId).success
+        !canonicalUuidSchema.safeParse(sourceDocumentId).success ||
+        (extractionId !== null &&
+          !canonicalUuidSchema.safeParse(extractionId).success)
       )
         throw new ApiError(
           422,
@@ -201,7 +205,11 @@ export function createGetDocumentReopen(
         )
 
       const snapshot = await store
-        .getDocumentReopenSnapshot(projectContextId, sourceDocumentId)
+        .getDocumentReopenSnapshot(
+          projectContextId,
+          sourceDocumentId,
+          extractionId ?? undefined,
+        )
         .catch((cause) => {
           throw persistenceUnavailable(cause)
         })

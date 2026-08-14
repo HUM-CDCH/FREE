@@ -81,6 +81,7 @@ const catalogAttempt: ExtractionAttempt = {
   evidenceLinks: [],
   reviewable: true,
   retryOfId: null,
+  batchExtractionId: null,
   createdAt: '2026-08-10T00:00:00.000Z',
   reviewedAt: null,
   reviewDecisions: [],

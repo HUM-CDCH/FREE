@@ -80,6 +80,7 @@ const reopened: DocumentWorkspaceProps = {
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
     reviewable: true,
     retryOfId: null,
+    batchExtractionId: null,
     reviewDecisions: [],
     sourceRepresentation: {
       revisionNumber: 1,
@@ -615,7 +616,7 @@ describe('reopened Source Document workspace', () => {
         },
         failure: null,
         resultPayload: { records: [{ place: 'Catalog' }] },
-        evidenceLinks: [], reviewable: true, retryOfId: null,
+        evidenceLinks: [], reviewable: true, retryOfId: null, batchExtractionId: null,
         createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
       }),
     )
@@ -695,7 +696,7 @@ describe('reopened Source Document workspace', () => {
         values: null, grounding: null, catalog: { stages: [], records: [] },
       },
       failure: null, resultPayload: { records: [{ place: 'Catalog' }] },
-      evidenceLinks: [], reviewable: true, retryOfId: null,
+      evidenceLinks: [], reviewable: true, retryOfId: null, batchExtractionId: null,
       createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
     }))
   })
@@ -729,7 +730,7 @@ describe('reopened Source Document workspace', () => {
             resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
             reviewable: true,
-            retryOfId: null,
+            retryOfId: null, batchExtractionId: null,
             createdAt: '2026-08-10T00:00:00.000Z',
             reviewedAt: null,
             reviewDecisions: [],
@@ -747,7 +748,7 @@ describe('reopened Source Document workspace', () => {
             diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, values: { outcome: 'succeeded', finishReason: 'stop', inputTokens: 10, outputTokens: 4, durationMs: 1 }, grounding: null },
             failure: null, resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
-            reviewable: true, retryOfId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',
+            reviewable: true, retryOfId: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',
             reviewDecisions: [{ reviewDecisionId: '51000000-0000-4000-8007-000000000001', evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'] }],
           })
         }
@@ -803,7 +804,7 @@ describe('reopened Source Document workspace', () => {
             resultPayload: null,
             evidenceLinks: null,
             reviewable: false,
-            retryOfId: null,
+            retryOfId: null, batchExtractionId: null,
             createdAt: '2026-08-10T00:00:00.000Z',
             reviewedAt: null,
             reviewDecisions: [],

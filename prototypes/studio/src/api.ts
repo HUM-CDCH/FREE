@@ -4,6 +4,7 @@ import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/sch
 import {
   extractionRequestSchema,
   extractionAttemptSchema,
+  extractionReadResponseSchema,
   finalizeExtractionReviewSchema,
   type ExtractionRequestInput,
   type ExtractionAttempt,
@@ -82,7 +83,7 @@ export async function requestSchema(
 
 async function extractionJson(
   path: string,
-  method: 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'DELETE',
   body: unknown,
   signal?: AbortSignal,
 ): Promise<unknown> {
@@ -111,6 +112,7 @@ export async function requestExtraction(
           sourceRepresentationRevisionId: request.sourceRepresentationRevisionId,
           schemaRevisionId: request.schemaRevisionId,
           strategy: request.strategy,
+          batchExtractionId: request.batchExtractionId,
         }
       : {
           id: request.id,
@@ -121,6 +123,20 @@ export async function requestExtraction(
         }
   return extractionAttemptSchema.parse(
     await extractionJson('/extractions', 'POST', body, signal),
+  )
+}
+
+/**
+ * Reads one stored Extraction with the Review Decisions its Evidence requires.
+ * The server derives them from the pinned Source Representation, so a reader
+ * never loads the parsed document only to review.
+ */
+export async function readExtraction(
+  extractionId: string,
+  signal?: AbortSignal,
+) {
+  return extractionReadResponseSchema.parse(
+    await extractionJson(`/extractions/${extractionId}`, 'GET', null, signal),
   )
 }
 
