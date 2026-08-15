@@ -6,6 +6,7 @@
     "install:python:gpu": "uv sync --extra ocr-gpu",
     "dev": "uv run --no-sync python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000",
     "dev:gpu": "pnpm install:python:gpu && pnpm dev",
+    "replay:worker": "uv run --no-sync python -X utf8 -m app.workers.replay_parse_worker",
     "test": "uv run --no-sync python -m unittest discover -s tests",
     "test:gpu": "pnpm install:python:gpu && pnpm test"
   }

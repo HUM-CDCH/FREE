@@ -44,6 +44,7 @@ parser input/output refs, and internal digests stay in the generation manifest.
 ## Public routes
 
 - `POST /tasks`
+- `POST /tasks/{task_id}/retry` (reuses the retained task/source identity)
 - `GET /tasks/{task_id}`
 - `GET /tasks/{task_id}/document`
 - `GET /tasks/{task_id}/source` (the same `parsed_document.v2` payload)

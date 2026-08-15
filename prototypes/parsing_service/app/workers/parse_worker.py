@@ -14,11 +14,8 @@ from typing import Any
 from filelock import FileLock, Timeout
 
 from app.models.parsed_document_v2 import ParsedDocument
-from app.parsing.orchestrator import (
-    CanonicalIngestionError,
-    build_canonical_generation,
-)
-from app.storage.canonical_package import has_active_delivery_lease
+from app.models.parser_output import ParserRun
+from app.parsing.orchestrator import CanonicalIngestionError
 from app.storage.atomic_json import write_json_atomic
 from app.storage.blobs import (
     prune_document_store,
@@ -26,6 +23,7 @@ from app.storage.blobs import (
     prune_source_store,
     store_source_by_hash,
 )
+from app.storage.canonical_package import has_active_delivery_lease
 from app.storage.hashing import compute_sha256, document_id_from_hash
 from app.storage.manifests import (
     TaskNotFoundError,
@@ -54,12 +52,27 @@ from app.storage.paths import (
     task_store_lock_path,
 )
 from app.timing import utc_now
+from app.workers._attempt_diagnostics import (
+    ATTEMPT_METRICS_FILENAME as _ATTEMPT_METRICS_FILENAME,
+    AttemptTracker as _AttemptTracker,
+    TaskStateError as _TaskStateError,
+    finish_attempt as _finish_stored_attempt,
+    merge_attempt_metrics as _merge_attempt_metrics,
+    persist_task_metadata as _persist_task_metadata,
+    remove_attempt_metrics as _remove_attempt_metrics,
+)
+from app.workers._parser_supervisor import (
+    ParserChildProtocolError,
+    ParserDeadlineExceeded,
+    ParserProcessFailed,
+    run_parser_child,
+)
 from app.workers._task_state import (
     cached_document_matches_task,
     failure_metadata as _failure_metadata,
     iter_task_entries as _iter_task_entries,
-    validate_current_task_metadata as _validate_current_task_metadata,
     task_modified_at as _task_modified_at,
+    validate_current_task_metadata as _validate_current_task_metadata,
 )
 
 _cached_document_matches_task = cached_document_matches_task
@@ -70,12 +83,13 @@ logger = logging.getLogger(__name__)
 # single-build admission policy across service processes.
 _PARSER_ADMISSION = asyncio.Semaphore(1)
 _CANONICAL_LOCK_TIMEOUT_SECONDS = 15 * 60
+_PARSER_DEADLINE_SECONDS = int(
+    os.environ.get("FREE_PARSER_DEADLINE_SECONDS", 9 * 60)
+)
+if _PARSER_DEADLINE_SECONDS < 1:
+    raise ValueError("FREE_PARSER_DEADLINE_SECONDS must be positive.")
 _ACTIVE_TASK_IDS: set[str] = set()
 _SOURCE_PDF_FILENAME = "source.pdf"
-
-
-class _TaskStateError(Exception):
-    pass
 
 
 def _load_valid_canonical(
@@ -144,12 +158,64 @@ def _new_generation_id(config_hash: str) -> str:
     return f"{config_hash[:16]}-{uuid.uuid4().hex}"
 
 
+def _raise_child_failure(payload: dict[str, Any]) -> None:
+    code = payload.get("error_code")
+    message = payload.get("public_message")
+    try:
+        parser_runs = [
+            ParserRun.model_validate(run) for run in payload.get("parser_runs", [])
+        ]
+    except (TypeError, ValueError) as exc:
+        raise ParserChildProtocolError(
+            "Parser child failure provenance is invalid."
+        ) from exc
+    if not isinstance(code, str) or not isinstance(message, str):
+        raise ParserChildProtocolError("Parser child failure is invalid.")
+    raise CanonicalIngestionError(code, message, parser_runs=parser_runs)
+
+
+def _validated_child_generation(
+    payload: dict[str, Any],
+    *,
+    content_sha256: str,
+    config_hash: str,
+    pending_artifacts: Path,
+) -> tuple[ParsedDocument, dict[str, Any]]:
+    try:
+        parsed_document = ParsedDocument.model_validate(payload["document"])
+        generation_manifest = payload["generation_manifest"]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ParserChildProtocolError("Parser child generation is invalid.") from exc
+    if not isinstance(generation_manifest, dict):
+        raise ParserChildProtocolError("Parser child manifest is invalid.")
+    validate_canonical_document(
+        parsed_document,
+        expected_sha256=content_sha256,
+        expected_config_hash=config_hash,
+    )
+    markdown = pending_artifacts / "document.llm.md"
+    if markdown.is_symlink() or not markdown.is_file():
+        raise ParserChildProtocolError("Parser child Markdown is unavailable.")
+    if (
+        generation_manifest.get("schema_version") != "generation-manifest.v1"
+        or generation_manifest.get("source_sha256") != content_sha256
+        or generation_manifest.get("preprocess_id")
+        != parsed_document.preprocessing.preprocess_id
+        or generation_manifest.get("canonical_markdown_sha256")
+        != compute_sha256(markdown)
+    ):
+        raise ParserChildProtocolError("Parser child manifest does not authenticate.")
+    return parsed_document, generation_manifest
+
+
 def _build_or_load_canonical(
     task_id: str,
     content_sha256: str,
     metadata: dict[str, Any],
+    tracker: _AttemptTracker,
 ) -> ParsedDocument:
     """Authenticate, build, and atomically publish one immutable generation."""
+    tracker.observe("inspection", "started")
     source_blob = _authenticated_source_blob(task_id, content_sha256)
     store_lock = FileLock(str(document_store_lock_path()))
     source_lock = FileLock(str(document_lock_path(content_sha256)))
@@ -161,6 +227,9 @@ def _build_or_load_canonical(
         ):
             cached = _reusable_canonical(content_sha256, metadata)
             if cached is not None:
+                tracker.observe("inspection", "completed")
+                tracker.observe("publication", "started")
+                tracker.stop_sampling()
                 return cached
 
             config_hash = preprocessing_config_hash(metadata)
@@ -174,16 +243,31 @@ def _build_or_load_canonical(
             try:
                 pending_artifacts = pending_dir / "artifacts"
                 pending_artifacts.mkdir(parents=True, exist_ok=False)
-                built = build_canonical_generation(
-                    task_id,
+                child_result = pending_dir / "parser-child-result.json"
+                tracker.stop_sampling()
+                outcome = run_parser_child(
+                    task_id=task_id,
+                    task_root=task_dir_for(task_id).parent,
                     source_path=source_blob,
                     artifact_root=pending_artifacts,
+                    result_path=child_result,
+                    deadline_seconds=_PARSER_DEADLINE_SECONDS,
                 )
-                parsed_document = built.document
+                if outcome.payload["status"] == "failed":
+                    _raise_child_failure(outcome.payload)
+                tracker.refresh()
+                tracker.observe("publication", "started")
+                parsed_document, generation_manifest = _validated_child_generation(
+                    outcome.payload,
+                    content_sha256=content_sha256,
+                    config_hash=config_hash,
+                    pending_artifacts=pending_artifacts,
+                )
+                child_result.unlink()
                 metadata["canonical_generation_ref"] = service_relative_ref(final_dir)
                 write_json_atomic(
                     pending_artifacts / "generation-manifest.json",
-                    built.generation_manifest,
+                    generation_manifest,
                 )
                 final_dir.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(pending_dir, final_dir)
@@ -192,11 +276,6 @@ def _build_or_load_canonical(
                     content_sha256,
                     generation_ref=metadata["canonical_generation_ref"],
                     config_hash=config_hash,
-                )
-                validate_canonical_document(
-                    parsed_document,
-                    expected_sha256=content_sha256,
-                    expected_config_hash=config_hash,
                 )
                 write_canonical_parsed_document(content_sha256, parsed_document)
                 return parsed_document
@@ -208,23 +287,14 @@ def _build_or_load_canonical(
     except Timeout as exc:
         cached = _reusable_canonical(content_sha256, metadata)
         if cached is not None:
+            tracker.observe("inspection", "completed")
+            tracker.observe("publication", "started")
+            tracker.stop_sampling()
             return cached
         raise CanonicalIngestionError(
             "canonical_build_timeout",
             "Timed out waiting for canonical source-document parsing.",
         ) from exc
-
-
-def _persist_task_metadata(
-    task_dir: Path,
-    metadata: dict[str, Any],
-) -> None:
-    store_lock = FileLock(str(task_store_lock_path()))
-    with store_lock:
-        try:
-            save_task_metadata(task_dir, metadata)
-        except (OSError, TypeError, ValueError) as exc:
-            raise _TaskStateError from exc
 
 
 def _completed_metadata(
@@ -278,8 +348,8 @@ def _run_task_sync(task_id: str) -> None:
     with lock.acquire(timeout=_CANONICAL_LOCK_TIMEOUT_SECONDS):
         metadata = load_task_metadata(task_dir)
         metadata["status"] = "running"
-        metadata["updated_at"] = utc_now()
-        _persist_task_metadata(task_dir, metadata)
+        tracker = _AttemptTracker(task_dir, metadata)
+        tracker.start()
         try:
             content_sha256 = metadata.get("content_sha256")
             if not isinstance(content_sha256, str) or not content_sha256:
@@ -291,17 +361,52 @@ def _run_task_sync(task_id: str) -> None:
                 task_id,
                 content_sha256,
                 metadata,
+                tracker,
             )
+            latest = load_task_metadata(task_dir)
+            _merge_attempt_metrics(task_dir, latest)
+            generation_ref = metadata.get("canonical_generation_ref")
+            if generation_ref is not None:
+                latest["canonical_generation_ref"] = generation_ref
+            _finish_stored_attempt(latest, outcome="completed")
             _completed_metadata(
                 task_dir,
-                metadata,
+                latest,
                 parsed_document,
             )
+            _remove_attempt_metrics(task_dir)
         except Exception as exc:
-            logger.exception("Canonical parsing task %s failed", task_id)
-            metadata = _failure_metadata(load_task_metadata(task_dir), exc)
-            metadata["updated_at"] = utc_now()
-            _persist_task_metadata(task_dir, metadata)
+            try:
+                if tracker.sampling_active:
+                    tracker.stop_sampling()
+                latest = load_task_metadata(task_dir)
+                _merge_attempt_metrics(task_dir, latest)
+                failing_phase = _finish_stored_attempt(
+                    latest,
+                    outcome="failed",
+                    exc=exc,
+                )
+            except (_TaskStateError, TaskNotFoundError, ValueError):
+                latest = tracker.metadata
+                failing_phase = tracker.attempt.get("current_phase")
+            logger.exception(
+                "Canonical parsing task %s failed (diagnostic_id=%s)",
+                task_id,
+                latest.get("diagnostic_id"),
+            )
+            failed = _failure_metadata(latest, exc)
+            if isinstance(exc, ParserDeadlineExceeded):
+                failed["error_code"] = "parser_deadline_exceeded"
+            elif isinstance(exc, ParserProcessFailed):
+                failed["error_code"] = "parser_process_failed"
+            elif (
+                failing_phase == "publication"
+                and failed.get("error_code") == "parsing_failed"
+            ):
+                failed["error_code"] = "generation_publish_failed"
+            failed["updated_at"] = utc_now()
+            _persist_task_metadata(task_dir, failed)
+            _remove_attempt_metrics(task_dir)
 
 
 async def run_extraction_task(task_id: str):
@@ -338,24 +443,29 @@ def _reconcile_task(entry: Path, task_id: str) -> bool:
     try:
         stored_metadata = load_task_metadata(entry)
         metadata = _validate_current_task_metadata(task_id, stored_metadata)
+        _merge_attempt_metrics(entry, metadata)
         status = metadata.get("status")
         if status not in {"pending", "running", "completed", "failed"}:
             raise ValueError("Task metadata has an invalid status.")
         if status in {"completed", "failed"}:
             if metadata != stored_metadata:
                 _persist_task_metadata(entry, metadata)
+            _remove_attempt_metrics(entry)
             return False
 
         content_sha256 = metadata.get("content_sha256")
         cached = (
-            _load_valid_canonical(content_sha256, metadata)
+            _reusable_canonical(content_sha256, metadata)
             if isinstance(content_sha256, str)
             else None
         )
         if cached is not None:
+            _finish_stored_attempt(metadata, outcome="completed")
             _completed_metadata(entry, metadata, cached)
+            _remove_attempt_metrics(entry)
             return True
 
+        _finish_stored_attempt(metadata, outcome="failed")
         metadata["status"] = "failed"
         metadata["error_code"] = "task_interrupted"
         metadata["error"] = (
@@ -363,6 +473,7 @@ def _reconcile_task(entry: Path, task_id: str) -> bool:
         )
         metadata["updated_at"] = utc_now()
         _persist_task_metadata(entry, metadata)
+        _remove_attempt_metrics(entry)
         return True
     except (
         _TaskStateError,

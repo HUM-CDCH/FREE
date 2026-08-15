@@ -5,7 +5,8 @@ from __future__ import annotations
 import importlib
 import hashlib
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -45,6 +46,27 @@ from app.storage.paths import (
 from app.timing import utc_now
 
 PREPROCESS_PROFILE = "production_default"
+PhaseName = Literal["inspection", "docling", "ocr", "tables", "publication"]
+PhaseEvent = Literal["started", "completed", "failed"]
+PhaseObserver = Callable[[PhaseName, PhaseEvent], None]
+
+
+@contextmanager
+def _observe_phase(
+    observer: PhaseObserver | None,
+    phase: PhaseName,
+) -> Iterator[None]:
+    if observer is not None:
+        observer(phase, "started")
+    try:
+        yield
+    except Exception:
+        if observer is not None:
+            observer(phase, "failed")
+        raise
+    else:
+        if observer is not None:
+            observer(phase, "completed")
 
 
 class CanonicalIngestionError(RuntimeError):
@@ -72,6 +94,7 @@ class _CanonicalTextRequest:
     params: dict[str, Any]
     artifact_root: Path | None
     parser_runs: tuple[ParserRun, ...]
+    phase_observer: PhaseObserver | None
 
 
 @dataclass(frozen=True)
@@ -413,17 +436,18 @@ def _mapped_text_resolution(
     ocr_output = None
     ocr_parser_run = None
     if fallback_pages:
-        ocr_output = _run_ocr_fallback(
-            request.source_path,
-            request.content_sha256,
-            fallback_pages,
-            str(request.params.get("resolved_ocr_device") or "cpu"),
-            request.artifact_root,
-        )
-        ocr_parser_run = parser_run_from_ocr_output(
-            ocr_output,
-            request.content_sha256,
-        )
+        with _observe_phase(request.phase_observer, "ocr"):
+            ocr_output = _run_ocr_fallback(
+                request.source_path,
+                request.content_sha256,
+                fallback_pages,
+                str(request.params.get("resolved_ocr_device") or "cpu"),
+                request.artifact_root,
+            )
+            ocr_parser_run = parser_run_from_ocr_output(
+                ocr_output,
+                request.content_sha256,
+            )
     merged = _merge_page_fallback_text(
         docling_spans=source.spans,
         inspection=request.inspection,
@@ -549,17 +573,19 @@ def _inspect_source(context: _BuildContext) -> _InspectionResult:
 def _run_canonical_parsers(
     context: _BuildContext,
     inspected: _InspectionResult,
+    phase_observer: PhaseObserver | None,
 ) -> _ParsingResult:
-    docling_output = _run_docling_ingestion(
-        context.source_path,
-        context.content_sha256,
-        list(range(1, inspected.inspection.page_count + 1)),
-        context.artifact_root,
-    )
-    docling_run = parser_run_from_docling_output(
-        docling_output,
-        context.content_sha256,
-    )
+    with _observe_phase(phase_observer, "docling"):
+        docling_output = _run_docling_ingestion(
+            context.source_path,
+            context.content_sha256,
+            list(range(1, inspected.inspection.page_count + 1)),
+            context.artifact_root,
+        )
+        docling_run = parser_run_from_docling_output(
+            docling_output,
+            context.content_sha256,
+        )
     parser_runs = (inspected.parser_run, docling_run)
     text = _resolve_canonical_text(
         _CanonicalTextRequest(
@@ -570,6 +596,7 @@ def _run_canonical_parsers(
             params=context.params,
             artifact_root=context.artifact_root,
             parser_runs=parser_runs,
+            phase_observer=phase_observer,
         )
     )
     if text.ocr_parser_run is not None:
@@ -928,6 +955,7 @@ def build_parsed_document_v2(
     *,
     source_path: Path | None = None,
     artifact_root: Path | None = None,
+    phase_observer: PhaseObserver | None = None,
 ):
     """Build v2 directly from the authenticated producer stages.
 
@@ -957,9 +985,17 @@ def build_parsed_document_v2(
     )
 
     context = _build_context(task_id, source_path, artifact_root)
-    inspected = _inspect_source(context)
-    parsing = _run_canonical_parsers(context, inspected)
-    tables_result = _extract_document_tables(context, inspected, parsing)
+    with _observe_phase(phase_observer, "inspection"):
+        inspected = _inspect_source(context)
+    parsing = _run_canonical_parsers(context, inspected, phase_observer)
+    with _observe_phase(phase_observer, "tables"):
+        tables_result = _extract_document_tables(context, inspected, parsing)
+    if phase_observer is not None:
+        # Placement, canonical Markdown, Evidence, and validation are
+        # publication work; the parent closes this phase once it publishes the
+        # generation. Without it every later failure is reported as a table
+        # failure, because no further phase ever starts.
+        phase_observer("publication", "started")
     parser_runs = [*parsing.parser_runs, tables_result.parser_run]
     content_sha256 = context.content_sha256
     preprocess = _preprocessing_metadata(context, parser_runs)
@@ -1206,6 +1242,7 @@ def build_canonical_generation(
     *,
     source_path: Path | None = None,
     artifact_root: Path | None = None,
+    phase_observer: PhaseObserver | None = None,
 ) -> BuiltGeneration:
     """Run the one canonical PDF pipeline and return its portable generation.
 
@@ -1217,6 +1254,7 @@ def build_canonical_generation(
         task_id,
         source_path=source_path,
         artifact_root=artifact_root,
+        phase_observer=phase_observer,
     )
     markdown_path = (artifact_root / "document.llm.md") if artifact_root else None
     markdown_bytes = markdown_path.read_bytes() if markdown_path and markdown_path.is_file() else b""

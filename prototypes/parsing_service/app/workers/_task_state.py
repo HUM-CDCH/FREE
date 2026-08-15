@@ -2,17 +2,110 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 from app.models.parsed_document_v2 import ParsedDocument, PublicParserProvenance
+from app.models.parser import canonical_preprocessing_config
 from app.parsing.orchestrator import CanonicalIngestionError
 from app.storage.hashing import document_id_from_hash, preprocess_id_from_hashes
 from app.storage.manifests import preprocessing_config_hash
 from app.storage.paths import validate_task_id
 
 _SOURCE_PDF_FILENAME = "source.pdf"
+GENERIC_PARSING_ERROR = "Parsing failed. See server logs for details."
+
+
+def new_attempt_diagnostics(queued_at: str) -> tuple[str, dict[str, Any]]:
+    """Return the private processor-cache state for one queued attempt."""
+    diagnostic_id = str(uuid.uuid4())
+    return diagnostic_id, {
+        "queued_at": queued_at,
+        "started_at": None,
+        "finished_at": None,
+        "current_phase": None,
+        "phases": {},
+        "worker": {
+            "pid": None,
+            "peak_private_memory_bytes": 0,
+            "thread_count": 0,
+            "peak_thread_count": 0,
+        },
+        "failure": None,
+    }
+
+
+def new_task_metadata(
+    *,
+    task_id: str,
+    content_sha256: str,
+    source_name: str,
+    resolved_ocr_device: str,
+    queued_at: str,
+) -> dict[str, Any]:
+    diagnostic_id, attempt = new_attempt_diagnostics(queued_at)
+    return {
+        "task_id": task_id,
+        "document_id": document_id_from_hash(content_sha256),
+        "content_sha256": content_sha256,
+        "source_path": _SOURCE_PDF_FILENAME,
+        "source_store_path": f"data/sources/{content_sha256}.pdf",
+        "source_kind": "upload",
+        "status": "pending",
+        "created_at": queued_at,
+        "updated_at": queued_at,
+        "params": {
+            **canonical_preprocessing_config(
+                resolved_ocr_device=resolved_ocr_device
+            ),
+            "source_name": source_name,
+        },
+        "stats": {},
+        "parser_runs": [],
+        "selected_parser": None,
+        "canonical_parsed_document_ref": None,
+        "error_code": None,
+        "error": None,
+        "diagnostic_id": diagnostic_id,
+        "attempt": attempt,
+        "attempt_history": [],
+    }
+
+
+def retry_task_metadata(
+    metadata: dict[str, Any],
+    *,
+    queued_at: str,
+) -> dict[str, Any]:
+    """Queue the same authenticated task/source identity for another attempt."""
+    updated = dict(metadata)
+    history = list(metadata["attempt_history"])
+    history.append(
+        {
+            "diagnostic_id": metadata["diagnostic_id"],
+            **metadata["attempt"],
+        }
+    )
+    diagnostic_id, attempt = new_attempt_diagnostics(queued_at)
+    updated.update(
+        {
+            "status": "pending",
+            "updated_at": queued_at,
+            "stats": {},
+            "parser_runs": [],
+            "selected_parser": None,
+            "canonical_parsed_document_ref": None,
+            "canonical_generation_ref": None,
+            "error_code": None,
+            "error": None,
+            "diagnostic_id": diagnostic_id,
+            "attempt": attempt,
+            "attempt_history": history,
+        }
+    )
+    return updated
 
 
 def cached_document_matches_task(
@@ -53,7 +146,7 @@ def failure_metadata(
         updated["stats"] = {run.parser: run.metrics for run in exc.parser_runs}
     else:
         updated["error_code"] = "parsing_failed"
-        updated["error"] = "Parsing failed. See server logs for details."
+        updated["error"] = GENERIC_PARSING_ERROR
     updated["selected_parser"] = None
     updated["status"] = "failed"
     return updated
@@ -65,10 +158,25 @@ def validate_current_task_metadata(
 ) -> dict[str, Any]:
     """Accept only a current upload task; never migrate legacy task shapes."""
     required = {
-        "task_id", "document_id", "content_sha256", "source_path",
-        "source_store_path", "source_kind", "status", "created_at",
-        "updated_at", "params", "stats", "parser_runs", "selected_parser",
-        "canonical_parsed_document_ref", "error_code", "error",
+        "task_id",
+        "document_id",
+        "content_sha256",
+        "source_path",
+        "source_store_path",
+        "source_kind",
+        "status",
+        "created_at",
+        "updated_at",
+        "params",
+        "stats",
+        "parser_runs",
+        "selected_parser",
+        "canonical_parsed_document_ref",
+        "error_code",
+        "error",
+        "diagnostic_id",
+        "attempt",
+        "attempt_history",
     }
     missing = sorted(required.difference(metadata))
     if missing or metadata.get("task_id") != task_id:
@@ -76,9 +184,29 @@ def validate_current_task_metadata(
     if metadata.get("source_kind") != "upload":
         raise ValueError("task_metadata_not_current")
     digest = metadata.get("content_sha256")
-    if not isinstance(digest, str) or metadata.get("document_id") != document_id_from_hash(digest):
+    if not isinstance(digest, str) or metadata.get(
+        "document_id"
+    ) != document_id_from_hash(digest):
         raise ValueError("task_metadata_not_current")
-    if not isinstance(metadata.get("params"), dict) or not isinstance(metadata.get("parser_runs"), list):
+    if not isinstance(metadata.get("params"), dict) or not isinstance(
+        metadata.get("parser_runs"), list
+    ):
+        raise ValueError("task_metadata_not_current")
+    diagnostic_id = metadata.get("diagnostic_id")
+    try:
+        if str(uuid.UUID(str(diagnostic_id))) != diagnostic_id:
+            raise ValueError
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ValueError("task_metadata_not_current") from exc
+    attempt = metadata.get("attempt")
+    if (
+        not isinstance(attempt, dict)
+        or not isinstance(attempt.get("queued_at"), str)
+        or not isinstance(attempt.get("phases"), dict)
+        or not isinstance(attempt.get("worker"), dict)
+    ):
+        raise ValueError("task_metadata_not_current")
+    if not isinstance(metadata.get("attempt_history"), list):
         raise ValueError("task_metadata_not_current")
     return dict(metadata)
 

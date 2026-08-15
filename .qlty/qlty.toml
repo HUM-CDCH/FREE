@@ -115,3 +115,12 @@ name = "semgrep"
 
 [[plugin]]
 name = "prettier"
+
+[[plugin]]
+name = "knip"
+
+[[plugin]]
+name = "prisma"
+
+[[plugin]]
+name = "gitleaks"

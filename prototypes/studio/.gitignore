@@ -35,3 +35,6 @@ ds-bundle/
 # Playwright output
 test-results/
 playwright-report/
+
+# Local development TLS material
+.certs/

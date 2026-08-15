@@ -2347,6 +2347,7 @@ dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "filelock" },
     { name = "opencv-contrib-python" },
+    { name = "psutil" },
     { name = "pymupdf" },
     { name = "pypdfium2" },
 ]
@@ -2376,6 +2377,7 @@ requires-dist = [
     { name = "paddlepaddle-gpu", marker = "extra == 'ocr-gpu'", specifier = "==3.2.2", index = "https://www.paddlepaddle.org.cn/packages/stable/cu130/" },
     { name = "paddlex", extras = ["ocr"], marker = "extra == 'ocr-cpu'", specifier = ">=3.7.0" },
     { name = "paddlex", extras = ["ocr"], marker = "extra == 'ocr-gpu'", specifier = ">=3.7.0" },
+    { name = "psutil", specifier = ">=7.2.2" },
     { name = "pymupdf", specifier = ">=1.24.0" },
     { name = "pypdfium2", specifier = ">=4.30.0" },
 ]

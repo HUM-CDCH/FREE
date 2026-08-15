@@ -9,15 +9,17 @@ schema handling, and hierarchical record detection happen later.
 1. `POST /tasks` accepts one uploaded PDF and validates its bytes.
 2. Source bytes are stored content-addressably and physical pages are
    inspected for geometry and text quality.
-3. Docling produces the primary semantic stream and page-scoped DocTags.
-4. PaddleOCR supplies generic text only for unresolved physical pages.
-5. Docling table inventory supplies canonical values, roles, and structure.
+3. One short-lived parser child runs Docling, OCR, and table extraction; the
+   parent enforces the worker deadline and terminates its process tree.
+4. Docling produces the primary semantic stream and page-scoped DocTags.
+5. PaddleOCR supplies generic text only for unresolved physical pages.
+6. Docling table inventory supplies canonical values, roles, and structure.
    Camelot can add missing geometry only after an exact semantic match; a
    Camelot-only candidate is excluded from canonical tables.
-6. Typed placement, reviewed continuation, Markdown rendering, Evidence, and
+7. Typed placement, reviewed continuation, Markdown rendering, Evidence, and
    contract validation run before generation publication.
-7. The worker atomically publishes an immutable generation and an internal
-   generation manifest.
+8. The parent validates and atomically publishes an immutable generation and
+   an internal generation manifest.
 
 ## Public contract
 
@@ -40,6 +42,7 @@ entries: `manifest.json`, `source.pdf`, `parsed_document.json`, and
 ## Routes
 
 - `POST /tasks`
+- `POST /tasks/{task_id}/retry` — retry the retained task/source identity
 - `GET /tasks/{task_id}`
 - `GET /tasks/{task_id}/document`
 - `GET /tasks/{task_id}/source` — the same strict v2 payload as `/document`
