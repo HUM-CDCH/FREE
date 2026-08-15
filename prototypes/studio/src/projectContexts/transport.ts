@@ -65,6 +65,16 @@ export async function deleteProjectContext(
   await read(`/api/project-contexts/${projectContextId}`, { method: 'DELETE' })
 }
 
+export async function deleteSourceDocument(
+  projectContextId: string,
+  sourceDocumentId: string,
+): Promise<void> {
+  await read(
+    `/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}`,
+    { method: 'DELETE' },
+  )
+}
+
 /** A read failure that is not one of the bounded codes is unreadable persistence. */
 export function toProjectContextFailure(error: unknown): ProjectContextFailure {
   const parsed = projectContextErrorSchema.safeParse(error)

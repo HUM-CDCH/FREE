@@ -4,6 +4,12 @@ import {
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
 import type { ExtractionStrategy } from '../../shared/extraction.contract'
+import {
+  batchSchemaSuggestionMergeResponseSchema,
+  type BatchSchemaSuggestionMerge,
+} from '../../shared/batchSchemaSuggestion.contract'
+import { schemaRevisionResponseSchema } from '../../shared/schemaRevision.contract'
+import type { SchemaDefinition } from '../../shared/schemaNode'
 import { isRecord } from '../../shared/template'
 
 async function read(url: string, init?: RequestInit): Promise<unknown> {
@@ -52,4 +58,46 @@ export async function openBatchExtraction(
       signal,
     }),
   )
+}
+
+export async function mergeBatchSchemaSuggestions(
+  projectContextId: string,
+  sourceDocumentIds: readonly string[],
+  signal?: AbortSignal,
+): Promise<BatchSchemaSuggestionMerge> {
+  return batchSchemaSuggestionMergeResponseSchema.parse(
+    await read('/api/batch-schema-suggestions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        action: 'merge',
+        projectContextId,
+        sourceDocumentIds,
+      }),
+      signal,
+    }),
+  )
+}
+
+export async function confirmBatchSchemaSuggestion(
+  projectContextId: string,
+  sourceDocumentIds: readonly string[],
+  selectionKey: string,
+  definition: SchemaDefinition,
+  signal?: AbortSignal,
+) {
+  return schemaRevisionResponseSchema.parse(
+    await read('/api/batch-schema-suggestions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        action: 'confirm',
+        projectContextId,
+        sourceDocumentIds,
+        selectionKey,
+        ...definition,
+      }),
+      signal,
+    }),
+  ).revision
 }

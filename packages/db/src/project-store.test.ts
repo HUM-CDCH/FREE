@@ -552,6 +552,21 @@ describe('ProjectStore Schema Revisions', () => {
     assert.equal(await store.listExtractionSchemas('51000000-0000-4000-8000-000000000099', 20), null)
   })
 
+  it('deletes only an owned Source Document and answers its package candidates', async () => {
+    const database = fakeDatabase()
+    const store = createProjectStore(database as never)
+
+    assert.deepEqual(await store.deleteSourceDocument(PROJECT, DOCUMENT), [
+      { artifactReference: OWN_PACKAGE, artifactSha256: OWN_PACKAGE },
+      { artifactReference: SHARED_PACKAGE, artifactSha256: SHARED_PACKAGE },
+    ])
+    assert.deepEqual(
+      database.tables.SourceDocument.map((row) => row.id),
+      [OTHER_DOCUMENT],
+    )
+    assert.equal(await store.deleteSourceDocument(PROJECT, OTHER_DOCUMENT), null)
+  })
+
   it('creates the shared Extraction Schema and its initial suggestion revision atomically', async () => {
     const database = fakeDatabase()
     const store = createProjectStore(database as never)

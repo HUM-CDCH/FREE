@@ -4,6 +4,7 @@ import { sourceIngestionMachine } from '../sourceIngestionMachine'
 import {
   createProjectContext,
   deleteProjectContext,
+  deleteSourceDocument,
   getProjectContextWithDocuments,
   ingestSourceDocument,
   listProjectContexts,
@@ -286,6 +287,33 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
     [sendIngestion, setBranch],
   )
 
+  const deleteSource = useCallback(
+    async (projectContextId: string, sourceDocumentId: string): WriteResult => {
+      try {
+        await deleteSourceDocument(projectContextId, sourceDocumentId)
+        generation.current += 1
+        const branch = branchesRef.current[projectContextId]
+        if (branch?.status === 'loading')
+          branchGenerations.current[projectContextId] =
+            (branchGenerations.current[projectContextId] ?? 0) + 1
+        if (branch?.status === 'ready')
+          setBranch(projectContextId, {
+            status: 'ready',
+            detail: {
+              ...branch.detail,
+              sourceDocuments: branch.detail.sourceDocuments.filter(
+                (document) => document.sourceDocumentId !== sourceDocumentId,
+              ),
+            },
+          })
+        return null
+      } catch (error) {
+        return failure(error)
+      }
+    },
+    [setBranch],
+  )
+
   return (
     <ProjectContextsContext
       value={{
@@ -297,6 +325,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         createProject,
         renameProject,
         deleteProject,
+        deleteSourceDocument: deleteSource,
         acknowledgeSourceDocument,
         ingestingSources: ingestion.context.items,
         addSources,

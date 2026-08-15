@@ -12,7 +12,14 @@ import {
 import type {
   ExtractionStrategy,
 } from '../../shared/extraction.contract'
-import { listBatchExtractions, openBatchExtraction } from './batchExtractions'
+import type { BatchSchemaSuggestionMerge } from '../../shared/batchSchemaSuggestion.contract'
+import type { SchemaDefinition, SchemaNode } from '../../shared/schemaNode'
+import {
+  confirmBatchSchemaSuggestion,
+  listBatchExtractions,
+  mergeBatchSchemaSuggestions,
+  openBatchExtraction,
+} from './batchExtractions'
 
 type Screen = 'history' | 'prepare' | 'members'
 
@@ -23,6 +30,13 @@ type SourceDocument = {
 }
 
 type ExtractionSchemas = Awaited<ReturnType<typeof listExtractionSchemas>>
+
+const SUGGEST_SCHEMA = '__suggest_common_fields__'
+
+type SuggestedFields =
+  | { status: 'idle' | 'loading' }
+  | { status: 'error'; message: string }
+  | BatchSchemaSuggestionMerge
 
 /** A read is loading while it has neither answered nor failed. */
 type Read<T> = { value: T | null; failure: string | null }
@@ -40,6 +54,15 @@ const strategies: { value: ExtractionStrategy; label: string }[] = [
 
 function failureText(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
+}
+
+function suggestionIsValid(
+  suggestion: SuggestedFields,
+): suggestion is Extract<BatchSchemaSuggestionMerge, { status: 'ready' }> {
+  if (suggestion.status !== 'ready') return false
+  if (!suggestion.recordDescription.trim()) return false
+  const names = suggestion.schemaNodes.map((node) => node.name.trim())
+  return names.every(Boolean) && new Set(names).size === names.length
 }
 
 function stamp(value: string): string {
@@ -143,19 +166,40 @@ export default function BatchExtractionsPanel({
     failure: null,
   })
   const [schemaRevisionId, setSchemaRevisionId] = useState('')
+  const [suggestedFields, setSuggestedFields] = useState<SuggestedFields>({
+    status: 'idle',
+  })
+  const [confirmedSuggestionRevisionId, setConfirmedSuggestionRevisionId] =
+    useState<string | null>(null)
   const [strategy, setStrategy] = useState<ExtractionStrategy>('ARTICLE')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [filter, setFilter] = useState('')
   const opening = useRef(false)
+  const suggestionRequest = useRef(0)
+  const suggestionAbort = useRef<AbortController | null>(null)
   // The run outlives screen changes; a second action never replaces it.
   const run = useRef<AbortController | null>(null)
-  useEffect(() => () => run.current?.abort(), [])
+  useEffect(
+    () => () => {
+      run.current?.abort()
+      suggestionAbort.current?.abort()
+    },
+    [],
+  )
 
   const documentsById = new Map(
     sourceDocuments.map((document) => [document.sourceDocumentId, document]),
   )
   const documentName = (sourceDocumentId: string) =>
     documentsById.get(sourceDocumentId)?.name ?? 'Source Document'
+
+  const clearSuggestedFields = () => {
+    suggestionRequest.current++
+    suggestionAbort.current?.abort()
+    suggestionAbort.current = null
+    setSuggestedFields({ status: 'idle' })
+    setConfirmedSuggestionRevisionId(null)
+  }
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
@@ -264,15 +308,82 @@ export default function BatchExtractionsPanel({
     }
   }
 
+  const suggestFields = async () => {
+    if (selected.size === 0 || overSelectionLimit) return
+    suggestionAbort.current?.abort()
+    const controller = new AbortController()
+    suggestionAbort.current = controller
+    const request = ++suggestionRequest.current
+    setConfirmedSuggestionRevisionId(null)
+    setSuggestedFields({ status: 'loading' })
+    try {
+      const merged = await mergeBatchSchemaSuggestions(
+        projectContextId,
+        [...selected],
+        controller.signal,
+      )
+      if (controller.signal.aborted || request !== suggestionRequest.current)
+        return
+      setSuggestedFields(merged)
+    } catch (error) {
+      if (controller.signal.aborted || request !== suggestionRequest.current)
+        return
+      setSuggestedFields({
+        status: 'error',
+        message: failureText(error, 'Common fields could not be suggested.'),
+      })
+    } finally {
+      if (suggestionAbort.current === controller)
+        suggestionAbort.current = null
+    }
+  }
+
+  const updateSuggestedNode = (
+    id: string,
+    update: (node: SchemaNode) => SchemaNode,
+  ) => {
+    setConfirmedSuggestionRevisionId(null)
+    setSuggestedFields((current) =>
+      current.status === 'ready'
+        ? {
+            ...current,
+            schemaNodes: current.schemaNodes.map((node) =>
+              node.id === id ? update(node) : node,
+            ),
+          }
+        : current,
+    )
+  }
+
   const openNewBatch = async () => {
     if (opening.current || run.current) return
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
     try {
+      let confirmedSchemaRevisionId = schemaRevisionId
+      if (schemaRevisionId === SUGGEST_SCHEMA) {
+        if (!suggestionIsValid(suggestedFields))
+          throw new Error('Choose valid common fields before running.')
+        if (confirmedSuggestionRevisionId) {
+          confirmedSchemaRevisionId = confirmedSuggestionRevisionId
+        } else {
+          const revision = await confirmBatchSchemaSuggestion(
+            projectContextId,
+            [...selected],
+            suggestedFields.selectionKey,
+            {
+              recordDescription: suggestedFields.recordDescription,
+              schemaNodes: suggestedFields.schemaNodes,
+            } satisfies SchemaDefinition,
+          )
+          confirmedSchemaRevisionId = revision.schemaRevisionId
+          setConfirmedSuggestionRevisionId(revision.schemaRevisionId)
+        }
+      }
       const request = {
         projectContextId,
-        schemaRevisionId,
+        schemaRevisionId: confirmedSchemaRevisionId,
         strategy,
         sourceDocumentIds: [...selected],
       }
@@ -300,6 +411,7 @@ export default function BatchExtractionsPanel({
       )
       setOpenBatchId(batch.batchExtractionId)
       setSelected(new Set())
+      clearSuggestedFields()
       setScreen('history')
       opening.current = false
       setOpeningBatch(false)
@@ -457,22 +569,33 @@ export default function BatchExtractionsPanel({
                   className={`${control} mt-1 block w-full font-normal`}
                   value={schemaRevisionId}
                   disabled={schemas.value === null}
-                  onChange={(event) => setSchemaRevisionId(event.target.value)}
+                  onChange={(event) => {
+                    setSchemaRevisionId(event.target.value)
+                    clearSuggestedFields()
+                  }}
                 >
                   {schemas.value ? (
-                    schemas.value.flatMap((schema) =>
-                      schema.currentRevision
-                        ? [
-                            <option
-                              key={schema.extractionSchemaId}
-                              value={schema.currentRevision.schemaRevisionId}
-                            >
-                              {schema.name} · Schema Revision{' '}
-                              {schema.currentRevision.revisionNumber}
-                            </option>,
-                          ]
-                        : [],
-                    )
+                    <>
+                      <option value="" disabled>
+                        Select an Extraction Schema
+                      </option>
+                      {schemas.value.flatMap((schema) =>
+                        schema.currentRevision
+                          ? [
+                              <option
+                                key={schema.extractionSchemaId}
+                                value={schema.currentRevision.schemaRevisionId}
+                              >
+                                {schema.name} · Schema Revision{' '}
+                                {schema.currentRevision.revisionNumber}
+                              </option>,
+                            ]
+                          : [],
+                      )}
+                      <option value={SUGGEST_SCHEMA}>
+                        Suggest fields from selected sources
+                      </option>
+                    </>
                   ) : (
                     <option value="">
                       {schemas.failure ? 'Schemas unavailable' : 'Loading schemas…'}
@@ -533,7 +656,10 @@ export default function BatchExtractionsPanel({
                         className="size-3.5 accent-accent"
                         type="checkbox"
                         checked={selected.has(document.sourceDocumentId)}
-                        onChange={() =>
+                        disabled={openingBatch}
+                        onChange={() => {
+                          if (schemaRevisionId === SUGGEST_SCHEMA)
+                            clearSuggestedFields()
                           setSelected((current) => {
                             const next = new Set(current)
                             if (next.has(document.sourceDocumentId))
@@ -541,7 +667,7 @@ export default function BatchExtractionsPanel({
                             else next.add(document.sourceDocumentId)
                             return next
                           })
-                        }
+                        }}
                       />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-xs font-semibold text-ink">
@@ -565,13 +691,165 @@ export default function BatchExtractionsPanel({
                 {BATCH_EXTRACTION_SELECTION_LIMIT} Source Documents.
               </p>
             )}
+            {schemaRevisionId === SUGGEST_SCHEMA && (
+              <section
+                className="mt-4 space-y-3 border-t border-line pt-4"
+                aria-label="Suggested common fields"
+              >
+                {suggestedFields.status === 'idle' && (
+                  <Button
+                    size="sm"
+                    disabled={selected.size === 0 || overSelectionLimit}
+                    onClick={suggestFields}
+                  >
+                    Suggest common fields
+                  </Button>
+                )}
+                {suggestedFields.status === 'loading' && (
+                  <p className="text-xs text-ink-muted" aria-busy="true">
+                    Suggesting common fields…
+                  </p>
+                )}
+                {suggestedFields.status === 'error' && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[11px] text-danger" role="alert">
+                      {suggestedFields.message}
+                    </p>
+                    <Button
+                      size="sm"
+                      disabled={selected.size === 0 || overSelectionLimit}
+                      onClick={suggestFields}
+                    >
+                      Try again
+                    </Button>
+                  </div>
+                )}
+                {suggestedFields.status === 'heterogeneous' && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-ink-muted">
+                      No reliable common field set was found. Choose an existing
+                      Extraction Schema, change the selection, or start blank.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setConfirmedSuggestionRevisionId(null)
+                        setSuggestedFields({
+                          status: 'ready',
+                          selectionKey: suggestedFields.selectionKey,
+                          recordDescription:
+                            'One record from each selected Source Document.',
+                          schemaNodes: [],
+                          coverage: [],
+                        })
+                      }}
+                    >
+                      Start with blank fields
+                    </Button>
+                  </div>
+                )}
+                {suggestedFields.status === 'ready' && (
+                  <div className="space-y-3">
+                    <label className="block text-[11px] font-semibold text-ink-muted">
+                      Record description
+                      <input
+                        className={`${control} mt-1 block w-full font-normal`}
+                        value={suggestedFields.recordDescription}
+                        onChange={(event) => {
+                          setConfirmedSuggestionRevisionId(null)
+                          setSuggestedFields((current) =>
+                            current.status === 'ready'
+                              ? {
+                                  ...current,
+                                  recordDescription: event.target.value,
+                                }
+                              : current,
+                          )
+                        }}
+                      />
+                    </label>
+                    {suggestedFields.schemaNodes.map((node) => {
+                      const coverage = suggestedFields.coverage.find(
+                        (field) => field.nodeId === node.id,
+                      )
+                      return (
+                        <div className="flex items-center gap-2" key={node.id}>
+                          <input
+                            aria-label={`Field ${node.name}`}
+                            className={`${control} min-w-0 flex-1`}
+                            value={node.name}
+                            onChange={(event) =>
+                              updateSuggestedNode(node.id, (current) => ({
+                                ...current,
+                                name: event.target.value,
+                              }))
+                            }
+                          />
+                          {coverage && (
+                            <span className="shrink-0 text-[11px] tabular-nums text-ink-faint">
+                              {coverage.present}/{coverage.total}
+                            </span>
+                          )}
+                          <button
+                            className="shrink-0 text-[11px] font-semibold text-danger"
+                            type="button"
+                            onClick={() => {
+                              setConfirmedSuggestionRevisionId(null)
+                              setSuggestedFields((current) =>
+                                current.status === 'ready'
+                                  ? {
+                                      ...current,
+                                      schemaNodes: current.schemaNodes.filter(
+                                        (field) => field.id !== node.id,
+                                      ),
+                                    }
+                                  : current,
+                              )
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )
+                    })}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setConfirmedSuggestionRevisionId(null)
+                        setSuggestedFields((current) =>
+                          current.status === 'ready'
+                            ? {
+                                ...current,
+                                schemaNodes: [
+                                  ...current.schemaNodes,
+                                  {
+                                    id: crypto.randomUUID(),
+                                    name: `field_${current.schemaNodes.length + 1}`,
+                                    type: 'string',
+                                  },
+                                ],
+                              }
+                            : current,
+                        )
+                      }}
+                    >
+                      Add field
+                    </Button>
+                  </div>
+                )}
+              </section>
+            )}
             <div className="mt-4 flex justify-end">
               <Button
                 variant="primary"
                 size="md"
                 disabled={
                   selected.size === 0 ||
-                  !schemaRevisionId ||
+                  (schemaRevisionId === SUGGEST_SCHEMA
+                    ? !suggestionIsValid(suggestedFields)
+                    : !schemaRevisionId) ||
                   overSelectionLimit ||
                   openingBatch ||
                   runningBatchId !== null

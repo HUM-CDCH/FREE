@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { IngestionKeyConflictError } from '../../../packages/db/src/project-store.js'
-import { createSourceDocumentIngestion } from './source_documents.js'
+import {
+  createSourceDocumentDeletion,
+  createSourceDocumentIngestion,
+} from './source_documents.js'
 
 const ids = {
   project: '11111111-1111-4111-8111-111111111111',
@@ -97,6 +100,31 @@ function dependencies(overrides: Record<string, unknown> = {}) {
     }),
   }
 }
+
+describe('Source Document deletion', () => {
+  it('deletes an owned document and only removes an unshared package', async () => {
+    const remove = vi.fn().mockResolvedValue(true)
+    const DELETE = createSourceDocumentDeletion(
+      {
+        deleteSourceDocument: vi.fn().mockResolvedValue([
+          { artifactReference: 'a'.repeat(64), artifactSha256: 'a'.repeat(64) },
+        ]),
+        isPackageReferenced: vi.fn().mockResolvedValue(false),
+      },
+      { remove },
+    )
+
+    const response = await DELETE(
+      new Request(
+        `http://test/api/project-contexts/${ids.project}/source-documents/${ids.source}`,
+        { method: 'DELETE' },
+      ),
+    )
+
+    expect(response.status).toBe(204)
+    expect(remove).toHaveBeenCalledOnce()
+  })
+})
 
 describe('POST /api/project-contexts/:id/source-documents', () => {
   it('rejects malformed multipart input before parsing', async () => {

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { NavigableRoute } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { listExtractionSchemas } from '../schemaRevisions'
 import { Button, EmptyState } from '../ui'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
+import { getDocumentReopenSnapshot } from './transport'
 import { useProjectContexts, type WriteResult } from './useProjectContexts'
 
 export type ProjectContextPageProps = {
@@ -99,11 +100,13 @@ function RenameForm({
 
 /** Permanent deletion is confirmed in a labelled modal, never on one click. */
 function DeleteDialog({
-  name,
+  title,
+  description,
   onConfirm,
   onCancel,
 }: {
-  name: string
+  title: string
+  description: ReactNode
   onConfirm: () => WriteResult
   onCancel: () => void
 }) {
@@ -120,8 +123,8 @@ function DeleteDialog({
     <dialog
       ref={dialog}
       className="m-auto w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
-      aria-labelledby="delete-project-context-title"
-      aria-describedby="delete-project-context-description"
+      aria-labelledby="delete-dialog-title"
+      aria-describedby="delete-dialog-description"
       onClose={onCancel}
       // Escape and every other dismissal wait for a write in flight, so a
       // failure keeps the dialog and its retry.
@@ -131,18 +134,16 @@ function DeleteDialog({
       }}
     >
       <h2
-        id="delete-project-context-title"
+        id="delete-dialog-title"
         className="text-sm font-bold text-ink"
       >
-        Delete Project Context
+        {title}
       </h2>
       <p
-        id="delete-project-context-description"
+        id="delete-dialog-description"
         className="mt-2 text-xs leading-relaxed text-ink-muted"
       >
-        Deleting “{name}” permanently removes its Source Documents, Annotations,
-        Extraction Schema, Extractions, and Review Decisions. This cannot be
-        undone.
+        {description}
       </p>
       {failure && (
         <p className="mt-2 text-[11px] leading-snug text-danger" role="alert">
@@ -206,6 +207,14 @@ function TrashIcon() {
   )
 }
 
+function DownloadIcon() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none">
+      <path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 13.5v2.75c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25V13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 /**
  * Managing one Project Context: its name, its Source Documents, and adding
  * more. An ingesting file renders as the same row it will become, so the list
@@ -224,9 +233,14 @@ export default function ProjectContextPage({
     ingestingSources,
     addSources,
     retrySource,
+    deleteSourceDocument,
   } = useProjectContexts()
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deletingSource, setDeletingSource] = useState<{
+    sourceDocumentId: string
+    name: string
+  } | null>(null)
   const [dragging, setDragging] = useState(false)
   const [tab, setTab] = useState<'sources' | 'schemas' | 'extractions'>(
     'sources',
@@ -280,6 +294,21 @@ export default function ProjectContextPage({
   const addFiles = (files: readonly File[]) => {
     if (!files.length) return
     addSources(files.map((file) => ({ projectContextId, file })))
+  }
+
+  const downloadSource = async (sourceDocumentId: string, name: string) => {
+    const snapshot = await getDocumentReopenSnapshot(
+      projectContextId,
+      sourceDocumentId,
+    )
+    const response = await fetch(snapshot.sourceRepresentation.resources.sourcePdfUrl)
+    if (!response.ok) throw new Error('Could not download the source PDF.')
+    const href = URL.createObjectURL(await response.blob())
+    const link = document.createElement('a')
+    link.href = href
+    link.download = name
+    link.click()
+    URL.revokeObjectURL(href)
   }
 
   useEffect(() => {
@@ -645,9 +674,9 @@ export default function ProjectContextPage({
                   </li>
                 ))}
                 {sourceDocuments.map((document) => (
-                  <li key={document.sourceDocumentId}>
+                  <li className="flex items-center px-1 py-3" key={document.sourceDocumentId}>
                     <button
-                      className="flex w-full cursor-pointer items-center gap-3 px-1 py-3 text-left outline-none transition-colors hover:bg-line/20 focus-visible:ring-1 focus-visible:ring-accent"
+                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none transition-colors hover:bg-line/20 focus-visible:ring-1 focus-visible:ring-accent"
                       type="button"
                       onClick={() =>
                         onNavigate({
@@ -677,6 +706,37 @@ export default function ProjectContextPage({
                         </span>
                       </span>
                     </button>
+                    <details className="relative ml-2 shrink-0">
+                      <summary
+                        className="flex size-8 cursor-pointer list-none items-center justify-center rounded-md text-ink-muted outline-none transition-colors hover:bg-line/60 hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 [&::-webkit-details-marker]:hidden"
+                        aria-label={`Actions for ${document.name}`}
+                      >
+                        <span aria-hidden="true">•••</span>
+                      </summary>
+                      <div className="absolute right-0 top-9 z-10 w-36 rounded-2xl bg-ink p-1.5 text-xs text-white shadow-lg">
+                        <button
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                          type="button"
+                          onClick={() => void downloadSource(document.sourceDocumentId, document.name)}
+                        >
+                          <DownloadIcon />
+                          Download
+                        </button>
+                        <button
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-danger hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                          type="button"
+                          onClick={() =>
+                            setDeletingSource({
+                              sourceDocumentId: document.sourceDocumentId,
+                              name: document.name,
+                            })
+                          }
+                        >
+                          <TrashIcon />
+                          Delete
+                        </button>
+                      </div>
+                    </details>
                   </li>
                 ))}
               </ul>
@@ -700,7 +760,14 @@ export default function ProjectContextPage({
 
       {deleting && project && (
         <DeleteDialog
-          name={project.name}
+          title="Delete Project Context"
+          description={
+            <>
+              Deleting “{project.name}” permanently removes its Source Documents,
+              Annotations, Extraction Schema, Extractions, and Review Decisions.
+              This cannot be undone.
+            </>
+          }
           onConfirm={async () => {
             const rejected = await deleteProject(projectContextId)
             // The page's own Project Context is gone; nothing here can survive
@@ -718,6 +785,24 @@ export default function ProjectContextPage({
             setDeleting(false)
             deleteTrigger.current?.focus()
           }}
+        />
+      )}
+      {deletingSource && (
+        <DeleteDialog
+          title="Delete Source Document"
+          description={
+            <>
+              Deleting “{deletingSource.name}” permanently removes its annotations
+              and extractions. This cannot be undone.
+            </>
+          }
+          onConfirm={() =>
+            deleteSourceDocument(
+              projectContextId,
+              deletingSource.sourceDocumentId,
+            )
+          }
+          onCancel={() => setDeletingSource(null)}
         />
       )}
     </div>

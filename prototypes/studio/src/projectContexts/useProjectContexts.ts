@@ -46,6 +46,10 @@ export type ProjectContextsValue = {
   renameProject: (projectContextId: string, name: string) => WriteResult
   /** Deletion never navigates; the caller routes away from a deleted selection. */
   deleteProject: (projectContextId: string) => WriteResult
+  deleteSourceDocument: (
+    projectContextId: string,
+    sourceDocumentId: string,
+  ) => WriteResult
   /**
    * Merges an acknowledged ingestion into an already-read branch and fences any
    * branch read still in flight. Navigation never waits on it: the durable

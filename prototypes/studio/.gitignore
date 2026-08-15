@@ -12,6 +12,7 @@ dist
 dist-lib
 dist-ssr
 .vite/
+.certs/
 *.local
 
 # design-sync (staged scripts, build output, machine state — durable inputs under .design-sync/ stay tracked)

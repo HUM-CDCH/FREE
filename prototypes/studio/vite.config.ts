@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { Readable } from 'node:stream'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { ApiError, apiErrorResponse } from './api/_http.js'
 
@@ -25,6 +25,7 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/extraction-schemas$/, 'extraction_schemas'],
   [/^\/api\/extractions(?:\/[^/]+)?(?:\/review)?$/, 'extractions'],
   [/^\/api\/batch-extractions$/, 'batch_extractions'],
+  [/^\/api\/batch-schema-suggestions$/, 'batch_schema_suggestions'],
   [/^\/api\/source-representations\//, 'source_representations'],
 ]
 
@@ -89,8 +90,9 @@ export function apiFunctions(): Plugin {
             const hasBody = req.method !== 'GET' && req.method !== 'HEAD'
             const headers = new Headers()
             for (const [k, v] of Object.entries(req.headers))
-              for (const val of Array.isArray(v) ? v : v == null ? [] : [v])
-                headers.append(k, val)
+              if (!k.startsWith(':'))
+                for (const val of Array.isArray(v) ? v : v == null ? [] : [v])
+                  headers.append(k, val)
 
             const request = new Request(`http://localhost${req.url}`, {
               method: req.method,
@@ -149,5 +151,15 @@ export default defineConfig(({ command, mode }) => {
   }
   return {
     plugins: [react(), tailwindcss(), apiFunctions()],
+    server: mode === 'https' ? localHttps() : undefined,
   }
 })
+
+function localHttps() {
+  const certificates = resolve(import.meta.dirname, '.certs')
+  const cert = join(certificates, 'studio.pem')
+  const key = join(certificates, 'studio-key.pem')
+  return existsSync(cert) && existsSync(key)
+    ? { https: { cert: readFileSync(cert), key: readFileSync(key) } }
+    : undefined
+}

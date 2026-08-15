@@ -22,13 +22,21 @@ import {
   projectContextWriteRequestSchema,
 } from '../shared/projectContext.contract.js'
 import { decodeParsedDocument } from '../shared/parsedDocument.js'
+import { runSourceSchemaSuggestion } from './_batch_schema_suggestions.js'
 
 type ProjectContextReadStore = Pick<
   ProjectStore,
   'listProjectContexts' | 'getProjectContextWithDocuments'
 > &
   Partial<
-    Pick<ProjectStore, 'getDocumentReopenSnapshot' | 'getSourceRepresentation'>
+    Pick<
+      ProjectStore,
+      | 'getDocumentReopenSnapshot'
+      | 'getSourceRepresentation'
+      | 'beginSourceSchemaSuggestion'
+      | 'completeSourceSchemaSuggestion'
+      | 'failSourceSchemaSuggestion'
+    >
   >
 type ReadArtifact = (
   descriptor: CanonicalPackageDescriptor,
@@ -178,6 +186,27 @@ export function createGetProjectContexts(
           ),
         })),
       )
+      if (
+        store.beginSourceSchemaSuggestion &&
+        store.completeSourceSchemaSuggestion &&
+        store.failSourceSchemaSuggestion
+      )
+        for (const sourceDocument of sourceDocuments)
+          void runSourceSchemaSuggestion(
+            {
+              beginSourceSchemaSuggestion: store.beginSourceSchemaSuggestion,
+              completeSourceSchemaSuggestion: store.completeSourceSchemaSuggestion,
+              failSourceSchemaSuggestion: store.failSourceSchemaSuggestion,
+            },
+            id,
+            sourceDocument.sourceDocumentId,
+          ).catch((cause) => {
+            console.warn(
+              `Background Schema Suggestion failed for ${sourceDocument.sourceDocumentId}: ${
+                cause instanceof Error ? cause.message : String(cause)
+              }`,
+            )
+          })
       return json(
         { projectContext: projectContext.projectContext, sourceDocuments },
         { headers: noStore },

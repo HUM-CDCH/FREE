@@ -20,6 +20,7 @@ import {
   type ProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
+import { runSourceSchemaSuggestion } from './_batch_schema_suggestions.js'
 
 const CONTRACT_VERSION = 'parsed_document.v2'
 const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8000'
@@ -47,7 +48,15 @@ type PackageStore = {
 type IngestionStore = Pick<
   ProjectStore,
   'ingestSourceDocument' | 'isPackageReferenced'
->
+> &
+  Partial<
+    Pick<
+      ProjectStore,
+      | 'beginSourceSchemaSuggestion'
+      | 'completeSourceSchemaSuggestion'
+      | 'failSourceSchemaSuggestion'
+    >
+  >
 
 type Dependencies = {
   store?: IngestionStore
@@ -59,6 +68,11 @@ type Dependencies = {
   sleep?: (milliseconds: number) => Promise<void>
   now?: () => number
 }
+
+type SourceDocumentDeletionStore = Pick<
+  ProjectStore,
+  'deleteSourceDocument' | 'isPackageReferenced'
+>
 
 function projectContextId(pathname: string): string {
   const match =
@@ -94,6 +108,27 @@ function required(value: unknown, what: string): string {
   if (typeof value !== 'string' || value === '')
     throw new Error(`The parsed document is missing ${what}.`)
   return value
+}
+
+function sourceDocumentIds(pathname: string) {
+  const match = /^\/api\/project-contexts\/([^/]+)\/source-documents\/([^/]+)$/.exec(
+    pathname,
+  )
+  if (!match)
+    throw new ApiError(404, 'not_found', 'Source Document route was not found.')
+  if (!canonicalUuidSchema.safeParse(match[1]).success)
+    throw new ApiError(
+      422,
+      'invalid_request',
+      'projectContextId must be a canonical lowercase UUID.',
+    )
+  if (!canonicalUuidSchema.safeParse(match[2]).success)
+    throw new ApiError(
+      422,
+      'invalid_request',
+      'sourceDocumentId must be a canonical lowercase UUID.',
+    )
+  return { projectContextId: match[1], sourceDocumentId: match[2] }
 }
 
 function positiveInteger(value: unknown, what: string): number {
@@ -414,6 +449,26 @@ export function createSourceDocumentIngestion(
       })
       if (!persisted)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
+      if (
+        store.beginSourceSchemaSuggestion &&
+        store.completeSourceSchemaSuggestion &&
+        store.failSourceSchemaSuggestion
+      )
+        void runSourceSchemaSuggestion(
+          {
+            beginSourceSchemaSuggestion: store.beginSourceSchemaSuggestion,
+            completeSourceSchemaSuggestion: store.completeSourceSchemaSuggestion,
+            failSourceSchemaSuggestion: store.failSourceSchemaSuggestion,
+          },
+          id,
+          persisted.sourceDocumentId,
+        ).catch((cause) => {
+          console.warn(
+            `Background Schema Suggestion failed for ${persisted.sourceDocumentId}: ${
+              cause instanceof Error ? cause.message : String(cause)
+            }`,
+          )
+        })
       const { descriptor, ...sourceDocument } = persisted
       // A replay may select an older package; discard only this request's
       // first-published package when no durable representation references it.
@@ -435,5 +490,53 @@ function fetcher(dependencies: Dependencies): typeof fetch {
 }
 
 export const POST = createSourceDocumentIngestion()
+
+export function createSourceDocumentDeletion(
+  store: SourceDocumentDeletionStore = createProjectStore(),
+  packageStore: Pick<PackageStore, 'remove'> = canonicalPackageStore,
+) {
+  return async function deleteSourceDocument(request: Request): Promise<Response> {
+    try {
+      const { projectContextId, sourceDocumentId } = sourceDocumentIds(
+        new URL(request.url).pathname,
+      )
+      const candidates = await store
+        .deleteSourceDocument(projectContextId, sourceDocumentId)
+        .catch((cause) => {
+          throw persistenceUnavailable(cause, 'Source Document storage is unavailable.')
+        })
+      if (!candidates)
+        throw new ApiError(404, 'not_found', 'Source Document was not found.')
+      const asked = new Set<string>()
+      for (const descriptor of candidates)
+        if (!asked.has(descriptor.artifactReference)) {
+          asked.add(descriptor.artifactReference)
+          await packageStore.remove(descriptor, async () => {
+            try {
+              return await store.isPackageReferenced(descriptor.artifactReference)
+            } catch (cause) {
+              console.warn(
+                `Could not check whether deleted Source Document package ${descriptor.artifactReference} is still referenced; retaining it: ${
+                  cause instanceof Error ? cause.message : String(cause)
+                }`,
+              )
+              return true
+            }
+          }).catch((cause: unknown) => {
+            console.warn(
+              `Could not remove the deleted Source Document package ${descriptor.artifactReference}: ${
+                cause instanceof Error ? cause.message : String(cause)
+              }`,
+            )
+          })
+        }
+      return new Response(null, { status: 204, headers: noStore })
+    } catch (error) {
+      return noStoreError(error)
+    }
+  }
+}
+
+export const DELETE = createSourceDocumentDeletion()
 
 export type { IngestedSourceDocument }

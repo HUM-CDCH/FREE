@@ -272,6 +272,109 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     assert.equal(listed?.[0].schemaRevisionNumber, 2)
     assert.equal(listed?.[0].members[0].latestExtraction?.outcome, 'FAILED')
 
+    // A concurrent ready/reopen trigger gives exactly one durable source
+    // suggestion lease owner. A later process recovers an abandoned lease and
+    // exposes only the completed, representation-pinned result.
+    const suggestedDocument = await db.orm.public.SourceDocument.create({
+      projectContextId: project.id,
+      ingestionKey: '51000000-0000-4000-9000-000000000003',
+      contentSha256: 'f'.repeat(64),
+      mediaType: 'application/pdf',
+      originalName: 'suggested.pdf',
+    })
+    const suggestedRepresentation =
+      await db.orm.public.SourceRepresentationRevision.create({
+        sourceDocumentId: suggestedDocument.id,
+        revisionNumber: 1,
+        artifactReference: 'f'.repeat(64),
+        artifactSha256: 'f'.repeat(64),
+        contractVersion: 'parsed_document.v2',
+        preprocessId: `sha256:${'f'.repeat(64)}`,
+        parserName: 'test',
+        parserVersion: '1',
+      })
+    const claimedAt = new Date('2026-08-15T10:00:00Z')
+    const claims = await Promise.all([
+      store.beginSourceSchemaSuggestion(project.id, suggestedDocument.id, claimedAt),
+      store.beginSourceSchemaSuggestion(project.id, suggestedDocument.id, claimedAt),
+    ])
+    const owner = claims.find((claim) => claim?.status === 'work')
+    assert.equal(claims.filter((claim) => claim?.status === 'work').length, 1)
+    assert.equal(claims.filter((claim) => claim?.status === 'pending').length, 1)
+    assert.equal(owner?.status, 'work')
+    const recovered = await store.beginSourceSchemaSuggestion(
+      project.id,
+      suggestedDocument.id,
+      new Date('2026-08-15T10:03:00Z'),
+    )
+    assert.equal(recovered?.status, 'work')
+    assert.notEqual(
+      recovered?.status === 'work' ? recovered.schemaSuggestionId : null,
+      owner?.status === 'work' ? owner.schemaSuggestionId : null,
+    )
+    if (recovered?.status !== 'work') throw new Error('Expected lease recovery.')
+    await store.completeSourceSchemaSuggestion(
+      recovered.schemaSuggestionId,
+      { _description: 'One record.', place: 'string' },
+      '{"place":"string"}',
+    )
+    const reopened = await store.getBatchSchemaSuggestionInputs(project.id, [
+      suggestedDocument.id,
+    ])
+    assert.ok(reopened)
+    assert.deepEqual(reopened.suggestions, [
+      {
+        sourceDocumentId: suggestedDocument.id,
+        sourceRepresentationRevisionId: suggestedRepresentation.id,
+        template: { _description: 'One record.', place: 'string' },
+      },
+    ])
+    const confirmed = await store.confirmBatchSchemaSuggestion(
+      project.id,
+      [suggestedDocument.id],
+      reopened.selectionKey,
+      {
+        recordDescription: 'One record.',
+        schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+      },
+    )
+    assert.equal(confirmed?.status, 'created')
+    const replayedConfirmation = await store.confirmBatchSchemaSuggestion(
+      project.id,
+      [suggestedDocument.id],
+      reopened.selectionKey,
+      {
+        recordDescription: 'One record.',
+        schemaNodes: [{ id: 'another-id', name: 'place', type: 'string' }],
+      },
+    )
+    assert.equal(replayedConfirmation?.status, 'replayed')
+    assert.equal(
+      replayedConfirmation?.status === 'replayed'
+        ? replayedConfirmation.revision.schemaRevisionId
+        : null,
+      confirmed?.status === 'created' ? confirmed.revision.schemaRevisionId : null,
+    )
+    assert.ok(
+      (await store.listExtractionSchemas(project.id, 20))?.every(
+        (schema) => schema.name !== 'Private Schema Suggestion Cache',
+      ),
+    )
+    if (confirmed?.status !== 'created') throw new Error('Expected confirmation.')
+    const suggestedBatch = await store.createBatchExtraction(project.id, {
+      batchExtractionId: '51000000-0000-4000-9000-000000000103',
+      schemaRevisionId: confirmed.revision.schemaRevisionId,
+      strategy: 'CATALOG',
+      sourceDocumentIds: [suggestedDocument.id],
+    })
+    assert.equal(suggestedBatch?.status, 'created')
+    assert.equal(
+      suggestedBatch?.status === 'created'
+        ? suggestedBatch.batch.members[0]?.sourceRepresentationRevisionId
+        : null,
+      suggestedRepresentation.id,
+    )
+
     const candidates = await store.deleteProjectContext(project.id)
 
     assert.deepEqual(candidates, [
@@ -282,6 +385,10 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
       {
         artifactReference: newerRepresentation.artifactReference,
         artifactSha256: newerRepresentation.artifactSha256,
+      },
+      {
+        artifactReference: suggestedRepresentation.artifactReference,
+        artifactSha256: suggestedRepresentation.artifactSha256,
       },
     ])
     assert.deepEqual(

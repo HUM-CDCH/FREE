@@ -1,5 +1,5 @@
 import type { CanonicalPackageDescriptor } from './artifact-store.js'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { db } from './prisma/db.js'
 
 type Database = Pick<typeof db, 'orm' | 'transaction'>
@@ -326,6 +326,46 @@ function canonicalSourceDocumentIds(ids: readonly string[]): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
 }
 
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== 'id')
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => `${JSON.stringify(key)}:${stableJson(child)}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
+function stableUuid(namespace: string, value: string): string {
+  const hash = createHash('sha256').update(`${namespace}:${value}`).digest('hex')
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-${(['8', '9', 'a', 'b'] as const)[parseInt(hash[16], 16) & 3]}${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+}
+
+function suggestionCacheSchemaId(projectContextId: string): string {
+  return stableUuid('batch-schema-suggestion-cache', projectContextId)
+}
+
+function sourceSuggestionAttemptId(
+  sourceRepresentationRevisionId: string,
+  window: number,
+): string {
+  return stableUuid(
+    'source-schema-suggestion-attempt',
+    `${sourceRepresentationRevisionId}:${window}`,
+  )
+}
+
+function batchSuggestionSelectionKey(
+  projectContextId: string,
+  members: readonly { sourceDocumentId: string; sourceRepresentationRevisionId: string }[],
+): string {
+  return createHash('sha256')
+    .update(stableJson({ projectContextId, members }))
+    .digest('hex')
+}
+
 function sameBatchIdentity(
   batch: BatchExtractionRecord,
   input: CreateBatchExtractionInput,
@@ -336,6 +376,101 @@ function sameBatchIdentity(
     batch.strategy === input.strategy &&
     batch.members.length === selected.length &&
     batch.members.every((member, index) => member.sourceDocumentId === selected[index])
+  )
+}
+
+const SOURCE_SUGGESTION_LEASE_MS = 2 * 60 * 1000
+
+type SourceSuggestionAttempt = {
+  id: string
+  outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+  proposedTree: unknown | null
+  failure: unknown | null
+  createdAt: Date
+}
+
+function retryAfter(failure: unknown): number | null {
+  if (!failure || typeof failure !== 'object' || Array.isArray(failure))
+    return null
+  const value = (failure as Record<string, unknown>).retryAfter
+  if (typeof value !== 'string') return null
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : null
+}
+
+async function currentBatchMembers(
+  orm: Orm,
+  projectContextId: string,
+  sourceDocumentIds: readonly string[],
+): Promise<
+  { sourceDocumentId: string; sourceRepresentationRevisionId: string }[] | null
+> {
+  const project = await orm.public.ProjectContext.select('id').first({
+    id: projectContextId,
+  })
+  if (!project || sourceDocumentIds.length === 0) return null
+  const members: {
+    sourceDocumentId: string
+    sourceRepresentationRevisionId: string
+  }[] = []
+  for (const sourceDocumentId of canonicalSourceDocumentIds(sourceDocumentIds)) {
+    const document = await orm.public.SourceDocument.select('id').first({
+      id: sourceDocumentId,
+      projectContextId,
+    })
+    if (!document) return null
+    const representation = await orm.public.SourceRepresentationRevision.where({
+      sourceDocumentId,
+    })
+      .select('id')
+      .orderBy((revision) => revision.revisionNumber.desc())
+      .first()
+    if (!representation) return null
+    members.push({
+      sourceDocumentId,
+      sourceRepresentationRevisionId: representation.id,
+    })
+  }
+  return members
+}
+
+async function sourceSuggestionAttempts(
+  orm: Orm,
+  extractionSchemaId: string,
+  sourceRepresentationRevisionId: string,
+): Promise<SourceSuggestionAttempt[]> {
+  const inputs = await orm.public.SchemaSuggestionInput.where({
+    sourceRepresentationRevisionId,
+  })
+    .select('schemaSuggestionId')
+    .all()
+  const attempts: SourceSuggestionAttempt[] = []
+  for (const input of inputs) {
+    const attempt = await orm.public.SchemaSuggestion.select(
+      'id',
+      'outcome',
+      'proposedTree',
+      'failure',
+      'createdAt',
+    ).first({
+      id: input.schemaSuggestionId,
+      extractionSchemaId,
+    })
+    if (attempt) attempts.push(attempt as SourceSuggestionAttempt)
+  }
+  return attempts.sort(
+    (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+  )
+}
+
+function successfulSuggestion(
+  attempts: readonly SourceSuggestionAttempt[],
+): unknown | null {
+  return (
+    attempts.find(
+      (attempt) =>
+        attempt.outcome === 'SUCCEEDED' && attempt.proposedTree !== null,
+    )?.proposedTree ?? null
   )
 }
 
@@ -449,6 +584,28 @@ export type CreateBatchExtractionInput = {
   sourceDocumentIds: readonly string[]
 }
 
+export type SourceSchemaSuggestionStart =
+  | { status: 'ready'; template: unknown }
+  | { status: 'pending' }
+  | {
+      status: 'work'
+      schemaSuggestionId: string
+      descriptor: CanonicalPackageDescriptor
+    }
+
+export type BatchSchemaSuggestionInputs = {
+  selectionKey: string
+  suggestions: Array<{
+    sourceDocumentId: string
+    sourceRepresentationRevisionId: string
+    template: unknown | null
+  }>
+}
+
+export type ConfirmBatchSchemaSuggestionResult =
+  | { status: 'created' | 'replayed'; revision: SchemaRevisionRecord }
+  | { status: 'invalid' }
+
 export type FinalizeExtractionReviewInput = {
   reviewDecisions: Array<{
     evidenceAnchorId: string
@@ -472,6 +629,10 @@ export type ProjectStore = {
    */
   deleteProjectContext(
     projectContextId: string,
+  ): Promise<CanonicalPackageDescriptor[] | null>
+  deleteSourceDocument(
+    projectContextId: string,
+    sourceDocumentId: string,
   ): Promise<CanonicalPackageDescriptor[] | null>
   /** Whether any surviving Source Representation Revision pins this package. */
   isPackageReferenced(artifactReference: string): Promise<boolean>
@@ -503,6 +664,37 @@ export type ProjectStore = {
     projectContextId: string,
     input: IngestSourceDocumentInput,
   ): Promise<PersistedSourceDocument | null>
+  /**
+   * Claims one durable, representation-pinned source suggestion lease. A
+   * caller that receives `work` owns generation until it completes or fails.
+   */
+  beginSourceSchemaSuggestion(
+    projectContextId: string,
+    sourceDocumentId: string,
+    now?: Date,
+  ): Promise<SourceSchemaSuggestionStart | null>
+  completeSourceSchemaSuggestion(
+    schemaSuggestionId: string,
+    template: unknown,
+    rawModelOutput: string,
+  ): Promise<void>
+  failSourceSchemaSuggestion(
+    schemaSuggestionId: string,
+    failure: unknown,
+    now?: Date,
+  ): Promise<void>
+  /** Returns only source suggestions pinned to the selection's current representations. */
+  getBatchSchemaSuggestionInputs(
+    projectContextId: string,
+    sourceDocumentIds: readonly string[],
+  ): Promise<BatchSchemaSuggestionInputs | null>
+  /** Creates an isolated immutable Extraction Schema for one confirmed field set. */
+  confirmBatchSchemaSuggestion(
+    projectContextId: string,
+    sourceDocumentIds: readonly string[],
+    selectionKey: string,
+    schemaTree: unknown,
+  ): Promise<ConfirmBatchSchemaSuggestionResult | null>
   initializeSchemaRevision(
     projectContextId: string,
     schemaTree: unknown,
@@ -661,6 +853,25 @@ export function createProjectStore(database: Database = db): ProjectStore {
 
         await orm.public.ProjectContext.where({ id: projectContextId }).delete()
         return candidates
+      })
+    },
+    async deleteSourceDocument(projectContextId, sourceDocumentId) {
+      return database.transaction(async ({ orm }) => {
+        const document = await orm.public.SourceDocument.select('id').first({
+          id: sourceDocumentId,
+          projectContextId,
+        })
+        if (!document) return null
+        const representations = await orm.public.SourceRepresentationRevision.where({
+          sourceDocumentId,
+        })
+          .select('artifactReference', 'artifactSha256')
+          .all()
+        await orm.public.SourceDocument.where({ id: sourceDocumentId }).delete()
+        return representations.map((row) => ({
+          artifactReference: row.artifactReference,
+          artifactSha256: row.artifactSha256,
+        }))
       })
     },
     async isPackageReferenced(artifactReference) {
@@ -1026,6 +1237,192 @@ export function createProjectStore(database: Database = db): ProjectStore {
         return winner
       }
     },
+    async beginSourceSchemaSuggestion(projectContextId, sourceDocumentId, now = new Date()) {
+      const begin = async (): Promise<SourceSchemaSuggestionStart | null> =>
+        database.transaction(async ({ orm }) => {
+          const members = await currentBatchMembers(orm, projectContextId, [
+            sourceDocumentId,
+          ])
+          if (!members) return null
+          const sourceRepresentationRevisionId =
+            members[0].sourceRepresentationRevisionId
+          const representation = await orm.public.SourceRepresentationRevision.select(
+            'artifactReference',
+            'artifactSha256',
+          ).first({ id: sourceRepresentationRevisionId })
+          if (!representation) return null
+
+          const extractionSchemaId = suggestionCacheSchemaId(projectContextId)
+          const cache = await orm.public.ExtractionSchema.select('id').first({
+            id: extractionSchemaId,
+            projectContextId,
+          })
+          if (!cache)
+            await orm.public.ExtractionSchema.create({
+              id: extractionSchemaId,
+              projectContextId,
+              name: 'Private Schema Suggestion Cache',
+            })
+
+          const attempts = await sourceSuggestionAttempts(
+            orm,
+            extractionSchemaId,
+            sourceRepresentationRevisionId,
+          )
+          const template = successfulSuggestion(attempts)
+          if (template !== null) return { status: 'ready' as const, template }
+          if (attempts.some((attempt) => (retryAfter(attempt.failure) ?? 0) > now.getTime()))
+            return { status: 'pending' as const }
+
+          // ponytail: durable two-minute lease; replace with a queue only if
+          // model work must survive faster than its lease after a hard restart.
+          const schemaSuggestionId = sourceSuggestionAttemptId(
+            sourceRepresentationRevisionId,
+            Math.floor(now.getTime() / SOURCE_SUGGESTION_LEASE_MS),
+          )
+          await orm.public.SchemaSuggestion.create({
+            id: schemaSuggestionId,
+            extractionSchemaId,
+            annotationMode: 'hints',
+            outcome: 'FAILED',
+            modelAttribution: { operation: 'batch-source-schema-suggestion' },
+            failure: {
+              state: 'running',
+              retryAfter: new Date(
+                now.getTime() + SOURCE_SUGGESTION_LEASE_MS,
+              ).toISOString(),
+            },
+          })
+          await orm.public.SchemaSuggestionInput.create({
+            schemaSuggestionId,
+            sourceRepresentationRevisionId,
+          })
+          return {
+            status: 'work' as const,
+            schemaSuggestionId,
+            descriptor: {
+              artifactReference: representation.artifactReference,
+              artifactSha256: representation.artifactSha256,
+            },
+          }
+        })
+      try {
+        return await begin()
+      } catch (error) {
+        // The deterministic lease id turns concurrent start/retry calls into
+        // one owner and replaying observers.
+        if (!uniqueConstraint(error)) throw error
+        return begin()
+      }
+    },
+    async completeSourceSchemaSuggestion(schemaSuggestionId, template, rawModelOutput) {
+      await database.orm.public.SchemaSuggestion.where({ id: schemaSuggestionId }).update({
+        outcome: 'SUCCEEDED',
+        proposedTree: template,
+        rawModelOutput,
+        failure: null,
+      })
+    },
+    async failSourceSchemaSuggestion(schemaSuggestionId, failure, now = new Date()) {
+      const message =
+        failure instanceof Error ? failure.message : 'Source schema suggestion failed.'
+      await database.orm.public.SchemaSuggestion.where({ id: schemaSuggestionId }).update({
+        outcome: 'FAILED',
+        failure: {
+          state: 'failed',
+          message: Array.from(message).slice(0, 512).join(''),
+          retryAfter: new Date(
+            now.getTime() + SOURCE_SUGGESTION_LEASE_MS,
+          ).toISOString(),
+        },
+      })
+    },
+    async getBatchSchemaSuggestionInputs(projectContextId, sourceDocumentIds) {
+      return database.transaction(async ({ orm }) => {
+        const members = await currentBatchMembers(
+          orm,
+          projectContextId,
+          sourceDocumentIds,
+        )
+        if (!members) return null
+        const extractionSchemaId = suggestionCacheSchemaId(projectContextId)
+        const cache = await orm.public.ExtractionSchema.select('id').first({
+          id: extractionSchemaId,
+          projectContextId,
+        })
+        return {
+          selectionKey: batchSuggestionSelectionKey(projectContextId, members),
+          suggestions: await Promise.all(
+            members.map(async (member) => ({
+              ...member,
+              template: cache
+                ? successfulSuggestion(
+                    await sourceSuggestionAttempts(
+                      orm,
+                      extractionSchemaId,
+                      member.sourceRepresentationRevisionId,
+                    ),
+                  )
+                : null,
+            })),
+          ),
+        }
+      })
+    },
+    async confirmBatchSchemaSuggestion(
+      projectContextId,
+      sourceDocumentIds,
+      selectionKey,
+      schemaTree,
+    ) {
+      const create = async (): Promise<ConfirmBatchSchemaSuggestionResult | null> =>
+        database.transaction(async ({ orm }) => {
+          const members = await currentBatchMembers(
+            orm,
+            projectContextId,
+            sourceDocumentIds,
+          )
+          if (!members) return null
+          if (batchSuggestionSelectionKey(projectContextId, members) !== selectionKey)
+            return { status: 'invalid' as const }
+          const extractionSchemaId = stableUuid(
+            'confirmed-batch-schema-suggestion',
+            `${projectContextId}:${selectionKey}:${stableJson(schemaTree)}`,
+          )
+          const existing = await orm.public.SchemaRevision.where({
+            extractionSchemaId,
+          })
+            .select(...revisionFields)
+            .orderBy((revision) => revision.revisionNumber.desc())
+            .first()
+          if (existing)
+            return {
+              status: 'replayed' as const,
+              revision: schemaRevision(existing as StoredSchemaRevision),
+            }
+          await orm.public.ExtractionSchema.create({
+            id: extractionSchemaId,
+            projectContextId,
+            name: 'Suggested fields',
+          })
+          const created = await orm.public.SchemaRevision.create({
+            extractionSchemaId,
+            revisionNumber: 1,
+            origin: 'SUGGESTION',
+            schemaTree,
+          })
+          return {
+            status: 'created' as const,
+            revision: schemaRevision(created as StoredSchemaRevision),
+          }
+        })
+      try {
+        return await create()
+      } catch (error) {
+        if (!uniqueConstraint(error)) throw error
+        return create()
+      }
+    },
     async initializeSchemaRevision(projectContextId, schemaTree) {
       return database.transaction(async ({ orm }) => {
         const project = await orm.public.ProjectContext.select('id').first({
@@ -1033,7 +1430,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
         })
         if (!project) return null
 
-        const extractionSchema = await orm.public.ExtractionSchema.where({
+        const extractionSchema = (await orm.public.ExtractionSchema.where({
           projectContextId,
         })
           .select('id')
@@ -1041,7 +1438,8 @@ export function createProjectStore(database: Database = db): ProjectStore {
             (schema) => schema.createdAt.desc(),
             (schema) => schema.id.desc(),
           ])
-          .first()
+          .take(50)
+          .all()).find((schema) => schema.id !== suggestionCacheSchemaId(projectContextId))
         if (extractionSchema) {
           const row = await orm.public.SchemaRevision.where({
             extractionSchemaId: extractionSchema.id,
@@ -1082,7 +1480,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
           id: projectContextId,
         })
         if (!project) return null
-        const schemas = await orm.public.ExtractionSchema.where({
+        const schemas = (await orm.public.ExtractionSchema.where({
           projectContextId,
         })
           .select('id', 'name', 'createdAt')
@@ -1090,11 +1488,11 @@ export function createProjectStore(database: Database = db): ProjectStore {
             (schema) => schema.createdAt.desc(),
             (schema) => schema.id.desc(),
           ])
-          .take(limit)
-          .all()
+          .take(limit + 1)
+          .all()).filter((schema) => schema.id !== suggestionCacheSchemaId(projectContextId))
         // ponytail: bounded to 50 schemas; use a window query if this becomes hot.
         const summaries: ExtractionSchemaSummary[] = []
-        for (const schema of schemas) {
+        for (const schema of schemas.slice(0, limit)) {
           const revision = await orm.public.SchemaRevision.where({
             extractionSchemaId: schema.id,
           })
@@ -1140,7 +1538,8 @@ export function createProjectStore(database: Database = db): ProjectStore {
         id: extractionSchemaId,
         projectContextId,
       })
-      if (!owner) return null
+      if (!owner || extractionSchemaId === suggestionCacheSchemaId(projectContextId))
+        return null
 
       try {
         return await database.transaction(async ({ orm }) => {
@@ -1171,6 +1570,8 @@ export function createProjectStore(database: Database = db): ProjectStore {
       }
     },
     async listSchemaRevisions(projectContextId, extractionSchemaId, limit) {
+      if (extractionSchemaId === suggestionCacheSchemaId(projectContextId))
+        return null
       const owner = await database.orm.public.ExtractionSchema.select('id').first({
         id: extractionSchemaId,
         projectContextId,
@@ -1190,6 +1591,8 @@ export function createProjectStore(database: Database = db): ProjectStore {
       extractionSchemaId,
       schemaRevisionId,
     ) {
+      if (extractionSchemaId === suggestionCacheSchemaId(projectContextId))
+        return null
       const owner = await database.orm.public.ExtractionSchema.select('id').first({
         id: extractionSchemaId,
         projectContextId,
