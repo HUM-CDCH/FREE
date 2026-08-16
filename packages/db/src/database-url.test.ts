@@ -18,5 +18,13 @@ describe('local development database URL', () => {
       () => localDevelopmentDatabase('postgresql://database.example/free'),
       /only accepts the local development database/,
     )
+    assert.throws(
+      () => localDevelopmentDatabase('postgresql://db/free'),
+      /only accepts the local development database/,
+    )
+    assert.equal(
+      localDevelopmentDatabase('postgresql://db/free', true).pathname,
+      '/free',
+    )
   })
 })

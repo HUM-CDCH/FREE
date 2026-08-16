@@ -140,7 +140,8 @@ export async function readBody(
   return Buffer.concat(chunks)
 }
 
-// Vite's implicit localhost binding is the only supported Studio deployment.
+// Keep Studio on IPv4 loopback so dev-container port forwarding reaches the
+// same address on every host without exposing the server on the container LAN.
 export default defineConfig(({ command, mode }) => {
   if (command === 'serve') {
     process.env.DATABASE_URL ??= loadEnv(
@@ -151,7 +152,8 @@ export default defineConfig(({ command, mode }) => {
   }
   return {
     plugins: [react(), tailwindcss(), apiFunctions()],
-    server: mode === 'https' ? localHttps() : undefined,
+    server:
+      mode === 'https' ? localHttps() : { host: '127.0.0.1' as const },
   }
 })
 

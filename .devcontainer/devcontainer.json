@@ -1,0 +1,41 @@
+{
+  "name": "FREE",
+  "dockerComposeFile": "compose.yaml",
+  "service": "workspace",
+  "workspaceFolder": "/workspaces/FREE",
+  "shutdownAction": "stopCompose",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.13"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    }
+  },
+  "containerEnv": {
+    "DATABASE_URL": "postgresql://postgres:postgres@db:5432/free",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/free-keyring-runtime/bus",
+    "FREE_DEVCONTAINER": "1",
+    "XDG_RUNTIME_DIR": "/tmp/free-keyring-runtime",
+    "UV_LINK_MODE": "copy"
+  },
+  "forwardPorts": [5173, 8000],
+  "portsAttributes": {
+    "5173": {
+      "label": "Studio"
+    },
+    "8000": {
+      "label": "Parsing service"
+    }
+  },
+  "postCreateCommand": "sudo npm install --global @openai/codex && corepack enable && corepack prepare pnpm@10.9.0 --activate && pnpm install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  }
+}
