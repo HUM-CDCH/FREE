@@ -265,6 +265,44 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     })
   })
 
+  it('opens the field editor when the allowed-values badge is clicked', () => {
+    renderPanel()
+
+    fireEvent.click(screen.getByTitle('Allowed values — click to edit: woman, man'))
+
+    expect(screen.getByDisplayValue('gender')).toBeInTheDocument()
+    expect(screen.getByText('woman')).toBeInTheDocument()
+    expect(screen.getByText('man')).toBeInTheDocument()
+  })
+
+  it('adds and removes allowed values from the badge editor', () => {
+    const onNodesChange = renderPanel()
+
+    fireEvent.click(screen.getByTitle('Allowed values — click to edit: woman, man'))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove woman' }))
+    fireEvent.change(screen.getByPlaceholderText('add value…'), { target: { value: 'other' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onNodesChange.mock.calls[0][0][1]).toEqual({
+      id: 'gender',
+      name: 'gender',
+      type: 'string',
+      allowedValues: ['man', 'other'],
+    })
+  })
+
+  it('drops the closed set entirely once fewer than two values remain', () => {
+    const onNodesChange = renderPanel()
+
+    fireEvent.click(screen.getByTitle('Allowed values — click to edit: woman, man'))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove woman' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove man' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onNodesChange.mock.calls[0][0][1]).toEqual({ id: 'gender', name: 'gender', type: 'string' })
+  })
+
   it('preserves repetition when a field is dragged into a scalar array', async () => {
     const onNodesChange = renderPanel(vi.fn(), [
       { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },

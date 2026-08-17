@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { DefaultChatTransport, readUIMessageStream } from 'ai'
-import type { UIMessage } from 'ai'
-import { API_BASE, requestSchemaEdit } from './api'
+import { requestSchemaEdit } from './api'
 import { countTemplateFields, isRecord } from '../shared/template'
 import type { FieldType } from '../shared/allowedValues'
 import {
@@ -26,28 +24,6 @@ import {
   type DerivedProposal,
   type ReplayOutcome,
 } from './schemaChanges'
-
-// ────────────────────────────────────────────────────────────────────────────
-// Pre-generation doc chat (absorbed from the former standalone ChatTab)
-// ────────────────────────────────────────────────────────────────────────────
-
-const docChatTransport = new DefaultChatTransport<UIMessage>({
-  api: `${API_BASE}/chat`,
-  prepareSendMessagesRequest: ({ messages, body }) => ({
-    body: { messages, documentMarkdown: body?.documentMarkdown },
-  }),
-})
-
-function docChatMessageText(message: UIMessage): string {
-  return message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
-    .join('')
-}
-
-function nextDocChatId(): string {
-  return crypto.randomUUID()
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Exported types (App.tsx depends on TemplateState)
@@ -98,7 +74,7 @@ type DropTarget =
   | { type: 'slot'; parentId: string | null; index: number }
   | { type: 'group'; id: string; name: string }
 
-type FieldEditing = { id: string; name: string; type: FieldType }
+type FieldEditing = { id: string; name: string; type: FieldType; allowedValues?: string[] }
 
 function editedField(node: SchemaNode, name: string, editing: FieldEditing): SchemaNode {
   const base = { id: node.id, name, ...(node.description && { description: node.description }) }
@@ -110,25 +86,46 @@ function editedField(node: SchemaNode, name: string, editing: FieldEditing): Sch
       ? { ...base, type: 'array', children: node.children }
       : { ...base, type: 'array', itemType: node.type === 'array' ? node.itemType : 'string' }
   }
-  if (editing.type === 'string' && node.type === 'string' && node.allowedValues) {
-    return { ...base, type: 'string', allowedValues: node.allowedValues }
+  if (editing.type === 'string') {
+    return editing.allowedValues && editing.allowedValues.length >= 2
+      ? { ...base, type: 'string', allowedValues: editing.allowedValues }
+      : { ...base, type: 'string' }
   }
   return { ...base, type: editing.type }
 }
 
 function editingOf(node: SchemaNode): FieldEditing {
-  return { id: node.id, name: node.name, type: node.type }
+  return {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    allowedValues: node.type === 'string' ? node.allowedValues : undefined,
+  }
 }
 
-function AllowedValuesBadge({ node }: { node: SchemaNode }) {
+function AllowedValuesBadge({ node, onEdit, disabled }: { node: SchemaNode; onEdit?: () => void; disabled?: boolean }) {
   if (!node.allowedValues) return null
+  const title = `Allowed values${onEdit ? ' — click to edit' : ''}: ${node.allowedValues.join(', ')}`
+  if (!onEdit) {
+    return (
+      <span
+        className="min-w-0 shrink truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted"
+        title={title}
+      >
+        {node.allowedValues.join(' | ')}
+      </span>
+    )
+  }
   return (
-    <span
-      className="min-w-0 shrink truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted"
-      title={`Allowed values: ${node.allowedValues.join(', ')}`}
+    <button
+      type="button"
+      className="min-w-0 shrink cursor-pointer truncate rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-ink-muted outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60 disabled:hover:bg-canvas disabled:hover:text-ink-muted"
+      title={title}
+      disabled={disabled}
+      onClick={onEdit}
     >
       {node.allowedValues.join(' | ')}
-    </span>
+    </button>
   )
 }
 
@@ -191,6 +188,8 @@ function AcceptanceControl({ id, name, accepted, onChange }: {
 }
 
 type ChatMsg = { role: 'user' | 'assistant'; text: string }
+
+type DocInstruction = { id: string; text: string }
 
 type PendingChange = DerivedProposal & { original: SchemaNode[] }
 
@@ -349,6 +348,12 @@ function parentIdOf(nodes: SchemaNode[], childId: string): string | null {
   return search(nodes) ?? null
 }
 
+function subtreeIdsOf(node: SchemaNode): string[] {
+  const ids = [node.id]
+  for (const child of node.children ?? []) ids.push(...subtreeIdsOf(child))
+  return ids
+}
+
 function ancestorIdsOf(nodes: readonly SchemaNode[], targetIds: ReadonlySet<string>): Set<string> {
   const ancestors = new Set<string>()
   const visit = (level: readonly SchemaNode[], path: readonly string[]) => {
@@ -405,18 +410,66 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
   onSave: () => void
   onCancel: () => void
 }) {
+  const [newValue, setNewValue] = useState('')
+
+  function addValue() {
+    const value = newValue.trim()
+    if (!value) return
+    const current = editing.allowedValues ?? []
+    if (current.includes(value)) { setNewValue(''); return }
+    onChange({ ...editing, allowedValues: [...current, value] })
+    setNewValue('')
+  }
+
+  function removeValue(value: string) {
+    const remaining = (editing.allowedValues ?? []).filter((v) => v !== value)
+    onChange({ ...editing, allowedValues: remaining.length > 0 ? remaining : undefined })
+  }
+
   return (
-    <div className="my-0.5 flex items-center gap-1.5 rounded-lg border border-accent bg-accent-ghost px-2.5 py-2">
-      <input
-        className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-xs font-semibold text-ink outline-none focus-visible:border-accent"
-        value={editing.name}
-        placeholder="field_name"
-        autoFocus
-        onChange={e => onChange({ ...editing, name: e.target.value })}
-        onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
-      />
-      <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
-      <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✗</button>
+    <div className="my-0.5 flex flex-col gap-1.5 rounded-lg border border-accent bg-accent-ghost px-2.5 py-2">
+      <div className="flex items-center gap-1.5">
+        <input
+          className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-xs font-semibold text-ink outline-none focus-visible:border-accent"
+          value={editing.name}
+          placeholder="field_name"
+          autoFocus
+          onChange={e => onChange({ ...editing, name: e.target.value })}
+          onKeyDown={e => { if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancel() }}
+        />
+        <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
+        <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✗</button>
+      </div>
+      {editing.type === 'string' && (
+        <div className="flex flex-col gap-1 border-t border-accent/20 pt-1.5">
+          <span className="text-[10px] font-semibold text-ink-muted">Allowed values (leave empty for free text)</span>
+          {editing.allowedValues && editing.allowedValues.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {editing.allowedValues.map((value) => (
+                <span key={value} className="flex items-center gap-1 rounded bg-canvas px-1.5 py-0.5 font-mono text-[10.5px] text-ink">
+                  {value}
+                  <button
+                    type="button"
+                    className="cursor-pointer text-ink-faint outline-none hover:text-danger"
+                    aria-label={`Remove ${value}`}
+                    onClick={() => removeValue(value)}
+                  >✕</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <input
+              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
+              value={newValue}
+              placeholder="add value…"
+              onChange={e => setNewValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addValue() } }}
+            />
+            <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={addValue}>Add</button>
+          </div>
+        </div>
+      )}
       {error && <span className="text-[10px] font-semibold text-danger" role="alert">{error}</span>}
     </div>
   )
@@ -513,12 +566,10 @@ function SchemaPanel({
   const [historyRestoring, setHistoryRestoring] = useState(false)
   const [confirmingDeleteSchema, setConfirmingDeleteSchema] = useState(false)
 
-  // Pre-generation doc chat: free-form Q&A about the document, also the source
-  // of the instruction sent along with "Generate schema"/"Regenerate".
-  const [docChat, setDocChat] = useState<UIMessage[]>([])
+  // Pre-generation instructions: recorded locally, sent as the instruction
+  // for "Generate schema"/"Regenerate" — not a live conversation with the model.
+  const [docInstructions, setDocInstructions] = useState<DocInstruction[]>([])
   const [docChatDraft, setDocChatDraft] = useState('')
-  const [docChatStatus, setDocChatStatus] = useState<'ready' | 'running' | 'error'>('ready')
-  const docChatAbortRef = useRef<AbortController | null>(null)
   const docChatRef = useRef<HTMLDivElement>(null)
 
   // ── refs for event handlers (avoid stale closures) ──
@@ -566,11 +617,11 @@ function SchemaPanel({
     if (el) el.scrollTop = el.scrollHeight
   }, [chat.length, pending])
 
-  // Keep the newest pre-generation doc-chat message visible.
+  // Keep the newest recorded instruction visible.
   useEffect(() => {
     const el = docChatRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [docChat.length])
+  }, [docInstructions.length])
 
   // ── Auto-scroll helpers ──
   function stopScroll() {
@@ -668,7 +719,7 @@ function SchemaPanel({
     setJsonEditError(null)
     setView('fields')
     setHistoryError(null)
-    setDocChat([])
+    setDocInstructions([])
     setDocChatDraft('')
   }
 
@@ -819,6 +870,10 @@ function SchemaPanel({
   // ── Inline editing ──
   function saveEdit() {
     if (!editing) return
+    if (editing.type === 'string' && editing.allowedValues && editing.allowedValues.length === 1) {
+      setEditingError('Need at least 2 allowed values, or remove the last one for free text.')
+      return
+    }
     const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_') || 'field'
     const newNodes = updateNodeById(
       nodesRef.current,
@@ -849,11 +904,15 @@ function SchemaPanel({
     setSelectedIds(new Set())
   }
 
-  function toggleSelected(id: string) {
+  function toggleSelected(node: SchemaNode) {
+    const ids = subtreeIdsOf(node)
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      const select = !next.has(node.id)
+      for (const id of ids) {
+        if (select) next.add(id)
+        else next.delete(id)
+      }
       return next
     })
   }
@@ -933,57 +992,22 @@ function SchemaPanel({
     chatAbortRef.current?.abort()
   }
 
-  // ── Pre-generation doc chat (Q&A about the document; also the instruction
-  // source for "Generate schema"/"Regenerate") ──
-  const docInstruction = docChat
-    .filter((m) => m.role === 'user')
-    .map(docChatMessageText)
-    .join('\n\n')
-    .trim()
+  // ── Pre-generation instructions (recorded locally; sent as the instruction
+  // for "Generate schema"/"Regenerate") ──
+  const docInstruction = docInstructions.map((instruction) => instruction.text).join('\n\n')
+  const instructionCountLabel = docInstructions.length > 0
+    ? ` (${docInstructions.length} instruction${docInstructions.length === 1 ? '' : 's'})`
+    : ''
 
-  async function sendDocChatMessage() {
+  function sendDocChatMessage() {
     const text = docChatDraft.trim()
-    if (!text || docChatStatus === 'running' || documentMarkdown === null) return
-
-    docChatAbortRef.current?.abort()
-    const abortController = new AbortController()
-    docChatAbortRef.current = abortController
-    setDocChatStatus('running')
+    if (!text) return
     setDocChatDraft('')
-
-    const nextMessages: UIMessage[] = [
-      ...docChat,
-      { id: nextDocChatId(), role: 'user', parts: [{ type: 'text', text }] },
-    ]
-    setDocChat(nextMessages)
-
-    try {
-      const stream = await docChatTransport.sendMessages({
-        chatId: 'free-schema-doc-chat',
-        messages: nextMessages,
-        trigger: 'submit-message',
-        messageId: undefined,
-        abortSignal: abortController.signal,
-        body: { documentMarkdown },
-      })
-
-      for await (const assistantMessage of readUIMessageStream({ stream, terminateOnError: true })) {
-        setDocChat([...nextMessages, assistantMessage])
-      }
-      setDocChatStatus('ready')
-    } catch (error) {
-      if (abortController.signal.aborted) return
-      const message = error instanceof Error ? error.message : 'Chat failed.'
-      setDocChat([
-        ...nextMessages,
-        { id: nextDocChatId(), role: 'assistant', parts: [{ type: 'text', text: message }] },
-      ])
-      setDocChatStatus('error')
-    }
+    setDocInstructions((current) => [...current, { id: mkId(), text }])
   }
 
-  function cancelDocChat() {
-    docChatAbortRef.current?.abort()
+  function removeDocInstruction(id: string) {
+    setDocInstructions((current) => current.filter((instruction) => instruction.id !== id))
   }
 
   // Apply pending proposal.
@@ -1108,7 +1132,11 @@ function SchemaPanel({
               </span>
             )}
             <FieldChangeLabel node={node} change={change} />
-            <AllowedValuesBadge node={node} />
+            <AllowedValuesBadge
+              node={node}
+              disabled={editDisabled}
+              onEdit={!isDiff ? () => { setEditing(editingOf(node)); setEditingError(null) } : undefined}
+            />
             <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
             {intoGroup && !isDiff && (
               <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white whitespace-nowrap">
@@ -1147,7 +1175,7 @@ function SchemaPanel({
                 type="checkbox"
                 className="shrink-0 cursor-pointer accent-accent"
                 checked={selectedIds.has(node.id)}
-                onChange={() => toggleSelected(node.id)}
+                onChange={() => toggleSelected(node)}
                 onClick={e => e.stopPropagation()}
               />
             )}
@@ -1227,7 +1255,11 @@ function SchemaPanel({
               </span>
             )}
             <FieldChangeLabel node={child} change={change} />
-            <AllowedValuesBadge node={child} />
+            <AllowedValuesBadge
+              node={child}
+              disabled={editDisabled}
+              onEdit={!isDiff ? () => { setEditing(editingOf(child)); setEditingError(null) } : undefined}
+            />
             <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
             {isGroup && !isDiff && (
               <span
@@ -1276,7 +1308,7 @@ function SchemaPanel({
                 type="checkbox"
                 className="shrink-0 cursor-pointer accent-accent"
                 checked={selectedIds.has(child.id)}
-                onChange={() => toggleSelected(child.id)}
+                onChange={() => toggleSelected(child)}
                 onClick={e => e.stopPropagation()}
               />
             )}
@@ -1372,9 +1404,11 @@ function SchemaPanel({
             <p className="text-[13px] font-semibold text-ink">No schema yet</p>
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
               FREE produces the extraction schema from the document with the extraction model.
-              {docInstruction && ' Chat below to add instructions before generating.'}
+              {docInstructions.length === 0 && ' Chat below to add instructions before generating.'}
             </p>
-            <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerate(docInstruction)}>Generate schema</button>
+            <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerate(docInstruction)}>
+              Generate schema{instructionCountLabel}
+            </button>
           </div>
         )}
 
@@ -1478,7 +1512,7 @@ function SchemaPanel({
           <>
             {mutationError && <p className="mb-2 text-[11px] font-semibold text-danger" role="alert">{mutationError}</p>}
             {selectedIds.size > 0 && (
-              <div className="mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5">
+              <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5 shadow-float">
                 <span className="text-[12px] font-semibold text-danger">
                   {selectedIds.size} field{selectedIds.size !== 1 ? 's' : ''} selected
                 </span>
@@ -1516,18 +1550,15 @@ function SchemaPanel({
         )}
       </div>
 
-      {/* Pre-generation doc chat: Q&A about the document, and the instruction
+      {/* Pre-generation instructions: recorded locally as the instruction
           source for "Generate schema". Hidden once ready, where the bottom slot
           switches to the schema edit-chat below — a different mechanism (it
           walks proposed changes node by node) that this doesn't replace. */}
       {!ready && (
         <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
-          {/* <div className="flex shrink-0 items-center border-b border-line px-3.5 py-1">
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
-          </div> */}
           <div ref={docChatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
-              {docChat.length === 0 && (
+              {docInstructions.length === 0 && (
                 <p className="flex items-center gap-1.5 text-[11.5px] leading-relaxed text-ink-faint">
                   Add instructions for schema generation.
                   <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ink-faint">
@@ -1535,20 +1566,22 @@ function SchemaPanel({
                   </span>
                 </p>
               )}
-              {docChat.map((message) => (
-                <div key={message.id} className={msgCls(message.role === 'user' ? 'user' : 'assistant')}>
-                  {docChatMessageText(message)}
+              {docInstructions.map((instruction, i) => (
+                <div key={instruction.id} className="flex flex-col gap-1">
+                  <div className={msgCls('user')}>{instruction.text}</div>
+                  <div className="flex items-center gap-1.5 self-start pl-1 text-[10.5px] text-ink-faint">
+                    <span>Recorded — instruction {i + 1} of {docInstructions.length} will apply at generation.</span>
+                    <button
+                      type="button"
+                      className="cursor-pointer font-semibold outline-none hover:text-danger"
+                      title="Remove this instruction"
+                      onClick={() => removeDocInstruction(instruction.id)}
+                    >
+                      ✗
+                    </button>
+                  </div>
                 </div>
               ))}
-              {docChatStatus === 'running' && (
-                <div className="self-start rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-2">
-                  <span className="flex gap-1">
-                    <span className="animate-pulse text-ink-faint text-sm">•</span>
-                    <span className="animate-pulse text-ink-faint text-sm" style={{ animationDelay: '0.15s' }}>•</span>
-                    <span className="animate-pulse text-ink-faint text-sm" style={{ animationDelay: '0.3s' }}>•</span>
-                  </span>
-                </div>
-              )}
             </div>
           </div>
           <div className="shrink-0 px-3.5 pb-3 pt-1.5">
@@ -1558,34 +1591,22 @@ function SchemaPanel({
                 rows={2}
                 placeholder='Add a generation instruction (e.g. "Focus on names, dates, and locations")…'
                 value={docChatDraft}
-                disabled={documentMarkdown === null}
                 onChange={e => setDocChatDraft(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault()
-                    void sendDocChatMessage()
+                    sendDocChatMessage()
                   }
                 }}
               />
-              {docChatStatus === 'running' ? (
-                <button
-                  type="button"
-                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108"
-                  onClick={cancelDocChat}
-                  title="Stop generation"
-                >
-                  ■
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
-                  disabled={!docChatDraft.trim() || documentMarkdown === null}
-                  onClick={() => void sendDocChatMessage()}
-                >
-                  ↑
-                </button>
-              )}
+              <button
+                type="button"
+                className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
+                disabled={!docChatDraft.trim()}
+                onClick={sendDocChatMessage}
+              >
+                ↑
+              </button>
             </div>
           </div>
         </div>
@@ -1732,7 +1753,9 @@ function SchemaPanel({
         </p>
         {ready && (
           <div className="flex shrink-0 items-center gap-2">
-            <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>Regenerate</button>
+            <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
+              Regenerate{instructionCountLabel}
+            </button>
           </div>
         )}
       </footer>

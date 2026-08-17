@@ -490,7 +490,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
                       ? 'Review saved'
                       : controller.review.saving
                         ? 'Saving…'
-                        : 'Accept result'}
+                        : 'Accept and Save'}
                   </Button>
                 )}
                 {!readOnly && attempt?.strategy !== 'CATALOG' && (
@@ -510,6 +510,24 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
                   Successful values remain visible. See the persisted stage
                   diagnostics for details.
                 </p>
+              </div>
+            )}
+            {!readOnly && !inspectedAttempt && controller.stale && (
+              <div
+                className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
+                role="status"
+              >
+                <p className="font-semibold">Extraction Schema updated</p>
+                <p>This Extraction Result was produced with a previous Extraction Schema.</p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-1.5"
+                  disabled={!controller.canRun}
+                  onClick={() => void controller.runExtraction()}
+                >
+                  Re-run extraction
+                </Button>
               </div>
             )}
             {controller.review.error && (

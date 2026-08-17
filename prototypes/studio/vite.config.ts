@@ -19,7 +19,14 @@ const SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT = 51 * 1024 * 1024
 // only picks the module — the handler owns its exact grammar and answers 404.
 const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [SOURCE_DOCUMENT_INGESTION_ROUTE, 'source_documents'],
-  [/^\/api\/project-contexts\/[^/]+\/source-documents\//, 'document_reopen'],
+  [
+    /^\/api\/project-contexts\/[^/]+\/source-documents\/[^/]+\/reopen$/,
+    'document_reopen',
+  ],
+  [
+    /^\/api\/project-contexts\/[^/]+\/source-documents\/[^/]+$/,
+    'source_documents',
+  ],
   [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
   [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
   [/^\/api\/extraction-schemas$/, 'extraction_schemas'],

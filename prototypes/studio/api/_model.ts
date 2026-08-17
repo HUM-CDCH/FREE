@@ -37,6 +37,8 @@ export { json, parseTemperature, type FormValue } from './_http.js'
 
 const IMAGE_PLACEHOLDER = '<|vision_start|><|image_pad|><|vision_end|>'
 const NON_THINKING_TEMPERATURE = 0.2
+const EXTRACTION_SCOPE_GUARDRAIL =
+  'Only extract fields defined in the Extraction Schema above. Do not invent, infer, or include any field, key, or record that is not present in the schema.'
 export type ExtractModelInput = {
   readonly document: DocumentInput
   readonly template: unknown
@@ -107,36 +109,36 @@ async function operationTarget(
   return inspectTarget(operation, resolved)
 }
 
-export async function streamChatWithModel(
-  messages: readonly UIMessage[],
-  documentMarkdown: string,
-  temperature?: number,
-  target?: ExecutionTarget,
-  dependencies: ModelDependencies = {},
-): Promise<Response> {
-  const resolved = await operationTarget('chat', temperature, target, dependencies)
-  if (resolved.profile !== 'general') {
-    throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
-  }
-  try {
-    const result = streamText({
-      model: resolved.model,
-      system:
-        'You help humanities researchers inspect source documents in FREE. Use the canonical Source Document Markdown below as the document context.\n\n' +
-        `SOURCE DOCUMENT MARKDOWN:\n${documentMarkdown}\nEND SOURCE DOCUMENT MARKDOWN`,
-      messages: await convertToModelMessages([...messages]),
-      ...(temperature === undefined ? {} : { temperature }),
-    })
-    return createUIMessageStreamResponse({
-      stream: toUIMessageStream({
-        stream: result.stream,
-        onError: () => 'Chat failed.',
-      }),
-    })
-  } catch (error) {
-    throw asModelOperationError(error, 'Chat failed before streaming began.')
-  }
-}
+// export async function streamChatWithModel(
+//   messages: readonly UIMessage[],
+//   documentMarkdown: string,
+//   temperature?: number,
+//   target?: ExecutionTarget,
+//   dependencies: ModelDependencies = {},
+// ): Promise<Response> {
+//   const resolved = await operationTarget('chat', temperature, target, dependencies)
+//   if (resolved.profile !== 'general') {
+//     throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
+//   }
+//   try {
+//     const result = streamText({
+//       model: resolved.model,
+//       system:
+//         'You help humanities researchers inspect source documents in FREE. Use the canonical Source Document Markdown below as the document context.\n\n' +
+//         `SOURCE DOCUMENT MARKDOWN:\n${documentMarkdown}\nEND SOURCE DOCUMENT MARKDOWN`,
+//       messages: await convertToModelMessages([...messages]),
+//       ...(temperature === undefined ? {} : { temperature }),
+//     })
+//     return createUIMessageStreamResponse({
+//       stream: toUIMessageStream({
+//         stream: result.stream,
+//         onError: () => 'Chat failed.',
+//       }),
+//     })
+//   } catch (error) {
+//     throw asModelOperationError(error, 'Chat failed before streaming began.')
+//   }
+// }
 
 export async function extractWithModel(
   { document, template, instruction, temperature, signal }: ExtractModelInput,
@@ -166,7 +168,8 @@ export async function extractWithModel(
       instructions:
         'Produce a FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
         'Return only one JSON object with no Markdown or commentary. ' +
-        'Keep every repeated item inside its schema array; close the root object only after the final item.',
+        'Keep every repeated item inside its schema array; close the root object only after the final item. ' +
+        EXTRACTION_SCOPE_GUARDRAIL,
       request,
       documentParts: documentParts.parts,
       temperature,
@@ -176,7 +179,9 @@ export async function extractWithModel(
     generated = await generateWithNuExtractRawPrompt('extraction', resolved, {
       mode: 'structured',
       template: JSON.stringify(extractionTemplate, null, 2),
-      instructions: callerInstruction || null,
+      instructions: callerInstruction
+        ? `${EXTRACTION_SCOPE_GUARDRAIL}\n\n${callerInstruction}`
+        : EXTRACTION_SCOPE_GUARDRAIL,
       documentParts: documentParts.parts,
       temperature,
       signal,

@@ -254,6 +254,7 @@ export default function ProjectContextPage({
   const renameTrigger = useRef<HTMLButtonElement>(null)
   const deleteTrigger = useRef<HTMLButtonElement>(null)
   const restoreRenameFocus = useRef(false)
+  const sourceListRef = useRef<HTMLUListElement>(null)
   const branch = branches[projectContextId]
   const project =
     branch?.status === 'ready'
@@ -310,6 +311,19 @@ export default function ProjectContextPage({
     link.click()
     URL.revokeObjectURL(href)
   }
+
+  useEffect(() => {
+    const closeOtherMenus = (event: PointerEvent) => {
+      const openMenus = sourceListRef.current?.querySelectorAll('details[open]')
+      openMenus?.forEach((details) => {
+        if (!details.contains(event.target as Node)) {
+          details.removeAttribute('open')
+        }
+      })
+    }
+    document.addEventListener('pointerdown', closeOtherMenus)
+    return () => document.removeEventListener('pointerdown', closeOtherMenus)
+  }, [])
 
   useEffect(() => {
     if (tab !== 'schemas') return
@@ -637,7 +651,7 @@ export default function ProjectContextPage({
             )}
 
             {(queued.length > 0 || branch?.status === 'ready') && (
-              <ul className="divide-y divide-line">
+              <ul className="divide-y divide-line" ref={sourceListRef}>
                 {/* In-flight first: new work stays visible without scrolling. */}
                 {queued.map((source) => (
                   <li

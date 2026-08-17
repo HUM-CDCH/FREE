@@ -145,6 +145,7 @@ export function useExtraction({
   }, [runInputsKey])
 
   const hasResults = state.status === 'ready'
+  const stale = attempt !== null && !sameTarget(attempt, reviewTarget)
   const canRun =
     reviewTarget !== null &&
     schemaReady &&
@@ -265,6 +266,7 @@ export function useExtraction({
     attempt,
     canRun,
     hasResults,
+    stale,
     runExtraction,
     retryExtraction,
     requestCancellation,
