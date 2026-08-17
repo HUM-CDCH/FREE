@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import GearIcon from '../GearIcon'
 import PanelToggleIcon from '../PanelToggleIcon'
 import type { NavigableRoute } from '../projectNavigation'
@@ -19,10 +19,68 @@ export type ProjectContextRailProps = {
 
 const guide = 'border-l border-line pl-3'
 
+function PlusIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="none">
+      <path
+        d="M10 3.5v13M3.5 10h13"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function AddSourceDocumentsControl({
+  projectContextId,
+  projectName,
+  addSources,
+}: {
+  projectContextId: string
+  projectName: string
+  addSources: (sources: readonly { projectContextId: string; file: File }[]) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <>
+      {/* A separate trigger, not a label: the OS file picker focuses and
+          blurs the input on its own schedule, which flashes any style tied
+          to the input's own focus. The button's focus never moves. */}
+      <button
+        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-ink-faint outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:bg-accent-ghost focus-visible:text-accent focus-visible:ring-1 focus-visible:ring-accent"
+        type="button"
+        aria-label={`Add Source Documents to ${projectName}`}
+        title="Add Source Documents"
+        onClick={() => inputRef.current?.click()}
+      >
+        <PlusIcon />
+      </button>
+      <input
+        ref={inputRef}
+        className="sr-only"
+        type="file"
+        tabIndex={-1}
+        accept=".pdf,application/pdf"
+        multiple
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? [])
+          event.target.value = ''
+          if (files.length)
+            addSources(files.map((file) => ({ projectContextId, file })))
+        }}
+      />
+    </>
+  )
+}
+
 /**
- * Navigation only. Renaming, deleting, and adding Source Documents live on the
- * Project Context page, so the rail's list is exactly the persisted research
- * state and never grows entries that are not Source Documents.
+ * Renaming and deleting live on the Project Context page, so the rail's list
+ * is exactly the persisted research state and never grows entries that are
+ * not Source Documents. The row's name and chevron both only expand or
+ * collapse its Source Documents; opening the Project Context page and adding
+ * a Source Document to it are actions in the row's own menu.
  */
 export function ProjectContextRail({
   open,
@@ -32,8 +90,15 @@ export function ProjectContextRail({
   onNavigate,
   onConfigure,
 }: ProjectContextRailProps) {
-  const { projects, listState, branches, loadBranch, retryList, createProject } =
-    useProjectContexts()
+  const {
+    projects,
+    listState,
+    branches,
+    loadBranch,
+    retryList,
+    createProject,
+    addSources,
+  } = useProjectContexts()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [collapsedRouted, setCollapsedRouted] = useState<ReadonlySet<string>>(
     new Set(),
@@ -41,6 +106,22 @@ export function ProjectContextRail({
   const [creating, setCreating] = useState(false)
   const restoreCreateFocus = useRef(false)
   const createTrigger = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
+
+  // Only one row menu stays open at a time; a pointerdown outside every open
+  // <details> closes it, matching the Project Context page's source menus.
+  useEffect(() => {
+    const closeOtherMenus = (event: PointerEvent) => {
+      const openMenus = listRef.current?.querySelectorAll('details[open]')
+      openMenus?.forEach((details) => {
+        if (!details.contains(event.target as Node)) {
+          details.removeAttribute('open')
+        }
+      })
+    }
+    document.addEventListener('pointerdown', closeOtherMenus)
+    return () => document.removeEventListener('pointerdown', closeOtherMenus)
+  }, [])
 
   const activeProjectContextId =
     selection?.kind === 'project' || selection?.kind === 'document'
@@ -154,7 +235,7 @@ export function ProjectContextRail({
             No Project Contexts yet.
           </p>
         )}
-        <ul className="flex flex-col">
+        <ul className="flex flex-col" ref={listRef}>
           {projects.map((project) => {
             const projectContextId = project.projectContextId
             const isExpanded = visibleExpanded.has(projectContextId)
@@ -162,42 +243,67 @@ export function ProjectContextRail({
             const branch = branches[projectContextId]
             return (
               <li key={projectContextId} className="py-0.5">
-                {/* Two controls: the chevron only discloses Source Documents,
-                    the name only navigates — including from an open one. */}
-                <div className="flex items-center">
+                {/* The chevron and the name are one control: either discloses
+                    Source Documents. Opening the Project Context page and
+                    adding to it live in the row's own menu. */}
+                <div className="flex items-center gap-0.5">
                   <button
-                    className={`cursor-pointer rounded-sm px-1 py-1 outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:bg-accent-ghost focus-visible:text-accent focus-visible:ring-1 focus-visible:ring-accent ${
-                      active ? 'text-accent' : 'text-ink-faint'
+                    data-project-row
+                    className={`flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-sm py-1 pl-1 pr-1 text-left outline-none transition-colors hover:bg-accent-ghost focus-visible:bg-accent-ghost focus-visible:ring-1 focus-visible:ring-accent ${
+                      active ? 'text-accent' : 'text-ink-faint hover:text-accent'
                     }`}
                     type="button"
                     aria-expanded={isExpanded}
+                    aria-current={active ? 'page' : undefined}
                     aria-label={`${
                       isExpanded ? 'Collapse' : 'Expand'
                     } Source Documents in ${project.name}`}
                     onClick={() => toggle(projectContextId)}
                   >
                     <span aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
+                    <span
+                      className={`min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-[0.07em] ${
+                        active ? 'text-accent' : 'text-ink-muted'
+                      }`}
+                    >
+                      {project.name}
+                    </span>
                   </button>
-                  <button
-                    data-project-row
-                    className={`min-w-0 flex-1 cursor-pointer truncate rounded-sm py-1 pl-0.5 pr-1 text-left text-[11px] font-bold uppercase tracking-[0.07em] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-accent ${
-                      active ? 'text-accent' : 'text-ink-muted hover:text-ink'
-                    }`}
-                    type="button"
-                    aria-current={active ? 'page' : undefined}
-                    onClick={() => {
-                      // Reopening the routed Project Context page would push a
-                      // duplicate history entry.
-                      if (
-                        selection?.kind === 'project' &&
-                        selection.projectContextId === projectContextId
-                      )
-                        return
-                      navigate(projectContextId)
-                    }}
-                  >
-                    {project.name}
-                  </button>
+                  <AddSourceDocumentsControl
+                    projectContextId={projectContextId}
+                    projectName={project.name}
+                    addSources={addSources}
+                  />
+                  <details className="relative shrink-0">
+                    <summary
+                      className="flex size-6 cursor-pointer list-none items-center justify-center rounded-sm text-ink-faint outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:ring-1 focus-visible:ring-accent [&::-webkit-details-marker]:hidden"
+                      role="button"
+                      aria-label={`Actions for ${project.name}`}
+                    >
+                      <span aria-hidden="true">•••</span>
+                    </summary>
+                    <div className="absolute right-0 top-7 z-10 w-40 rounded-2xl bg-ink p-1.5 text-xs text-white shadow-md">
+                      <button
+                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                        type="button"
+                        onClick={(event) => {
+                          event.currentTarget
+                            .closest('details')
+                            ?.removeAttribute('open')
+                          // Reopening the routed Project Context page would
+                          // push a duplicate history entry.
+                          if (
+                            selection?.kind === 'project' &&
+                            selection.projectContextId === projectContextId
+                          )
+                            return
+                          navigate(projectContextId)
+                        }}
+                      >
+                        Open project
+                      </button>
+                    </div>
+                  </details>
                 </div>
 
                 {isExpanded && (

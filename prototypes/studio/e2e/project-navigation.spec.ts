@@ -326,14 +326,19 @@ const workspace = (page: Page) =>
 const projectPage = (page: Page) =>
   page.getByRole('region', { name: 'Project Context' })
 const projectRows = (page: Page) => rail(page).locator('[data-project-row]')
-/** The name control; it navigates and never discloses. */
-const projectRow = (page: Page, name: string) =>
-  rail(page).getByRole('button', { name, exact: true })
-/** The disclosure control beside it; it discloses and never navigates. */
+/** The row's chevron+name control; it only discloses, from either part of it. */
 const disclosure = (page: Page, name: string) =>
   rail(page).getByRole('button', {
     name: new RegExp(`Source Documents in ${name}$`),
   })
+/** The row's "•••" menu trigger. */
+const projectMenuTrigger = (page: Page, name: string) =>
+  rail(page).getByRole('button', { name: `Actions for ${name}` })
+/** Opens the row's menu and follows its "Open project" action. */
+const openProject = async (page: Page, name: string) => {
+  await projectMenuTrigger(page, name).click()
+  await rail(page).getByRole('button', { name: 'Open project' }).click()
+}
 // The page lists the same Source Documents as cards, so navigation rows are
 // always addressed inside the rail.
 const documentRow = (page: Page, name: string) =>
@@ -345,7 +350,7 @@ test.describe('rail navigation', () => {
   }) => {
     await stubStudio(page)
     await page.goto('/')
-    await projectRow(page, 'Hørsholm, TAK 1402').click()
+    await openProject(page, 'Hørsholm, TAK 1402')
 
     const remove = projectPage(page).getByRole('button', { name: 'Delete' })
     await remove.click()
@@ -367,7 +372,7 @@ test.describe('rail navigation', () => {
     await page.getByRole('button', { name: 'Cancel' }).click()
     await expect(create).toBeFocused()
 
-    await projectRow(page, 'Hørsholm, TAK 1402').click()
+    await openProject(page, 'Hørsholm, TAK 1402')
     const rename = projectPage(page).getByRole('button', { name: 'Rename' })
     await rename.click()
     await page
@@ -421,7 +426,7 @@ test.describe('rail navigation', () => {
       page.getByRole('button', { name: '+ New project' }),
     ).toBeFocused()
 
-    await projectRow(page, 'Hørsholm, TAK 1402').click()
+    await openProject(page, 'Hørsholm, TAK 1402')
     await projectPage(page).getByRole('button', { name: 'Rename' }).click()
     const rename = page.getByRole('textbox', { name: 'Project Context name' })
     await rename.fill('Renamed project')
@@ -454,7 +459,7 @@ test.describe('rail navigation', () => {
       workspace(page).getByRole('heading', { name: 'No project open' }),
     ).toBeVisible()
 
-    await projectRow(page, 'Ellekilde, TAK 1355').click()
+    await openProject(page, 'Ellekilde, TAK 1355')
     await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
     await expect(
       documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
@@ -471,7 +476,7 @@ test.describe('rail navigation', () => {
     ).toBeVisible()
   })
 
-  test('separates disclosure from navigation and keeps several branches open', async ({
+  test('the row control only discloses, and opening a project is a separate menu action', async ({
     page,
   }) => {
     await stubStudio(page)
@@ -479,8 +484,9 @@ test.describe('rail navigation', () => {
     await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
     await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
 
-    // Disclosure alone: the other Project Context opens without leaving this
-    // Source Document, and both branches stay open at once.
+    // The chevron and name are one control: the other Project Context opens
+    // without leaving this Source Document, and both branches stay open at
+    // once — clicking it never navigates.
     await disclosure(page, 'Hørsholm, TAK 1402').click()
     await expect(documentRow(page, 'Oversigt_Hoersholm.pdf')).toBeVisible()
     await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
@@ -488,15 +494,15 @@ test.describe('rail navigation', () => {
       `/projects/${ELLEKILDE}/documents/${BERETNING}`,
     )
 
-    // The name navigates even from the open Source Document of that very
-    // Project Context.
-    await projectRow(page, 'Ellekilde, TAK 1355').click()
+    // Its "•••" menu opens the Project Context page instead, even from the
+    // open Source Document of that very Project Context.
+    await openProject(page, 'Ellekilde, TAK 1355')
     await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
     await expect(
       projectPage(page).getByRole('heading', { name: 'Ellekilde, TAK 1355' }),
     ).toBeVisible()
 
-    // And its disclosure collapses it while it stays the routed page.
+    // And its row control collapses it while it stays the routed page.
     await disclosure(page, 'Ellekilde, TAK 1355').click()
     await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeHidden()
     await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
@@ -508,12 +514,9 @@ test.describe('rail navigation', () => {
     await stubStudio(page)
 
     await page.goto(`/projects/${ELLEKILDE}`)
-    const project = projectRow(page, 'Ellekilde, TAK 1355')
+    const project = disclosure(page, 'Ellekilde, TAK 1355')
     await expect(project).toHaveAttribute('aria-current', 'page')
-    await expect(disclosure(page, 'Ellekilde, TAK 1355')).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    )
+    await expect(project).toHaveAttribute('aria-expanded', 'true')
     await expect(
       documentRow(page, 'Beretning_Ellekilde_8_13.pdf'),
     ).toBeVisible()
@@ -534,7 +537,7 @@ test.describe('rail navigation', () => {
     const fundliste = `/projects/${ELLEKILDE}/documents/${FUNDLISTE}`
 
     await page.goto('/')
-    await projectRow(page, 'Ellekilde, TAK 1355').click()
+    await openProject(page, 'Ellekilde, TAK 1355')
     await documentRow(page, 'Beretning_Ellekilde_8_13.pdf').click()
     await expect(page).toHaveURL(beretning)
     await documentRow(page, 'Fundliste_Ellekilde.pdf').click()
@@ -584,7 +587,7 @@ test.describe('rail navigation', () => {
       workspace(page).getByText('Beretning_Ellekilde_8_13.pdf').first(),
     ).toBeVisible()
 
-    await projectRow(page, 'Hørsholm, TAK 1402').click()
+    await openProject(page, 'Hørsholm, TAK 1402')
     release()
 
     await expect(page).toHaveURL(`/projects/${HORSHOLM}`)
@@ -799,7 +802,7 @@ test.describe('bad references and bounded failures', () => {
       `/api/project-contexts/${ELLEKILDE}/source-documents/${OVERSIGT}/reopen`,
     )
 
-    await projectRow(page, 'Hørsholm, TAK 1402').click()
+    await openProject(page, 'Hørsholm, TAK 1402')
     await expect(page).toHaveURL(`/projects/${HORSHOLM}`)
     await expect(documentRow(page, 'Oversigt_Hoersholm.pdf')).toBeVisible()
   })

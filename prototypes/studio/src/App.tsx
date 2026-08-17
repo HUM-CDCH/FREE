@@ -1067,7 +1067,7 @@ export function DocumentWorkspace({
           >
             <span aria-hidden="true" className={`size-1.5 rounded-full ${statusStyles[loadState.status].dot}`} />
             {loadState.status === 'loading' && 'Loading PDF…'}
-            {loadState.status === 'ready' && `${loadState.pageCount} pages · text highlights only`}
+            {loadState.status === 'ready' && `${loadState.pageCount} pages`}
             {loadState.status === 'error' && loadState.message}
           </p>
           {loadState.status === 'ready' && (
