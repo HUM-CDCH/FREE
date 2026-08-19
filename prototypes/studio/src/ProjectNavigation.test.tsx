@@ -249,14 +249,30 @@ function renderRoutes(fetch: ReturnType<typeof vi.fn> = studioFetch()) {
  * lists the same ones as cards, so every name-based query says which it means.
  */
 const rail = () => within(screen.getByRole('navigation', { name: 'Project Contexts' }))
+/**
+ * A Project Context's rail row. The chevron and the name are one control that
+ * only discloses Source Documents, so the row's accessible name is that
+ * disclosure's, never the bare Project Context name.
+ */
+const railRow = (name = project.name) =>
+  new RegExp(`Source Documents in ${name}$`)
 /** The disclosure beside a project name; it never navigates. */
 const disclosure = (name = project.name) =>
-  screen.getByRole('button', {
-    name: new RegExp(`Source Documents in ${name}$`),
-  })
-/** Opens the routed Project Context page and waits for it. */
+  screen.getByRole('button', { name: railRow(name) })
+/**
+ * Opens the routed Project Context page and waits for it. The rail row itself
+ * only discloses Source Documents, so opening the page is the row menu's own
+ * action.
+ */
 async function openProjectPage(name = project.name) {
-  fireEvent.click(await screen.findByRole('button', { name }))
+  const actions = await screen.findByRole('button', {
+    name: `Actions for ${name}`,
+  })
+  fireEvent.click(actions)
+  // Every listed Project Context owns a menu, so the action must be taken from
+  // this row's own one.
+  const menu = actions.closest('details') as HTMLElement
+  fireEvent.click(within(menu).getByRole('button', { name: 'Open project' }))
   const page = await screen.findByRole('region', { name: 'Project Context' })
   await within(page).findByRole('heading', { name })
   return page
@@ -342,7 +358,7 @@ describe('Project Context lifecycle in the rail', () => {
       `/projects/${secondProject.projectContextId}`,
     )
     expect(
-      screen.getByRole('button', { name: secondProject.name }),
+      screen.getByRole('button', { name: railRow(secondProject.name) }),
     ).toHaveAttribute('aria-current', 'page')
   })
 
@@ -433,13 +449,13 @@ describe('Project Context lifecycle in the rail', () => {
     )
     expect(name).toHaveValue('Ellekilde II')
     expect(
-      screen.queryByRole('button', { name: 'Ellekilde II' }),
+      screen.queryByRole('button', { name: railRow('Ellekilde II') }),
     ).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
 
     expect(
-      await screen.findByRole('button', { name: 'Ellekilde II' }),
+      await screen.findByRole('button', { name: railRow('Ellekilde II') }),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('textbox', { name: 'Project Context name' }),
@@ -464,7 +480,7 @@ describe('Project Context lifecycle in the rail', () => {
     )
     // Confirmation is required: the rail is untouched until it is given.
     expect(
-      screen.getByRole('button', { name: project.name }),
+      screen.getByRole('button', { name: railRow() }),
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
@@ -474,7 +490,7 @@ describe('Project Context lifecycle in the rail', () => {
     ).toBeInTheDocument()
     expect(location.pathname).toBe('/projects')
     expect(
-      screen.queryByRole('button', { name: project.name }),
+      screen.queryByRole('button', { name: railRow() }),
     ).not.toBeInTheDocument()
   })
 
@@ -508,7 +524,7 @@ describe('Project Context lifecycle in the rail', () => {
       'Project Context storage is unavailable.',
     )
     expect(
-      screen.getByRole('button', { name: project.name }),
+      screen.getByRole('button', { name: railRow() }),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Delete permanently' }),
@@ -543,7 +559,7 @@ describe('Project Context lifecycle in the rail', () => {
       { target: { value: 'Ellekilde II' } },
     )
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
-    await screen.findByRole('button', { name: 'Ellekilde II' })
+    await screen.findByRole('button', { name: railRow('Ellekilde II') })
 
     // This list read started before the rename and still carries the old name.
     list.resolve(Response.json({ projectContexts: [project] }))
@@ -554,10 +570,10 @@ describe('Project Context lifecycle in the rail', () => {
       ).not.toBeInTheDocument(),
     )
     expect(
-      screen.getByRole('button', { name: 'Ellekilde II' }),
+      screen.getByRole('button', { name: railRow('Ellekilde II') }),
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole('button', { name: project.name }),
+      screen.queryByRole('button', { name: railRow() }),
     ).not.toBeInTheDocument()
   })
 
@@ -582,15 +598,15 @@ describe('Project Context lifecycle in the rail', () => {
       { target: { value: secondProject.name } },
     )
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
-    await screen.findByRole('button', { name: secondProject.name })
+    await screen.findByRole('button', { name: railRow(secondProject.name) })
 
     initial.resolve(Response.json({ projectContexts: [project] }))
 
     expect(
-      await screen.findByRole('button', { name: project.name }),
+      await screen.findByRole('button', { name: railRow() }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: secondProject.name }),
+      screen.getByRole('button', { name: railRow(secondProject.name) }),
     ).toBeInTheDocument()
     expect(reads).toBe(2)
   })
@@ -609,7 +625,7 @@ describe('Project Context lifecycle in the rail', () => {
     )
     await waitFor(() =>
       expect(
-        screen.queryByRole('button', { name: project.name }),
+        screen.queryByRole('button', { name: railRow() }),
       ).not.toBeInTheDocument(),
     )
 
@@ -620,7 +636,7 @@ describe('Project Context lifecycle in the rail', () => {
       expect(screen.getByText('No Project Contexts yet.')).toBeInTheDocument(),
     )
     expect(
-      screen.queryByRole('button', { name: project.name }),
+      screen.queryByRole('button', { name: railRow() }),
     ).not.toBeInTheDocument()
     expect(screen.queryByText('Beretning.pdf')).not.toBeInTheDocument()
   })
@@ -637,7 +653,7 @@ describe('Project Context lifecycle in the rail', () => {
 
     await waitFor(() =>
       expect(
-        screen.queryByRole('button', { name: project.name }),
+        screen.queryByRole('button', { name: railRow() }),
       ).not.toBeInTheDocument(),
     )
     // The whole page is gone with its Project Context, so a stable rail
@@ -663,12 +679,12 @@ describe('Project Context lifecycle in the rail', () => {
 
     await waitFor(() =>
       expect(
-        screen.queryByRole('button', { name: project.name }),
+        screen.queryByRole('button', { name: railRow() }),
       ).not.toBeInTheDocument(),
     )
     expect(location.pathname).toBe('/projects')
     expect(
-      screen.getByRole('button', { name: secondProject.name }),
+      screen.getByRole('button', { name: railRow(secondProject.name) }),
     ).toBeInTheDocument()
     expect(rail().queryByText('Beretning.pdf')).not.toBeInTheDocument()
   })
@@ -681,19 +697,18 @@ describe('Project Context navigation', () => {
     expect(
       await screen.findByRole('heading', { name: 'No project open' }),
     ).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: project.name }))
+    const page = await openProjectPage()
 
     expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
     // The rail owns ordinary selection; the shell only overrides it while a
     // document opening is in flight.
-    expect(screen.getByRole('button', { name: project.name })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: railRow() })).toHaveAttribute(
       'aria-current',
       'page',
     )
     // Managing the Project Context — its name and its sources — is the page's
     // job, so the rail lists nothing but persisted Source Documents.
-    const page = screen.getByRole('region', { name: 'Project Context' })
     expect(
       within(page).getByRole('heading', { name: project.name }),
     ).toBeInTheDocument()
@@ -702,9 +717,9 @@ describe('Project Context navigation', () => {
       'multiple',
     )
     expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
-    // Exactly three: the disclosure, the Project Context name, and its one
-    // Source Document.
-    expect(rail().getAllByRole('button')).toHaveLength(3)
+    // Exactly five: the row's disclosure, its add-sources and actions
+    // controls, the one action that menu holds, and its one Source Document.
+    expect(rail().getAllByRole('button')).toHaveLength(5)
     expect(fetch).toHaveBeenCalledTimes(2)
 
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
@@ -997,11 +1012,7 @@ describe('Project Context navigation', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     ))
 
-    fireEvent.click(screen.getByRole('button', { name: secondProject.name }))
-    const secondPage = await screen.findByRole('region', {
-      name: 'Project Context',
-    })
-    await within(secondPage).findByRole('heading', { name: secondProject.name })
+    const secondPage = await openProjectPage(secondProject.name)
     pending.resolve(
       Response.json(
         {
@@ -1016,11 +1027,7 @@ describe('Project Context navigation', () => {
     await Promise.resolve()
     expect(within(secondPage).queryByRole('alert')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: project.name }))
-    const reopenedFirstPage = await screen.findByRole('region', {
-      name: 'Project Context',
-    })
-    await within(reopenedFirstPage).findByRole('heading', { name: project.name })
+    const reopenedFirstPage = await openProjectPage()
     expect(within(reopenedFirstPage).queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -1075,7 +1082,7 @@ describe('Project Context navigation', () => {
     )
 
     expect(
-      await screen.findByRole('button', { name: project.name }),
+      await screen.findByRole('button', { name: railRow() }),
     ).toBeInTheDocument()
     expect(
       screen.queryByText('Project Context storage is unavailable.'),
@@ -1118,7 +1125,7 @@ describe('Project Context navigation', () => {
       return Response.json({ projectContexts: [project] })
     })
     renderRoutes(fetch)
-    await screen.findByRole('button', { name: project.name })
+    await screen.findByRole('button', { name: railRow() })
 
     fireEvent.click(disclosure())
     await screen.findByText('Could not read Source Documents.')
@@ -1133,7 +1140,7 @@ describe('Project Context navigation', () => {
 
   it('caches a loaded branch across collapse and re-expansion', async () => {
     const fetch = renderRoutes()
-    await screen.findByRole('button', { name: project.name })
+    await screen.findByRole('button', { name: railRow() })
 
     fireEvent.click(disclosure())
     await rail().findByText('Beretning.pdf')
@@ -1144,8 +1151,8 @@ describe('Project Context navigation', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
-  // Variant A: the chevron only discloses and the name only navigates, so
-  // neither control can do the other's job.
+  // The row itself only discloses; opening the Project Context page is the
+  // row menu's own action, so neither control can do the other's job.
   it('separates disclosure from navigation and keeps several branches open', async () => {
     renderRoutes(
       vi.fn(async (input: RequestInfo | URL) => {
@@ -1160,14 +1167,14 @@ describe('Project Context navigation', () => {
         return Response.json({ projectContexts: [project, secondProject] })
       }),
     )
-    await screen.findByRole('button', { name: project.name })
+    await screen.findByRole('button', { name: railRow() })
 
     fireEvent.click(disclosure())
     expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     // Disclosure alone never routes.
     expect(location.pathname).toBe('/')
     expect(
-      screen.getByRole('button', { name: project.name }),
+      screen.getByRole('button', { name: railRow() }),
     ).not.toHaveAttribute('aria-current')
 
     fireEvent.click(disclosure(secondProject.name))
@@ -1175,18 +1182,14 @@ describe('Project Context navigation', () => {
     // Both branches stay open; expansion is not an accordion.
     expect(rail().getByText('Beretning.pdf')).toBeInTheDocument()
 
-    // The name navigates, and keeps navigating from an open Source Document of
-    // that same Project Context.
-    fireEvent.click(screen.getByRole('button', { name: project.name }))
-    await screen.findByRole('region', { name: 'Project Context' })
+    // The row menu navigates, and keeps navigating from an open Source Document
+    // of that same Project Context.
+    await openProjectPage()
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
     await screen.findByText(/Opened Beretning.pdf/)
     expect(location.pathname).toBe(documentPath())
 
-    fireEvent.click(screen.getByRole('button', { name: project.name }))
-    expect(
-      await screen.findByRole('region', { name: 'Project Context' }),
-    ).toBeInTheDocument()
+    await openProjectPage()
     expect(location.pathname).toBe(`/projects/${projectContextId}`)
   })
 
@@ -1204,7 +1207,7 @@ describe('Project Context navigation', () => {
       .mockResolvedValueOnce(Response.json(detail))
     renderRoutes(fetch)
 
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    fireEvent.click(await screen.findByRole('button', { name: railRow() }))
     fireEvent.click(await rail().findByRole('button', { name: 'Retry' }))
     expect(await rail().findByText('Beretning.pdf')).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledTimes(3)
@@ -1218,7 +1221,7 @@ describe('Project Context navigation', () => {
       .mockReturnValueOnce(pending.promise)
     renderRoutes(fetch)
 
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    fireEvent.click(await screen.findByRole('button', { name: railRow() }))
     expect(await rail().findByText('Loading…')).toBeInTheDocument()
     pending.resolve(Response.json({ ...detail, sourceDocuments: [] }))
     expect(
@@ -1770,7 +1773,7 @@ describe('routed Source Document reopening', () => {
     })
     renderRoutes(fetch)
 
-    fireEvent.click(await screen.findByRole('button', { name: project.name }))
+    await openProjectPage()
     fireEvent.click(await screen.findByRole('button', { name: beretning.name }))
     await screen.findByText(/Opened Beretning.pdf/)
     history.pushState(
@@ -1784,12 +1787,12 @@ describe('routed Source Document reopening', () => {
     expect(
       await screen.findByText('Opening Source Document…'),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: project.name })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: railRow() })).toHaveAttribute(
       'aria-current',
       'page',
     )
     expect(
-      screen.getByRole('button', { name: secondProject.name }),
+      screen.getByRole('button', { name: railRow(secondProject.name) }),
     ).not.toHaveAttribute('aria-current')
     expect(
       screen.getByRole('button', { name: beretning.name }),
