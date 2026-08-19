@@ -389,6 +389,7 @@ export default function AppFrame({
               fallback={<div aria-busy="true">Loading Project Context…</div>}
             >
               <ProjectContextPage
+                key={route.projectContextId}
                 projectContextId={route.projectContextId}
                 onNavigate={onNavigate}
                 onOpenSourceDocument={openSourceDocument}

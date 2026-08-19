@@ -71,6 +71,18 @@ file_patterns = ["pnpm-lock.yaml"]
 name = "default"
 default = true
 
+[plugins.definitions.eslint]
+config_files = ["eslint.config.js"]
+
+[plugins.definitions.eslint.drivers.lint]
+script = "eslint --config prototypes/studio/eslint.config.js --output-file ${tmpfile} --format json ${target}"
+
+[plugins.definitions.prettier]
+config_files = [".prettierrc.json"]
+
+[plugins.definitions.prettier.drivers.format]
+script = "prettier --no-semi --single-quote -w ${target}"
+
 
 [[plugin]]
 name = "bandit"

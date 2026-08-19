@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import Button from './Button'
 
 export type DeleteDialogProps = {
@@ -18,6 +18,8 @@ export default function DeleteDialog({
   const [failure, setFailure] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const dialog = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
+  const descriptionId = useId()
 
   // Native modality owns focus: `showModal` moves focus in and contains Tab.
   useEffect(() => {
@@ -28,8 +30,8 @@ export default function DeleteDialog({
     <dialog
       ref={dialog}
       className="m-auto w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
-      aria-labelledby="delete-dialog-title"
-      aria-describedby="delete-dialog-description"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
       onClose={onCancel}
       // Escape and every other dismissal wait for a write in flight, so a
       // failure keeps the dialog and its retry.
@@ -38,14 +40,11 @@ export default function DeleteDialog({
         if (!deleting) dialog.current?.close()
       }}
     >
-      <h2
-        id="delete-dialog-title"
-        className="text-sm font-bold text-ink"
-      >
+      <h2 id={titleId} className="text-sm font-bold text-ink">
         {title}
       </h2>
       <p
-        id="delete-dialog-description"
+        id={descriptionId}
         className="mt-2 text-xs leading-relaxed text-ink-muted"
       >
         {description}
