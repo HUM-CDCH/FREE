@@ -4,7 +4,7 @@ import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { listExtractionSchemas } from '../schemaRevisions'
 import { Button, EmptyState } from '../ui'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
-import { getDocumentReopenSnapshot } from './transport'
+import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts, type WriteResult } from './useProjectContexts'
 
 export type ProjectContextPageProps = {
@@ -273,10 +273,6 @@ export default function ProjectContextPage({
     sourceDocumentId: string
     name: string
   } | null>(null)
-  const [sourceActionFailure, setSourceActionFailure] = useState<{
-    projectContextId: string
-    message: string
-  } | null>(null)
   const [dragging, setDragging] = useState(false)
   const [tab, setTab] = useState<'sources' | 'schemas' | 'extractions'>(
     'sources',
@@ -295,8 +291,8 @@ export default function ProjectContextPage({
   const deleteTrigger = useRef<HTMLButtonElement>(null)
   const restoreRenameFocus = useRef(false)
   const sourceListRef = useRef<HTMLUListElement>(null)
-  const downloadGeneration = useRef(0)
-  const downloadController = useRef<AbortController | null>(null)
+  const { downloadSource, downloadFailure } =
+    useSourceDocumentDownload(projectContextId)
   const branch = branches[projectContextId]
   const project =
     branch?.status === 'ready'
@@ -339,47 +335,6 @@ export default function ProjectContextPage({
     addSources(files.map((file) => ({ projectContextId, file })))
   }
 
-  const downloadSource = async (sourceDocumentId: string, name: string) => {
-    downloadController.current?.abort()
-    const controller = new AbortController()
-    downloadController.current = controller
-    const generation = ++downloadGeneration.current
-    setSourceActionFailure(null)
-    try {
-      const snapshot = await getDocumentReopenSnapshot(
-        projectContextId,
-        sourceDocumentId,
-        controller.signal,
-      )
-      const response = await fetch(
-        snapshot.sourceRepresentation.resources.sourcePdfUrl,
-        { signal: controller.signal },
-      )
-      if (!response.ok) throw new Error('Could not download the source PDF.')
-      const blob = await response.blob()
-      if (
-        controller.signal.aborted ||
-        generation !== downloadGeneration.current
-      )
-        return
-      const href = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = href
-      link.download = name
-      link.click()
-      URL.revokeObjectURL(href)
-    } catch {
-      if (
-        !controller.signal.aborted &&
-        generation === downloadGeneration.current
-      )
-        setSourceActionFailure({
-          projectContextId,
-          message: `Could not download “${name}”.`,
-        })
-    }
-  }
-
   useEffect(() => {
     const closeOtherMenus = (event: PointerEvent) => {
       const openMenus = sourceListRef.current?.querySelectorAll('details[open]')
@@ -392,16 +347,6 @@ export default function ProjectContextPage({
     document.addEventListener('pointerdown', closeOtherMenus)
     return () => document.removeEventListener('pointerdown', closeOtherMenus)
   }, [])
-
-  useEffect(() => {
-    downloadGeneration.current += 1
-    downloadController.current?.abort()
-    downloadController.current = null
-    return () => {
-      downloadGeneration.current += 1
-      downloadController.current?.abort()
-    }
-  }, [projectContextId])
 
   useEffect(() => {
     if (tab !== 'schemas') return
@@ -740,9 +685,9 @@ export default function ProjectContextPage({
               </select>
             </div>
 
-            {sourceActionFailure?.projectContextId === projectContextId && (
+            {downloadFailure && (
               <p className="mt-3 text-xs text-danger" role="alert">
-                {sourceActionFailure.message}
+                {downloadFailure}
               </p>
             )}
 
