@@ -256,7 +256,9 @@ const disclosure = (name = project.name) =>
 /** Opens the routed Project Context page and waits for it. */
 async function openProjectPage(name = project.name) {
   fireEvent.click(await screen.findByRole('button', { name }))
-  return await screen.findByRole('region', { name: 'Project Context' })
+  const page = await screen.findByRole('region', { name: 'Project Context' })
+  await within(page).findByRole('heading', { name })
+  return page
 }
 
 const secondProject = {
@@ -448,7 +450,9 @@ describe('Project Context lifecycle in the rail', () => {
     const page = await openProjectPage()
     await rail().findByText('Beretning.pdf')
 
-    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Delete Project Context' }),
+    )
     const dialog = await screen.findByRole('dialog', {
       name: 'Delete Project Context',
     })
@@ -477,7 +481,9 @@ describe('Project Context lifecycle in the rail', () => {
     const pending = Promise.withResolvers<Response>()
     renderRoutes(lifecycleFetch({ remove: () => pending.promise as never }))
     const page = await openProjectPage()
-    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Delete Project Context' }),
+    )
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
     )
@@ -594,7 +600,9 @@ describe('Project Context lifecycle in the rail', () => {
     const page = await openProjectPage()
     await rail().findByText('Loading…')
 
-    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Delete Project Context' }),
+    )
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
     )
@@ -619,7 +627,9 @@ describe('Project Context lifecycle in the rail', () => {
   it('moves focus to the stable rail toggle after a successful delete', async () => {
     renderRoutes(lifecycleFetch())
     const page = await openProjectPage()
-    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Delete Project Context' }),
+    )
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete permanently' }),
     )
@@ -645,7 +655,9 @@ describe('Project Context lifecycle in the rail', () => {
     const page = await openProjectPage()
     await rail().findByText('Beretning.pdf')
 
-    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Delete Project Context' }),
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
 
     await waitFor(() =>
@@ -714,6 +726,7 @@ describe('Project Context navigation', () => {
     const sourceNames = () =>
       within(within(page).getByRole('list'))
         .getAllByRole('button')
+        .filter((button) => !button.closest('details'))
         .map((button) => button.textContent)
 
     expect(within(page).getByRole('tab', { name: 'Sources' })).toHaveAttribute(
@@ -798,6 +811,144 @@ describe('Project Context navigation', () => {
       '2026-08-03T12:00:00.000Z',
     )
     expect(schemas).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps project and source deletion controls and dialogs distinct', async () => {
+    renderRoutes()
+    const page = await openProjectPage()
+    const actions = within(page).getByLabelText('Actions for Beretning.pdf')
+    const menu = actions.closest('details')!
+
+    fireEvent.click(actions)
+    fireEvent.click(
+      within(page).getByRole('button', {
+        name: 'Delete Source Document Beretning.pdf',
+      }),
+    )
+    const sourceDialog = await screen.findByRole('dialog', {
+      name: 'Delete Source Document',
+    })
+    expect(menu).not.toHaveAttribute('open')
+
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Delete Project Context' }),
+    )
+    const projectDialog = await screen.findByRole('dialog', {
+      name: 'Delete Project Context',
+    })
+
+    for (const attribute of ['aria-labelledby', 'aria-describedby'] as const) {
+      const projectId = projectDialog.getAttribute(attribute)!
+      const sourceId = sourceDialog.getAttribute(attribute)!
+      expect(projectId).not.toBe(sourceId)
+      expect(projectDialog).toContainElement(document.getElementById(projectId))
+      expect(sourceDialog).toContainElement(document.getElementById(sourceId))
+    }
+  })
+
+  it('downloads the pinned source and reports a later failure', async () => {
+    const baseFetch = studioFetch()
+    let pdfRequests = 0
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/pdf')) {
+        pdfRequests += 1
+        return pdfRequests === 1
+          ? new Response('pdf')
+          : new Response(null, { status: 503 })
+      }
+      return baseFetch(input)
+    })
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+    const createObjectURL = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:source')
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL')
+    renderRoutes(fetcher)
+    const page = await openProjectPage()
+    const actions = within(page).getByLabelText('Actions for Beretning.pdf')
+    const menu = actions.closest('details')!
+
+    fireEvent.click(actions)
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Download Beretning.pdf' }),
+    )
+    await waitFor(() => expect(click).toHaveBeenCalledOnce())
+    expect(createObjectURL).toHaveBeenCalledOnce()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:source')
+    expect(menu).not.toHaveAttribute('open')
+
+    fireEvent.click(actions)
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Download Beretning.pdf' }),
+    )
+    expect(await within(page).findByRole('alert')).toHaveTextContent(
+      'Could not download “Beretning.pdf”.',
+    )
+    expect(menu).not.toHaveAttribute('open')
+
+    click.mockRestore()
+    createObjectURL.mockRestore()
+    revokeObjectURL.mockRestore()
+  })
+
+  it('discards a deferred download failure when changing Project Contexts', async () => {
+    const pending = Promise.withResolvers<Response>()
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (
+        url.includes(
+          `/projects/${projectContextId}/source-documents/${sourceDocumentId}/reopen`,
+        )
+      )
+        return pending.promise
+      if (url.startsWith('/api/extraction-schemas?'))
+        return Response.json({ extractionSchemas: [] })
+      if (url.endsWith(projectContextId)) return Response.json(detail)
+      if (url.endsWith(secondProject.projectContextId))
+        return Response.json({
+          projectContext: secondProject,
+          sourceDocuments: [{ ...secondDocument, pageCount: 2 }],
+        })
+      return Response.json({ projectContexts: [project, secondProject] })
+    })
+    renderRoutes(fetcher)
+    const firstPage = await openProjectPage()
+    fireEvent.click(within(firstPage).getByLabelText('Actions for Beretning.pdf'))
+    fireEvent.click(
+      within(firstPage).getByRole('button', { name: 'Download Beretning.pdf' }),
+    )
+    await waitFor(() => expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('/reopen'),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    ))
+
+    fireEvent.click(screen.getByRole('button', { name: secondProject.name }))
+    const secondPage = await screen.findByRole('region', {
+      name: 'Project Context',
+    })
+    await within(secondPage).findByRole('heading', { name: secondProject.name })
+    pending.resolve(
+      Response.json(
+        {
+          error: {
+            code: 'persistence_unavailable',
+            message: 'late failure from Project A',
+          },
+        },
+        { status: 503 },
+      ),
+    )
+    await Promise.resolve()
+    expect(within(secondPage).queryByRole('alert')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: project.name }))
+    const reopenedFirstPage = await screen.findByRole('region', {
+      name: 'Project Context',
+    })
+    await within(reopenedFirstPage).findByRole('heading', { name: project.name })
+    expect(within(reopenedFirstPage).queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('explains an empty Project Context on its page', async () => {
@@ -1381,7 +1532,9 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     })
     await waitFor(() => expect(pending).toHaveLength(1))
 
-    fireEvent.click(within(page).getByRole('button', { name: 'Delete' }))
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Delete Project Context' }),
+    )
     fireEvent.click(await screen.findByRole('button', { name: 'Delete permanently' }))
     expect(
       await screen.findByRole('heading', { name: 'No project open' }),

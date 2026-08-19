@@ -26,7 +26,10 @@ const packageDocument = {
 function request(
   projectContextId = ids.project,
   fields: Array<[string, string | File]> = [
-    ['file', new File(['%PDF-1.7\n'], 'report.pdf', { type: 'application/pdf' })],
+    [
+      'file',
+      new File(['%PDF-1.7\n'], 'report.pdf', { type: 'application/pdf' }),
+    ],
     ['ingestionKey', ids.ingestion],
   ],
 ) {
@@ -38,9 +41,14 @@ function request(
   )
 }
 
-function parser(fetcher: ReturnType<typeof vi.fn>, status: unknown = { status: 'completed' }) {
+function parser(
+  fetcher: ReturnType<typeof vi.fn>,
+  status: unknown = { status: 'completed' },
+) {
   fetcher
-    .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }, { status: 202 }))
+    .mockResolvedValueOnce(
+      Response.json({ task_id: 'task-1' }, { status: 202 }),
+    )
     .mockResolvedValueOnce(Response.json(status))
     .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])))
 }
@@ -107,7 +115,10 @@ describe('Source Document deletion', () => {
     const DELETE = createSourceDocumentDeletion(
       {
         deleteSourceDocument: vi.fn().mockResolvedValue([
-          { artifactReference: 'a'.repeat(64), artifactSha256: 'a'.repeat(64) },
+          {
+            artifactReference: 'a'.repeat(64),
+            artifactSha256: 'a'.repeat(64),
+          },
         ]),
         isPackageReferenced: vi.fn().mockResolvedValue(false),
       },
@@ -130,16 +141,21 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
   it('rejects malformed multipart input before parsing', async () => {
     const { handler, fetcher } = dependencies()
     const invalid = await handler(
-      new Request('http://test/api/project-contexts/not-a-uuid/source-documents', {
-        method: 'POST',
-        body: JSON.stringify({}),
-        headers: { 'content-type': 'application/json' },
-      }),
+      new Request(
+        'http://test/api/project-contexts/not-a-uuid/source-documents',
+        {
+          method: 'POST',
+          body: JSON.stringify({}),
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
     )
     expect(invalid.status).toBe(422)
     expect(fetcher).not.toHaveBeenCalled()
 
-    const missingFile = await handler(request(ids.project, [['ingestionKey', ids.ingestion]]))
+    const missingFile = await handler(
+      request(ids.project, [['ingestionKey', ids.ingestion]]),
+    )
     expect(missingFile.status).toBe(400)
     expect(fetcher).not.toHaveBeenCalled()
 
@@ -172,7 +188,12 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const longName = `${'A'.repeat(220)}.pdf`
     const response = await handler(
       request(ids.project, [
-        ['file', new File(['%PDF-1.7\n'], `C:\\unsafe\\${longName}`, { type: 'application/pdf' })],
+        [
+          'file',
+          new File(['%PDF-1.7\n'], `C:\\unsafe\\${longName}`, {
+            type: 'application/pdf',
+          }),
+        ],
         ['ingestionKey', ids.ingestion],
       ]),
     )
@@ -271,7 +292,8 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
 
     const timeout = dependencies({ timeoutMs: 0 })
     timeout.fetcher.mockReset()
-    timeout.fetcher.mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
+    timeout.fetcher
+      .mockResolvedValueOnce(Response.json({ task_id: 'task-1' }))
       .mockResolvedValueOnce(Response.json({ status: 'pending' }))
     const timeoutResponse = await timeout.handler(request())
     expect(timeoutResponse.status).toBe(504)
@@ -282,7 +304,9 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     stalled.fetcher.mockImplementation(
       (_url: string, init?: RequestInit) =>
         new Promise((_resolve, reject) =>
-          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+          init?.signal?.addEventListener('abort', () =>
+            reject(init.signal?.reason),
+          ),
         ),
     )
     const stalledResponse = await stalled.handler(request())
@@ -336,11 +360,15 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect(mismatched.packageStore.remove).toHaveBeenCalledOnce()
 
     const failed = dependencies()
-    failed.store.ingestSourceDocument.mockRejectedValueOnce(new Error('db down'))
+    failed.store.ingestSourceDocument.mockRejectedValueOnce(
+      new Error('db down'),
+    )
     const failedResponse = await failed.handler(request())
     expect(failedResponse.status).toBe(503)
     expect(failed.packageStore.remove).toHaveBeenCalledOnce()
-    await expect(failed.packageStore.remove.mock.calls[0][1]()).resolves.toBe(false)
+    await expect(failed.packageStore.remove.mock.calls[0][1]()).resolves.toBe(
+      false,
+    )
 
     const replay = dependencies()
     replay.packageStore.save.mockResolvedValueOnce({
@@ -349,7 +377,9 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       document: packageDocument,
       published: false,
     })
-    replay.store.ingestSourceDocument.mockRejectedValueOnce(new Error('db down'))
+    replay.store.ingestSourceDocument.mockRejectedValueOnce(
+      new Error('db down'),
+    )
     await replay.handler(request())
     expect(replay.packageStore.remove).not.toHaveBeenCalled()
   })

@@ -60,10 +60,28 @@ export const batchExtractionSchema = z
 export type BatchExtraction = z.output<typeof batchExtractionSchema>
 export type BatchExtractionMember = BatchExtraction['members'][number]
 
+/**
+ * One member whose Extraction request never reached a terminal write, so the
+ * member's stored state did not advance. That is not persisted state — it is
+ * what happened to this attempt — so it travels with the response that made the
+ * attempt and never with the stored Batch Extraction.
+ */
+const batchExtractionMemberFailureSchema = z
+  .object({
+    sourceDocumentId: canonicalUuidSchema,
+    message: z.string(),
+  })
+  .strict()
+
+export type BatchExtractionMemberFailure = z.output<
+  typeof batchExtractionMemberFailureSchema
+>
+
 export const batchExtractionResponseSchema = z
   .object({
     batchExtraction: batchExtractionSchema,
     disposition: z.enum(['created', 'running', 'retry', 'complete']),
+    memberFailures: z.array(batchExtractionMemberFailureSchema),
   })
   .strict()
 
@@ -87,10 +105,15 @@ export function batchExtractionProgress(batch: BatchExtraction) {
   const cancelled = extracted.filter(
     (member) => member.latestExtraction!.outcome === 'CANCELLED',
   )
+  // A succeeded Extraction with no reviewable result can never carry Review
+  // Decisions, so it is its own outcome — never counted as what a researcher
+  // has reviewed. An Extraction is reviewable whenever it has been reviewed
+  // (extraction.contract.ts), so these three groups partition `succeeded`.
   const reviewed = succeeded.filter(
-    (member) =>
-      member.latestExtraction!.reviewedAt !== null ||
-      !member.latestExtraction!.reviewable,
+    (member) => member.latestExtraction!.reviewedAt !== null,
+  )
+  const unreviewable = succeeded.filter(
+    (member) => !member.latestExtraction!.reviewable,
   )
   return {
     total: batch.members.length,
@@ -99,7 +122,7 @@ export function batchExtractionProgress(batch: BatchExtraction) {
     failed: failed.length,
     cancelled: cancelled.length,
     reviewed: reviewed.length,
-    unreviewable: 0,
-    needsReview: succeeded.length - reviewed.length,
+    unreviewable: unreviewable.length,
+    needsReview: succeeded.length - reviewed.length - unreviewable.length,
   }
 }
