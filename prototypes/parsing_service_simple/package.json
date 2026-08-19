@@ -1,0 +1,9 @@
+{
+  "name": "parsing-service-simple",
+  "private": true,
+  "scripts": {
+    "install:python": "uv sync",
+    "serve": "uv run --no-sync python -X utf8 -m fastapi run main.py --host 127.0.0.1 --port 8000",
+    "test": "uv run --no-sync python -m unittest discover -s tests"
+  }
+}
