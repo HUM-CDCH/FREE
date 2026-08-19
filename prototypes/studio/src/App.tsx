@@ -545,7 +545,7 @@ export function DocumentWorkspace({
         // The base scale stays unset until something calls setScale; pin it
         // to the current (100%) value so updateScale() has a valid baseline.
         if (!pdfViewer.currentScaleValue) {
-          pdfViewer.currentScale = pdfViewer.currentScale
+          pdfViewer.currentScaleValue = String(pdfViewer.currentScale)
         }
         setZoomPercent(Math.round(pdfViewer.currentScale * 100))
         setLoadState({ status: 'ready', pageCount: pdf.numPages })

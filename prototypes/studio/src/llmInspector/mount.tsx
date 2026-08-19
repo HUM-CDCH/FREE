@@ -65,7 +65,7 @@ function Inspector({ onClose }: { onClose: () => void }) {
         <div className="flex size-9 items-center justify-center rounded-md border border-[#4d524b] bg-[#111312] font-mono text-lg text-[#d9ff65]">λ</div>
         <div>
           <h2 className="font-mono text-sm font-semibold tracking-[0.08em]">LLM WIRE INSPECTOR</h2>
-          <p className="mt-0.5 text-[11px] text-[#8f968d]">Process-local · last 50 calls · credentials excluded</p>
+          <p className="mt-0.5 text-[11px] text-[#8f968d]">Provider exchanges only · process-local · last 50 calls · credentials excluded</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="flex items-center gap-2 rounded-full border border-[#3d4633] bg-[#1d2419] px-2.5 py-1 font-mono text-[10px] uppercase text-[#a9c964]"><span className="size-1.5 animate-pulse rounded-full bg-[#d9ff65]" /> Live</span>
