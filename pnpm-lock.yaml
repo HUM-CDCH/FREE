@@ -67,6 +67,8 @@ importers:
 
   prototypes/parsing_service: {}
 
+  prototypes/parsing_service_simple: {}
+
   prototypes/studio:
     dependencies:
       '@ai-sdk/anthropic':
