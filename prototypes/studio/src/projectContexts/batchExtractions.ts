@@ -6,11 +6,14 @@ import {
 import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import {
   batchSchemaSuggestionErrorResponseSchema,
-  batchSchemaSuggestionMergeResponseSchema,
+  batchSchemaSuggestionCreateRequestSchema,
+  batchSchemaSuggestionDraftRequestSchema,
+  batchSchemaSuggestionListResponseSchema,
+  batchSchemaSuggestionResponseSchema,
+  batchSchemaSuggestionRunRequestSchema,
+  type BatchSchemaSuggestion,
   type BatchSchemaSuggestionFailure,
-  type BatchSchemaSuggestionMerge,
 } from '../../shared/batchSchemaSuggestion.contract'
-import { schemaRevisionResponseSchema } from '../../shared/schemaRevision.contract'
 import type { SchemaDefinition } from '../../shared/schemaNode'
 import { isRecord } from '../../shared/template'
 
@@ -25,12 +28,11 @@ export class BatchSchemaSuggestionRequestError extends Error {
     this.failure = failure
   }
 }
-
 async function read(url: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(url, init)
   const value: unknown = await response.json().catch(() => null)
   if (!response.ok) {
-    if (url === '/api/batch-schema-suggestions') {
+    if (url.startsWith('/api/batch-schema-suggestions')) {
       const parsed = batchSchemaSuggestionErrorResponseSchema.safeParse(value)
       if (parsed.success)
         throw new BatchSchemaSuggestionRequestError(
@@ -72,7 +74,7 @@ export async function openBatchExtraction(
   },
   signal?: AbortSignal,
 ): Promise<ReturnType<typeof batchExtractionResponseSchema.parse>> {
-  return batchExtractionResponseSchema.parse(
+  const opened = batchExtractionResponseSchema.parse(
     await read('/api/batch-extractions', {
       method: 'POST',
       headers: {
@@ -83,52 +85,118 @@ export async function openBatchExtraction(
       signal,
     }),
   )
+  // Compatibility for the retiring panel actor. Durable member failures now
+  // live on the operation snapshot, not on this transient response.
+  return { ...opened, disposition: 'running' as const, memberFailures: [] }
 }
 
-export async function mergeBatchSchemaSuggestions(
+export async function getBatchExtraction(
   projectContextId: string,
-  sourceDocumentIds: readonly string[],
-  signal?: AbortSignal,
-): Promise<BatchSchemaSuggestionMerge> {
-  return batchSchemaSuggestionMergeResponseSchema.parse(
-    await read('/api/batch-schema-suggestions', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'merge',
-        projectContextId,
-        sourceDocumentIds,
-      }),
-      signal,
-    }),
-  )
-}
-
-export async function confirmBatchSchemaSuggestion(
-  projectContextId: string,
-  sourceDocumentIds: readonly string[],
-  selectionKey: string,
-  definition: SchemaDefinition,
+  batchExtractionId: string,
   signal?: AbortSignal,
 ) {
-  return schemaRevisionResponseSchema.parse(
-    await read('/api/batch-schema-suggestions', {
+  const query = new URLSearchParams({ projectContextId })
+  return batchExtractionResponseSchema.parse(
+    await read(`/api/batch-extractions/${batchExtractionId}?${query}`, { signal }),
+  ).batchExtraction
+}
+
+export async function retryBatchExtraction(
+  projectContextId: string,
+  batchExtractionId: string,
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({ projectContextId })
+  return batchExtractionResponseSchema.parse(
+    await read(`/api/batch-extractions/${batchExtractionId}/retry?${query}`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'confirm',
-        projectContextId,
-        sourceDocumentIds,
-        selectionKey,
-        ...definition,
-      }),
+      headers: { accept: 'application/json' },
       signal,
     }),
-  ).revision
+  ).batchExtraction
 }
+
+export async function createBatchSchemaSuggestion(
+  projectContextId: string,
+  sourceDocumentIds: readonly string[],
+  signal?: AbortSignal,
+): Promise<BatchSchemaSuggestion> {
+  return batchSchemaSuggestionResponseSchema.parse(
+    await read('/api/batch-schema-suggestions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(
+        batchSchemaSuggestionCreateRequestSchema.parse({
+          projectContextId,
+          sourceDocumentIds,
+        }),
+      ),
+      signal,
+    }),
+  ).batchSchemaSuggestion
+}
+export async function listBatchSchemaSuggestions(
+  projectContextId: string,
+  signal?: AbortSignal,
+): Promise<BatchSchemaSuggestion[]> {
+  const query = new URLSearchParams({ projectContextId })
+  return batchSchemaSuggestionListResponseSchema.parse(
+    await read(`/api/batch-schema-suggestions?${query}`, { signal }),
+  ).batchSchemaSuggestions
+}
+
+export async function updateBatchSchemaSuggestionDraft(
+  projectContextId: string,
+  batchSchemaSuggestionId: string,
+  definition: SchemaDefinition,
+  expectedDraftVersion: number,
+  signal?: AbortSignal,
+): Promise<BatchSchemaSuggestion> {
+  const query = new URLSearchParams({ projectContextId })
+  return batchSchemaSuggestionResponseSchema.parse(
+    await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/draft?${query}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(
+        batchSchemaSuggestionDraftRequestSchema.parse({
+          expectedDraftVersion,
+          ...definition,
+        }),
+      ),
+      signal,
+    }),
+  ).batchSchemaSuggestion
+}
+
+export async function runBatchSchemaSuggestion(
+  projectContextId: string,
+  batchSchemaSuggestionId: string,
+  strategy: ExtractionStrategy,
+  signal?: AbortSignal,
+): Promise<BatchSchemaSuggestion> {
+  const query = new URLSearchParams({ projectContextId })
+  return batchSchemaSuggestionResponseSchema.parse(
+    await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/run?${query}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify(batchSchemaSuggestionRunRequestSchema.parse({ strategy })),
+      signal,
+    }),
+  ).batchSchemaSuggestion
+}
+
+export async function retryBatchSchemaSuggestion(
+  projectContextId: string,
+  batchSchemaSuggestionId: string,
+  signal?: AbortSignal,
+): Promise<BatchSchemaSuggestion> {
+  const query = new URLSearchParams({ projectContextId })
+  return batchSchemaSuggestionResponseSchema.parse(
+    await read(`/api/batch-schema-suggestions/${batchSchemaSuggestionId}/retry?${query}`, {
+      method: 'POST',
+      headers: { accept: 'application/json' },
+      signal,
+    }),
+  ).batchSchemaSuggestion
+}
+

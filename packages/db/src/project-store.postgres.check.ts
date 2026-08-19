@@ -277,50 +277,9 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
   assert.equal(listed?.[0].schemaRevisionNumber, 2)
   assert.equal(listed?.[0].members[0].latestExtraction?.outcome, 'FAILED')
 
-  const selected = await store.getBatchSchemaSuggestionSources(project.id, [document.id])
-  assert.deepEqual(selected?.sources, [
-    {
-      sourceDocumentId: document.id,
-      sourceRepresentationRevisionId: newerRepresentation.id,
-      descriptor: {
-        artifactReference: newerRepresentation.artifactReference,
-        artifactSha256: newerRepresentation.artifactSha256,
-      },
-    },
-  ])
-  const suggestedDefinition = {
-    recordDescription: 'One record.',
-    schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
-  }
-  const confirmed = await store.confirmBatchSchemaSuggestion(
-    project.id,
-    [document.id],
-    selected!.selectionKey,
-    suggestedDefinition,
-  )
-  assert.equal(confirmed?.status, 'created')
-  if (confirmed?.status !== 'created') throw new Error('Expected confirmation.')
-  const changed = await store.appendSchemaRevision(
-    project.id,
-    confirmed.revision.extractionSchemaId,
-    confirmed.revision.revisionNumber,
-    {
-      recordDescription: 'A changed record.',
-      schemaNodes: [{ id: 'country', name: 'country', type: 'string' }],
-    },
-  )
-  assert.equal(changed?.status, 'created')
-  if (changed?.status !== 'created') throw new Error('Expected edit.')
-  const conflict = await store.confirmBatchSchemaSuggestion(
-    project.id,
-    [document.id],
-    selected!.selectionKey,
-    suggestedDefinition,
-  )
-  assert.equal(conflict?.status, 'conflict')
   const suggestedBatch = await store.createBatchExtraction(project.id, {
     batchExtractionId: '51000000-0000-4000-9000-000000000103',
-    schemaRevisionId: changed.revision.schemaRevisionId,
+    schemaRevisionId: appliedRevision.id,
     strategy: 'CATALOG',
     sourceDocumentIds: [document.id],
   })

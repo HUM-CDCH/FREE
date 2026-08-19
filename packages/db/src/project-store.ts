@@ -231,6 +231,13 @@ async function loadBatchExtraction(
     'id',
     'schemaRevisionId',
     'strategy',
+    'executionStatus',
+    'failure',
+    'startedAt',
+    'finishedAt',
+    'leaseOwner',
+    'leaseVersion',
+    'leaseExpiresAt',
     'createdAt',
   ).first({ id: batchExtractionId, projectContextId })
   if (!batch) return null
@@ -248,7 +255,14 @@ async function loadBatchExtraction(
   const rows = await orm.public.BatchExtractionMember.where({
     batchExtractionId,
   })
-    .select('sourceDocumentId', 'sourceRepresentationRevisionId')
+    .select(
+      'sourceDocumentId',
+      'sourceRepresentationRevisionId',
+      'executionStatus',
+      'failure',
+      'startedAt',
+      'finishedAt',
+    )
     .orderBy((member) => member.sourceDocumentId.asc())
     .all()
   const members: BatchExtractionMemberRecord[] = []
@@ -275,6 +289,10 @@ async function loadBatchExtraction(
     members.push({
       sourceDocumentId: row.sourceDocumentId,
       sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
+      executionStatus: row.executionStatus as ProjectOperationStatus,
+      executionFailure: row.failure,
+      startedAt: row.startedAt,
+      finishedAt: row.finishedAt,
       latestExtraction: extraction
         ? {
             extractionId: extraction.id,
@@ -296,8 +314,101 @@ async function loadBatchExtraction(
     extractionSchemaName: extractionSchema.name,
     schemaRevisionNumber: schema.revisionNumber,
     strategy: batch.strategy as ExtractionStrategy,
+    executionStatus: batch.executionStatus as ProjectOperationStatus,
+    executionFailure: batch.failure,
+    startedAt: batch.startedAt,
+    finishedAt: batch.finishedAt,
+    leaseOwner: batch.leaseOwner,
+    leaseVersion: batch.leaseVersion,
+    leaseExpiresAt: batch.leaseExpiresAt,
     createdAt: batch.createdAt,
     members,
+  }
+}
+
+/** Rebuild the durable suggestion snapshot, including its pinned artifacts. */
+async function loadBatchSchemaSuggestion(
+  orm: Orm,
+  projectContextId: string,
+  batchSchemaSuggestionId: string,
+): Promise<BatchSchemaSuggestionRecord | null> {
+  const suggestion = await orm.public.BatchSchemaSuggestion.select(
+    'id',
+    'selectionKey',
+    'executionStatus',
+    'phase',
+    'proposal',
+    'coverage',
+    'draft',
+    'draftVersion',
+    'failure',
+    'confirmedSchemaRevisionId',
+    'batchExtractionId',
+    'startedAt',
+    'finishedAt',
+    'leaseOwner',
+    'leaseVersion',
+    'leaseExpiresAt',
+    'createdAt',
+  ).first({ id: batchSchemaSuggestionId, projectContextId })
+  if (!suggestion) return null
+  const rows = await orm.public.BatchSchemaSuggestionSource.where({
+    batchSchemaSuggestionId,
+  })
+    .select(
+      'sourceDocumentId',
+      'sourceRepresentationRevisionId',
+      'executionStatus',
+      'definition',
+      'failure',
+      'startedAt',
+      'finishedAt',
+    )
+    .orderBy((source) => source.sourceDocumentId.asc())
+    .all()
+  const sources: BatchSchemaSuggestionSourceRecord[] = []
+  for (const row of rows) {
+    const representation =
+      await orm.public.SourceRepresentationRevision.select(
+        'artifactReference',
+        'artifactSha256',
+      ).first({ id: row.sourceRepresentationRevisionId })
+    if (!representation)
+      throw new Error('Stored Batch Schema Suggestion pins are unavailable.')
+    sources.push({
+      sourceDocumentId: row.sourceDocumentId,
+      sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
+      descriptor: {
+        artifactReference: representation.artifactReference,
+        artifactSha256: representation.artifactSha256,
+      },
+      executionStatus: row.executionStatus as ProjectOperationStatus,
+      definition: row.definition,
+      failure: row.failure,
+      startedAt: row.startedAt,
+      finishedAt: row.finishedAt,
+    })
+  }
+  return {
+    batchSchemaSuggestionId: suggestion.id,
+    projectContextId,
+    selectionKey: suggestion.selectionKey,
+    executionStatus: suggestion.executionStatus as ProjectOperationStatus,
+    phase: suggestion.phase as BatchSchemaSuggestionPhase,
+    proposal: suggestion.proposal,
+    coverage: suggestion.coverage,
+    draft: suggestion.draft,
+    draftVersion: suggestion.draftVersion,
+    failure: suggestion.failure,
+    confirmedSchemaRevisionId: suggestion.confirmedSchemaRevisionId,
+    batchExtractionId: suggestion.batchExtractionId,
+    startedAt: suggestion.startedAt,
+    finishedAt: suggestion.finishedAt,
+    leaseOwner: suggestion.leaseOwner,
+    leaseVersion: suggestion.leaseVersion,
+    leaseExpiresAt: suggestion.leaseExpiresAt,
+    createdAt: suggestion.createdAt,
+    sources,
   }
 }
 
@@ -384,13 +495,6 @@ function semanticBatchSuggestionTree(schemaTree: unknown): unknown {
     ...definition,
     schemaNodes: schemaNodes.map(withoutGeneratedSchemaNodeIds),
   }
-}
-
-function sameBatchSuggestionDefinition(left: unknown, right: unknown): boolean {
-  return (
-    stableJson(semanticBatchSuggestionTree(left)) ===
-    stableJson(semanticBatchSuggestionTree(right))
-  )
 }
 
 function sameBatchIdentity(
@@ -519,10 +623,26 @@ export type TerminalExtractionInput = {
 
 export type ExtractionStrategy = 'ARTICLE' | 'CATALOG'
 
+export type ProjectOperationStatus =
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'FAILED'
+
+export type BatchSchemaSuggestionPhase =
+  | 'SOURCES'
+  | 'MERGING'
+  | 'READY'
+  | 'HETEROGENEOUS'
+
 /** One selected Source Document, with the Extraction the batch produced for it. */
 export type BatchExtractionMemberRecord = {
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
+  executionStatus?: ProjectOperationStatus
+  executionFailure?: unknown | null
+  startedAt?: Date | null
+  finishedAt?: Date | null
   latestExtraction: {
     extractionId: string
     outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
@@ -547,6 +667,13 @@ export type BatchExtractionRecord = {
   extractionSchemaName: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
+  executionStatus?: ProjectOperationStatus
+  executionFailure?: unknown | null
+  startedAt?: Date | null
+  finishedAt?: Date | null
+  leaseOwner?: string | null
+  leaseVersion?: number
+  leaseExpiresAt?: Date | null
   createdAt: Date
   members: BatchExtractionMemberRecord[]
 }
@@ -558,19 +685,59 @@ export type CreateBatchExtractionInput = {
   sourceDocumentIds: readonly string[]
 }
 
-export type BatchSchemaSuggestionSources = {
-  selectionKey: string
-  sources: Array<{
-    sourceDocumentId: string
-    sourceRepresentationRevisionId: string
-    descriptor: CanonicalPackageDescriptor
-  }>
+export type BatchSchemaSuggestionSourceRecord = {
+  sourceDocumentId: string
+  sourceRepresentationRevisionId: string
+  descriptor: CanonicalPackageDescriptor
+  executionStatus: ProjectOperationStatus
+  definition: unknown | null
+  failure: unknown | null
+  startedAt: Date | null
+  finishedAt: Date | null
 }
 
-export type ConfirmBatchSchemaSuggestionResult =
-  | { status: 'created' | 'replayed'; revision: SchemaRevisionRecord }
-  | { status: 'conflict' }
+export type BatchSchemaSuggestionRecord = {
+  batchSchemaSuggestionId: string
+  projectContextId: string
+  selectionKey: string
+  executionStatus: ProjectOperationStatus
+  phase: BatchSchemaSuggestionPhase
+  proposal: unknown | null
+  coverage: unknown | null
+  draft: unknown | null
+  draftVersion: number
+  failure: unknown | null
+  confirmedSchemaRevisionId: string | null
+  batchExtractionId: string | null
+  startedAt: Date | null
+  finishedAt: Date | null
+  leaseOwner: string | null
+  leaseVersion: number
+  leaseExpiresAt: Date | null
+  createdAt: Date
+  sources: BatchSchemaSuggestionSourceRecord[]
+}
+
+export type OperationLease = {
+  owner: string
+  version: number
+  expiresAt: Date
+}
+
+export type UpdateBatchSchemaSuggestionDraftResult =
+  | { status: 'updated'; suggestion: BatchSchemaSuggestionRecord }
+  | { status: 'conflict'; suggestion: BatchSchemaSuggestionRecord }
   | { status: 'invalid' }
+  | null
+
+export type RunBatchSchemaSuggestionResult =
+  | {
+      status: 'created' | 'replayed'
+      suggestion: BatchSchemaSuggestionRecord
+      batch: BatchExtractionRecord
+    }
+  | { status: 'not-ready' | 'invalid' }
+  | null
 
 export type FinalizeExtractionReviewInput = {
   reviewDecisions: Array<{
@@ -630,18 +797,78 @@ export type ProjectStore = {
     projectContextId: string,
     input: IngestSourceDocumentInput,
   ): Promise<PersistedSourceDocument | null>
-  /** Returns selected current representations for one request-scoped suggestion. */
-  getBatchSchemaSuggestionSources(
+  createBatchSchemaSuggestion(
     projectContextId: string,
     sourceDocumentIds: readonly string[],
-  ): Promise<BatchSchemaSuggestionSources | null>
-  /** Creates an isolated immutable Extraction Schema for one confirmed field set. */
-  confirmBatchSchemaSuggestion(
+  ): Promise<
+    | { status: 'created' | 'replayed'; suggestion: BatchSchemaSuggestionRecord }
+    | { status: 'invalid' }
+    | null
+  >
+  getBatchSchemaSuggestion(
     projectContextId: string,
-    sourceDocumentIds: readonly string[],
-    selectionKey: string,
-    schemaTree: unknown,
-  ): Promise<ConfirmBatchSchemaSuggestionResult | null>
+    batchSchemaSuggestionId: string,
+  ): Promise<BatchSchemaSuggestionRecord | null>
+  listBatchSchemaSuggestions(
+    projectContextId: string,
+    limit: number,
+  ): Promise<BatchSchemaSuggestionRecord[] | null>
+  updateBatchSchemaSuggestionDraft(
+    projectContextId: string,
+    batchSchemaSuggestionId: string,
+    expectedDraftVersion: number,
+    draft: unknown,
+  ): Promise<UpdateBatchSchemaSuggestionDraftResult>
+  retryBatchSchemaSuggestion(
+    projectContextId: string,
+    batchSchemaSuggestionId: string,
+  ): Promise<BatchSchemaSuggestionRecord | null>
+  claimBatchSchemaSuggestion(
+    owner: string,
+    now: Date,
+    leaseExpiresAt: Date,
+  ): Promise<(BatchSchemaSuggestionRecord & { lease: OperationLease }) | null>
+  renewBatchSchemaSuggestionLease(
+    batchSchemaSuggestionId: string,
+    lease: OperationLease,
+    leaseExpiresAt: Date,
+  ): Promise<boolean>
+  startBatchSchemaSuggestionSource(
+    batchSchemaSuggestionId: string,
+    sourceDocumentId: string,
+    lease: OperationLease,
+    startedAt: Date,
+  ): Promise<boolean>
+  completeBatchSchemaSuggestionSource(
+    batchSchemaSuggestionId: string,
+    sourceDocumentId: string,
+    lease: OperationLease,
+    result: { definition: unknown } | { failure: unknown },
+    finishedAt: Date,
+  ): Promise<boolean>
+  startBatchSchemaSuggestionMerge(
+    batchSchemaSuggestionId: string,
+    lease: OperationLease,
+  ): Promise<boolean>
+  completeBatchSchemaSuggestionMerge(
+    batchSchemaSuggestionId: string,
+    lease: OperationLease,
+    result:
+      | { proposal: unknown; coverage: unknown; draft: unknown }
+      | { heterogeneous: true },
+    finishedAt: Date,
+  ): Promise<boolean>
+  failBatchSchemaSuggestion(
+    batchSchemaSuggestionId: string,
+    lease: OperationLease,
+    failure: unknown,
+    finishedAt: Date,
+  ): Promise<boolean>
+  runBatchSchemaSuggestion(
+    projectContextId: string,
+    batchSchemaSuggestionId: string,
+    strategy: ExtractionStrategy,
+  ): Promise<RunBatchSchemaSuggestionResult>
   initializeSchemaRevision(
     projectContextId: string,
     schemaTree: unknown,
@@ -684,6 +911,43 @@ export type ProjectStore = {
     projectContextId: string,
     limit: number,
   ): Promise<BatchExtractionRecord[] | null>
+  getBatchExtraction(
+    projectContextId: string,
+    batchExtractionId: string,
+  ): Promise<BatchExtractionRecord | null>
+  retryBatchExtraction(
+    projectContextId: string,
+    batchExtractionId: string,
+  ): Promise<BatchExtractionRecord | null>
+  claimBatchExtraction(
+    owner: string,
+    now: Date,
+    leaseExpiresAt: Date,
+  ): Promise<(BatchExtractionRecord & { lease: OperationLease }) | null>
+  renewBatchExtractionLease(
+    batchExtractionId: string,
+    lease: OperationLease,
+    leaseExpiresAt: Date,
+  ): Promise<boolean>
+  startBatchExtractionMember(
+    batchExtractionId: string,
+    sourceDocumentId: string,
+    lease: OperationLease,
+    startedAt: Date,
+  ): Promise<boolean>
+  completeBatchExtractionMember(
+    batchExtractionId: string,
+    sourceDocumentId: string,
+    lease: OperationLease,
+    result: { failure: unknown } | { completed: true },
+    finishedAt: Date,
+  ): Promise<boolean>
+  failBatchExtraction(
+    batchExtractionId: string,
+    lease: OperationLease,
+    failure: unknown,
+    finishedAt: Date,
+  ): Promise<boolean>
   persistExtractionAttempt(
     input: TerminalExtractionInput,
   ): Promise<
@@ -1198,94 +1462,495 @@ export function createProjectStore(database: Database = db): ProjectStore {
         return winner
       }
     },
-    async getBatchSchemaSuggestionSources(projectContextId, sourceDocumentIds) {
-      return database.transaction(async ({ orm }) => {
-        const members = await currentBatchMembers(
-          orm,
-          projectContextId,
-          sourceDocumentIds,
-        )
-        if (!members) return null
-        return {
-          selectionKey: batchSuggestionSelectionKey(projectContextId, members),
-          sources: await Promise.all(
-            members.map(async (member) => {
-              const representation =
-                await orm.public.SourceRepresentationRevision.select(
-                  'artifactReference',
-                  'artifactSha256',
-                ).first({ id: member.sourceRepresentationRevisionId })
-              if (!representation)
-                throw new Error('Current Source Representation is unavailable.')
-              return {
-                ...member,
-                descriptor: {
-                  artifactReference: representation.artifactReference,
-                  artifactSha256: representation.artifactSha256,
-                },
-              }
-            }),
-          ),
-        }
-      })
-    },
-    async confirmBatchSchemaSuggestion(
-      projectContextId,
-      sourceDocumentIds,
-      selectionKey,
-      schemaTree,
-    ) {
-      const confirm = async (): Promise<ConfirmBatchSchemaSuggestionResult | null> =>
+    async createBatchSchemaSuggestion(projectContextId, sourceDocumentIds) {
+      const create = async () =>
         database.transaction(async ({ orm }) => {
+          const project = await orm.public.ProjectContext.select('id').first({
+            id: projectContextId,
+          })
+          if (!project) return 'missing' as const
           const members = await currentBatchMembers(
             orm,
             projectContextId,
             sourceDocumentIds,
           )
-          if (!members) return null
-          if (
-            batchSuggestionSelectionKey(projectContextId, members) !==
-            selectionKey
-          )
-            return { status: 'invalid' as const }
-          const extractionSchemaId = stableUuid(
-            'confirmed-batch-schema-suggestion',
-            `${projectContextId}:${selectionKey}:${stableJson(semanticBatchSuggestionTree(schemaTree))}`,
-          )
-          const existing = await orm.public.SchemaRevision.where({
-            extractionSchemaId,
-          })
-            .select(...revisionFields)
-            .orderBy((revision) => revision.revisionNumber.desc())
-            .first()
-          if (existing) {
-            const revision = schemaRevision(existing as StoredSchemaRevision)
-            if (sameBatchSuggestionDefinition(revision.schemaTree, schemaTree))
-              return { status: 'replayed' as const, revision }
-            return { status: 'conflict' as const }
-          }
-          await orm.public.ExtractionSchema.create({
-            id: extractionSchemaId,
+          if (!members) return 'invalid' as const
+          const selectionKey = batchSuggestionSelectionKey(
             projectContextId,
-            name: 'Suggested fields',
+            members,
+          )
+          const batchSchemaSuggestionId = stableUuid(
+            'batch-schema-suggestion',
+            selectionKey,
+          )
+          await orm.public.BatchSchemaSuggestion.create({
+            id: batchSchemaSuggestionId,
+            projectContextId,
+            selectionKey,
           })
-          const created = await orm.public.SchemaRevision.create({
-            extractionSchemaId,
-            revisionNumber: 1,
-            origin: 'SUGGESTION',
-            schemaTree,
-          })
-          return {
-            status: 'created' as const,
-            revision: schemaRevision(created as StoredSchemaRevision),
-          }
+          for (const member of members)
+            await orm.public.BatchSchemaSuggestionSource.create({
+              batchSchemaSuggestionId,
+              ...member,
+            })
+          return { batchSchemaSuggestionId } as const
         })
       try {
-        return await confirm()
+        const created = await create()
+        if (created === 'missing') return null
+        if (created === 'invalid') return { status: 'invalid' as const }
+        const suggestion = await loadBatchSchemaSuggestion(
+          database.orm,
+          projectContextId,
+          created.batchSchemaSuggestionId,
+        )
+        if (!suggestion)
+          throw new Error('Persisted Batch Schema Suggestion could not be read.')
+        return { status: 'created' as const, suggestion }
       } catch (error) {
         if (!uniqueConstraint(error)) throw error
-        return confirm()
+        const members = await database.transaction(({ orm }) =>
+          currentBatchMembers(orm, projectContextId, sourceDocumentIds),
+        )
+        if (!members) return { status: 'invalid' as const }
+        const suggestion = await loadBatchSchemaSuggestion(
+          database.orm,
+          projectContextId,
+          stableUuid(
+            'batch-schema-suggestion',
+            batchSuggestionSelectionKey(projectContextId, members),
+          ),
+        )
+        if (!suggestion) throw error
+        return { status: 'replayed' as const, suggestion }
       }
+    },
+    async getBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
+      return loadBatchSchemaSuggestion(
+        database.orm,
+        projectContextId,
+        batchSchemaSuggestionId,
+      )
+    },
+    async listBatchSchemaSuggestions(projectContextId, limit) {
+      const project = await database.orm.public.ProjectContext.select(
+        'id',
+      ).first({ id: projectContextId })
+      if (!project) return null
+      const rows = await database.orm.public.BatchSchemaSuggestion.where({
+        projectContextId,
+      })
+        .select('id')
+        .orderBy([
+          (suggestion) => suggestion.createdAt.desc(),
+          (suggestion) => suggestion.id.desc(),
+        ])
+        .take(limit)
+        .all()
+      const suggestions: BatchSchemaSuggestionRecord[] = []
+      for (const row of rows) {
+        const suggestion = await loadBatchSchemaSuggestion(
+          database.orm,
+          projectContextId,
+          row.id,
+        )
+        if (suggestion) suggestions.push(suggestion)
+      }
+      return suggestions
+    },
+    async updateBatchSchemaSuggestionDraft(
+      projectContextId,
+      batchSchemaSuggestionId,
+      expectedDraftVersion,
+      draft,
+    ) {
+      const result = await database.transaction(async ({ orm }) => {
+        const suggestion = await orm.public.BatchSchemaSuggestion.select(
+          'id',
+          'executionStatus',
+          'phase',
+          'confirmedSchemaRevisionId',
+          'draftVersion',
+        ).first({ id: batchSchemaSuggestionId, projectContextId })
+        if (!suggestion) return 'missing' as const
+        if (
+          suggestion.executionStatus !== 'COMPLETED' ||
+          suggestion.phase !== 'READY' ||
+          suggestion.confirmedSchemaRevisionId !== null
+        )
+          return 'invalid' as const
+        const updated = await orm.public.BatchSchemaSuggestion.where({
+          id: batchSchemaSuggestionId,
+          draftVersion: expectedDraftVersion,
+        }).update({
+          draft,
+          draftVersion: expectedDraftVersion + 1,
+        })
+        return updated ? ('updated' as const) : ('conflict' as const)
+      })
+      if (result === 'missing') return null
+      const suggestion = await loadBatchSchemaSuggestion(
+        database.orm,
+        projectContextId,
+        batchSchemaSuggestionId,
+      )
+      if (!suggestion) return null
+      if (result === 'invalid') return { status: 'invalid' as const }
+      return { status: result, suggestion }
+    },
+    async retryBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
+      const retried = await database.transaction(async ({ orm }) => {
+        const suggestion = await orm.public.BatchSchemaSuggestion.select(
+          'id',
+          'phase',
+          'confirmedSchemaRevisionId',
+        ).first({ id: batchSchemaSuggestionId, projectContextId })
+        if (!suggestion || suggestion.confirmedSchemaRevisionId !== null)
+          return false
+        const sources = await orm.public.BatchSchemaSuggestionSource.where({
+          batchSchemaSuggestionId,
+        })
+          .select('sourceDocumentId', 'executionStatus')
+          .all()
+        const sourceFailures = sources.filter(
+          (source) => source.executionStatus !== 'COMPLETED',
+        )
+        for (const source of sourceFailures)
+          await orm.public.BatchSchemaSuggestionSource.where({
+            batchSchemaSuggestionId,
+            sourceDocumentId: source.sourceDocumentId,
+          }).update({
+            executionStatus: 'QUEUED',
+            failure: null,
+            startedAt: null,
+            finishedAt: null,
+          })
+        await orm.public.BatchSchemaSuggestion.where({
+          id: batchSchemaSuggestionId,
+        }).update({
+          executionStatus: 'QUEUED',
+          phase:
+            sourceFailures.length > 0 ? 'SOURCES' : ('MERGING' as const),
+          failure: null,
+          startedAt: null,
+          finishedAt: null,
+          leaseOwner: null,
+          leaseExpiresAt: null,
+        })
+        return true
+      })
+      return retried
+        ? loadBatchSchemaSuggestion(
+            database.orm,
+            projectContextId,
+            batchSchemaSuggestionId,
+          )
+        : null
+    },
+    async claimBatchSchemaSuggestion(owner, now, leaseExpiresAt) {
+      const queued = await database.orm.public.BatchSchemaSuggestion.where({
+        executionStatus: 'QUEUED',
+      })
+        .select('id', 'leaseVersion', 'startedAt')
+        .orderBy((suggestion) => suggestion.createdAt.asc())
+        .first()
+      const running = queued
+        ? null
+        : (await database.orm.public.BatchSchemaSuggestion.where({
+            executionStatus: 'RUNNING',
+          })
+            .select('id', 'leaseVersion', 'startedAt', 'leaseExpiresAt')
+            .orderBy((suggestion) => suggestion.createdAt.asc())
+            .all()).find(
+            (suggestion) =>
+              suggestion.leaseExpiresAt === null ||
+              suggestion.leaseExpiresAt.getTime() <= now.getTime(),
+          )
+      const candidate = queued ?? running
+      if (!candidate) return null
+      const version = candidate.leaseVersion + 1
+      const claimed = await database.orm.public.BatchSchemaSuggestion.where({
+        id: candidate.id,
+        leaseVersion: candidate.leaseVersion,
+      }).update({
+        executionStatus: 'RUNNING',
+        failure: null,
+        startedAt: candidate.startedAt ?? now,
+        finishedAt: null,
+        leaseOwner: owner,
+        leaseVersion: version,
+        leaseExpiresAt,
+      })
+      if (!claimed) return null
+      const suggestion = await loadBatchSchemaSuggestion(
+        database.orm,
+        claimed.projectContextId,
+        candidate.id,
+      )
+      if (!suggestion) return null
+      return {
+        ...suggestion,
+        lease: { owner, version, expiresAt: leaseExpiresAt },
+      }
+    },
+    async renewBatchSchemaSuggestionLease(
+      batchSchemaSuggestionId,
+      lease,
+      leaseExpiresAt,
+    ) {
+      return Boolean(
+        await database.orm.public.BatchSchemaSuggestion.where({
+          id: batchSchemaSuggestionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+        }).update({ leaseExpiresAt }),
+      )
+    },
+    async startBatchSchemaSuggestionSource(
+      batchSchemaSuggestionId,
+      sourceDocumentId,
+      lease,
+      startedAt,
+    ) {
+      return database.transaction(async ({ orm }) => {
+        const owned = await orm.public.BatchSchemaSuggestion.select('id').first({
+          id: batchSchemaSuggestionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+          executionStatus: 'RUNNING',
+        })
+        if (!owned) return false
+        return Boolean(
+          await orm.public.BatchSchemaSuggestionSource.where({
+            batchSchemaSuggestionId,
+            sourceDocumentId,
+          }).update({
+            executionStatus: 'RUNNING',
+            failure: null,
+            startedAt,
+            finishedAt: null,
+          }),
+        )
+      })
+    },
+    async completeBatchSchemaSuggestionSource(
+      batchSchemaSuggestionId,
+      sourceDocumentId,
+      lease,
+      result,
+      finishedAt,
+    ) {
+      return database.transaction(async ({ orm }) => {
+        const owned = await orm.public.BatchSchemaSuggestion.select('id').first({
+          id: batchSchemaSuggestionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+          executionStatus: 'RUNNING',
+        })
+        if (!owned) return false
+        return Boolean(
+          await orm.public.BatchSchemaSuggestionSource.where({
+            batchSchemaSuggestionId,
+            sourceDocumentId,
+          }).update(
+            'definition' in result
+              ? {
+                  executionStatus: 'COMPLETED',
+                  definition: result.definition,
+                  failure: null,
+                  finishedAt,
+                }
+              : {
+                  executionStatus: 'FAILED',
+                  definition: null,
+                  failure: result.failure,
+                  finishedAt,
+                },
+          ),
+        )
+      })
+    },
+    async startBatchSchemaSuggestionMerge(batchSchemaSuggestionId, lease) {
+      return Boolean(
+        await database.orm.public.BatchSchemaSuggestion.where({
+          id: batchSchemaSuggestionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+          executionStatus: 'RUNNING',
+        }).update({ phase: 'MERGING' }),
+      )
+    },
+    async completeBatchSchemaSuggestionMerge(
+      batchSchemaSuggestionId,
+      lease,
+      result,
+      finishedAt,
+    ) {
+      return Boolean(
+        await database.orm.public.BatchSchemaSuggestion.where({
+          id: batchSchemaSuggestionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+          executionStatus: 'RUNNING',
+        }).update(
+          'heterogeneous' in result
+            ? {
+                executionStatus: 'COMPLETED',
+                phase: 'HETEROGENEOUS',
+                proposal: null,
+                coverage: null,
+                draft: null,
+                failure: null,
+                finishedAt,
+                leaseOwner: null,
+                leaseExpiresAt: null,
+              }
+            : {
+                executionStatus: 'COMPLETED',
+                phase: 'READY',
+                proposal: result.proposal,
+                coverage: result.coverage,
+                draft: result.draft,
+                draftVersion: 1,
+                failure: null,
+                finishedAt,
+                leaseOwner: null,
+                leaseExpiresAt: null,
+              },
+        ),
+      )
+    },
+    async failBatchSchemaSuggestion(
+      batchSchemaSuggestionId,
+      lease,
+      failure,
+      finishedAt,
+    ) {
+      return Boolean(
+        await database.orm.public.BatchSchemaSuggestion.where({
+          id: batchSchemaSuggestionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+        }).update({
+          executionStatus: 'FAILED',
+          failure,
+          finishedAt,
+          leaseOwner: null,
+          leaseExpiresAt: null,
+        }),
+      )
+    },
+    async runBatchSchemaSuggestion(
+      projectContextId,
+      batchSchemaSuggestionId,
+      strategy,
+    ) {
+      const run = async () =>
+        database.transaction(async ({ orm }) => {
+          const suggestion = await orm.public.BatchSchemaSuggestion.select(
+            'id',
+            'executionStatus',
+            'phase',
+            'draft',
+            'confirmedSchemaRevisionId',
+            'batchExtractionId',
+          ).first({ id: batchSchemaSuggestionId, projectContextId })
+          if (!suggestion) return 'missing' as const
+          if (
+            suggestion.confirmedSchemaRevisionId !== null &&
+            suggestion.batchExtractionId !== null
+          )
+            return 'replayed' as const
+          if (
+            suggestion.executionStatus !== 'COMPLETED' ||
+            suggestion.phase !== 'READY' ||
+            suggestion.draft === null
+          )
+            return 'not-ready' as const
+          const members = await orm.public.BatchSchemaSuggestionSource.where({
+            batchSchemaSuggestionId,
+          })
+            .select('sourceDocumentId', 'sourceRepresentationRevisionId')
+            .orderBy((source) => source.sourceDocumentId.asc())
+            .all()
+          if (members.length === 0) return 'invalid' as const
+          const extractionSchemaId = stableUuid(
+            'confirmed-batch-schema-suggestion',
+            `${batchSchemaSuggestionId}:${stableJson(
+              semanticBatchSuggestionTree(suggestion.draft),
+            )}`,
+          )
+          const existingRevision = await orm.public.SchemaRevision.where({
+            extractionSchemaId,
+          })
+            .select('id')
+            .orderBy((revision) => revision.revisionNumber.desc())
+            .first()
+          const schemaRevisionId = existingRevision?.id ?? stableUuid(
+            'confirmed-batch-schema-suggestion-revision',
+            extractionSchemaId,
+          )
+          if (!existingRevision) {
+            await orm.public.ExtractionSchema.create({
+              id: extractionSchemaId,
+              projectContextId,
+              name: 'Suggested fields',
+            })
+            await orm.public.SchemaRevision.create({
+              id: schemaRevisionId,
+              extractionSchemaId,
+              revisionNumber: 1,
+              origin: 'SUGGESTION',
+              schemaTree: suggestion.draft,
+            })
+          }
+          const batchExtractionId = stableUuid(
+            'batch-extraction-from-suggestion',
+            batchSchemaSuggestionId,
+          )
+          await orm.public.BatchExtraction.create({
+            id: batchExtractionId,
+            projectContextId,
+            schemaRevisionId,
+            strategy,
+          })
+          for (const member of members)
+            await orm.public.BatchExtractionMember.create({
+              batchExtractionId,
+              ...member,
+            })
+          await orm.public.BatchSchemaSuggestion.where({
+            id: batchSchemaSuggestionId,
+          }).update({
+            confirmedSchemaRevisionId: schemaRevisionId,
+            batchExtractionId,
+          })
+          return 'created' as const
+        })
+      let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid'
+      try {
+        status = await run()
+      } catch (error) {
+        if (!uniqueConstraint(error)) throw error
+        status = 'replayed'
+      }
+      if (status === 'missing') return null
+      if (status === 'not-ready' || status === 'invalid') return { status }
+      const suggestion = await loadBatchSchemaSuggestion(
+        database.orm,
+        projectContextId,
+        batchSchemaSuggestionId,
+      )
+      const batch = suggestion?.batchExtractionId
+        ? await loadBatchExtraction(
+            database.orm,
+            projectContextId,
+            suggestion.batchExtractionId,
+          )
+        : null
+      if (!suggestion || !batch)
+        throw new Error('Confirmed Batch Schema Suggestion could not be read.')
+      return { status, suggestion, batch }
     },
     async initializeSchemaRevision(projectContextId, schemaTree) {
       return database.transaction(async ({ orm }) => {
@@ -1593,6 +2258,200 @@ export function createProjectStore(database: Database = db): ProjectStore {
         if (batch) batches.push(batch)
       }
       return batches
+    },
+    async getBatchExtraction(projectContextId, batchExtractionId) {
+      return loadBatchExtraction(
+        database.orm,
+        projectContextId,
+        batchExtractionId,
+      )
+    },
+    async retryBatchExtraction(projectContextId, batchExtractionId) {
+      const retried = await database.transaction(async ({ orm }) => {
+        const batch = await orm.public.BatchExtraction.select('id').first({
+          id: batchExtractionId,
+          projectContextId,
+        })
+        if (!batch) return false
+        const members = await orm.public.BatchExtractionMember.where({
+          batchExtractionId,
+        })
+          .select('sourceDocumentId', 'executionStatus')
+          .all()
+        for (const member of members)
+          if (member.executionStatus !== 'COMPLETED')
+            await orm.public.BatchExtractionMember.where({
+              batchExtractionId,
+              sourceDocumentId: member.sourceDocumentId,
+            }).update({
+              executionStatus: 'QUEUED',
+              failure: null,
+              startedAt: null,
+              finishedAt: null,
+            })
+        await orm.public.BatchExtraction.where({ id: batchExtractionId }).update({
+          executionStatus: 'QUEUED',
+          failure: null,
+          startedAt: null,
+          finishedAt: null,
+          leaseOwner: null,
+          leaseExpiresAt: null,
+        })
+        return true
+      })
+      return retried
+        ? loadBatchExtraction(database.orm, projectContextId, batchExtractionId)
+        : null
+    },
+    async claimBatchExtraction(owner, now, leaseExpiresAt) {
+      const queued = await database.orm.public.BatchExtraction.where({
+        executionStatus: 'QUEUED',
+      })
+        .select('id', 'leaseVersion', 'startedAt')
+        .orderBy((batch) => batch.createdAt.asc())
+        .first()
+      const running = queued
+        ? null
+        : (await database.orm.public.BatchExtraction.where({
+            executionStatus: 'RUNNING',
+          })
+            .select('id', 'leaseVersion', 'startedAt', 'leaseExpiresAt')
+            .orderBy((batch) => batch.createdAt.asc())
+            .all()).find(
+            (batch) =>
+              batch.leaseExpiresAt === null ||
+              batch.leaseExpiresAt.getTime() <= now.getTime(),
+          )
+      const candidate = queued ?? running
+      if (!candidate) return null
+      const version = candidate.leaseVersion + 1
+      const claimed = await database.orm.public.BatchExtraction.where({
+        id: candidate.id,
+        leaseVersion: candidate.leaseVersion,
+      }).update({
+        executionStatus: 'RUNNING',
+        failure: null,
+        startedAt: candidate.startedAt ?? now,
+        finishedAt: null,
+        leaseOwner: owner,
+        leaseVersion: version,
+        leaseExpiresAt,
+      })
+      if (!claimed) return null
+      const batch = await loadBatchExtraction(
+        database.orm,
+        claimed.projectContextId,
+        candidate.id,
+      )
+      if (!batch) return null
+      return { ...batch, lease: { owner, version, expiresAt: leaseExpiresAt } }
+    },
+    async renewBatchExtractionLease(batchExtractionId, lease, leaseExpiresAt) {
+      return Boolean(
+        await database.orm.public.BatchExtraction.where({
+          id: batchExtractionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+        }).update({ leaseExpiresAt }),
+      )
+    },
+    async startBatchExtractionMember(
+      batchExtractionId,
+      sourceDocumentId,
+      lease,
+      startedAt,
+    ) {
+      return database.transaction(async ({ orm }) => {
+        const owned = await orm.public.BatchExtraction.select('id').first({
+          id: batchExtractionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+          executionStatus: 'RUNNING',
+        })
+        if (!owned) return false
+        return Boolean(
+          await orm.public.BatchExtractionMember.where({
+            batchExtractionId,
+            sourceDocumentId,
+          }).update({
+            executionStatus: 'RUNNING',
+            failure: null,
+            startedAt,
+            finishedAt: null,
+          }),
+        )
+      })
+    },
+    async completeBatchExtractionMember(
+      batchExtractionId,
+      sourceDocumentId,
+      lease,
+      result,
+      finishedAt,
+    ) {
+      return database.transaction(async ({ orm }) => {
+        const owned = await orm.public.BatchExtraction.select('id').first({
+          id: batchExtractionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+          executionStatus: 'RUNNING',
+        })
+        if (!owned) return false
+        const updated = await orm.public.BatchExtractionMember.where({
+          batchExtractionId,
+          sourceDocumentId,
+        }).update(
+          'completed' in result
+            ? {
+                executionStatus: 'COMPLETED',
+                failure: null,
+                finishedAt,
+              }
+            : {
+                executionStatus: 'FAILED',
+                failure: result.failure,
+                finishedAt,
+              },
+        )
+        if (!updated) return false
+        const members = await orm.public.BatchExtractionMember.where({
+          batchExtractionId,
+        })
+          .select('executionStatus')
+          .all()
+        if (
+          members.length > 0 &&
+          members.every((member) =>
+            ['COMPLETED', 'FAILED'].includes(member.executionStatus),
+          )
+        )
+          await orm.public.BatchExtraction.where({
+            id: batchExtractionId,
+            leaseOwner: lease.owner,
+            leaseVersion: lease.version,
+          }).update({
+            executionStatus: 'COMPLETED',
+            finishedAt,
+            leaseOwner: null,
+            leaseExpiresAt: null,
+          })
+        return true
+      })
+    },
+    async failBatchExtraction(batchExtractionId, lease, failure, finishedAt) {
+      return Boolean(
+        await database.orm.public.BatchExtraction.where({
+          id: batchExtractionId,
+          leaseOwner: lease.owner,
+          leaseVersion: lease.version,
+        }).update({
+          executionStatus: 'FAILED',
+          failure,
+          finishedAt,
+          leaseOwner: null,
+          leaseExpiresAt: null,
+        }),
+      )
     },
     async persistExtractionAttempt(input) {
       try {

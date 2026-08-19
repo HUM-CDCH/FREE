@@ -36,6 +36,20 @@ enum SchemaRevisionOrigin {
   MODEL_EDIT
 }
 
+enum ProjectOperationStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum BatchSchemaSuggestionPhase {
+  SOURCES
+  MERGING
+  READY
+  HETEROGENEOUS
+}
+
 model ProjectContext {
   id                Uuid               @id @default(uuid())
   name              String
@@ -43,6 +57,7 @@ model ProjectContext {
   sourceDocuments   SourceDocument[]
   extractionSchemas ExtractionSchema[]
   batchExtractions  BatchExtraction[]
+  batchSchemaSuggestions BatchSchemaSuggestion[]
 }
 
 model SourceDocument {
@@ -78,6 +93,7 @@ model SourceRepresentationRevision {
   conversationalEdits    ConversationalSchemaEdit[]
   extractions            Extraction[]
   batchMembers           BatchExtractionMember[]
+  batchSchemaSuggestionSources BatchSchemaSuggestionSource[]
 
   @@unique([sourceDocumentId, revisionNumber])
   @@unique([id, sourceDocumentId])
@@ -209,6 +225,13 @@ model BatchExtraction {
   projectContextId Uuid
   schemaRevisionId Uuid
   strategy         String
+  executionStatus  ProjectOperationStatus  @default(QUEUED)
+  failure          Json?
+  startedAt        Timestamptz6?
+  finishedAt       Timestamptz6?
+  leaseOwner       String?
+  leaseVersion     Int                     @default(0)
+  leaseExpiresAt   Timestamptz6?
   createdAt        Timestamptz6            @default(now())
   projectContext   ProjectContext          @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
   schemaRevision   SchemaRevision          @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
@@ -223,6 +246,10 @@ model BatchExtractionMember {
   batchExtractionId              Uuid
   sourceDocumentId               Uuid
   sourceRepresentationRevisionId Uuid
+  executionStatus                ProjectOperationStatus        @default(QUEUED)
+  failure                        Json?
+  startedAt                      Timestamptz6?
+  finishedAt                     Timestamptz6?
   batchExtraction                BatchExtraction              @relation(fields: [batchExtractionId], references: [id], onDelete: Cascade)
   // Named explicitly: the generated identity would exceed PostgreSQL's
   // 63-character limit and be silently truncated.
@@ -232,6 +259,53 @@ model BatchExtractionMember {
   @@id([batchExtractionId, sourceDocumentId])
   @@unique([batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId], map: "batch_member_exact_pin_key")
   @@index([sourceRepresentationRevisionId, sourceDocumentId], map: "batch_member_representation_idx")
+}
+
+// A server-owned suggestion pins every selected representation and retains every
+// per-source model result. It is deliberately domain-specific rather than a
+// generic job table: the saved draft and the atomic hand-off to extraction are
+// part of the research workflow's durable state.
+model BatchSchemaSuggestion {
+  id                        Uuid                       @id @default(uuid())
+  projectContextId          Uuid
+  selectionKey              String                     @unique
+  executionStatus           ProjectOperationStatus     @default(QUEUED)
+  phase                     BatchSchemaSuggestionPhase @default(SOURCES)
+  proposal                  Json?
+  coverage                  Json?
+  draft                     Json?
+  draftVersion              Int                        @default(0)
+  failure                   Json?
+  confirmedSchemaRevisionId Uuid?                      @unique
+  batchExtractionId         Uuid?                      @unique
+  startedAt                 Timestamptz6?
+  finishedAt                Timestamptz6?
+  leaseOwner                String?
+  leaseVersion              Int                        @default(0)
+  leaseExpiresAt            Timestamptz6?
+  createdAt                 Timestamptz6               @default(now())
+  projectContext            ProjectContext             @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
+  sources                   BatchSchemaSuggestionSource[]
+
+  @@index([projectContextId, createdAt])
+  @@index([executionStatus, leaseExpiresAt])
+}
+
+model BatchSchemaSuggestionSource {
+  batchSchemaSuggestionId         Uuid
+  sourceDocumentId                Uuid
+  sourceRepresentationRevisionId  Uuid
+  executionStatus                 ProjectOperationStatus @default(QUEUED)
+  definition                      Json?
+  failure                         Json?
+  startedAt                       Timestamptz6?
+  finishedAt                      Timestamptz6?
+  batchSchemaSuggestion           BatchSchemaSuggestion @relation(fields: [batchSchemaSuggestionId], references: [id], onDelete: Cascade)
+  sourceRepresentationRevision    SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId], references: [id], onDelete: Restrict)
+
+  @@id([batchSchemaSuggestionId, sourceDocumentId])
+  @@unique([batchSchemaSuggestionId, sourceDocumentId, sourceRepresentationRevisionId], map: "batch_suggestion_source_pin_key")
+  @@index([sourceRepresentationRevisionId, sourceDocumentId], map: "batch_suggestion_source_representation_idx")
 }
 
 model Extraction {

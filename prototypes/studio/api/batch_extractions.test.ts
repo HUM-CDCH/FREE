@@ -563,6 +563,38 @@ describe('/api/batch-extractions', () => {
     expect(JSON.stringify(body)).not.toContain('secret')
   })
 
+  it('does not expose internal operation errors as member labels', async () => {
+    const unsafeMessage = '[{ "code": "invalid_union", "errors": [] }]'
+    const failedBatch: BatchExtractionRecord = {
+      ...batch,
+      members: [
+        {
+          ...batch.members[2],
+          executionStatus: 'FAILED',
+          executionFailure: {
+            code: 'unexpected_failure',
+            message: unsafeMessage,
+          },
+          startedAt: new Date('2026-08-14T10:43:00Z'),
+          finishedAt: new Date('2026-08-14T10:44:00Z'),
+        },
+      ],
+    }
+    const response = await handler({
+      listBatchExtractions: vi.fn(async () => [failedBatch]),
+    }).handle(
+      new Request(`http://test/api/batch-extractions?projectContextId=${PROJECT}`),
+    )
+    const [listed] = batchExtractionListResponseSchema.parse(
+      await response.json(),
+    ).batchExtractions
+
+    expect(listed.members[0].executionFailureMessage).toBe(
+      'The operation failed unexpectedly.',
+    )
+    expect(JSON.stringify(listed)).not.toContain('invalid_union')
+  })
+
   it('rejects an invalid request, an unknown Project Context, and an unowned selection', async () => {
     const fixture = handler()
     expect((await fixture.handle(open({ ...request, sourceDocumentIds: [] }))).status).toBe(422)

@@ -21,6 +21,7 @@ import {
   finalizeExtractionReviewSchema,
   sameExtractionIdentity,
   type ExtractionRequest,
+  type ExtractionRequestInput,
   type ExtractionDiagnostics,
   type ExtractionFailure,
   type ExtractionModelAttribution,
@@ -83,12 +84,22 @@ type ExtractionStore = Pick<
   | 'persistExtractionAttempt'
 >
 
-type Dependencies = {
+export type ExtractionDependencies = {
   store?: ExtractionStore
   readSource?: (descriptor: CanonicalPackageDescriptor) => Promise<unknown>
   resolveTarget?: () => Promise<ExecutionTarget>
   extract?: typeof extractWithModel
   now?: () => number
+}
+
+/** Server callers execute the same durable Extraction core without HTTP indirection. */
+export type ExtractionExecutor = (
+  request: ExtractionRequestInput,
+  signal: AbortSignal,
+) => Promise<StoredExtractionAttempt>
+
+type ExtractionsApi = ((request: Request) => Promise<Response>) & {
+  execute: ExtractionExecutor
 }
 
 type ActiveOperation = {
@@ -227,7 +238,9 @@ function occurrenceOwnership(document: ReturnType<typeof decodeParsedDocument>) 
   )
 }
 
-export function createExtractionsApi(dependencies: Dependencies = {}) {
+export function createExtractionsApi(
+  dependencies: ExtractionDependencies = {},
+): ExtractionsApi {
   const store = dependencies.store ?? createProjectStore()
   const readSource = dependencies.readSource ?? defaultReadSource
   const resolveTarget =
@@ -1186,6 +1199,24 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     })
   }
 
+  const execute: ExtractionExecutor = async (request, signal) => {
+    const identity = extractionRequestSchema.parse(request)
+    const stored = await store.getExtractionAttempt(identity.id)
+    if (stored) {
+      if (
+        !sameExtractionIdentity(stored, identity) ||
+        !sameRetrySelection(stored, identity)
+      )
+        throw new ApiError(
+          409,
+          'extraction_id_conflict',
+          'That Extraction ID is already bound to different inputs.',
+        )
+      return stored
+    }
+    return (await runExtraction(identity, signal, () => undefined)).attempt
+  }
+
   /**
    * Reads one stored Extraction. Reviewing it needs the occurrences its cited
    * Evidence Anchors own, which only the pinned Source Representation knows, so
@@ -1290,7 +1321,7 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
     return json(attemptDto(finalized.attempt), { headers: noStore })
   }
 
-  return async function extractionsApi(request: Request): Promise<Response> {
+  const handle = async function extractionsApi(request: Request): Promise<Response> {
     try {
       const pathname = new URL(request.url).pathname
       if (request.method === 'POST' && pathname === COLLECTION_ROUTE)
@@ -1315,6 +1346,13 @@ export function createExtractionsApi(dependencies: Dependencies = {}) {
       return noStoreError(error)
     }
   }
+  return Object.assign(handle, { execute })
+}
+
+export function createExtractionExecutor(
+  dependencies: ExtractionDependencies = {},
+): ExtractionExecutor {
+  return createExtractionsApi(dependencies).execute
 }
 
 const handle = createExtractionsApi()

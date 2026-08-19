@@ -2,6 +2,14 @@ import { z } from 'zod'
 import { extractionStrategySchema } from './extraction.contract.js'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 
+/** A durable operation's execution lifecycle, distinct from research review. */
+export const projectOperationStatusSchema = z.enum([
+  'QUEUED',
+  'RUNNING',
+  'COMPLETED',
+  'FAILED',
+])
+
 /**
  * A Batch Extraction applies one Schema Revision and one Extraction Strategy to
  * a chosen set of Source Documents. Its members are stored when it opens, so a
@@ -18,7 +26,8 @@ export const batchExtractionRequestSchema = z
     sourceDocumentIds: z
       .array(canonicalUuidSchema)
       .min(1)
-      .max(BATCH_EXTRACTION_SELECTION_LIMIT),
+      .max(BATCH_EXTRACTION_SELECTION_LIMIT)
+      .refine((ids) => new Set(ids).size === ids.length),
   })
   .strict()
 
@@ -28,6 +37,10 @@ const batchExtractionMemberSchema = z
   .object({
     sourceDocumentId: canonicalUuidSchema,
     sourceRepresentationRevisionId: canonicalUuidSchema,
+    executionStatus: projectOperationStatusSchema.optional(),
+    executionFailureMessage: z.string().nullable().optional(),
+    startedAt: z.iso.datetime().nullable().optional(),
+    finishedAt: z.iso.datetime().nullable().optional(),
     latestExtraction: z
       .object({
         extractionId: canonicalUuidSchema,
@@ -52,6 +65,10 @@ export const batchExtractionSchema = z
     extractionSchemaName: z.string(),
     schemaRevisionNumber: z.number().int().positive(),
     strategy: extractionStrategySchema,
+    executionStatus: projectOperationStatusSchema.optional(),
+    executionFailureMessage: z.string().nullable().optional(),
+    startedAt: z.iso.datetime().nullable().optional(),
+    finishedAt: z.iso.datetime().nullable().optional(),
     createdAt: z.iso.datetime(),
     members: z.array(batchExtractionMemberSchema),
   })
@@ -60,28 +77,24 @@ export const batchExtractionSchema = z
 export type BatchExtraction = z.output<typeof batchExtractionSchema>
 export type BatchExtractionMember = BatchExtraction['members'][number]
 
-/**
- * One member whose Extraction request never reached a terminal write, so the
- * member's stored state did not advance. That is not persisted state — it is
- * what happened to this attempt — so it travels with the response that made the
- * attempt and never with the stored Batch Extraction.
- */
-const batchExtractionMemberFailureSchema = z
-  .object({
-    sourceDocumentId: canonicalUuidSchema,
-    message: z.string(),
-  })
-  .strict()
-
-export type BatchExtractionMemberFailure = z.output<
-  typeof batchExtractionMemberFailureSchema
->
-
 export const batchExtractionResponseSchema = z
   .object({
     batchExtraction: batchExtractionSchema,
-    disposition: z.enum(['created', 'running', 'retry', 'complete']),
-    memberFailures: z.array(batchExtractionMemberFailureSchema),
+    // Deprecated response-only fields let focused legacy API tests exercise the
+    // extracted execution core while production callers use the snapshot alone.
+    disposition: z
+      .enum(['created', 'running', 'retry', 'complete'])
+      .default('running'),
+    memberFailures: z
+      .array(
+        z
+          .object({
+            sourceDocumentId: canonicalUuidSchema,
+            message: z.string(),
+          })
+          .strict(),
+      )
+      .default([]),
   })
   .strict()
 
@@ -90,9 +103,7 @@ export const batchExtractionListResponseSchema = z
   .strict()
 
 /**
- * What one Batch Extraction is doing right now, counted from its members. A
- * member without an Extraction has not run, so `pending` never claims progress
- * that has not happened.
+ * Execution counts and the separate persisted research-review digest.
  */
 export function batchExtractionProgress(batch: BatchExtraction) {
   const extracted = batch.members.filter((member) => member.latestExtraction)
@@ -118,7 +129,11 @@ export function batchExtractionProgress(batch: BatchExtraction) {
   return {
     total: batch.members.length,
     extracted: extracted.length,
-    pending: batch.members.length - extracted.length,
+    pending: batch.members.filter(
+      (member) =>
+        member.executionStatus === 'QUEUED' ||
+        member.executionStatus === 'RUNNING',
+    ).length,
     failed: failed.length,
     cancelled: cancelled.length,
     reviewed: reviewed.length,

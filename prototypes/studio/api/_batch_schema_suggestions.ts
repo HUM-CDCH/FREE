@@ -140,11 +140,10 @@ function coverageFor(
 /** Validate the merged schema and report, but do not enforce, source coverage. */
 export function verifiedCommonSuggestion(
   mergedTemplate: unknown,
-  sourceTemplates: readonly unknown[],
+  sourceDefinitions: readonly SchemaDefinition[],
 ): { definition: SchemaDefinition; coverage: FieldCoverage[] } | null {
   const definition = modelSuggestedDefinition(mergedTemplate)
   if (definition.schemaNodes.length === 0) return null
-  const sources = sourceTemplates.map(modelSuggestedDefinition)
-  const coverage = coverageFor(definition.schemaNodes, sources)
+  const coverage = coverageFor(definition.schemaNodes, sourceDefinitions)
   return { definition, coverage }
 }

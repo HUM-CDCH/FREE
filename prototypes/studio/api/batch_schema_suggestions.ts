@@ -1,12 +1,14 @@
-import { canonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import {
   createProjectStore,
+  type BatchSchemaSuggestionRecord,
   type ProjectStore,
-  type SchemaRevisionRecord,
 } from '../../../packages/db/src/project-store.js'
 import {
-  batchSchemaSuggestionMergeResponseSchema,
-  batchSchemaSuggestionRequestSchema,
+  batchSchemaSuggestionCreateRequestSchema,
+  batchSchemaSuggestionDraftRequestSchema,
+  batchSchemaSuggestionListResponseSchema,
+  batchSchemaSuggestionResponseSchema,
+  batchSchemaSuggestionRunRequestSchema,
 } from '../shared/batchSchemaSuggestion.contract.js'
 import { parseSchemaDefinition } from '../shared/schemaNode.js'
 import {
@@ -17,221 +19,261 @@ import {
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
-import { generateSchemaWithModel } from './_model.js'
+import { validateEditableSuggestion } from './_batch_schema_suggestions.js'
 import {
-  modelSuggestedDefinition,
-  sourceSuggestionFailure,
-  validateEditableSuggestion,
-  verifiedCommonSuggestion,
-} from './_batch_schema_suggestions.js'
+  projectOperations,
+  type ProjectOperations,
+} from './_project_operations.js'
 
 const ROUTE = '/api/batch-schema-suggestions'
-const SCHEMA_SUGGESTION_TIMEOUT_MS = 10 * 60 * 1000
-const SOURCE_SUGGESTION_INSTRUCTION =
-  'Suggest reusable extraction fields for this Source Document. Never include canonical Evidence fields: _evidence, snippets, pages, bboxes, occurrence IDs, or fuzzy matches.'
+const ITEM_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)$/
+const DRAFT_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/draft$/
+const RUN_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/run$/
+const RETRY_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/retry$/
 
-type Store = Pick<
+type DurableSuggestionStore = Pick<
   ProjectStore,
-  | 'getBatchSchemaSuggestionSources'
-  | 'confirmBatchSchemaSuggestion'
+  | 'createBatchSchemaSuggestion'
+  | 'getBatchSchemaSuggestion'
+  | 'listBatchSchemaSuggestions'
+  | 'updateBatchSchemaSuggestionDraft'
+  | 'retryBatchSchemaSuggestion'
+  | 'runBatchSchemaSuggestion'
 >
 
-type Dependencies = {
-  generate?: typeof generateSchemaWithModel
-  readMarkdown?: typeof canonicalPackageStore.read
+function failureDto(value: unknown) {
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof (value as { code?: unknown }).code === 'string' &&
+    typeof (value as { message?: unknown }).message === 'string'
+  )
+    return {
+      code: (value as { code: string }).code,
+      message: (value as { message: string }).message,
+    }
+  return null
 }
 
-function revisionDto(revision: SchemaRevisionRecord) {
-  return {
-    schemaRevisionId: revision.schemaRevisionId,
-    extractionSchemaId: revision.extractionSchemaId,
-    revisionNumber: revision.revisionNumber,
-    origin: revision.origin,
-    createdAt: revision.createdAt.toISOString(),
-    ...parseSchemaDefinition(revision.schemaTree),
-  }
+function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
+  return batchSchemaSuggestionResponseSchema.parse({
+    batchSchemaSuggestion: {
+      batchSchemaSuggestionId: suggestion.batchSchemaSuggestionId,
+      projectContextId: suggestion.projectContextId,
+      selectionKey: suggestion.selectionKey,
+      executionStatus: suggestion.executionStatus,
+      phase: suggestion.phase,
+      proposal:
+        suggestion.proposal === null
+          ? null
+          : parseSchemaDefinition(suggestion.proposal),
+      coverage: suggestion.coverage,
+      draft:
+        suggestion.draft === null ? null : parseSchemaDefinition(suggestion.draft),
+      draftVersion: suggestion.draftVersion,
+      failure: failureDto(suggestion.failure),
+      confirmedSchemaRevisionId: suggestion.confirmedSchemaRevisionId,
+      batchExtractionId: suggestion.batchExtractionId,
+      startedAt: suggestion.startedAt?.toISOString() ?? null,
+      finishedAt: suggestion.finishedAt?.toISOString() ?? null,
+      createdAt: suggestion.createdAt.toISOString(),
+      sources: suggestion.sources.map((source) => ({
+        sourceDocumentId: source.sourceDocumentId,
+        sourceRepresentationRevisionId: source.sourceRepresentationRevisionId,
+        executionStatus: source.executionStatus,
+        definition:
+          source.definition === null
+            ? null
+            : parseSchemaDefinition(source.definition),
+        failure: failureDto(source.failure),
+        startedAt: source.startedAt?.toISOString() ?? null,
+        finishedAt: source.finishedAt?.toISOString() ?? null,
+      })),
+    },
+  })
 }
 
+/** Durable schema-suggestion HTTP lifecycle: all model work runs after 202. */
 export function createBatchSchemaSuggestionsApi(
-  store: Store = createProjectStore(),
-  dependencies: Dependencies = {},
+  store?: DurableSuggestionStore,
+  operations?: ProjectOperations,
+) : (request: Request) => Promise<Response>
+export function createBatchSchemaSuggestionsApi(
+  store: DurableSuggestionStore = createProjectStore(),
+  operations: ProjectOperations = projectOperations,
 ) {
-  const generate = dependencies.generate ?? generateSchemaWithModel
-  return async function POST(request: Request): Promise<Response> {
-    try {
-      if (new URL(request.url).pathname !== ROUTE)
-        throw new ApiError(
-          404,
-          'not_found',
-          'Schema suggestion route was not found.',
-        )
-      const parsed = batchSchemaSuggestionRequestSchema.safeParse(
-        await parseJsonRequest(request),
+  const projectId = (url: URL) => {
+    const value = url.searchParams.get('projectContextId')
+    if (!value)
+      throw new ApiError(
+        422,
+        'invalid_request',
+        'projectContextId is required.',
       )
-      if (!parsed.success)
-        throw new ApiError(
-          422,
-          'invalid_request',
-          'The schema suggestion request is invalid.',
-        )
+    return value
+  }
 
-      if (parsed.data.action === 'confirm') {
-        const definition = validateEditableSuggestion(
-          parseSchemaDefinition({
-            recordDescription: parsed.data.recordDescription,
-            schemaNodes: parsed.data.schemaNodes,
-          }),
-        )
-        const confirmed = await store
-          .confirmBatchSchemaSuggestion(
-            parsed.data.projectContextId,
-            parsed.data.sourceDocumentIds,
-            parsed.data.selectionKey,
-            definition,
-          )
-          .catch((cause) => {
-            throw persistenceUnavailable(cause)
-          })
-        if (!confirmed)
-          throw new ApiError(
-            422,
-            'invalid_selection',
-            'Use Source Documents in this Project Context.',
-          )
-        if (confirmed.status === 'invalid')
-          throw new ApiError(
-            409,
-            'selection_changed',
-            'The selected Source Documents changed. Suggest common fields again.',
-          )
-        if (confirmed.status === 'conflict')
-          throw new ApiError(
-            409,
-            'revision_conflict',
-            'The Current Schema Revision changed while these fields were being confirmed. Suggest common fields again.',
-          )
-        return json(
-          { revision: revisionDto(confirmed.revision) },
-          {
-            status: confirmed.status === 'created' ? 201 : 200,
-            headers: noStore,
-          },
-        )
-      }
-
-      const signal = AbortSignal.any([
-        request.signal,
-        AbortSignal.timeout(SCHEMA_SUGGESTION_TIMEOUT_MS),
-      ])
-      const selected = await store
-        .getBatchSchemaSuggestionSources(
-          parsed.data.projectContextId,
-          parsed.data.sourceDocumentIds,
-        )
-        .catch((cause) => {
-          throw persistenceUnavailable(cause)
-        })
-      if (!selected)
-        throw new ApiError(
-          422,
-          'invalid_selection',
-          'Use Source Documents in this Project Context.',
-        )
-      const suggested = [] as Array<{
-        sourceDocumentId: string
-        template: unknown
-      }>
-      const failures = [] as Array<{
-        sourceDocumentId: string
-        code: ReturnType<typeof sourceSuggestionFailure>['code']
-      }>
-      for (const source of selected.sources) {
-        signal.throwIfAborted()
-        try {
-          const artifact = await (
-            dependencies.readMarkdown ?? canonicalPackageStore.read
-          )(source.descriptor, 'markdown')
-          signal.throwIfAborted()
-          const generated = await generate({
-            document: {
-              file: null,
-              markdown: new TextDecoder().decode(artifact.bytes),
-              pages: null,
-            },
-            instruction: SOURCE_SUGGESTION_INSTRUCTION,
-            signal,
-          })
-          suggested.push({
-            sourceDocumentId: source.sourceDocumentId,
-            template: modelSuggestedDefinition(generated.template),
-          })
-        } catch (error) {
-          if (signal.aborted) throw error
-          failures.push({
-            sourceDocumentId: source.sourceDocumentId,
-            code: sourceSuggestionFailure(error).code,
-          })
-        }
-      }
-      if (failures.length > 0)
-        throw new ApiError(
-          502,
-          'source_suggestion_failed',
-          'Fields could not be suggested for every selected Source Document. Try again.',
-          { details: { failures } },
-        )
-      signal.throwIfAborted()
-      const merged = await generate({
-        document: {
-          file: null,
-          markdown: suggested
-            .map(
-              (suggestion) =>
-                `SOURCE DOCUMENT ${suggestion.sourceDocumentId} SUGGESTION:\n${JSON.stringify(suggestion.template)}`,
-            )
-            .join('\n\n'),
-          pages: null,
-        },
-        instruction:
-          'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives, merge notes, or canonical Evidence fields (_evidence, snippets, pages, bboxes, occurrence IDs, fuzzy matches).',
-        signal,
+  const create = async (request: Request) => {
+    const parsed = batchSchemaSuggestionCreateRequestSchema.safeParse(
+      await parseJsonRequest(request),
+    )
+    if (!parsed.success)
+      throw new ApiError(
+        422,
+        'invalid_request',
+        'The Batch Schema Suggestion request is invalid.',
+      )
+    const opened = await store
+      .createBatchSchemaSuggestion(
+        parsed.data.projectContextId,
+        parsed.data.sourceDocumentIds,
+      )
+      .catch((cause) => {
+        throw persistenceUnavailable(cause)
       })
-      signal.throwIfAborted()
-      const current = await store
-        .getBatchSchemaSuggestionSources(
-          parsed.data.projectContextId,
-          parsed.data.sourceDocumentIds,
-        )
-        .catch((cause) => {
-          throw persistenceUnavailable(cause)
-        })
-      if (!current || current.selectionKey !== selected.selectionKey)
-        throw new ApiError(
-          409,
-          'selection_changed',
-          'The selected Source Documents changed. Suggest common fields again.',
-        )
-      const common = verifiedCommonSuggestion(
-        merged.template,
-        suggested.map((suggestion) => suggestion.template),
+    if (!opened)
+      throw new ApiError(404, 'not_found', 'Project Context was not found.')
+    if (opened.status === 'invalid')
+      throw new ApiError(
+        422,
+        'invalid_selection',
+        'Use Source Documents in this Project Context with a Source Representation.',
       )
-      return json(
-        batchSchemaSuggestionMergeResponseSchema.parse(
-          common
-            ? {
-                status: 'ready',
-                selectionKey: selected.selectionKey,
-                ...common.definition,
-                coverage: common.coverage,
-              }
-            : { status: 'heterogeneous', selectionKey: selected.selectionKey },
+    operations.kick()
+    return json(suggestionDto(opened.suggestion), { status: 202, headers: noStore })
+  }
+
+  const list = async (url: URL) => {
+    const projectContextId = projectId(url)
+    const suggestions = await store
+      .listBatchSchemaSuggestions(projectContextId, 50)
+      .catch((cause) => {
+        throw persistenceUnavailable(cause)
+      })
+    if (!suggestions)
+      throw new ApiError(404, 'not_found', 'Project Context was not found.')
+    operations.kick()
+    return json(
+      batchSchemaSuggestionListResponseSchema.parse({
+        batchSchemaSuggestions: suggestions.map(
+          (suggestion) => suggestionDto(suggestion).batchSchemaSuggestion,
         ),
-        { headers: noStore },
+      }),
+      { headers: noStore },
+    )
+  }
+
+  const read = async (url: URL, batchSchemaSuggestionId: string) => {
+    const suggestion = await store
+      .getBatchSchemaSuggestion(projectId(url), batchSchemaSuggestionId)
+      .catch((cause) => {
+        throw persistenceUnavailable(cause)
+      })
+    if (!suggestion)
+      throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
+    operations.kick()
+    return json(suggestionDto(suggestion), { headers: noStore })
+  }
+
+  const updateDraft = async (request: Request, url: URL, id: string) => {
+    const parsed = batchSchemaSuggestionDraftRequestSchema.safeParse(
+      await parseJsonRequest(request),
+    )
+    if (!parsed.success)
+      throw new ApiError(422, 'invalid_request', 'The Schema Suggestion draft is invalid.')
+    const updated = await store
+      .updateBatchSchemaSuggestionDraft(
+        projectId(url),
+        id,
+        parsed.data.expectedDraftVersion,
+        validateEditableSuggestion({
+          recordDescription: parsed.data.recordDescription,
+          schemaNodes: parsed.data.schemaNodes,
+        }),
       )
+      .catch((cause) => {
+        throw persistenceUnavailable(cause)
+      })
+    if (!updated)
+      throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
+    if (updated.status === 'invalid')
+      throw new ApiError(
+        409,
+        'operation_not_ready',
+        'Only an unconfirmed ready suggestion can be edited.',
+      )
+    if (updated.status === 'conflict')
+      throw new ApiError(
+        409,
+        'draft_conflict',
+        'The saved suggestion draft changed in another tab.',
+      )
+    return json(suggestionDto(updated.suggestion), { headers: noStore })
+  }
+
+  const run = async (request: Request, url: URL, id: string) => {
+    const parsed = batchSchemaSuggestionRunRequestSchema.safeParse(
+      await parseJsonRequest(request),
+    )
+    if (!parsed.success)
+      throw new ApiError(422, 'invalid_request', 'The Batch Extraction strategy is invalid.')
+    const result = await store
+      .runBatchSchemaSuggestion(projectId(url), id, parsed.data.strategy)
+      .catch((cause) => {
+        throw persistenceUnavailable(cause)
+      })
+    if (!result)
+      throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
+    if (!('suggestion' in result))
+      throw new ApiError(
+        409,
+        'operation_not_ready',
+        'The suggested fields are not ready to run.',
+      )
+    operations.kick()
+    return json(suggestionDto(result.suggestion), { status: 202, headers: noStore })
+  }
+
+  const retry = async (url: URL, id: string) => {
+    const suggestion = await store
+      .retryBatchSchemaSuggestion(projectId(url), id)
+      .catch((cause) => {
+        throw persistenceUnavailable(cause)
+      })
+    if (!suggestion)
+      throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
+    operations.kick()
+    return json(suggestionDto(suggestion), { status: 202, headers: noStore })
+  }
+
+  return async function batchSchemaSuggestionsApi(
+    request: Request,
+  ): Promise<Response> {
+    try {
+      const url = new URL(request.url)
+      if (request.method === 'POST' && url.pathname === ROUTE)
+        return await create(request)
+      if (request.method === 'GET' && url.pathname === ROUTE)
+        return await list(url)
+      const draft = DRAFT_ROUTE.exec(url.pathname)
+      if (request.method === 'PATCH' && draft)
+        return await updateDraft(request, url, draft[1])
+      const runMatch = RUN_ROUTE.exec(url.pathname)
+      if (request.method === 'POST' && runMatch)
+        return await run(request, url, runMatch[1])
+      const retryMatch = RETRY_ROUTE.exec(url.pathname)
+      if (request.method === 'POST' && retryMatch)
+        return await retry(url, retryMatch[1])
+      const item = ITEM_ROUTE.exec(url.pathname)
+      if (request.method === 'GET' && item) return await read(url, item[1])
+      throw new ApiError(404, 'not_found', 'API route not found.')
     } catch (error) {
       return noStoreError(error)
     }
   }
 }
 
-export const POST = createBatchSchemaSuggestionsApi()
+const handle = createBatchSchemaSuggestionsApi()
+export const GET = handle
+export const POST = handle
+export const PATCH = handle

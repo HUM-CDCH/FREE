@@ -37,7 +37,6 @@ const ingestion = (
   ensureRetained: async () => {},
   ...overrides,
 })
-
 function fakeDatabase(
   options: {
     raceOnCreate?: boolean
@@ -588,7 +587,6 @@ describe('ProjectStore Source Document ingestion', () => {
     )
   })
 })
-
 describe('ProjectStore Schema Revisions', () => {
   it('lists project-owned Extraction Schemas with their Current Schema Revision', async () => {
     const store = createProjectStore(fakeDatabase() as never)
@@ -768,88 +766,3 @@ describe('ProjectStore Schema Revisions', () => {
   })
 })
 
-describe('ProjectStore batch schema suggestions', () => {
-  it('reads selected current representation descriptors without persisting suggestions', async () => {
-    const database = fakeDatabase()
-    const store = createProjectStore(database as never)
-
-    const selected = await store.getBatchSchemaSuggestionSources(PROJECT, [
-      DOCUMENT,
-    ])
-
-    assert.deepEqual(selected?.sources, [
-      {
-        sourceDocumentId: DOCUMENT,
-        sourceRepresentationRevisionId:
-          '51000000-0000-4000-8002-000000000001',
-        descriptor: {
-          artifactReference: OWN_PACKAGE,
-          artifactSha256: OWN_PACKAGE,
-        },
-      },
-    ])
-    assert.equal(database.tables.SchemaSuggestion, undefined)
-  })
-
-  it('conflicts when a deterministic confirmed schema head diverges', async () => {
-    const store = createProjectStore(fakeDatabase() as never)
-    const selection = await store.getBatchSchemaSuggestionSources(PROJECT, [
-      DOCUMENT,
-    ])
-    assert.ok(selection)
-    const definition = {
-      recordDescription: 'One place.',
-      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
-    }
-    const initial = await store.confirmBatchSchemaSuggestion(
-      PROJECT,
-      [DOCUMENT],
-      selection.selectionKey,
-      definition,
-    )
-    assert.equal(initial?.status, 'created')
-    if (initial?.status !== 'created')
-      throw new Error('Expected initial confirmation.')
-
-    const changed = await store.appendSchemaRevision(
-      PROJECT,
-      initial.revision.extractionSchemaId,
-      initial.revision.revisionNumber,
-      {
-        recordDescription: 'A changed place.',
-        schemaNodes: [{ id: 'changed', name: 'country', type: 'string' }],
-      },
-    )
-    assert.equal(changed?.status, 'created')
-
-    const conflict = await store.confirmBatchSchemaSuggestion(
-      PROJECT,
-      [DOCUMENT],
-      selection.selectionKey,
-      definition,
-    )
-    assert.equal(conflict?.status, 'conflict')
-  })
-
-  it('does not overwrite a different schema head that wins a concurrent confirmation', async () => {
-    const store = createProjectStore(
-      fakeDatabase({ raceOnCreate: true }) as never,
-    )
-    const selection = await store.getBatchSchemaSuggestionSources(PROJECT, [
-      DOCUMENT,
-    ])
-    assert.ok(selection)
-
-    const result = await store.confirmBatchSchemaSuggestion(
-      PROJECT,
-      [DOCUMENT],
-      selection.selectionKey,
-      {
-        recordDescription: 'One place.',
-        schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
-      },
-    )
-
-    assert.equal(result?.status, 'conflict')
-  })
-})
