@@ -12,21 +12,18 @@ import { ApiError, apiErrorResponse } from './api/_http.js'
 const API_ROUTE = /^\/api\/([a-z][a-z_]*)$/
 const SOURCE_DOCUMENT_INGESTION_ROUTE =
   /^\/api\/project-contexts\/[^/]+\/source-documents$/
+const SOURCE_DOCUMENT_ROUTE =
+  /^\/api\/project-contexts\/[^/]+\/source-documents(?:\/[^/]+)?$/
+const SOURCE_DOCUMENT_REOPEN_ROUTE =
+  /^\/api\/project-contexts\/[^/]+\/source-documents\/[^/]+\/reopen$/
 const SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT = 51 * 1024 * 1024
 
 // Parameterized resources cannot be named by their pathname, so they are the one
 // explicit table; every other route stays discoverable from `api/`. Each pattern
 // only picks the module — the handler owns its exact grammar and answers 404.
 const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
-  [SOURCE_DOCUMENT_INGESTION_ROUTE, 'source_documents'],
-  [
-    /^\/api\/project-contexts\/[^/]+\/source-documents\/[^/]+\/reopen$/,
-    'document_reopen',
-  ],
-  [
-    /^\/api\/project-contexts\/[^/]+\/source-documents\/[^/]+$/,
-    'source_documents',
-  ],
+  [SOURCE_DOCUMENT_ROUTE, 'source_documents'],
+  [SOURCE_DOCUMENT_REOPEN_ROUTE, 'document_reopen'],
   [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
   [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
   [/^\/api\/extraction-schemas$/, 'extraction_schemas'],
@@ -141,7 +138,11 @@ export async function readBody(
     const buffer = chunk as Buffer
     bytes += buffer.byteLength
     if (maxBytes !== undefined && bytes > maxBytes)
-      throw new ApiError(413, 'invalid_request', 'The request body is too large.')
+      throw new ApiError(
+        413,
+        'invalid_request',
+        'The request body is too large.',
+      )
     chunks.push(buffer)
   }
   return Buffer.concat(chunks)
@@ -159,16 +160,21 @@ export default defineConfig(({ command, mode }) => {
   }
   return {
     plugins: [react(), tailwindcss(), apiFunctions()],
-    server:
-      mode === 'https' ? localHttps() : { host: '127.0.0.1' as const },
+    server: mode === 'https' ? localHttps() : { host: '127.0.0.1' as const },
   }
 })
 
-function localHttps() {
-  const certificates = resolve(import.meta.dirname, '.certs')
+export function localHttps(
+  certificates = resolve(import.meta.dirname, '.certs'),
+) {
   const cert = join(certificates, 'studio.pem')
   const key = join(certificates, 'studio-key.pem')
-  return existsSync(cert) && existsSync(key)
-    ? { https: { cert: readFileSync(cert), key: readFileSync(key) } }
-    : undefined
+  try {
+    return { https: { cert: readFileSync(cert), key: readFileSync(key) } }
+  } catch (cause) {
+    throw new Error(
+      `HTTPS mode requires readable certificate files at "${cert}" and "${key}". Create them with mkcert or use "pnpm --filter studio dev" for HTTP.`,
+      { cause },
+    )
+  }
 }

@@ -1,10 +1,10 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import type { NavigableRoute } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { listExtractionSchemas } from '../schemaRevisions'
 import { Button, EmptyState } from '../ui'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
-import { getDocumentReopenSnapshot } from './transport'
+import { useSourceDocumentDownload } from './useSourceDocumentDownload'
 import { useProjectContexts, type WriteResult } from './useProjectContexts'
 
 export type ProjectContextPageProps = {
@@ -13,9 +13,12 @@ export type ProjectContextPageProps = {
 }
 
 type SchemaListState =
-  | { status: 'idle' | 'loading' }
-  | { status: 'ready'; schemas: Awaited<ReturnType<typeof listExtractionSchemas>> }
-  | { status: 'error'; message: string }
+  | {
+      status: 'ready'
+      requestKey: string
+      schemas: Awaited<ReturnType<typeof listExtractionSchemas>>
+    }
+  | { status: 'error'; requestKey: string; message: string }
 
 /**
  * The inline rename form. It keeps the typed name and shows a retryable
@@ -113,6 +116,8 @@ function DeleteDialog({
   const [failure, setFailure] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const dialog = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
+  const descriptionId = useId()
 
   // Native modality owns focus: `showModal` moves focus in and contains Tab.
   useEffect(() => {
@@ -123,8 +128,8 @@ function DeleteDialog({
     <dialog
       ref={dialog}
       className="m-auto w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
-      aria-labelledby="delete-dialog-title"
-      aria-describedby="delete-dialog-description"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
       onClose={onCancel}
       // Escape and every other dismissal wait for a write in flight, so a
       // failure keeps the dialog and its retry.
@@ -133,14 +138,11 @@ function DeleteDialog({
         if (!deleting) dialog.current?.close()
       }}
     >
-      <h2
-        id="delete-dialog-title"
-        className="text-sm font-bold text-ink"
-      >
+      <h2 id={titleId} className="text-sm font-bold text-ink">
         {title}
       </h2>
       <p
-        id="delete-dialog-description"
+        id={descriptionId}
         className="mt-2 text-xs leading-relaxed text-ink-muted"
       >
         {description}
@@ -182,7 +184,13 @@ function DeleteDialog({
 
 function PencilIcon() {
   return (
-    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+    <svg
+      aria-hidden="true"
+      width="14"
+      height="14"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+    >
       <path d="M13.586 3.586a2 2 0 1 1 2.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793 3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
     </svg>
   )
@@ -201,16 +209,40 @@ function PdfIcon() {
 
 function TrashIcon() {
   return (
-    <svg aria-hidden="true" width="15" height="15" viewBox="0 0 20 20" fill="none">
-      <path d="M3.5 5.5h13M8 2.5h4l1 3H7l1-3ZM5.5 5.5l.75 11h7.5l.75-11M8.25 8.5v5M11.75 8.5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      aria-hidden="true"
+      width="15"
+      height="15"
+      viewBox="0 0 20 20"
+      fill="none"
+    >
+      <path
+        d="M3.5 5.5h13M8 2.5h4l1 3H7l1-3ZM5.5 5.5l.75 11h7.5l.75-11M8.25 8.5v5M11.75 8.5v5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
 
 function DownloadIcon() {
   return (
-    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none">
-      <path d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 13.5v2.75c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25V13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 20 20"
+      fill="none"
+    >
+      <path
+        d="M10 2.5v9m0 0 3.5-3.5M10 11.5 6.5 8M3.5 13.5v2.75c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25V13.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -247,14 +279,20 @@ export default function ProjectContextPage({
   )
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
-  const [schemaList, setSchemaList] = useState<SchemaListState>({
-    status: 'idle',
-  })
+  const [settledSchemaList, setSettledSchemaList] =
+    useState<SchemaListState | null>(null)
   const [schemaRetry, setSchemaRetry] = useState(0)
+  const schemaRequestKey = `${projectContextId}:${schemaRetry}`
+  const schemaList =
+    settledSchemaList?.requestKey === schemaRequestKey
+      ? settledSchemaList
+      : null
   const renameTrigger = useRef<HTMLButtonElement>(null)
   const deleteTrigger = useRef<HTMLButtonElement>(null)
   const restoreRenameFocus = useRef(false)
   const sourceListRef = useRef<HTMLUListElement>(null)
+  const { downloadSource, downloadFailure } =
+    useSourceDocumentDownload(projectContextId)
   const branch = branches[projectContextId]
   const project =
     branch?.status === 'ready'
@@ -297,21 +335,6 @@ export default function ProjectContextPage({
     addSources(files.map((file) => ({ projectContextId, file })))
   }
 
-  const downloadSource = async (sourceDocumentId: string, name: string) => {
-    const snapshot = await getDocumentReopenSnapshot(
-      projectContextId,
-      sourceDocumentId,
-    )
-    const response = await fetch(snapshot.sourceRepresentation.resources.sourcePdfUrl)
-    if (!response.ok) throw new Error('Could not download the source PDF.')
-    const href = URL.createObjectURL(await response.blob())
-    const link = document.createElement('a')
-    link.href = href
-    link.download = name
-    link.click()
-    URL.revokeObjectURL(href)
-  }
-
   useEffect(() => {
     const closeOtherMenus = (event: PointerEvent) => {
       const openMenus = sourceListRef.current?.querySelectorAll('details[open]')
@@ -328,19 +351,24 @@ export default function ProjectContextPage({
   useEffect(() => {
     if (tab !== 'schemas') return
     const controller = new AbortController()
-    setSchemaList({ status: 'loading' })
     listExtractionSchemas(projectContextId, undefined, controller.signal).then(
-      (schemas) => setSchemaList({ status: 'ready', schemas }),
+      (schemas) =>
+        setSettledSchemaList({
+          status: 'ready',
+          requestKey: schemaRequestKey,
+          schemas,
+        }),
       (error: unknown) => {
         if (controller.signal.aborted) return
-        setSchemaList({
+        setSettledSchemaList({
           status: 'error',
+          requestKey: schemaRequestKey,
           message: error instanceof Error ? error.message : 'Unknown error.',
         })
       },
     )
     return () => controller.abort()
-  }, [projectContextId, schemaRetry, tab])
+  }, [projectContextId, schemaRequestKey, tab])
 
   if (branch?.status === 'error')
     return (
@@ -415,8 +443,8 @@ export default function ProjectContextPage({
                 ref={deleteTrigger}
                 className="rounded-md p-1.5 text-danger outline-none transition-colors hover:bg-danger/10 focus-visible:ring-2 focus-visible:ring-danger/30 disabled:opacity-60"
                 type="button"
-                aria-label="Delete"
-                title="Delete"
+                aria-label="Delete Project Context"
+                title="Delete Project Context"
                 onClick={() => setDeleting(true)}
                 disabled={!project}
               >
@@ -453,10 +481,10 @@ export default function ProjectContextPage({
                   event.preventDefault()
                   const sibling =
                     event.key === 'ArrowLeft'
-                      ? event.currentTarget.previousElementSibling ??
-                        event.currentTarget.parentElement?.lastElementChild
-                      : event.currentTarget.nextElementSibling ??
-                        event.currentTarget.parentElement?.firstElementChild
+                      ? (event.currentTarget.previousElementSibling ??
+                        event.currentTarget.parentElement?.lastElementChild)
+                      : (event.currentTarget.nextElementSibling ??
+                        event.currentTarget.parentElement?.firstElementChild)
                   if (sibling instanceof HTMLButtonElement) {
                     sibling.click()
                     sibling.focus()
@@ -492,7 +520,7 @@ export default function ProjectContextPage({
             className="py-4"
             tabIndex={0}
           >
-            {schemaList.status === 'ready' ? (
+            {schemaList?.status === 'ready' ? (
               schemaList.schemas.length === 0 ? (
                 <p className="py-6 text-center text-xs text-ink-muted">
                   No schemas yet.
@@ -504,7 +532,9 @@ export default function ProjectContextPage({
                       schema.currentRevision?.createdAt ?? schema.createdAt
                     return (
                       <li className="px-1 py-3" key={schema.extractionSchemaId}>
-                        <p className="text-xs font-semibold text-ink">{schema.name}</p>
+                        <p className="text-xs font-semibold text-ink">
+                          {schema.name}
+                        </p>
                         <dl className="mt-1 flex gap-3 text-[11px] text-ink-faint">
                           <div>
                             <dt className="sr-only">Current Schema Revision</dt>
@@ -519,9 +549,12 @@ export default function ProjectContextPage({
                             <dd>
                               <time dateTime={updatedAt}>
                                 Updated{' '}
-                                {new Date(updatedAt).toLocaleDateString(undefined, {
-                                  dateStyle: 'medium',
-                                })}
+                                {new Date(updatedAt).toLocaleDateString(
+                                  undefined,
+                                  {
+                                    dateStyle: 'medium',
+                                  },
+                                )}
                               </time>
                             </dd>
                           </div>
@@ -531,17 +564,22 @@ export default function ProjectContextPage({
                   })}
                 </ul>
               )
-            ) : schemaList.status === 'error' ? (
+            ) : schemaList?.status === 'error' ? (
               <div className="flex flex-col items-center gap-3 py-6 text-center">
                 <p className="text-xs text-danger" role="alert">
                   Could not load schemas. {schemaList.message}
                 </p>
-                <Button onClick={() => setSchemaRetry((attempt) => attempt + 1)}>
+                <Button
+                  onClick={() => setSchemaRetry((attempt) => attempt + 1)}
+                >
                   Retry
                 </Button>
               </div>
             ) : (
-              <p className="py-6 text-center text-xs text-ink-muted" aria-busy="true">
+              <p
+                className="py-6 text-center text-xs text-ink-muted"
+                aria-busy="true"
+              >
                 Loading schemas…
               </p>
             )}
@@ -568,7 +606,10 @@ export default function ProjectContextPage({
               onDragOver={(event) => event.preventDefault()}
               onDragLeave={(event) => {
                 const next = event.relatedTarget
-                if (!(next instanceof Node) || !event.currentTarget.contains(next))
+                if (
+                  !(next instanceof Node) ||
+                  !event.currentTarget.contains(next)
+                )
                   setDragging(false)
               }}
               onDrop={(event) => {
@@ -644,6 +685,12 @@ export default function ProjectContextPage({
               </select>
             </div>
 
+            {downloadFailure && (
+              <p className="mt-3 text-xs text-danger" role="alert">
+                {downloadFailure}
+              </p>
+            )}
+
             {branch?.status === 'loading' && (
               <p className="py-4 text-xs text-ink-muted" aria-busy="true">
                 Loading Source Documents…
@@ -688,7 +735,10 @@ export default function ProjectContextPage({
                   </li>
                 ))}
                 {sourceDocuments.map((document) => (
-                  <li className="flex items-center px-1 py-3" key={document.sourceDocumentId}>
+                  <li
+                    className="flex items-center px-1 py-3"
+                    key={document.sourceDocumentId}
+                  >
                     <button
                       className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none transition-colors hover:bg-line/20 focus-visible:ring-1 focus-visible:ring-accent"
                       type="button"
@@ -731,7 +781,16 @@ export default function ProjectContextPage({
                         <button
                           className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
                           type="button"
-                          onClick={() => void downloadSource(document.sourceDocumentId, document.name)}
+                          aria-label={`Download ${document.name}`}
+                          onClick={(event) => {
+                            event.currentTarget
+                              .closest('details')
+                              ?.removeAttribute('open')
+                            void downloadSource(
+                              document.sourceDocumentId,
+                              document.name,
+                            )
+                          }}
                         >
                           <DownloadIcon />
                           Download
@@ -739,12 +798,16 @@ export default function ProjectContextPage({
                         <button
                           className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-danger hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
                           type="button"
-                          onClick={() =>
+                          aria-label={`Delete Source Document ${document.name}`}
+                          onClick={(event) => {
+                            event.currentTarget
+                              .closest('details')
+                              ?.removeAttribute('open')
                             setDeletingSource({
                               sourceDocumentId: document.sourceDocumentId,
                               name: document.name,
                             })
-                          }
+                          }}
                         >
                           <TrashIcon />
                           Delete
@@ -769,7 +832,6 @@ export default function ProjectContextPage({
               ))}
           </div>
         )}
-
       </div>
 
       {deleting && project && (
@@ -777,9 +839,9 @@ export default function ProjectContextPage({
           title="Delete Project Context"
           description={
             <>
-              Deleting “{project.name}” permanently removes its Source Documents,
-              Annotations, Extraction Schema, Extractions, and Review Decisions.
-              This cannot be undone.
+              Deleting “{project.name}” permanently removes its Source
+              Documents, Annotations, Extraction Schema, Extractions, and Review
+              Decisions. This cannot be undone.
             </>
           }
           onConfirm={async () => {
@@ -789,9 +851,7 @@ export default function ProjectContextPage({
             // dropping onto <body>.
             if (!rejected) {
               onNavigate({ kind: 'root' })
-              document
-                .querySelector<HTMLElement>('[data-rail-toggle]')
-                ?.focus()
+              document.querySelector<HTMLElement>('[data-rail-toggle]')?.focus()
             }
             return rejected
           }}
@@ -806,8 +866,8 @@ export default function ProjectContextPage({
           title="Delete Source Document"
           description={
             <>
-              Deleting “{deletingSource.name}” permanently removes its annotations
-              and extractions. This cannot be undone.
+              Deleting “{deletingSource.name}” permanently removes its
+              annotations and extractions. This cannot be undone.
             </>
           }
           onConfirm={() =>

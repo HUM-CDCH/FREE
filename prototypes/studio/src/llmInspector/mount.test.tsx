@@ -34,6 +34,7 @@ describe('LLM inspector launcher', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Inspect LLM messages' }))
     expect(await screen.findByRole('dialog', { name: 'LLM message inspector' })).toBeInTheDocument()
+    expect(screen.getByText(/Provider exchanges only/)).toBeVisible()
     expect(await screen.findByText('Complete source text')).toBeInTheDocument()
     expect(screen.getByText('Complete model text')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
