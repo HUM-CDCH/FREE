@@ -1,0 +1,33 @@
+# Build contexts only need tracked sources; everything below is host-local,
+# generated, or a native install that must be rebuilt inside the image.
+**/node_modules
+**/.venv
+**/dist
+**/dist-lib
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*
+!**/.env.example
+
+.git
+.pnpm-store
+.omo
+.worktrees
+.codegraph
+.devcontainer
+.scratch
+.vscode
+.run
+.playwright-mcp
+.playwright-cli
+.ruff_cache
+.uv-cache-*
+.qlty
+coverage
+artifacts
+packages/db/src/generated
+prototypes/studio/test-results
+prototypes/studio/.certs
+prototypes/parsing_service/data
+prototypes/parsing_service_simple/data

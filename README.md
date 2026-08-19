@@ -22,13 +22,50 @@ FREE-managed provider credentials use the Dev Container user's GNOME Keyring.
 A Dev Container rebuild creates a fresh operating-system keyring, so enter any
 managed credentials again after rebuilding.
 
-## Start the Prototype
+## Run the whole stack in Docker
+
+`compose.yaml` builds and runs all three services together: PostgreSQL 17, the
+simple Docling Parsing Service, and Studio.
+
+```bash
+docker compose up --build
+```
+
+Studio then answers on <http://localhost:5173> and the Parsing Service on
+<http://localhost:8000>. The Studio container applies the database migrations
+for the current branch on every start, so no separate `db:init` is needed. To
+open the example Source Documents, seed once the stack is healthy:
+
+```bash
+docker compose exec studio pnpm db:seed
+```
+
+Four named volumes hold the state that must outlive a container: the PostgreSQL
+data directory, the Parsing Service task cache, its Docling model cache, and
+Studio's `FREE Studio` data and config directories (canonical ingestion
+packages, `model-config.json`, and the container keyring). Removing a volume
+discards that state, so re-enter FREE-managed credentials after
+`docker compose down --volumes`.
+
+The Parsing Service follows Docling's NVIDIA container baseline and requires an
+NVIDIA driver plus the NVIDIA container runtime. Compose exposes every GPU to
+the container and selects `DOCLING_DEVICE=cuda`. Expect the first `--build` to
+take a long time and a lot of disk: the service's `uv.lock` resolves the CUDA
+build of torch, so the image carries the whole `nvidia-*` wheel set. The first
+start then downloads the Docling layout and table models into the model-cache
+volume, which takes several more minutes; its health check allows for that.
+Later builds and starts reuse both caches.
+
+Every published port binds to host loopback only. Studio's API has no
+authentication, so this is a local run, not a hosted deployment.
+
+## Run the prototype on the host
 
 FREE keeps its research state in PostgreSQL 17. Start the database, then set its
 connection string. Do this once, from the repository root:
 
 ```bash
-docker compose -f packages/db/docker-compose.yml up -d
+docker compose up -d db
 cp packages/db/.env.example packages/db/.env
 pnpm install
 pnpm --filter db db:init

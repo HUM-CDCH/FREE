@@ -1,0 +1,54 @@
+# Build context is the repository root: Studio's API handlers import
+# `packages/db` directly, so the image needs the whole pnpm workspace.
+FROM node:24-bookworm-slim
+
+# `@napi-rs/keyring` is native and reaches the Secret Service over D-Bus, so
+# FREE-managed Model Connection credentials need a keyring inside the container.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates dbus-daemon gnome-keyring \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    HOME=/root
+RUN corepack enable && corepack prepare pnpm@10.9.0 --activate
+
+WORKDIR /workspace
+
+# Manifests first so the dependency layer survives every source edit.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/db/package.json packages/db/
+COPY packages/extraction-result-export/package.json packages/extraction-result-export/
+COPY prototypes/studio/package.json prototypes/studio/
+COPY prototypes/parsing_service/package.json prototypes/parsing_service/
+COPY prototypes/parsing_service_simple/package.json prototypes/parsing_service_simple/
+
+# The root `postinstall` runs `uv sync` for the Python services, which this
+# JavaScript-only image neither contains nor needs, so install skips scripts.
+# Naming the dependencies keeps the rebuild out of the workspace root's own
+# lifecycle script; the list is `onlyBuiltDependencies` from pnpm-workspace.yaml,
+# and an entry absent from the tree is ignored.
+RUN --mount=type=cache,target=/pnpm/store \
+    pnpm config set store-dir /pnpm/store --global \
+    && pnpm install --frozen-lockfile --ignore-scripts \
+    && pnpm rebuild @prisma/engines esbuild prisma
+
+COPY . .
+
+# The other half of that skipped `postinstall`. `packages/db/src/generated/prisma`
+# is emitted, never committed; emitting the contract reads the schema only, so
+# the connection string below is never dialled.
+RUN DATABASE_URL=postgresql://contract:emit@127.0.0.1:5432/free pnpm db:generate
+
+COPY docker/studio-entrypoint.sh /usr/local/bin/studio-entrypoint
+RUN chmod +x /usr/local/bin/studio-entrypoint
+
+# The keyring daemon needs both; the entrypoint creates the directory and socket.
+ENV XDG_RUNTIME_DIR=/tmp/free-keyring-runtime \
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/free-keyring-runtime/bus
+
+EXPOSE 5173
+ENTRYPOINT ["/usr/local/bin/studio-entrypoint"]
+# Studio's `/api` routes are Vite dev-server middleware, so the dev server is
+# the application server. `--host` publishes it on the container network.
+CMD ["pnpm", "--filter", "studio", "dev", "--host", "0.0.0.0", "--strictPort"]
