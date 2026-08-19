@@ -20,7 +20,7 @@ const SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT = 51 * 1024 * 1024
 
 // Parameterized resources cannot be named by their pathname, so they are the one
 // explicit table; every other route stays discoverable from `api/`. Each pattern
-// only picks the module — the handler owns its exact grammar and answers 404.
+// admits the complete route grammar before selecting its handler module.
 const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [SOURCE_DOCUMENT_ROUTE, 'source_documents'],
   [SOURCE_DOCUMENT_REOPEN_ROUTE, 'document_reopen'],
@@ -28,9 +28,18 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
   [/^\/api\/extraction-schemas(?:\/[^/]+)?$/, 'extraction_schemas'],
   [/^\/api\/extractions(?:\/[^/]+)?(?:\/review)?$/, 'extractions'],
-  [/^\/api\/batch-extractions(?:\/[^/]+)?(?:\/retry)?$/, 'batch_extractions'],
-  [/^\/api\/batch-schema-suggestions(?:\/[^/]+)?(?:\/(?:draft|run|retry))?$/, 'batch_schema_suggestions'],
-  [/^\/api\/source-representations\//, 'source_representations'],
+  [
+    /^\/api\/batch-extractions(?:\/[^/]+)?(?:\/(?:retry|results))?$/,
+    'batch_extractions',
+  ],
+  [
+    /^\/api\/batch-schema-suggestions(?:\/[^/]+)?(?:\/(?:draft|run|retry))?$/,
+    'batch_schema_suggestions',
+  ],
+  [
+    /^\/api\/source-representations\/[^/]+\/(?:pdf|markdown|source)$/,
+    'source_representations',
+  ],
 ]
 
 /**

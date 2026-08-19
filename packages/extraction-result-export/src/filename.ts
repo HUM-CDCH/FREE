@@ -4,8 +4,12 @@ const MAX_NAME_LENGTH = 255;
 
 export type ExportFormat = "csv" | "xlsx";
 
-/** Builds `<source-name>-extraction-result.<format>` as a Windows-safe name. */
-export function createExportFilename(sourceName: string, format: ExportFormat): string {
+/** Builds `<source-name>-<suffix>.<format>` as a Windows-safe name. */
+export function createExportFilename(
+  sourceName: string,
+  format: ExportFormat,
+  kind = "extraction-result",
+): string {
   const leaf = sourceName.split(/[\\/]/).at(-1) ?? "";
   let name = leaf
     .replace(/\.[^.]+$/, "")
@@ -17,6 +21,6 @@ export function createExportFilename(sourceName: string, format: ExportFormat): 
   if (WINDOWS_RESERVED.test(name)) name = `_${name}`;
   if (name.length === 0) name = "result";
 
-  const suffix = `-extraction-result.${format}`;
+  const suffix = `-${kind}.${format}`;
   return `${name.slice(0, MAX_NAME_LENGTH - suffix.length).replace(/[ .]+$/g, "")}${suffix}`;
 }

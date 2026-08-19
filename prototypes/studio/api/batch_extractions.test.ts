@@ -8,6 +8,7 @@ import {
   batchExtractionListResponseSchema,
   batchExtractionProgress,
   batchExtractionResponseSchema,
+  batchExtractionResultsResponseSchema,
 } from '../shared/batchExtraction.contract.js'
 import { createBatchExtractionsApi } from './batch_extractions.js'
 
@@ -637,6 +638,90 @@ describe('/api/batch-extractions', () => {
     }).handle(
       new Request(`http://test/api/batch-extractions?projectContextId=${PROJECT}`),
     )
+
+    expect(unavailable.status).toBe(503)
+    expect(await unavailable.text()).not.toContain('secret')
+  })
+})
+
+describe('/api/batch-extractions/:id/results', () => {
+  const results = (
+    overrides: Partial<Pick<ProjectStore, 'getBatchExtractionResults'>> = {},
+  ) => {
+    const store = {
+      getBatchExtractionResults: vi.fn(async () => ({
+        batchExtractionId: BATCH,
+        executionStatus: 'RUNNING' as const,
+        totalMembers: 4,
+        successfulResults: 1,
+        pending: 1,
+        failed: 1,
+        cancelled: 1,
+        results: [
+          {
+            sourceDocumentId: REVIEWED,
+            extractionId: '51000000-0000-4000-8006-000000000001',
+            resultPayload: { records: [{ place: 'Rome' }] },
+          },
+        ],
+      })),
+      ...overrides,
+    }
+    return {
+      handle: createBatchExtractionsApi(store as never, { kick: vi.fn() }),
+      store,
+    }
+  }
+  const request = (query = `?projectContextId=${PROJECT}`) =>
+    new Request(`http://test/api/batch-extractions/${BATCH}/results${query}`)
+
+  it('answers every Extraction Result the batch has produced', async () => {
+    const { handle, store } = results()
+
+    const response = await handle(request())
+
+    expect(response.status).toBe(200)
+    expect(store.getBatchExtractionResults).toHaveBeenCalledWith(PROJECT, BATCH)
+    expect(
+      batchExtractionResultsResponseSchema.parse(await response.json()),
+    ).toEqual({
+      batchExtractionId: BATCH,
+      executionStatus: 'RUNNING',
+      totalMembers: 4,
+      successfulResults: 1,
+      pending: 1,
+      failed: 1,
+      cancelled: 1,
+      results: [
+        {
+          sourceDocumentId: REVIEWED,
+          extractionId: '51000000-0000-4000-8006-000000000001',
+          result: { records: [{ place: 'Rome' }] },
+        },
+      ],
+    })
+  })
+
+  it('refuses a non-canonical identity and answers 404 for an unknown batch', async () => {
+    expect((await results().handle(request('?projectContextId=nope'))).status).toBe(
+      422,
+    )
+    expect((await results().handle(request(''))).status).toBe(422)
+    expect(
+      (
+        await results({
+          getBatchExtractionResults: vi.fn(async () => null),
+        }).handle(request())
+      ).status,
+    ).toBe(404)
+  })
+
+  it('sanitizes an unreadable persisted read', async () => {
+    const unavailable = await results({
+      getBatchExtractionResults: vi.fn(async () => {
+        throw new Error('postgresql://secret')
+      }),
+    }).handle(request())
 
     expect(unavailable.status).toBe(503)
     expect(await unavailable.text()).not.toContain('secret')

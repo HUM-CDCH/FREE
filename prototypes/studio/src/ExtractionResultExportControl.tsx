@@ -2,8 +2,8 @@ import { useRef, useState } from 'react'
 import {
   createExtractionResultExportControl,
   deriveRowsRepresentOptions,
-  exportExtractionResult,
   ROOT_ROWS,
+  type ExportChoices,
   type ExportFormat,
   type OtherRepeatedFields,
 } from 'extraction-result-export'
@@ -11,15 +11,25 @@ import type { SchemaDefinition } from '../shared/schemaNode'
 import { Button } from './ui'
 
 type ExtractionResultExportControlProps = {
-  result: unknown | null
+  /** The schema the export projects through: pinned, or the current one. */
   schema: SchemaDefinition | null
-  sourceDocumentName: string
+  /** True while there is nothing to export yet. */
+  disabled?: boolean
+  /** Explains why an otherwise available export is disabled. */
+  disabledReason?: string | null
+  onExport: (format: ExportFormat, choices: ExportChoices) => Promise<void>
 }
 
+/**
+ * The researcher's spreadsheet export: the schema-led choices, then the format.
+ * The caller owns what is exported, so one Extraction Result and a whole Batch
+ * Extraction offer the same control.
+ */
 function ExtractionResultExportControl({
-  result,
   schema,
-  sourceDocumentName,
+  disabled = false,
+  disabledReason = null,
+  onExport,
 }: ExtractionResultExportControlProps) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
@@ -27,7 +37,7 @@ function ExtractionResultExportControl({
   const [rowsRepresent, setRowsRepresent] = useState(ROOT_ROWS)
   const [otherRepeatedFields, setOtherRepeatedFields] = useState<OtherRepeatedFields>('preserve')
   const inFlight = useRef(false)
-  const unavailable = result === null || schema === null
+  const unavailable = disabled || schema === null
   const rowOptions = schema ? deriveRowsRepresentOptions(schema.schemaNodes) : []
   const effectiveRows = rowOptions.some((option) => option.value === rowsRepresent)
     ? rowsRepresent
@@ -40,17 +50,15 @@ function ExtractionResultExportControl({
     : null
 
   async function exportResult(format: ExportFormat): Promise<void> {
-    if (result === null || schema === null || inFlight.current) return
+    if (unavailable || inFlight.current) return
     inFlight.current = true
     setOpen(false)
     setPending(true)
     setError(null)
     try {
-      await exportExtractionResult(result, {
-        format,
-        filename: sourceDocumentName,
-        schemaNodes: schema.schemaNodes,
-        choices: { rowsRepresent: effectiveRows, otherRepeatedFields },
+      await onExport(format, {
+        rowsRepresent: effectiveRows,
+        otherRepeatedFields,
       })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not export the Extraction Result.')
@@ -75,6 +83,11 @@ function ExtractionResultExportControl({
       >
         {pending ? 'Exporting…' : 'Export'}
       </Button>
+      {unavailable && disabledReason && (
+        <p className="max-w-72 text-right text-[11.5px] leading-snug text-ink-muted">
+          {disabledReason}
+        </p>
+      )}
       {open && control && !pending && (
         <div
           role="dialog"

@@ -332,6 +332,121 @@ async function loadBatchExtraction(
   }
 }
 
+/**
+ * Read one atomic export snapshot without traversing the mis-correlated
+ * BatchExtractionMember.extractions composite relation. Both collections are
+ * direct children of the one Batch Extraction and are joined by member pins.
+ */
+async function loadBatchExtractionResults(
+  orm: Orm,
+  projectContextId: string,
+  batchExtractionId: string,
+): Promise<BatchExtractionResultsRecord | null> {
+  const batch = (await orm.public.BatchExtraction.select(
+    'id',
+    'executionStatus',
+  )
+    .include('members' as never, (members) =>
+      members
+        .select(
+          'sourceDocumentId',
+          'sourceRepresentationRevisionId',
+          'executionStatus',
+        )
+        .orderBy((member) => member.sourceDocumentId.asc()),
+    )
+    .include('extractions' as never, (attempts) =>
+      attempts
+        .select(
+          'id',
+          'sourceDocumentId',
+          'sourceRepresentationRevisionId',
+          'outcome',
+          'resultPayload',
+          'createdAt',
+        )
+        .orderBy([
+          (attempt) => attempt.createdAt.desc(),
+          (attempt) => attempt.id.desc(),
+        ]),
+    )
+    .first({ id: batchExtractionId, projectContextId })) as unknown as {
+    id: string
+    executionStatus: ProjectOperationStatus
+    members: Array<{
+      sourceDocumentId: string
+      sourceRepresentationRevisionId: string
+      executionStatus: ProjectOperationStatus
+    }>
+    extractions: Array<{
+      id: string
+      sourceDocumentId: string
+      sourceRepresentationRevisionId: string
+      outcome: 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+      resultPayload: unknown | null
+      createdAt: Date
+    }>
+  } | null
+  if (!batch) return null
+
+  const latestAttemptByMember = new Map<
+    string,
+    (typeof batch.extractions)[number]
+  >()
+  for (const attempt of batch.extractions) {
+    const memberKey = `${attempt.sourceDocumentId}:${attempt.sourceRepresentationRevisionId}`
+    if (!latestAttemptByMember.has(memberKey))
+      latestAttemptByMember.set(memberKey, attempt)
+  }
+
+  const results: BatchExtractionResultRecord[] = []
+  let pending = 0
+  let failed = 0
+  let cancelled = 0
+  for (const member of batch.members) {
+    const extraction = latestAttemptByMember.get(
+      `${member.sourceDocumentId}:${member.sourceRepresentationRevisionId}`,
+    )
+    if (!extraction) {
+      if (
+        member.executionStatus === 'QUEUED' ||
+        member.executionStatus === 'RUNNING'
+      )
+        pending += 1
+      else if (member.executionStatus === 'FAILED') failed += 1
+      continue
+    }
+    if (extraction.outcome === 'FAILED') {
+      failed += 1
+      continue
+    }
+    if (extraction.outcome === 'CANCELLED') {
+      cancelled += 1
+      continue
+    }
+    if (
+      extraction.outcome !== 'SUCCEEDED' ||
+      extraction.resultPayload === null
+    )
+      continue
+    results.push({
+      sourceDocumentId: member.sourceDocumentId,
+      extractionId: extraction.id,
+      resultPayload: extraction.resultPayload,
+    })
+  }
+  return {
+    batchExtractionId: batch.id,
+    executionStatus: batch.executionStatus as ProjectOperationStatus,
+    totalMembers: batch.members.length,
+    successfulResults: results.length,
+    pending,
+    failed,
+    cancelled,
+    results,
+  }
+}
+
 /** Rebuild the durable suggestion snapshot, including its pinned artifacts. */
 async function loadBatchSchemaSuggestion(
   orm: Orm,
@@ -684,6 +799,25 @@ export type BatchExtractionRecord = {
   members: BatchExtractionMemberRecord[]
 }
 
+/** One member's Extraction Result, as the researcher's export reads it. */
+export type BatchExtractionResultRecord = {
+  sourceDocumentId: string
+  extractionId: string
+  resultPayload: unknown
+}
+
+/** Atomic export metadata and the latest successful member results. */
+export type BatchExtractionResultsRecord = {
+  batchExtractionId: string
+  executionStatus: ProjectOperationStatus
+  totalMembers: number
+  successfulResults: number
+  pending: number
+  failed: number
+  cancelled: number
+  results: BatchExtractionResultRecord[]
+}
+
 export type CreateBatchExtractionInput = {
   batchExtractionId: string
   schemaRevisionId: string
@@ -930,6 +1064,11 @@ export type ProjectStore = {
     projectContextId: string,
     batchExtractionId: string,
   ): Promise<BatchExtractionRecord | null>
+  /** The Extraction Results a Batch Extraction has produced so far. */
+  getBatchExtractionResults(
+    projectContextId: string,
+    batchExtractionId: string,
+  ): Promise<BatchExtractionResultsRecord | null>
   retryBatchExtraction(
     projectContextId: string,
     batchExtractionId: string,
@@ -2300,6 +2439,13 @@ export function createProjectStore(database: Database = db): ProjectStore {
     },
     async getBatchExtraction(projectContextId, batchExtractionId) {
       return loadBatchExtraction(
+        database.orm,
+        projectContextId,
+        batchExtractionId,
+      )
+    },
+    async getBatchExtractionResults(projectContextId, batchExtractionId) {
+      return loadBatchExtractionResults(
         database.orm,
         projectContextId,
         batchExtractionId,

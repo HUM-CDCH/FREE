@@ -277,6 +277,112 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
   assert.equal(listed?.[0].schemaRevisionNumber, 2)
   assert.equal(listed?.[0].members[0].latestExtraction?.outcome, 'FAILED')
 
+  // Export reads are one set-based statement: each member contributes only
+  // its latest attempt, while metadata and counts come from the same snapshot.
+  const duplicateDocument = await db.orm.public.SourceDocument.create({
+    projectContextId: project.id,
+    ingestionKey: '51000000-0000-4000-9000-000000000104',
+    contentSha256: 'f'.repeat(64),
+    mediaType: 'application/pdf',
+    originalName: 'doomed.pdf',
+  })
+  const duplicateRepresentation =
+    await db.orm.public.SourceRepresentationRevision.create({
+      sourceDocumentId: duplicateDocument.id,
+      revisionNumber: 1,
+      artifactReference: 'f'.repeat(64),
+      artifactSha256: 'f'.repeat(64),
+      contractVersion: 'parsed_document.v2',
+      preprocessId: `sha256:${'f'.repeat(64)}`,
+      parserName: 'test',
+      parserVersion: '1',
+    })
+  const exportBatchId = '51000000-0000-4000-9000-000000000105'
+  const exportBatch = await store.createBatchExtraction(project.id, {
+    batchExtractionId: exportBatchId,
+    schemaRevisionId: appliedRevision.id,
+    strategy: 'CATALOG',
+    sourceDocumentIds: [document.id, duplicateDocument.id],
+  })
+  assert.equal(exportBatch?.status, 'created')
+  const supersededSuccessId = '51000000-0000-4000-9000-000000000106'
+  await db.orm.public.Extraction.create({
+    id: supersededSuccessId,
+    sourceDocumentId: document.id,
+    schemaRevisionId: appliedRevision.id,
+    sourceRepresentationRevisionId: newerRepresentation.id,
+    batchExtractionId: exportBatchId,
+    strategy: 'CATALOG',
+    outcome: 'SUCCEEDED',
+    complete: true,
+    diagnostics: {},
+    modelAttribution: {},
+    resultPayload: { stale: true },
+    reviewable: true,
+    createdAt: new Date('2026-08-19T10:00:00.000Z'),
+  })
+  await db.orm.public.Extraction.create({
+    id: '51000000-0000-4000-9000-000000000107',
+    sourceDocumentId: document.id,
+    schemaRevisionId: appliedRevision.id,
+    sourceRepresentationRevisionId: newerRepresentation.id,
+    batchExtractionId: exportBatchId,
+    strategy: 'CATALOG',
+    outcome: 'FAILED',
+    diagnostics: {},
+    failure: { code: 'extraction_failed', message: 'Latest attempt failed.' },
+    reviewable: false,
+    retryOfId: supersededSuccessId,
+    createdAt: new Date('2026-08-19T10:01:00.000Z'),
+  })
+  const retainedSuccessId = '51000000-0000-4000-9000-000000000108'
+  await db.orm.public.Extraction.create({
+    id: retainedSuccessId,
+    sourceDocumentId: duplicateDocument.id,
+    schemaRevisionId: appliedRevision.id,
+    sourceRepresentationRevisionId: duplicateRepresentation.id,
+    batchExtractionId: exportBatchId,
+    strategy: 'CATALOG',
+    outcome: 'SUCCEEDED',
+    complete: true,
+    diagnostics: {},
+    modelAttribution: {},
+    resultPayload: { retained: true },
+    reviewable: true,
+    createdAt: new Date('2026-08-19T10:00:00.000Z'),
+  })
+
+  assert.deepEqual(await store.getBatchExtractionResults(project.id, exportBatchId), {
+    batchExtractionId: exportBatchId,
+    executionStatus: 'QUEUED',
+    totalMembers: 2,
+    successfulResults: 1,
+    pending: 0,
+    failed: 1,
+    cancelled: 0,
+    results: [
+      {
+        sourceDocumentId: duplicateDocument.id,
+        extractionId: retainedSuccessId,
+        resultPayload: { retained: true },
+      },
+    ],
+  })
+  assert.equal(
+    await store.getBatchExtractionResults(survivor.id, exportBatchId),
+    null,
+  )
+  await db.orm.public.BatchExtraction.where({ id: exportBatchId }).delete()
+  assert.deepEqual(
+    await store.deleteSourceDocument(project.id, duplicateDocument.id),
+    [
+      {
+        artifactReference: duplicateRepresentation.artifactReference,
+        artifactSha256: duplicateRepresentation.artifactSha256,
+      },
+    ],
+  )
+
   const suggestedBatch = await store.createBatchExtraction(project.id, {
     batchExtractionId: '51000000-0000-4000-9000-000000000103',
     schemaRevisionId: appliedRevision.id,

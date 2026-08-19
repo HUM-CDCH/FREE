@@ -136,6 +136,25 @@ describe('ProjectStore Extraction lifecycle on PostgreSQL', { skip: !enabled }, 
       (await store.persistExtractionAttempt(olderBatchExtraction)).status,
       'created',
     )
+    assert.deepEqual(
+      await store.getBatchExtractionResults(projectContextId, batchExtractionId),
+      {
+        batchExtractionId,
+        executionStatus: 'QUEUED',
+        totalMembers: 1,
+        successfulResults: 1,
+        pending: 0,
+        failed: 0,
+        cancelled: 0,
+        results: [
+          {
+            sourceDocumentId,
+            extractionId: olderBatchExtractionId,
+            resultPayload: { records: [{ title: 'Ellekilde' }] },
+          },
+        ],
+      },
+    )
     await db.orm.public.SchemaRevision.create({
       id: schemaRevision2,
       extractionSchemaId,
@@ -354,5 +373,158 @@ describe('ProjectStore Extraction lifecycle on PostgreSQL', { skip: !enabled }, 
     await assert.rejects(
       db.orm.public.Extraction.where({ id: newerId }).delete(),
     )
+  })
+
+  it('maps each Batch Extraction member to its own latest Extraction Result', async () => {
+    const projectContextId = randomUUID()
+    const firstDocumentId = randomUUID()
+    const secondDocumentId = randomUUID()
+    const firstRepresentationId = randomUUID()
+    const secondRepresentationId = randomUUID()
+    const extractionSchemaId = randomUUID()
+    const schemaRevisionId = randomUUID()
+    const batchExtractionId = randomUUID()
+    const firstOlderExtractionId = randomUUID()
+    const firstExtractionId = randomUUID()
+    const secondExtractionId = randomUUID()
+    const store = createProjectStore()
+
+    await db.orm.public.ProjectContext.create({
+      id: projectContextId,
+      name: 'Batch result correlation test',
+    })
+    try {
+      for (const [documentId, representationId, hash, originalName] of [
+        [firstDocumentId, firstRepresentationId, 'c', 'first.pdf'],
+        [secondDocumentId, secondRepresentationId, 'd', 'second.pdf'],
+      ] as const) {
+        await db.orm.public.SourceDocument.create({
+          id: documentId,
+          projectContextId,
+          ingestionKey: documentId,
+          contentSha256: hash.repeat(64),
+          mediaType: 'application/pdf',
+          originalName,
+        })
+        await db.orm.public.SourceRepresentationRevision.create({
+          id: representationId,
+          sourceDocumentId: documentId,
+          revisionNumber: 1,
+          artifactReference: hash.repeat(64),
+          artifactSha256: hash.repeat(64),
+          contractVersion: 'parsed_document.v2',
+          preprocessId: `preprocess-${hash}`,
+          parserName: 'fixture',
+          parserVersion: '1',
+        })
+      }
+      await db.orm.public.ExtractionSchema.create({
+        id: extractionSchemaId,
+        projectContextId,
+        name: 'Batch result correlation schema',
+      })
+      await db.orm.public.SchemaRevision.create({
+        id: schemaRevisionId,
+        extractionSchemaId,
+        revisionNumber: 1,
+        origin: 'RESEARCHER_EDIT',
+        schemaTree: {
+          recordDescription: 'One title record.',
+          schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+        },
+      })
+      assert.equal(
+        (
+          await store.createBatchExtraction(projectContextId, {
+            batchExtractionId,
+            schemaRevisionId,
+            strategy: 'ARTICLE',
+            sourceDocumentIds: [firstDocumentId, secondDocumentId],
+          })
+        )?.status,
+        'created',
+      )
+      for (const [
+        extractionId,
+        sourceDocumentId,
+        sourceRepresentationRevisionId,
+        title,
+        createdAt,
+      ] of [
+        [
+          firstOlderExtractionId,
+          firstDocumentId,
+          firstRepresentationId,
+          'Superseded title',
+          new Date('2026-08-19T09:59:00.000Z'),
+        ],
+        [
+          firstExtractionId,
+          firstDocumentId,
+          firstRepresentationId,
+          'Ellekilde',
+          new Date('2026-08-19T10:00:00.000Z'),
+        ],
+        [
+          secondExtractionId,
+          secondDocumentId,
+          secondRepresentationId,
+          'Grundtvig',
+          new Date('2026-08-19T10:01:00.000Z'),
+        ],
+      ] as const)
+        await db.orm.public.Extraction.create({
+          id: extractionId,
+          sourceDocumentId,
+          sourceRepresentationRevisionId,
+          schemaRevisionId,
+          batchExtractionId,
+          strategy: 'ARTICLE',
+          outcome: 'SUCCEEDED',
+          complete: true,
+          modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+          diagnostics,
+          resultPayload: { records: [{ title }] },
+          evidenceLinks: [],
+          reviewable: true,
+          createdAt,
+        })
+
+      const result = await store.getBatchExtractionResults(
+        projectContextId,
+        batchExtractionId,
+      )
+      assert.equal(result?.totalMembers, 2)
+      assert.equal(result?.successfulResults, 2)
+      assert.deepEqual(
+        new Map(
+          result?.results.map((memberResult) => [
+            memberResult.sourceDocumentId,
+            {
+              extractionId: memberResult.extractionId,
+              resultPayload: memberResult.resultPayload,
+            },
+          ]),
+        ),
+        new Map([
+          [
+            firstDocumentId,
+            {
+              extractionId: firstExtractionId,
+              resultPayload: { records: [{ title: 'Ellekilde' }] },
+            },
+          ],
+          [
+            secondDocumentId,
+            {
+              extractionId: secondExtractionId,
+              resultPayload: { records: [{ title: 'Grundtvig' }] },
+            },
+          ],
+        ]),
+      )
+    } finally {
+      await db.orm.public.ProjectContext.where({ id: projectContextId }).delete()
+    }
   })
 })

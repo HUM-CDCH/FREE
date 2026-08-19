@@ -1,17 +1,20 @@
-import { serializeCsv } from "./csv.js";
-import { downloadBlob } from "./download.js";
 import { createExportFilename, type ExportFormat } from "./filename.js";
 import { validateSpreadsheetDimensions } from "./safety.js";
 import {
-  buildExportTable,
-  createExtractionResultExportControl,
-  ROOT_ROWS,
-  type ExportChoices,
-} from "./table.js";
-import { createXlsxBlob } from "./xlsx.js";
+  assertExportFormat,
+  deliverTable,
+  resolveExportChoices,
+} from "./spreadsheet.js";
+import { buildExportTable, ROOT_ROWS, type ExportChoices } from "./table.js";
 import type { SchemaNode } from "../../../prototypes/studio/shared/schemaNode.js";
 
 export type { ExportFormat } from "./filename.js";
+export {
+  buildBatchExportTable,
+  exportBatchExtractionResults,
+  type BatchExportMember,
+  type ExportBatchExtractionResultsOptions,
+} from "./batch.js";
 export {
   buildExportTable,
   createExtractionResultExportControl,
@@ -40,24 +43,17 @@ export async function exportExtractionResult(
   result: unknown,
   options: ExportExtractionResultOptions,
 ): Promise<void> {
-  if (options.format !== "csv" && options.format !== "xlsx") {
-    throw new TypeError(`Unsupported export format: ${String(options.format)}.`);
-  }
+  assertExportFormat(options.format);
 
-  const control = createExtractionResultExportControl(options.schemaNodes, options.choices);
-  const choices: ExportChoices = {
-    rowsRepresent: control.rowsRepresent.value,
-    otherRepeatedFields: control.otherRepeatedFields.value,
-  };
+  const choices = resolveExportChoices(options.schemaNodes, options.choices);
   if (options.format === "xlsx" && choices.rowsRepresent === ROOT_ROWS && Array.isArray(result)) {
     validateSpreadsheetDimensions(result.length, 0);
   }
 
   const table = buildExportTable(options.schemaNodes, result, choices);
-  const blob =
-    options.format === "csv"
-      ? new Blob([serializeCsv(table)], { type: "text/csv;charset=utf-8" })
-      : await createXlsxBlob(table);
-
-  downloadBlob(blob, createExportFilename(options.filename, options.format));
+  await deliverTable(
+    table,
+    options.format,
+    createExportFilename(options.filename, options.format),
+  );
 }

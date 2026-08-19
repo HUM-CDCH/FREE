@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { exportExtractionResult } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ResultValue, { singularItemLabel } from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
@@ -470,9 +471,17 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
               />
               <div className="flex gap-1.5">
                 <ExtractionResultExportControl
-                  result={displayResult}
                   schema={exportSchema}
-                  sourceDocumentName={sourceDocumentName}
+                  disabled={displayResult === null}
+                  onExport={async (format, choices) => {
+                    if (displayResult === null || exportSchema === null) return
+                    await exportExtractionResult(displayResult, {
+                      format,
+                      filename: sourceDocumentName,
+                      schemaNodes: exportSchema.schemaNodes,
+                      choices,
+                    })
+                  }}
                 />
                 {!readOnly && controller.review.available && (
                   <Button
