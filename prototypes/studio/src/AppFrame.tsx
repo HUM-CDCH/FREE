@@ -308,13 +308,13 @@ export default function AppFrame({
           <img
             src="/free-logo.png"
             alt=""
-            className="size-7.5 shrink-0 object-contain"
+            className="size-20 shrink-0 -translate-y-1 object-contain"
           />
-          {effectiveNavOpen && (
+          {/* {effectiveNavOpen && (
             <h1 className="text-[17px] font-extrabold tracking-[0.06em]">
               FREE
             </h1>
-          )}
+          )} */}
         </div>
         <aside className="min-h-0 flex-1" aria-label="Project navigation">
           <ProjectContextRail
