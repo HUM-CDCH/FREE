@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { ProjectContextRail } from './projectContexts/ProjectContextRail'
+import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
+import DocumentTabBar from './DocumentTabBar'
+import { useOpenDocumentTabs } from './useOpenDocumentTabs'
 import type { NavigableRoute, Route } from './projectNavigation'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import type { ProjectContextRouteState } from './projectContexts/useProjectContexts'
@@ -59,14 +62,11 @@ function EmptyWorkspace({
   } else if (route.kind === 'document') {
     if (branch?.status === 'loading') {
       return (
-        <div className="flex h-full flex-col">
-          <div className="h-14 shrink-0 border-b border-line bg-surface" />
-          <div
-            className="flex min-h-0 flex-1 items-center justify-center text-sm text-ink-muted"
-            aria-busy="true"
-          >
-            Loading Project Context…
-          </div>
+        <div
+          className="flex h-full items-center justify-center text-sm text-ink-muted"
+          aria-busy="true"
+        >
+          Loading Project Context…
         </div>
       )
     }
@@ -100,22 +100,19 @@ function EmptyWorkspace({
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="h-14 shrink-0 border-b border-line bg-surface" />
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-8">
-        <EmptyState
-          className="max-w-sm bg-surface"
-          icon={route.kind === 'root' ? undefined : '▢'}
-          title={title}
-          description={description}
-          tone={tone}
-        />
-        {retry && (
-          <Button variant="secondary" size="md" onClick={onRetry}>
-            Try again
-          </Button>
-        )}
-      </div>
+    <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
+      <EmptyState
+        className="max-w-sm bg-surface"
+        icon={route.kind === 'root' ? undefined : '▢'}
+        title={title}
+        description={description}
+        tone={tone}
+      />
+      {retry && (
+        <Button variant="secondary" size="md" onClick={onRetry}>
+          Try again
+        </Button>
+      )}
     </div>
   )
 }
@@ -134,6 +131,9 @@ export default function AppFrame({
   const [navWidth, setNavWidth] = useState(212)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [providersOpen, setProvidersOpen] = useState(false)
+  const [tabBarSlot, setTabBarSlot] = useState<HTMLDivElement | null>(null)
+  const tabs = useOpenDocumentTabs()
+  const { projects } = useProjectContexts()
 
   useEffect(() => {
     const onResize = () => setViewportWidth(window.innerWidth)
@@ -191,7 +191,88 @@ export default function AppFrame({
     extractionSchema: openDocument.extractionSchema,
     persistedExtraction: openDocument.latestAttempt,
     latestReviewedExtraction: openDocument.latestReviewed,
+    tabBarSlot,
   }
+
+  // Keeps open tabs in sync with routes reached other than a tab-strip or
+  // rail click — a deep link, browser back/forward, or the Project Context
+  // page's own document list.
+  useEffect(() => {
+    if (route.kind !== 'document' || !workspace) return
+    if (
+      tabs.activeSourceDocumentIdFor(route.projectContextId) ===
+      route.sourceDocumentId
+    )
+      return
+    tabs.open(route.projectContextId, route.sourceDocumentId, workspace.filename)
+    // `tabs` itself is a fresh object every render; its individual functions
+    // are the stable (useCallback) identities this effect actually depends on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, workspace, tabs.activeSourceDocumentIdFor, tabs.open])
+
+  function isRoutedDocument(projectContextId: string, sourceDocumentId: string) {
+    return (
+      route.kind === 'document' &&
+      route.projectContextId === projectContextId &&
+      route.sourceDocumentId === sourceDocumentId
+    )
+  }
+
+  function openSourceDocument(
+    projectContextId: string,
+    sourceDocumentId: string,
+    name: string,
+  ) {
+    tabs.open(projectContextId, sourceDocumentId, name)
+    if (!isRoutedDocument(projectContextId, sourceDocumentId))
+      onNavigate({ kind: 'document', projectContextId, sourceDocumentId })
+  }
+
+  function activateTab(sourceDocumentId: string) {
+    if (!routedProjectContextId) return
+    tabs.activate(routedProjectContextId, sourceDocumentId)
+    if (!isRoutedDocument(routedProjectContextId, sourceDocumentId))
+      onNavigate({
+        kind: 'document',
+        projectContextId: routedProjectContextId,
+        sourceDocumentId,
+      })
+  }
+
+  function closeTab(sourceDocumentId: string) {
+    if (!routedProjectContextId) return
+    const nextActiveSourceDocumentId = tabs.close(
+      routedProjectContextId,
+      sourceDocumentId,
+    )
+    if (!isRoutedDocument(routedProjectContextId, sourceDocumentId)) return
+    if (nextActiveSourceDocumentId)
+      onNavigate({
+        kind: 'document',
+        projectContextId: routedProjectContextId,
+        sourceDocumentId: nextActiveSourceDocumentId,
+      })
+    else onNavigate({ kind: 'project', projectContextId: routedProjectContextId })
+  }
+
+  const openProjectTabs = routedProjectContextId
+    ? tabs.tabsFor(routedProjectContextId)
+    : []
+  const activeTabSourceDocumentId = routedProjectContextId
+    ? tabs.activeSourceDocumentIdFor(routedProjectContextId)
+    : null
+  const activeProjectName =
+    projects.find(
+      (project) => project.projectContextId === routedProjectContextId,
+    )?.name ?? ''
+  const activeDocumentName =
+    route.kind === 'document'
+      ? (workspace?.filename ??
+        openProjectTabs.find(
+          (tab) => tab.sourceDocumentId === route.sourceDocumentId,
+        )?.name ??
+        null)
+      : null
 
   function startResize(event: React.MouseEvent) {
     event.preventDefault()
@@ -242,6 +323,7 @@ export default function AppFrame({
             routedProjectContextId={routedProjectContextId}
             onToggle={() => setNavOpen((open) => !open)}
             onNavigate={onNavigate}
+            onOpenSourceDocument={openSourceDocument}
             onConfigure={() => setProvidersOpen(true)}
           />
         </aside>
@@ -267,56 +349,75 @@ export default function AppFrame({
           }}
         />
       )}
-      <section
-        className="relative min-h-0 min-w-0 flex-1"
-        aria-label={
-          route.kind === 'project' ? 'Project Context' : 'Source Document'
-        }
-      >
-        {workspace ? (
-          <Suspense
-            fallback={<div aria-busy="true">Loading Source Document…</div>}
-          >
-            {/* Keyed so a different Source Document or pinned Extraction starts
-                with no carried-over annotations, schema draft, focus, or scroll. */}
-            <DocumentWorkspace
-              key={workspace.persistedExtraction?.extractionId ?? workspace.pdfUrl}
-              {...workspace}
-              onInitialResourceLoadFailure={onInitialResourceLoadFailure}
-            />
-          </Suspense>
-        ) : route.kind === 'project' ? (
-          <Suspense
-            fallback={<div aria-busy="true">Loading Project Context…</div>}
-          >
-            <ProjectContextPage
-              projectContextId={route.projectContextId}
-              onNavigate={onNavigate}
-            />
-          </Suspense>
-        ) : (
-          <EmptyWorkspace
-            route={route}
-            branch={routedBranch}
-            routedDocumentContained={routedDocumentContained}
-            failure={failure}
-            onRetry={onRetry}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {routedProjectContextId && openProjectTabs.length > 0 && (
+          <DocumentTabBar
+            projectName={activeProjectName}
+            documentName={activeDocumentName}
+            tabs={openProjectTabs}
+            activeSourceDocumentId={activeTabSourceDocumentId}
+            onActivate={activateTab}
+            onClose={closeTab}
+            onNavigateProject={() =>
+              onNavigate({ kind: 'project', projectContextId: routedProjectContextId })
+            }
+            slotRef={setTabBarSlot}
           />
         )}
-        {opening && (
-          <div
-            // The whole column dims so the previous Source Document stays
-            // readable-in-place but unusable while the next one opens.
-            className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/70 backdrop-blur-[1px]"
-            aria-busy="true"
-            aria-live="polite"
-          >
-            <p className="rounded-full border border-line bg-surface px-4 py-1.5 text-xs font-medium text-ink-muted shadow-sm">
-              Opening Source Document…
-            </p>
-          </div>
-        )}
-      </section>
+        <section
+          className="relative min-h-0 min-w-0 flex-1"
+          aria-label={
+            route.kind === 'project' ? 'Project Context' : 'Source Document'
+          }
+        >
+          {workspace ? (
+            <Suspense
+              fallback={<div aria-busy="true">Loading Source Document…</div>}
+            >
+              {/* Keyed to the Project Context, not the Source Document: the
+                  Schema panel is a Project Context resource and must survive
+                  switching between the project's Source Documents. Switching
+                  Project Contexts still starts clean. */}
+              <DocumentWorkspace
+                key={workspace.projectContextId}
+                {...workspace}
+                onInitialResourceLoadFailure={onInitialResourceLoadFailure}
+              />
+            </Suspense>
+          ) : route.kind === 'project' ? (
+            <Suspense
+              fallback={<div aria-busy="true">Loading Project Context…</div>}
+            >
+              <ProjectContextPage
+                projectContextId={route.projectContextId}
+                onNavigate={onNavigate}
+                onOpenSourceDocument={openSourceDocument}
+              />
+            </Suspense>
+          ) : (
+            <EmptyWorkspace
+              route={route}
+              branch={routedBranch}
+              routedDocumentContained={routedDocumentContained}
+              failure={failure}
+              onRetry={onRetry}
+            />
+          )}
+          {opening && (
+            <div
+              // The whole column dims so the previous Source Document stays
+              // readable-in-place but unusable while the next one opens.
+              className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/70 backdrop-blur-[1px]"
+              aria-busy="true"
+              aria-live="polite"
+            >
+              <p className="rounded-full border border-line bg-surface px-4 py-1.5 text-xs font-medium text-ink-muted shadow-sm">
+                Opening Source Document…
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
       {providersOpen && (
         <div
           className="fixed inset-0 z-50 overflow-y-auto bg-ink/55 px-4 py-10 backdrop-blur-[2px]"

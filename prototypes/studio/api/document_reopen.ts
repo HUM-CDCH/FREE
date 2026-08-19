@@ -221,6 +221,7 @@ export function createGetDocumentReopen(
         )
       return json(reopenResponse(snapshot), { headers: noStore })
     } catch (error) {
+      console.error('DEBUG document_reopen error', error)
       return noStoreError(error)
     }
   }

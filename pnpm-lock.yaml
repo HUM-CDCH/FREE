@@ -111,6 +111,9 @@ importers:
       pdfjs-dist:
         specifier: ^6.0.227
         version: 6.2.108
+      pluralize:
+        specifier: ^8.0.0
+        version: 8.0.0
       react:
         specifier: ^19.2.6
         version: 19.2.8
@@ -142,6 +145,9 @@ importers:
       '@types/node':
         specifier: ^24.13.1
         version: 24.13.3
+      '@types/pluralize':
+        specifier: ^0.0.33
+        version: 0.0.33
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.18
@@ -1464,6 +1470,9 @@ packages:
 
   '@types/pg@8.21.0':
     resolution: {integrity: sha512-AYdtudzabjLZgVgRZmAnU8bAnVUXzuJX2IYHeSIiIHm68olD+LgQYCGWdtcNYnP0uq9c4S4NibVG3Ni7VbKW7Q==}
+
+  '@types/pluralize@0.0.33':
+    resolution: {integrity: sha512-JOqsl+ZoCpP4e8TDke9W79FDcSgPAR0l6pixx2JHkhnRjvShyYiAYw2LVsnA7K08Y6DeOnaU6ujmENO4os/cYg==}
 
   '@types/react-dom@19.2.4':
     resolution: {integrity: sha512-Bsc+QHgp+P/F02XDzNCY9jnZNCUuLki36KT7VKrTXXLdHf+vHMNZnW1rVu5DNW/rCK+fya3DATySbLM4yhtKUw==}
@@ -4453,6 +4462,8 @@ snapshots:
       '@types/node': 24.13.3
       pg-protocol: 1.15.0
       pg-types: 2.2.0
+
+  '@types/pluralize@0.0.33': {}
 
   '@types/react-dom@19.2.4(@types/react@19.2.18)':
     dependencies:

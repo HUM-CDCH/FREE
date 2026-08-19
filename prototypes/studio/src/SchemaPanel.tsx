@@ -1404,11 +1404,8 @@ function SchemaPanel({
             <p className="text-[13px] font-semibold text-ink">No schema yet</p>
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
               FREE produces the extraction schema from the document with the extraction model.
-              {docInstructions.length === 0 && ' Chat below to add instructions before generating.'}
+              {' '}Add instructions in the chat below, or generate now.
             </p>
-            <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerate(docInstruction)}>
-              Generate schema{instructionCountLabel}
-            </button>
           </div>
         )}
 
@@ -1556,6 +1553,14 @@ function SchemaPanel({
           walks proposed changes node by node) that this doesn't replace. */}
       {!ready && (
         <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
+          <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1.5">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Instructions</span>
+            {state.status === 'idle' && (
+              <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
+                Generate schema{instructionCountLabel}
+              </button>
+            )}
+          </div>
           <div ref={docChatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
               {docInstructions.length === 0 && (
@@ -1570,7 +1575,7 @@ function SchemaPanel({
                 <div key={instruction.id} className="flex flex-col gap-1">
                   <div className={msgCls('user')}>{instruction.text}</div>
                   <div className="flex items-center gap-1.5 self-start pl-1 text-[10.5px] text-ink-faint">
-                    <span>Recorded — instruction {i + 1} of {docInstructions.length} will apply at generation.</span>
+                    <span>Instruction {i + 1} of {docInstructions.length}</span>
                     <button
                       type="button"
                       className="cursor-pointer font-semibold outline-none hover:text-danger"
@@ -1580,6 +1585,12 @@ function SchemaPanel({
                       ✗
                     </button>
                   </div>
+                  {i === docInstructions.length - 1 && (
+                    <div className={msgCls('assistant')}>
+                      Got it — recorded for schema generation. Add more instructions, or click{' '}
+                      <span className="font-semibold text-ink">Generate schema</span> above when you're ready.
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

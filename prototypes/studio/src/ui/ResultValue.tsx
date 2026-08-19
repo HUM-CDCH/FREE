@@ -1,8 +1,17 @@
 import { useState } from 'react'
+import pluralize from 'pluralize'
 
 // Local copy so the UI lib imports zero app code (mirrors template.ts#isRecord).
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+// Array item rows take the singular of their parent field's name, e.g. field
+// "figures" -> "Figure 1", "Figure 2", rather than the generic "Item N".
+// eslint-disable-next-line react-refresh/only-export-components -- tiny helper shared by this file's own ArraySection and by ResultsTab
+export function singularItemLabel(fieldName: string, index: number): string {
+  const singular = pluralize.singular(fieldName)
+  return `${singular.charAt(0).toUpperCase()}${singular.slice(1)} ${index + 1}`
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -287,7 +296,7 @@ function ArraySection({
             value.map((item, i) => (
               <ResultValue
                 key={`${name}-${i}`}
-                name={`Item ${i + 1}`}
+                name={singularItemLabel(name, i)}
                 value={item}
                 path={[...path, String(i)]}
                 onChange={onChange}

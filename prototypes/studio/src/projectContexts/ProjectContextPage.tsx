@@ -1,8 +1,8 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { NavigableRoute } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { listExtractionSchemas } from '../schemaRevisions'
-import { Button, EmptyState } from '../ui'
+import { Button, DeleteDialog, EmptyState } from '../ui'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
 import { getDocumentReopenSnapshot } from './transport'
 import { useProjectContexts, type WriteResult } from './useProjectContexts'
@@ -10,6 +10,13 @@ import { useProjectContexts, type WriteResult } from './useProjectContexts'
 export type ProjectContextPageProps = {
   projectContextId: string
   onNavigate: (route: NavigableRoute) => void
+  /** Opening a Source Document from this page is a deliberate action, so it
+   * opens as a pinned tab rather than a quick preview. */
+  onOpenSourceDocument: (
+    projectContextId: string,
+    sourceDocumentId: string,
+    name: string,
+  ) => void
 }
 
 type SchemaListState =
@@ -98,88 +105,6 @@ function RenameForm({
   )
 }
 
-/** Permanent deletion is confirmed in a labelled modal, never on one click. */
-function DeleteDialog({
-  title,
-  description,
-  onConfirm,
-  onCancel,
-}: {
-  title: string
-  description: ReactNode
-  onConfirm: () => WriteResult
-  onCancel: () => void
-}) {
-  const [failure, setFailure] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const dialog = useRef<HTMLDialogElement>(null)
-
-  // Native modality owns focus: `showModal` moves focus in and contains Tab.
-  useEffect(() => {
-    dialog.current?.showModal()
-  }, [])
-
-  return (
-    <dialog
-      ref={dialog}
-      className="m-auto w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
-      aria-labelledby="delete-dialog-title"
-      aria-describedby="delete-dialog-description"
-      onClose={onCancel}
-      // Escape and every other dismissal wait for a write in flight, so a
-      // failure keeps the dialog and its retry.
-      onCancel={(event) => {
-        event.preventDefault()
-        if (!deleting) dialog.current?.close()
-      }}
-    >
-      <h2
-        id="delete-dialog-title"
-        className="text-sm font-bold text-ink"
-      >
-        {title}
-      </h2>
-      <p
-        id="delete-dialog-description"
-        className="mt-2 text-xs leading-relaxed text-ink-muted"
-      >
-        {description}
-      </p>
-      {failure && (
-        <p className="mt-2 text-[11px] leading-snug text-danger" role="alert">
-          {failure}
-        </p>
-      )}
-      <div className="mt-4 flex justify-end gap-2">
-        <Button
-          size="md"
-          autoFocus
-          onClick={() => dialog.current?.close()}
-          disabled={deleting}
-        >
-          Cancel
-        </Button>
-        <Button
-          size="md"
-          variant="primary"
-          disabled={deleting}
-          onClick={async () => {
-            setDeleting(true)
-            setFailure(null)
-            const rejected = await onConfirm()
-            if (rejected) {
-              setDeleting(false)
-              setFailure(rejected.message)
-            } else dialog.current?.close()
-          }}
-        >
-          {deleting ? 'Deleting…' : 'Delete permanently'}
-        </Button>
-      </div>
-    </dialog>
-  )
-}
-
 function PencilIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
@@ -223,6 +148,7 @@ function DownloadIcon() {
 export default function ProjectContextPage({
   projectContextId,
   onNavigate,
+  onOpenSourceDocument,
 }: ProjectContextPageProps) {
   const {
     projects,
@@ -693,11 +619,11 @@ export default function ProjectContextPage({
                       className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none transition-colors hover:bg-line/20 focus-visible:ring-1 focus-visible:ring-accent"
                       type="button"
                       onClick={() =>
-                        onNavigate({
-                          kind: 'document',
+                        onOpenSourceDocument(
                           projectContextId,
-                          sourceDocumentId: document.sourceDocumentId,
-                        })
+                          document.sourceDocumentId,
+                          document.name,
+                        )
                       }
                     >
                       <PdfIcon />

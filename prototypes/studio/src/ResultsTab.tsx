@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
-import ResultValue from './ui/ResultValue'
+import ResultValue, { singularItemLabel } from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from '../shared/schemaNode'
@@ -431,7 +431,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
 
   const currentEntries = useMemo((): Array<{ pathKey: string; displayName: string; value: unknown }> => {
     const node = navPath.length === 0 ? displayResult : (displayResult ? getAtPath(displayResult, navPath) : null)
-    if (Array.isArray(node)) return node.map((v, i) => ({ pathKey: String(i), displayName: `Item ${i + 1}`, value: v }))
+    if (Array.isArray(node)) return node.map((v, i) => ({ pathKey: String(i), displayName: singularItemLabel(navPath[navPath.length - 1] ?? 'item', i), value: v }))
     if (isRecord(node)) return Object.entries(node as Record<string, unknown>).map(([k, v]) => ({ pathKey: k, displayName: k, value: v }))
     return []
   }, [displayResult, navPath])
@@ -572,7 +572,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
                   >Root</button>
                   {navPath.map((seg, i) => {
                     const idx = parseInt(seg, 10)
-                    const label = !isNaN(idx) && String(idx) === seg ? `Item ${idx + 1}` : seg
+                    const label = !isNaN(idx) && String(idx) === seg ? singularItemLabel(navPath[i - 1] ?? 'item', idx) : seg
                     return (
                       <span key={i} className="flex items-center gap-0.5">
                         <span className="text-[11px] text-ink-faint">›</span>

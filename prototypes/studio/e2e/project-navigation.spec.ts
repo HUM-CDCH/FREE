@@ -900,3 +900,81 @@ test.describe('bad references and bounded failures', () => {
     await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
   })
 })
+
+test.describe('SCRATCH tab bar verification (temporary, to be removed)', () => {
+  test('tab accumulation and schema persistence', async ({ page }) => {
+    page.on('console', (msg) => console.log('BROWSER', msg.type(), msg.text()))
+    page.on('pageerror', (err) => console.log('PAGEERROR', err.message, err.stack))
+    page.on('response', (res) => {
+      if (res.url().includes('/reopen')) {
+        console.log('REOPEN RESPONSE', res.status(), res.url())
+        res.text().then((t) => console.log('REOPEN BODY', t)).catch(() => {})
+      }
+    })
+    await stubStudio(page)
+
+    await page.goto('/')
+    await disclosure(page, 'Ellekilde, TAK 1355').click()
+
+    const tabStrip = page.getByRole('tablist', { name: 'Open Source Documents' })
+
+    const settled = () => expect(page.getByText('Opening Source Document…')).toBeHidden()
+
+    // A single click opens the Source Document as a tab.
+    await documentRow(page, 'Beretning_Ellekilde_8_13.pdf').click()
+    await settled()
+    const beretningTab = tabStrip.getByRole('tab', {
+      name: 'Beretning_Ellekilde_8_13.pdf',
+    })
+    await expect(beretningTab).toBeVisible()
+    await expect(tabStrip.getByRole('tab')).toHaveCount(1)
+
+    // A single click on a different document ADDS a second tab.
+    await documentRow(page, 'Fundliste_Ellekilde.pdf').click()
+    await settled()
+    const fundlisteTab = tabStrip.getByRole('tab', {
+      name: 'Fundliste_Ellekilde.pdf',
+    })
+    await expect(fundlisteTab).toBeVisible()
+    await expect(tabStrip.getByRole('tab')).toHaveCount(2)
+    await expect(beretningTab).toBeVisible()
+
+    // Reactivate Beretning via its tab.
+    await beretningTab.click()
+    await settled()
+
+    // Breadcrumb reflects the active tab.
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
+      'Ellekilde, TAK 1355',
+    )
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
+      'Beretning_Ellekilde_8_13.pdf',
+    )
+
+    await expect(page.getByText('Opening Source Document…')).toBeHidden()
+    console.log('DEBUG tabs', await page.getByRole('tab').allTextContents())
+    await page.screenshot({ path: 'test-results/scratch-debug.png', fullPage: true })
+
+    // Generate a schema against the active (Beretning) document, then switch
+    // tabs within the same project — the Schema panel must NOT reset.
+    const schemaTab = page.getByRole('tab', { name: /^Schema/ })
+    await schemaTab.click()
+    await page.getByPlaceholder(/what should the schema capture/i).fill('Capture the grave number')
+    await page.getByRole('button', { name: /generate schema/i }).click()
+    await expect(page.getByText(/Record$/)).toBeVisible({ timeout: 20_000 })
+
+    await fundlisteTab.click()
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
+      'Fundliste_Ellekilde.pdf',
+    )
+    // Same schema still visible after switching documents within the project.
+    await expect(page.getByText(/Record$/)).toBeVisible()
+
+    // Closing the active tab re-activates the previously active tab.
+    await page.getByRole('button', { name: 'Close Fundliste_Ellekilde.pdf' }).click()
+    await expect(tabStrip.getByRole('tab')).toHaveCount(1)
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
+      'Beretning_Ellekilde_8_13.pdf',
+    )
+  })
+})

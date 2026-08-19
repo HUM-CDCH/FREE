@@ -2,9 +2,23 @@ import { useEffect, useRef, useState } from 'react'
 import GearIcon from '../GearIcon'
 import PanelToggleIcon from '../PanelToggleIcon'
 import type { NavigableRoute } from '../projectNavigation'
-import { Overline } from '../ui'
+import { DeleteDialog, Overline } from '../ui'
 import { CreateProjectModal } from './CreateProjectModal'
 import { useProjectContexts } from './useProjectContexts'
+
+function TrashIcon() {
+  return (
+    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="none">
+      <path
+        d="M3.5 5.5h13M8 2.5h4l1 3H7l1-3ZM5.5 5.5l.75 11h7.5l.75-11M8.25 8.5v5M11.75 8.5v5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
 
 export type ProjectContextRailProps = {
   open: boolean
@@ -14,6 +28,12 @@ export type ProjectContextRailProps = {
   routedProjectContextId: string | null
   onToggle: () => void
   onNavigate: (route: NavigableRoute) => void
+  /** Clicking a Source Document row opens it as a tab. */
+  onOpenSourceDocument: (
+    projectContextId: string,
+    sourceDocumentId: string,
+    name: string,
+  ) => void
   onConfigure: () => void
 }
 
@@ -88,6 +108,7 @@ export function ProjectContextRail({
   routedProjectContextId,
   onToggle,
   onNavigate,
+  onOpenSourceDocument,
   onConfigure,
 }: ProjectContextRailProps) {
   const {
@@ -98,6 +119,7 @@ export function ProjectContextRail({
     retryList,
     createProject,
     addSources,
+    deleteSourceDocument,
   } = useProjectContexts()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [collapsedRouted, setCollapsedRouted] = useState<ReadonlySet<string>>(
@@ -107,6 +129,22 @@ export function ProjectContextRail({
   const restoreCreateFocus = useRef(false)
   const createTrigger = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
+  // Right-click on a Source Document row opens this instead of a visible
+  // "•••" button — deleting stays a deliberate, out-of-the-way action here,
+  // unlike the Project Context page's own always-visible menu.
+  const [sourceContextMenu, setSourceContextMenu] = useState<{
+    projectContextId: string
+    sourceDocumentId: string
+    name: string
+    x: number
+    y: number
+  } | null>(null)
+  const [deletingSource, setDeletingSource] = useState<{
+    projectContextId: string
+    sourceDocumentId: string
+    name: string
+  } | null>(null)
+  const contextMenuRef = useRef<HTMLDivElement>(null)
 
   // Only one row menu stays open at a time; a pointerdown outside every open
   // <details> closes it, matching the Project Context page's source menus.
@@ -122,6 +160,26 @@ export function ProjectContextRail({
     document.addEventListener('pointerdown', closeOtherMenus)
     return () => document.removeEventListener('pointerdown', closeOtherMenus)
   }, [])
+
+  // The right-click context menu closes the same way: any outside pointerdown
+  // or an Escape key dismisses it. A pointerdown inside it (e.g. on "Delete")
+  // is left alone so that click still lands before the menu unmounts.
+  useEffect(() => {
+    if (!sourceContextMenu) return
+    const closeMenu = (event: PointerEvent) => {
+      if (!contextMenuRef.current?.contains(event.target as Node))
+        setSourceContextMenu(null)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSourceContextMenu(null)
+    }
+    document.addEventListener('pointerdown', closeMenu)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [sourceContextMenu])
 
   const activeProjectContextId =
     selection?.kind === 'project' || selection?.kind === 'document'
@@ -354,14 +412,21 @@ export function ProjectContextRail({
                               }`}
                               type="button"
                               aria-current={documentActive ? 'page' : undefined}
-                              onClick={() => {
-                                // Reopening the open Source Document would push a
-                                // duplicate history entry and re-read it.
-                                if (documentActive) return
-                                onNavigate({
-                                  kind: 'document',
+                              onClick={() =>
+                                onOpenSourceDocument(
+                                  projectContextId,
+                                  document.sourceDocumentId,
+                                  document.name,
+                                )
+                              }
+                              onContextMenu={(event) => {
+                                event.preventDefault()
+                                setSourceContextMenu({
                                   projectContextId,
                                   sourceDocumentId: document.sourceDocumentId,
+                                  name: document.name,
+                                  x: event.clientX,
+                                  y: event.clientY,
                                 })
                               }}
                             >
@@ -400,6 +465,49 @@ export function ProjectContextRail({
           </button>
         </div>
       </footer>
+
+      {sourceContextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed z-20 w-40 rounded-2xl border border-line bg-surface p-1.5 text-xs shadow-lg"
+          style={{ left: sourceContextMenu.x, top: sourceContextMenu.y }}
+        >
+          <button
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-danger hover:bg-danger-soft focus-visible:bg-danger-soft focus-visible:outline-none"
+            type="button"
+            onClick={() => {
+              setDeletingSource({
+                projectContextId: sourceContextMenu.projectContextId,
+                sourceDocumentId: sourceContextMenu.sourceDocumentId,
+                name: sourceContextMenu.name,
+              })
+              setSourceContextMenu(null)
+            }}
+          >
+            <TrashIcon />
+            Delete
+          </button>
+        </div>
+      )}
+
+      {deletingSource && (
+        <DeleteDialog
+          title="Delete Source Document"
+          description={
+            <>
+              Deleting “{deletingSource.name}” permanently removes its
+              annotations and extractions. This cannot be undone.
+            </>
+          }
+          onConfirm={() =>
+            deleteSourceDocument(
+              deletingSource.projectContextId,
+              deletingSource.sourceDocumentId,
+            )
+          }
+          onCancel={() => setDeletingSource(null)}
+        />
+      )}
 
       {creating && (
         <CreateProjectModal

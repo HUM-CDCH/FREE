@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
@@ -227,6 +228,9 @@ export type DocumentWorkspaceProps = {
   latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
   /** Only the loader sees a retained resource fail; reported once, on open. */
   onInitialResourceLoadFailure?: () => void
+  /** DocumentTabBar's (AppFrame.tsx) trailing slot, in its own tab-strip row —
+      portalled into so the PDF controls share that row instead of a second one. */
+  tabBarSlot?: HTMLElement | null
 }
 
 export function DocumentWorkspace({
@@ -240,6 +244,7 @@ export function DocumentWorkspace({
   persistedExtraction,
   latestReviewedExtraction = null,
   onInitialResourceLoadFailure,
+  tabBarSlot = null,
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
@@ -372,6 +377,22 @@ export function DocumentWorkspace({
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [schemaSaveState])
+
+  // This workspace now stays mounted across Source Document switches within
+  // the same Project Context (only the Schema panel above should survive
+  // that switch), so the pieces of local state that used to reset via a full
+  // remount need an explicit reset keyed on the active document instead.
+  const previousSourceRepresentationIdRef = useRef(sourceRepresentationId)
+  useEffect(() => {
+    if (previousSourceRepresentationIdRef.current === sourceRepresentationId)
+      return
+    previousSourceRepresentationIdRef.current = sourceRepresentationId
+    setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
+    setResultPath(null)
+    setNextExtractionStrategy('ARTICLE')
+    setToast(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceRepresentationId])
 
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
@@ -861,6 +882,7 @@ export function DocumentWorkspace({
     schemaReady,
     indexing,
     initialAttempt: persistedExtraction,
+    documentKey: sourceRepresentationId,
     parsedDocument,
     reviewTarget:
       sourceRepresentationId && pinnedSchemaRevisionId
@@ -1042,11 +1064,13 @@ export function DocumentWorkspace({
       onPaste={handleClipboard}
       onKeyDown={handleKeyDown}
     >
-      <header className="relative z-10 flex h-14 shrink-0 items-stretch border-b border-line bg-surface">
-        <div className="flex min-w-0 flex-1 items-center gap-3 px-5 py-2.5">
-          <p className="min-w-0 truncate text-[13px] text-ink-muted">
-            <span className="font-semibold text-ink">{pdfSource.filename}</span>
-          </p>
+      {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row —
+          these controls share that row instead of a second one, so the open
+          Source Document's Extraction controls cost no extra vertical space.
+          The document's name is already on its tab and in the breadcrumb, so
+          it isn't repeated here. */}
+      {tabBarSlot && createPortal(
+        <>
           {indexing && (
             <span className="shrink-0 text-xs font-medium text-ink-muted">Indexing document…</span>
           )}
@@ -1055,7 +1079,6 @@ export function DocumentWorkspace({
               Indexing failed
             </span>
           )}
-          <div className="min-w-0 flex-1" />
           {inspectionChoices.length > 1 && (
             <select aria-label="Extraction snapshot" value={inspectedAttempt?.extractionId ?? ''} onChange={(event) => setSelectedInspectionId(event.target.value)} className="rounded-md border border-line bg-surface px-2 py-1 text-xs">
               {inspectionChoices.map((choice) => <option key={choice.extractionId} value={choice.extractionId}>{choice.label}</option>)}
@@ -1151,84 +1174,87 @@ export function DocumentWorkspace({
           >
             {runLabel}
           </Button>
-        </div>
-      </header>
-      <div className="flex min-h-0 flex-1">
-        <section className="relative min-h-0 min-w-0 flex-1" aria-label="PDF document">
-          <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
-            <div className="pdfViewer" ref={setViewerNode} />
-          </div>
-          {toast && (
-            <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
-              <p className="animate-fadeup min-w-0 truncate rounded-xl border border-line-strong bg-surface px-4.5 py-2 text-xs font-semibold text-ink shadow-float">
-                {toast}
+        </>,
+        tabBarSlot,
+      )}
+      <div className="min-h-0 flex-1 overflow-hidden p-3">
+        <div className="flex h-full min-h-0 overflow-hidden rounded-2xl border border-line">
+          <section className="relative min-h-0 min-w-0 flex-1" aria-label="PDF document">
+            <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
+              <div className="pdfViewer" ref={setViewerNode} />
+            </div>
+            {toast && (
+              <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
+                <p className="animate-fadeup min-w-0 truncate rounded-xl border border-line-strong bg-surface px-4.5 py-2 text-xs font-semibold text-ink shadow-float">
+                  {toast}
+                </p>
+              </div>
+            )}
+            <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden justify-center sm:flex">
+              <p className="flex min-w-0 items-center gap-2 rounded-full bg-ink px-4 py-2 text-xs font-medium text-canvas shadow-float">
+                <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent-soft" />
+                <span className="truncate">{hintText}</span>
               </p>
             </div>
+          </section>
+          {effectiveRailOpen && (
+            <div
+              className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[859px]:hidden"
+              title="Drag to resize"
+              onMouseDown={startResize}
+            />
           )}
-          <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden justify-center sm:flex">
-            <p className="flex min-w-0 items-center gap-2 rounded-full bg-ink px-4 py-2 text-xs font-medium text-canvas shadow-float">
-              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent-soft" />
-              <span className="truncate">{hintText}</span>
-            </p>
-          </div>
-        </section>
-        {effectiveRailOpen && (
-          <div
-            className="z-5 -mr-0.75 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft max-[859px]:hidden"
-            title="Drag to resize"
-            onMouseDown={startResize}
-          />
-        )}
-        <aside
-          style={{ width: effectiveRailWidth }}
-          className="min-h-0 shrink-0 border-l border-line bg-surface max-[859px]:!w-[calc(100vw-46px)]"
-          aria-label="Evidence, schema and results"
-        >
-          <RightRail
-            open={effectiveRailOpen}
-            onToggle={() => setRailOpen((open) => !open)}
-            tab={railTab}
-            onTabChange={setRailTab}
-            schemaState={templateState}
-            schemaReady={schemaReady}
-            schemaFieldCount={schemaFieldCount}
-            onGenerate={(instruction) => void generateSchema(instruction)}
-            onCancelGenerate={cancelGenerateSchema}
-            onResetSchema={resetSchema}
-            onNodesChange={changeNodes}
-            beforeSchemaEdit={flushSchemaEdits}
-            schemaHistory={schemaHistory}
-            currentSchemaRevisionNumber={schemaSaveState?.acknowledged.revisionNumber}
-            loadSchemaRevision={(schemaRevisionId) => {
-              if (!projectContextId || !durableSchema)
-                return Promise.reject(new Error('No durable schema is open.'))
-              return getSchemaRevision(
-                projectContextId,
-                durableSchema.extractionSchemaId,
-                schemaRevisionId,
-              )
-            }}
-            extraction={extraction}
-            inspection={{
-              attempt: inspectedAttempt,
-              readOnly: inspectionReadOnly,
-              documentMarkdown,
-              parsedDocument,
-              reviewDecisions: inspectedAttempt?.reviewDecisions ?? [],
-              pinnedSchema: pinnedAttempt?.extractionSchema ?? null,
-              // A pinned historical Extraction carries its own Extraction Schema;
-              // the latest attempt shows against the current one.
-              exportSchema:
-                pinnedAttempt?.extractionSchema ??
-                (templateState.status === 'ready'
-                  ? { recordDescription: templateState.recordDescription, schemaNodes: templateState.nodes }
-                  : null),
-            }}
-            sourceDocumentName={pdfSource.filename}
-            onSelectEvidence={selectEvidenceAnchor}
-            onResultPathChange={setResultPath}
-          />
-        </aside>
+          <aside
+            style={{ width: effectiveRailWidth }}
+            className="min-h-0 shrink-0 border-l border-line bg-surface max-[859px]:!w-[calc(100vw-46px)]"
+            aria-label="Evidence, schema and results"
+          >
+            <RightRail
+              open={effectiveRailOpen}
+              onToggle={() => setRailOpen((open) => !open)}
+              tab={railTab}
+              onTabChange={setRailTab}
+              schemaState={templateState}
+              schemaReady={schemaReady}
+              schemaFieldCount={schemaFieldCount}
+              onGenerate={(instruction) => void generateSchema(instruction)}
+              onCancelGenerate={cancelGenerateSchema}
+              onResetSchema={resetSchema}
+              onNodesChange={changeNodes}
+              beforeSchemaEdit={flushSchemaEdits}
+              schemaHistory={schemaHistory}
+              currentSchemaRevisionNumber={schemaSaveState?.acknowledged.revisionNumber}
+              loadSchemaRevision={(schemaRevisionId) => {
+                if (!projectContextId || !durableSchema)
+                  return Promise.reject(new Error('No durable schema is open.'))
+                return getSchemaRevision(
+                  projectContextId,
+                  durableSchema.extractionSchemaId,
+                  schemaRevisionId,
+                )
+              }}
+              extraction={extraction}
+              inspection={{
+                attempt: inspectedAttempt,
+                readOnly: inspectionReadOnly,
+                documentMarkdown,
+                parsedDocument,
+                reviewDecisions: inspectedAttempt?.reviewDecisions ?? [],
+                pinnedSchema: pinnedAttempt?.extractionSchema ?? null,
+                // A pinned historical Extraction carries its own Extraction Schema;
+                // the latest attempt shows against the current one.
+                exportSchema:
+                  pinnedAttempt?.extractionSchema ??
+                  (templateState.status === 'ready'
+                    ? { recordDescription: templateState.recordDescription, schemaNodes: templateState.nodes }
+                    : null),
+              }}
+              sourceDocumentName={pdfSource.filename}
+              onSelectEvidence={selectEvidenceAnchor}
+              onResultPathChange={setResultPath}
+            />
+          </aside>
+        </div>
       </div>
     </div>
   )

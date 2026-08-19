@@ -27,6 +27,14 @@ type UseExtractionOptions = {
   initialAttempt?: ExtractionAttempt | null
   parsedDocument?: ParsedDocument | null
   reviewTarget?: ReviewTarget | null
+  /**
+   * Identifies which Source Document `initialAttempt` belongs to. The caller
+   * no longer remounts this hook when the active Source Document changes
+   * (schema state above it must survive that switch), so `attempt`/`state`
+   * are reseeded from `initialAttempt` whenever this key changes instead of
+   * relying on `useState`'s initializer, which only runs once.
+   */
+  documentKey?: string
 }
 
 export type ExtractionController = ReturnType<typeof useExtraction>
@@ -109,6 +117,7 @@ export function useExtraction({
   initialAttempt = null,
   parsedDocument = null,
   reviewTarget = null,
+  documentKey = '',
 }: UseExtractionOptions) {
   const [attempt, setAttempt] = useState<ExtractionAttempt | null>(
     initialAttempt,
@@ -124,6 +133,7 @@ export function useExtraction({
   const activeIdRef = useRef<string | null>(null)
   const runInputsKey = `${reviewTarget?.sourceRepresentationId ?? ''}\n${reviewTarget?.schemaRevisionId ?? ''}`
   const previousInputsRef = useRef(runInputsKey)
+  const previousDocumentKeyRef = useRef(documentKey)
 
   function abandonRunning() {
     const id = activeIdRef.current
@@ -143,6 +153,20 @@ export function useExtraction({
     )
     setReviewError(null)
   }, [runInputsKey])
+  // The active Source Document changed under an unmounted hook — reseed the
+  // inspected attempt from its own persisted Extraction rather than the
+  // previous document's.
+  useEffect(() => {
+    if (previousDocumentKeyRef.current === documentKey) return
+    previousDocumentKeyRef.current = documentKey
+    abandonRunning()
+    setAttempt(initialAttempt)
+    setState(extractionStateFromAttempt(initialAttempt))
+    setReviewError(null)
+    setCancellationRequested(false)
+    setCancellationError(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentKey])
 
   const hasResults = state.status === 'ready'
   const stale = attempt !== null && !sameTarget(attempt, reviewTarget)

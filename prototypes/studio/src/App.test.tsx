@@ -35,6 +35,10 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
   },
 }))
 const reopened: DocumentWorkspaceProps = {
+  // The real tab-strip slot (DocumentTabBar.tsx) that the workspace's PDF
+  // controls portal into; document.body stands in since these tests render
+  // DocumentWorkspace without its AppFrame shell.
+  tabBarSlot: document.body,
   projectContextId: '51000000-0000-4000-8000-000000000001',
   pdfUrl: '/api/source-representations/rep/pdf',
   filename: 'Beretning.pdf',

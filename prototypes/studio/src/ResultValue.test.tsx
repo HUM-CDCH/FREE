@@ -14,7 +14,7 @@ describe('ResultValue', () => {
     const html = renderToStaticMarkup(<ResultValue name="People" value={[{ name: 'Anna' }]} />)
 
     expect(html).toContain('1 item')
-    expect(html).toContain('Item 1')
+    expect(html).toContain('Person 1')
     expect(html).toContain('Anna')
   })
 })
