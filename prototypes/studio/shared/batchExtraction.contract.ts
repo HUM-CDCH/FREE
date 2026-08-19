@@ -87,10 +87,15 @@ export function batchExtractionProgress(batch: BatchExtraction) {
   const cancelled = extracted.filter(
     (member) => member.latestExtraction!.outcome === 'CANCELLED',
   )
+  // A succeeded Extraction with no reviewable result can never carry Review
+  // Decisions, so it is its own outcome — never counted as what a researcher
+  // has reviewed. An Extraction is reviewable whenever it has been reviewed
+  // (extraction.contract.ts), so these three groups partition `succeeded`.
   const reviewed = succeeded.filter(
-    (member) =>
-      member.latestExtraction!.reviewedAt !== null ||
-      !member.latestExtraction!.reviewable,
+    (member) => member.latestExtraction!.reviewedAt !== null,
+  )
+  const unreviewable = succeeded.filter(
+    (member) => !member.latestExtraction!.reviewable,
   )
   return {
     total: batch.members.length,
@@ -99,7 +104,7 @@ export function batchExtractionProgress(batch: BatchExtraction) {
     failed: failed.length,
     cancelled: cancelled.length,
     reviewed: reviewed.length,
-    unreviewable: 0,
-    needsReview: succeeded.length - reviewed.length,
+    unreviewable: unreviewable.length,
+    needsReview: succeeded.length - reviewed.length - unreviewable.length,
   }
 }

@@ -19,6 +19,13 @@ enum AttemptOutcome {
   CANCELLED
 }
 
+enum SchemaSuggestionOutcome {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
 enum ExtractionOutcome {
   SUCCEEDED
   FAILED
@@ -42,6 +49,7 @@ model ProjectContext {
   createdAt         Timestamptz6       @default(now())
   sourceDocuments   SourceDocument[]
   extractionSchemas ExtractionSchema[]
+  schemaSuggestions SchemaSuggestion[]
   batchExtractions  BatchExtraction[]
 }
 
@@ -56,7 +64,9 @@ model SourceDocument {
   projectContext         ProjectContext                 @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
   representations        SourceRepresentationRevision[]
   annotationSetRevisions AnnotationSetRevision[]
+  schemaSuggestions      SchemaSuggestion[]
 
+  @@unique([id, projectContextId], map: "source_document_owner_key")
   @@index([projectContextId])
   @@index([contentSha256])
 }
@@ -109,6 +119,7 @@ model ExtractionSchema {
   suggestions         SchemaSuggestion[]
   conversationalEdits ConversationalSchemaEdit[]
 
+  @@unique([id, projectContextId], map: "extraction_schema_owner_key")
   @@index([projectContextId])
 }
 
@@ -127,20 +138,27 @@ model PromptRevision {
 
 model SchemaSuggestion {
   id                 Uuid                    @id @default(uuid())
-  extractionSchemaId Uuid
+  projectContextId   Uuid
+  sourceDocumentId   Uuid?
+  extractionSchemaId Uuid?
   promptRevisionId   Uuid?
   annotationMode     AnnotationMode
-  outcome            AttemptOutcome
+  outcome            SchemaSuggestionOutcome
   modelAttribution   Json
   rawModelOutput     String?
   failure            Json?
   proposedTree       Json?
+  leaseExpiresAt     Timestamptz6?
   createdAt          Timestamptz6            @default(now())
-  extractionSchema   ExtractionSchema        @relation(fields: [extractionSchemaId], references: [id], onDelete: Cascade)
+  projectContext     ProjectContext           @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
+  sourceDocument     SourceDocument?          @relation(fields: [sourceDocumentId, projectContextId], references: [id, projectContextId], onDelete: Cascade, map: "schema_suggestion_source_owner_fkey")
+  extractionSchema   ExtractionSchema?       @relation(fields: [extractionSchemaId, projectContextId], references: [id, projectContextId], onDelete: Cascade, map: "schema_suggestion_schema_owner_fkey")
   promptRevision     PromptRevision?         @relation(fields: [promptRevisionId], references: [id], onDelete: Cascade)
   inputs             SchemaSuggestionInput[]
   seededRevision     SchemaRevision?
 
+  @@index([projectContextId])
+  @@index([sourceDocumentId, projectContextId])
   @@index([extractionSchemaId])
 }
 

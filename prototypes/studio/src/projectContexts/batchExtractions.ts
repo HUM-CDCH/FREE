@@ -5,17 +5,39 @@ import {
 } from '../../shared/batchExtraction.contract'
 import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import {
+  batchSchemaSuggestionErrorResponseSchema,
   batchSchemaSuggestionMergeResponseSchema,
+  type BatchSchemaSuggestionFailure,
   type BatchSchemaSuggestionMerge,
 } from '../../shared/batchSchemaSuggestion.contract'
 import { schemaRevisionResponseSchema } from '../../shared/schemaRevision.contract'
 import type { SchemaDefinition } from '../../shared/schemaNode'
 import { isRecord } from '../../shared/template'
 
+export class BatchSchemaSuggestionRequestError extends Error {
+  readonly status: number
+  readonly failure: BatchSchemaSuggestionFailure
+
+  constructor(status: number, failure: BatchSchemaSuggestionFailure) {
+    super(failure.message)
+    this.name = 'BatchSchemaSuggestionRequestError'
+    this.status = status
+    this.failure = failure
+  }
+}
+
 async function read(url: string, init?: RequestInit): Promise<unknown> {
   const response = await fetch(url, init)
   const value: unknown = await response.json().catch(() => null)
   if (!response.ok) {
+    if (url === '/api/batch-schema-suggestions') {
+      const parsed = batchSchemaSuggestionErrorResponseSchema.safeParse(value)
+      if (parsed.success)
+        throw new BatchSchemaSuggestionRequestError(
+          response.status,
+          parsed.data.error,
+        )
+    }
     const error = isRecord(value) && isRecord(value.error) ? value.error : null
     throw new Error(
       typeof error?.message === 'string'
@@ -53,7 +75,10 @@ export async function openBatchExtraction(
   return batchExtractionResponseSchema.parse(
     await read('/api/batch-extractions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
       body: JSON.stringify(request),
       signal,
     }),
@@ -68,7 +93,10 @@ export async function mergeBatchSchemaSuggestions(
   return batchSchemaSuggestionMergeResponseSchema.parse(
     await read('/api/batch-schema-suggestions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
       body: JSON.stringify({
         action: 'merge',
         projectContextId,
@@ -89,7 +117,10 @@ export async function confirmBatchSchemaSuggestion(
   return schemaRevisionResponseSchema.parse(
     await read('/api/batch-schema-suggestions', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
       body: JSON.stringify({
         action: 'confirm',
         projectContextId,

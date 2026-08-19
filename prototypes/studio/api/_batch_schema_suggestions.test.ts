@@ -2,13 +2,26 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   modelSuggestedDefinition,
   runSourceSchemaSuggestion,
+  sourceSuggestionFailure,
 } from './_batch_schema_suggestions.js'
+import { ApiError } from './_http.js'
 
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const DOCUMENT = '51000000-0000-4000-8001-000000000001'
 const SUGGESTION = '51000000-0000-4000-8005-000000000001'
 
 describe('batch source Schema Suggestions', () => {
+  it('reduces source failures to safe diagnostic codes', () => {
+    expect(
+      sourceSuggestionFailure(
+        new ApiError(502, 'invalid_model_output', 'provider secret'),
+      ),
+    ).toEqual({ code: 'invalid_model_output' })
+    expect(sourceSuggestionFailure(new Error('provider secret'))).toEqual({
+      code: 'unexpected_failure',
+    })
+  })
+
   it('recursively rejects canonical Evidence fields in every model response', () => {
     expect(() =>
       modelSuggestedDefinition({
@@ -23,21 +36,23 @@ describe('batch source Schema Suggestions', () => {
 
   it('runs only the durable lease owner and persists a checked template', async () => {
     const store = {
-      beginSourceSchemaSuggestion: vi.fn(async (): Promise<
-        | {
-            status: 'work'
-            schemaSuggestionId: string
-            descriptor: { artifactReference: string; artifactSha256: string }
-          }
-        | { status: 'pending' }
-      > => ({
-        status: 'work' as const,
-        schemaSuggestionId: SUGGESTION,
-        descriptor: {
-          artifactReference: 'a'.repeat(64),
-          artifactSha256: 'a'.repeat(64),
-        },
-      })),
+      beginSourceSchemaSuggestion: vi.fn(
+        async (): Promise<
+          | {
+              status: 'work'
+              schemaSuggestionId: string
+              descriptor: { artifactReference: string; artifactSha256: string }
+            }
+          | { status: 'pending' }
+        > => ({
+          status: 'work' as const,
+          schemaSuggestionId: SUGGESTION,
+          descriptor: {
+            artifactReference: 'a'.repeat(64),
+            artifactSha256: 'a'.repeat(64),
+          },
+        }),
+      ),
       completeSourceSchemaSuggestion: vi.fn(async () => {}),
       failSourceSchemaSuggestion: vi.fn(async () => {}),
     }
@@ -62,7 +77,9 @@ describe('batch source Schema Suggestions', () => {
       '{"place":"string"}',
     )
 
-    store.beginSourceSchemaSuggestion.mockResolvedValueOnce({ status: 'pending' })
+    store.beginSourceSchemaSuggestion.mockResolvedValueOnce({
+      status: 'pending',
+    })
     await runSourceSchemaSuggestion(store, PROJECT, DOCUMENT, {
       generate: generate as never,
     })

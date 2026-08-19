@@ -75,8 +75,9 @@ type SourceDocumentDeletionStore = Pick<
 >
 
 function projectContextId(pathname: string): string {
-  const match =
-    /^\/api\/project-contexts\/([^/]+)\/source-documents$/.exec(pathname)
+  const match = /^\/api\/project-contexts\/([^/]+)\/source-documents$/.exec(
+    pathname,
+  )
   if (!match)
     throw new ApiError(404, 'not_found', 'Source Document route was not found.')
   if (!canonicalUuidSchema.safeParse(match[1]).success)
@@ -98,7 +99,11 @@ function sanitizedFilename(raw: string): string {
     .replace(/^[. ]+|[. ]+$/g, '')
   if (!filename) filename = 'source.pdf'
   if (!filename.toLowerCase().endsWith('.pdf'))
-    throw new ApiError(400, 'invalid_request', 'The uploaded file must be a PDF.')
+    throw new ApiError(
+      400,
+      'invalid_request',
+      'The uploaded file must be a PDF.',
+    )
   if (filename.length <= MAX_FILENAME_LENGTH) return filename
   const extension = filename.slice(filename.lastIndexOf('.')).slice(0, 20)
   return `${filename.slice(0, MAX_FILENAME_LENGTH - extension.length)}${extension}`
@@ -111,9 +116,10 @@ function required(value: unknown, what: string): string {
 }
 
 function sourceDocumentIds(pathname: string) {
-  const match = /^\/api\/project-contexts\/([^/]+)\/source-documents\/([^/]+)$/.exec(
-    pathname,
-  )
+  const match =
+    /^\/api\/project-contexts\/([^/]+)\/source-documents\/([^/]+)$/.exec(
+      pathname,
+    )
   if (!match)
     throw new ApiError(404, 'not_found', 'Source Document route was not found.')
   if (!canonicalUuidSchema.safeParse(match[1]).success)
@@ -176,15 +182,24 @@ function provenance(document: unknown) {
       'a preprocessing identity',
     ),
     parserName,
-    parserVersion: typeof parserVersion === 'string' ? parserVersion : 'unknown',
+    parserVersion:
+      typeof parserVersion === 'string' ? parserVersion : 'unknown',
   }
 }
 
-async function readJson(response: Response, what: string): Promise<Record<string, unknown>> {
+async function readJson(
+  response: Response,
+  what: string,
+): Promise<Record<string, unknown>> {
   try {
     return record(await response.json(), what)
   } catch (cause) {
-    throw new ApiError(502, 'source_ingestion_failed', `The Parsing Service returned invalid ${what}.`, { cause })
+    throw new ApiError(
+      502,
+      'source_ingestion_failed',
+      `The Parsing Service returned invalid ${what}.`,
+      { cause },
+    )
   }
 }
 
@@ -299,60 +314,100 @@ async function removePublishedPackage(
       return true
     }
   }
-  await packageStore.remove(descriptor, isReferenced).catch((cause: unknown) => {
-    console.warn(
-      `Could not remove the failed ingestion package ${descriptor.artifactReference}: ${
-        cause instanceof Error ? cause.message : String(cause)
-      }`,
-    )
-  })
+  await packageStore
+    .remove(descriptor, isReferenced)
+    .catch((cause: unknown) => {
+      console.warn(
+        `Could not remove the failed ingestion package ${descriptor.artifactReference}: ${
+          cause instanceof Error ? cause.message : String(cause)
+        }`,
+      )
+    })
 }
 
 export function createSourceDocumentIngestion(
   dependencies: Dependencies = {},
 ): (request: Request) => Promise<Response> {
   const store =
-    dependencies.store ??
-    (createProjectStore() as unknown as IngestionStore)
+    dependencies.store ?? (createProjectStore() as unknown as IngestionStore)
   const packageStore = dependencies.packageStore ?? canonicalPackageStore
   const base =
     dependencies.parsingServiceBase ??
-    ((import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
-      ?.VITE_PARSING_SERVICE_URL ?? DEFAULT_PARSING_SERVICE)
+    (import.meta as ImportMeta & { env?: Record<string, string | undefined> })
+      .env?.VITE_PARSING_SERVICE_URL ??
+    DEFAULT_PARSING_SERVICE
   const timeoutMs = dependencies.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const pollIntervalMs = dependencies.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS
   const sleep =
-    dependencies.sleep ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
+    dependencies.sleep ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
   const now = dependencies.now ?? Date.now
 
-  return async function postSourceDocument(request: Request): Promise<Response> {
+  return async function postSourceDocument(
+    request: Request,
+  ): Promise<Response> {
     let saved: CanonicalPackage | undefined
     try {
       const id = projectContextId(new URL(request.url).pathname)
       const form = await parseFormRequest(request)
       assertFormFields(form, ['file', 'ingestionKey'])
-      if (form.getAll('file').length !== 1 || form.getAll('ingestionKey').length !== 1)
-        throw new ApiError(400, 'invalid_request', 'Provide exactly one PDF and one ingestionKey.')
+      if (
+        form.getAll('file').length !== 1 ||
+        form.getAll('ingestionKey').length !== 1
+      )
+        throw new ApiError(
+          400,
+          'invalid_request',
+          'Provide exactly one PDF and one ingestionKey.',
+        )
       const file = form.get('file')
       const ingestionKey = form.get('ingestionKey')
       if (!(file instanceof File))
-        throw new ApiError(400, 'invalid_request', 'A PDF Source Document is required.')
-      if (typeof ingestionKey !== 'string' || !canonicalUuidSchema.safeParse(ingestionKey).success)
-        throw new ApiError(422, 'invalid_request', 'ingestionKey must be a canonical lowercase UUID.')
+        throw new ApiError(
+          400,
+          'invalid_request',
+          'A PDF Source Document is required.',
+        )
+      if (
+        typeof ingestionKey !== 'string' ||
+        !canonicalUuidSchema.safeParse(ingestionKey).success
+      )
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'ingestionKey must be a canonical lowercase UUID.',
+        )
       if (file.type.trim().toLowerCase() !== 'application/pdf')
-        throw new ApiError(400, 'invalid_request', 'The uploaded file must use application/pdf.')
+        throw new ApiError(
+          400,
+          'invalid_request',
+          'The uploaded file must use application/pdf.',
+        )
       if (file.size > MAX_PDF_BYTES)
-        throw new ApiError(413, 'invalid_request', 'The uploaded PDF exceeds 50 MiB.')
+        throw new ApiError(
+          413,
+          'invalid_request',
+          'The uploaded PDF exceeds 50 MiB.',
+        )
 
       const originalName = sanitizedFilename(file.name)
       const pdf = new Uint8Array(await file.arrayBuffer())
       if (new TextDecoder('ascii').decode(pdf.subarray(0, 5)) !== '%PDF-')
-        throw new ApiError(400, 'invalid_request', 'The uploaded file must be a PDF.')
+        throw new ApiError(
+          400,
+          'invalid_request',
+          'The uploaded file must be a PDF.',
+        )
       const contentSha256 = createHash('sha256').update(pdf).digest('hex')
       const parsingDeadline = AbortSignal.timeout(timeoutMs)
 
       const upload = new FormData()
-      upload.append('file', new Blob([pdf], { type: 'application/pdf' }), originalName)
+      upload.append(
+        'file',
+        new Blob([pdf], { type: 'application/pdf' }),
+        originalName,
+      )
       const created = await parsingRequest(
         fetcher(dependencies),
         base,
@@ -442,11 +497,16 @@ export function createSourceDocumentIngestion(
             throw new Error('The canonical package could not be retained.')
         },
       }
-      const persisted = await store.ingestSourceDocument(id, input).catch((cause) => {
-        if (cause instanceof IngestionKeyConflictError)
-          throw new ApiError(409, 'invalid_request', cause.message)
-        throw persistenceUnavailable(cause, 'Source Document storage is unavailable.')
-      })
+      const persisted = await store
+        .ingestSourceDocument(id, input)
+        .catch((cause) => {
+          if (cause instanceof IngestionKeyConflictError)
+            throw new ApiError(409, 'invalid_request', cause.message)
+          throw persistenceUnavailable(
+            cause,
+            'Source Document storage is unavailable.',
+          )
+        })
       if (!persisted)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
       if (
@@ -457,7 +517,8 @@ export function createSourceDocumentIngestion(
         void runSourceSchemaSuggestion(
           {
             beginSourceSchemaSuggestion: store.beginSourceSchemaSuggestion,
-            completeSourceSchemaSuggestion: store.completeSourceSchemaSuggestion,
+            completeSourceSchemaSuggestion:
+              store.completeSourceSchemaSuggestion,
             failSourceSchemaSuggestion: store.failSourceSchemaSuggestion,
           },
           id,
@@ -495,7 +556,9 @@ export function createSourceDocumentDeletion(
   store: SourceDocumentDeletionStore = createProjectStore(),
   packageStore: Pick<PackageStore, 'remove'> = canonicalPackageStore,
 ) {
-  return async function deleteSourceDocument(request: Request): Promise<Response> {
+  return async function deleteSourceDocument(
+    request: Request,
+  ): Promise<Response> {
     try {
       const { projectContextId, sourceDocumentId } = sourceDocumentIds(
         new URL(request.url).pathname,
@@ -503,7 +566,10 @@ export function createSourceDocumentDeletion(
       const candidates = await store
         .deleteSourceDocument(projectContextId, sourceDocumentId)
         .catch((cause) => {
-          throw persistenceUnavailable(cause, 'Source Document storage is unavailable.')
+          throw persistenceUnavailable(
+            cause,
+            'Source Document storage is unavailable.',
+          )
         })
       if (!candidates)
         throw new ApiError(404, 'not_found', 'Source Document was not found.')
@@ -511,24 +577,28 @@ export function createSourceDocumentDeletion(
       for (const descriptor of candidates)
         if (!asked.has(descriptor.artifactReference)) {
           asked.add(descriptor.artifactReference)
-          await packageStore.remove(descriptor, async () => {
-            try {
-              return await store.isPackageReferenced(descriptor.artifactReference)
-            } catch (cause) {
+          await packageStore
+            .remove(descriptor, async () => {
+              try {
+                return await store.isPackageReferenced(
+                  descriptor.artifactReference,
+                )
+              } catch (cause) {
+                console.warn(
+                  `Could not check whether deleted Source Document package ${descriptor.artifactReference} is still referenced; retaining it: ${
+                    cause instanceof Error ? cause.message : String(cause)
+                  }`,
+                )
+                return true
+              }
+            })
+            .catch((cause: unknown) => {
               console.warn(
-                `Could not check whether deleted Source Document package ${descriptor.artifactReference} is still referenced; retaining it: ${
+                `Could not remove the deleted Source Document package ${descriptor.artifactReference}: ${
                   cause instanceof Error ? cause.message : String(cause)
                 }`,
               )
-              return true
-            }
-          }).catch((cause: unknown) => {
-            console.warn(
-              `Could not remove the deleted Source Document package ${descriptor.artifactReference}: ${
-                cause instanceof Error ? cause.message : String(cause)
-              }`,
-            )
-          })
+            })
         }
       return new Response(null, { status: 204, headers: noStore })
     } catch (error) {

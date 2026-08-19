@@ -1,3 +1,4 @@
+import { canonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import {
   createProjectStore,
   type ProjectStore,
@@ -18,6 +19,8 @@ import {
 } from './_http.js'
 import { generateSchemaWithModel } from './_model.js'
 import {
+  runSourceSchemaSuggestion,
+  sourceSuggestionFailure,
   validateEditableSuggestion,
   verifiedCommonSuggestion,
 } from './_batch_schema_suggestions.js'
@@ -26,8 +29,17 @@ const ROUTE = '/api/batch-schema-suggestions'
 
 type Store = Pick<
   ProjectStore,
-  'getBatchSchemaSuggestionInputs' | 'confirmBatchSchemaSuggestion'
+  | 'getBatchSchemaSuggestionInputs'
+  | 'confirmBatchSchemaSuggestion'
+  | 'beginSourceSchemaSuggestion'
+  | 'completeSourceSchemaSuggestion'
+  | 'failSourceSchemaSuggestion'
 >
+
+type Dependencies = {
+  generate?: typeof generateSchemaWithModel
+  readMarkdown?: typeof canonicalPackageStore.read
+}
 
 function revisionDto(revision: SchemaRevisionRecord) {
   return {
@@ -42,17 +54,26 @@ function revisionDto(revision: SchemaRevisionRecord) {
 
 export function createBatchSchemaSuggestionsApi(
   store: Store = createProjectStore(),
-  generate: typeof generateSchemaWithModel = generateSchemaWithModel,
+  dependencies: Dependencies = {},
 ) {
+  const generate = dependencies.generate ?? generateSchemaWithModel
   return async function POST(request: Request): Promise<Response> {
     try {
       if (new URL(request.url).pathname !== ROUTE)
-        throw new ApiError(404, 'not_found', 'Schema suggestion route was not found.')
+        throw new ApiError(
+          404,
+          'not_found',
+          'Schema suggestion route was not found.',
+        )
       const parsed = batchSchemaSuggestionRequestSchema.safeParse(
         await parseJsonRequest(request),
       )
       if (!parsed.success)
-        throw new ApiError(422, 'invalid_request', 'The schema suggestion request is invalid.')
+        throw new ApiError(
+          422,
+          'invalid_request',
+          'The schema suggestion request is invalid.',
+        )
 
       if (parsed.data.action === 'confirm') {
         const definition = validateEditableSuggestion(
@@ -83,9 +104,23 @@ export function createBatchSchemaSuggestionsApi(
             'selection_changed',
             'The selected Source Documents changed. Suggest common fields again.',
           )
+        if (confirmed.status === 'conflict')
+          throw new ApiError(
+            409,
+            'revision_conflict',
+            'The Current Schema Revision changed while these fields were being confirmed. Review and run again.',
+            {
+              details: {
+                currentRevision: revisionDto(confirmed.currentRevision),
+              },
+            },
+          )
         return json(
           { revision: revisionDto(confirmed.revision) },
-          { status: confirmed.status === 'created' ? 201 : 200, headers: noStore },
+          {
+            status: confirmed.status === 'created' ? 201 : 200,
+            headers: noStore,
+          },
         )
       }
 
@@ -103,19 +138,71 @@ export function createBatchSchemaSuggestionsApi(
           'invalid_selection',
           'Use Source Documents in this Project Context.',
         )
-      if (cached.suggestions.some((suggestion) => suggestion.template === null))
+      const failed = new Map<
+        string,
+        ReturnType<typeof sourceSuggestionFailure>['code']
+      >()
+      for (const sourceDocumentId of parsed.data.sourceDocumentIds) {
+        try {
+          await runSourceSchemaSuggestion(
+            store,
+            parsed.data.projectContextId,
+            sourceDocumentId,
+            {
+              generate,
+              ...(dependencies.readMarkdown
+                ? { readMarkdown: dependencies.readMarkdown }
+                : {}),
+            },
+          )
+        } catch (error) {
+          if (
+            error instanceof ApiError &&
+            error.code === 'persistence_unavailable'
+          )
+            throw error
+          failed.set(sourceDocumentId, sourceSuggestionFailure(error).code)
+        }
+      }
+      const prepared = await store
+        .getBatchSchemaSuggestionInputs(
+          parsed.data.projectContextId,
+          parsed.data.sourceDocumentIds,
+        )
+        .catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
+      if (!prepared || prepared.selectionKey !== cached.selectionKey)
+        throw new ApiError(
+          409,
+          'selection_changed',
+          'The selected Source Documents changed. Suggest common fields again.',
+        )
+      const unresolved = prepared.suggestions
+        .filter((suggestion) => suggestion.template === null)
+        .map((suggestion) => suggestion.sourceDocumentId)
+      const unresolvedFailures = unresolved.flatMap((sourceDocumentId) => {
+        const code = failed.get(sourceDocumentId)
+        return code === undefined ? [] : [{ sourceDocumentId, code }]
+      })
+      if (unresolvedFailures.length > 0)
+        throw new ApiError(
+          502,
+          'source_suggestion_failed',
+          'Fields could not be suggested for every selected Source Document. Try again.',
+          { details: { failures: unresolvedFailures } },
+        )
+      if (unresolved.length > 0)
         throw new ApiError(
           409,
           'suggestions_pending',
           'Field suggestions are still being prepared. Try again shortly.',
+          { details: { sourceDocumentIds: unresolved } },
         )
-      const sourceTemplates = cached.suggestions.map(
-        (suggestion) => suggestion.template!,
-      )
       const merged = await generate({
         document: {
           file: null,
-          markdown: cached.suggestions
+          markdown: prepared.suggestions
             .map(
               (suggestion) =>
                 `SOURCE DOCUMENT ${suggestion.sourceDocumentId} SUGGESTION:\n${JSON.stringify(suggestion.template)}`,
@@ -140,7 +227,10 @@ export function createBatchSchemaSuggestionsApi(
           'selection_changed',
           'The selected Source Documents changed. Suggest common fields again.',
         )
-      const common = verifiedCommonSuggestion(merged.template, sourceTemplates)
+      const common = verifiedCommonSuggestion(
+        merged.template,
+        current.suggestions.map((suggestion) => suggestion.template),
+      )
       return json(
         batchSchemaSuggestionMergeResponseSchema.parse(
           common
