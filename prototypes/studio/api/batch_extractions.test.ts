@@ -387,7 +387,7 @@ describe('/api/batch-extractions', () => {
     expect(ids[0]).not.toBe(failedBatch.members[0].latestExtraction?.extractionId)
   })
 
-  it('isolates a member request failure and leaves only that member resumable', async () => {
+  it('reports a member request failure and leaves only that member resumable', async () => {
     const pendingBatch = {
       ...batch,
       members: batch.members.slice(1, 3).map((member) => ({
@@ -423,6 +423,52 @@ describe('/api/batch-extractions', () => {
     expect(opened.batchExtraction.members[1].latestExtraction?.outcome).toBe(
       'SUCCEEDED',
     )
+    // The member wrote nothing, so this response is the only place it is ever
+    // reported — and it carries the Extraction route's own sentence.
+    expect(opened.memberFailures).toEqual([
+      {
+        sourceDocumentId: pendingBatch.members[0].sourceDocumentId,
+        message: 'Try again.',
+      },
+    ])
+  })
+
+  it('reports a member failure with no readable reason as a plain sentence', async () => {
+    const pendingBatch = {
+      ...batch,
+      members: batch.members.slice(1, 2).map((member) => ({
+        ...member,
+        latestExtraction: null,
+      })),
+    }
+    const fixture = handler(
+      {
+        createBatchExtraction: vi.fn(async () => ({
+          status: 'replayed' as const,
+          batch: pendingBatch,
+        })),
+      },
+      async () => new Response('not json', { status: 500 }),
+    )
+
+    const response = await fixture.handle(open(request))
+    const opened = batchExtractionResponseSchema.parse(await response.json())
+
+    expect(opened.memberFailures).toEqual([
+      {
+        sourceDocumentId: pendingBatch.members[0].sourceDocumentId,
+        message: 'The member Extraction did not finish.',
+      },
+    ])
+  })
+
+  it('reports no member failures when every member reaches a terminal write', async () => {
+    const fixture = handler({}, (memberRequest) => terminal(memberRequest))
+
+    const response = await fixture.handle(open(request))
+    const opened = batchExtractionResponseSchema.parse(await response.json())
+
+    expect(opened.memberFailures).toEqual([])
   })
 
   it('does not pass client cancellation into server-owned member execution', async () => {

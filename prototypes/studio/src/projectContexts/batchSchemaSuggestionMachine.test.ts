@@ -42,6 +42,7 @@ const opened = {
     members: [],
   },
   disposition: 'created' as const,
+  memberFailures: [],
 } satisfies Awaited<ReturnType<typeof openBatchExtraction>>
 
 function actorFixture(overrides: Record<string, unknown> = {}) {

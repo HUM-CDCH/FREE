@@ -60,10 +60,28 @@ export const batchExtractionSchema = z
 export type BatchExtraction = z.output<typeof batchExtractionSchema>
 export type BatchExtractionMember = BatchExtraction['members'][number]
 
+/**
+ * One member whose Extraction request never reached a terminal write, so the
+ * member's stored state did not advance. That is not persisted state — it is
+ * what happened to this attempt — so it travels with the response that made the
+ * attempt and never with the stored Batch Extraction.
+ */
+const batchExtractionMemberFailureSchema = z
+  .object({
+    sourceDocumentId: canonicalUuidSchema,
+    message: z.string(),
+  })
+  .strict()
+
+export type BatchExtractionMemberFailure = z.output<
+  typeof batchExtractionMemberFailureSchema
+>
+
 export const batchExtractionResponseSchema = z
   .object({
     batchExtraction: batchExtractionSchema,
     disposition: z.enum(['created', 'running', 'retry', 'complete']),
+    memberFailures: z.array(batchExtractionMemberFailureSchema),
   })
   .strict()
 

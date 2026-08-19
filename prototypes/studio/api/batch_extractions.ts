@@ -31,6 +31,11 @@ type BatchExtractionStore = Pick<
 
 type ExtractionPost = (request: Request) => Promise<Response>
 
+type RunResult = {
+  batch: BatchExtractionRecord
+  memberFailures: { sourceDocumentId: string; message: string }[]
+}
+
 function fingerprintId(value: unknown): string {
   const hash = createHash('sha256')
     .update(JSON.stringify(value))
@@ -110,11 +115,27 @@ function failureMessage(failure: unknown): string | null {
     : null
 }
 
+const MEMBER_NOT_RUN = 'The member Extraction did not finish.'
+
+/** The Extraction route's own sentence, so the researcher reads a real reason. */
+async function refusalMessage(response: Response): Promise<string> {
+  const body: unknown = await response.json().catch(() => null)
+  const error =
+    body && typeof body === 'object'
+      ? (body as { error?: unknown }).error
+      : null
+  const message =
+    error && typeof error === 'object'
+      ? (error as { message?: unknown }).message
+      : null
+  return typeof message === 'string' && message ? message : MEMBER_NOT_RUN
+}
+
 export function createBatchExtractionsApi(
   store: BatchExtractionStore = createProjectStore(),
   executeExtraction: ExtractionPost = postExtraction,
 ) {
-  const active = new Map<string, Promise<BatchExtractionRecord>>()
+  const active = new Map<string, Promise<RunResult>>()
 
   async function runMember(
     batch: BatchExtractionRecord,
@@ -134,7 +155,7 @@ export function createBatchExtractionsApi(
         }),
       }),
     )
-    if (!response.ok) throw new Error('The member Extraction did not finish.')
+    if (!response.ok) throw new Error(await refusalMessage(response))
     const attempt = extractionAttemptSchema.parse(await response.json())
     return {
       extractionId: attempt.extractionId,
@@ -147,8 +168,9 @@ export function createBatchExtractionsApi(
     }
   }
 
-  async function run(batch: BatchExtractionRecord) {
+  async function run(batch: BatchExtractionRecord): Promise<RunResult> {
     const members = [...batch.members]
+    const memberFailures: RunResult['memberFailures'] = []
     for (const [index, member] of members.entries()) {
       if (
         member.latestExtraction &&
@@ -160,12 +182,18 @@ export function createBatchExtractionsApi(
           ...member,
           latestExtraction: await runMember(batch, member),
         }
-      } catch {
+      } catch (error) {
         // A member that could not reach its terminal write remains resumable;
-        // one failure must not strand the rest of the persisted selection.
+        // one failure must not strand the rest of the persisted selection. It
+        // leaves nothing behind to read, so it is reported with this response
+        // rather than silently reading as a member that was never attempted.
+        memberFailures.push({
+          sourceDocumentId: member.sourceDocumentId,
+          message: error instanceof Error ? error.message : MEMBER_NOT_RUN,
+        })
       }
     }
-    return { ...batch, members }
+    return { batch: { ...batch, members }, memberFailures }
   }
 
   function startOrResume(batch: BatchExtractionRecord) {
@@ -212,11 +240,12 @@ export function createBatchExtractionsApi(
         'Use the Current Schema Revision and Source Documents in this Project Context with a Source Representation.',
       )
     }
-    const batch = await startOrResume(opened.batch)
+    const { batch, memberFailures } = await startOrResume(opened.batch)
     return json(
       batchExtractionResponseSchema.parse({
         batchExtraction: batchDto(batch),
         disposition: disposition(opened.status, batch),
+        memberFailures,
       }),
       { status: opened.status === 'created' ? 201 : 200, headers: noStore },
     )

@@ -67,12 +67,33 @@ function stamp(value: string): string {
   })
 }
 
+/** Names the Source Documents that did not run, listing at most three. */
+function didNotRunSentence(names: readonly string[]): string {
+  const listed = names.slice(0, 3).join(', ')
+  const rest = names.length - 3
+  return `${names.length} Source Document${names.length === 1 ? '' : 's'} did not run: ${listed}${
+    rest > 0 ? ` and ${rest} more` : ''
+  }. Open the Batch Extraction to see why.`
+}
+
 /** What one member's persisted Extraction says. */
-function memberStatus(member: BatchExtractionMember): {
+function memberStatus(
+  member: BatchExtractionMember,
+  requestFailure?: string,
+): {
   label: string
   tone: string
   message: string | null
 } {
+  // A request that never reached a terminal write left the member's stored
+  // state untouched, so say what stopped it instead of reporting the state the
+  // member still has.
+  if (requestFailure)
+    return {
+      label: 'Did not run',
+      tone: 'text-danger',
+      message: requestFailure,
+    }
   const extraction = member.latestExtraction
   if (!extraction)
     return { label: 'Not run', tone: 'text-ink-faint', message: null }
@@ -153,6 +174,12 @@ export default function BatchExtractionsPanel({
   const [openBatchId, setOpenBatchId] = useState<string | null>(null)
   const [openingBatch, setOpeningBatch] = useState(false)
   const [runFailure, setRunFailure] = useState<string | null>(null)
+  // Keyed by the Batch Extraction that reported them, so a stale run's failures
+  // are never shown against a different batch's members.
+  const [memberFailures, setMemberFailures] = useState<{
+    batchExtractionId: string
+    failures: ReadonlyMap<string, string>
+  } | null>(null)
   const [schemas, setSchemas] = useState<Read<ExtractionSchemas>>({
     value: null,
     failure: null,
@@ -278,6 +305,11 @@ export default function BatchExtractionsPanel({
   const batchList = batches.value ?? []
   const openBatch =
     batchList.find((batch) => batch.batchExtractionId === openBatchId) ?? null
+  const openMemberFailures =
+    openBatch &&
+    memberFailures?.batchExtractionId === openBatch.batchExtractionId
+      ? memberFailures.failures
+      : null
 
   const acceptOpenedBatch = useCallback(
     (opened: Awaited<ReturnType<typeof openBatchExtraction>>) => {
@@ -295,8 +327,29 @@ export default function BatchExtractionsPanel({
       setOpenBatchId(batch.batchExtractionId)
       setSelected(new Set())
       setScreen('history')
+      // Members that never reached a terminal write are not stored anywhere, so
+      // this response is the only place they are ever reported. Say so here,
+      // where the researcher lands, and again on each member.
+      setMemberFailures({
+        batchExtractionId: batch.batchExtractionId,
+        failures: new Map(
+          opened.memberFailures.map((failure) => [
+            failure.sourceDocumentId,
+            failure.message,
+          ]),
+        ),
+      })
+      setRunFailure(
+        opened.memberFailures.length
+          ? didNotRunSentence(
+              opened.memberFailures.map((failure) =>
+                documentName(failure.sourceDocumentId),
+              ),
+            )
+          : null,
+      )
     },
-    [],
+    [documentName],
   )
   useEffect(() => {
     acceptSuggestedBatch.current = acceptOpenedBatch
@@ -877,7 +930,10 @@ export default function BatchExtractionsPanel({
             </div>
             <ul className="space-y-1" aria-label="Batch Extraction members">
               {openBatch.members.map((member) => {
-                const status = memberStatus(member)
+                const status = memberStatus(
+                  member,
+                  openMemberFailures?.get(member.sourceDocumentId),
+                )
                 return (
                   <li key={member.sourceDocumentId}>
                     <button

@@ -213,6 +213,7 @@ describe('BatchExtractionsPanel', () => {
       response({
         batchExtraction: { ...batch, members: [] },
         disposition: 'created',
+        memberFailures: [],
       }),
     )
     const body = JSON.parse(
@@ -256,6 +257,7 @@ describe('BatchExtractionsPanel', () => {
           return response({
             batchExtraction: openedBatch,
             disposition: 'created',
+            memberFailures: [],
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -334,6 +336,7 @@ describe('BatchExtractionsPanel', () => {
           return response({
             batchExtraction: completedBatch,
             disposition: 'created',
+            memberFailures: [],
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -390,6 +393,7 @@ describe('BatchExtractionsPanel', () => {
           return response({
             batchExtraction: { ...batch, members: [] },
             disposition: 'running',
+            memberFailures: [],
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -466,7 +470,11 @@ describe('BatchExtractionsPanel', () => {
             ],
           })
         if (url === '/api/batch-extractions' && init?.method === 'POST')
-          return response({ batchExtraction: retried, disposition: 'complete' })
+          return response({
+            batchExtraction: retried,
+            disposition: 'complete',
+            memberFailures: [],
+          })
         throw new Error(`Unexpected request: ${url}`)
       },
     )
@@ -488,6 +496,74 @@ describe('BatchExtractionsPanel', () => {
         ([url, init]) => url === '/api/extractions' && init?.method === 'POST',
       ),
     ).toBe(false)
+  })
+
+  it('names a member that never reached a terminal write instead of calling it not run', async () => {
+    const openedBatch = {
+      ...batch,
+      members: [
+        { ...batch.members[0], latestExtraction: null },
+        batch.members[1],
+      ],
+    }
+    const fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        if (url === '/api/batch-extractions' && init?.method === 'POST')
+          return response({
+            batchExtraction: openedBatch,
+            disposition: 'running',
+            memberFailures: [
+              {
+                sourceDocumentId: failedDocumentId,
+                message: 'Extraction storage is unavailable.',
+              },
+            ],
+          })
+        throw new Error(`Unexpected request: ${url}`)
+      },
+    )
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'New Batch Extraction' }),
+    )
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Run 1 Source Document' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '1 Source Document did not run: Failed.pdf. Open the Batch Extraction to see why.',
+    )
+
+    fireEvent.click(await screen.findByText('Places · Schema Revision 1'))
+    const members = await screen.findByRole('list', {
+      name: 'Batch Extraction members',
+    })
+    expect(members).toHaveTextContent('Did not run')
+    expect(members).toHaveTextContent('Extraction storage is unavailable.')
+    expect(members).not.toHaveTextContent('Not run')
   })
 
   it('identifies the Source Document and safe reason when field suggestion fails', async () => {
@@ -591,6 +667,7 @@ describe('BatchExtractionsPanel', () => {
             : response({
                 batchExtraction: { ...batch, members: [] },
                 disposition: 'created',
+                memberFailures: [],
               })
         }
         throw new Error(`Unexpected request: ${url}`)
@@ -700,6 +777,7 @@ describe('BatchExtractionsPanel', () => {
       response({
         batchExtraction: { ...batch, members: [] },
         disposition: 'created',
+        memberFailures: [],
       }),
     )
     await screen.findByText('0 Source Documents · Article')
