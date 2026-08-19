@@ -1,7 +1,9 @@
 import {
   batchExtractionListResponseSchema,
   batchExtractionResponseSchema,
+  batchExtractionResultsResponseSchema,
   type BatchExtraction,
+  type BatchExtractionResults,
 } from '../../shared/batchExtraction.contract'
 import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import {
@@ -62,7 +64,8 @@ export async function listBatchExtractions(
 
 /**
  * Opens one Batch Extraction over the researcher's selection. The server owns
- * its identity and replays an equal selection unless `force` is explicit.
+ * its identity and replays an equal selection unless `force` is explicit, and
+ * says which of the two it did through `disposition`.
  */
 export async function openBatchExtraction(
   request: {
@@ -74,7 +77,9 @@ export async function openBatchExtraction(
   },
   signal?: AbortSignal,
 ): Promise<ReturnType<typeof batchExtractionResponseSchema.parse>> {
-  const opened = batchExtractionResponseSchema.parse(
+  // Durable member failures live on the operation snapshot, not on this
+  // transient response.
+  return batchExtractionResponseSchema.parse(
     await read('/api/batch-extractions', {
       method: 'POST',
       headers: {
@@ -85,9 +90,6 @@ export async function openBatchExtraction(
       signal,
     }),
   )
-  // Compatibility for the retiring panel actor. Durable member failures now
-  // live on the operation snapshot, not on this transient response.
-  return { ...opened, disposition: 'running' as const, memberFailures: [] }
 }
 
 export async function getBatchExtraction(
@@ -99,6 +101,23 @@ export async function getBatchExtraction(
   return batchExtractionResponseSchema.parse(
     await read(`/api/batch-extractions/${batchExtractionId}?${query}`, { signal }),
   ).batchExtraction
+}
+
+/**
+ * The Extraction Results this Batch Extraction has produced, in member order.
+ * Members without a result are absent, so the export never invents empty rows.
+ */
+export async function getBatchExtractionResults(
+  projectContextId: string,
+  batchExtractionId: string,
+  signal?: AbortSignal,
+): Promise<BatchExtractionResults> {
+  const query = new URLSearchParams({ projectContextId })
+  return batchExtractionResultsResponseSchema.parse(
+    await read(`/api/batch-extractions/${batchExtractionId}/results?${query}`, {
+      signal,
+    }),
+  )
 }
 
 export async function retryBatchExtraction(
@@ -199,4 +218,3 @@ export async function retryBatchSchemaSuggestion(
     }),
   ).batchSchemaSuggestion
 }
-

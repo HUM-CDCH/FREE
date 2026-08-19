@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  exportBatchExtractionResults,
+  type ExportChoices,
+  type ExportFormat,
+} from 'extraction-result-export'
+import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import type { NavigableRoute } from '../projectNavigation'
 import {
   appendSchemaRevision,
@@ -29,6 +35,7 @@ import {
 import {
   BatchSchemaSuggestionRequestError,
   createBatchSchemaSuggestion,
+  getBatchExtractionResults,
   listBatchExtractions,
   listBatchSchemaSuggestions,
   openBatchExtraction,
@@ -184,30 +191,53 @@ function selectionLine(batch: BatchExtraction): string {
 export default function BatchExtractionsPanel({
   projectContextId,
   sourceDocuments,
+  openBatchExtractionId,
   onNavigate,
 }: {
   projectContextId: string
   sourceDocuments: readonly SourceDocument[]
+  /** The routed Batch Extraction, so one is linkable and survives a refresh. */
+  openBatchExtractionId: string | null
   onNavigate: (route: NavigableRoute) => void
 }) {
   const sourceDocumentIds = sourceDocuments.map(
     (document) => document.sourceDocumentId,
   )
-  const [screen, setScreen] = useState<Screen>('history')
+  const [preparing, setPreparing] = useState(false)
+  // Preparing a new Batch Extraction is a draft over whichever view is routed;
+  // everything else follows the route.
+  const screen: Screen = preparing
+    ? 'prepare'
+    : openBatchExtractionId
+      ? 'members'
+      : 'history'
   const [batches, setBatches] = useState<Read<BatchExtraction[]>>({
     value: null,
     failure: null,
   })
   const [reload, setReload] = useState(0)
-  const [openBatchId, setOpenBatchId] = useState<string | null>(null)
   const [openingBatch, setOpeningBatch] = useState(false)
   const [runFailure, setRunFailure] = useState<string | null>(null)
+  // A replayed selection reopens a Batch Extraction the researcher already has,
+  // which is indistinguishable from nothing happening unless it is said.
+  const [runNotice, setRunNotice] = useState<string | null>(null)
   const [schemas, setSchemas] = useState<Read<ExtractionSchemas>>({
     value: null,
     failure: null,
   })
   const [schemaRevisionId, setSchemaRevisionId] = useState('')
   const [chosenSchema, setChosenSchema] = useState<SchemaRevision | null>(null)
+  const [pinnedBatchSchema, setPinnedBatchSchema] =
+    useState<SchemaRevision | null>(null)
+  const [pinnedBatchSchemaFailure, setPinnedBatchSchemaFailure] = useState<{
+    schemaRevisionId: string
+    message: string
+  } | null>(null)
+  const [pinnedBatchSchemaReload, setPinnedBatchSchemaReload] = useState(0)
+  const [exportCoverage, setExportCoverage] = useState<{
+    batchExtractionId: string
+    message: string
+  } | null>(null)
   const [savedSchemaState, setSavedSchemaState] =
     useState<SchemaSaveState | null>(null)
   const [savedSchemaHistory, setSavedSchemaHistory] = useState<
@@ -456,25 +486,124 @@ export default function BatchExtractionsPanel({
 
   const batchList = batches.value ?? []
   const openBatch =
-    batchList.find((batch) => batch.batchExtractionId === openBatchId) ?? null
+    batchList.find(
+      (batch) => batch.batchExtractionId === openBatchExtractionId,
+    ) ?? null
+  const showHistory = useCallback(() => {
+    setPreparing(false)
+    onNavigate({ kind: 'project', projectContextId, tab: 'extractions' })
+  }, [onNavigate, projectContextId])
+  const pinnedExtractionSchemaId =
+    screen === 'members' ? (openBatch?.extractionSchemaId ?? null) : null
+  const pinnedSchemaRevisionId =
+    screen === 'members' ? (openBatch?.schemaRevisionId ?? null) : null
+  const currentPinnedBatchSchema =
+    pinnedBatchSchema?.schemaRevisionId === pinnedSchemaRevisionId
+      ? pinnedBatchSchema
+      : null
+  const currentPinnedBatchSchemaFailure =
+    pinnedBatchSchemaFailure?.schemaRevisionId === pinnedSchemaRevisionId
+      ? pinnedBatchSchemaFailure.message
+      : null
+  // The Schema Revision the open Batch Extraction pinned, so its export offers
+  // the schema-led choices of the schema that actually produced the results.
+  useEffect(() => {
+    if (!pinnedExtractionSchemaId || !pinnedSchemaRevisionId) return
+    const controller = new AbortController()
+    getSchemaRevision(
+      projectContextId,
+      pinnedExtractionSchemaId,
+      pinnedSchemaRevisionId,
+      controller.signal,
+    ).then(
+      (revision) => {
+        if (!controller.signal.aborted) {
+          setPinnedBatchSchema(revision)
+          setPinnedBatchSchemaFailure(null)
+        }
+      },
+      (error: unknown) => {
+        if (!controller.signal.aborted)
+          setPinnedBatchSchemaFailure({
+            schemaRevisionId: pinnedSchemaRevisionId,
+            message: failureText(
+              error,
+              'The pinned Schema Revision could not be read.',
+            ),
+          })
+      },
+    )
+    return () => controller.abort()
+  }, [
+    projectContextId,
+    pinnedExtractionSchemaId,
+    pinnedSchemaRevisionId,
+    pinnedBatchSchemaReload,
+  ])
+
+  /** One spreadsheet over every Extraction Result this batch has produced. */
+  const exportOpenBatch = async (
+    format: ExportFormat,
+    choices: ExportChoices,
+  ) => {
+    // Never project one batch's results through another's pinned schema.
+    if (
+      !openBatch ||
+      currentPinnedBatchSchema?.schemaRevisionId !== openBatch.schemaRevisionId
+    )
+      return
+    const snapshot = await getBatchExtractionResults(
+      projectContextId,
+      openBatch.batchExtractionId,
+    )
+    if (snapshot.results.length === 0)
+      throw new Error(
+        'This Batch Extraction has produced no Extraction Result to export.',
+      )
+    const partial = snapshot.successfulResults < snapshot.totalMembers
+    setExportCoverage({
+      batchExtractionId: openBatch.batchExtractionId,
+      message: `Includes ${snapshot.successfulResults} of ${snapshot.totalMembers} Source Documents; ${snapshot.pending} pending, ${snapshot.failed} failed, ${snapshot.cancelled} cancelled.`,
+    })
+    await exportBatchExtractionResults(
+      snapshot.results.map((result) => ({
+        sourceDocumentId: result.sourceDocumentId,
+        sourceDocumentName: documentName(result.sourceDocumentId),
+        result: result.result,
+      })),
+      {
+        format,
+        filename: `${openBatch.extractionSchemaName} revision ${openBatch.schemaRevisionNumber} batch ${openBatch.batchExtractionId.slice(0, 8)}${partial ? ' partial' : ''}`,
+        batchExtractionId: openBatch.batchExtractionId,
+        schemaNodes: currentPinnedBatchSchema.schemaNodes,
+        choices,
+      },
+    )
+  }
+  const recordBatch = useCallback((batch: BatchExtraction) => {
+    historyGeneration.current += 1
+    setBatches((current) => ({
+      value: [
+        batch,
+        ...(current.value ?? []).filter(
+          (item) => item.batchExtractionId !== batch.batchExtractionId,
+        ),
+      ],
+      failure: null,
+    }))
+  }, [])
   const acceptOpenedBatch = useCallback(
     (opened: Awaited<ReturnType<typeof openBatchExtraction>>) => {
-      const batch = opened.batchExtraction
-      historyGeneration.current += 1
-      setBatches((current) => ({
-        value: [
-          batch,
-          ...(current.value ?? []).filter(
-            (item) => item.batchExtractionId !== batch.batchExtractionId,
-          ),
-        ],
-        failure: null,
-      }))
-      setOpenBatchId(batch.batchExtractionId)
+      recordBatch(opened.batchExtraction)
       setSelected(new Set())
-      setScreen('history')
+      setRunNotice(
+        opened.disposition === 'replayed'
+          ? 'This selection had already been run. Its Batch Extraction is reopened below — open it and choose Run again to run the same selection fresh.'
+          : null,
+      )
+      showHistory()
     },
-    [],
+    [recordBatch, showHistory],
   )
   const replaceSuggestion = useCallback((next: BatchSchemaSuggestion) => {
     setSuggestions((current) => ({
@@ -596,9 +725,8 @@ export default function BatchExtractionsPanel({
             event.strategy,
           )
           replaceSuggestion(started)
-          setOpenBatchId(started.batchExtractionId)
           setSelected(new Set())
-          setScreen('history')
+          showHistory()
           setReload((value) => value + 1)
         } catch (error) {
           if (
@@ -625,6 +753,7 @@ export default function BatchExtractionsPanel({
   const regenerateSuggestedFields = () => {
     if (!activeSuggestion || selected.size === 0 || overSelectionLimit) return
     setRunFailure(null)
+    setRunNotice(null)
     void retryBatchSchemaSuggestion(
       projectContextId,
       activeSuggestion.batchSchemaSuggestionId,
@@ -660,6 +789,7 @@ export default function BatchExtractionsPanel({
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
+    setRunNotice(null)
     try {
       const savedRevision = await savedSchemaCoordinator.current?.flush()
       const request = {
@@ -679,8 +809,43 @@ export default function BatchExtractionsPanel({
     }
   }
 
+  /**
+   * Runs the open Batch Extraction's selection again as its own Batch
+   * Extraction. The stored one is immutable research state, so a rerun is a new
+   * Batch Extraction over the same Source Documents rather than an overwrite.
+   */
+  const runOpenBatchAgain = async (batch: BatchExtraction) => {
+    if (opening.current) return
+    opening.current = true
+    setOpeningBatch(true)
+    setRunFailure(null)
+    setRunNotice(null)
+    try {
+      const opened = await openBatchExtraction({
+        projectContextId,
+        schemaRevisionId: batch.schemaRevisionId,
+        strategy: batch.strategy,
+        sourceDocumentIds: batch.members.map(
+          (member) => member.sourceDocumentId,
+        ),
+        force: true,
+      })
+      recordBatch(opened.batchExtraction)
+      setSelected(new Set())
+      openMembers(opened.batchExtraction)
+    } catch (error) {
+      setRunFailure(
+        failureText(error, 'The Batch Extraction could not be run again.'),
+      )
+    } finally {
+      opening.current = false
+      setOpeningBatch(false)
+    }
+  }
+
   const openNewBatch = () => {
     setRunFailure(null)
+    setRunNotice(null)
     if (schemaRevisionId === SUGGEST_SCHEMA) {
       if (
         confirmedSuggestion ||
@@ -702,11 +867,20 @@ export default function BatchExtractionsPanel({
   }
 
   const openMembers = (batch: BatchExtraction) => {
-    setOpenBatchId(batch.batchExtractionId)
-    setScreen('members')
+    setPreparing(false)
+    onNavigate({
+      kind: 'project',
+      projectContextId,
+      tab: 'extractions',
+      batchExtractionId: batch.batchExtractionId,
+    })
   }
 
   const openStatus = openBatch ? batchStatus(openBatch) : null
+  const openBatchHasSuccessfulResult =
+    openBatch?.members.some(
+      (member) => member.latestExtraction?.outcome === 'SUCCEEDED',
+    ) ?? false
   const filtered = sourceDocuments.filter((document) =>
     document.name
       .toLocaleLowerCase()
@@ -738,6 +912,27 @@ export default function BatchExtractionsPanel({
       allSourceDocumentsSelected ? new Set() : new Set(sourceDocumentIds),
     )
   }
+  // Both screens depend on the list read: a routed Batch Extraction is reached
+  // before it has been read, and until then the batch is unknown, not missing.
+  const batchesUnread = reading(batches) ? (
+    <p className="py-6 text-center text-xs text-ink-muted" aria-busy="true">
+      Loading Batch Extractions…
+    </p>
+  ) : batches.failure ? (
+    <div className="flex flex-col items-center gap-3 py-6 text-center">
+      <p className="text-xs text-danger" role="alert">
+        Could not load Batch Extractions. {batches.failure}
+      </p>
+      <Button
+        onClick={() => {
+          setBatches({ value: null, failure: null })
+          setReload((attempt) => attempt + 1)
+        }}
+      >
+        Retry
+      </Button>
+    </div>
+  ) : null
   const heading =
     screen === 'history'
       ? 'History'
@@ -764,7 +959,7 @@ export default function BatchExtractionsPanel({
               disabled={openingAnyBatch}
               onClick={() => {
                 clearSuggestedFields()
-                setScreen('history')
+                showHistory()
               }}
             >
               <span aria-hidden="true">← </span>Back to history
@@ -780,7 +975,7 @@ export default function BatchExtractionsPanel({
             disabled={openingAnyBatch}
             onClick={() => {
               setSelected(new Set(sourceDocumentIds))
-              setScreen('prepare')
+              setPreparing(true)
             }}
           >
             {openingAnyBatch
@@ -794,30 +989,16 @@ export default function BatchExtractionsPanel({
           {runFailure}
         </p>
       )}
+      {runNotice && (
+        <p className="mb-3 text-[11px] leading-snug text-ink-muted" role="status">
+          {runNotice}
+        </p>
+      )}
 
       <div className="min-h-[430px]">
         {screen === 'history' ? (
-          reading(batches) ? (
-            <p
-              className="py-6 text-center text-xs text-ink-muted"
-              aria-busy="true"
-            >
-              Loading Batch Extractions…
-            </p>
-          ) : batches.failure ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <p className="text-xs text-danger" role="alert">
-                Could not load Batch Extractions. {batches.failure}
-              </p>
-              <Button
-                onClick={() => {
-                  setBatches({ value: null, failure: null })
-                  setReload((attempt) => attempt + 1)
-                }}
-              >
-                Retry
-              </Button>
-            </div>
+          batchesUnread ? (
+            batchesUnread
           ) : batchList.length === 0 ? (
             <p className="py-6 text-center text-xs text-ink-muted">
               No Batch Extractions yet.
@@ -1253,6 +1434,8 @@ export default function BatchExtractionsPanel({
               </Button>
             </div>
           </>
+        ) : batchesUnread ? (
+          batchesUnread
         ) : !openBatch ? (
           <p className="py-6 text-center text-xs text-ink-muted">
             That Batch Extraction is no longer listed.
@@ -1268,45 +1451,103 @@ export default function BatchExtractionsPanel({
               <p className={`text-xs font-semibold ${openStatus!.tone}`}>
                 {openStatus!.label}
               </p>
-              {(openBatch.executionStatus === 'FAILED' ||
-                openBatch.members.some(
-                  (member) => member.executionStatus === 'FAILED',
-                )) && (
+              <div className="flex items-start gap-2">
+                <div className="flex flex-col items-end gap-1">
+                  <ExtractionResultExportControl
+                    schema={
+                      currentPinnedBatchSchema && {
+                        recordDescription:
+                          currentPinnedBatchSchema.recordDescription,
+                        schemaNodes: currentPinnedBatchSchema.schemaNodes,
+                      }
+                    }
+                    disabled={!openBatchHasSuccessfulResult}
+                    disabledReason={
+                      !openBatchHasSuccessfulResult
+                        ? 'No successful Extraction Results are available to export.'
+                        : null
+                    }
+                    onExport={exportOpenBatch}
+                  />
+                  {currentPinnedBatchSchemaFailure && (
+                    <div className="flex max-w-72 flex-col items-end gap-1">
+                      <p
+                        className="text-right text-[11.5px] leading-snug text-danger"
+                        role="alert"
+                      >
+                        {currentPinnedBatchSchemaFailure}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          setPinnedBatchSchemaReload((value) => value + 1)
+                        }
+                      >
+                        Retry Schema Revision
+                      </Button>
+                    </div>
+                  )}
+                  {exportCoverage?.batchExtractionId ===
+                    openBatch.batchExtractionId && (
+                    <p
+                      className="max-w-96 text-right text-[11.5px] leading-snug text-ink-muted"
+                      role="status"
+                    >
+                      {exportCoverage.message}
+                    </p>
+                  )}
+                </div>
+                {(openBatch.executionStatus === 'FAILED' ||
+                  openBatch.members.some(
+                    (member) => member.executionStatus === 'FAILED',
+                  )) && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      void retryBatchExtraction(
+                        projectContextId,
+                        openBatch.batchExtractionId,
+                      ).then(
+                        (retried) => {
+                          setBatches((current) => ({
+                            value: [
+                              retried,
+                              ...(current.value ?? []).filter(
+                                (batch) =>
+                                  batch.batchExtractionId !==
+                                  retried.batchExtractionId,
+                              ),
+                            ],
+                            failure: null,
+                          }))
+                          setReload((value) => value + 1)
+                        },
+                        (error: unknown) =>
+                          setRunFailure(
+                            failureText(
+                              error,
+                              'The Batch Extraction could not be retried.',
+                            ),
+                          ),
+                      )
+                    }}
+                  >
+                    Retry unfinished
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="secondary"
+                  disabled={openingAnyBatch}
                   onClick={() => {
-                    void retryBatchExtraction(
-                      projectContextId,
-                      openBatch.batchExtractionId,
-                    ).then(
-                      (retried) => {
-                        setBatches((current) => ({
-                          value: [
-                            retried,
-                            ...(current.value ?? []).filter(
-                              (batch) =>
-                                batch.batchExtractionId !==
-                                retried.batchExtractionId,
-                            ),
-                          ],
-                          failure: null,
-                        }))
-                        setReload((value) => value + 1)
-                      },
-                      (error: unknown) =>
-                        setRunFailure(
-                          failureText(
-                            error,
-                            'The Batch Extraction could not be retried.',
-                          ),
-                        ),
-                    )
+                    void runOpenBatchAgain(openBatch)
                   }}
                 >
-                  Retry unfinished
+                  {openingAnyBatch ? 'Running again…' : 'Run again'}
                 </Button>
-              )}
+              </div>
             </div>
             <ul className="space-y-1" aria-label="Batch Extraction members">
               {openBatch.members.map((member) => {

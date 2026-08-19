@@ -80,10 +80,12 @@ export type BatchExtractionMember = BatchExtraction['members'][number]
 export const batchExtractionResponseSchema = z
   .object({
     batchExtraction: batchExtractionSchema,
-    // Deprecated response-only fields let focused legacy API tests exercise the
-    // extracted execution core while production callers use the snapshot alone.
+    // `created` and `replayed` tell the researcher whether this request opened a
+    // fresh Batch Extraction or reopened the one their selection already has.
+    // The remaining values are response-only and let focused legacy API tests
+    // exercise the extracted execution core.
     disposition: z
-      .enum(['created', 'running', 'retry', 'complete'])
+      .enum(['created', 'replayed', 'running', 'retry', 'complete'])
       .default('running'),
     memberFailures: z
       .array(
@@ -101,6 +103,39 @@ export const batchExtractionResponseSchema = z
 export const batchExtractionListResponseSchema = z
   .object({ batchExtractions: z.array(batchExtractionSchema) })
   .strict()
+
+/**
+ * The Extraction Results a Batch Extraction has produced, for one spreadsheet
+ * over the whole batch. Members without a result are absent, never empty.
+ */
+export const batchExtractionResultsResponseSchema = z
+  .object({
+    batchExtractionId: canonicalUuidSchema,
+    executionStatus: projectOperationStatusSchema,
+    totalMembers: z.number().int().nonnegative(),
+    successfulResults: z.number().int().nonnegative(),
+    pending: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    cancelled: z.number().int().nonnegative(),
+    results: z.array(
+      z
+        .object({
+          sourceDocumentId: canonicalUuidSchema,
+          extractionId: canonicalUuidSchema,
+          result: z.record(z.string(), z.json()),
+        })
+        .strict(),
+    ),
+  })
+  .strict()
+
+export type BatchExtractionResults = z.output<
+  typeof batchExtractionResultsResponseSchema
+>
+
+export type BatchExtractionResult = z.output<
+  typeof batchExtractionResultsResponseSchema
+>['results'][number]
 
 /**
  * Execution counts and the separate persisted research-review digest.

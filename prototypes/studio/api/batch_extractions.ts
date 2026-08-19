@@ -8,6 +8,7 @@ import {
   batchExtractionListResponseSchema,
   batchExtractionRequestSchema,
   batchExtractionResponseSchema,
+  batchExtractionResultsResponseSchema,
 } from '../shared/batchExtraction.contract.js'
 import { extractionAttemptSchema } from '../shared/extraction.contract.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
@@ -29,6 +30,7 @@ import {
 const COLLECTION_ROUTE = '/api/batch-extractions'
 const ITEM_ROUTE = /^\/api\/batch-extractions\/([0-9a-f-]+)$/
 const RETRY_ROUTE = /^\/api\/batch-extractions\/([0-9a-f-]+)\/retry$/
+const RESULTS_ROUTE = /^\/api\/batch-extractions\/([0-9a-f-]+)\/results$/
 
 type BatchExtractionStore = Pick<
   ProjectStore,
@@ -319,6 +321,7 @@ type DurableBatchExtractionStore = Pick<
   | 'createBatchExtraction'
   | 'listBatchExtractions'
   | 'getBatchExtraction'
+  | 'getBatchExtractionResults'
   | 'retryBatchExtraction'
 >
 
@@ -349,10 +352,14 @@ export function createBatchExtractionsApi(
         'invalid_request',
         'The Batch Extraction request is invalid.',
       )
-    const selection = parsed.data
+    const { force, ...selection } = parsed.data
+    // An unforced selection keeps its fingerprint identity, so a double click or
+    // a reloaded page reopens the Batch Extraction it already has. `force` is
+    // the researcher deciding to run that same selection again, which needs an
+    // identity the fingerprint cannot give it.
     const opened = await durableStore
       .createBatchExtraction(selection.projectContextId, {
-        batchExtractionId: batchExtractionId(selection),
+        batchExtractionId: force ? randomUUID() : batchExtractionId(selection),
         schemaRevisionId: selection.schemaRevisionId,
         strategy: selection.strategy,
         sourceDocumentIds: selection.sourceDocumentIds,
@@ -372,6 +379,7 @@ export function createBatchExtractionsApi(
     return json(
       batchExtractionResponseSchema.parse({
         batchExtraction: batchDto(opened.batch),
+        disposition: opened.status,
       }),
       { status: 202, headers: noStore },
     )
@@ -448,6 +456,44 @@ export function createBatchExtractionsApi(
     )
   }
 
+  /**
+   * Every Extraction Result the batch has produced, in member order. The
+   * researcher's export reads one Batch Extraction as one spreadsheet.
+   */
+  const results = async (url: URL, batchExtractionId: string) => {
+    const projectContextId = url.searchParams.get('projectContextId')
+    if (
+      !projectContextId ||
+      !canonicalUuidSchema.safeParse(projectContextId).success ||
+      !canonicalUuidSchema.safeParse(batchExtractionId).success
+    )
+      throw new ApiError(422, 'invalid_request', 'The Batch Extraction identity is invalid.')
+    const produced = await durableStore
+      .getBatchExtractionResults(projectContextId, batchExtractionId)
+      .catch((cause) => {
+        throw persistenceUnavailable(cause)
+      })
+    if (!produced)
+      throw new ApiError(404, 'not_found', 'Batch Extraction was not found.')
+    return json(
+      batchExtractionResultsResponseSchema.parse({
+        batchExtractionId: produced.batchExtractionId,
+        executionStatus: produced.executionStatus,
+        totalMembers: produced.totalMembers,
+        successfulResults: produced.successfulResults,
+        pending: produced.pending,
+        failed: produced.failed,
+        cancelled: produced.cancelled,
+        results: produced.results.map((result) => ({
+          sourceDocumentId: result.sourceDocumentId,
+          extractionId: result.extractionId,
+          result: result.resultPayload,
+        })),
+      }),
+      { headers: noStore },
+    )
+  }
+
   return async function batchExtractionsApi(request: Request): Promise<Response> {
     try {
       const url = new URL(request.url)
@@ -458,6 +504,9 @@ export function createBatchExtractionsApi(
       const retryMatch = RETRY_ROUTE.exec(url.pathname)
       if (request.method === 'POST' && retryMatch)
         return await retry(url, retryMatch[1])
+      const resultsMatch = RESULTS_ROUTE.exec(url.pathname)
+      if (request.method === 'GET' && resultsMatch)
+        return await results(url, resultsMatch[1])
       const itemMatch = ITEM_ROUTE.exec(url.pathname)
       if (request.method === 'GET' && itemMatch)
         return await read(url, itemMatch[1])

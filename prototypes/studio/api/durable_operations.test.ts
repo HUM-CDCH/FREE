@@ -107,6 +107,50 @@ describe('durable operation APIs', () => {
     })
   })
 
+  it('replays an unforced selection and opens a fresh Batch Extraction when the researcher forces it', async () => {
+    const openedIds: string[] = []
+    const createBatchExtraction = vi.fn(
+      async (_: string, input: { batchExtractionId: string }) => {
+        openedIds.push(input.batchExtractionId)
+        return openedIds.length === 1
+          ? { status: 'replayed' as const, batch }
+          : { status: 'created' as const, batch }
+      },
+    )
+    const handler = createBatchExtractionsApi(
+      { createBatchExtraction } as never,
+      { kick: vi.fn() },
+    )
+    const open = (force?: boolean) =>
+      handler(
+        new Request('http://studio.test/api/batch-extractions', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            projectContextId,
+            schemaRevisionId,
+            strategy: 'ARTICLE',
+            sourceDocumentIds: [sourceDocumentId],
+            ...(force === undefined ? {} : { force }),
+          }),
+        }),
+      )
+
+    const replayed = await open()
+    const forced = await open(true)
+
+    await expect(replayed.json()).resolves.toMatchObject({
+      disposition: 'replayed',
+    })
+    await expect(forced.json()).resolves.toMatchObject({
+      disposition: 'created',
+    })
+    expect(openedIds[1]).not.toBe(openedIds[0])
+    // The fingerprint identity is stable, so only the forced open may differ.
+    expect((await open()).status).toBe(202)
+    expect(openedIds[2]).toBe(openedIds[0])
+  })
+
   it('persists and schedules a schema suggestion without waiting for its model work', async () => {
     const createBatchSchemaSuggestion = vi.fn(async () => ({
       status: 'created' as const,
