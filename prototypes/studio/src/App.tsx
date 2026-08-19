@@ -565,8 +565,16 @@ export function DocumentWorkspace({
         }
 
         pdfViewer.setDocument(pdf)
-        // The base scale stays unset until something calls setScale; pin it
-        // to the current (100%) value so updateScale() has a valid baseline.
+        // setDocument initializes page views asynchronously. Setting a scale
+        // before the first page exists makes pdf.js try (and fail) to scroll
+        // to page 1 while updating the scale.
+        await pdfViewer.firstPagePromise
+        if (abortController.signal.aborted) {
+          return
+        }
+
+        // The base scale stays unset until something calls setScale; pin it to
+        // the current (100%) value so updateScale() has a valid baseline.
         if (!pdfViewer.currentScaleValue) {
           pdfViewer.currentScaleValue = String(pdfViewer.currentScale)
         }

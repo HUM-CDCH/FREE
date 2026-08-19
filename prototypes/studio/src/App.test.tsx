@@ -30,7 +30,30 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
     off() {}
   },
   PDFViewer: class {
-    setDocument() {}
+    private pagesReady = false
+    private scaleValue: string | null = null
+
+    currentScale = 1
+    firstPagePromise: Promise<void> | null = null
+
+    setDocument(pdfDocument: unknown) {
+      if (!pdfDocument) return
+      this.firstPagePromise = Promise.resolve().then(() => {
+        this.pagesReady = true
+      })
+    }
+
+    get currentScaleValue() {
+      return this.scaleValue
+    }
+
+    set currentScaleValue(value: string | null) {
+      if (!this.pagesReady) {
+        console.error('scrollPageIntoView: "1" is not a valid pageNumber parameter.')
+      }
+      this.scaleValue = value
+    }
+
     scrollPageIntoView = scrollPageIntoView
   },
 }))
@@ -130,6 +153,20 @@ async function renderReopened() {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('initializes PDF zoom only after the first page is available', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      await renderReopened()
+
+      expect(consoleError).not.toHaveBeenCalledWith(
+        'scrollPageIntoView: "1" is not a valid pageNumber parameter.',
+      )
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
+
   it('renames the reopened schema from the schema/chat panel', async () => {
     const fetch = vi.fn(
       (input: string | URL | Request, init?: RequestInit) => {
