@@ -2,16 +2,16 @@
 
 ### Requirement: Shared model configuration requires an authenticated researcher
 
-Model Connections, Capability Routes, credential states, and probes SHALL remain deployment-wide shared state. Every authenticated Researcher Account SHALL be allowed to view, probe, and replace that shared configuration, while unauthenticated callers SHALL be denied. FREE SHALL NOT add per-account Model Connections, routes, credentials, or overrides, and SHALL continue to withhold credential values from every response.
+Model Connections, Capability Routes, credential states, and probes SHALL remain deployment-wide shared state. Every authenticated Researcher Account that is not marked for mandatory password change SHALL be allowed to view, probe, and replace that shared configuration, while unauthenticated and mandatory-change callers SHALL be denied. FREE SHALL NOT add per-account Model Connections, routes, credentials, or overrides, and SHALL continue to withhold credential values from every response.
 
 #### Scenario: Authenticated researcher opens configuration
 
-- **WHEN** any authenticated Researcher Account requests the Model Connection page
+- **WHEN** an authenticated Researcher Account that is not marked for mandatory password change requests the Model Connection page
 - **THEN** FREE returns the shared configuration, provider descriptors, and redacted credential states
 
 #### Scenario: Authenticated researcher applies shared configuration
 
-- **WHEN** any authenticated Researcher Account applies a valid complete draft
+- **WHEN** an authenticated Researcher Account that is not marked for mandatory password change applies a valid complete draft
 - **THEN** FREE replaces the deployment-wide configuration for every researcher
 - **AND** no response exposes a stored credential value
 
@@ -19,6 +19,11 @@ Model Connections, Capability Routes, credential states, and probes SHALL remain
 
 - **WHEN** an unauthenticated caller requests configuration, applies a draft, or probes a connection
 - **THEN** FREE returns HTTP 401 without reading credentials or contacting a provider
+
+#### Scenario: Mandatory-change account addresses model configuration
+
+- **WHEN** an authenticated account marked for mandatory password change requests configuration, applies a draft, or probes a connection
+- **THEN** FREE refuses the model operation and directs the browser to the password-change surface
 
 ## MODIFIED Requirements
 

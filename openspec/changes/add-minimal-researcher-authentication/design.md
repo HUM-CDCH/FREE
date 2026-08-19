@@ -73,7 +73,7 @@ Alternatives considered:
 
 ### Use local scrypt passwords and CLI lifecycle operations
 
-Use Node's built-in `crypto.scrypt` with a random salt and a versioned self-describing encoding containing explicit cost parameters. Bound accepted password size, use constant-time comparison, and verify invalid/disabled logins against a valid dummy representation to reduce account-enumeration timing. The initial policy accepts 15–128 character passwords without composition or periodic-rotation rules.
+Use Node's built-in `crypto.scrypt` with a random salt and a versioned self-describing encoding containing explicit cost parameters. Bound accepted password size, use constant-time comparison, and verify invalid/disabled logins against a valid dummy representation to reduce account-enumeration timing. The initial policy accepts 15–128 Unicode scalar values without Unicode normalization, composition, or periodic-rotation rules.
 
 Build CLI commands for `create`, `reset-password`, and `disable` on the same account store and hashing module used by Studio. Passwords are read interactively or from standard input, never command-line arguments. Create/reset sets `mustChangePassword` and increments `sessionVersion`; disable sets `disabledAt` and increments it. No account is created by migration, seed, default password, or environment variable.
 
@@ -84,7 +84,7 @@ Alternatives considered:
 
 ### Use stateless signed cookies with global account revocation
 
-Require `FREE_SESSION_SECRET` with at least 32 random bytes and a configured canonical HTTPS `STUDIO_ORIGIN`. Sign a versioned cookie payload with HMAC-SHA-256. The payload contains only account ID, captured `sessionVersion`, original issue time, and expiry; it is signed but not encrypted. Every request loads the current account and rejects disabled or version-mismatched sessions.
+Require `FREE_SESSION_SECRET` as canonical base64 that decodes to at least 32 random bytes and require a configured canonical HTTPS `STUDIO_ORIGIN`. Reject malformed, non-canonical, or undersized secrets before listening. Sign a versioned cookie payload with HMAC-SHA-256. The payload contains only account ID, captured `sessionVersion`, original issue time, and expiry; it is signed but not encrypted. Every request loads the current account and rejects disabled or version-mismatched sessions.
 
 Use `Secure`, `HttpOnly`, `SameSite=Strict`, and `Path=/`. Authenticated activity may renew the 12-hour idle expiry without moving the original issue time beyond the 7-day absolute expiry. Secret replacement logs out every account. Logout clears that browser cookie; reset and disable increment `sessionVersion` to revoke all cookies for that account.
 
@@ -98,6 +98,8 @@ Alternatives considered:
 ### Enforce origin, login throttling, and deny-by-default routing centrally
 
 Unsafe methods require an exact `Origin` match to `STUDIO_ORIGIN`; the trusted origin is never derived from `Host` or forwarded headers. SameSite remains defense in depth. A bounded pruned in-memory limiter tracks failures by normalized email and client address before expensive password work, returns a generic retry response, and clears on restart.
+
+In the hosted topology, Caddy and Studio share a dedicated proxy network containing no other service. Caddy discards any inbound `X-FREE-Client-Address` value and sets that header from its direct client socket. Studio accepts the header only in hosted mode on that dedicated boundary and fails startup if the proxy contract is not enabled; explicit loopback development uses the direct socket address instead. This keeps per-client throttling useful without trusting browser-supplied forwarding headers.
 
 Public Studio routes are limited to login/session establishment, required static assets, and shallow `GET /api/healthz`. Protected APIs return JSON 401. Protected document navigation redirects to login with a validated local return path. The frontend resolves session state before mounting `ProjectNavigationProvider`, and a shared authenticated-fetch wrapper converts later 401 responses into a login transition. Production omits the LLM inspector.
 
@@ -117,7 +119,7 @@ Hosted startup will replay authored migrations instead of using `db:update`. The
 
 ### Put Caddy at the only host-facing network boundary
 
-Caddy is the only service that publishes a host port. Studio, PostgreSQL, and Parsing Service remain on the private Compose network. Caddy loads an institution/VPN-supplied certificate and private key from a read-only mount and proxies to Studio over the container network. There is no public ACME flow, internal certificate authority, self-signed fallback, or plain-HTTP authentication path.
+Caddy is the only service that publishes a host port. Studio joins a dedicated Caddy–Studio proxy network and a separate internal application network; PostgreSQL and Parsing Service join only internal networks and publish no host port. Caddy loads an institution/VPN-supplied certificate and private key from a read-only mount and proxies to Studio over the dedicated network. There is no public ACME flow, internal certificate authority, self-signed fallback, or plain-HTTP authentication path.
 
 The infrastructure operator owns renewal. Replacing PEM files is followed by validation and a forced Caddy reload; FREE documents but does not automate that institutional process. Studio runs one Node application process because the login limiter and some existing job coordination are process-local.
 

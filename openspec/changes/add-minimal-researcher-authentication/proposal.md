@@ -16,8 +16,9 @@ FREE currently assumes one trusted researcher on one machine: Studio has no logi
 
 ### New Capabilities
 
-- `researcher-authentication`: Local account provisioning, password login/change/reset, signed browser sessions, logout, disablement, and the deny-by-default Studio authentication boundary.
+- `researcher-authentication`: Local account provisioning, password login, mandatory temporary-password change, operator reset, signed browser sessions, logout, disablement, and the deny-by-default Studio authentication boundary.
 - `researcher-project-ownership`: Direct Researcher Account ownership of Project Contexts and transitive server-side authorization of all project-owned data and operations.
+- `private-studio-deployment`: Production Studio hosting, clean-database bootstrap, and an HTTPS-only Caddy gateway that keeps internal services off the host network.
 
 ### Modified Capabilities
 

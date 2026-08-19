@@ -31,7 +31,7 @@ Every request-facing read or mutation involving a Project Context or descendant 
 
 #### Scenario: Researcher uses another account's descendant ID
 
-- **WHEN** an authenticated researcher addresses a source representation, schema, revision, extraction, result, batch, review, reopen operation, or artifact through an identifier owned by another account
+- **WHEN** an authenticated researcher addresses a source representation, annotation, schema, revision, extraction, result, batch, review, reopen operation, or artifact through an identifier owned by another account
 - **THEN** FREE returns not found without reading, mutating, executing, or disclosing that resource
 
 #### Scenario: Operation combines identifiers from different owners

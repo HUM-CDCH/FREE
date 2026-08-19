@@ -8,6 +8,8 @@ Provide a minimal local account and browser-session boundary so a known group of
 
 FREE SHALL provide deployment CLI operations to create, disable, and reset a Researcher Account identified by a case-insensitive unique email address. Creation and reset SHALL accept a password without exposing it in process arguments, store only a salted one-way password representation, mark the password for mandatory change, and invalidate previously issued sessions. FREE SHALL provide no public registration, invitation flow, account-management UI, role model, or self-service recovery flow.
 
+Every temporary or replacement password SHALL contain 15 through 128 Unicode scalar values. FREE SHALL compare the exact supplied password without Unicode normalization and SHALL reject shorter or longer values before password hashing.
+
 #### Scenario: Operator creates a Researcher Account
 
 - **WHEN** the operator supplies a previously unused email address and temporary password through the account CLI
@@ -29,6 +31,11 @@ FREE SHALL provide deployment CLI operations to create, disable, and reset a Res
 - **WHEN** the operator disables an existing Researcher Account
 - **THEN** FREE invalidates its sessions and rejects subsequent login attempts
 - **AND** the account's Project Contexts and descendants remain durable
+
+#### Scenario: Operator supplies a password outside the policy
+
+- **WHEN** account creation or password reset receives fewer than 15 or more than 128 Unicode scalar values
+- **THEN** FREE rejects the command without storing or hashing the password
 
 ### Requirement: Password login establishes a bounded signed session
 
@@ -66,8 +73,13 @@ An authenticated account marked for mandatory password change SHALL be allowed t
 
 #### Scenario: Researcher changes the temporary password
 
-- **WHEN** the account submits its current temporary password and an acceptable replacement
+- **WHEN** the account submits its current temporary password and an exact 15-through-128-scalar replacement
 - **THEN** FREE stores the replacement, clears the mandatory-change state, invalidates prior cookies, and permits a subsequent normal login
+
+#### Scenario: Temporary password replacement is outside the policy
+
+- **WHEN** the account submits a replacement with fewer than 15 or more than 128 Unicode scalar values
+- **THEN** FREE rejects it without changing the password, mandatory-change state, or session version
 
 ### Requirement: Studio denies unauthenticated access by default
 
