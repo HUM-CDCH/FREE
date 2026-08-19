@@ -28,6 +28,7 @@ function readyController(): ExtractionController {
     },
     canRun: true,
     hasResults: true,
+    stale: false,
     runExtraction: async () => {},
     retryExtraction: async () => {},
     requestCancellation: async () => {},

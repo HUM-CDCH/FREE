@@ -30,6 +30,7 @@ function controller(
     attempt,
     canRun: true,
     hasResults: state.status === 'ready',
+    stale: false,
     runExtraction: async () => {},
     retryExtraction: vi.fn(async () => {}),
     requestCancellation: async () => {},

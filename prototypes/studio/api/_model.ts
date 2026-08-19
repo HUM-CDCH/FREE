@@ -1,7 +1,12 @@
 import {
   NoObjectGeneratedError,
   Output,
+  convertToModelMessages,
+  createUIMessageStreamResponse,
   generateText,
+  streamText,
+  toUIMessageStream,
+  type UIMessage,
 } from 'ai'
 import { z } from 'zod'
 import type { DocumentInput } from './_document.js'
@@ -105,36 +110,36 @@ async function operationTarget(
   return inspectTarget(operation, resolved)
 }
 
-// export async function streamChatWithModel(
-//   messages: readonly UIMessage[],
-//   documentMarkdown: string,
-//   temperature?: number,
-//   target?: ExecutionTarget,
-//   dependencies: ModelDependencies = {},
-// ): Promise<Response> {
-//   const resolved = await operationTarget('chat', temperature, target, dependencies)
-//   if (resolved.profile !== 'general') {
-//     throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
-//   }
-//   try {
-//     const result = streamText({
-//       model: resolved.model,
-//       system:
-//         'You help humanities researchers inspect source documents in FREE. Use the canonical Source Document Markdown below as the document context.\n\n' +
-//         `SOURCE DOCUMENT MARKDOWN:\n${documentMarkdown}\nEND SOURCE DOCUMENT MARKDOWN`,
-//       messages: await convertToModelMessages([...messages]),
-//       ...(temperature === undefined ? {} : { temperature }),
-//     })
-//     return createUIMessageStreamResponse({
-//       stream: toUIMessageStream({
-//         stream: result.stream,
-//         onError: () => 'Chat failed.',
-//       }),
-//     })
-//   } catch (error) {
-//     throw asModelOperationError(error, 'Chat failed before streaming began.')
-//   }
-// }
+export async function streamChatWithModel(
+  messages: readonly UIMessage[],
+  documentMarkdown: string,
+  temperature?: number,
+  target?: ExecutionTarget,
+  dependencies: ModelDependencies = {},
+): Promise<Response> {
+  const resolved = await operationTarget('chat', temperature, target, dependencies)
+  if (resolved.profile !== 'general') {
+    throw new ApiError(409, 'invalid_model_config', 'The Interaction Route must use general execution.')
+  }
+  try {
+    const result = streamText({
+      model: resolved.model,
+      system:
+        'You help humanities researchers inspect source documents in FREE. Use the canonical Source Document Markdown below as the document context.\n\n' +
+        `SOURCE DOCUMENT MARKDOWN:\n${documentMarkdown}\nEND SOURCE DOCUMENT MARKDOWN`,
+      messages: await convertToModelMessages([...messages]),
+      ...(temperature === undefined ? {} : { temperature }),
+    })
+    return createUIMessageStreamResponse({
+      stream: toUIMessageStream({
+        stream: result.stream,
+        onError: () => 'Chat failed.',
+      }),
+    })
+  } catch (error) {
+    throw asModelOperationError(error, 'Chat failed before streaming began.')
+  }
+}
 
 export async function extractWithModel(
   { document, template, instruction, temperature, signal }: ExtractModelInput,
