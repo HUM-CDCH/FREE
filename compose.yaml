@@ -1,0 +1,82 @@
+# One local FREE stack: PostgreSQL, the simple Docling Parsing Service, and
+# Studio. Studio's API has no authentication, so every published port binds to
+# host loopback only — this is a local run, not a hosted deployment.
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: free
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d free"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  parsing_service:
+    build:
+      context: prototypes/parsing_service_simple
+    restart: unless-stopped
+    # Match Docling's NVIDIA deployment baseline while keeping FREE's custom
+    # task and canonical-package API instead of replacing it with docling-serve.
+    runtime: nvidia
+    environment:
+      DOCLING_DEVICE: cuda
+      NVIDIA_VISIBLE_DEVICES: all
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      # `/status` answers only once the Docling pipeline is initialized, and the
+      # first start downloads its models, so the start period is generous.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/status', timeout=5)"
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 30m
+    volumes:
+      - parsing-tasks:/app/data
+      - parsing-models:/models
+
+  studio:
+    build:
+      context: .
+      dockerfile: prototypes/studio/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/free
+      VITE_PARSING_SERVICE_URL: http://parsing_service:8000
+    ports:
+      - "127.0.0.1:5173:5173"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/api/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
+      parsing_service:
+        condition: service_started
+    volumes:
+      # Canonical ingestion packages under `env-paths('FREE Studio').data`.
+      - studio-data:/root/.local/share
+      # `model-config.json` under `env-paths('FREE Studio').config`.
+      - studio-config:/root/.config
+
+volumes:
+  postgres-data:
+  parsing-tasks:
+  parsing-models:
+  studio-data:
+  studio-config:

@@ -31,6 +31,29 @@ The service stores processor-cache data in `data/` by default. Run exactly one
 Uvicorn/FastAPI process; the queue and converter intentionally live in that
 process.
 
+## Run in Docker
+
+The service is one of the three containers in the repository-root
+`compose.yaml`:
+
+```bash
+docker compose up --build parsing_service
+```
+
+The image leaves Docling's layout and table models out of its layers. They are
+downloaded into `HOME=/models` on the first conversion and kept in the
+`parsing-models` volume; `/app/data` holds the task directory. Both are
+processor caches, never a durable Source Representation dependency, so removing
+either volume is safe.
+
+The container runs a single Uvicorn process for the same reason the host command
+does: the FIFO queue and the reusable `DocumentConverter` are in-process state.
+The root Compose service follows Docling's NVIDIA deployment baseline with the
+`nvidia` runtime, exposes all GPUs, and selects `DOCLING_DEVICE=cuda`.
+
+The first build is long and the image is large because `uv.lock` resolves the
+CUDA build of torch: `uv sync --frozen` downloads the whole `nvidia-*` wheel set.
+
 ## Test
 
 ```powershell
