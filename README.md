@@ -40,6 +40,21 @@ open the example Source Documents, seed once the stack is healthy:
 docker compose exec studio pnpm db:seed
 ```
 
+For live Studio source updates from the host, opt in to the development
+override and Compose Watch:
+
+```bash
+docker compose -f compose.yaml -f compose.dev.yaml up --build --watch
+```
+
+The override syncs Studio's `api`, `src`, `shared`, and `public` directories,
+plus the local database and export package sources used by Studio. It does not
+bind-mount the repository, `node_modules`, or generated Prisma runtime files,
+so Linux dependencies and generated artifacts stay inside the image. Changes
+to dependencies, Docker configuration, or the database contract still require
+rebuilding the Studio image. It also starts Vite with
+`VITE_SHOW_DEVELOPER_UI=true` so developer tooling is visible.
+
 Four named volumes hold the state that must outlive a container: the PostgreSQL
 data directory, the Parsing Service task cache, its Docling model cache, and
 Studio's `FREE Studio` data and config directories (canonical ingestion

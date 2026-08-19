@@ -1,0 +1,39 @@
+# Opt-in live source sync for the Dockerized Studio. Use together with
+# compose.yaml; the base stack remains image-only and reproducible.
+services:
+  studio:
+    environment:
+      VITE_SHOW_DEVELOPER_UI: "true"
+    develop:
+      watch:
+        - action: sync
+          path: ./prototypes/studio/api
+          target: /workspace/prototypes/studio/api
+          initial_sync: true
+        - action: sync
+          path: ./prototypes/studio/src
+          target: /workspace/prototypes/studio/src
+          initial_sync: true
+        - action: sync
+          path: ./prototypes/studio/shared
+          target: /workspace/prototypes/studio/shared
+          initial_sync: true
+        - action: sync
+          path: ./prototypes/studio/public
+          target: /workspace/prototypes/studio/public
+          initial_sync: true
+        - action: sync
+          path: ./packages/extraction-result-export/src
+          target: /workspace/packages/extraction-result-export/src
+          initial_sync: true
+        - action: sync
+          path: ./packages/db/src
+          target: /workspace/packages/db/src
+          initial_sync: true
+          ignore:
+            # These are generated for Linux while the image is built. Do not
+            # replace them with host-generated or host-installed artifacts.
+            - prisma/contract.d.ts
+            - prisma/contract.json
+            - prisma/node_modules/
+            - prisma/src/

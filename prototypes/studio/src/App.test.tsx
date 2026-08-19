@@ -765,7 +765,7 @@ describe('reopened Source Document workspace', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
-    const accept = await screen.findByRole('button', { name: 'Accept result' })
+    const accept = await screen.findByRole('button', { name: 'Accept and Save' })
     fireEvent.click(accept)
 
     await waitFor(() =>

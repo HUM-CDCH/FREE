@@ -1,3 +1,4 @@
+import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
 // The Annotation and Chat tabs were retired: the Annotation tab's highlight-set
 // list and the generic document Chat tab were folded into SchemaPanel's own
@@ -94,6 +95,39 @@ function RightRail({
   onResultPathChange,
 }: RightRailProps) {
   const { documentMarkdown, parsedDocument, reviewDecisions } = inspection
+  const showDeveloperUi = isDeveloperUiEnabled()
+  const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
+
+  const resultsBadge = extraction.hasResults ? { label: '✓', done: true } : null
+
+  const tabs: {
+    key: RailTab
+    label: string
+    badge?: { label: string; done?: boolean } | null
+  }[] = [
+    ...(showDeveloperUi
+      ? [
+          {
+            key: 'evidence' as const,
+            label: 'Evidence',
+            badge: parsedDocument
+              ? {
+                  label: String(
+                    parsedDocument.evidence_index.anchors.length,
+                  ),
+                }
+              : null,
+          },
+        ]
+      : []),
+    {
+      key: 'schema',
+      label: 'Schema',
+      badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null,
+    },
+    { key: 'results', label: 'Results', badge: resultsBadge },
+  ]
+
   if (!open) {
     return (
       <div className="flex h-full flex-col items-center">
@@ -106,25 +140,17 @@ function RightRail({
           <PanelToggleIcon side="right" />
         </button>
         <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-ink-muted [writing-mode:vertical-rl]">
-          Evidence · Schema · Results
+          {tabs.map(({ label }) => label).join(' · ')}
         </span>
       </div>
     )
   }
 
-  const resultsBadge = extraction.hasResults ? { label: '✓', done: true } : null
-
-  const tabs: { key: RailTab; label: string; badge?: { label: string; done?: boolean } | null }[] = [
-    { key: 'evidence', label: 'Evidence', badge: parsedDocument ? { label: String(parsedDocument.evidence_index.anchors.length) } : null },
-    { key: 'schema', label: 'Schema', badge: schemaFieldCount ? { label: String(schemaFieldCount) } : null },
-    { key: 'results', label: 'Results', badge: resultsBadge },
-  ]
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-stretch border-b border-line" role="tablist">
         {tabs.map(({ key, label, badge }) => {
-          const active = tab === key
+          const active = activeTab === key
           return (
             <button
               key={key}
@@ -165,15 +191,17 @@ function RightRail({
         />
       </div>
       */}
-      <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'evidence'}>
-        <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />
-      </div>
+      {showDeveloperUi && (
+        <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'evidence'}>
+          <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />
+        </div>
+      )}
       {/*
       <div id="rail-panel-chat" aria-labelledby="rail-tab-chat" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'chat'}>
         <ChatTab documentMarkdown={documentMarkdown} />
       </div>
       */}
-      <div id="rail-panel-schema" aria-labelledby="rail-tab-schema" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'schema'}>
+      <div id="rail-panel-schema" aria-labelledby="rail-tab-schema" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'schema'}>
         <SchemaPanel
           state={schemaState}
           onGenerate={onGenerate}
@@ -188,7 +216,7 @@ function RightRail({
           sourceDocumentName={sourceDocumentName}
         />
       </div>
-      <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'results'}>
+      <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>
         <ResultsTab
           key={inspection.attempt?.extractionId ?? 'none'}
           controller={extraction}

@@ -41,7 +41,8 @@ COPY . .
 RUN DATABASE_URL=postgresql://contract:emit@127.0.0.1:5432/free pnpm db:generate
 
 COPY docker/studio-entrypoint.sh /usr/local/bin/studio-entrypoint
-RUN chmod +x /usr/local/bin/studio-entrypoint
+RUN sed -i 's/\r$//' /usr/local/bin/studio-entrypoint \
+    && chmod +x /usr/local/bin/studio-entrypoint
 
 # The keyring daemon needs both; the entrypoint creates the directory and socket.
 ENV XDG_RUNTIME_DIR=/tmp/free-keyring-runtime \
