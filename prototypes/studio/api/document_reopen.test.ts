@@ -54,6 +54,7 @@ function snapshot(): DocumentReopenSnapshot {
     annotationSet: null,
     extractionSchema: {
       extractionSchemaId: '77777777-7777-4777-8777-777777777777',
+      name: 'Titles',
       schemaRevisionId: latestSchemaId,
       revisionNumber: 2,
       schemaTree: {
@@ -83,6 +84,7 @@ describe('document reopen Article attempts', () => {
       throw new Error('Expected both reopen snapshots.')
     expect(body.latestAttempt.sourceRepresentationRevisionId).toBe(latestRepresentationId)
     expect(body.latestAttempt.schemaRevisionId).toBe(latestSchemaId)
+    expect(body.extractionSchema.name).toBe('Titles')
     expect(body.latestAttempt.sourceRepresentation.resources.sourcePdfUrl).toContain(latestRepresentationId)
     expect(body.latestAttempt.sourceRepresentation.resources.sourcePdfUrl).toContain(
       '?v=2026-08-10T01%3A00%3A00.000Z',

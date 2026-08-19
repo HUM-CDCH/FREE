@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NavigableRoute } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
-import { listExtractionSchemas } from '../schemaRevisions'
+import { listExtractionSchemas, renameExtractionSchema } from '../schemaRevisions'
+import SchemaNameEditor from '../SchemaNameEditor'
 import { Button, DeleteDialog, EmptyState } from '../ui'
 import BatchExtractionsPanel from './BatchExtractionsPanel'
 import { useSourceDocumentDownload } from './useSourceDocumentDownload'
-import { useProjectContexts, type WriteResult } from './useProjectContexts'
+import { useProjectContexts } from './useProjectContexts'
 
 export type ProjectContextPageProps = {
   projectContextId: string
@@ -37,7 +38,7 @@ function RenameForm({
   onCancel,
 }: {
   initialName: string
-  onSubmit: (name: string) => WriteResult
+  onSubmit: (name: string) => Promise<{ message: string } | null>
   onCancel: () => void
 }) {
   const [name, setName] = useState(initialName)
@@ -459,9 +460,38 @@ export default function ProjectContextPage({
                       schema.currentRevision?.createdAt ?? schema.createdAt
                     return (
                       <li className="px-1 py-3" key={schema.extractionSchemaId}>
-                        <p className="text-xs font-semibold text-ink">
-                          {schema.name}
-                        </p>
+                        <SchemaNameEditor
+                          name={schema.name}
+                          className="text-xs font-semibold text-ink"
+                          onSubmit={async (name) => {
+                            try {
+                              const renamed = await renameExtractionSchema(
+                                projectContextId,
+                                schema.extractionSchemaId,
+                                name,
+                              )
+                              setSettledSchemaList((current) =>
+                                current?.status === 'ready' &&
+                                current.requestKey === schemaRequestKey
+                                  ? {
+                                      ...current,
+                                      schemas: current.schemas.map((item) =>
+                                        item.extractionSchemaId ===
+                                        renamed.extractionSchemaId
+                                          ? { ...item, name: renamed.name }
+                                          : item,
+                                      ),
+                                    }
+                                  : current,
+                              )
+                              return null
+                            } catch (error) {
+                              return error instanceof Error
+                                ? error.message
+                                : 'Schema could not be renamed.'
+                            }
+                          }}
+                        />
                         <dl className="mt-1 flex gap-3 text-[11px] text-ink-faint">
                           <div>
                             <dt className="sr-only">Current Schema Revision</dt>

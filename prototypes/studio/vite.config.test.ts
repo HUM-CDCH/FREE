@@ -38,6 +38,12 @@ describe('Vite API request admission', () => {
     )
   })
 
+  it('routes an Extraction Schema member rename to extraction_schemas', () => {
+    expect(
+      apiHandlerName('/api/extraction-schemas/schema', process.cwd()),
+    ).toBe('extraction_schemas')
+  })
+
   it('routes a Source Document member DELETE target to source_documents', () => {
     expect(
       apiHandlerName(

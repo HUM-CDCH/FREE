@@ -62,6 +62,7 @@ const reopened: DocumentWorkspaceProps = {
   // },
   extractionSchema: {
     extractionSchemaId: '51000000-0000-4000-8005-000000000001',
+    name: 'Places',
     schemaRevisionId: '51000000-0000-4000-8005-000000000002',
     revisionNumber: 1,
     recordDescription: 'One place record.',
@@ -129,6 +130,57 @@ async function renderReopened() {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('renames the reopened schema from the schema/chat panel', async () => {
+    const fetch = vi.fn(
+      (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (init?.method === 'PATCH')
+          return Promise.resolve(
+            Response.json({
+              extractionSchema: {
+                extractionSchemaId:
+                  reopened.extractionSchema!.extractionSchemaId,
+                name: 'Historic places',
+                createdAt: '2026-08-01T12:00:00.000Z',
+              },
+            }),
+          )
+        return Promise.resolve(
+          url.endsWith('/source')
+            ? Response.json(parsedDocument)
+            : new Response('# Beretning'),
+        )
+      },
+    )
+    vi.stubGlobal('fetch', fetch)
+    render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename schema Places' }))
+    fireEvent.change(screen.getByLabelText('Schema name for Places'), {
+      target: { value: ' Historic places ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Rename schema Historic places',
+      }),
+    ).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/extraction-schemas/${reopened.extractionSchema!.extractionSchemaId}`,
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          projectContextId: reopened.projectContextId,
+          name: 'Historic places',
+        }),
+      }),
+    )
+  })
+
   it('paints only canonical Evidence at the visible Results depth', async () => {
     const persistedExtraction = reopened.persistedExtraction
     if (!persistedExtraction || persistedExtraction.outcome !== 'SUCCEEDED')

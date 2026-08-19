@@ -140,6 +140,7 @@ export const documentReopenResponseSchema = z
     extractionSchema: z
       .object({
         extractionSchemaId: canonicalUuidSchema,
+        name: z.string().min(1),
         schemaRevisionId: canonicalUuidSchema,
         revisionNumber,
         recordDescription: recordDescriptionSchema,

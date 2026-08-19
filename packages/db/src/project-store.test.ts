@@ -613,6 +613,30 @@ describe('ProjectStore Schema Revisions', () => {
     )
   })
 
+  it('renames only a project-owned Extraction Schema with a durable bounded name', async () => {
+    const database = fakeDatabase()
+    const store = createProjectStore(database as never)
+
+    assert.deepEqual(
+      await store.renameExtractionSchema(PROJECT, SCHEMA, '  Historic places  '),
+      {
+        extractionSchemaId: SCHEMA,
+        name: 'Historic places',
+        createdAt: new Date('2026-08-01T11:10:00Z'),
+      },
+    )
+    assert.equal(database.tables.ExtractionSchema[1].name, 'Other schema')
+    assert.equal(
+      await store.renameExtractionSchema(OTHER_PROJECT, SCHEMA, 'Not owned'),
+      null,
+    )
+    await assert.rejects(
+      store.renameExtractionSchema(PROJECT, SCHEMA, '   '),
+      /1 to 512/,
+    )
+    assert.equal(database.tables.ExtractionSchema[0].name, 'Historic places')
+  })
+
   it('deletes only an owned Source Document and answers its package candidates', async () => {
     const database = fakeDatabase()
     const store = createProjectStore(database as never)

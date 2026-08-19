@@ -45,6 +45,7 @@ import {
   appendSchemaRevision,
   getSchemaRevision,
   initializeSchemaRevision,
+  renameExtractionSchema,
   listSchemaRevisions,
 } from './schemaRevisions'
 import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
@@ -276,6 +277,7 @@ export function DocumentWorkspace({
       : { status: 'idle' },
   )
   const [durableSchema, setDurableSchema] = useState(extractionSchema)
+  const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
   // const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
   // An accepted result is bound to the Schema Revision it was produced with, so
   // the pin is dropped as soon as the schema in the browser stops being it.
@@ -730,12 +732,14 @@ export function DocumentWorkspace({
           )
           const initialized = {
             extractionSchemaId: revision.extractionSchemaId,
+            name: 'Extraction Schema',
             schemaRevisionId: revision.schemaRevisionId,
             revisionNumber: revision.revisionNumber,
             recordDescription: revision.recordDescription,
             schemaNodes: revision.schemaNodes,
           }
           setDurableSchema(initialized)
+          setSchemaName(initialized.name)
           setSchemaSaveState({
             status: 'saved',
             acknowledged: revision,
@@ -1250,6 +1254,24 @@ export function DocumentWorkspace({
                     : null),
               }}
               sourceDocumentName={pdfSource.filename}
+              schemaName={schemaName}
+              onRenameSchema={async (name) => {
+                if (!projectContextId || !durableSchema)
+                  return 'No durable schema is open.'
+                try {
+                  const renamed = await renameExtractionSchema(
+                    projectContextId,
+                    durableSchema.extractionSchemaId,
+                    name,
+                  )
+                  setSchemaName(renamed.name)
+                  return null
+                } catch (error) {
+                  return error instanceof Error
+                    ? error.message
+                    : 'Schema could not be renamed.'
+                }
+              }}
               onSelectEvidence={selectEvidenceAnchor}
               onResultPathChange={setResultPath}
             />

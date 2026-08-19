@@ -21,6 +21,7 @@ import type {
   SchemaRevision,
   SchemaRevisionSummary,
 } from '../shared/schemaRevision.contract'
+import SchemaNameEditor from './SchemaNameEditor'
 import {
   deriveSchemaProposal,
   replaySchemaChanges,
@@ -66,6 +67,8 @@ type SchemaPanelProps = {
   loadRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
   documentMarkdown: string | null
   sourceDocumentName: string
+  schemaName?: string | null
+  onRenameSchema?: (name: string) => Promise<string | null>
   readOnly?: boolean
   showRegenerate?: boolean
 }
@@ -620,6 +623,8 @@ function SchemaPanel({
   loadRevision,
   documentMarkdown,
   sourceDocumentName,
+  schemaName,
+  onRenameSchema,
   readOnly = false,
   showRegenerate = true,
 }: SchemaPanelProps) {
@@ -1470,9 +1475,21 @@ function SchemaPanel({
 
       {/* ── Header ── */}
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2.5">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-muted">Extraction Schema</h2>
-          <p className="truncate font-mono text-[13px] font-medium text-ink">{sourceDocumentName}</p>
+          {schemaName && ready ? (
+            readOnly || !onRenameSchema ? (
+              <p className="h-7 truncate font-mono text-[13px] font-medium leading-7 text-ink">{schemaName}</p>
+            ) : (
+              <SchemaNameEditor
+                name={schemaName}
+                className="font-mono text-[13px] font-medium text-ink"
+                onSubmit={onRenameSchema}
+              />
+            )
+          ) : (
+            <p className="h-7 truncate font-mono text-[13px] font-medium leading-7 text-ink">{sourceDocumentName}</p>
+          )}
         </div>
         {ready && (
           <div className="flex shrink-0 items-center gap-2">

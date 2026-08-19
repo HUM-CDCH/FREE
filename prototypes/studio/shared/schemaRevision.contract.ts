@@ -64,6 +64,30 @@ export const extractionSchemaListResponseSchema = z
   })
   .strict()
 
+export const extractionSchemaNameLimit = 512
+export const extractionSchemaNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(extractionSchemaNameLimit)
+export const extractionSchemaWriteRequestSchema = z
+  .object({
+    projectContextId: canonicalUuidSchema,
+    name: extractionSchemaNameSchema,
+  })
+  .strict()
+export const extractionSchemaResponseSchema = z
+  .object({
+    extractionSchema: z
+      .object({
+        extractionSchemaId: canonicalUuidSchema,
+        name: extractionSchemaNameSchema,
+        createdAt: timestamp,
+      })
+      .strict(),
+  })
+  .strict()
+
 export const appendSchemaRevisionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,

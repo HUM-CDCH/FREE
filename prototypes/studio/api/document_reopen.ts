@@ -173,6 +173,7 @@ function reopenResponse(snapshot: DocumentReopenSnapshot) {
       snapshot.extractionSchema &&
       {
         extractionSchemaId: snapshot.extractionSchema.extractionSchemaId,
+        name: snapshot.extractionSchema.name,
         schemaRevisionId: snapshot.extractionSchema.schemaRevisionId,
         revisionNumber: snapshot.extractionSchema.revisionNumber,
         ...currentSchema!,

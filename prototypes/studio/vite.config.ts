@@ -26,7 +26,7 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [SOURCE_DOCUMENT_REOPEN_ROUTE, 'document_reopen'],
   [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
   [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
-  [/^\/api\/extraction-schemas$/, 'extraction_schemas'],
+  [/^\/api\/extraction-schemas(?:\/[^/]+)?$/, 'extraction_schemas'],
   [/^\/api\/extractions(?:\/[^/]+)?(?:\/review)?$/, 'extractions'],
   [/^\/api\/batch-extractions(?:\/[^/]+)?(?:\/retry)?$/, 'batch_extractions'],
   [/^\/api\/batch-schema-suggestions(?:\/[^/]+)?(?:\/(?:draft|run|retry))?$/, 'batch_schema_suggestions'],

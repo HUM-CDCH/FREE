@@ -26,6 +26,11 @@ export type ExtractionSchemaSummary = {
   > | null
 }
 
+export type ExtractionSchemaRecord = Pick<
+  ExtractionSchemaSummary,
+  'extractionSchemaId' | 'name' | 'createdAt'
+>
+
 export type AppendSchemaRevisionResult =
   | { status: 'created'; revision: SchemaRevisionRecord }
   | { status: 'conflict'; currentRevision: SchemaRevisionRecord }
@@ -136,6 +141,7 @@ export type DocumentReopenSnapshot = {
   } | null
   extractionSchema: {
     extractionSchemaId: string
+    name: string
     schemaRevisionId: string
     revisionNumber: number
     schemaTree: unknown
@@ -877,6 +883,11 @@ export type ProjectStore = {
     projectContextId: string,
     limit: number,
   ): Promise<ExtractionSchemaSummary[] | null>
+  renameExtractionSchema(
+    projectContextId: string,
+    extractionSchemaId: string,
+    name: string,
+  ): Promise<ExtractionSchemaRecord | null>
   appendSchemaRevision(
     projectContextId: string,
     extractionSchemaId: string,
@@ -967,19 +978,25 @@ export type ProjectStore = {
 type StoredProjectContext = { id: string; name: string; createdAt: Date }
 
 export const PROJECT_CONTEXT_NAME_LIMIT = 512
+export const EXTRACTION_SCHEMA_NAME_LIMIT = 512
 
 /**
  * The durable name contract, enforced where the write happens: no caller can
  * persist a blank, untrimmed, or oversized Project Context name.
  */
-function projectContextName(name: string): string {
+function durableName(subject: string, name: string, limit: number): string {
   const trimmed = name.trim()
-  if (trimmed === '' || trimmed.length > PROJECT_CONTEXT_NAME_LIMIT)
+  if (trimmed === '' || trimmed.length > limit)
     throw new Error(
-      `A Project Context name must be 1 to ${PROJECT_CONTEXT_NAME_LIMIT} characters after trimming.`,
+      `${subject} name must be 1 to ${limit} characters after trimming.`,
     )
   return trimmed
 }
+
+const projectContextName = (name: string) =>
+  durableName('A Project Context', name, PROJECT_CONTEXT_NAME_LIMIT)
+const extractionSchemaName = (name: string) =>
+  durableName('An Extraction Schema', name, EXTRACTION_SCHEMA_NAME_LIMIT)
 
 function projectContextSummary(
   row: StoredProjectContext,
@@ -1206,11 +1223,14 @@ export function createProjectStore(database: Database = db): ProjectStore {
 
         // An exact Extraction route must reopen the Schema Revision it pinned.
         const extractionSchema = selectedAttempt
-          ? { id: selectedAttempt.extractionSchemaId }
+          ? await orm.public.ExtractionSchema.select('id', 'name').first({
+              id: selectedAttempt.extractionSchemaId,
+              projectContextId,
+            })
           : await orm.public.ExtractionSchema.where({
               projectContextId,
             })
-              .select('id')
+              .select('id', 'name')
               .orderBy([
                 (schema) => schema.createdAt.desc(),
                 (schema) => schema.id.desc(),
@@ -1287,6 +1307,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
             extractionSchema && schemaRevision
               ? {
                   extractionSchemaId: extractionSchema.id,
+                  name: extractionSchema.name,
                   schemaRevisionId: schemaRevision.id,
                   revisionNumber: schemaRevision.revisionNumber,
                   schemaTree: schemaRevision.schemaTree,
@@ -2046,6 +2067,19 @@ export function createProjectStore(database: Database = db): ProjectStore {
         }
         return summaries
       })
+    },
+    async renameExtractionSchema(projectContextId, extractionSchemaId, name) {
+      const row = await database.orm.public.ExtractionSchema.where({
+        id: extractionSchemaId,
+        projectContextId,
+      }).update({ name: extractionSchemaName(name) })
+      return row
+        ? {
+            extractionSchemaId: row.id,
+            name: row.name,
+            createdAt: row.createdAt,
+          }
+        : null
     },
     async appendSchemaRevision(
       projectContextId,

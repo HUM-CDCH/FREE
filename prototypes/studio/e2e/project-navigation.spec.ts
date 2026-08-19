@@ -86,6 +86,7 @@ const DURABLE = {
   },
   extractionSchema: {
     extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
+    name: 'Places',
     schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
     revisionNumber: 4,
     schemaTree: {

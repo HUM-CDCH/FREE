@@ -1,8 +1,14 @@
 import {
   createProjectStore,
+  EXTRACTION_SCHEMA_NAME_LIMIT,
   type ProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
+import {
+  extractionSchemaNameLimit,
+  extractionSchemaResponseSchema,
+  extractionSchemaWriteRequestSchema,
+} from '../shared/schemaRevision.contract.js'
 import {
   ApiError,
   boundedLimit,
@@ -10,7 +16,10 @@ import {
   noStore,
   noStoreError,
   persistenceUnavailable,
+  parseJsonRequest,
 } from './_http.js'
+
+const ITEM_ROUTE = /^\/api\/extraction-schemas\/([^/]+)$/
 
 export function createGetExtractionSchemas(
   store: Pick<ProjectStore, 'listExtractionSchemas'> = createProjectStore(),
@@ -58,3 +67,54 @@ export function createGetExtractionSchemas(
 }
 
 export const GET = createGetExtractionSchemas()
+
+export function createPatchExtractionSchema(
+  store: Pick<ProjectStore, 'renameExtractionSchema'> = createProjectStore(),
+) {
+  return async function PATCH(request: Request): Promise<Response> {
+    try {
+      const match = ITEM_ROUTE.exec(new URL(request.url).pathname)
+      if (!match)
+        throw new ApiError(404, 'not_found', 'Extraction Schema route was not found.')
+      const parsed = extractionSchemaWriteRequestSchema.safeParse(
+        await parseJsonRequest(request),
+      )
+      if (
+        !canonicalUuidSchema.safeParse(match[1]).success ||
+        !parsed.success
+      )
+        throw new ApiError(
+          422,
+          'invalid_request',
+          `projectContextId and extractionSchemaId must be canonical lowercase UUIDs, and name must be 1 to ${extractionSchemaNameLimit} characters after trimming.`,
+        )
+      const schema = await store
+        .renameExtractionSchema(
+          parsed.data.projectContextId,
+          match[1],
+          parsed.data.name,
+        )
+        .catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
+      if (!schema)
+        throw new ApiError(404, 'not_found', 'Extraction Schema was not found.')
+      return json(
+        extractionSchemaResponseSchema.parse({
+          extractionSchema: {
+            ...schema,
+            createdAt: schema.createdAt.toISOString(),
+          },
+        }),
+        { headers: noStore },
+      )
+    } catch (error) {
+      return noStoreError(error)
+    }
+  }
+}
+
+if (extractionSchemaNameLimit !== EXTRACTION_SCHEMA_NAME_LIMIT)
+  throw new Error('Extraction Schema name limits must match.')
+
+export const PATCH = createPatchExtractionSchema()

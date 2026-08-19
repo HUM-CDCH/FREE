@@ -4,7 +4,10 @@ import type {
   ProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { extractionSchemaListResponseSchema } from '../shared/schemaRevision.contract.js'
-import { createGetExtractionSchemas } from './extraction_schemas.js'
+import {
+  createGetExtractionSchemas,
+  createPatchExtractionSchema,
+} from './extraction_schemas.js'
 
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const SCHEMA = '51000000-0000-4000-8003-000000000001'
@@ -72,5 +75,56 @@ describe('GET /api/extraction-schemas', () => {
     ).GET(valid())
     expect(unavailable.status).toBe(503)
     expect(await unavailable.text()).not.toContain('secret')
+  })
+})
+
+describe('PATCH /api/extraction-schemas/:id', () => {
+  const request = (body: unknown, id = SCHEMA) =>
+    new Request(`http://test/api/extraction-schemas/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  it('renames one project-owned schema and returns the acknowledged name', async () => {
+    const renameExtractionSchema = vi.fn(async (_project, _schema, name) => ({
+      extractionSchemaId: SCHEMA,
+      name,
+      createdAt: schemas[0].createdAt,
+    }))
+    const PATCH = createPatchExtractionSchema({ renameExtractionSchema })
+    const response = await PATCH(
+      request({ projectContextId: PROJECT, name: '  Historic places  ' }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    await expect(response.json()).resolves.toMatchObject({
+      extractionSchema: { extractionSchemaId: SCHEMA, name: 'Historic places' },
+    })
+    expect(renameExtractionSchema).toHaveBeenCalledWith(
+      PROJECT,
+      SCHEMA,
+      'Historic places',
+    )
+  })
+
+  it('bounds invalid input, missing schemas, and persistence failures', async () => {
+    const missing = createPatchExtractionSchema({
+      renameExtractionSchema: vi.fn(async () => null),
+    })
+    expect((await missing(request({ projectContextId: PROJECT, name: '' }))).status).toBe(422)
+    expect((await missing(request({ projectContextId: PROJECT, name: 'Valid' }))).status).toBe(404)
+
+    const unavailable = createPatchExtractionSchema({
+      renameExtractionSchema: vi.fn(async () => {
+        throw new Error('postgresql://secret')
+      }),
+    })
+    const response = await unavailable(
+      request({ projectContextId: PROJECT, name: 'Valid' }),
+    )
+    expect(response.status).toBe(503)
+    expect(await response.text()).not.toContain('secret')
   })
 })

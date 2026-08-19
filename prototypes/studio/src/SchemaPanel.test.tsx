@@ -108,6 +108,36 @@ afterEach(() => {
 })
 
 describe.sequential('SchemaPanel schema proposal review', () => {
+  it('renames the durable schema from the schema/chat header', async () => {
+    const onRenameSchema = vi.fn(async () => null)
+    render(
+      <SchemaPanel
+        state={{ status: 'ready', recordDescription: 'One test record.', nodes, inputsKey: 'test' }}
+        onGenerate={vi.fn()}
+        onCancelGenerate={vi.fn()}
+        onResetSchema={vi.fn()}
+        onNodesChange={vi.fn()}
+        beforeSchemaEdit={vi.fn()}
+        history={[]}
+        loadRevision={vi.fn()}
+        documentMarkdown={null}
+        sourceDocumentName="test.pdf"
+        schemaName="Places"
+        onRenameSchema={onRenameSchema}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename schema Places' }))
+    fireEvent.change(screen.getByLabelText('Schema name for Places'), {
+      target: { value: 'Historic places' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save schema name' }))
+
+    await waitFor(() =>
+      expect(onRenameSchema).toHaveBeenCalledWith('Historic places'),
+    )
+  })
+
   it('omits unchanged types from a rename-only diff row', async () => {
     renderPanel()
     await send({

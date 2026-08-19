@@ -55,6 +55,8 @@ type RightRailProps = {
   extraction: ExtractionController
   inspection: ExtractionInspection
   sourceDocumentName: string
+  schemaName?: string | null
+  onRenameSchema?: (name: string) => Promise<string | null>
   onSelectEvidence: (anchor: ParsedEvidenceAnchor) => void
   onResultPathChange: (path: string[] | null) => void
 }
@@ -91,6 +93,8 @@ function RightRail({
   extraction,
   inspection,
   sourceDocumentName,
+  schemaName,
+  onRenameSchema,
   onSelectEvidence,
   onResultPathChange,
 }: RightRailProps) {
@@ -214,6 +218,8 @@ function RightRail({
           loadRevision={loadSchemaRevision}
           documentMarkdown={documentMarkdown}
           sourceDocumentName={sourceDocumentName}
+          schemaName={schemaName}
+          onRenameSchema={onRenameSchema}
         />
       </div>
       <div id="rail-panel-results" aria-labelledby="rail-tab-results" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'results'}>

@@ -1,6 +1,7 @@
 import type { SchemaDefinition } from '../shared/schemaNode'
 import {
   extractionSchemaListResponseSchema,
+  extractionSchemaResponseSchema,
   schemaRevisionListResponseSchema,
   schemaRevisionResponseSchema,
   schemaRevisionSchema,
@@ -29,6 +30,23 @@ export async function listExtractionSchemas(
   const value = await body(response)
   if (!response.ok) throw failure(value, response.status)
   return extractionSchemaListResponseSchema.parse(value).extractionSchemas
+}
+
+export async function renameExtractionSchema(
+  projectContextId: string,
+  extractionSchemaId: string,
+  name: string,
+  signal?: AbortSignal,
+) {
+  const response = await fetch(`/api/extraction-schemas/${extractionSchemaId}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ projectContextId, name }),
+    signal,
+  })
+  const value = await body(response)
+  if (!response.ok) throw failure(value, response.status)
+  return extractionSchemaResponseSchema.parse(value).extractionSchema
 }
 
 async function body(response: Response): Promise<unknown> {

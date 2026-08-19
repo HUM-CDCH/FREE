@@ -5,6 +5,7 @@ import {
   initializeSchemaRevision,
   listExtractionSchemas,
   listSchemaRevisions,
+  renameExtractionSchema,
   SchemaRevisionConflictError,
 } from './schemaRevisions'
 
@@ -54,6 +55,32 @@ describe('schema revision client', () => {
       `/api/extraction-schemas?projectContextId=${PROJECT}&limit=10`,
       { signal: undefined },
     )
+  })
+
+  it('renames a schema through its project-owned endpoint', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      Response.json({
+        extractionSchema: {
+          extractionSchemaId: SCHEMA,
+          name: 'Historic places',
+          createdAt: revision.createdAt,
+        },
+      }),
+    )
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(
+      renameExtractionSchema(PROJECT, SCHEMA, 'Historic places'),
+    ).resolves.toMatchObject({ name: 'Historic places' })
+    expect(fetch).toHaveBeenCalledWith(`/api/extraction-schemas/${SCHEMA}`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({ projectContextId: PROJECT, name: 'Historic places' }),
+      signal: undefined,
+    })
   })
 
   it('initializes, lists, gets, and appends through validated same-origin DTOs', async () => {

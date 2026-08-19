@@ -134,6 +134,7 @@ function hydratedSnapshot() {
     },
     extractionSchema: {
       extractionSchemaId: '51000000-0000-4000-8005-000000000001',
+      name: 'Places',
       schemaRevisionId: '51000000-0000-4000-8005-000000000002',
       revisionNumber: 1,
       recordDescription: 'One place record.',
@@ -811,6 +812,78 @@ describe('Project Context navigation', () => {
       '2026-08-03T12:00:00.000Z',
     )
     expect(schemas).toHaveBeenCalledTimes(2)
+  })
+
+  it('renames a schema inline after the server acknowledges it', async () => {
+    const fetcher = studioFetch(
+      undefined,
+      detail,
+      () =>
+        Response.json({
+          extractionSchemas: [
+            {
+              extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+              name: 'Places',
+              createdAt: '2026-08-01T12:00:00.000Z',
+              currentRevision: null,
+            },
+          ],
+        }),
+    )
+    fetcher.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'PATCH' && url.includes('/api/extraction-schemas/'))
+        return Response.json({
+          extractionSchema: {
+            extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+            name: 'Historic places',
+            createdAt: '2026-08-01T12:00:00.000Z',
+          },
+        })
+      if (url.startsWith('/api/extraction-schemas?'))
+        return Response.json({
+          extractionSchemas: [
+            {
+              extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+              name: 'Places',
+              createdAt: '2026-08-01T12:00:00.000Z',
+              currentRevision: null,
+            },
+          ],
+        })
+      if (url.endsWith(projectContextId)) return Response.json(detail)
+      return Response.json({ projectContexts: [project] })
+    })
+    renderRoutes(fetcher)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: `Actions for ${project.name}` }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Open project' }))
+    const page = await screen.findByRole('region', { name: 'Project Context' })
+    await within(page).findByRole('heading', { name: project.name })
+    fireEvent.click(within(page).getByRole('tab', { name: 'Schemas' }))
+    await within(page).findByText('Places')
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Rename schema Places' }),
+    )
+    const input = within(page).getByLabelText('Schema name for Places')
+    fireEvent.change(input, { target: { value: '  Historic places  ' } })
+    fireEvent.click(
+      within(page).getByRole('button', { name: 'Save schema name' }),
+    )
+
+    expect(await within(page).findByText('Historic places')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledWith(
+      '/api/extraction-schemas/51000000-0000-4000-8003-000000000001',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({
+          projectContextId,
+          name: 'Historic places',
+        }),
+      }),
+    )
   })
 
   it('keeps project and source deletion controls and dialogs distinct', async () => {
