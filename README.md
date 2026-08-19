@@ -47,12 +47,14 @@ override and Compose Watch:
 docker compose -f compose.yaml -f compose.dev.yaml up --build --watch
 ```
 
-The override syncs Studio's `api`, `src`, `shared`, and `public` directories,
-plus the local database and export package sources used by Studio. It does not
-bind-mount the repository, `node_modules`, or generated Prisma runtime files,
-so Linux dependencies and generated artifacts stay inside the image. Changes
-to dependencies, Docker configuration, or the database contract still require
-rebuilding the Studio image. It also starts Vite with
+The override syncs whole workspace packages — Studio, `packages/db`, and the
+export package — rather than a list of directories inside them, so a new source
+file or a changed dev-server config reaches the container without editing the
+override. It does not bind-mount the repository, and `.dockerignore` keeps
+`node_modules`, generated Prisma runtime files, and other host-local artifacts
+out, so Linux dependencies stay inside the image. Dependency manifests, the
+lockfile, and the Studio image definition rebuild the image instead of syncing,
+because a file copy cannot install a dependency. It also starts Vite with
 `VITE_SHOW_DEVELOPER_UI=true` so developer tooling is visible.
 
 Four named volumes hold the state that must outlive a container: the PostgreSQL

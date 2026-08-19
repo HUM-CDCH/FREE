@@ -9,6 +9,8 @@
 **/.env
 **/.env.*
 !**/.env.example
+**/*.log
+**/.design-sync
 
 .git
 .pnpm-store

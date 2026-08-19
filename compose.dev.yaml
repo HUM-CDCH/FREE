@@ -1,5 +1,14 @@
 # Opt-in live source sync for the Dockerized Studio. Use together with
 # compose.yaml; the base stack remains image-only and reproducible.
+#
+# The Studio container has no bind mount, so every input it runs either arrives
+# through a rule below or is baked into the image. Each rule therefore watches a
+# whole workspace package and names what must NOT travel, rather than listing the
+# directories that may: a new source file, or a config the dev server reads at
+# boot, cannot then be silently left behind in the image. `.dockerignore` is the
+# single deny-list for host-local and generated artifacts — Compose Watch applies
+# it on top of these rules — and dependency shape is never copied: manifests and
+# the image definition rebuild instead.
 services:
   studio:
     environment:
@@ -7,33 +16,60 @@ services:
     develop:
       watch:
         - action: sync
-          path: ./prototypes/studio/api
-          target: /workspace/prototypes/studio/api
-          initial_sync: true
-        - action: sync
-          path: ./prototypes/studio/src
-          target: /workspace/prototypes/studio/src
-          initial_sync: true
-        - action: sync
-          path: ./prototypes/studio/shared
-          target: /workspace/prototypes/studio/shared
-          initial_sync: true
-        - action: sync
-          path: ./prototypes/studio/public
-          target: /workspace/prototypes/studio/public
-          initial_sync: true
-        - action: sync
-          path: ./packages/extraction-result-export/src
-          target: /workspace/packages/extraction-result-export/src
-          initial_sync: true
-        - action: sync
-          path: ./packages/db/src
-          target: /workspace/packages/db/src
+          path: ./prototypes/studio
+          target: /workspace/prototypes/studio
           initial_sync: true
           ignore:
+            # Dependency shape; the rebuild rules below own it.
+            - package.json
+            # Host-side browser tests. The container serves Studio, never runs them.
+            - e2e/
+            - playwright.config.ts
+            # Host-local and build output. `.dockerignore` covers these for the
+            # image, and naming them rule-relative keeps the sync explicit.
+            - node_modules/
+            - dist/
+            - dist-lib/
+            - test-results/
+            - .certs/
+            - .design-sync/
+        - action: sync
+          path: ./packages/db
+          target: /workspace/packages/db
+          initial_sync: true
+          ignore:
+            - package.json
+            - node_modules/
+            - src/generated/
             # These are generated for Linux while the image is built. Do not
             # replace them with host-generated or host-installed artifacts.
-            - prisma/contract.d.ts
-            - prisma/contract.json
-            - prisma/node_modules/
-            - prisma/src/
+            - src/prisma/contract.d.ts
+            - src/prisma/contract.json
+            - src/prisma/node_modules/
+            - src/prisma/src/
+        - action: sync
+          path: ./packages/extraction-result-export
+          target: /workspace/packages/extraction-result-export
+          initial_sync: true
+          ignore:
+            - package.json
+            - node_modules/
+        # A copy cannot install a dependency or re-run the image build, so these
+        # rebuild. Syncing them would leave the container's tree describing a
+        # dependency graph it does not have.
+        - action: rebuild
+          path: ./pnpm-lock.yaml
+        - action: rebuild
+          path: ./pnpm-workspace.yaml
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./packages/db/package.json
+        - action: rebuild
+          path: ./packages/extraction-result-export/package.json
+        - action: rebuild
+          path: ./prototypes/studio/package.json
+        - action: rebuild
+          path: ./prototypes/studio/Dockerfile
+        - action: rebuild
+          path: ./docker/studio-entrypoint.sh
