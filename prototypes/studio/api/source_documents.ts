@@ -20,7 +20,6 @@ import {
   type ProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
-import { runSourceSchemaSuggestion } from './_batch_schema_suggestions.js'
 
 const CONTRACT_VERSION = 'parsed_document.v2'
 const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8000'
@@ -48,15 +47,7 @@ type PackageStore = {
 type IngestionStore = Pick<
   ProjectStore,
   'ingestSourceDocument' | 'isPackageReferenced'
-> &
-  Partial<
-    Pick<
-      ProjectStore,
-      | 'beginSourceSchemaSuggestion'
-      | 'completeSourceSchemaSuggestion'
-      | 'failSourceSchemaSuggestion'
-    >
-  >
+>
 
 type Dependencies = {
   store?: IngestionStore
@@ -509,27 +500,6 @@ export function createSourceDocumentIngestion(
         })
       if (!persisted)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
-      if (
-        store.beginSourceSchemaSuggestion &&
-        store.completeSourceSchemaSuggestion &&
-        store.failSourceSchemaSuggestion
-      )
-        void runSourceSchemaSuggestion(
-          {
-            beginSourceSchemaSuggestion: store.beginSourceSchemaSuggestion,
-            completeSourceSchemaSuggestion:
-              store.completeSourceSchemaSuggestion,
-            failSourceSchemaSuggestion: store.failSourceSchemaSuggestion,
-          },
-          id,
-          persisted.sourceDocumentId,
-        ).catch((cause) => {
-          console.warn(
-            `Background Schema Suggestion failed for ${persisted.sourceDocumentId}: ${
-              cause instanceof Error ? cause.message : String(cause)
-            }`,
-          )
-        })
       const { descriptor, ...sourceDocument } = persisted
       // A replay may select an older package; discard only this request's
       // first-published package when no durable representation references it.

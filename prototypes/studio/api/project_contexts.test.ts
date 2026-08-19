@@ -35,13 +35,7 @@ describe('Project Context routes', () => {
   })
 
   it('returns no-store list and detail DTOs, and bounds invalid input', async () => {
-    const beginSourceSchemaSuggestion = vi.fn()
-    const store = {
-      ...projectContextFixture(),
-      beginSourceSchemaSuggestion,
-      completeSourceSchemaSuggestion: vi.fn(),
-      failSourceSchemaSuggestion: vi.fn(),
-    }
+    const store = projectContextFixture()
     const GET = createGetProjectContexts(store, async () => ({
       bytes: new TextEncoder().encode(JSON.stringify(parsedDocument)),
       mediaType: 'application/json',
@@ -69,7 +63,6 @@ describe('Project Context routes', () => {
         },
       ],
     })
-    expect(beginSourceSchemaSuggestion).not.toHaveBeenCalled()
     const invalid = await GET(
       new Request('http://test/api/project-contexts?limit=0'),
     )

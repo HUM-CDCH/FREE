@@ -83,7 +83,6 @@ function dependencies(overrides: Record<string, unknown> = {}) {
       },
     }),
     isPackageReferenced: vi.fn().mockResolvedValue(false),
-    beginSourceSchemaSuggestion: vi.fn(),
   }
   const packageStore = {
     save: vi.fn().mockResolvedValue({
@@ -216,29 +215,8 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
         parserVersion: '2.0',
       }),
     )
-    expect(store.beginSourceSchemaSuggestion).not.toHaveBeenCalled()
     const upload = fetcher.mock.calls[0]?.[1]?.body as FormData
     expect((upload.get('file') as File).name.length).toBeLessThanOrEqual(180)
-  })
-
-  it('prewarms one source-owned Schema Suggestion after durable ingestion', async () => {
-    const fixture = dependencies()
-    const beginSourceSchemaSuggestion = vi
-      .fn()
-      .mockResolvedValue({ status: 'ready', template: {} })
-    Object.assign(fixture.store, {
-      beginSourceSchemaSuggestion,
-      completeSourceSchemaSuggestion: vi.fn(),
-      failSourceSchemaSuggestion: vi.fn(),
-    })
-
-    expect((await fixture.handler(request())).status).toBe(201)
-    await vi.waitFor(() =>
-      expect(beginSourceSchemaSuggestion).toHaveBeenCalledWith(
-        ids.project,
-        ids.source,
-      ),
-    )
   })
 
   it('returns the durable store result when the same request is replayed', async () => {

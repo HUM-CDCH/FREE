@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batchExtraction.contract.js'
 import { immediateUpstreamDetailSchema } from './modelConfig.contract.js'
 import { canonicalUuidSchema } from './projectContext.contract.js'
-import { schemaRevisionSchema } from './schemaRevision.contract.js'
 import { schemaDefinitionSchema } from './schemaNode.js'
 
 const sourceDocumentIdsSchema = z
@@ -63,9 +62,6 @@ export const batchSchemaSuggestionMergeResponseSchema = z.discriminatedUnion(
   ],
 )
 
-const sourceFailuresSchema = z
-  .object({ sourceDocumentIds: sourceDocumentIdsSchema })
-  .strict()
 const sourceSuggestionFailureCodeSchema = z.enum([
   'invalid_model_config',
   'model_operation_failed',
@@ -87,10 +83,6 @@ const sourceSuggestionFailuresSchema = z
       .max(BATCH_EXTRACTION_SELECTION_LIMIT),
   })
   .strict()
-const revisionConflictSchema = z
-  .object({ currentRevision: schemaRevisionSchema })
-  .strict()
-
 export const batchSchemaSuggestionErrorSchema = z.union([
   z
     .object({
@@ -119,13 +111,6 @@ export const batchSchemaSuggestionErrorSchema = z.union([
     .strict(),
   z
     .object({
-      code: z.literal('suggestions_pending'),
-      message: z.string(),
-      details: sourceFailuresSchema,
-    })
-    .strict(),
-  z
-    .object({
       code: z.literal('source_suggestion_failed'),
       message: z.string(),
       details: sourceSuggestionFailuresSchema,
@@ -135,7 +120,6 @@ export const batchSchemaSuggestionErrorSchema = z.union([
     .object({
       code: z.literal('revision_conflict'),
       message: z.string(),
-      details: revisionConflictSchema,
     })
     .strict(),
 ])

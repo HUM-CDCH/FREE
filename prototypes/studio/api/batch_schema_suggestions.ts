@@ -19,21 +19,21 @@ import {
 } from './_http.js'
 import { generateSchemaWithModel } from './_model.js'
 import {
-  runSourceSchemaSuggestion,
+  modelSuggestedDefinition,
   sourceSuggestionFailure,
   validateEditableSuggestion,
   verifiedCommonSuggestion,
 } from './_batch_schema_suggestions.js'
 
 const ROUTE = '/api/batch-schema-suggestions'
+const SCHEMA_SUGGESTION_TIMEOUT_MS = 10 * 60 * 1000
+const SOURCE_SUGGESTION_INSTRUCTION =
+  'Suggest reusable extraction fields for this Source Document. Never include canonical Evidence fields: _evidence, snippets, pages, bboxes, occurrence IDs, or fuzzy matches.'
 
 type Store = Pick<
   ProjectStore,
-  | 'getBatchSchemaSuggestionInputs'
+  | 'getBatchSchemaSuggestionSources'
   | 'confirmBatchSchemaSuggestion'
-  | 'beginSourceSchemaSuggestion'
-  | 'completeSourceSchemaSuggestion'
-  | 'failSourceSchemaSuggestion'
 >
 
 type Dependencies = {
@@ -108,12 +108,7 @@ export function createBatchSchemaSuggestionsApi(
           throw new ApiError(
             409,
             'revision_conflict',
-            'The Current Schema Revision changed while these fields were being confirmed. Review and run again.',
-            {
-              details: {
-                currentRevision: revisionDto(confirmed.currentRevision),
-              },
-            },
+            'The Current Schema Revision changed while these fields were being confirmed. Suggest common fields again.',
           )
         return json(
           { revision: revisionDto(confirmed.revision) },
@@ -124,85 +119,72 @@ export function createBatchSchemaSuggestionsApi(
         )
       }
 
-      const cached = await store
-        .getBatchSchemaSuggestionInputs(
+      const signal = AbortSignal.any([
+        request.signal,
+        AbortSignal.timeout(SCHEMA_SUGGESTION_TIMEOUT_MS),
+      ])
+      const selected = await store
+        .getBatchSchemaSuggestionSources(
           parsed.data.projectContextId,
           parsed.data.sourceDocumentIds,
         )
         .catch((cause) => {
           throw persistenceUnavailable(cause)
         })
-      if (!cached)
+      if (!selected)
         throw new ApiError(
           422,
           'invalid_selection',
           'Use Source Documents in this Project Context.',
         )
-      const failed = new Map<
-        string,
-        ReturnType<typeof sourceSuggestionFailure>['code']
-      >()
-      for (const sourceDocumentId of parsed.data.sourceDocumentIds) {
+      const suggested = [] as Array<{
+        sourceDocumentId: string
+        template: unknown
+      }>
+      const failures = [] as Array<{
+        sourceDocumentId: string
+        code: ReturnType<typeof sourceSuggestionFailure>['code']
+      }>
+      for (const source of selected.sources) {
+        signal.throwIfAborted()
         try {
-          await runSourceSchemaSuggestion(
-            store,
-            parsed.data.projectContextId,
-            sourceDocumentId,
-            {
-              generate,
-              ...(dependencies.readMarkdown
-                ? { readMarkdown: dependencies.readMarkdown }
-                : {}),
+          const artifact = await (
+            dependencies.readMarkdown ?? canonicalPackageStore.read
+          )(source.descriptor, 'markdown')
+          signal.throwIfAborted()
+          const generated = await generate({
+            document: {
+              file: null,
+              markdown: new TextDecoder().decode(artifact.bytes),
+              pages: null,
             },
-          )
+            instruction: SOURCE_SUGGESTION_INSTRUCTION,
+            signal,
+          })
+          suggested.push({
+            sourceDocumentId: source.sourceDocumentId,
+            template: modelSuggestedDefinition(generated.template),
+          })
         } catch (error) {
-          if (
-            error instanceof ApiError &&
-            error.code === 'persistence_unavailable'
-          )
-            throw error
-          failed.set(sourceDocumentId, sourceSuggestionFailure(error).code)
+          if (signal.aborted) throw error
+          failures.push({
+            sourceDocumentId: source.sourceDocumentId,
+            code: sourceSuggestionFailure(error).code,
+          })
         }
       }
-      const prepared = await store
-        .getBatchSchemaSuggestionInputs(
-          parsed.data.projectContextId,
-          parsed.data.sourceDocumentIds,
-        )
-        .catch((cause) => {
-          throw persistenceUnavailable(cause)
-        })
-      if (!prepared || prepared.selectionKey !== cached.selectionKey)
-        throw new ApiError(
-          409,
-          'selection_changed',
-          'The selected Source Documents changed. Suggest common fields again.',
-        )
-      const unresolved = prepared.suggestions
-        .filter((suggestion) => suggestion.template === null)
-        .map((suggestion) => suggestion.sourceDocumentId)
-      const unresolvedFailures = unresolved.flatMap((sourceDocumentId) => {
-        const code = failed.get(sourceDocumentId)
-        return code === undefined ? [] : [{ sourceDocumentId, code }]
-      })
-      if (unresolvedFailures.length > 0)
+      if (failures.length > 0)
         throw new ApiError(
           502,
           'source_suggestion_failed',
           'Fields could not be suggested for every selected Source Document. Try again.',
-          { details: { failures: unresolvedFailures } },
+          { details: { failures } },
         )
-      if (unresolved.length > 0)
-        throw new ApiError(
-          409,
-          'suggestions_pending',
-          'Field suggestions are still being prepared. Try again shortly.',
-          { details: { sourceDocumentIds: unresolved } },
-        )
+      signal.throwIfAborted()
       const merged = await generate({
         document: {
           file: null,
-          markdown: prepared.suggestions
+          markdown: suggested
             .map(
               (suggestion) =>
                 `SOURCE DOCUMENT ${suggestion.sourceDocumentId} SUGGESTION:\n${JSON.stringify(suggestion.template)}`,
@@ -212,16 +194,18 @@ export function createBatchSchemaSuggestionsApi(
         },
         instruction:
           'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives, merge notes, or canonical Evidence fields (_evidence, snippets, pages, bboxes, occurrence IDs, fuzzy matches).',
+        signal,
       })
+      signal.throwIfAborted()
       const current = await store
-        .getBatchSchemaSuggestionInputs(
+        .getBatchSchemaSuggestionSources(
           parsed.data.projectContextId,
           parsed.data.sourceDocumentIds,
         )
         .catch((cause) => {
           throw persistenceUnavailable(cause)
         })
-      if (!current || current.selectionKey !== cached.selectionKey)
+      if (!current || current.selectionKey !== selected.selectionKey)
         throw new ApiError(
           409,
           'selection_changed',
@@ -229,18 +213,18 @@ export function createBatchSchemaSuggestionsApi(
         )
       const common = verifiedCommonSuggestion(
         merged.template,
-        current.suggestions.map((suggestion) => suggestion.template),
+        suggested.map((suggestion) => suggestion.template),
       )
       return json(
         batchSchemaSuggestionMergeResponseSchema.parse(
           common
             ? {
                 status: 'ready',
-                selectionKey: cached.selectionKey,
+                selectionKey: selected.selectionKey,
                 ...common.definition,
                 coverage: common.coverage,
               }
-            : { status: 'heterogeneous', selectionKey: cached.selectionKey },
+            : { status: 'heterogeneous', selectionKey: selected.selectionKey },
         ),
         { headers: noStore },
       )

@@ -7,36 +7,6 @@ import {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('batch schema suggestion transport', () => {
-  it('preserves the typed retry contract from a failed response', async () => {
-    const sourceDocumentId = '51000000-0000-4000-8001-000000000001'
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () =>
-        Response.json(
-          {
-            error: {
-              code: 'suggestions_pending',
-              message: 'Suggestions are still being prepared.',
-              details: { sourceDocumentIds: [sourceDocumentId] },
-            },
-          },
-          { status: 409 },
-        ),
-      ),
-    )
-
-    await expect(
-      mergeBatchSchemaSuggestions('51000000-0000-4000-8000-000000000001', [
-        sourceDocumentId,
-      ]),
-    ).rejects.toEqual(
-      expect.objectContaining<Partial<BatchSchemaSuggestionRequestError>>({
-        status: 409,
-        failure: expect.objectContaining({ code: 'suggestions_pending' }),
-      }),
-    )
-  })
-
   it('preserves safe per-source model failure diagnostics', async () => {
     const sourceDocumentId = '51000000-0000-4000-8001-000000000001'
     vi.stubGlobal(

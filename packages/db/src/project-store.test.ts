@@ -769,136 +769,31 @@ describe('ProjectStore Schema Revisions', () => {
 })
 
 describe('ProjectStore batch schema suggestions', () => {
-  it('orders equal-time attempts and fences stale workers while recovering a lease', async () => {
+  it('reads selected current representation descriptors without persisting suggestions', async () => {
     const database = fakeDatabase()
     const store = createProjectStore(database as never)
-    const schemaCount = database.tables.ExtractionSchema.length
-    const revisionCount = database.tables.SchemaRevision.length
-    const claimedAt = new Date('2026-08-15T10:00:00Z')
-    const claims = await Promise.all([
-      store.beginSourceSchemaSuggestion(PROJECT, DOCUMENT, claimedAt),
-      store.beginSourceSchemaSuggestion(PROJECT, DOCUMENT, claimedAt),
+
+    const selected = await store.getBatchSchemaSuggestionSources(PROJECT, [
+      DOCUMENT,
     ])
-    const owner = claims.find((claim) => claim?.status === 'work')
 
-    assert.equal(claims.filter((claim) => claim?.status === 'work').length, 1)
-    assert.equal(
-      claims.filter((claim) => claim?.status === 'pending').length,
-      1,
-    )
-    if (!owner || owner.status !== 'work')
-      throw new Error('Expected one lease owner.')
-    const ownedAttempt = database.tables.SchemaSuggestion.find(
-      (attempt) => attempt.id === owner.schemaSuggestionId,
-    )
-    assert.equal(ownedAttempt?.projectContextId, PROJECT)
-    assert.equal(ownedAttempt?.sourceDocumentId, DOCUMENT)
-    assert.equal(ownedAttempt?.extractionSchemaId, undefined)
-    assert.equal(ownedAttempt?.outcome, 'RUNNING')
-    assert.ok(ownedAttempt?.leaseExpiresAt instanceof Date)
-
-    await store.failSourceSchemaSuggestion(owner.schemaSuggestionId, {
-      code: 'model_operation_failed',
-    })
-    assert.deepEqual(ownedAttempt?.failure, {
-      state: 'failed',
-      code: 'model_operation_failed',
-    })
-    const retry = await store.beginSourceSchemaSuggestion(
-      PROJECT,
-      DOCUMENT,
-      claimedAt,
-    )
-    assert.equal(retry?.status, 'work')
-    assert.notEqual(
-      retry?.status === 'work' ? retry.schemaSuggestionId : null,
-      owner.schemaSuggestionId,
-    )
-    assert.equal(
-      (await store.beginSourceSchemaSuggestion(PROJECT, DOCUMENT, claimedAt))
-        ?.status,
-      'pending',
-    )
-    assert.deepEqual(
-      database.tables.SchemaSuggestion.map((attempt) => [
-        (attempt.createdAt as Date).toISOString(),
-        (attempt.modelAttribution as { attemptOrdinal: number }).attemptOrdinal,
-        attempt.outcome,
-      ]),
-      [
-        [claimedAt.toISOString(), 1, 'FAILED'],
-        [claimedAt.toISOString(), 2, 'RUNNING'],
-      ],
-    )
-
-    const recovered = await store.beginSourceSchemaSuggestion(
-      PROJECT,
-      DOCUMENT,
-      new Date('2026-08-15T10:03:00Z'),
-    )
-    assert.equal(recovered?.status, 'work')
-    assert.notEqual(
-      recovered?.status === 'work' ? recovered.schemaSuggestionId : null,
-      retry?.status === 'work' ? retry.schemaSuggestionId : null,
-    )
-    if (recovered?.status !== 'work')
-      throw new Error('Expected recovered lease owner.')
-    if (retry?.status !== 'work') throw new Error('Expected expired owner.')
-    await store.completeSourceSchemaSuggestion(
-      retry.schemaSuggestionId,
-      { _description: 'Stale record.', stale: 'string' },
-      '{"stale":"string"}',
-    )
-    const staleAttempt = database.tables.SchemaSuggestion.find(
-      (attempt) => attempt.id === retry.schemaSuggestionId,
-    )
-    assert.equal(staleAttempt?.outcome, 'CANCELLED')
-    assert.equal(staleAttempt?.failure, null)
-    assert.equal(staleAttempt?.leaseExpiresAt, null)
-    assert.equal(staleAttempt?.proposedTree, undefined)
-    assert.equal(
-      (
-        await store.beginSourceSchemaSuggestion(
-          PROJECT,
-          DOCUMENT,
-          new Date('2026-08-15T10:04:00Z'),
-        )
-      )?.status,
-      'pending',
-    )
-    await store.completeSourceSchemaSuggestion(
-      recovered.schemaSuggestionId,
-      { _description: 'One record.', place: 'string' },
-      '{"place":"string"}',
-    )
-    await store.failSourceSchemaSuggestion(retry.schemaSuggestionId, {
-      code: 'unexpected_failure',
-    })
-    assert.equal(
-      database.tables.SchemaSuggestion.find(
-        (attempt) => attempt.id === retry.schemaSuggestionId,
-      )?.failure,
-      null,
-    )
-    const completedAttempt = database.tables.SchemaSuggestion.find(
-      (attempt) => attempt.id === recovered.schemaSuggestionId,
-    )
-    assert.equal(completedAttempt?.outcome, 'SUCCEEDED')
-    assert.equal(completedAttempt?.leaseExpiresAt, null)
-    assert.deepEqual(
-      await store.beginSourceSchemaSuggestion(PROJECT, DOCUMENT),
+    assert.deepEqual(selected?.sources, [
       {
-        status: 'ready',
-        template: { _description: 'One record.', place: 'string' },
+        sourceDocumentId: DOCUMENT,
+        sourceRepresentationRevisionId:
+          '51000000-0000-4000-8002-000000000001',
+        descriptor: {
+          artifactReference: OWN_PACKAGE,
+          artifactSha256: OWN_PACKAGE,
+        },
       },
-    )
-    assert.equal(database.tables.ExtractionSchema.length, schemaCount)
-    assert.equal(database.tables.SchemaRevision.length, revisionCount)
+    ])
+    assert.equal(database.tables.SchemaSuggestion, undefined)
   })
 
-  it('restores an exact confirmed definition after its deterministic schema head diverges', async () => {
+  it('conflicts when a deterministic confirmed schema head diverges', async () => {
     const store = createProjectStore(fakeDatabase() as never)
-    const selection = await store.getBatchSchemaSuggestionInputs(PROJECT, [
+    const selection = await store.getBatchSchemaSuggestionSources(PROJECT, [
       DOCUMENT,
     ])
     assert.ok(selection)
@@ -927,47 +822,20 @@ describe('ProjectStore batch schema suggestions', () => {
     )
     assert.equal(changed?.status, 'created')
 
-    const restored = await store.confirmBatchSchemaSuggestion(
+    const conflict = await store.confirmBatchSchemaSuggestion(
       PROJECT,
       [DOCUMENT],
       selection.selectionKey,
       definition,
     )
-    assert.equal(restored?.status, 'created')
-    assert.deepEqual(
-      restored?.status === 'created' ? restored.revision.schemaTree : null,
-      definition,
-    )
-    assert.equal(
-      restored?.status === 'created' ? restored.revision.revisionNumber : null,
-      3,
-    )
-
-    const replayed = await store.confirmBatchSchemaSuggestion(
-      PROJECT,
-      [DOCUMENT],
-      selection.selectionKey,
-      {
-        recordDescription: 'One place.',
-        schemaNodes: [{ id: 'generated-later', name: 'place', type: 'string' }],
-      },
-    )
-    assert.equal(replayed?.status, 'replayed')
-    assert.equal(
-      replayed?.status === 'replayed'
-        ? replayed.revision.schemaRevisionId
-        : null,
-      restored?.status === 'created'
-        ? restored.revision.schemaRevisionId
-        : null,
-    )
+    assert.equal(conflict?.status, 'conflict')
   })
 
   it('does not overwrite a different schema head that wins a concurrent confirmation', async () => {
     const store = createProjectStore(
       fakeDatabase({ raceOnCreate: true }) as never,
     )
-    const selection = await store.getBatchSchemaSuggestionInputs(PROJECT, [
+    const selection = await store.getBatchSchemaSuggestionSources(PROJECT, [
       DOCUMENT,
     ])
     assert.ok(selection)
@@ -983,9 +851,5 @@ describe('ProjectStore batch schema suggestions', () => {
     )
 
     assert.equal(result?.status, 'conflict')
-    assert.deepEqual(
-      result?.status === 'conflict' ? result.currentRevision.schemaTree : null,
-      nodes('rival'),
-    )
   })
 })

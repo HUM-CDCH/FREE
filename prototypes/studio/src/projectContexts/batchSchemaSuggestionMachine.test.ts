@@ -124,17 +124,13 @@ describe('batchSchemaSuggestionMachine', () => {
     subject.actor.stop()
   })
 
-  it('retains the proposal after a revision conflict and reconfirms explicitly', async () => {
-    const confirm = vi
-      .fn()
-      .mockRejectedValueOnce(
-        new BatchSchemaSuggestionRequestError(409, {
-          code: 'revision_conflict',
-          message: 'The Current Schema Revision changed.',
-          details: { currentRevision: revision },
-        }),
-      )
-      .mockResolvedValueOnce(revision)
+  it('discards a proposal invalidated by a revision conflict and suggests again', async () => {
+    const confirm = vi.fn().mockRejectedValue(
+      new BatchSchemaSuggestionRequestError(409, {
+        code: 'revision_conflict',
+        message: 'The Current Schema Revision changed.',
+      }),
+    )
     const subject = actorFixture({ confirm })
     subject.actor.send({ type: 'suggestion.requested' })
     await vi.waitFor(() =>
@@ -142,18 +138,20 @@ describe('batchSchemaSuggestionMachine', () => {
     )
     subject.actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
     await vi.waitFor(() =>
-      expect(subject.actor.getSnapshot().matches('revisionConflict')).toBe(
+      expect(subject.actor.getSnapshot().matches('suggestionFailed')).toBe(
         true,
       ),
     )
-    expect(subject.actor.getSnapshot().context.proposal).toEqual(proposal)
+    expect(subject.actor.getSnapshot().context.proposal).toBeNull()
 
     subject.actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
+    expect(confirm).toHaveBeenCalledOnce()
+    subject.actor.send({ type: 'suggestion.requested' })
 
     await vi.waitFor(() =>
-      expect(subject.onOpened).toHaveBeenCalledWith(opened),
+      expect(subject.actor.getSnapshot().matches('reviewing')).toBe(true),
     )
-    expect(confirm).toHaveBeenCalledTimes(2)
+    expect(subject.merge).toHaveBeenCalledTimes(2)
     subject.actor.stop()
   })
 

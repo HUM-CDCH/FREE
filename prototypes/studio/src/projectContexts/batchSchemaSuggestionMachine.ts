@@ -178,9 +178,6 @@ export const batchSchemaSuggestionMachine = setup({
   guards: {
     proposalIsValid: ({ context }) =>
       batchSchemaSuggestionIsValid(context.proposal),
-    isPending: ({ event }) =>
-      'error' in event &&
-      failureFrom(event.error).code === 'suggestions_pending',
     isRevisionConflict: ({ event }) =>
       'error' in event && failureFrom(event.error).code === 'revision_conflict',
     isSelectionChanged: ({ event }) =>
@@ -228,21 +225,11 @@ export const batchSchemaSuggestionMachine = setup({
           target: 'reviewing',
           actions: [{ type: 'saveProposal' }],
         },
-        onError: [
-          {
-            guard: 'isPending',
-            target: 'pending',
-            actions: [{ type: 'saveFailure' }],
-          },
-          {
-            target: 'suggestionFailed',
-            actions: [{ type: 'saveFailure' }],
-          },
-        ],
+        onError: {
+          target: 'suggestionFailed',
+          actions: [{ type: 'saveFailure' }],
+        },
       },
-    },
-    pending: {
-      on: { 'suggestion.requested': 'suggesting' },
     },
     suggestionFailed: {
       on: { 'suggestion.requested': 'suggesting' },
@@ -277,8 +264,8 @@ export const batchSchemaSuggestionMachine = setup({
           },
           {
             guard: 'isRevisionConflict',
-            target: 'revisionConflict',
-            actions: [{ type: 'saveFailure' }],
+            target: 'suggestionFailed',
+            actions: [{ type: 'clearSuggestion' }, { type: 'saveFailure' }],
           },
           {
             target: 'confirmationFailed',
@@ -288,14 +275,6 @@ export const batchSchemaSuggestionMachine = setup({
       },
     },
     confirmationFailed: {
-      on: {
-        'run.requested': {
-          target: 'confirming',
-          actions: [{ type: 'setStrategy' }],
-        },
-      },
-    },
-    revisionConflict: {
       on: {
         'run.requested': {
           target: 'confirming',

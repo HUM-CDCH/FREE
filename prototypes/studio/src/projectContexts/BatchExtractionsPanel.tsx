@@ -741,8 +741,7 @@ export default function BatchExtractionsPanel({
                       <p className="text-[11px] text-danger" role="alert">
                         {suggestion.context.failure.message}
                       </p>
-                      {(suggestion.matches('pending') ||
-                        suggestion.matches('suggestionFailed')) && (
+                      {suggestion.matches('suggestionFailed') && (
                         <Button
                           size="sm"
                           disabled={selected.size === 0 || overSelectionLimit}

@@ -1,13 +1,8 @@
 import {
   NoObjectGeneratedError,
   Output,
-  convertToModelMessages,
-  createUIMessageStreamResponse,
   generateText,
-  streamText,
-  toUIMessageStream,
 } from 'ai'
-import type { UIMessage } from 'ai'
 import { z } from 'zod'
 import type { DocumentInput } from './_document.js'
 import { documentFileParts, type DocumentFilePart } from './_pdf.js'
@@ -73,6 +68,7 @@ export type SchemaModelInput = {
   readonly document: DocumentInput
   readonly instruction: string
   readonly temperature?: number
+  readonly signal?: AbortSignal
 }
 
 type DocumentContentPart = DocumentFilePart | { readonly type: 'text'; readonly text: string }
@@ -211,7 +207,7 @@ export async function extractWithModel(
 }
 
 export async function generateSchemaWithModel(
-  { document, instruction, temperature }: SchemaModelInput,
+  { document, instruction, temperature, signal }: SchemaModelInput,
   target?: ExecutionTarget,
   dependencies: ModelDependencies = {},
 ): Promise<{
@@ -231,12 +227,14 @@ export async function generateSchemaWithModel(
           request: guidance,
           documentParts: documentParts.parts,
           temperature,
+          signal,
         })
       : await generateWithNuExtractRawPrompt('schema-suggestion', resolved, {
           mode: 'template-generation',
           instructions: null,
           documentParts: [{ type: 'text', text: guidance }, ...documentParts.parts],
           temperature,
+          signal,
         }, dependencies.fetch)
   const parsed = await parseTemplate(generated.response)
   if (
