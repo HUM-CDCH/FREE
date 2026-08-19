@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { requestSchemaEdit } from './api'
 import { countTemplateFields, isRecord } from '../shared/template'
-import type { FieldType } from '../shared/allowedValues'
+import {
+  FIELD_TYPES,
+  SCALAR_FIELD_TYPES,
+  type FieldType,
+  type ScalarFieldType,
+} from '../shared/allowedValues'
 import {
   duplicateFieldKeys,
   countSchemaMetadata,
@@ -61,6 +66,8 @@ type SchemaPanelProps = {
   loadRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
   documentMarkdown: string | null
   sourceDocumentName: string
+  readOnly?: boolean
+  showRegenerate?: boolean
 }
 
 type DragState = {
@@ -74,7 +81,13 @@ type DropTarget =
   | { type: 'slot'; parentId: string | null; index: number }
   | { type: 'group'; id: string; name: string }
 
-type FieldEditing = { id: string; name: string; type: FieldType; allowedValues?: string[] }
+type FieldEditing = {
+  id: string
+  name: string
+  type: FieldType
+  itemType?: ScalarFieldType | null
+  allowedValues?: string[]
+}
 
 function editedField(node: SchemaNode, name: string, editing: FieldEditing): SchemaNode {
   const base = { id: node.id, name, ...(node.description && { description: node.description }) }
@@ -82,9 +95,13 @@ function editedField(node: SchemaNode, name: string, editing: FieldEditing): Sch
     return { ...base, type: 'object', children: node.children ?? [] }
   }
   if (editing.type === 'array') {
-    return node.children !== undefined
-      ? { ...base, type: 'array', children: node.children }
-      : { ...base, type: 'array', itemType: node.type === 'array' ? node.itemType : 'string' }
+    return editing.itemType === null
+      ? { ...base, type: 'array', children: node.children ?? [] }
+      : {
+          ...base,
+          type: 'array',
+          itemType: editing.itemType ?? (node.type === 'array' && node.children === undefined ? node.itemType : 'string'),
+        }
   }
   if (editing.type === 'string') {
     return editing.allowedValues && editing.allowedValues.length >= 2
@@ -99,6 +116,7 @@ function editingOf(node: SchemaNode): FieldEditing {
     id: node.id,
     name: node.name,
     type: node.type,
+    itemType: node.type === 'array' ? (node.children === undefined ? node.itemType : null) : undefined,
     allowedValues: node.type === 'string' ? node.allowedValues : undefined,
   }
 }
@@ -196,6 +214,23 @@ type PendingChange = DerivedProposal & { original: SchemaNode[] }
 function fieldTypeLabel(node: SchemaNode): string {
   if (node.type !== 'array') return node.type
   return node.children === undefined ? `array<${node.itemType}>` : 'array<object>'
+}
+
+function FieldTypeBadge({ node, onEdit, disabled }: { node: SchemaNode; onEdit?: () => void; disabled?: boolean }) {
+  const label = fieldTypeLabel(node)
+  const className = 'shrink-0 rounded bg-canvas px-1.5 py-0.5 font-mono text-[9px] text-ink-muted'
+  if (!onEdit) return <span className={className}>{label}</span>
+  return (
+    <button
+      type="button"
+      className={`${className} cursor-pointer outline-none transition-colors hover:bg-accent-soft hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60`}
+      title={`Type: ${label} — click to edit`}
+      disabled={disabled}
+      onClick={onEdit}
+    >
+      {label}
+    </button>
+  )
 }
 
 function FieldChangeLabel({ node, change }: { node: SchemaNode; change?: Change }) {
@@ -367,6 +402,14 @@ function subtreeIdsOf(node: SchemaNode): string[] {
   return ids
 }
 
+function sameNodeIds(left: readonly SchemaNode[], right: readonly SchemaNode[]): boolean {
+  const ids = (nodes: readonly SchemaNode[]) =>
+    enumerateFieldPaths(nodes).map(({ id }) => id).sort()
+  const leftIds = ids(left)
+  const rightIds = ids(right)
+  return leftIds.length === rightIds.length && leftIds.every((id, index) => id === rightIds[index])
+}
+
 function ancestorIdsOf(nodes: readonly SchemaNode[], targetIds: ReadonlySet<string>): Set<string> {
   const ancestors = new Set<string>()
   const visit = (level: readonly SchemaNode[], path: readonly string[]) => {
@@ -452,6 +495,36 @@ function FieldEditForm({ editing, error, onChange, onSave, onCancel }: {
         />
         <button className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108" type="button" onClick={onSave}>Save</button>
         <button className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent" type="button" onClick={onCancel}>✗</button>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <label className="flex min-w-0 flex-1 items-center gap-2 text-[10px] font-semibold text-ink-muted">
+          <span className="shrink-0">Type</span>
+          <select
+            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
+            aria-label="Field type"
+            value={editing.type}
+            onChange={(event) => onChange({ ...editing, type: event.target.value as FieldType })}
+          >
+            {FIELD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+          </select>
+        </label>
+        {editing.type === 'array' && (
+          <label className="flex min-w-0 flex-1 items-center gap-2 text-[10px] font-semibold text-ink-muted">
+            <span className="shrink-0">Items</span>
+            <select
+              className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus-visible:border-accent"
+              aria-label="Array item type"
+              value={editing.itemType === null ? 'object' : editing.itemType ?? 'string'}
+              onChange={(event) => onChange({
+                ...editing,
+                itemType: event.target.value === 'object' ? null : event.target.value as ScalarFieldType,
+              })}
+            >
+              {SCALAR_FIELD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+              <option value="object">object</option>
+            </select>
+          </label>
+        )}
       </div>
       {editing.type === 'string' && (
         <div className="flex flex-col gap-1 border-t border-accent/20 pt-1.5">
@@ -547,6 +620,8 @@ function SchemaPanel({
   loadRevision,
   documentMarkdown,
   sourceDocumentName,
+  readOnly = false,
+  showRegenerate = true,
 }: SchemaPanelProps) {
   // ── render state ──
   const [nodes, setNodes] = useState<SchemaNode[]>([])
@@ -587,6 +662,7 @@ function SchemaPanel({
 
   // ── refs for event handlers (avoid stale closures) ──
   const nodesRef = useRef<SchemaNode[]>([])
+  const recordDescriptionRef = useRef('')
   const draggingRef = useRef<DragState | null>(null)
   const overTargetRef = useRef<DropTarget | null>(null)
   const dragYRef = useRef(0)
@@ -616,6 +692,7 @@ function SchemaPanel({
       setNodes(uniqueNodes)
       nodesRef.current = uniqueNodes
       setRecordDescriptionDraft(state.recordDescription)
+      recordDescriptionRef.current = state.recordDescription
       setEditing(null)
       setEditingError(null)
       setMutationError(null)
@@ -660,6 +737,10 @@ function SchemaPanel({
 
   // Reads refs to avoid stale closures.
   function commitNodes(nextNodes: SchemaNode[], message: string): boolean {
+    if (!sameNodeIds(nodesRef.current, nextNodes)) {
+      setMutationError('Cannot move field into its own contents.')
+      return false
+    }
     const fields = enumerateFieldPaths(nextNodes)
     const duplicates = duplicateFieldKeys(fields)
     if (duplicates.length > 0) {
@@ -688,6 +769,7 @@ function SchemaPanel({
       nodesRef.current = uniqueNodes
       setNodes(uniqueNodes)
       setRecordDescriptionDraft(loaded.recordDescription)
+      recordDescriptionRef.current = loaded.recordDescription
       setEditing(null)
       setEditingError(null)
       setMutationError(null)
@@ -721,6 +803,7 @@ function SchemaPanel({
     setConfirmingDeleteSchema(false)
     setHistoryOpen(false)
     nodesRef.current = []
+    recordDescriptionRef.current = ''
     setNodes([])
     setChat([
       { role: 'assistant', text: "Edit through drag and drop, or describe a change. I'll show a diff to review first." },
@@ -844,6 +927,7 @@ function SchemaPanel({
 
   // ── Drag start ──
   function startDrag(e: React.MouseEvent, id: string, parentId: string | null, name: string, isGroup: boolean) {
+    if (readOnly) return
     if (e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
@@ -954,6 +1038,16 @@ function SchemaPanel({
     onNodesChange(newNodes, '✎ Schema updated')
     setView('fields')
     setEditing({ id, name, type: 'verbatim-string' })
+  }
+
+  function commitRecordDescription() {
+    if (recordDescriptionDraft === recordDescriptionRef.current) return
+    recordDescriptionRef.current = recordDescriptionDraft
+    onNodesChangeRef.current(
+      nodesRef.current,
+      '✎ Record description updated',
+      recordDescriptionDraft,
+    )
   }
 
   // ── Chat ──
@@ -1083,7 +1177,7 @@ function SchemaPanel({
       ? 'self-end max-w-[88%] rounded-[11px_11px_3px_11px] bg-accent px-3 py-1.5 text-xs leading-relaxed text-white'
       : 'self-start max-w-[92%] rounded-[11px_11px_11px_3px] border border-line bg-surface px-3 py-1.5 text-xs leading-relaxed text-ink'
 
-  const editDisabled = !!dragging
+  const editDisabled = readOnly || !!dragging
 
   const chatBlocked = !!pending || chatLoading
   const replay = pending ? replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds) : null
@@ -1140,7 +1234,7 @@ function SchemaPanel({
             onMouseEnter={() => !isDiff && setGroupTarget(node.id, node.name)}
             onMouseLeave={() => !isDiff && clearGroupTarget(node.id)}
           >
-            {!isDiff && (
+            {!isDiff && !readOnly && (
               <span
                 className="shrink-0 cursor-grab select-none px-0.5 text-sm leading-none text-ink-faint"
                 onMouseDown={e => startDrag(e, node.id, null, node.name, isGroup)}
@@ -1149,10 +1243,17 @@ function SchemaPanel({
               </span>
             )}
             <FieldChangeLabel node={node} change={change} />
+            {!isDiff && (
+              <FieldTypeBadge
+                node={node}
+                disabled={editDisabled}
+                onEdit={!readOnly ? () => { setEditing(editingOf(node)); setEditingError(null) } : undefined}
+              />
+            )}
             <AllowedValuesBadge
               node={node}
               disabled={editDisabled}
-              onEdit={!isDiff ? () => { setEditing(editingOf(node)); setEditingError(null) } : undefined}
+              onEdit={!isDiff && !readOnly ? () => { setEditing(editingOf(node)); setEditingError(null) } : undefined}
             />
             <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
             {intoGroup && !isDiff && (
@@ -1162,7 +1263,7 @@ function SchemaPanel({
             )}
             <span className="min-w-0 flex-1" />
             {change && <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptedChangeIds.has(change.id)} onChange={toggleChangeAccepted} />}
-            {!isDiff && isGroup && (
+            {!isDiff && !readOnly && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
@@ -1176,7 +1277,7 @@ function SchemaPanel({
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
               </button>
             )}
-            {!isDiff && (
+            {!isDiff && !readOnly && (
               <button
                 className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
                 type="button"
@@ -1187,7 +1288,7 @@ function SchemaPanel({
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
               </button>
             )}
-            {!isDiff && (
+            {!isDiff && !readOnly && (
               <input
                 type="checkbox"
                 className="shrink-0 cursor-pointer accent-accent"
@@ -1263,7 +1364,7 @@ function SchemaPanel({
           <div
             className={`-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 border transition-opacity duration-100 ${intoGroup && !isDiff ? 'border-accent/40 bg-accent-soft' : 'border-transparent'} ${isDragging ? 'opacity-40' : ''} ${diffBg}`}
           >
-            {!isDiff && (
+            {!isDiff && !readOnly && (
               <span
                 className="shrink-0 cursor-grab select-none px-0.5 text-[13px] leading-none text-ink-faint"
                 onMouseDown={e => startDrag(e, child.id, parentId, child.name, isGroup)}
@@ -1272,10 +1373,17 @@ function SchemaPanel({
               </span>
             )}
             <FieldChangeLabel node={child} change={change} />
+            {!isDiff && (
+              <FieldTypeBadge
+                node={child}
+                disabled={editDisabled}
+                onEdit={!readOnly ? () => { setEditing(editingOf(child)); setEditingError(null) } : undefined}
+              />
+            )}
             <AllowedValuesBadge
               node={child}
               disabled={editDisabled}
-              onEdit={!isDiff ? () => { setEditing(editingOf(child)); setEditingError(null) } : undefined}
+              onEdit={!isDiff && !readOnly ? () => { setEditing(editingOf(child)); setEditingError(null) } : undefined}
             />
             <ChangeBadge change={change} outcome={change && replay?.outcomes.get(change.id)} />
             {isGroup && !isDiff && (
@@ -1295,7 +1403,7 @@ function SchemaPanel({
             )}
             <span className="min-w-0 flex-1" />
             {change && <AcceptanceControl id={change.id} name={change.after?.name ?? child.name} accepted={acceptedChangeIds.has(change.id)} onChange={toggleChangeAccepted} />}
-            {!isDiff && isGroup && (
+            {!isDiff && !readOnly && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
                 type="button"
@@ -1309,7 +1417,7 @@ function SchemaPanel({
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
               </button>
             )}
-            {!isDiff && (
+            {!isDiff && !readOnly && (
               <button
                 className="shrink-0 cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent disabled:opacity-40"
                 type="button"
@@ -1320,7 +1428,7 @@ function SchemaPanel({
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
               </button>
             )}
-            {!isDiff && (
+            {!isDiff && !readOnly && (
               <input
                 type="checkbox"
                 className="shrink-0 cursor-pointer accent-accent"
@@ -1372,7 +1480,7 @@ function SchemaPanel({
               <button className={tabCls(view === 'fields')} type="button" aria-pressed={view === 'fields'} onClick={() => setView('fields')}>Fields</button>
               <button className={`${tabCls(view === 'json')} font-mono`} type="button" aria-pressed={view === 'json'} onClick={() => setView('json')}>{'JSON'}</button>
             </div>
-            <div className="relative">
+            {!readOnly && <div className="relative">
               <button
                 className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-danger/50 hover:text-danger"
                 type="button"
@@ -1408,7 +1516,7 @@ function SchemaPanel({
                   </div>
                 </div>
               )}
-            </div>
+            </div>}
           </div>
         )}
       </header>
@@ -1449,7 +1557,7 @@ function SchemaPanel({
                     2,
                   )}
                 </pre>
-                <button
+                {!readOnly && <button
                   className="absolute right-2 top-2 cursor-pointer rounded border border-line bg-surface px-1.5 py-0.5 font-sans text-[10px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent"
                   type="button"
                   onClick={() => {
@@ -1468,7 +1576,7 @@ function SchemaPanel({
                   }}
                 >
                   Edit
-                </button>
+                </button>}
               </div>
             ) : (
               <>
@@ -1495,6 +1603,7 @@ function SchemaPanel({
                         nodesRef.current = newNodes
                         setNodes(newNodes)
                         setRecordDescriptionDraft(definition.recordDescription)
+                        recordDescriptionRef.current = definition.recordDescription
                         onNodesChangeRef.current(
                           newNodes,
                           '✎ Schema updated via JSON editor',
@@ -1524,6 +1633,28 @@ function SchemaPanel({
 
         {ready && view === 'fields' && (
           <>
+            <div className="mb-3 rounded-lg border border-line bg-canvas px-3 py-2.5">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">
+                Record description
+              </p>
+              {readOnly ? (
+                <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                  {recordDescriptionDraft}
+                </p>
+              ) : (
+                <textarea
+                  aria-label="Record description"
+                  className="mt-1 block w-full resize-none bg-transparent text-xs leading-relaxed text-ink outline-none placeholder:text-ink-faint"
+                  rows={2}
+                  value={recordDescriptionDraft}
+                  placeholder="Describe the record represented by this schema…"
+                  onChange={(event) =>
+                    setRecordDescriptionDraft(event.target.value)
+                  }
+                  onBlur={commitRecordDescription}
+                />
+              )}
+            </div>
             {mutationError && <p className="mb-2 text-[11px] font-semibold text-danger" role="alert">{mutationError}</p>}
             {selectedIds.size > 0 && (
               <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5 shadow-float">
@@ -1553,13 +1684,13 @@ function SchemaPanel({
               {/* final root slot */}
               <div className={slotCls(null, nodes.length)} onMouseEnter={() => setSlotTarget(null, nodes.length)} />
             </div>
-            <button
+            {!readOnly && <button
               className="mt-2.5 block w-full cursor-pointer rounded-lg border-[1.5px] border-dashed border-line-strong bg-transparent py-2 text-xs font-semibold text-ink-muted outline-none transition-colors hover:border-accent hover:text-accent focus-visible:border-accent focus-visible:text-accent"
               type="button"
               onClick={addField}
             >
               + Add field
-            </button>
+            </button>}
           </>
         )}
       </div>
@@ -1641,7 +1772,7 @@ function SchemaPanel({
       )}
 
       {/* Chat panel */}
-      {ready && (
+      {ready && !readOnly && (
         <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
           <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
@@ -1779,7 +1910,7 @@ function SchemaPanel({
           {state.status === 'idle' && 'Generate to produce the schema from the document'}
           {state.status === 'error' && 'Generation failed'}
         </p>
-        {ready && (
+        {ready && !readOnly && showRegenerate && (
           <div className="flex shrink-0 items-center gap-2">
             <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
               Regenerate{instructionCountLabel}

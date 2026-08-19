@@ -238,6 +238,41 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('renamed_leaf')).toBeInTheDocument()
   })
 
+  it('shows field types and lets an editor change them', () => {
+    const onNodesChange = renderPanel()
+
+    expect(screen.getAllByTitle('Type: string — click to edit')).toHaveLength(2)
+    fireEvent.click(screen.getByTitle('Edit title'))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Field type' }), { target: { value: 'number' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onNodesChange.mock.calls[0][0][0]).toEqual({
+      id: 'title',
+      name: 'title',
+      type: 'number',
+      description: 'Research rule',
+    })
+    expect(screen.getByTitle('Type: number — click to edit')).toBeInTheDocument()
+  })
+
+  it('lets an editor change an array item type', () => {
+    const onNodesChange = renderPanel(vi.fn(), [
+      { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },
+    ])
+
+    fireEvent.click(screen.getByTitle('Type: array<date> — click to edit'))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Array item type' }), { target: { value: 'integer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(onNodesChange.mock.calls[0][0][0]).toEqual({
+      id: 'dates',
+      name: 'dates',
+      type: 'array',
+      itemType: 'integer',
+    })
+    expect(screen.getByTitle('Type: array<integer> — click to edit')).toBeInTheDocument()
+  })
+
   it('keeps an inline edit open when its name duplicates a sibling field', () => {
     const onNodesChange = renderPanel()
 
@@ -338,6 +373,61 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(nodesToTemplate(onNodesChange.mock.calls[0][0])).toEqual({
       dates: [{ title: 'string' }],
     })
+  })
+
+  it('preserves the complete schema when a nested field is moved into a sibling array', async () => {
+    const original: SchemaNode[] = [
+      { id: 'grave', name: 'grave', type: 'object', children: [
+        { id: 'year', name: 'year', type: 'integer' },
+        { id: 'skeleton', name: 'skeleton', type: 'array', children: [
+          { id: 'equipment', name: 'equipment', type: 'string' },
+          { id: 'dating', name: 'dating', type: 'string' },
+        ] },
+        { id: 'new-field', name: 'new_field', type: 'verbatim-string' },
+      ] },
+    ]
+    const onNodesChange = renderPanel(vi.fn(), original)
+
+    const movedRow = screen.getByText('new_field').parentElement!
+    const skeletonRow = screen.getByText('skeleton').parentElement!
+    fireEvent.mouseDown(movedRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseEnter(skeletonRow)
+    fireEvent.mouseUp(window)
+
+    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
+    expect(nodesToTemplate(onNodesChange.mock.calls[0][0])).toEqual({
+      grave: {
+        year: 'integer',
+        skeleton: [{
+          equipment: 'string',
+          dating: 'string',
+          new_field: 'verbatim-string',
+        }],
+      },
+    })
+  })
+
+  it('does not truncate the schema when a group is dropped into its own contents', async () => {
+    const original: SchemaNode[] = [
+      { id: 'grave', name: 'grave', type: 'object', children: [
+        { id: 'year', name: 'year', type: 'integer' },
+      ] },
+      { id: 'new-field', name: 'new_field', type: 'verbatim-string' },
+    ]
+    const onNodesChange = renderPanel(vi.fn(), original)
+    const graveRow = screen.getByText('grave').parentElement!
+    const yearRow = screen.getByText('year').parentElement!
+    const nestedSlot = yearRow.parentElement!.firstElementChild!
+
+    fireEvent.mouseDown(graveRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseEnter(nestedSlot)
+    fireEvent.mouseUp(window)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot move field into its own contents.')
+    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(screen.getByText('grave')).toBeInTheDocument()
+    expect(screen.getByText('year')).toBeInTheDocument()
+    expect(screen.getByText('new_field')).toBeInTheDocument()
   })
 
   it('shows the item shape when reviewing an array type change', async () => {
