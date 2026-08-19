@@ -9,6 +9,7 @@ import {
   batchExtractionRequestSchema,
   batchExtractionResponseSchema,
 } from '../shared/batchExtraction.contract.js'
+import { extractionAttemptSchema } from '../shared/extraction.contract.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import {
   ApiError,
@@ -19,6 +20,7 @@ import {
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
+import { POST as postExtraction } from './extractions.js'
 
 const COLLECTION_ROUTE = '/api/batch-extractions'
 
@@ -27,23 +29,44 @@ type BatchExtractionStore = Pick<
   'createBatchExtraction' | 'listBatchExtractions'
 >
 
+type ExtractionPost = (request: Request) => Promise<Response>
+
+type RunResult = {
+  batch: BatchExtractionRecord
+  memberFailures: { sourceDocumentId: string; message: string }[]
+}
+
+function fingerprintId(value: unknown): string {
+  const hash = createHash('sha256')
+    .update(JSON.stringify(value))
+    .digest('hex')
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-${(['8', '9', 'a', 'b'] as const)[parseInt(hash[16], 16) & 3]}${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+}
+
 function batchExtractionId(selection: {
   projectContextId: string
   schemaRevisionId: string
   strategy: string
   sourceDocumentIds: readonly string[]
 }): string {
-  const hash = createHash('sha256')
-    .update(
-      JSON.stringify([
-        selection.projectContextId,
-        selection.schemaRevisionId,
-        selection.strategy,
-        [...new Set(selection.sourceDocumentIds)].sort(),
-      ]),
-    )
-    .digest('hex')
-  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-${(['8', '9', 'a', 'b'] as const)[parseInt(hash[16], 16) & 3]}${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+  return fingerprintId([
+    selection.projectContextId,
+    selection.schemaRevisionId,
+    selection.strategy,
+    [...new Set(selection.sourceDocumentIds)].sort(),
+  ])
+}
+
+function memberExtractionId(
+  batch: BatchExtractionRecord,
+  member: BatchExtractionRecord['members'][number],
+): string {
+  return fingerprintId([
+    'batch-member-extraction',
+    batch.batchExtractionId,
+    member.sourceRepresentationRevisionId,
+    member.latestExtraction?.extractionId ?? null,
+  ])
 }
 
 function disposition(
@@ -92,9 +115,101 @@ function failureMessage(failure: unknown): string | null {
     : null
 }
 
+const MEMBER_NOT_RUN = 'The member Extraction did not finish.'
+
+/** The Extraction route's own sentence, so the researcher reads a real reason. */
+async function refusalMessage(response: Response): Promise<string> {
+  const body: unknown = await response.json().catch(() => null)
+  const error =
+    body && typeof body === 'object'
+      ? (body as { error?: unknown }).error
+      : null
+  const message =
+    error && typeof error === 'object'
+      ? (error as { message?: unknown }).message
+      : null
+  return typeof message === 'string' && message ? message : MEMBER_NOT_RUN
+}
+
 export function createBatchExtractionsApi(
   store: BatchExtractionStore = createProjectStore(),
+  executeExtraction: ExtractionPost = postExtraction,
 ) {
+  const active = new Map<string, Promise<RunResult>>()
+
+  async function runMember(
+    batch: BatchExtractionRecord,
+    member: BatchExtractionRecord['members'][number],
+  ): Promise<BatchExtractionRecord['members'][number]['latestExtraction']> {
+    const response = await executeExtraction(
+      new Request('http://studio/api/extractions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          id: memberExtractionId(batch, member),
+          sourceRepresentationRevisionId:
+            member.sourceRepresentationRevisionId,
+          schemaRevisionId: batch.schemaRevisionId,
+          strategy: batch.strategy,
+          batchExtractionId: batch.batchExtractionId,
+        }),
+      }),
+    )
+    if (!response.ok) throw new Error(await refusalMessage(response))
+    const attempt = extractionAttemptSchema.parse(await response.json())
+    return {
+      extractionId: attempt.extractionId,
+      outcome: attempt.outcome,
+      complete: attempt.complete,
+      reviewable: attempt.reviewable,
+      createdAt: new Date(attempt.createdAt),
+      reviewedAt: attempt.reviewedAt ? new Date(attempt.reviewedAt) : null,
+      failure: attempt.failure,
+    }
+  }
+
+  async function run(batch: BatchExtractionRecord): Promise<RunResult> {
+    const members = [...batch.members]
+    const memberFailures: RunResult['memberFailures'] = []
+    for (const [index, member] of members.entries()) {
+      if (
+        member.latestExtraction &&
+        member.latestExtraction.outcome !== 'FAILED'
+      )
+        continue
+      try {
+        members[index] = {
+          ...member,
+          latestExtraction: await runMember(batch, member),
+        }
+      } catch (error) {
+        // A member that could not reach its terminal write remains resumable;
+        // one failure must not strand the rest of the persisted selection. It
+        // leaves nothing behind to read, so it is reported with this response
+        // rather than silently reading as a member that was never attempted.
+        memberFailures.push({
+          sourceDocumentId: member.sourceDocumentId,
+          message: error instanceof Error ? error.message : MEMBER_NOT_RUN,
+        })
+      }
+    }
+    return { batch: { ...batch, members }, memberFailures }
+  }
+
+  function startOrResume(batch: BatchExtractionRecord) {
+    const current = active.get(batch.batchExtractionId)
+    if (current) return current
+    // Deterministic member IDs and Extraction persistence protect correctness
+    // across processes. ponytail: this map only joins calls in one Studio
+    // process; add a persisted lease when multiple batch workers are introduced.
+    const operation = run(batch).finally(() => {
+      if (active.get(batch.batchExtractionId) === operation)
+        active.delete(batch.batchExtractionId)
+    })
+    active.set(batch.batchExtractionId, operation)
+    return operation
+  }
+
   async function open(request: Request): Promise<Response> {
     const parsed = batchExtractionRequestSchema.safeParse(
       await parseJsonRequest(request),
@@ -125,10 +240,12 @@ export function createBatchExtractionsApi(
         'Use the Current Schema Revision and Source Documents in this Project Context with a Source Representation.',
       )
     }
+    const { batch, memberFailures } = await startOrResume(opened.batch)
     return json(
       batchExtractionResponseSchema.parse({
-        batchExtraction: batchDto(opened.batch),
-        disposition: disposition(opened.status, opened.batch),
+        batchExtraction: batchDto(batch),
+        disposition: disposition(opened.status, batch),
+        memberFailures,
       }),
       { status: opened.status === 'created' ? 201 : 200, headers: noStore },
     )

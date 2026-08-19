@@ -22,21 +22,13 @@ import {
   projectContextWriteRequestSchema,
 } from '../shared/projectContext.contract.js'
 import { decodeParsedDocument } from '../shared/parsedDocument.js'
-import { runSourceSchemaSuggestion } from './_batch_schema_suggestions.js'
 
 type ProjectContextReadStore = Pick<
   ProjectStore,
   'listProjectContexts' | 'getProjectContextWithDocuments'
 > &
   Partial<
-    Pick<
-      ProjectStore,
-      | 'getDocumentReopenSnapshot'
-      | 'getSourceRepresentation'
-      | 'beginSourceSchemaSuggestion'
-      | 'completeSourceSchemaSuggestion'
-      | 'failSourceSchemaSuggestion'
-    >
+    Pick<ProjectStore, 'getDocumentReopenSnapshot' | 'getSourceRepresentation'>
   >
 type ReadArtifact = (
   descriptor: CanonicalPackageDescriptor,
@@ -138,14 +130,16 @@ async function removeUnreferenced(
     if (asked.has(descriptor.artifactReference)) continue
     asked.add(descriptor.artifactReference)
     const isReferenced = () =>
-      store.isPackageReferenced(descriptor.artifactReference).catch((cause: unknown) => {
-        console.warn(
-          `Could not check whether the canonical package ${descriptor.artifactReference} is still referenced, so it is retained: ${
-            cause instanceof Error ? cause.message : String(cause)
-          }`,
-        )
-        return true
-      })
+      store
+        .isPackageReferenced(descriptor.artifactReference)
+        .catch((cause: unknown) => {
+          console.warn(
+            `Could not check whether the canonical package ${descriptor.artifactReference} is still referenced, so it is retained: ${
+              cause instanceof Error ? cause.message : String(cause)
+            }`,
+          )
+          return true
+        })
     if (!(await isReferenced())) await remove(descriptor, isReferenced)
   }
 }
@@ -186,27 +180,6 @@ export function createGetProjectContexts(
           ),
         })),
       )
-      if (
-        store.beginSourceSchemaSuggestion &&
-        store.completeSourceSchemaSuggestion &&
-        store.failSourceSchemaSuggestion
-      )
-        for (const sourceDocument of sourceDocuments)
-          void runSourceSchemaSuggestion(
-            {
-              beginSourceSchemaSuggestion: store.beginSourceSchemaSuggestion,
-              completeSourceSchemaSuggestion: store.completeSourceSchemaSuggestion,
-              failSourceSchemaSuggestion: store.failSourceSchemaSuggestion,
-            },
-            id,
-            sourceDocument.sourceDocumentId,
-          ).catch((cause) => {
-            console.warn(
-              `Background Schema Suggestion failed for ${sourceDocument.sourceDocumentId}: ${
-                cause instanceof Error ? cause.message : String(cause)
-              }`,
-            )
-          })
       return json(
         { projectContext: projectContext.projectContext, sourceDocuments },
         { headers: noStore },

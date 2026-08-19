@@ -35,13 +35,11 @@ describe('Project Context routes', () => {
   })
 
   it('returns no-store list and detail DTOs, and bounds invalid input', async () => {
-    const GET = createGetProjectContexts(
-      projectContextFixture(),
-      async () => ({
-        bytes: new TextEncoder().encode(JSON.stringify(parsedDocument)),
-        mediaType: 'application/json',
-      }),
-    )
+    const store = projectContextFixture()
+    const GET = createGetProjectContexts(store, async () => ({
+      bytes: new TextEncoder().encode(JSON.stringify(parsedDocument)),
+      mediaType: 'application/json',
+    }))
     const list = await GET(
       new Request('http://test/api/project-contexts?limit=1'),
     )
@@ -149,9 +147,15 @@ describe('Project Context routes', () => {
         async deleteProjectContext(projectContextId) {
           return projectContextId === DEMO_PROJECT_ID
             ? [
-                { artifactReference: 'c'.repeat(64), artifactSha256: 'c'.repeat(64) },
+                {
+                  artifactReference: 'c'.repeat(64),
+                  artifactSha256: 'c'.repeat(64),
+                },
                 // Still pinned elsewhere, so it must survive the deletion.
-                { artifactReference: 'd'.repeat(64), artifactSha256: 'd'.repeat(64) },
+                {
+                  artifactReference: 'd'.repeat(64),
+                  artifactSha256: 'd'.repeat(64),
+                },
               ]
             : null
         },
@@ -165,7 +169,9 @@ describe('Project Context routes', () => {
       },
     )
 
-    const create = await POST(write('http://test/api/project-contexts', 'POST', '  Trimmed  '))
+    const create = await POST(
+      write('http://test/api/project-contexts', 'POST', '  Trimmed  '),
+    )
     expect(create.status).toBe(201)
     expect(create.headers.get('cache-control')).toBe('no-store')
     expect(
@@ -173,7 +179,11 @@ describe('Project Context routes', () => {
     ).toMatchObject({ name: 'Trimmed' })
 
     const rename = await PATCH(
-      write(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`, 'PATCH', 'Renamed'),
+      write(
+        `http://test/api/project-contexts/${DEMO_PROJECT_ID}`,
+        'PATCH',
+        'Renamed',
+      ),
     )
     expect(rename.status).toBe(200)
     expect(
@@ -241,7 +251,11 @@ describe('Project Context routes', () => {
     expect(
       (
         await PATCH(
-          write(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`, 'PATCH', 'Name'),
+          write(
+            `http://test/api/project-contexts/${DEMO_PROJECT_ID}`,
+            'PATCH',
+            'Name',
+          ),
         )
       ).status,
     ).toBe(404)

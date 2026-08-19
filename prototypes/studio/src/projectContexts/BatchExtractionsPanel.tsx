@@ -1,7 +1,8 @@
+import { useMachine } from '@xstate/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { requestExtraction } from '../api'
 import type { NavigableRoute } from '../projectNavigation'
-import { listExtractionSchemas } from '../schemaRevisions'
+import { getSchemaRevision, listExtractionSchemas } from '../schemaRevisions'
+import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import { Button } from '../ui'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
@@ -9,11 +10,12 @@ import {
   type BatchExtraction,
   type BatchExtractionMember,
 } from '../../shared/batchExtraction.contract'
-import type {
-  ExtractionStrategy,
-} from '../../shared/extraction.contract'
-import type { BatchSchemaSuggestionMerge } from '../../shared/batchSchemaSuggestion.contract'
+import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import type { SchemaDefinition, SchemaNode } from '../../shared/schemaNode'
+import {
+  batchSchemaSuggestionIsValid,
+  batchSchemaSuggestionMachine,
+} from './batchSchemaSuggestionMachine'
 import {
   confirmBatchSchemaSuggestion,
   listBatchExtractions,
@@ -33,11 +35,6 @@ type ExtractionSchemas = Awaited<ReturnType<typeof listExtractionSchemas>>
 
 const SUGGEST_SCHEMA = '__suggest_common_fields__'
 
-type SuggestedFields =
-  | { status: 'idle' | 'loading' }
-  | { status: 'error'; message: string }
-  | BatchSchemaSuggestionMerge
-
 /** A read is loading while it has neither answered nor failed. */
 type Read<T> = { value: T | null; failure: string | null }
 
@@ -56,14 +53,12 @@ function failureText(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
-function suggestionIsValid(
-  suggestion: SuggestedFields,
-): suggestion is Extract<BatchSchemaSuggestionMerge, { status: 'ready' }> {
-  if (suggestion.status !== 'ready') return false
-  if (!suggestion.recordDescription.trim()) return false
-  const names = suggestion.schemaNodes.map((node) => node.name.trim())
-  return names.every(Boolean) && new Set(names).size === names.length
-}
+const sourceSuggestionFailureLabels = {
+  invalid_model_config: 'The Extraction Route configuration is invalid.',
+  model_operation_failed: 'The model provider request failed.',
+  invalid_model_output: 'The model returned an invalid Schema Suggestion.',
+  unexpected_failure: 'Schema Suggestion preparation failed unexpectedly.',
+} as const
 
 function stamp(value: string): string {
   return new Date(value).toLocaleString(undefined, {
@@ -72,14 +67,33 @@ function stamp(value: string): string {
   })
 }
 
-/** What one member is, including the request currently running in this screen. */
-function memberStatus(member: BatchExtractionMember, running: boolean): {
+/** Names the Source Documents that did not run, listing at most three. */
+function didNotRunSentence(names: readonly string[]): string {
+  const listed = names.slice(0, 3).join(', ')
+  const rest = names.length - 3
+  return `${names.length} Source Document${names.length === 1 ? '' : 's'} did not run: ${listed}${
+    rest > 0 ? ` and ${rest} more` : ''
+  }. Open the Batch Extraction to see why.`
+}
+
+/** What one member's persisted Extraction says. */
+function memberStatus(
+  member: BatchExtractionMember,
+  requestFailure?: string,
+): {
   label: string
   tone: string
   message: string | null
 } {
-  if (running)
-    return { label: 'In progress', tone: 'text-accent', message: null }
+  // A request that never reached a terminal write left the member's stored
+  // state untouched, so say what stopped it instead of reporting the state the
+  // member still has.
+  if (requestFailure)
+    return {
+      label: 'Did not run',
+      tone: 'text-danger',
+      message: requestFailure,
+    }
   const extraction = member.latestExtraction
   if (!extraction)
     return { label: 'Not run', tone: 'text-ink-faint', message: null }
@@ -97,24 +111,25 @@ function memberStatus(member: BatchExtractionMember, running: boolean): {
       tone: 'text-ink-muted',
       message: 'The Extraction was cancelled before completion.',
     }
-  if (extraction.reviewedAt || !extraction.reviewable)
+  if (extraction.reviewedAt)
     return { label: 'Reviewed', tone: 'text-success', message: null }
+  if (!extraction.reviewable)
+    return {
+      label: 'No reviewable result',
+      tone: 'text-ink-muted',
+      message: 'The Extraction produced no grounded Evidence to review.',
+    }
   return { label: 'Needs review', tone: 'text-accent', message: null }
 }
 
-/** One Batch Extraction's state as a sentence, counted from its members. */
-function batchStatus(batch: BatchExtraction, running: boolean) {
+/** One Batch Extraction's persisted state as a sentence. */
+function batchStatus(batch: BatchExtraction) {
   const progress = batchExtractionProgress(batch)
-  if (running)
-    return {
-      label: `Running · ${progress.extracted} of ${progress.total}`,
-      tone: 'text-accent',
-    }
   const parts = [
     progress.pending ? `${progress.pending} not run` : null,
     progress.needsReview ? `${progress.needsReview} need review` : null,
     progress.unreviewable
-      ? `${progress.unreviewable} complete without review`
+      ? `${progress.unreviewable} with no reviewable result`
       : null,
     progress.failed ? `${progress.failed} failed` : null,
     progress.cancelled ? `${progress.cancelled} cancelled` : null,
@@ -157,68 +172,78 @@ export default function BatchExtractionsPanel({
   })
   const [reload, setReload] = useState(0)
   const [openBatchId, setOpenBatchId] = useState<string | null>(null)
-  const [runningBatchId, setRunningBatchId] = useState<string | null>(null)
-  const [runningMemberId, setRunningMemberId] = useState<string | null>(null)
   const [openingBatch, setOpeningBatch] = useState(false)
   const [runFailure, setRunFailure] = useState<string | null>(null)
+  // Keyed by the Batch Extraction that reported them, so a stale run's failures
+  // are never shown against a different batch's members.
+  const [memberFailures, setMemberFailures] = useState<{
+    batchExtractionId: string
+    failures: ReadonlyMap<string, string>
+  } | null>(null)
   const [schemas, setSchemas] = useState<Read<ExtractionSchemas>>({
     value: null,
     failure: null,
   })
   const [schemaRevisionId, setSchemaRevisionId] = useState('')
-  const [suggestedFields, setSuggestedFields] = useState<SuggestedFields>({
-    status: 'idle',
-  })
-  const [confirmedSuggestionRevisionId, setConfirmedSuggestionRevisionId] =
-    useState<string | null>(null)
+  const [chosenSchema, setChosenSchema] = useState<SchemaRevision | null>(null)
   const [strategy, setStrategy] = useState<ExtractionStrategy>('ARTICLE')
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const [filter, setFilter] = useState('')
   const opening = useRef(false)
-  const suggestionRequest = useRef(0)
-  const suggestionAbort = useRef<AbortController | null>(null)
-  // The run outlives screen changes; a second action never replaces it.
-  const run = useRef<AbortController | null>(null)
-  useEffect(
-    () => () => {
-      run.current?.abort()
-      suggestionAbort.current?.abort()
+  const historyGeneration = useRef(0)
+  const acceptSuggestedBatch = useRef<
+    (opened: Awaited<ReturnType<typeof openBatchExtraction>>) => void
+  >(() => {})
+  const [suggestion, sendSuggestion] = useMachine(
+    batchSchemaSuggestionMachine,
+    {
+      input: {
+        projectContextId,
+        merge: mergeBatchSchemaSuggestions,
+        confirm: confirmBatchSchemaSuggestion,
+        open: (request) => openBatchExtraction(request),
+        onOpened: (opened) => acceptSuggestedBatch.current(opened),
+      },
     },
-    [],
   )
 
-  const documentsById = new Map(
-    sourceDocuments.map((document) => [document.sourceDocumentId, document]),
+  const documentName = useCallback(
+    (sourceDocumentId: string) =>
+      sourceDocuments.find(
+        (document) => document.sourceDocumentId === sourceDocumentId,
+      )?.name ?? 'Source Document',
+    [sourceDocuments],
   )
-  const documentName = (sourceDocumentId: string) =>
-    documentsById.get(sourceDocumentId)?.name ?? 'Source Document'
 
   const clearSuggestedFields = () => {
-    suggestionRequest.current++
-    suggestionAbort.current?.abort()
-    suggestionAbort.current = null
-    setSuggestedFields({ status: 'idle' })
-    setConfirmedSuggestionRevisionId(null)
+    sendSuggestion({ type: 'reset' })
   }
 
-  const refresh = useCallback(
-    async (signal?: AbortSignal) => {
-      const listed = await listBatchExtractions(projectContextId, signal)
-      if (!signal?.aborted) setBatches({ value: listed, failure: null })
-      return listed
-    },
-    [projectContextId],
-  )
+  useEffect(() => {
+    sendSuggestion({
+      type: 'selection.changed',
+      projectContextId,
+      sourceDocumentIds: [...selected],
+    })
+  }, [projectContextId, selected, sendSuggestion])
 
   useEffect(() => {
     const controller = new AbortController()
+    const requestGeneration = ++historyGeneration.current
     listBatchExtractions(projectContextId, controller.signal).then(
       (listed) => {
-        if (!controller.signal.aborted)
+        if (
+          !controller.signal.aborted &&
+          requestGeneration === historyGeneration.current
+        )
           setBatches({ value: listed, failure: null })
       },
       (error: unknown) => {
-        if (controller.signal.aborted) return
+        if (
+          controller.signal.aborted ||
+          requestGeneration !== historyGeneration.current
+        )
+          return
         setBatches({
           value: null,
           failure: failureText(error, 'Batch Extractions could not be read.'),
@@ -254,186 +279,144 @@ export default function BatchExtractionsPanel({
     return () => controller.abort()
   }, [projectContextId, screen])
 
+  // The chosen Extraction Schema’s fields, so the researcher sees what will be
+  // extracted before running. The preview renders only while it still matches
+  // the selection; a failed read just leaves it hidden.
+  useEffect(() => {
+    const schema = schemas.value?.find(
+      (item) => item.currentRevision?.schemaRevisionId === schemaRevisionId,
+    )
+    if (!schema) return
+    const controller = new AbortController()
+    getSchemaRevision(
+      projectContextId,
+      schema.extractionSchemaId,
+      schemaRevisionId,
+      controller.signal,
+    ).then(
+      (revision) => {
+        if (!controller.signal.aborted) setChosenSchema(revision)
+      },
+      () => {},
+    )
+    return () => controller.abort()
+  }, [projectContextId, schemaRevisionId, schemas.value])
+
   const batchList = batches.value ?? []
   const openBatch =
     batchList.find((batch) => batch.batchExtractionId === openBatchId) ?? null
+  const openMemberFailures =
+    openBatch &&
+    memberFailures?.batchExtractionId === openBatch.batchExtractionId
+      ? memberFailures.failures
+      : null
 
-  /**
-   * Runs one member at a time: the Extraction route answers only when its
-   * Extraction is terminal, and the model serves one request at a time. Each
-   * terminal write is re-read, so progress shows what is persisted.
-   */
-  const runMembers = async (
-    batch: BatchExtraction,
-    members: readonly BatchExtractionMember[],
-  ) => {
-    if (run.current) return
-    const controller = new AbortController()
-    run.current = controller
-    setRunningBatchId(batch.batchExtractionId)
-    setRunFailure(null)
-    try {
-      for (const member of members) {
-        if (controller.signal.aborted) return
-        setRunningMemberId(member.sourceDocumentId)
-        try {
-          await requestExtraction(
-            {
-              id: crypto.randomUUID(),
-              sourceRepresentationRevisionId:
-                member.sourceRepresentationRevisionId,
-              schemaRevisionId: batch.schemaRevisionId,
-              strategy: batch.strategy,
-              batchExtractionId: batch.batchExtractionId,
-            },
-            controller.signal,
-          )
-        } catch (error) {
-          if (controller.signal.aborted) return
-          // A failed Extraction is persisted and read back below; only a request
-          // that never reached a terminal write is reported here.
-          setRunFailure(
-            `${documentName(member.sourceDocumentId)}: ${failureText(error, 'Extraction failed.')}`,
-          )
-        }
-        if (controller.signal.aborted) return
-        await refresh(controller.signal).catch(() => {})
-      }
-    } finally {
-      if (run.current === controller) {
-        run.current = null
-        setRunningBatchId(null)
-        setRunningMemberId(null)
-      }
-    }
+  const acceptOpenedBatch = useCallback(
+    (opened: Awaited<ReturnType<typeof openBatchExtraction>>) => {
+      const batch = opened.batchExtraction
+      historyGeneration.current += 1
+      setBatches((current) => ({
+        value: [
+          batch,
+          ...(current.value ?? []).filter(
+            (item) => item.batchExtractionId !== batch.batchExtractionId,
+          ),
+        ],
+        failure: null,
+      }))
+      setOpenBatchId(batch.batchExtractionId)
+      setSelected(new Set())
+      setScreen('history')
+      // Members that never reached a terminal write are not stored anywhere, so
+      // this response is the only place they are ever reported. Say so here,
+      // where the researcher lands, and again on each member.
+      setMemberFailures({
+        batchExtractionId: batch.batchExtractionId,
+        failures: new Map(
+          opened.memberFailures.map((failure) => [
+            failure.sourceDocumentId,
+            failure.message,
+          ]),
+        ),
+      })
+      setRunFailure(
+        opened.memberFailures.length
+          ? didNotRunSentence(
+              opened.memberFailures.map((failure) =>
+                documentName(failure.sourceDocumentId),
+              ),
+            )
+          : null,
+      )
+    },
+    [documentName],
+  )
+  useEffect(() => {
+    acceptSuggestedBatch.current = acceptOpenedBatch
+  }, [acceptOpenedBatch])
+
+  const suggestFields = () => {
+    if (selected.size === 0 || overSelectionLimit) return
+    sendSuggestion({ type: 'suggestion.requested' })
   }
 
-  const suggestFields = async () => {
-    if (selected.size === 0 || overSelectionLimit) return
-    suggestionAbort.current?.abort()
-    const controller = new AbortController()
-    suggestionAbort.current = controller
-    const request = ++suggestionRequest.current
-    setConfirmedSuggestionRevisionId(null)
-    setSuggestedFields({ status: 'loading' })
-    try {
-      const merged = await mergeBatchSchemaSuggestions(
-        projectContextId,
-        [...selected],
-        controller.signal,
-      )
-      if (controller.signal.aborted || request !== suggestionRequest.current)
-        return
-      setSuggestedFields(merged)
-    } catch (error) {
-      if (controller.signal.aborted || request !== suggestionRequest.current)
-        return
-      setSuggestedFields({
-        status: 'error',
-        message: failureText(error, 'Common fields could not be suggested.'),
-      })
-    } finally {
-      if (suggestionAbort.current === controller)
-        suggestionAbort.current = null
-    }
+  const updateSuggestedDefinition = (
+    update: (definition: SchemaDefinition) => SchemaDefinition,
+  ) => {
+    const proposal = suggestion.context.proposal
+    if (proposal?.status !== 'ready') return
+    sendSuggestion({
+      type: 'proposal.changed',
+      definition: update({
+        recordDescription: proposal.recordDescription,
+        schemaNodes: proposal.schemaNodes,
+      }),
+    })
   }
 
   const updateSuggestedNode = (
     id: string,
     update: (node: SchemaNode) => SchemaNode,
   ) => {
-    setConfirmedSuggestionRevisionId(null)
-    setSuggestedFields((current) =>
-      current.status === 'ready'
-        ? {
-            ...current,
-            schemaNodes: current.schemaNodes.map((node) =>
-              node.id === id ? update(node) : node,
-            ),
-          }
-        : current,
-    )
+    updateSuggestedDefinition((definition) => ({
+      ...definition,
+      schemaNodes: definition.schemaNodes.map((node) =>
+        node.id === id ? update(node) : node,
+      ),
+    }))
   }
 
-  const openNewBatch = async () => {
-    if (opening.current || run.current) return
+  const openExistingSchemaBatch = async () => {
+    if (opening.current) return
     opening.current = true
     setOpeningBatch(true)
     setRunFailure(null)
     try {
-      let confirmedSchemaRevisionId = schemaRevisionId
-      if (schemaRevisionId === SUGGEST_SCHEMA) {
-        if (!suggestionIsValid(suggestedFields))
-          throw new Error('Choose valid common fields before running.')
-        if (confirmedSuggestionRevisionId) {
-          confirmedSchemaRevisionId = confirmedSuggestionRevisionId
-        } else {
-          const revision = await confirmBatchSchemaSuggestion(
-            projectContextId,
-            [...selected],
-            suggestedFields.selectionKey,
-            {
-              recordDescription: suggestedFields.recordDescription,
-              schemaNodes: suggestedFields.schemaNodes,
-            } satisfies SchemaDefinition,
-          )
-          confirmedSchemaRevisionId = revision.schemaRevisionId
-          setConfirmedSuggestionRevisionId(revision.schemaRevisionId)
-        }
-      }
       const request = {
         projectContextId,
-        schemaRevisionId: confirmedSchemaRevisionId,
+        schemaRevisionId,
         strategy,
         sourceDocumentIds: [...selected],
       }
-      let opened = await openBatchExtraction(request)
-      if (
-        opened.disposition === 'running' &&
-        window.confirm(
-          'A Batch Extraction for this selection is already running. Run another batch?',
-        )
-      )
-        opened = await openBatchExtraction({ ...request, force: true })
-      const batch = opened.batchExtraction
-      setBatches((current) =>
-        current.value
-          ? {
-              value: [
-                batch,
-                ...current.value.filter(
-                  (item) => item.batchExtractionId !== batch.batchExtractionId,
-                ),
-              ],
-              failure: null,
-            }
-          : current,
-      )
-      setOpenBatchId(batch.batchExtractionId)
-      setSelected(new Set())
-      clearSuggestedFields()
-      setScreen('history')
-      opening.current = false
-      setOpeningBatch(false)
-      const members =
-        opened.disposition === 'retry'
-          ? batch.members.filter(
-              (member) => member.latestExtraction?.outcome === 'FAILED',
-            )
-          : opened.disposition === 'created'
-            ? batch.members
-            : []
-      if (members.length) await runMembers(batch, members)
+      acceptOpenedBatch(await openBatchExtraction(request))
     } catch (error) {
       setRunFailure(
         failureText(error, 'The Batch Extraction could not be opened.'),
       )
     } finally {
-      if (opening.current) {
-        opening.current = false
-        setOpeningBatch(false)
-      }
+      opening.current = false
+      setOpeningBatch(false)
     }
+  }
+
+  const openNewBatch = () => {
+    setRunFailure(null)
+    if (schemaRevisionId === SUGGEST_SCHEMA) {
+      if (!batchSchemaSuggestionIsValid(suggestion.context.proposal)) return
+      sendSuggestion({ type: 'run.requested', strategy })
+      return
+    }
+    void openExistingSchemaBatch()
   }
 
   const openMembers = (batch: BatchExtraction) => {
@@ -441,15 +424,18 @@ export default function BatchExtractionsPanel({
     setScreen('members')
   }
 
-  const openStatus = openBatch
-    ? batchStatus(openBatch, runningBatchId === openBatch.batchExtractionId)
-    : null
+  const openStatus = openBatch ? batchStatus(openBatch) : null
   const filtered = sourceDocuments.filter((document) =>
     document.name
       .toLocaleLowerCase()
       .includes(filter.trim().toLocaleLowerCase()),
   )
   const overSelectionLimit = selected.size > BATCH_EXTRACTION_SELECTION_LIMIT
+  const suggestedFields = suggestion.context.proposal
+  const suggestingFields = suggestion.matches('suggesting')
+  const preparingSuggestedBatch =
+    suggestion.matches('confirming') || suggestion.matches('opening')
+  const openingAnyBatch = openingBatch || preparingSuggestedBatch
   const heading =
     screen === 'history'
       ? 'History'
@@ -467,26 +453,35 @@ export default function BatchExtractionsPanel({
       className="pt-1"
       tabIndex={0}
     >
-      <div className="mb-4 flex min-h-10 items-center justify-end">
-        <Button
-          variant={screen === 'members' ? 'secondary' : 'primary'}
-          size="md"
-          disabled={openingBatch || runningBatchId !== null}
-          onClick={() => setScreen('prepare')}
-        >
-          {openingBatch ? 'Opening Batch Extraction…' : 'New Batch Extraction'}
-        </Button>
-      </div>
-      <div className="mb-3 flex min-h-10 items-center justify-between gap-3 py-2">
-        <p className="text-xs font-semibold text-ink">{heading}</p>
-        {screen !== 'history' && (
-          <button
-            className="rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
-            type="button"
-            onClick={() => setScreen('history')}
+      <div className="mb-4 flex min-h-10 items-center justify-between gap-3 border-b border-line pb-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {screen !== 'history' && (
+            <button
+              className="shrink-0 rounded-md text-xs font-semibold text-ink-muted outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              disabled={openingAnyBatch}
+              onClick={() => {
+                clearSuggestedFields()
+                setScreen('history')
+              }}
+            >
+              <span aria-hidden="true">← </span>Back to history
+            </button>
+          )}
+          <p className="truncate text-xs font-semibold text-ink">{heading}</p>
+        </div>
+        {/* On `prepare` this button only reopens the screen already shown. */}
+        {screen !== 'prepare' && (
+          <Button
+            variant={screen === 'members' ? 'secondary' : 'primary'}
+            size="md"
+            disabled={openingAnyBatch}
+            onClick={() => setScreen('prepare')}
           >
-            <span aria-hidden="true">← </span>Back to history
-          </button>
+            {openingAnyBatch
+              ? 'Opening Batch Extraction…'
+              : 'New Batch Extraction'}
+          </Button>
         )}
       </div>
       {runFailure && (
@@ -498,7 +493,10 @@ export default function BatchExtractionsPanel({
       <div className="min-h-[430px]">
         {screen === 'history' ? (
           reading(batches) ? (
-            <p className="py-6 text-center text-xs text-ink-muted" aria-busy="true">
+            <p
+              className="py-6 text-center text-xs text-ink-muted"
+              aria-busy="true"
+            >
               Loading Batch Extractions…
             </p>
           ) : batches.failure ? (
@@ -522,10 +520,7 @@ export default function BatchExtractionsPanel({
           ) : (
             <ul className="space-y-1" aria-live="polite">
               {batchList.map((batch) => {
-                const status = batchStatus(
-                  batch,
-                  runningBatchId === batch.batchExtractionId,
-                )
+                const status = batchStatus(batch)
                 return (
                   <li key={batch.batchExtractionId}>
                     <button
@@ -550,7 +545,10 @@ export default function BatchExtractionsPanel({
                         className={`text-[11px] font-semibold ${status.tone}`}
                       >
                         {status.label}
-                        <span className="ml-3 text-ink-faint" aria-hidden="true">
+                        <span
+                          className="ml-3 text-ink-faint"
+                          aria-hidden="true"
+                        >
                           ›
                         </span>
                       </span>
@@ -568,7 +566,7 @@ export default function BatchExtractionsPanel({
                 <select
                   className={`${control} mt-1 block w-full font-normal`}
                   value={schemaRevisionId}
-                  disabled={schemas.value === null}
+                  disabled={schemas.value === null || openingAnyBatch}
                   onChange={(event) => {
                     setSchemaRevisionId(event.target.value)
                     clearSuggestedFields()
@@ -598,7 +596,9 @@ export default function BatchExtractionsPanel({
                     </>
                   ) : (
                     <option value="">
-                      {schemas.failure ? 'Schemas unavailable' : 'Loading schemas…'}
+                      {schemas.failure
+                        ? 'Schemas unavailable'
+                        : 'Loading schemas…'}
                     </option>
                   )}
                 </select>
@@ -608,6 +608,7 @@ export default function BatchExtractionsPanel({
                 <select
                   className={`${control} mt-1 block w-full font-normal`}
                   value={strategy}
+                  disabled={openingAnyBatch}
                   onChange={(event) =>
                     setStrategy(event.target.value as ExtractionStrategy)
                   }
@@ -624,6 +625,30 @@ export default function BatchExtractionsPanel({
               <p className="mb-3 text-[11px] text-danger" role="alert">
                 {schemas.failure}
               </p>
+            )}
+            {chosenSchema?.schemaRevisionId === schemaRevisionId && (
+              <section
+                className="mb-5 rounded-md border border-line bg-line/10 p-3"
+                aria-label="Extraction Schema fields"
+              >
+                <p className="text-[11px] leading-snug text-ink-muted">
+                  {chosenSchema.recordDescription}
+                </p>
+                {/* ponytail: top-level fields only — an object or array field
+                    shows its name and type, not its children. Render nested
+                    fields if researchers need to see inside them. */}
+                <ul className="mt-2 flex flex-wrap gap-1.5">
+                  {chosenSchema.schemaNodes.map((node) => (
+                    <li
+                      className="rounded border border-line bg-surface px-1.5 py-0.5 text-[11px] text-ink"
+                      key={node.id}
+                    >
+                      {node.name}
+                      <span className="ml-1.5 text-ink-faint">{node.type}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             )}
             <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
               <div>
@@ -656,7 +681,7 @@ export default function BatchExtractionsPanel({
                         className="size-3.5 accent-accent"
                         type="checkbox"
                         checked={selected.has(document.sourceDocumentId)}
-                        disabled={openingBatch}
+                        disabled={openingAnyBatch}
                         onChange={() => {
                           if (schemaRevisionId === SUGGEST_SCHEMA)
                             clearSuggestedFields()
@@ -696,7 +721,7 @@ export default function BatchExtractionsPanel({
                 className="mt-4 space-y-3 border-t border-line pt-4"
                 aria-label="Suggested common fields"
               >
-                {suggestedFields.status === 'idle' && (
+                {suggestion.matches('idle') && (
                   <Button
                     size="sm"
                     disabled={selected.size === 0 || overSelectionLimit}
@@ -705,26 +730,43 @@ export default function BatchExtractionsPanel({
                     Suggest common fields
                   </Button>
                 )}
-                {suggestedFields.status === 'loading' && (
+                {suggestingFields && (
                   <p className="text-xs text-ink-muted" aria-busy="true">
                     Suggesting common fields…
                   </p>
                 )}
-                {suggestedFields.status === 'error' && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[11px] text-danger" role="alert">
-                      {suggestedFields.message}
-                    </p>
-                    <Button
-                      size="sm"
-                      disabled={selected.size === 0 || overSelectionLimit}
-                      onClick={suggestFields}
-                    >
-                      Try again
-                    </Button>
+                {suggestion.context.failure && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-[11px] text-danger" role="alert">
+                        {suggestion.context.failure.message}
+                      </p>
+                      {suggestion.matches('suggestionFailed') && (
+                        <Button
+                          size="sm"
+                          disabled={selected.size === 0 || overSelectionLimit}
+                          onClick={suggestFields}
+                        >
+                          Try again
+                        </Button>
+                      )}
+                    </div>
+                    {suggestion.context.failure.code ===
+                      'source_suggestion_failed' && (
+                      <ul className="space-y-1 text-[11px] text-danger">
+                        {suggestion.context.failure.details.failures.map(
+                          (failure) => (
+                            <li key={failure.sourceDocumentId}>
+                              {documentName(failure.sourceDocumentId)}:{' '}
+                              {sourceSuggestionFailureLabels[failure.code]}
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    )}
                   </div>
                 )}
-                {suggestedFields.status === 'heterogeneous' && (
+                {suggestedFields?.status === 'heterogeneous' && (
                   <div className="space-y-2">
                     <p className="text-xs text-ink-muted">
                       No reliable common field set was found. Choose an existing
@@ -733,40 +775,36 @@ export default function BatchExtractionsPanel({
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => {
-                        setConfirmedSuggestionRevisionId(null)
-                        setSuggestedFields({
-                          status: 'ready',
-                          selectionKey: suggestedFields.selectionKey,
-                          recordDescription:
-                            'One record from each selected Source Document.',
-                          schemaNodes: [],
-                          coverage: [],
+                      disabled={preparingSuggestedBatch}
+                      onClick={() =>
+                        sendSuggestion({
+                          type: 'proposal.changed',
+                          definition: {
+                            recordDescription:
+                              'One record from each selected Source Document.',
+                            schemaNodes: [],
+                          },
                         })
-                      }}
+                      }
                     >
                       Start with blank fields
                     </Button>
                   </div>
                 )}
-                {suggestedFields.status === 'ready' && (
+                {suggestedFields?.status === 'ready' && (
                   <div className="space-y-3">
                     <label className="block text-[11px] font-semibold text-ink-muted">
                       Record description
                       <input
                         className={`${control} mt-1 block w-full font-normal`}
                         value={suggestedFields.recordDescription}
-                        onChange={(event) => {
-                          setConfirmedSuggestionRevisionId(null)
-                          setSuggestedFields((current) =>
-                            current.status === 'ready'
-                              ? {
-                                  ...current,
-                                  recordDescription: event.target.value,
-                                }
-                              : current,
-                          )
-                        }}
+                        disabled={preparingSuggestedBatch}
+                        onChange={(event) =>
+                          updateSuggestedDefinition((definition) => ({
+                            ...definition,
+                            recordDescription: event.target.value,
+                          }))
+                        }
                       />
                     </label>
                     {suggestedFields.schemaNodes.map((node) => {
@@ -779,6 +817,7 @@ export default function BatchExtractionsPanel({
                             aria-label={`Field ${node.name}`}
                             className={`${control} min-w-0 flex-1`}
                             value={node.name}
+                            disabled={preparingSuggestedBatch}
                             onChange={(event) =>
                               updateSuggestedNode(node.id, (current) => ({
                                 ...current,
@@ -792,21 +831,17 @@ export default function BatchExtractionsPanel({
                             </span>
                           )}
                           <button
-                            className="shrink-0 text-[11px] font-semibold text-danger"
+                            className="shrink-0 text-[11px] font-semibold text-danger disabled:opacity-50"
                             type="button"
-                            onClick={() => {
-                              setConfirmedSuggestionRevisionId(null)
-                              setSuggestedFields((current) =>
-                                current.status === 'ready'
-                                  ? {
-                                      ...current,
-                                      schemaNodes: current.schemaNodes.filter(
-                                        (field) => field.id !== node.id,
-                                      ),
-                                    }
-                                  : current,
-                              )
-                            }}
+                            disabled={preparingSuggestedBatch}
+                            onClick={() =>
+                              updateSuggestedDefinition((definition) => ({
+                                ...definition,
+                                schemaNodes: definition.schemaNodes.filter(
+                                  (field) => field.id !== node.id,
+                                ),
+                              }))
+                            }
                           >
                             Remove
                           </button>
@@ -816,27 +851,42 @@ export default function BatchExtractionsPanel({
                     <Button
                       size="sm"
                       variant="secondary"
-                      onClick={() => {
-                        setConfirmedSuggestionRevisionId(null)
-                        setSuggestedFields((current) =>
-                          current.status === 'ready'
-                            ? {
-                                ...current,
-                                schemaNodes: [
-                                  ...current.schemaNodes,
-                                  {
-                                    id: crypto.randomUUID(),
-                                    name: `field_${current.schemaNodes.length + 1}`,
-                                    type: 'string',
-                                  },
-                                ],
-                              }
-                            : current,
-                        )
-                      }}
+                      disabled={preparingSuggestedBatch}
+                      onClick={() =>
+                        updateSuggestedDefinition((definition) => ({
+                          ...definition,
+                          schemaNodes: [
+                            ...definition.schemaNodes,
+                            {
+                              id: crypto.randomUUID(),
+                              name: `field_${definition.schemaNodes.length + 1}`,
+                              type: 'string',
+                            },
+                          ],
+                        }))
+                      }
                     >
                       Add field
                     </Button>
+                    <div>
+                      <p className="mb-1 text-[11px] font-semibold text-ink-muted">
+                        Merged schema preview
+                      </p>
+                      <pre
+                        aria-label="Merged schema preview"
+                        className="max-h-64 overflow-auto rounded-md border border-line bg-line/10 p-3 text-[11px] leading-relaxed text-ink"
+                      >
+                        {JSON.stringify(
+                          {
+                            recordDescription:
+                              suggestedFields.recordDescription,
+                            schemaNodes: suggestedFields.schemaNodes,
+                          },
+                          (key, value) => (key === 'id' ? undefined : value),
+                          2,
+                        )}
+                      </pre>
+                    </div>
                   </div>
                 )}
               </section>
@@ -848,15 +898,15 @@ export default function BatchExtractionsPanel({
                 disabled={
                   selected.size === 0 ||
                   (schemaRevisionId === SUGGEST_SCHEMA
-                    ? !suggestionIsValid(suggestedFields)
+                    ? !batchSchemaSuggestionIsValid(suggestedFields)
                     : !schemaRevisionId) ||
                   overSelectionLimit ||
-                  openingBatch ||
-                  runningBatchId !== null
+                  openingAnyBatch
                 }
                 onClick={openNewBatch}
               >
-                {openingBatch ? 'Opening…' : 'Run'} {selected.size} Source Document
+                {openingAnyBatch ? 'Opening…' : 'Run'} {selected.size} Source
+                Document
                 {selected.size === 1 ? '' : 's'}
               </Button>
             </div>
@@ -881,8 +931,7 @@ export default function BatchExtractionsPanel({
               {openBatch.members.map((member) => {
                 const status = memberStatus(
                   member,
-                  runningBatchId === openBatch.batchExtractionId &&
-                    runningMemberId === member.sourceDocumentId,
+                  openMemberFailures?.get(member.sourceDocumentId),
                 )
                 return (
                   <li key={member.sourceDocumentId}>

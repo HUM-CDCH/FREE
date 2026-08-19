@@ -358,6 +358,22 @@ describe('generateSchemaWithModel', () => {
     expect(body).not.toContain('【instructions_start】')
   })
 
+  it('passes cancellation to the raw NuExtract request', async () => {
+    const request = stubOllamaResponse(
+      '{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}',
+    )
+    const controller = new AbortController()
+
+    await generateSchemaWithModel(
+      { document, instruction: '', signal: controller.signal },
+      rawTarget,
+    )
+
+    expect(request.mock.calls[0]?.[1]).toMatchObject({
+      signal: controller.signal,
+    })
+  })
+
   it('uses the selected general target for schema suggestion', async () => {
     generateTextMock.mockResolvedValue({ text: '{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}' })
     const result = await generateSchemaWithModel(
@@ -366,6 +382,20 @@ describe('generateSchemaWithModel', () => {
     )
     expect(generateTextMock).toHaveBeenCalledOnce()
     expect(result.template).toEqual({ _description: 'One grave record.', grave: [{ name: 'verbatim-string' }] })
+  })
+
+  it('passes cancellation to the generic model call', async () => {
+    generateTextMock.mockResolvedValue({ text: '{"_description":"One grave record.","grave":[{"name":"verbatim-string"}]}' })
+    const controller = new AbortController()
+
+    await generateSchemaWithModel(
+      { document, instruction: '', signal: controller.signal },
+      generalTarget,
+    )
+
+    expect(generateTextMock.mock.calls[0]?.[0]).toMatchObject({
+      abortSignal: controller.signal,
+    })
   })
 })
 
