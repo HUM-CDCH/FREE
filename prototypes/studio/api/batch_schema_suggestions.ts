@@ -235,15 +235,15 @@ export function createBatchSchemaSuggestionsApi(
   }
 
   const retry = async (url: URL, id: string) => {
-    const suggestion = await store
+    const result = await store
       .retryBatchSchemaSuggestion(projectId(url), id)
       .catch((cause) => {
         throw persistenceUnavailable(cause)
       })
-    if (!suggestion)
+    if (!result)
       throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
     operations.kick()
-    return json(suggestionDto(suggestion), { status: 202, headers: noStore })
+    return json(suggestionDto(result.suggestion), { status: 202, headers: noStore })
   }
 
   return async function batchSchemaSuggestionsApi(

@@ -840,6 +840,126 @@ describe('BatchExtractionsPanel', () => {
     ).toBeVisible()
   })
 
+  it('shows suggested fields in the schema slot and regenerates them', async () => {
+    let suggestions: unknown[] = []
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return response({ batchExtractions: [] })
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: suggestions })
+      if (url.startsWith('/api/extraction-schemas?'))
+        return response({ extractionSchemas: [] })
+      if (url === '/api/batch-schema-suggestions' && init?.method === 'POST') {
+        suggestions = [readySuggestion()]
+        return response({ batchSchemaSuggestion: suggestions[0] })
+      }
+      if (
+        url.startsWith(
+          `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/retry?`,
+        ) &&
+        init?.method === 'POST'
+      ) {
+        suggestions = [readySuggestion()]
+        return response({ batchSchemaSuggestion: suggestions[0] })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest common fields' }))
+
+    const suggested = await screen.findByLabelText('Suggested common fields')
+    const sourcesHeading = screen.getByRole('heading', {
+      name: 'Source Documents',
+    })
+    expect(
+      suggested.compareDocumentPosition(sourcesHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Regenerate' }))
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.filter(
+          ([url, init]) =>
+            String(url).startsWith(
+              `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/retry?`,
+            ) && init?.method === 'POST',
+        ),
+      ).toHaveLength(1),
+    )
+    expect(
+      fetch.mock.calls.filter(
+        ([url, init]) =>
+          url === '/api/batch-schema-suggestions' && init?.method === 'POST',
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('shows and regenerates a previously confirmed suggestion', async () => {
+    const confirmed = readySuggestion({
+      confirmedSchemaRevisionId: schemaRevisionId,
+      batchExtractionId,
+    })
+    const retried = readySuggestion({
+      executionStatus: 'QUEUED',
+      phase: 'MERGING',
+      proposal: null,
+      coverage: null,
+      draft: null,
+    })
+    const fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [confirmed] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({ extractionSchemas: [] })
+        if (
+          url.startsWith(
+            `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/retry?`,
+          ) &&
+          init?.method === 'POST'
+        )
+          return response({ batchSchemaSuggestion: retried })
+        throw new Error(`Unexpected request: ${url}`)
+      },
+    )
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+
+    const suggested = await screen.findByLabelText('Suggested common fields')
+    expect(within(suggested).getByText('place')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Run 2 Source Documents' }),
+    ).toBeDisabled()
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Regenerate' }))
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(
+          ([url, init]) =>
+            String(url).includes('/retry?') && init?.method === 'POST',
+        ),
+      ).toBe(true),
+    )
+  })
+
   it('confirms a saved suggestion atomically through one durable run action', async () => {
     const confirmed = readySuggestion({
       draftVersion: 1,

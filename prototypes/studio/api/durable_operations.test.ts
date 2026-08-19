@@ -162,4 +162,36 @@ describe('durable operation APIs', () => {
     expect(response.status).toBe(422)
     expect(createBatchSchemaSuggestion).not.toHaveBeenCalled()
   })
+
+  it('retries a previously confirmed schema suggestion', async () => {
+    const retryBatchSchemaSuggestion = vi.fn(async () => ({
+      status: 'retried' as const,
+      suggestion,
+    }))
+    const kick = vi.fn()
+    const handler = createBatchSchemaSuggestionsApi(
+      { retryBatchSchemaSuggestion } as never,
+      { kick },
+    )
+
+    const response = await handler(
+      new Request(
+        `http://studio.test/api/batch-schema-suggestions/${suggestionId}/retry?projectContextId=${projectContextId}`,
+        { method: 'POST' },
+      ),
+    )
+
+    expect(response.status).toBe(202)
+    await expect(response.json()).resolves.toMatchObject({
+      batchSchemaSuggestion: {
+        batchSchemaSuggestionId: suggestionId,
+        executionStatus: 'QUEUED',
+      },
+    })
+    expect(kick).toHaveBeenCalledOnce()
+    expect(retryBatchSchemaSuggestion).toHaveBeenCalledWith(
+      projectContextId,
+      suggestionId,
+    )
+  })
 })

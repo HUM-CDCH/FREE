@@ -239,8 +239,13 @@ export default function BatchExtractionsPanel({
     suggestions.value?.find(
       (item) => item.batchSchemaSuggestionId === activeSuggestionId,
     ) ?? null
+  const confirmedSuggestion =
+    activeSuggestion?.confirmedSchemaRevisionId !== null
+      ? activeSuggestion
+      : null
   const suggestionProposal =
-    activeSuggestion?.phase === 'READY' && activeSuggestion.draft
+    activeSuggestion?.phase === 'READY' &&
+    activeSuggestion.draft
       ? {
           status: 'ready' as const,
           selectionKey: activeSuggestion.selectionKey,
@@ -618,9 +623,22 @@ export default function BatchExtractionsPanel({
   }
 
   const regenerateSuggestedFields = () => {
-    if (selected.size === 0 || overSelectionLimit) return
-    sendSuggestion({ type: 'reset' })
-    sendSuggestion({ type: 'suggestion.requested' })
+    if (!activeSuggestion || selected.size === 0 || overSelectionLimit) return
+    setRunFailure(null)
+    void retryBatchSchemaSuggestion(
+      projectContextId,
+      activeSuggestion.batchSchemaSuggestionId,
+    ).then(
+      (retried) => {
+        replaceSuggestion(retried)
+        setDraftConflict(false)
+        setReload((value) => value + 1)
+      },
+      (error: unknown) =>
+        setRunFailure(
+          failureText(error, 'The suggestion could not be regenerated.'),
+        ),
+    )
   }
 
   const updateSuggestedDefinition = (
@@ -665,6 +683,7 @@ export default function BatchExtractionsPanel({
     setRunFailure(null)
     if (schemaRevisionId === SUGGEST_SCHEMA) {
       if (
+        confirmedSuggestion ||
         suggestion.context.proposal?.status !== 'ready' ||
         !suggestion.context.proposal.recordDescription.trim() ||
         suggestion.context.proposal.schemaNodes.some(
@@ -994,84 +1013,9 @@ export default function BatchExtractionsPanel({
                   {savedSchemaFailure}
                 </p>
               )}
-            <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <h3 className="text-xs font-bold text-ink">Source Documents</h3>
-                <p className="text-[11px] text-ink-faint">
-                  {selected.size} selected
-                </p>
-              </div>
-              <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
-                <Button
-                  variant="secondary"
-                  disabled={sourceDocuments.length === 0 || openingAnyBatch}
-                  onClick={toggleAllSourceDocuments}
-                >
-                  {allSourceDocumentsSelected ? 'Unselect all' : 'Select all'}
-                </Button>
-                <input
-                  className={`${control} w-full sm:w-48`}
-                  type="search"
-                  aria-label="Filter Source Documents"
-                  placeholder="Filter Source Documents"
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value)}
-                />
-              </div>
-            </div>
-            {filtered.length === 0 ? (
-              <p className="py-6 text-center text-xs text-ink-muted">
-                {sourceDocuments.length === 0
-                  ? 'No Source Documents yet. Add Source Documents on the Sources tab.'
-                  : `No Source Documents match “${filter}”.`}
-              </p>
-            ) : (
-              <ul className="space-y-1">
-                {filtered.map((document) => (
-                  <li key={document.sourceDocumentId}>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-1 py-3 hover:bg-line/20">
-                      <input
-                        className="size-3.5 accent-accent"
-                        type="checkbox"
-                        checked={selected.has(document.sourceDocumentId)}
-                        disabled={openingAnyBatch}
-                        onChange={() => {
-                          if (schemaRevisionId === SUGGEST_SCHEMA)
-                            clearSuggestedFields()
-                          setSelected((current) => {
-                            const next = new Set(current)
-                            if (next.has(document.sourceDocumentId))
-                              next.delete(document.sourceDocumentId)
-                            else next.add(document.sourceDocumentId)
-                            return next
-                          })
-                        }}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-semibold text-ink">
-                          {document.name}
-                        </span>
-                        {document.pageCount !== null && (
-                          <span className="block text-[11px] text-ink-faint">
-                            {document.pageCount}{' '}
-                            {document.pageCount === 1 ? 'page' : 'pages'}
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {overSelectionLimit && (
-              <p className="mt-4 text-[11px] text-danger" role="alert">
-                One Batch Extraction takes at most{' '}
-                {BATCH_EXTRACTION_SELECTION_LIMIT} Source Documents.
-              </p>
-            )}
             {schemaRevisionId === SUGGEST_SCHEMA && (
               <section
-                className="mt-4 space-y-3 border-t border-line pt-4"
+                className="mb-5 space-y-3"
                 aria-label="Suggested common fields"
               >
                 {suggestion.matches('idle') && (
@@ -1153,16 +1097,14 @@ export default function BatchExtractionsPanel({
                   </div>
                 )}
                 {suggestedFields?.status === 'heterogeneous' && (
-                  <div>
-                    <p className="text-xs text-ink-muted">
-                      No reliable common field set was found. Choose an existing
-                      Extraction Schema or change the selection.
-                    </p>
-                  </div>
+                  <p className="text-xs text-ink-muted">
+                    No reliable common field set was found. Choose an existing
+                    Extraction Schema or change the selection.
+                  </p>
                 )}
                 {suggestedFields?.status === 'ready' && (
                   <div
-                    className="h-[38rem] overflow-hidden rounded-md border border-line bg-surface"
+                    className="h-[32rem] overflow-hidden rounded-md border border-line bg-surface"
                     aria-busy={preparingSuggestedBatch}
                     inert={preparingSuggestedBatch ? true : undefined}
                   >
@@ -1177,7 +1119,8 @@ export default function BatchExtractionsPanel({
                       sourceDocumentName={`${selected.size} selected Source Document${selected.size === 1 ? '' : 's'}`}
                       documentMarkdown={null}
                       history={[]}
-                      showRegenerate={false}
+                      readOnly={confirmedSuggestion !== null}
+                      showRegenerate={confirmedSuggestion === null}
                       onGenerate={regenerateSuggestedFields}
                       onCancelGenerate={() => {}}
                       onResetSchema={() =>
@@ -1200,7 +1143,92 @@ export default function BatchExtractionsPanel({
                     />
                   </div>
                 )}
+                {suggestedFields?.status === 'ready' && confirmedSuggestion && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={selected.size === 0 || overSelectionLimit}
+                    onClick={regenerateSuggestedFields}
+                  >
+                    Regenerate
+                  </Button>
+                )}
               </section>
+            )}
+            <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-bold text-ink">Source Documents</h3>
+                <p className="text-[11px] text-ink-faint">
+                  {selected.size} selected
+                </p>
+              </div>
+              <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
+                <Button
+                  variant="secondary"
+                  disabled={sourceDocuments.length === 0 || openingAnyBatch}
+                  onClick={toggleAllSourceDocuments}
+                >
+                  {allSourceDocumentsSelected ? 'Unselect all' : 'Select all'}
+                </Button>
+                <input
+                  className={`${control} w-full sm:w-48`}
+                  type="search"
+                  aria-label="Filter Source Documents"
+                  placeholder="Filter Source Documents"
+                  value={filter}
+                  onChange={(event) => setFilter(event.target.value)}
+                />
+              </div>
+            </div>
+            {filtered.length === 0 ? (
+              <p className="py-6 text-center text-xs text-ink-muted">
+                {sourceDocuments.length === 0
+                  ? 'No Source Documents yet. Add Source Documents on the Sources tab.'
+                  : `No Source Documents match “${filter}”.`}
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {filtered.map((document) => (
+                  <li key={document.sourceDocumentId}>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-md px-1 py-3 hover:bg-line/20">
+                      <input
+                        className="size-3.5 accent-accent"
+                        type="checkbox"
+                        checked={selected.has(document.sourceDocumentId)}
+                        disabled={openingAnyBatch}
+                        onChange={() => {
+                          if (schemaRevisionId === SUGGEST_SCHEMA)
+                            clearSuggestedFields()
+                          setSelected((current) => {
+                            const next = new Set(current)
+                            if (next.has(document.sourceDocumentId))
+                              next.delete(document.sourceDocumentId)
+                            else next.add(document.sourceDocumentId)
+                            return next
+                          })
+                        }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-semibold text-ink">
+                          {document.name}
+                        </span>
+                        {document.pageCount !== null && (
+                          <span className="block text-[11px] text-ink-faint">
+                            {document.pageCount}{' '}
+                            {document.pageCount === 1 ? 'page' : 'pages'}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {overSelectionLimit && (
+              <p className="mt-4 text-[11px] text-danger" role="alert">
+                One Batch Extraction takes at most{' '}
+                {BATCH_EXTRACTION_SELECTION_LIMIT} Source Documents.
+              </p>
             )}
             <div className="mt-4 flex justify-end">
               <Button
@@ -1209,7 +1237,8 @@ export default function BatchExtractionsPanel({
                 disabled={
                   selected.size === 0 ||
                   (schemaRevisionId === SUGGEST_SCHEMA
-                    ? suggestedFields?.status !== 'ready' ||
+                    ? confirmedSuggestion !== null ||
+                      suggestedFields?.status !== 'ready' ||
                       !suggestedFields.recordDescription.trim() ||
                       draftConflict
                     : !schemaRevisionId) ||

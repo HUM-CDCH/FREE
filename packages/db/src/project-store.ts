@@ -736,6 +736,10 @@ export type UpdateBatchSchemaSuggestionDraftResult =
   | { status: 'invalid' }
   | null
 
+export type RetryBatchSchemaSuggestionResult =
+  | { status: 'retried'; suggestion: BatchSchemaSuggestionRecord }
+  | null
+
 export type RunBatchSchemaSuggestionResult =
   | {
       status: 'created' | 'replayed'
@@ -828,7 +832,7 @@ export type ProjectStore = {
   retryBatchSchemaSuggestion(
     projectContextId: string,
     batchSchemaSuggestionId: string,
-  ): Promise<BatchSchemaSuggestionRecord | null>
+  ): Promise<RetryBatchSchemaSuggestionResult>
   claimBatchSchemaSuggestion(
     owner: string,
     now: Date,
@@ -1620,14 +1624,11 @@ export function createProjectStore(database: Database = db): ProjectStore {
       return { status: result, suggestion }
     },
     async retryBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
-      const retried = await database.transaction(async ({ orm }) => {
+      const result = await database.transaction(async ({ orm }) => {
         const suggestion = await orm.public.BatchSchemaSuggestion.select(
           'id',
-          'phase',
-          'confirmedSchemaRevisionId',
         ).first({ id: batchSchemaSuggestionId, projectContextId })
-        if (!suggestion || suggestion.confirmedSchemaRevisionId !== null)
-          return false
+        if (!suggestion) return 'missing' as const
         const sources = await orm.public.BatchSchemaSuggestionSource.where({
           batchSchemaSuggestionId,
         })
@@ -1653,20 +1654,24 @@ export function createProjectStore(database: Database = db): ProjectStore {
           phase:
             sourceFailures.length > 0 ? 'SOURCES' : ('MERGING' as const),
           failure: null,
+          confirmedSchemaRevisionId: null,
+          batchExtractionId: null,
           startedAt: null,
           finishedAt: null,
           leaseOwner: null,
           leaseExpiresAt: null,
         })
-        return true
+        return 'retried' as const
       })
-      return retried
-        ? loadBatchSchemaSuggestion(
-            database.orm,
-            projectContextId,
-            batchSchemaSuggestionId,
-          )
-        : null
+      if (result === 'missing') return null
+      const suggestion = await loadBatchSchemaSuggestion(
+        database.orm,
+        projectContextId,
+        batchSchemaSuggestionId,
+      )
+      if (!suggestion)
+        throw new Error('Retried Batch Schema Suggestion could not be read.')
+      return { status: result, suggestion }
     },
     async claimBatchSchemaSuggestion(owner, now, leaseExpiresAt) {
       const queued = await database.orm.public.BatchSchemaSuggestion.where({
