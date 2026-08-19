@@ -1,5 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import ArchitectureMap from './architecture/components/ArchitectureMap'
+import './architecture/components/keyframes.css'
+import { ARCHITECTURE } from './architecture/graph'
 import { isDeveloperUiEnabled } from './developerUi.ts'
 import './index.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
@@ -9,11 +12,26 @@ import {
   ProjectRoutes,
 } from './ProjectNavigation.tsx'
 
+const architectureRoute =
+  window.location.pathname.replace(/\/$/, '') === '/~/architecture'
+
+if (architectureRoute) {
+  document.title = 'Architecture · FREE'
+  const robots = document.createElement('meta')
+  robots.name = 'robots'
+  robots.content = 'noindex, nofollow'
+  document.head.append(robots)
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ProjectNavigationProvider>
-      <ProjectRoutes />
-    </ProjectNavigationProvider>
+    {architectureRoute ? (
+      <ArchitectureMap data={ARCHITECTURE} />
+    ) : (
+      <ProjectNavigationProvider>
+        <ProjectRoutes />
+      </ProjectNavigationProvider>
+    )}
   </StrictMode>,
 )
 

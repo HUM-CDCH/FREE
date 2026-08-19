@@ -1,0 +1,33 @@
+{
+  "coverage": "prototypes/studio/src/architecture/coverage.json",
+  "output": "prototypes/studio/src/architecture/measured.generated.ts",
+  "sources": [
+    "package.json",
+    "pnpm-workspace.yaml",
+    "packages/db/package.json",
+    "packages/db/*.ts",
+    "packages/db/src/**/*.{ts,prisma}",
+    "packages/db/migrations/app/**/*.{ts,json}",
+    "packages/extraction-result-export/package.json",
+    "packages/extraction-result-export/src/**/*.{ts,tsx}",
+    "prototypes/studio/package.json",
+    "prototypes/studio/*.{ts,js}",
+    "prototypes/studio/src/**/*.{ts,tsx,css,json,md}",
+    "prototypes/studio/api/**/*.ts",
+    "prototypes/studio/shared/**/*.ts",
+    "prototypes/studio/e2e/**/*.ts",
+    "prototypes/parsing_service/package.json",
+    "prototypes/parsing_service/*.py",
+    "prototypes/parsing_service/app/**/*.py",
+    "prototypes/parsing_service/tests/**/*.py",
+    "prototypes/parsing_service_simple/package.json",
+    "prototypes/parsing_service_simple/*.py",
+    "prototypes/parsing_service_simple/app/**/*.py",
+    "prototypes/parsing_service_simple/tests/**/*.py",
+    "docs/architecture/**/*.c4",
+    "scripts/**/*.{mjs,js,ts}"
+  ],
+  "ignore": [
+    "prototypes/studio/src/architecture/measured.generated.ts"
+  ]
+}

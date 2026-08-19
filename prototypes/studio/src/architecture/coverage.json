@@ -1,0 +1,106 @@
+{
+  "$note": "Every configured source path is claimed once; nested patterns outrank their parent pattern.",
+  "studio-shell": { "owns": ["prototypes/studio/src/**"] },
+  "document-workspace": {
+    "owns": [
+      "prototypes/studio/src/App*", "prototypes/studio/src/AnnotationSidebar*",
+      "prototypes/studio/src/ChatTab*", "prototypes/studio/src/DocumentTabBar*",
+      "prototypes/studio/src/EvidenceTab*", "prototypes/studio/src/ExtractionResultExportControl*",
+      "prototypes/studio/src/PanelToggleIcon*", "prototypes/studio/src/ResultsTab*",
+      "prototypes/studio/src/ResultValue*", "prototypes/studio/src/RightRail*",
+      "prototypes/studio/src/SchemaPanel*", "prototypes/studio/src/api*",
+      "prototypes/studio/src/assets/**", "prototypes/studio/src/evidenceNavigation*",
+      "prototypes/studio/src/extraction*", "prototypes/studio/src/resultStats*",
+      "prototypes/studio/src/schemaChanges*", "prototypes/studio/src/schemaRevisions*",
+      "prototypes/studio/src/schemaSaveCoordinator*", "prototypes/studio/src/useExtraction*",
+      "prototypes/studio/src/useOpenDocumentTabs*"
+    ]
+  },
+  "project-workspace": {
+    "owns": [
+      "prototypes/studio/src/projectContexts/**", "prototypes/studio/src/ProjectNavigation*",
+      "prototypes/studio/src/projectNavigation*", "prototypes/studio/src/sourceIngestionMachine*"
+    ]
+  },
+  "model-settings": {
+    "owns": [
+      "prototypes/studio/src/providerConfig/**", "prototypes/studio/src/llmInspector/**",
+      "prototypes/studio/src/developerUi*", "prototypes/studio/src/GearIcon*"
+    ]
+  },
+  "ui-kit": {
+    "owns": [
+      "prototypes/studio/src/ui/**", "prototypes/studio/src/index.css",
+      "prototypes/studio/src/pdf-viewer.css"
+    ]
+  },
+  "api-foundation": { "owns": ["prototypes/studio/api/**"] },
+  "project-api": {
+    "owns": [
+      "prototypes/studio/api/project_contexts*", "prototypes/studio/api/schema_revisions*",
+      "prototypes/studio/api/extraction_schemas*"
+    ]
+  },
+  "ingestion-api": {
+    "owns": [
+      "prototypes/studio/api/source_documents*", "prototypes/studio/api/source_representations*",
+      "prototypes/studio/api/document_reopen*", "prototypes/studio/api/_document*",
+      "prototypes/studio/api/_pdf*"
+    ]
+  },
+  "model-operations": {
+    "owns": [
+      "prototypes/studio/api/chat*", "prototypes/studio/api/edit_schema*",
+      "prototypes/studio/api/generate_schema*", "prototypes/studio/api/llm_inspector*",
+      "prototypes/studio/api/model_config*", "prototypes/studio/api/model_probe*",
+      "prototypes/studio/api/task6b.provider.live.test.ts", "prototypes/studio/api/_keyring*",
+      "prototypes/studio/api/_llm_inspector*", "prototypes/studio/api/_model*",
+      "prototypes/studio/api/_provider*", "prototypes/studio/api/_schema*"
+    ]
+  },
+  "extraction-operations": {
+    "owns": [
+      "prototypes/studio/api/extractions*", "prototypes/studio/api/batch_extractions*",
+      "prototypes/studio/api/batch_schema_suggestions*", "prototypes/studio/api/_batch_schema_suggestions*",
+      "prototypes/studio/api/_project_operations*", "prototypes/studio/api/durable_operations*",
+      "prototypes/studio/api/project_operations*"
+    ]
+  },
+  "shared-contracts": { "owns": ["prototypes/studio/shared/**"] },
+  "parsing-http": {
+    "owns": [
+      "prototypes/parsing_service/*.py", "prototypes/parsing_service/app/*.py",
+      "prototypes/parsing_service/app/api/**"
+    ]
+  },
+  "parsing-intake": {
+    "owns": [
+      "prototypes/parsing_service/app/ingestion/**", "prototypes/parsing_service/app/models/**"
+    ]
+  },
+  "parsing-workers": {
+    "owns": [
+      "prototypes/parsing_service/app/workers/**", "prototypes/parsing_service/app/timing.py"
+    ]
+  },
+  "parsing-pipeline": { "owns": ["prototypes/parsing_service/app/parsing/**"] },
+  "parsing-storage": { "owns": ["prototypes/parsing_service/app/storage/**"] },
+  "parsing-verification": { "owns": ["prototypes/parsing_service/tests/**"] },
+  "simple-parser": { "owns": ["prototypes/parsing_service_simple/**"] },
+  "project-store": { "owns": ["packages/db/src/**"] },
+  "database-contract": {
+    "owns": [
+      "packages/db/src/prisma/**", "packages/db/migrations/**", "packages/db/package.json",
+      "packages/db/*.ts"
+    ]
+  },
+  "export-toolkit": { "owns": ["packages/extraction-result-export/**"] },
+  "engineering-map": {
+    "owns": [
+      "package.json", "pnpm-workspace.yaml", "scripts/**", "docs/architecture/**",
+      "prototypes/studio/package.json", "prototypes/studio/*.{ts,js}",
+      "prototypes/studio/e2e/**", "prototypes/studio/src/architecture/**",
+      "prototypes/parsing_service/package.json", "prototypes/parsing_service_simple/package.json"
+    ]
+  }
+}
