@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { NavigableRoute } from '../projectNavigation'
+import type { NavigableRoute, ProjectResource } from '../projectNavigation'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { listExtractionSchemas, renameExtractionSchema } from '../schemaRevisions'
 import SchemaNameEditor from '../SchemaNameEditor'
@@ -10,6 +10,9 @@ import { useProjectContexts } from './useProjectContexts'
 
 export type ProjectContextPageProps = {
   projectContextId: string
+  /** The routed view. The route owns which resource tab is open, so a tab is
+   * linkable, survives a refresh, and takes part in browser history. */
+  resource: ProjectResource
   onNavigate: (route: NavigableRoute) => void
   /** Opening a Source Document from this page is a deliberate action, so it
    * opens as a pinned tab rather than a quick preview. */
@@ -181,9 +184,11 @@ function DownloadIcon() {
  */
 export default function ProjectContextPage({
   projectContextId,
+  resource,
   onNavigate,
   onOpenSourceDocument,
 }: ProjectContextPageProps) {
+  const tab = resource.tab
   const {
     projects,
     branches,
@@ -202,9 +207,6 @@ export default function ProjectContextPage({
     name: string
   } | null>(null)
   const [dragging, setDragging] = useState(false)
-  const [tab, setTab] = useState<'sources' | 'schemas' | 'extractions'>(
-    'sources',
-  )
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<'newest' | 'oldest' | 'name'>('newest')
   const [settledSchemaList, setSettledSchemaList] =
@@ -402,7 +404,12 @@ export default function ProjectContextPage({
                 aria-selected={tab === value}
                 aria-controls={`project-${value}-panel`}
                 tabIndex={tab === value ? 0 : -1}
-                onClick={() => setTab(value)}
+                // Reselecting the open tab would push a duplicate history
+                // entry, which makes Back look broken.
+                onClick={() => {
+                  if (value !== tab)
+                    onNavigate({ kind: 'project', projectContextId, tab: value })
+                }}
                 onKeyDown={(event) => {
                   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')
                     return
@@ -437,6 +444,11 @@ export default function ProjectContextPage({
             projectContextId={projectContextId}
             sourceDocuments={
               branch?.status === 'ready' ? branch.detail.sourceDocuments : []
+            }
+            openBatchExtractionId={
+              resource.tab === 'extractions'
+                ? (resource.batchExtractionId ?? null)
+                : null
             }
             onNavigate={onNavigate}
           />

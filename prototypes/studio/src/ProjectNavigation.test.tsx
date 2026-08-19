@@ -229,9 +229,19 @@ function studioFetch(
     const reopened = /source-documents\/([^/]+)\/reopen$/.exec(url)
     if (reopened) return reopen(reopened[1])
     if (url.startsWith('/api/extraction-schemas?')) return schemas()
+    if (url.startsWith('/api/batch-extractions?'))
+      return Response.json({ batchExtractions: [] })
+    if (url.startsWith('/api/batch-schema-suggestions?'))
+      return Response.json({ batchSchemaSuggestions: [] })
     if (url.endsWith(projectContextId)) return Response.json(branch)
     return Response.json({ projectContexts: [project] })
   })
+}
+
+/** Browser Back: the URL changes and `popstate` is what the app hears. */
+function back(pathname: string) {
+  history.pushState(null, '', pathname)
+  dispatchEvent(new PopStateEvent('popstate'))
 }
 
 function renderRoutes(fetch: ReturnType<typeof vi.fn> = studioFetch()) {
@@ -782,6 +792,123 @@ describe('Project Context navigation', () => {
       within(page).getByRole('tabpanel', { name: 'Schemas' }),
     ).toHaveAttribute('tabindex', '0')
     expect(within(page).queryByLabelText('Filter sources')).not.toBeInTheDocument()
+    // Arrow keys move the route, not just the rendered panel.
+    expect(location.pathname).toBe(`/projects/${projectContextId}/schemas`)
+  })
+
+  it('deep-links, refreshes, and walks back through the Project resource tabs', async () => {
+    history.replaceState(null, '', `/projects/${projectContextId}/schemas`)
+    renderRoutes()
+
+    // A deep link is the page's first render: the tab it names is the one that
+    // reads its resource.
+    const page = await screen.findByRole('region', { name: 'Project Context' })
+    expect(within(page).getByRole('tab', { name: 'Schemas' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
+    expect(
+      within(page).queryByLabelText('Filter sources'),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(within(page).getByRole('tab', { name: 'Sources' }))
+    // Sources is the page's entry, so it keeps the bare Project Context path.
+    expect(location.pathname).toBe(`/projects/${projectContextId}`)
+    expect(location.search).toBe('')
+    expect(within(page).getByLabelText('Filter sources')).toBeInTheDocument()
+
+    fireEvent.click(within(page).getByRole('tab', { name: 'Extractions' }))
+    expect(location.pathname).toBe(`/projects/${projectContextId}/extractions`)
+    expect(
+      await within(page).findByText('No Batch Extractions yet.'),
+    ).toBeInTheDocument()
+
+    // Reselecting the open tab must not push an entry Back would have to undo.
+    const entries = history.length
+    fireEvent.click(within(page).getByRole('tab', { name: 'Extractions' }))
+    expect(location.pathname).toBe(`/projects/${projectContextId}/extractions`)
+    expect(history.length).toBe(entries)
+
+    back(`/projects/${projectContextId}`)
+    await within(page).findByRole('tab', { name: 'Sources', selected: true })
+
+    back(`/projects/${projectContextId}/schemas`)
+    await within(page).findByRole('tab', { name: 'Schemas', selected: true })
+    expect(await within(page).findByText('No schemas yet.')).toBeInTheDocument()
+  })
+
+  it('opens the Sources tab for a Source Document list path', async () => {
+    history.replaceState(null, '', `/projects/${projectContextId}/documents`)
+    renderRoutes()
+
+    const page = await screen.findByRole('region', { name: 'Project Context' })
+    expect(within(page).getByRole('tab', { name: 'Sources' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    // The alias is left as it was typed; nothing rewrites the researcher's URL.
+    expect(location.pathname).toBe(`/projects/${projectContextId}/documents`)
+  })
+
+  it('routes the open Batch Extraction so it survives a refresh', async () => {
+    const batchExtractionId = '51000000-0000-4000-8007-000000000001'
+    const batchExtraction = {
+      batchExtractionId,
+      projectContextId,
+      schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+      extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+      extractionSchemaName: 'Places',
+      schemaRevisionNumber: 1,
+      strategy: 'ARTICLE',
+      createdAt: '2026-08-14T10:42:00.000Z',
+      executionStatus: 'COMPLETED',
+      executionFailureMessage: null,
+      startedAt: '2026-08-14T10:42:00.000Z',
+      finishedAt: '2026-08-14T10:43:00.000Z',
+      members: [
+        {
+          sourceDocumentId,
+          sourceRepresentationRevisionId:
+            '51000000-0000-4000-8002-000000000001',
+          executionStatus: 'COMPLETED',
+          executionFailureMessage: null,
+          startedAt: '2026-08-14T10:42:00.000Z',
+          finishedAt: '2026-08-14T10:43:00.000Z',
+          latestExtraction: null,
+        },
+      ],
+    }
+    const batchFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return Response.json({ batchExtractions: [batchExtraction] })
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return Response.json({ batchSchemaSuggestions: [] })
+      if (url.startsWith('/api/schema-revisions/'))
+        return Response.json({ revision: null })
+      if (url.endsWith(projectContextId)) return Response.json(detail)
+      return Response.json({ projectContexts: [project] })
+    })
+    history.replaceState(null, '', `/projects/${projectContextId}/extractions`)
+    renderRoutes(batchFetch)
+
+    const page = await screen.findByRole('region', { name: 'Project Context' })
+    fireEvent.click(await within(page).findByText('Places · Schema Revision 1'))
+
+    expect(location.pathname).toBe(
+      `/projects/${projectContextId}/extractions/${batchExtractionId}`,
+    )
+    await within(page).findByRole('list', { name: 'Batch Extraction members' })
+
+    // Back leaves the batch for the history that listed it.
+    back(`/projects/${projectContextId}/extractions`)
+    expect(
+      await within(page).findByText('Places · Schema Revision 1'),
+    ).toBeInTheDocument()
+    expect(
+      within(page).queryByRole('list', { name: 'Batch Extraction members' }),
+    ).not.toBeInTheDocument()
   })
 
   it('loads project schemas and retries an error', async () => {

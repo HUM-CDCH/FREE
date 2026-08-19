@@ -168,7 +168,11 @@ export default function AppFrame({
             projectContextId: openDocument.projectContext.projectContextId,
             sourceDocumentId: openDocument.sourceDocument.sourceDocumentId,
           }
-        : { kind: 'project', projectContextId: route.projectContextId }
+        : {
+            kind: 'project',
+            projectContextId: route.projectContextId,
+            tab: 'sources',
+          }
       : route.kind === 'badReference'
         ? null
         : route
@@ -252,7 +256,12 @@ export default function AppFrame({
         projectContextId: routedProjectContextId,
         sourceDocumentId: nextActiveSourceDocumentId,
       })
-    else onNavigate({ kind: 'project', projectContextId: routedProjectContextId })
+    else
+      onNavigate({
+        kind: 'project',
+        projectContextId: routedProjectContextId,
+        tab: 'sources',
+      })
   }
 
   const openProjectTabs = routedProjectContextId
@@ -359,7 +368,11 @@ export default function AppFrame({
             onActivate={activateTab}
             onClose={closeTab}
             onNavigateProject={() =>
-              onNavigate({ kind: 'project', projectContextId: routedProjectContextId })
+                onNavigate({
+                kind: 'project',
+                projectContextId: routedProjectContextId,
+                tab: 'sources',
+              })
             }
             slotRef={setTabBarSlot}
           />
@@ -388,9 +401,12 @@ export default function AppFrame({
             <Suspense
               fallback={<div aria-busy="true">Loading Project Context…</div>}
             >
+              {/* Keyed to the Project Context only: switching resource tabs
+                  is a route change within one page, not a new page. */}
               <ProjectContextPage
                 key={route.projectContextId}
                 projectContextId={route.projectContextId}
+                resource={route}
                 onNavigate={onNavigate}
                 onOpenSourceDocument={openSourceDocument}
               />

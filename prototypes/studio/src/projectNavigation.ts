@@ -10,9 +10,23 @@ import {
   toProjectContextFailure,
 } from './projectContexts/transport'
 
+/**
+ * The Project Context page's routed view: which resource tab is open, and —
+ * because only Extractions has one — the opened Batch Extraction.
+ */
+export type ProjectResource =
+  | { tab: 'sources' }
+  | { tab: 'schemas' }
+  | { tab: 'extractions'; batchExtractionId?: string }
+
+export type ProjectRoute = {
+  kind: 'project'
+  projectContextId: string
+} & ProjectResource
+
 export type Route =
   | { kind: 'root' }
-  | { kind: 'project'; projectContextId: string }
+  | ProjectRoute
   | {
       kind: 'document'
       projectContextId: string
@@ -53,11 +67,35 @@ export function parseRoute(pathname: string, search = ''): Route {
       : pathOnly
   if (path === '/projects') return { kind: 'root' }
 
-  const project = /^\/projects\/([^/]+)(?:\/documents)?$/.exec(path)
+  // Sources keeps the bare Project Context path; `/documents` is its alias, so
+  // truncating a Source Document's URL lands on the list that contains it.
+  const project = /^\/projects\/([^/]+)(?:\/(documents|schemas))?$/.exec(path)
   if (project) {
-    const projectContextId = project[1]
+    const [, projectContextId, segment] = project
     return canonicalUuidSchema.safeParse(projectContextId).success
-      ? { kind: 'project', projectContextId }
+      ? {
+          kind: 'project',
+          projectContextId,
+          tab: segment === 'schemas' ? 'schemas' : 'sources',
+        }
+      : { kind: 'badReference' }
+  }
+
+  // Extractions is the one tab with a resource of its own beneath it.
+  const extractions = /^\/projects\/([^/]+)\/extractions(?:\/([^/]+))?$/.exec(
+    path,
+  )
+  if (extractions) {
+    const [, projectContextId, batchExtractionId] = extractions
+    return canonicalUuidSchema.safeParse(projectContextId).success &&
+      (batchExtractionId === undefined ||
+        canonicalUuidSchema.safeParse(batchExtractionId).success)
+      ? {
+          kind: 'project',
+          projectContextId,
+          tab: 'extractions',
+          ...(batchExtractionId ? { batchExtractionId } : {}),
+        }
       : { kind: 'badReference' }
   }
 
@@ -88,13 +126,17 @@ export function parseRoute(pathname: string, search = ''): Route {
 export function href(route: NavigableRoute): string {
   if (route.kind === 'root') return '/projects'
   const project = `/projects/${route.projectContextId}`
-  return route.kind === 'project'
-    ? project
-    : `${project}/documents/${route.sourceDocumentId}${
-        route.extractionId
-          ? `?${new URLSearchParams({ extractionId: route.extractionId })}`
-          : ''
-      }`
+  if (route.kind === 'document')
+    return `${project}/documents/${route.sourceDocumentId}${
+      route.extractionId
+        ? `?${new URLSearchParams({ extractionId: route.extractionId })}`
+        : ''
+    }`
+  if (route.tab === 'sources') return project
+  if (route.tab === 'schemas') return `${project}/schemas`
+  return `${project}/extractions${
+    route.batchExtractionId ? `/${route.batchExtractionId}` : ''
+  }`
 }
 
 /** Only `opening` reads, and `routing` holds document routes until containment. */

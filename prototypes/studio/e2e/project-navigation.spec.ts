@@ -530,6 +530,91 @@ test.describe('rail navigation', () => {
     ).toBeVisible()
   })
 
+  test('deep-links every Project resource tab and the open Batch Extraction', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    const BATCH = '00000000-0000-4000-8000-0000000001b1'
+    const batchExtraction = {
+      batchExtractionId: BATCH,
+      projectContextId: ELLEKILDE,
+      schemaRevisionId: '00000000-0000-4000-8000-0000000001b2',
+      extractionSchemaId: '00000000-0000-4000-8000-0000000001b3',
+      extractionSchemaName: 'Places',
+      schemaRevisionNumber: 1,
+      strategy: 'ARTICLE',
+      executionStatus: 'COMPLETED',
+      createdAt: '2026-08-14T10:42:00.000Z',
+      members: [
+        {
+          sourceDocumentId: BERETNING,
+          sourceRepresentationRevisionId: REPRESENTATIONS[BERETNING],
+          executionStatus: 'COMPLETED',
+          latestExtraction: null,
+        },
+      ],
+    }
+    // The resource tabs read past the persisted Project Context reads that
+    // `stubStudio` composes, so each answers its own empty or seeded list.
+    await page.route('**/api/extraction-schemas**', (route) =>
+      route.fulfill({ json: { extractionSchemas: [] } }),
+    )
+    await page.route('**/api/batch-schema-suggestions**', (route) =>
+      route.fulfill({ json: { batchSchemaSuggestions: [] } }),
+    )
+    await page.route('**/api/schema-revisions/**', (route) =>
+      route.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'No Schema Revision.' } } }),
+    )
+    await page.route('**/api/batch-extractions**', (route) =>
+      route.fulfill({ json: { batchExtractions: [batchExtraction] } }),
+    )
+
+    // A deep link opens the tab it names, and a refresh keeps it.
+    await page.goto(`/projects/${ELLEKILDE}/schemas`)
+    const tab = (name: string) =>
+      projectPage(page).getByRole('tab', { name, exact: true })
+    await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
+    await expect(projectPage(page).getByText('No schemas yet.')).toBeVisible()
+    await page.reload()
+    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/schemas`)
+    await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
+
+    // Sources is the page's entry, so it keeps the bare Project Context path.
+    await tab('Sources').click()
+    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await tab('Extractions').click()
+    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/extractions`)
+
+    // The opened Batch Extraction is routed too, so it is linkable on its own.
+    await projectPage(page).getByText('Places · Schema Revision 1').click()
+    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/extractions/${BATCH}`)
+    const members = projectPage(page).getByRole('list', {
+      name: 'Batch Extraction members',
+    })
+    await expect(members).toBeVisible()
+    await page.reload()
+    await expect(members).toBeVisible()
+
+    // Back undoes each step it took to get here, tab switches included.
+    await page.goBack()
+    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/extractions`)
+    await expect(members).toBeHidden()
+    await page.goBack()
+    await expect(page).toHaveURL(`/projects/${ELLEKILDE}`)
+    await expect(tab('Sources')).toHaveAttribute('aria-selected', 'true')
+    await page.goBack()
+    await expect(page).toHaveURL(`/projects/${ELLEKILDE}/schemas`)
+    await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
+
+    // Sources' path is the bare one, so no other segment is routable.
+    await page.goto(`/projects/${ELLEKILDE}/sources`)
+    await expect(
+      page.getByRole('heading', {
+        name: 'That Project Context reference is invalid',
+      }),
+    ).toBeVisible()
+  })
+
   test('back and forward walk Source Documents as well as Project Contexts', async ({
     page,
   }) => {

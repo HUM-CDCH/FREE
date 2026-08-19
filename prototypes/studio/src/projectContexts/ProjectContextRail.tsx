@@ -220,7 +220,7 @@ export function ProjectContextRail({
       next.delete(projectContextId)
       return next
     })
-    onNavigate({ kind: 'project', projectContextId })
+    onNavigate({ kind: 'project', projectContextId, tab: 'sources' })
   }
 
   if (!open)
@@ -520,6 +520,9 @@ export function ProjectContextRail({
               onNavigate({
                 kind: 'project',
                 projectContextId: result.created.projectContextId,
+                // A new Project Context has no schemas and no Batch
+                // Extractions; Sources holds the only thing to do with it.
+                tab: 'sources',
               })
             }
             return result.failure ?? null

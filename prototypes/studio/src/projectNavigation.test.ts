@@ -13,6 +13,7 @@ const projectContextId = '00000000-0000-4000-8000-000000000044'
 const sourceDocumentId = '00000000-0000-4000-8000-000000000045'
 const otherSourceDocumentId = '00000000-0000-4000-8000-000000000046'
 const extractionId = '00000000-0000-4000-8000-000000000047'
+const batchExtractionId = '00000000-0000-4000-8000-000000000048'
 
 describe('Project Context routes', () => {
   it.each([
@@ -20,8 +21,30 @@ describe('Project Context routes', () => {
     ['/studio', { kind: 'root' }],
     ['/anything', { kind: 'root' }],
     ['/projects', { kind: 'root' }],
-    [`/projects/${projectContextId}/`, { kind: 'project', projectContextId }],
-    [`/projects/${projectContextId}/documents`, { kind: 'project', projectContextId }],
+    [
+      `/projects/${projectContextId}/`,
+      { kind: 'project', projectContextId, tab: 'sources' },
+    ],
+    [
+      `/projects/${projectContextId}/documents`,
+      { kind: 'project', projectContextId, tab: 'sources' },
+    ],
+    [
+      `/projects/${projectContextId}/schemas`,
+      { kind: 'project', projectContextId, tab: 'schemas' },
+    ],
+    [
+      `/projects/${projectContextId}/schemas/`,
+      { kind: 'project', projectContextId, tab: 'schemas' },
+    ],
+    [
+      `/projects/${projectContextId}/extractions`,
+      { kind: 'project', projectContextId, tab: 'extractions' },
+    ],
+    [
+      `/projects/${projectContextId}/extractions/${batchExtractionId}`,
+      { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId },
+    ],
     [
       `/projects/${projectContextId}/documents/${sourceDocumentId}`,
       { kind: 'document', projectContextId, sourceDocumentId },
@@ -31,6 +54,13 @@ describe('Project Context routes', () => {
       { kind: 'document', projectContextId, sourceDocumentId, extractionId },
     ],
     ['/projects/NOT-A-UUID', { kind: 'badReference' }],
+    [`/projects/${projectContextId}/sources`, { kind: 'badReference' }],
+    [`/projects/${projectContextId}/schemas/extra`, { kind: 'badReference' }],
+    [
+      `/projects/${projectContextId}/extractions/not-a-uuid`,
+      { kind: 'badReference' },
+    ],
+    [`/projects/NOT-A-UUID/schemas`, { kind: 'badReference' }],
     [`/projects/${projectContextId}/documents/nope`, { kind: 'badReference' }],
     [
       `/projects/${projectContextId}/documents/${sourceDocumentId}/anything`,
@@ -42,11 +72,36 @@ describe('Project Context routes', () => {
 
   it.each<NavigableRoute>([
     { kind: 'root' },
-    { kind: 'project', projectContextId },
+    { kind: 'project', projectContextId, tab: 'sources' },
+    { kind: 'project', projectContextId, tab: 'schemas' },
+    { kind: 'project', projectContextId, tab: 'extractions' },
+    { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId },
     { kind: 'document', projectContextId, sourceDocumentId },
     { kind: 'document', projectContextId, sourceDocumentId, extractionId },
   ])('builds the canonical href for $kind routes', (route) => {
     expect(parseRoute(href(route))).toEqual(route)
+  })
+
+  // The roundtrip alone would accept any self-consistent grammar; these are the
+  // URLs researchers copy and share, so they are asserted literally.
+  it('keeps one canonical URL per resource tab', () => {
+    expect(href({ kind: 'project', projectContextId, tab: 'sources' })).toBe(
+      `/projects/${projectContextId}`,
+    )
+    expect(href({ kind: 'project', projectContextId, tab: 'schemas' })).toBe(
+      `/projects/${projectContextId}/schemas`,
+    )
+    expect(href({ kind: 'project', projectContextId, tab: 'extractions' })).toBe(
+      `/projects/${projectContextId}/extractions`,
+    )
+    expect(
+      href({
+        kind: 'project',
+        projectContextId,
+        tab: 'extractions',
+        batchExtractionId,
+      }),
+    ).toBe(`/projects/${projectContextId}/extractions/${batchExtractionId}`)
   })
 })
 
@@ -125,7 +180,7 @@ function navigateToContained(
 describe('routed Source Document opening', () => {
   it.each<Route>([
     { kind: 'root' },
-    { kind: 'project', projectContextId },
+    { kind: 'project', projectContextId, tab: 'sources' },
     { kind: 'badReference' },
   ])('stays idle without a read for $kind routes', ({ ...route }) => {
     const { actor, pending } = reopenController(route as Route)
@@ -228,7 +283,7 @@ describe('routed Source Document opening', () => {
 
     actor.send({
       type: 'ROUTE_CHANGED',
-      route: { kind: 'project', projectContextId },
+      route: { kind: 'project', projectContextId, tab: 'sources' },
     })
 
     expect(actor.getSnapshot().value).toBe('idle')
@@ -301,7 +356,11 @@ describe('project navigation machine', () => {
     })
     actor.start()
 
-    const projectRoute = { kind: 'project', projectContextId } as const
+    const projectRoute = {
+      kind: 'project',
+      projectContextId,
+      tab: 'sources',
+    } as const
     actor.send({ type: 'NAVIGATE', route: projectRoute })
     expect(push).toHaveBeenCalledWith(projectRoute)
     expect(actor.getSnapshot().context.route).toEqual(projectRoute)
