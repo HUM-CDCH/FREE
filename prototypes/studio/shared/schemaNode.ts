@@ -151,8 +151,13 @@ export type SchemaMetadataCount = {
   allowedValues: number
 }
 
-let uid = 1
-export const mkId = () => `n${uid++}`
+function fieldPathKey(path: readonly string[]): string {
+  return path
+    .map((segment) => segment.replaceAll('\\', '\\\\').replaceAll('.', '\\.'))
+    .join('.')
+}
+
+export const mkId = () => crypto.randomUUID()
 
 export function templateToNodes(value: unknown): SchemaNode[] {
   if (!isRecord(value)) return []
@@ -219,7 +224,7 @@ export function enumerateFieldPaths(nodes: readonly SchemaNode[]): EnumeratedFie
   const visit = (level: readonly SchemaNode[], parentPath: readonly string[]) => {
     for (const node of level) {
       const path = [...parentPath, node.name]
-      fields.push({ id: node.id, key: path.join('.'), path, node })
+      fields.push({ id: node.id, key: fieldPathKey(path), path, node })
       if (node.children) visit(node.children, path)
     }
   }

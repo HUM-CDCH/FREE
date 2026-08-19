@@ -248,6 +248,19 @@ function deepClone(nodes: SchemaNode[]): SchemaNode[] {
   return nodes.map(n => n.children ? { ...n, children: deepClone(n.children) } : { ...n })
 }
 
+function withUniqueNodeIds(nodes: readonly SchemaNode[]): SchemaNode[] {
+  const seen = new Set<string>()
+  const visit = (node: SchemaNode): SchemaNode => {
+    let id = node.id
+    while (seen.has(id)) id = mkId()
+    seen.add(id)
+    return node.children === undefined
+      ? { ...node, id }
+      : { ...node, id, children: node.children.map(visit) }
+  }
+  return nodes.map(visit)
+}
+
 function extractNode(nodes: SchemaNode[], id: string): [SchemaNode | null, SchemaNode[]] {
   const root = deepClone(nodes)
   function remove(arr: SchemaNode[]): SchemaNode | null {
@@ -599,8 +612,9 @@ function SchemaPanel({
   // sync nodes when a new schema is generated
   useEffect(() => {
     if (state.status === 'ready') {
-      setNodes(state.nodes)
-      nodesRef.current = state.nodes
+      const uniqueNodes = withUniqueNodeIds(state.nodes)
+      setNodes(uniqueNodes)
+      nodesRef.current = uniqueNodes
       setRecordDescriptionDraft(state.recordDescription)
       setEditing(null)
       setEditingError(null)
@@ -646,9 +660,11 @@ function SchemaPanel({
 
   // Reads refs to avoid stale closures.
   function commitNodes(nextNodes: SchemaNode[], message: string): boolean {
-    const duplicates = duplicateFieldKeys(enumerateFieldPaths(nextNodes))
+    const fields = enumerateFieldPaths(nextNodes)
+    const duplicates = duplicateFieldKeys(fields)
     if (duplicates.length > 0) {
-      setMutationError(`Cannot move field: a sibling field already uses “${duplicates[0].split('.').at(-1)}”.`)
+      const duplicateName = fields.find(({ key }) => key === duplicates[0])!.node.name
+      setMutationError(`Cannot move field: a sibling field already uses “${duplicateName}”.`)
       return false
     }
     setMutationError(null)
@@ -668,8 +684,9 @@ function SchemaPanel({
     try {
       const loaded = await loadRevision(revision.schemaRevisionId)
       await beforeSchemaEdit()
-      nodesRef.current = loaded.schemaNodes
-      setNodes(loaded.schemaNodes)
+      const uniqueNodes = withUniqueNodeIds(loaded.schemaNodes)
+      nodesRef.current = uniqueNodes
+      setNodes(uniqueNodes)
       setRecordDescriptionDraft(loaded.recordDescription)
       setEditing(null)
       setEditingError(null)
@@ -682,7 +699,7 @@ function SchemaPanel({
       setJsonEditError(null)
       setView('fields')
       onNodesChangeRef.current(
-        loaded.schemaNodes,
+        uniqueNodes,
         `↺ Restored revision ${revision.revisionNumber}`,
         loaded.recordDescription,
       )

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   countSchemaMetadata,
   duplicateFieldKeys,
@@ -19,6 +19,16 @@ const invalidClosedSetNode: SchemaNode = { id: 'count', name: 'count', type: 'nu
 void invalidClosedSetNode
 
 describe('SchemaNode conversion', () => {
+  it('does not reuse generated node ids after a module reload', async () => {
+    vi.resetModules()
+    const firstModule = await import('./schemaNode')
+    const firstId = firstModule.mkId()
+    vi.resetModules()
+    const secondModule = await import('./schemaNode')
+
+    expect(secondModule.mkId()).not.toBe(firstId)
+  })
+
   it('round-trips closed sets, repeating groups, and repeating string lists', () => {
     const template = {
       names: ['string'],
@@ -57,6 +67,26 @@ describe('SchemaNode conversion', () => {
     ]
 
     expect(duplicateFieldKeys(enumerateFieldPaths(duplicate))).toEqual(['same'])
+  })
+
+  it('does not confuse dotted field names with nested paths', () => {
+    const nodes: SchemaNode[] = [
+      { id: 'flat', name: 'place.region', type: 'string' },
+      {
+        id: 'place',
+        name: 'place',
+        type: 'object',
+        children: [{ id: 'nested', name: 'region', type: 'string' }],
+      },
+    ]
+
+    const fields = enumerateFieldPaths(nodes)
+    expect(fields.map(({ key }) => key)).toEqual([
+      'place\\.region',
+      'place',
+      'place.region',
+    ])
+    expect(duplicateFieldKeys(fields)).toEqual([])
   })
 
   it('refuses to serialize duplicate sibling field names', () => {

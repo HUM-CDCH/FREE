@@ -250,6 +250,25 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(onNodesChange).not.toHaveBeenCalled()
   })
 
+  it('repairs a persisted duplicate id before renaming the affected field', async () => {
+    const onNodesChange = renderPanel(vi.fn(), [
+      { id: 'n1', name: 'grav_id', type: 'integer' },
+      { id: 'n1', name: 'nyt_felt', type: 'verbatim-string' },
+    ])
+
+    fireEvent.click(screen.getByTitle('Edit nyt_felt'))
+    fireEvent.change(screen.getAllByPlaceholderText('field_name').at(-1)!, {
+      target: { value: 'nuum' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' }).at(-1)!)
+
+    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
+    const updated = onNodesChange.mock.calls[0][0] as SchemaNode[]
+    expect(updated.map(({ name }) => name)).toEqual(['grav_id', 'nuum'])
+    expect(new Set(updated.map(({ id }) => id))).toHaveLength(2)
+    expect(screen.queryByText('A sibling field already uses “nuum”.')).not.toBeInTheDocument()
+  })
+
   it('preserves an existing closed set when the field is renamed', () => {
     const onNodesChange = renderPanel()
 
@@ -353,6 +372,23 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Cannot move field: a sibling field already uses “title”.')
     expect(onNodesChange).not.toHaveBeenCalled()
+  })
+
+  it('allows a move when a dotted field name only resembles a nested path', async () => {
+    const onNodesChange = renderPanel(vi.fn(), [
+      { id: 'flat', name: 'place.region', type: 'string' },
+      { id: 'place', name: 'place', type: 'object', children: [{ id: 'nested', name: 'region', type: 'string' }] },
+      { id: 'year', name: 'year', type: 'integer' },
+    ])
+    const yearRow = screen.getByText('year').parentElement!
+    const placeRow = screen.getByText('place').parentElement!
+
+    fireEvent.mouseDown(yearRow.querySelector('span')!, { button: 0, clientX: 0, clientY: 0 })
+    fireEvent.mouseEnter(placeRow)
+    fireEvent.mouseUp(window)
+
+    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('does not apply a rename that collides with an existing sibling', async () => {
