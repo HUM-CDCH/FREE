@@ -23,12 +23,10 @@ services:
     build:
       context: prototypes/parsing_service_simple
     restart: unless-stopped
-    # Match Docling's NVIDIA deployment baseline while keeping FREE's custom
-    # task and canonical-package API instead of replacing it with docling-serve.
-    runtime: nvidia
+    # Keep the default local stack portable. GPU deployments must explicitly
+    # provide their NVIDIA runtime/device configuration and select CUDA.
     environment:
-      DOCLING_DEVICE: cuda
-      NVIDIA_VISIBLE_DEVICES: all
+      DOCLING_DEVICE: cpu
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:
@@ -38,7 +36,7 @@ services:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/status', timeout=5)"
+        - "import json, urllib.request; status=json.load(urllib.request.urlopen('http://127.0.0.1:8000/status', timeout=5)); raise SystemExit(0 if status.get('parser_worker_health') == 'healthy' else 1)"
       interval: 30s
       timeout: 10s
       retries: 5
