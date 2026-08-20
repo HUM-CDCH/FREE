@@ -127,7 +127,7 @@ podman compose -f compose.yaml -f compose.local.yaml down
 The root `compose.yaml` is the production topology for one private LAN or VPN
 deployment. It builds the production Studio client and Node server, runs exactly
 one Studio process, and puts Caddy at the only host-facing boundary. Restrict
-host TCP port 443 to the intended private network with the host or perimeter
+host TCP port 8443 to the intended private network with the host or perimeter
 firewall.
 
 ### Prerequisites and hosted settings
@@ -157,7 +157,7 @@ Create the ignored root `.env` file with the generated single-line value and
 absolute host paths to the supplied TLS files:
 
 ```dotenv
-STUDIO_ORIGIN=https://free.example.edu
+STUDIO_ORIGIN=https://free.example.edu:8443
 FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
 FREE_TLS_CERTIFICATE_PATH=/srv/free-tls/studio.crt
@@ -165,8 +165,8 @@ FREE_TLS_PRIVATE_KEY_PATH=/srv/free-tls/studio.key
 ```
 
 - `STUDIO_ORIGIN` is the one externally visible, canonical HTTPS origin served
-  on port 443. Use the certificate's DNS name and no trailing slash, path,
-  query, fragment, credentials, or explicit default-port alias.
+  on port 8443. Use the certificate's DNS name with `:8443` and no trailing
+  slash, path, query, fragment, or credentials.
 - `FREE_SESSION_SECRET` must be canonical standard Base64 that decodes to at
   least 32 bytes. Keep it secret and stable; replacing it invalidates every
   browser session.
@@ -255,7 +255,7 @@ Wait for `caddy` to report healthy, then check the public shallow health route
 through the canonical HTTPS origin:
 
 ```bash
-curl --fail --silent --show-error https://free.example.edu/api/healthz
+curl --fail --silent --show-error https://free.example.edu:8443/api/healthz
 docker compose exec caddy caddy validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
@@ -325,7 +325,7 @@ The resolved production topology is:
 
 | Service | Private reachability | Host-published port |
 | --- | --- | --- |
-| Caddy | `proxy` at `172.30.0.2` | TCP 443 only |
+| Caddy | `proxy` at `172.30.0.2` | TCP 8443 only |
 | Studio | `proxy` and `app`, port 5173 | none |
 | PostgreSQL | `app`, port 5432 | none |
 | Parsing Service | `app`, port 8055 | none |
@@ -369,7 +369,7 @@ docker compose exec caddy caddy validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile
 docker compose exec caddy caddy reload \
   --config /etc/caddy/Caddyfile --adapter caddyfile --force
-curl --fail --silent --show-error https://free.example.edu/api/healthz
+curl --fail --silent --show-error https://free.example.edu:8443/api/healthz
 ```
 
 If validation fails, restore both previous files in place and do not reload.
