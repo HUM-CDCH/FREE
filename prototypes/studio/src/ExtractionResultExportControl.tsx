@@ -7,7 +7,7 @@ import {
   type ExportFormat,
   type OtherRepeatedFields,
 } from 'extraction-result-export'
-import type { SchemaDefinition } from '../shared/schemaNode'
+import type { SchemaDefinition } from 'extraction/schema'
 import { Button } from './ui'
 
 type ExtractionResultExportControlProps = {

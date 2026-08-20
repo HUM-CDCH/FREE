@@ -1,3 +1,4 @@
+import type { ExtractionRuntime } from 'extraction'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -29,7 +30,7 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/api\/extraction-schemas(?:\/[^/]+)?$/, 'extraction_schemas'],
   [/^\/api\/extractions(?:\/[^/]+)?(?:\/review)?$/, 'extractions'],
   [
-    /^\/api\/batch-extractions(?:\/[^/]+)?(?:\/(?:retry|results))?$/,
+    /^\/api\/batch-extractions(?:\/[^/]+)?(?:\/results)?$/,
     'batch_extractions',
   ],
   [
@@ -64,7 +65,40 @@ async function send(response: Response, res: ServerResponse): Promise<void> {
 export function apiFunctions(): Plugin {
   return {
     name: 'free-api-functions',
-    configureServer(server) {
+    async configureServer(server) {
+      if (server.httpServer) {
+        // Use Vite's SSR graph so the lifecycle owns the same singleton loaded
+        // by API handlers, after defineConfig has established database settings.
+        const runtimeModule = await server.ssrLoadModule(
+          '/api/_extraction_runtime.ts',
+        )
+        const extractionRuntime: ExtractionRuntime =
+          runtimeModule.extractionRuntime
+        const runtimeAbort = new AbortController()
+        const running = extractionRuntime
+          .run(runtimeAbort.signal)
+          .catch((error) => {
+            if (!runtimeAbort.signal.aborted)
+              server.config.logger.error(
+                error instanceof Error
+                  ? (error.stack ?? error.message)
+                  : String(error),
+              )
+          })
+        server.httpServer.once('close', () => {
+          runtimeAbort.abort()
+          void extractionRuntime
+            .close()
+            .then(() => running)
+            .catch((error) => {
+              server.config.logger.error(
+                error instanceof Error
+                  ? (error.stack ?? error.message)
+                  : String(error),
+              )
+            })
+        })
+      }
       server.middlewares.use(
         async (req: IncomingMessage, res: ServerResponse, next) => {
           try {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import bundled from '../src/assets/parsed_document.v2.json'
-import { decodeParsedDocument, type ParsedDocument } from './parsedDocument.js'
-import { anchoredSource, canonicalSource } from './anchoredDocument.js'
+import { decodeParsedDocument, type ParsedDocument } from 'extraction/parsed-document'
+import { anchoredSource, canonicalSource } from 'extraction/source-context'
 
 describe('anchoredSource', () => {
   it('labels every canonical passage the model may cite', () => {

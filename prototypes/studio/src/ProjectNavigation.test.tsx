@@ -157,7 +157,6 @@ function hydratedSnapshot() {
         finishReason: null,
         inputTokens: null,
         outputTokens: null,
-        values: null,
         grounding: null,
       },
       failure: null,

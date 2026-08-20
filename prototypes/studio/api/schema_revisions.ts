@@ -5,7 +5,7 @@ import {
 } from '../../../packages/db/src/project-store.js'
 import { schemaRevisionWriteRequestSchema } from '../shared/schemaRevision.contract.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
-import { parseSchemaDefinition } from '../shared/schemaNode.js'
+import { parseSchemaDefinition } from 'extraction/schema'
 import { summarizeSchemaRevision } from '../src/schemaChanges.js'
 import {
   ApiError,

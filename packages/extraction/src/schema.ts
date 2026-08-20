@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import {
+  coerceAllowedValue,
   isAllowedValues,
   isScalarFieldType,
   NON_STRING_SCALAR_FIELD_TYPES,
   SCALAR_FIELD_TYPES,
   type ScalarFieldType,
-} from './allowedValues.js'
+} from './allowed-values.js'
 
 type SchemaNodeBase = {
   id: string
@@ -124,7 +125,8 @@ export function restoreSchemaNodeOrder(
   const restored: Record<string, unknown> = {}
   for (const node of nodes) {
     if (!Object.hasOwn(value, node.name)) continue
-    const item = value[node.name]
+    let item = value[node.name]
+    if (node.allowedValues) item = coerceAllowedValue(item, node.allowedValues)
     if (node.children && item !== null) {
       if (node.type === 'array') {
         if (!Array.isArray(item)) throw new Error(`Model output field ${node.name} must be an array.`)
@@ -252,6 +254,36 @@ export function countSchemaMetadata(nodes: readonly SchemaNode[]): SchemaMetadat
   return { descriptions, allowedValues }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+
+export type ExtractionSchemaDefinition = SchemaDefinition
+export const parseExtractionSchema = parseSchemaDefinition
+
+export function stripDescriptions(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripDescriptions)
+  if (!isRecord(value)) return value
+  const result: Record<string, unknown> = {}
+  for (const [key, child] of Object.entries(value))
+    if (key !== '_description') result[key] = stripDescriptions(child)
+  return result
+}
+
+export function compileInstructions(value: unknown, prefix = ''): string {
+  if (!isRecord(value)) return ''
+  const lines: string[] = []
+  for (const [key, field] of Object.entries(value)) {
+    if (key === '_description') continue
+    const path = prefix ? `${prefix}.${key}` : key
+    const child = Array.isArray(field) ? field[0] : field
+    if (!isRecord(child)) continue
+    const description =
+      typeof child._description === 'string' ? child._description : null
+    if (description) lines.push(`- ${path}: ${description}`)
+    const nested = compileInstructions(child, path)
+    if (nested) lines.push(nested)
+  }
+  return lines.join('\n')
 }

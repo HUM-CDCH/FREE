@@ -1,10 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import { strFromU8, unzipSync } from 'fflate'
-import type {
-  BatchExtractionRecord,
-  ProjectStore,
-} from '../../../packages/db/src/project-store.js'
+import type { BatchExtractionSnapshot, ExtractionModule } from 'extraction'
+import type { ProjectStore } from '../../../packages/db/src/project-store.js'
 import { createBatchExtractionsApi } from '../api/batch_extractions.js'
 import { createGetExtractionSchemas } from '../api/extraction_schemas.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
@@ -41,18 +39,18 @@ const results = [
   {
     sourceDocumentId: id.beretning,
     extractionId: id.beretningExtraction,
-    resultPayload: { records: [{ place: 'Ellekilde', year: 1801 }] },
+    result: { records: [{ place: 'Ellekilde', year: 1801 }] },
   },
   {
     sourceDocumentId: id.fundliste,
     extractionId: id.fundlisteExtraction,
-    resultPayload: { records: [{ place: 'Hørsholm', year: 1802 }] },
+    result: { records: [{ place: 'Hørsholm', year: 1802 }] },
   },
 ]
 
 const at = (minute: number) => new Date(`2026-08-19T10:${String(minute).padStart(2, '0')}:00.000Z`)
 
-type BatchStore = Pick<
+type StudioStore = Pick<
   ProjectStore,
   | 'listProjectContexts'
   | 'getProjectContextWithDocuments'
@@ -61,11 +59,6 @@ type BatchStore = Pick<
   | 'getSchemaRevision'
   | 'initializeSchemaRevision'
   | 'appendSchemaRevision'
-  | 'createBatchExtraction'
-  | 'listBatchExtractions'
-  | 'getBatchExtraction'
-  | 'getBatchExtractionResults'
-  | 'retryBatchExtraction'
 >
 
 /**
@@ -73,8 +66,11 @@ type BatchStore = Pick<
  * part a Batch Extraction has: the durable worker. The batch opens QUEUED and a
  * later read finds it finished, exactly as the panel's polling would observe it.
  */
-function batchStore(): BatchStore {
-  let batch: BatchExtractionRecord | null = null
+function batchFixture(): {
+  store: StudioStore
+  extractions: ExtractionModule
+} {
+  let batch: BatchExtractionSnapshot | null = null
   let readsWhileQueued = 0
 
   const member = (
@@ -86,7 +82,7 @@ function batchStore(): BatchStore {
     sourceDocumentId,
     sourceRepresentationRevisionId,
     executionStatus: finished ? ('COMPLETED' as const) : ('QUEUED' as const),
-    executionFailure: null,
+    failureMessage: null,
     startedAt: finished ? at(43) : null,
     finishedAt: finished ? at(44) : null,
     latestExtraction: finished
@@ -97,12 +93,12 @@ function batchStore(): BatchStore {
           reviewable: true,
           createdAt: at(44),
           reviewedAt: null,
-          failure: null,
+          failureMessage: null,
         }
       : null,
   })
 
-  const snapshot = (finished: boolean): BatchExtractionRecord => ({
+  const snapshot = (finished: boolean): BatchExtractionSnapshot => ({
     batchExtractionId: batch!.batchExtractionId,
     projectContextId: id.project,
     schemaRevisionId: id.revision,
@@ -111,7 +107,7 @@ function batchStore(): BatchStore {
     schemaRevisionNumber: 4,
     strategy: 'ARTICLE',
     executionStatus: finished ? 'COMPLETED' : 'QUEUED',
-    executionFailure: null,
+    failureMessage: null,
     startedAt: finished ? at(43) : null,
     finishedAt: finished ? at(45) : null,
     createdAt: at(42),
@@ -126,12 +122,10 @@ function batchStore(): BatchStore {
     name: 'Ellekilde, TAK 1355',
     createdAt: at(0),
   }
-
   const unsupported = () => {
-    throw new Error('This specification issues no schema write.')
+    throw new Error('This specification does not issue that operation.')
   }
-
-  return {
+  const store: StudioStore = {
     async listProjectContexts() {
       return [project]
     },
@@ -147,31 +141,27 @@ function batchStore(): BatchStore {
     },
     async listExtractionSchemas(projectContextId) {
       if (projectContextId !== id.project) return null
-      return [
-        {
-          extractionSchemaId: id.schema,
-          name: 'Places',
-          createdAt: at(3),
-          currentRevision: {
-            schemaRevisionId: id.revision,
-            revisionNumber: 4,
-            origin: 'researcher-edit',
-            createdAt: at(4),
-          },
-        },
-      ]
-    },
-    async listSchemaRevisions() {
-      return [
-        {
+      return [{
+        extractionSchemaId: id.schema,
+        name: 'Places',
+        createdAt: at(3),
+        currentRevision: {
           schemaRevisionId: id.revision,
-          extractionSchemaId: id.schema,
           revisionNumber: 4,
           origin: 'researcher-edit',
-          schemaTree,
           createdAt: at(4),
         },
-      ]
+      }]
+    },
+    async listSchemaRevisions() {
+      return [{
+        schemaRevisionId: id.revision,
+        extractionSchemaId: id.schema,
+        revisionNumber: 4,
+        origin: 'researcher-edit',
+        schemaTree,
+        createdAt: at(4),
+      }]
     },
     async getSchemaRevision(projectContextId, extractionSchemaId, schemaRevisionId) {
       if (
@@ -191,59 +181,56 @@ function batchStore(): BatchStore {
     },
     initializeSchemaRevision: unsupported,
     appendSchemaRevision: unsupported,
-    async createBatchExtraction(projectContextId, input) {
-      if (projectContextId !== id.project) return null
-      batch = { batchExtractionId: input.batchExtractionId } as BatchExtractionRecord
+  }
+  const extractions = {
+    runSingle: unsupported,
+    cancelSingle: unsupported,
+    prepareReview: unsupported,
+    finalizeReview: unsupported,
+    readDocumentExtractions: unsupported,
+    scheduleSuggestedBatch: unsupported,
+    async scheduleBatch() {
+      batch = { batchExtractionId: crypto.randomUUID() } as BatchExtractionSnapshot
       readsWhileQueued = 0
       batch = snapshot(false)
-      return { status: 'created', batch }
+      return { disposition: 'created' as const, batch }
     },
-    async listBatchExtractions() {
+    async listBatches() {
       if (!batch) return []
-      // The worker finishes between polls, so the panel renders the batch
-      // running before it renders what it produced.
+      // The worker finishes between polls, so the panel renders queued first.
       if (batch.executionStatus === 'QUEUED' && ++readsWhileQueued > 1)
         batch = snapshot(true)
       return [batch]
     },
-    async getBatchExtraction() {
+    async readBatch() {
+      if (!batch) throw new Error('Batch Extraction not opened.')
       return batch
     },
-    async getBatchExtractionResults(projectContextId, batchExtractionId) {
-      if (
-        !batch ||
-        projectContextId !== id.project ||
-        batchExtractionId !== batch.batchExtractionId
-      )
-        return null
-      // Only a member whose Extraction succeeded has a result to export.
-      const executionStatus = batch.executionStatus ?? 'QUEUED'
-      const produced = executionStatus === 'COMPLETED' ? results : []
+    async readBatchResults() {
+      if (!batch) throw new Error('Batch Extraction not opened.')
+      const produced = batch.executionStatus === 'COMPLETED' ? results : []
       return {
         batchExtractionId: batch.batchExtractionId,
-        executionStatus,
+        executionStatus: batch.executionStatus,
         totalMembers: batch.members.length,
         successfulResults: produced.length,
-        pending:
-          executionStatus === 'COMPLETED' ? 0 : batch.members.length,
+        pending: batch.executionStatus === 'COMPLETED' ? 0 : batch.members.length,
         failed: 0,
         cancelled: 0,
         results: produced,
       }
     },
-    async retryBatchExtraction() {
-      return batch
-    },
-  }
+  } as ExtractionModule
+  return { store, extractions }
 }
 
 /** The real handlers over that state, so the browser reads the shipped contract. */
 async function stubStudio(page: Page): Promise<void> {
-  const store = batchStore()
+  const { store, extractions } = batchFixture()
   const projectContexts = createGetProjectContexts(store)
   const extractionSchemas = createGetExtractionSchemas(store)
   const schemaRevisions = createSchemaRevisionHandlers(store)
-  const batchExtractions = createBatchExtractionsApi(store, { kick: () => {} })
+  const batchExtractions = createBatchExtractionsApi(extractions)
 
   const serve = async (
     route: Parameters<Parameters<Page['route']>[1]>[0],

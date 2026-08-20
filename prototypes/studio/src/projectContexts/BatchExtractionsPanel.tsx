@@ -23,8 +23,7 @@ import {
   type BatchExtraction,
   type BatchExtractionMember,
 } from '../../shared/batchExtraction.contract'
-import type { ExtractionStrategy } from '../../shared/extraction.contract'
-import type { SchemaDefinition } from '../../shared/schemaNode'
+import type { SchemaDefinition } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
 import SchemaPanel from '../SchemaPanel'
 import {
@@ -39,7 +38,6 @@ import {
   listBatchExtractions,
   listBatchSchemaSuggestions,
   openBatchExtraction,
-  retryBatchExtraction,
   retryBatchSchemaSuggestion,
   runBatchSchemaSuggestion,
   updateBatchSchemaSuggestionDraft,
@@ -64,18 +62,13 @@ type SuggestionEvent =
   | { type: 'reset' }
   | { type: 'suggestion.requested' }
   | { type: 'proposal.changed'; definition: SchemaDefinition }
-  | { type: 'run.requested'; strategy: ExtractionStrategy }
+  | { type: 'run.requested' }
 
 const reading = <T,>(read: Read<T>) =>
   read.value === null && read.failure === null
 
 const control =
   'rounded-md border border-line bg-surface px-3 py-2 text-xs text-ink outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/30'
-
-const strategies: { value: ExtractionStrategy; label: string }[] = [
-  { value: 'ARTICLE', label: 'Article' },
-  { value: 'CATALOG', label: 'Catalog' },
-]
 
 function failureText(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
@@ -179,8 +172,7 @@ function schemaLine(batch: BatchExtraction): string {
 
 function selectionLine(batch: BatchExtraction): string {
   const count = batch.members.length
-  const strategy = strategies.find((item) => item.value === batch.strategy)
-  return `${count} Source Document${count === 1 ? '' : 's'} · ${strategy?.label ?? batch.strategy}`
+  return `${count} Source Document${count === 1 ? '' : 's'} · Article`
 }
 
 /**
@@ -243,7 +235,6 @@ export default function BatchExtractionsPanel({
   const [savedSchemaHistory, setSavedSchemaHistory] = useState<
     SchemaRevisionSummary[]
   >([])
-  const [strategy, setStrategy] = useState<ExtractionStrategy>('ARTICLE')
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(sourceDocumentIds),
   )
@@ -722,7 +713,7 @@ export default function BatchExtractionsPanel({
           const started = await runBatchSchemaSuggestion(
             projectContextId,
             saved.batchSchemaSuggestionId,
-            event.strategy,
+            'ARTICLE',
           )
           replaceSuggestion(started)
           setSelected(new Set())
@@ -795,7 +786,7 @@ export default function BatchExtractionsPanel({
       const request = {
         projectContextId,
         schemaRevisionId: savedRevision?.schemaRevisionId ?? schemaRevisionId,
-        strategy,
+        strategy: 'ARTICLE' as const,
         sourceDocumentIds: [...selected],
       }
       acceptOpenedBatch(await openBatchExtraction(request))
@@ -824,7 +815,7 @@ export default function BatchExtractionsPanel({
       const opened = await openBatchExtraction({
         projectContextId,
         schemaRevisionId: batch.schemaRevisionId,
-        strategy: batch.strategy,
+        strategy: 'ARTICLE',
         sourceDocumentIds: batch.members.map(
           (member) => member.sourceDocumentId,
         ),
@@ -860,7 +851,7 @@ export default function BatchExtractionsPanel({
         draftConflict
       )
         return
-      sendSuggestion({ type: 'run.requested', strategy })
+      sendSuggestion({ type: 'run.requested' })
       return
     }
     void openExistingSchemaBatch()
@@ -1103,23 +1094,6 @@ export default function BatchExtractionsPanel({
                         : 'Loading schemas…'}
                     </option>
                   )}
-                </select>
-              </label>
-              <label className="text-[11px] font-semibold text-ink-muted">
-                Extraction Strategy
-                <select
-                  className={`${control} mt-1 block w-full font-normal`}
-                  value={strategy}
-                  disabled={openingAnyBatch}
-                  onChange={(event) =>
-                    setStrategy(event.target.value as ExtractionStrategy)
-                  }
-                >
-                  {strategies.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
                 </select>
               </label>
             </div>
@@ -1445,8 +1419,7 @@ export default function BatchExtractionsPanel({
             <div className="mb-5 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-end">
               <p className="text-[11px] text-ink-faint">
                 {schemaLine(openBatch)} ·{' '}
-                {strategies.find((item) => item.value === openBatch.strategy)
-                  ?.label ?? openBatch.strategy}
+                Article
               </p>
               <p className={`text-xs font-semibold ${openStatus!.tone}`}>
                 {openStatus!.label}
@@ -1498,45 +1471,6 @@ export default function BatchExtractionsPanel({
                     </p>
                   )}
                 </div>
-                {(openBatch.executionStatus === 'FAILED' ||
-                  openBatch.members.some(
-                    (member) => member.executionStatus === 'FAILED',
-                  )) && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      void retryBatchExtraction(
-                        projectContextId,
-                        openBatch.batchExtractionId,
-                      ).then(
-                        (retried) => {
-                          setBatches((current) => ({
-                            value: [
-                              retried,
-                              ...(current.value ?? []).filter(
-                                (batch) =>
-                                  batch.batchExtractionId !==
-                                  retried.batchExtractionId,
-                              ),
-                            ],
-                            failure: null,
-                          }))
-                          setReload((value) => value + 1)
-                        },
-                        (error: unknown) =>
-                          setRunFailure(
-                            failureText(
-                              error,
-                              'The Batch Extraction could not be retried.',
-                            ),
-                          ),
-                      )
-                    }}
-                  >
-                    Retry unfinished
-                  </Button>
-                )}
                 <Button
                   size="sm"
                   variant="secondary"

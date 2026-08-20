@@ -1,11 +1,11 @@
 import {
   batchExtractionListResponseSchema,
+  batchExtractionOpenResponseSchema,
   batchExtractionResponseSchema,
   batchExtractionResultsResponseSchema,
   type BatchExtraction,
   type BatchExtractionResults,
 } from '../../shared/batchExtraction.contract'
-import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import {
   batchSchemaSuggestionErrorResponseSchema,
   batchSchemaSuggestionCreateRequestSchema,
@@ -16,7 +16,7 @@ import {
   type BatchSchemaSuggestion,
   type BatchSchemaSuggestionFailure,
 } from '../../shared/batchSchemaSuggestion.contract'
-import type { SchemaDefinition } from '../../shared/schemaNode'
+import type { SchemaDefinition } from 'extraction/schema'
 import { isRecord } from '../../shared/template'
 
 export class BatchSchemaSuggestionRequestError extends Error {
@@ -71,15 +71,13 @@ export async function openBatchExtraction(
   request: {
     projectContextId: string
     schemaRevisionId: string
-    strategy: ExtractionStrategy
+    strategy: 'ARTICLE'
     sourceDocumentIds: readonly string[]
     force?: boolean
   },
   signal?: AbortSignal,
-): Promise<ReturnType<typeof batchExtractionResponseSchema.parse>> {
-  // Durable member failures live on the operation snapshot, not on this
-  // transient response.
-  return batchExtractionResponseSchema.parse(
+): Promise<ReturnType<typeof batchExtractionOpenResponseSchema.parse>> {
+  return batchExtractionOpenResponseSchema.parse(
     await read('/api/batch-extractions', {
       method: 'POST',
       headers: {
@@ -118,21 +116,6 @@ export async function getBatchExtractionResults(
       signal,
     }),
   )
-}
-
-export async function retryBatchExtraction(
-  projectContextId: string,
-  batchExtractionId: string,
-  signal?: AbortSignal,
-) {
-  const query = new URLSearchParams({ projectContextId })
-  return batchExtractionResponseSchema.parse(
-    await read(`/api/batch-extractions/${batchExtractionId}/retry?${query}`, {
-      method: 'POST',
-      headers: { accept: 'application/json' },
-      signal,
-    }),
-  ).batchExtraction
 }
 
 export async function createBatchSchemaSuggestion(
@@ -190,7 +173,7 @@ export async function updateBatchSchemaSuggestionDraft(
 export async function runBatchSchemaSuggestion(
   projectContextId: string,
   batchSchemaSuggestionId: string,
-  strategy: ExtractionStrategy,
+  strategy: 'ARTICLE',
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
   const query = new URLSearchParams({ projectContextId })

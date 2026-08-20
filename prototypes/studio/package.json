@@ -27,6 +27,7 @@
     "ai-sdk-provider-claude-code": "^4.0.1",
     "ai-sdk-provider-codex-cli": "^2.1.1",
     "env-paths": "^4.0.0",
+    "extraction": "workspace:*",
     "extraction-result-export": "workspace:*",
     "pdfjs-dist": "^6.0.227",
     "pluralize": "^8.0.0",

@@ -43,6 +43,25 @@ export type CanonicalArtifactRead = {
   mediaType: string
 }
 
+export type CanonicalPackageStore = {
+  save(packageBytes: Uint8Array): Promise<
+    CanonicalPackageDescriptor & {
+      document: Record<string, unknown>
+      manifest: Manifest
+      published: boolean
+    }
+  >
+  read(
+    descriptor: CanonicalPackageDescriptor,
+    artifact: CanonicalArtifact,
+  ): Promise<CanonicalArtifactRead>
+  available(descriptor: CanonicalPackageDescriptor): Promise<boolean>
+  remove(
+    descriptor: CanonicalPackageDescriptor,
+    isReferenced: () => Promise<boolean>,
+  ): Promise<boolean>
+}
+
 function sha256(value: Uint8Array): string {
   return createHash('sha256').update(value).digest('hex')
 }
@@ -128,7 +147,9 @@ function packageRoot(): string {
   return join(envPaths('FREE Studio').data, 'source-representations')
 }
 
-export function createCanonicalPackageStore(root: string = packageRoot()) {
+export function createCanonicalPackageStore(
+  root: string = packageRoot(),
+): CanonicalPackageStore {
   function packagePath(descriptor: CanonicalPackageDescriptor): string {
     if (
       !REFERENCE.test(descriptor.artifactReference) ||
