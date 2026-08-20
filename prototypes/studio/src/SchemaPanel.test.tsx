@@ -676,7 +676,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('renamed_leaf')).toBeInTheDocument()
   })
 
-  it('reveals the contents and losses of a removed nested group', async () => {
+  it('reveals the contents of a removed nested group', async () => {
     renderPanel(vi.fn(), [{
       id: 'root',
       name: 'root',
@@ -702,10 +702,9 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     })
 
     expect(screen.getByText('leaf')).toBeInTheDocument()
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Removing this field also removes its description and its nested fields.')
   })
 
-  it('shows nested fields that a container-to-scalar change will delete', async () => {
+  it('reveals the contents of a container-to-scalar change that will delete nested fields', async () => {
     renderPanel(vi.fn(), [{
       id: 'group',
       name: 'group',
@@ -724,7 +723,6 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     })
 
     expect(screen.getByText('leaf')).toBeInTheDocument()
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Retyping across the container boundary removed its nested fields.')
   })
 
   it('discards the proposal without changing the schema', async () => {

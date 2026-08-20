@@ -165,7 +165,7 @@ function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?
       Unresolved
     </span>
   )
-  if (!change?.reason && !change?.note) {
+  if (!change?.reason) {
     if (outcome !== 'conflict') return null
     return (
       <span
@@ -176,13 +176,12 @@ function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?
       </span>
     )
   }
-  const text = change.reason ? 'Conflict' : 'Note'
   return (
     <span
-      className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${change.reason ? 'bg-danger-soft text-danger' : 'bg-amber-100 text-amber-800'}`}
-      title={change.reason ?? change.note}
+      className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
+      title={change.reason}
     >
-      {text}
+      Conflict
     </span>
   )
 }
@@ -405,7 +404,7 @@ function FieldTypeBadge({ node, onEdit, disabled }: { node: SchemaNode; onEdit?:
   )
 }
 
-function FieldChangeLabel({ node, change }: { node: SchemaNode; change?: Change }) {
+function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; change?: Change; impliedRemoved?: boolean }) {
   if (change?.kind === 'modified' && change.before && change.after) {
     const nameChanged = change.before.name !== change.after.name
     const beforeType = fieldTypeLabel(change.before)
@@ -433,7 +432,7 @@ function FieldChangeLabel({ node, change }: { node: SchemaNode; change?: Change 
 
   const tone = change?.kind === 'added'
     ? 'text-green'
-    : change?.kind === 'removed'
+    : change?.kind === 'removed' || impliedRemoved
       ? 'text-danger line-through'
       : 'text-ink'
   return (
@@ -1473,7 +1472,7 @@ function SchemaPanel({
         {/* Nested children area — shown when there are children or dragging (for drop slot) */}
         {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j))}
+            {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j, diffStatus === 'removed'))}
             <div
               className={slotCls(node.id, (node.children ?? []).length)}
               onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)}
@@ -1484,14 +1483,14 @@ function SchemaPanel({
     )
   }
 
-  function renderChildField(child: SchemaNode, parentId: string, j: number): React.ReactNode {
+  function renderChildField(child: SchemaNode, parentId: string, j: number, ancestorRemoved = false): React.ReactNode {
     const isDragging = dragging?.id === child.id
     const isEditing = editing?.id === child.id
     const isGroup = child.children !== undefined
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === child.id
     const isExpanded = expandedIds.has(child.id) || intoGroup
     const change = pending?.changes.find((item) => item.id === child.id)
-    const diffStatus = change?.kind ?? null
+    const diffStatus = change?.kind ?? (ancestorRemoved ? 'removed' : null)
     const isDiff = diffStatus !== null
     const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-amber-100' : ''
 
@@ -1532,7 +1531,7 @@ function SchemaPanel({
                 ⠿
               </span>
             )}
-            <FieldChangeLabel node={child} change={change} />
+            <FieldChangeLabel node={child} change={change} impliedRemoved={ancestorRemoved} />
             {!isDiff && (
               <FieldTypeBadge
                 node={child}
@@ -1613,7 +1612,7 @@ function SchemaPanel({
         {/* Children area — shown when expanded and has children or dragging (for drop slot) */}
         {isGroup && isExpanded && ((child.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k))}
+            {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k, ancestorRemoved || diffStatus === 'removed'))}
             <div
               className={slotCls(child.id, (child.children ?? []).length)}
               onMouseEnter={() => setSlotTarget(child.id, (child.children ?? []).length)}
@@ -1902,23 +1901,39 @@ function SchemaPanel({
             <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
             <div className="flex min-w-0 shrink items-center gap-1.5">
               {showRegenerate && (
-                <>
+                <div className="relative shrink-0">
                   <button
                     className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent"
                     type="button"
                     aria-expanded={instructionsOpen}
-                    title="Instructions used for regeneration"
+                    title="Start over: regenerate the whole schema from the document and instructions"
                     onClick={() => setInstructionsOpen((open) => !open)}
                   >
-                    Instructions
+                    Regenerate
                     <CountBadge count={docInstructions.length} />
                     <span aria-hidden="true" className="text-[9px]">{instructionsOpen ? '▾' : '▸'}</span>
                   </button>
-                  <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
-                    Regenerate
-                    <CountBadge count={docInstructions.length} />
-                  </button>
-                </>
+                  {instructionsOpen && (
+                    <div className="scrollbar-subtle absolute right-0 bottom-full z-30 mb-1.5 w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-float">
+                      <InstructionsDrawer
+                        instructions={docInstructions}
+                        onRemove={removeDocInstruction}
+                        draft={docChatDraft}
+                        onDraftChange={setDocChatDraft}
+                        onSend={sendDocChatMessage}
+                      />
+                      <div className="flex items-center justify-end gap-2 px-2.5 py-2">
+                        <button
+                          className={genBtnCls}
+                          type="button"
+                          onClick={() => { setInstructionsOpen(false); onGenerate(docInstruction) }}
+                        >
+                          Regenerate schema{instructionCountLabel}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
               <div className="relative">
                 <button
@@ -1956,15 +1971,6 @@ function SchemaPanel({
               </div>
             </div>
           </div>
-          {instructionsOpen && showRegenerate && (
-            <InstructionsDrawer
-              instructions={docInstructions}
-              onRemove={removeDocInstruction}
-              draft={docChatDraft}
-              onDraftChange={setDocChatDraft}
-              onSend={sendDocChatMessage}
-            />
-          )}
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
               {chat.map((m, i) => (
@@ -1986,7 +1992,6 @@ function SchemaPanel({
           {pending && (
             <div className="shrink-0 border-t border-line px-3.5 py-2.5">
               <div className="mb-2 text-[10px] leading-relaxed text-ink-muted" data-testid="schema-proposal-summary">
-                {pending.changes.map((change) => change.note ? <p key={`note-${change.id}`}>{change.note}</p> : null)}
                 {pending.changes.map((change) => change.outcome === 'unresolved' && change.reason
                   ? <p key={`reason-${change.id}`}>{change.reason}</p>
                   : null)}
