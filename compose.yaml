@@ -127,6 +127,8 @@ services:
       - studio-data:/root/.local/share
       # `model-config.json` under `env-paths('FREE Studio').config`.
       - studio-config:/root/.config
+    ports:
+      - 127.0.0.1:5173:5173
     networks:
       app:
       proxy:
