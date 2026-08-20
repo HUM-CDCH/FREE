@@ -27,7 +27,7 @@ services:
     environment:
       DOCLING_DEVICE: cpu
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8055:8055"
     healthcheck:
       # `/status` answers only once the Docling pipeline is initialized, and the
       # first start downloads its models, so the start period is generous.
