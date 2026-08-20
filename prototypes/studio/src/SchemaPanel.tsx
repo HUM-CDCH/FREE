@@ -638,7 +638,7 @@ function SchemaPanel({
   const [editingError, setEditingError] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
   const [chat, setChat] = useState<ChatMsg[]>([
-    { role: 'assistant', text: "Edit through drag and drop, or describe a change. I'll show a diff to review first." },
+    { role: 'assistant', text: "Edit through drag and drop, or describe a change--I'll show you the changes before you apply them." },
   ])
   const [pending, setPending] = useState<PendingChange | null>(null)
   const [acceptedChangeIds, setAcceptedChangeIds] = useState<Set<string>>(new Set())
@@ -1112,7 +1112,7 @@ function SchemaPanel({
   // for "Generate schema"/"Regenerate") ──
   const docInstruction = docInstructions.map((instruction) => instruction.text).join('\n\n')
   const instructionCountLabel = docInstructions.length > 0
-    ? ` (${docInstructions.length} instruction${docInstructions.length === 1 ? '' : 's'})`
+    ? ` (${docInstructions.length} message${docInstructions.length === 1 ? '' : 's'})`
     : ''
 
   function sendDocChatMessage() {
@@ -1545,8 +1545,7 @@ function SchemaPanel({
           <div className="rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
             <p className="text-[13px] font-semibold text-ink">No schema yet</p>
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-              FREE produces the extraction schema from the document with the extraction model.
-              {' '}Add instructions in the chat below, or generate now.
+              Chat to add instructions, or generate now.
             </p>
           </div>
         )}
@@ -1717,9 +1716,9 @@ function SchemaPanel({
           switches to the schema edit-chat below — a different mechanism (it
           walks proposed changes node by node) that this doesn't replace. */}
       {!ready && (
-        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
+        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: '60%' }}>
           <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1.5">
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Instructions</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
             {state.status === 'idle' && (
               <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
                 Generate schema{instructionCountLabel}
@@ -1740,7 +1739,7 @@ function SchemaPanel({
                 <div key={instruction.id} className="flex flex-col gap-1">
                   <div className={msgCls('user')}>{instruction.text}</div>
                   <div className="flex items-center gap-1.5 self-start pl-1 text-[10.5px] text-ink-faint">
-                    <span>Instruction {i + 1} of {docInstructions.length}</span>
+                    <span>Message {i + 1} of {docInstructions.length}</span>
                     <button
                       type="button"
                       className="cursor-pointer font-semibold outline-none hover:text-danger"
@@ -1790,23 +1789,29 @@ function SchemaPanel({
 
       {/* Chat panel */}
       {ready && !readOnly && (
-        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
+        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: '60%' }}>
           <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
-            <div className="relative">
-              <button
-                className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent disabled:cursor-default disabled:opacity-40"
-                type="button"
-                aria-label="Schema history"
-                title="Schema edit history"
-                disabled={history.length === 0 || historyRestoring}
-                onClick={() => setHistoryOpen((open) => !open)}
-              >
-                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v5a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V5z" clipRule="evenodd" />
-                </svg>
-              </button>
-              {historyOpen && (
+            <div className="flex shrink-0 items-center gap-1.5">
+              {showRegenerate && (
+                <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
+                  Regenerate{instructionCountLabel}
+                </button>
+              )}
+              <div className="relative">
+                <button
+                  className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent disabled:cursor-default disabled:opacity-40"
+                  type="button"
+                  aria-label="Schema history"
+                  title="Schema edit history"
+                  disabled={history.length === 0 || historyRestoring}
+                  onClick={() => setHistoryOpen((open) => !open)}
+                >
+                  <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v5a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V5z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {historyOpen && (
                 <div className="scrollbar-subtle absolute right-0 bottom-full z-30 mb-1.5 max-h-80 w-72 overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-float">
                   {history.map((revision) => (
                     <button
@@ -1825,7 +1830,8 @@ function SchemaPanel({
                     </button>
                   ))}
                 </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
@@ -1927,13 +1933,6 @@ function SchemaPanel({
           {state.status === 'idle' && 'Generate to produce the schema from the document'}
           {state.status === 'error' && 'Generation failed'}
         </p>
-        {ready && !readOnly && showRegenerate && (
-          <div className="flex shrink-0 items-center gap-2">
-            <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
-              Regenerate{instructionCountLabel}
-            </button>
-          </div>
-        )}
       </footer>
 
       {/* Drag overlay chip */}
