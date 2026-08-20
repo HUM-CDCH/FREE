@@ -58,7 +58,7 @@ describe('deriveSchemaProposal', () => {
     const original = templateToNodes({ dates: ['date'] })
 
     const result = deriveSchemaProposal(original, proposed({
-      dates: { name: 'dates', type: 'array', itemType: 'date', removed: false },
+      [original[0].id]: { name: 'dates', type: 'array', itemType: 'date', removed: false },
     }))
 
     expect(result.changes).toEqual([])
@@ -68,7 +68,7 @@ describe('deriveSchemaProposal', () => {
   it('keeps rename and retype on one complete change record', () => {
     const original: SchemaNode[] = [{ id: 'a', name: 'old', type: 'string', description: 'keep' }]
     const result = deriveSchemaProposal(original, proposed({
-      old: { name: 'new', type: 'number', removed: false },
+      a: { name: 'new', type: 'number', removed: false },
     }))
 
     expect(result.changes).toEqual([expect.objectContaining({
@@ -88,7 +88,7 @@ describe('deriveSchemaProposal', () => {
     }]
     const result = deriveSchemaProposal(original, proposed({
       group: { name: 'group', type: 'object', removed: false },
-      'group.child': { name: 'renamed', type: 'string', removed: false },
+      child: { name: 'renamed', type: 'string', removed: false },
     }))
 
     expect(result.changes).toEqual([expect.objectContaining({ id: 'child', kind: 'modified' })])
@@ -97,7 +97,7 @@ describe('deriveSchemaProposal', () => {
   it('resolves additions only through the post-edit namespace', () => {
     const original: SchemaNode[] = [{ id: 'g', name: 'group', type: 'object', children: [] }]
     const result = deriveSchemaProposal(original, proposed(
-      { group: { name: 'renamed', type: 'object', removed: false } },
+      { g: { name: 'renamed', type: 'object', removed: false } },
       [
         { path: ['renamed', 'child'], type: 'string' },
         { path: ['group', 'child'], type: 'string' },
@@ -130,7 +130,7 @@ describe('deriveSchemaProposal', () => {
   it('pins closed sets while retaining a rename', () => {
     const original: SchemaNode[] = [{ id: 'e', name: 'gender', type: 'string', allowedValues: ['woman', 'man'] }]
     const result = deriveSchemaProposal(original, proposed({
-      gender: { name: 'sex', type: 'number', removed: false },
+      e: { name: 'sex', type: 'number', removed: false },
     }))
 
     expect(result.nodes[0]).toEqual({ ...original[0], name: 'sex' })
@@ -144,8 +144,8 @@ describe('deriveSchemaProposal', () => {
     ]
 
     const result = deriveSchemaProposal(original, proposed({
-      first: { name: 'second', type: 'string', removed: false },
-      second: { name: 'second', type: 'number', removed: false },
+      a: { name: 'second', type: 'string', removed: false },
+      b: { name: 'second', type: 'number', removed: false },
     }))
 
     expect(result.nodes).toEqual(original)
@@ -162,7 +162,7 @@ describe('deriveSchemaProposal', () => {
     const result = deriveSchemaProposal(original, proposed({
       leaf: { name: 'leaf', type: 'object', removed: false },
       group: { name: 'group', type: 'string', removed: false },
-      'group.child': { name: 'child', type: 'string', removed: false },
+      child: { name: 'child', type: 'string', removed: false },
     }))
 
     expect(result.nodes[0]).toEqual({ id: 'leaf', name: 'leaf', type: 'object', children: [] })
@@ -178,9 +178,9 @@ describe('deriveSchemaProposal', () => {
       { id: 'x', name: 'title', type: 'string' },
     ]
     const result = deriveSchemaProposal(original, proposed({
-      group: { name: 'group', type: 'object', removed: true },
-      'group.child': { name: 'child', type: 'string', removed: false },
-      title: { name: 'heading', type: 'string', removed: false },
+      g: { name: 'group', type: 'object', removed: true },
+      c: { name: 'child', type: 'string', removed: false },
+      x: { name: 'heading', type: 'string', removed: false },
     }, [{ path: ['missing', 'new'], type: 'string' }]))
 
     expect(result.nodes).toEqual([{ id: 'x', name: 'heading', type: 'string' }])
@@ -198,7 +198,7 @@ describe('deriveSchemaProposal', () => {
     }]
     const proposal = deriveSchemaProposal(original, proposed({
       group: { name: 'renamed', type: 'object', removed: false },
-      'group.child': { name: 'renamed_child', type: 'string', removed: false },
+      child: { name: 'renamed_child', type: 'string', removed: false },
     }))
 
     expect(replaySchemaChanges(original, proposal.changes, new Set(['group'])).nodes).toEqual([{
@@ -215,8 +215,8 @@ describe('deriveSchemaProposal', () => {
       { id: 'b', name: 'second', type: 'string' },
     ]
     const proposal = deriveSchemaProposal(original, proposed({
-      first: { name: 'second', type: 'string', removed: false },
-      second: { name: 'first', type: 'string', removed: false },
+      a: { name: 'second', type: 'string', removed: false },
+      b: { name: 'first', type: 'string', removed: false },
     }))
 
     expect(replaySchemaChanges(original, proposal.changes, new Set(['a', 'b'])).nodes).toEqual([
@@ -237,8 +237,8 @@ describe('deriveSchemaProposal', () => {
       { id: 'b', name: 'second', type: 'string' },
     ]
     const proposal = deriveSchemaProposal(original, proposed({
-      first: { name: 'second', type: 'number', removed: false },
-      second: { name: 'first', type: 'string', removed: false },
+      a: { name: 'second', type: 'number', removed: false },
+      b: { name: 'first', type: 'string', removed: false },
     }))
 
     const replayed = replaySchemaChanges(original, proposal.changes, new Set(['a']))
@@ -321,7 +321,7 @@ describe('deriveSchemaProposal', () => {
 
     const result = deriveSchemaProposal(original, proposed({
       entries: { name: 'entries', type: 'array', itemType: 'date', removed: false },
-      'entries.label': { name: 'renamed_label', type: 'string', removed: false },
+      label: { name: 'renamed_label', type: 'string', removed: false },
     }))
 
     expect(result.nodes).toEqual([{ id: 'entries', name: 'entries', type: 'array', itemType: 'date' }])

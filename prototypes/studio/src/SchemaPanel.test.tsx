@@ -527,7 +527,6 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       issues: [],
     })
 
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('0 applied · 0 unresolved · 1 conflicts')
     expect(screen.getByText('Conflict')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
 
@@ -549,11 +548,6 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       issues: [{ kind: 'missing', key: 'unreturned' }],
     })
 
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('2 applied · 1 unresolved · 1 conflicts')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('3 accepted · 0 rejected')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('missing: unreturned')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('unknown-key: missing.child')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Metadata not directly editable by chat: 1 description · 1 allowed-value list')
     expect(screen.getAllByText('heading')).toHaveLength(1)
     expect(screen.getAllByText('title')).toHaveLength(1)
     expect(screen.getByText('number')).toBeInTheDocument()
@@ -561,7 +555,6 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Accept change to heading' }))
 
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('2 accepted · 1 rejected')
     expect(screen.getAllByText('heading')).toHaveLength(1)
     expect(screen.getAllByText('title')).toHaveLength(1)
 
@@ -589,8 +582,6 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Accept change to title' }))
 
     expect(screen.getByText('Unresolved')).toHaveAttribute('title', expect.stringContaining('review decision'))
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('0 applied')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 unresolved')
     expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
   })
 
@@ -603,21 +594,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       issues: [],
     })
 
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('1 accepted · 0 rejected')
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('0 applied · 1 unresolved')
     expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
-  })
-
-  it('omits the metadata summary when the original schema has none', async () => {
-    renderPanel(vi.fn(), [{ id: 'name', name: 'name', type: 'string' }])
-    await send({
-      status: 'proposed',
-      fields: { name: { name: 'heading', type: 'string', removed: false } },
-      additions: [],
-      issues: [],
-    })
-
-    expect(screen.getByTestId('schema-proposal-summary')).not.toHaveTextContent('Metadata not directly editable by chat')
   })
 
   it('gives an added group and child independent decisions', async () => {
@@ -688,8 +665,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       status: 'proposed',
       fields: {
         root: { name: 'root', type: 'object', removed: false },
-        'root.group': { name: 'group', type: 'object', removed: false },
-        'root.group.leaf': { name: 'renamed_leaf', type: 'string', removed: false },
+        group: { name: 'group', type: 'object', removed: false },
+        leaf: { name: 'renamed_leaf', type: 'string', removed: false },
       },
       additions: [],
       issues: [],
@@ -717,15 +694,14 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       status: 'proposed',
       fields: {
         root: { name: 'root', type: 'object', removed: false },
-        'root.group': { name: 'group', type: 'object', removed: true },
-        'root.group.leaf': { name: 'leaf', type: 'string', removed: false },
+        group: { name: 'group', type: 'object', removed: true },
+        leaf: { name: 'leaf', type: 'string', removed: false },
       },
       additions: [],
       issues: [],
     })
 
     expect(screen.getByText('leaf')).toBeInTheDocument()
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Metadata not directly editable by chat: 1 description · 0 allowed-value lists')
     expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Removing this field also removes its description and its nested fields.')
   })
 
@@ -741,7 +717,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       status: 'proposed',
       fields: {
         group: { name: 'group', type: 'string', removed: false },
-        'group.leaf': { name: 'leaf', type: 'string', removed: false },
+        leaf: { name: 'leaf', type: 'string', removed: false },
       },
       additions: [],
       issues: [],

@@ -51,7 +51,7 @@ describe('proposeSchemaEdit', () => {
       generate: vi.fn().mockResolvedValue(JSON.stringify({
         fields: {
           group: { name: 'group', type: 'object', removed: false },
-          'group.child': { name: 'child', type: 'string', removed: false },
+          child: { name: 'child', type: 'string', removed: false },
         },
         additions: [],
       })),
@@ -61,7 +61,7 @@ describe('proposeSchemaEdit', () => {
       status: 'proposed',
       fields: {
         group: { name: 'group', type: 'object', removed: false },
-        'group.child': { name: 'child', type: 'string', removed: false },
+        child: { name: 'child', type: 'string', removed: false },
       },
       additions: [],
       issues: [],
@@ -73,7 +73,7 @@ describe('proposeSchemaEdit', () => {
       .mockResolvedValueOnce(JSON.stringify({
         fields: {
           group: { name: 'renamed', type: 'object', removed: false },
-          'group.child': { name: 'child', type: 'unsupported', removed: false },
+          child: { name: 'child', type: 'unsupported', removed: false },
           invented: { name: 'invented', type: 'string', removed: false },
         },
         additions: [{ path: ['renamed', 'new'], type: 'string' }, { broken: true }],
@@ -83,7 +83,7 @@ describe('proposeSchemaEdit', () => {
     const response = await proposeSchemaEdit(nodes, 'rename and add', null, { generate })
 
     expect(generate).toHaveBeenCalledTimes(2)
-    expect(generate.mock.calls[1][0]).toContain('group.child')
+    expect(generate.mock.calls[1][0]).toContain('"child"')
     expect(response).toEqual({
       status: 'proposed',
       fields: { group: { name: 'renamed', type: 'object', removed: false } },
@@ -103,7 +103,7 @@ describe('proposeSchemaEdit', () => {
         additions: [],
       }))
       .mockResolvedValueOnce(JSON.stringify({
-        fields: { 'group.child': { name: 'renamed_child', type: 'string', removed: false } },
+        fields: { child: { name: 'renamed_child', type: 'string', removed: false } },
         additions: [],
       }))
 
@@ -113,7 +113,7 @@ describe('proposeSchemaEdit', () => {
       status: 'proposed',
       fields: {
         group: { name: 'group', type: 'object', removed: false },
-        'group.child': { name: 'renamed_child', type: 'string', removed: false },
+        child: { name: 'renamed_child', type: 'string', removed: false },
       },
       issues: [],
     })
