@@ -8,7 +8,7 @@ Package manager: **uv**. See `pyproject.toml` for the dependency set and `packag
 uv sync --extra ocr-cpu  # use ocr-gpu instead on CUDA hosts
 ```
 
-`pnpm --filter parsing-service dev` is the preferred dev entry point. Runtime scripts use `uv run --no-sync`, which preserves whichever **mutually exclusive** CPU/GPU OCR profile was explicitly installed — a bare `uv run` would resolve the other one back in. The dev script uses Python UTF-8 mode for Windows and binds to `http://127.0.0.1:8000`, which is what the studio frontend expects.
+`pnpm --filter parsing-service dev` is the preferred dev entry point. Runtime scripts use `uv run --no-sync`, which preserves whichever **mutually exclusive** CPU/GPU OCR profile was explicitly installed — a bare `uv run` would resolve the other one back in. The dev script uses Python UTF-8 mode for Windows and binds to `http://127.0.0.1:8055`, which is what the studio frontend expects.
 
 ## Contracts that are not visible from the route signatures
 

@@ -24,7 +24,7 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-EXPOSE 8000
+EXPOSE 8055
 # One process only: the FIFO queue and the reusable DocumentConverter are
 # in-process state, so a second worker would split the queue.
-CMD ["uv", "run", "--no-sync", "python", "-X", "utf8", "-m", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-sync", "python", "-X", "utf8", "-m", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8055"]

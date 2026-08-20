@@ -328,14 +328,14 @@ The resolved production topology is:
 | Caddy | `proxy` at `172.30.0.2` | TCP 443 only |
 | Studio | `proxy` and `app`, port 5173 | none |
 | PostgreSQL | `app`, port 5432 | none |
-| Parsing Service | `app`, port 8000 | none |
+| Parsing Service | `app`, port 8055 | none |
 
 Only Caddy and Studio join `proxy`; only Studio, PostgreSQL, and the Parsing
 Service join `app`. Caddy cannot reach the database or Parsing Service. It
 discards any inbound `X-FREE-Client-Address`, writes exactly one value from the
 direct client socket, and proxies to Studio. Studio checks that the socket peer
 is the pinned Caddy address before consuming that value. Browser session cookies
-are never forwarded to the Parsing Service. Ports 80, 5173, 5432, and 8000 are
+are never forwarded to the Parsing Service. Ports 80, 5173, 5432, and 8055 are
 not published on the host.
 
 Caddy adds `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and a
