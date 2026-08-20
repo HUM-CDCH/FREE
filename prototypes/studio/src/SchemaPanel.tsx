@@ -212,6 +212,19 @@ type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
 type DocInstruction = { id: string; text: string }
 
+// Rotated by index so consecutive instructions don't echo the same
+// acknowledgment — each phrasing carries the same meaning, worded differently.
+const DOC_INSTRUCTION_ACKS: React.ReactNode[] = [
+  <>Got it — recorded for schema generation.</>,
+  <>Noted. That's added to the instructions guiding schema generation.</>,
+  <>Recorded — this'll factor into the generated schema.</>,
+  <>Good, saved. Keep adding instructions, or generate the schema whenever you're ready.</>,
+]
+
+function docInstructionAck(index: number): React.ReactNode {
+  return DOC_INSTRUCTION_ACKS[index % DOC_INSTRUCTION_ACKS.length]
+}
+
 type PendingChange = DerivedProposal & { original: SchemaNode[] }
 
 function fieldTypeLabel(node: SchemaNode): string {
@@ -1749,12 +1762,7 @@ function SchemaPanel({
                       ✗
                     </button>
                   </div>
-                  {i === docInstructions.length - 1 && (
-                    <div className={msgCls('assistant')}>
-                      Got it — recorded for schema generation. Add more instructions, or click{' '}
-                      <span className="font-semibold text-ink">Generate schema</span> above when you're ready.
-                    </div>
-                  )}
+                  <div className={msgCls('assistant')}>{docInstructionAck(i)}</div>
                 </div>
               ))}
             </div>
