@@ -9,7 +9,6 @@ import {
 } from 'extraction/allowed-values'
 import {
   duplicateFieldKeys,
-  countSchemaMetadata,
   enumerateFieldPaths,
   type SchemaNode,
   mkId,
@@ -1369,21 +1368,6 @@ function SchemaPanel({
 
   const chatBlocked = !!pending || chatLoading
   const replay = pending ? replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds) : null
-  const metadataCounts = pending ? countSchemaMetadata(pending.original) : null
-  const replayOutcomes = replay ? [...replay.outcomes.entries()] : []
-  const proposalCounts = pending ? {
-    accepted: acceptedChangeIds.size,
-    rejected: pending.changes.length - acceptedChangeIds.size,
-    applied: replay!.appliedCount,
-    unresolved: new Set([
-      ...pending.changes.filter(({ outcome }) => outcome === 'unresolved').map(({ id }) => id),
-      ...replayOutcomes.filter(([, outcome]) => outcome === 'unresolved').map(([id]) => id),
-    ]).size,
-    conflicts: new Set([
-      ...pending.changes.filter(({ outcome }) => outcome === 'conflict').map(({ id }) => id),
-      ...replayOutcomes.filter(([, outcome]) => outcome === 'conflict').map(([id]) => id),
-    ]).size,
-  } : null
   const canApply = pending && replay!.hasChanges
 
   const tabCls = (active: boolean) =>
@@ -1920,9 +1904,12 @@ function SchemaPanel({
         </div>
       )}
 
-      {/* Chat panel */}
+      {/* Chat panel. Growing with conversation length is only wanted before a
+          schema exists (see the !ready panel above) — once a schema has been
+          generated, and especially while a diff is pending review, the chat
+          must stay capped low so it doesn't cover the schema/diff above it. */}
       {ready && !readOnly && (
-        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: '60%' }}>
+        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: pending ? '32%' : '45%' }}>
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3.5 py-1">
             <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
             <div className="flex min-w-0 shrink items-center gap-1.5">
@@ -2011,12 +1998,6 @@ function SchemaPanel({
           {pending && (
             <div className="shrink-0 border-t border-line px-3.5 py-2.5">
               <div className="mb-2 text-[10px] leading-relaxed text-ink-muted" data-testid="schema-proposal-summary">
-                <p>{proposalCounts!.accepted} accepted · {proposalCounts!.rejected} rejected</p>
-                <p>{proposalCounts!.applied} applied · {proposalCounts!.unresolved} unresolved · {proposalCounts!.conflicts} conflicts</p>
-                {metadataCounts && (metadataCounts.descriptions > 0 || metadataCounts.allowedValues > 0) && (
-                  <p>Metadata not directly editable by chat: {metadataCounts.descriptions} description{metadataCounts.descriptions === 1 ? '' : 's'} · {metadataCounts.allowedValues} allowed-value list{metadataCounts.allowedValues === 1 ? '' : 's'}</p>
-                )}
-                {pending.issues.map((issue, index) => <p key={`${issue.kind}-${issue.key}-${index}`}>{issue.kind}: {issue.key}</p>)}
                 {pending.changes.map((change) => change.note ? <p key={`note-${change.id}`}>{change.note}</p> : null)}
                 {pending.changes.map((change) => change.outcome === 'unresolved' && change.reason
                   ? <p key={`reason-${change.id}`}>{change.reason}</p>

@@ -132,7 +132,6 @@ export function deriveSchemaProposal(
   response: ProposedSchemaEdit,
 ): DerivedProposal {
   const originalFields = enumerateFieldPaths(original)
-  const keyById = new Map(originalFields.map(({ id, key }) => [id, key]))
   const originalById = new Map(originalFields.map(({ id, node }) => [id, node]))
   const changes: Change[] = []
 
@@ -140,7 +139,7 @@ export function deriveSchemaProposal(
     const out: SchemaNode[] = []
     for (const node of level) {
       const before = cloneNode(node)
-      const edit = response.fields[keyById.get(node.id) ?? '']
+      const edit = response.fields[node.id]
       if (edit?.removed) {
         const losses = metadataLosses(before)
         changes.push({

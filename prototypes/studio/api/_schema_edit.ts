@@ -191,13 +191,13 @@ export async function proposeSchemaEdit(
     return { status: 'refused', message: `Duplicate field paths: ${duplicates.join(', ')}` }
   }
 
-  const expected = new Map(fields.map((field) => [field.key, field]))
+  const expected = new Map(fields.map((field) => [field.id, field]))
   const generate = options.generate ?? (async (prompt, temperature, target) =>
     (await generateSchemaEditJson(prompt, temperature, target)).text)
 
   try {
     const initial = await readEnvelope(await generate(
-      schemaEditPrompt(fields.map(({ key, node }) => toPromptField(key, node)), instruction, documentMarkdown),
+      schemaEditPrompt(fields.map(({ id, node }) => toPromptField(id, node)), instruction, documentMarkdown),
       options.temperature,
       options.target,
     ))
@@ -208,10 +208,10 @@ export async function proposeSchemaEdit(
 
     if (unresolved.size) {
       try {
-        const retryKeys = [...unresolved.keys()]
-        const retryExpected = new Map(retryKeys.map((key) => [key, expected.get(key)!]))
+        const retryIds = [...unresolved.keys()]
+        const retryExpected = new Map(retryIds.map((id) => [id, expected.get(id)!]))
         const retry = await readEnvelope(await generate(
-          retryPrompt(retryKeys.map((key) => toPromptField(key, expected.get(key)!.node)), instruction),
+          retryPrompt(retryIds.map((id) => toPromptField(id, expected.get(id)!.node)), instruction),
           options.temperature,
           options.target,
         ))
@@ -225,7 +225,7 @@ export async function proposeSchemaEdit(
 
     const issues: SchemaEditIssue[] = [
       ...unknownIssues,
-      ...[...unresolved].map(([key, kind]) => ({ kind, key })),
+      ...[...unresolved].map(([id, kind]) => ({ kind, key: expected.get(id)!.key })),
     ]
     if (expected.size > 0 && accepted.size === 0 && additions.length === 0) {
       return { status: 'failed', message: 'The model returned no usable schema proposal entries.' }
@@ -282,17 +282,17 @@ function validatedAdditions(raw: unknown, issues: SchemaEditIssue[]): SchemaAddi
 }
 
 type PromptField =
-  | { key: string; name: string; type: Exclude<SchemaNode['type'], 'array'> }
-  | { key: string; name: string; type: 'array'; itemType: ScalarFieldType | null }
+  | { id: string; name: string; type: Exclude<SchemaNode['type'], 'array'> }
+  | { id: string; name: string; type: 'array'; itemType: ScalarFieldType | null }
 
 type PromptFieldValue =
   | { name: string; type: Exclude<SchemaNode['type'], 'array'> }
   | { name: string; type: 'array'; itemType: ScalarFieldType | null }
 
-function toPromptField(key: string, node: SchemaNode): PromptField {
-  if (node.type !== 'array') return { key, name: node.name, type: node.type }
+function toPromptField(id: string, node: SchemaNode): PromptField {
+  if (node.type !== 'array') return { id, name: node.name, type: node.type }
   return {
-    key,
+    id,
     name: node.name,
     type: node.type,
     itemType: node.children === undefined ? node.itemType : null,
@@ -310,26 +310,26 @@ function schemaEditPrompt(fields: readonly PromptField[], instruction: string, m
   return `You edit FREE Extraction Schemas for humanities researchers.
 
 Researcher instruction: ${JSON.stringify(instruction)}
-Existing fields, keyed by opaque identifiers that must be echoed exactly:
-${JSON.stringify(Object.fromEntries(fields.map((field) => [field.key, promptFieldValue(field)])), null, 2)}${source}
+Existing fields, keyed by opaque field ids that must be echoed exactly and never rewritten, even when the field's own "name" is being changed:
+${JSON.stringify(Object.fromEntries(fields.map((field) => [field.id, promptFieldValue(field)])), null, 2)}${source}
 
 Return one JSON object:
-{"fields":{"opaque.key":{"name":"field_name","type":"${FIELD_TYPES.join('|')}","removed":false}},"additions":[{"path":["existing_parent","new_scalar"],"type":"string"},{"path":["existing_parent","new_dates"],"type":"array","itemType":"date"}]}
+{"fields":{"opaque-field-id":{"name":"field_name","type":"${FIELD_TYPES.join('|')}","removed":false}},"additions":[{"path":["existing_parent","new_scalar"],"type":"string"},{"path":["existing_parent","new_dates"],"type":"array","itemType":"date"}]}
 
 Rules:
-- fields must contain every supplied opaque key exactly once, including unchanged and removed fields
+- fields must contain every supplied opaque field id exactly once, including unchanged and removed fields; the id itself is never renamed, only the "name" value inside it
 - additions must always be present; use [] when no fields are added
 - apply the researcher instruction to every relevant field; preserve only properties unrelated to that instruction
 - itemType is allowed only when type is array; every array field and array addition requires itemType: a scalar type (${SCALAR_FIELD_TYPES.join('|')}) for a repeating scalar, or null for repeating records
 - removed is true only for a removed existing field
-- additions use full structural paths in the post-edit namespace and must not invent root path segments that are not existing or explicitly added fields
+- additions use full structural paths in the post-edit namespace (i.e. using each field's current "name", including any rename applied in this same edit) and must not invent root path segments that are not existing or explicitly added fields
 - return JSON only`
 }
 
 function retryPrompt(fields: readonly PromptField[], instruction: string): string {
   return `Repair only the missing or invalid field entries for this FREE schema edit.
 Researcher instruction: ${JSON.stringify(instruction)}
-Required opaque keys and current values:
-${JSON.stringify(Object.fromEntries(fields.map((field) => [field.key, promptFieldValue(field)])), null, 2)}
-Return {"fields":{...},"additions":[]} with every listed key exactly once. Use name, type (${FIELD_TYPES.join('|')}), removed, and itemType for arrays (scalar type or null for records). JSON only.`
+Required opaque field ids and current values:
+${JSON.stringify(Object.fromEntries(fields.map((field) => [field.id, promptFieldValue(field)])), null, 2)}
+Return {"fields":{...},"additions":[]} with every listed field id exactly once, unchanged. Use name, type (${FIELD_TYPES.join('|')}), removed, and itemType for arrays (scalar type or null for records). JSON only.`
 }
