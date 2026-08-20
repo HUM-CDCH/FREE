@@ -938,7 +938,7 @@ describe('BatchExtractionsPanel', () => {
     })
   })
 
-  it('reports a routed Batch Extraction as missing only once the list is read', async () => {
+  it('shows a stale cross-account Batch Extraction as missing only after the scoped list is read', async () => {
     const listed = Promise.withResolvers<Response>()
     vi.stubGlobal(
       'fetch',

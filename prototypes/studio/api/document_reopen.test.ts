@@ -133,8 +133,10 @@ describe('document reopen ExtractionModule projection', () => {
     expect(body.latestReviewed?.reviewDecisions).toEqual(
       extraction.reviewDecisions,
     )
-    expect(body.latestAttempt?.sourceRepresentation.resources.sourcePdfUrl).toContain(
-      `${representationId}/pdf?v=2026-08-10T01%3A00%3A00.000Z`,
+    expect(
+      body.latestAttempt?.sourceRepresentation.resources.sourcePdfUrl,
+    ).toContain(
+      `/api/project-contexts/${projectId}/source-representations/${representationId}/pdf?v=2026-08-10T01%3A00%3A00.000Z`,
     )
   })
 
@@ -159,6 +161,36 @@ describe('document reopen ExtractionModule projection', () => {
         schemaRevisionId,
       },
     )
+  })
+
+  it('fails closed before extraction reads when the project/source is inaccessible', async () => {
+    const module = extractionModule()
+    const response = await createGetDocumentReopen(
+      { getDocumentReopenSnapshot: vi.fn(async () => null) },
+      module,
+    )(url(`?extractionId=${extractionId}`))
+
+    expect(response.status).toBe(404)
+    expect(module.readDocumentExtractions).not.toHaveBeenCalled()
+  })
+
+  it('rejects mixed-owner extraction pins with the existing not-found shape', async () => {
+    const getDocumentReopenSnapshot = vi.fn(
+      async (
+        _projectContextId: string,
+        _sourceDocumentId: string,
+        pins?: unknown,
+      ) => (pins ? null : snapshot()),
+    )
+    const response = await createGetDocumentReopen(
+      { getDocumentReopenSnapshot },
+      extractionModule(),
+    )(url(`?extractionId=${extractionId}`))
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'not_found' },
+    })
   })
 
   it('fails closed for unreadable schema state and missing module authority', async () => {

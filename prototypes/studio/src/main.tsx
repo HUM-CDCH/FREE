@@ -1,19 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import AuthApplication from './auth/AuthApplication.tsx'
 import { isDeveloperUiEnabled } from './developerUi.ts'
 import './index.css'
 import 'pdfjs-dist/web/pdf_viewer.css'
 import './pdf-viewer.css'
-import {
-  ProjectNavigationProvider,
-  ProjectRoutes,
-} from './ProjectNavigation.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ProjectNavigationProvider>
-      <ProjectRoutes />
-    </ProjectNavigationProvider>
+    <AuthApplication />
   </StrictMode>,
 )
 
@@ -21,7 +16,7 @@ const developerUiEnabled = isDeveloperUiEnabled()
 let developerUiDisposed = false
 let unmountLlmInspector: (() => void) | undefined
 
-if (developerUiEnabled) {
+if (import.meta.env.DEV && developerUiEnabled) {
   void import('./llmInspector/mount.tsx').then(({ mountLlmInspector }) => {
     const unmount = mountLlmInspector()
     if (developerUiDisposed) unmount()

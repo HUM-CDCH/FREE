@@ -5,7 +5,6 @@ import PanelToggleIcon from './PanelToggleIcon'
 // pre-generation chat. Left in place, commented out, rather than deleted.
 // import AnnotationSetTab from './AnnotationSidebar'
 // import type { AnnotationSetItem } from './AnnotationSidebar'
-// import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
 import type { SchemaDefinition, SchemaNode } from 'extraction/schema'
@@ -18,6 +17,7 @@ import type {
   SchemaRevision,
   SchemaRevisionSummary,
 } from '../shared/schemaRevision.contract'
+import type { SchemaModelContext } from './api'
 
 export type RailTab = 'evidence' | 'schema' | 'results'
 
@@ -48,7 +48,7 @@ type RightRailProps = {
     message: string,
     recordDescription?: string,
   ) => void
-  beforeSchemaEdit: () => Promise<void>
+  beforeSchemaEdit: () => Promise<SchemaModelContext | null>
   schemaHistory: SchemaRevisionSummary[]
   currentSchemaRevisionNumber?: number
   loadSchemaRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
@@ -200,11 +200,6 @@ function RightRail({
           <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />
         </div>
       )}
-      {/*
-      <div id="rail-panel-chat" aria-labelledby="rail-tab-chat" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'chat'}>
-        <ChatTab documentMarkdown={documentMarkdown} />
-      </div>
-      */}
       <div id="rail-panel-schema" aria-labelledby="rail-tab-schema" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'schema'}>
         <SchemaPanel
           state={schemaState}
@@ -216,7 +211,6 @@ function RightRail({
           history={schemaHistory}
           currentRevisionNumber={currentSchemaRevisionNumber}
           loadRevision={loadSchemaRevision}
-          documentMarkdown={documentMarkdown}
           sourceDocumentName={sourceDocumentName}
           schemaName={schemaName}
           onRenameSchema={onRenameSchema}

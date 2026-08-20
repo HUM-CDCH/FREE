@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { requestSchemaEdit } from './api'
+import { requestSchemaEdit, type SchemaModelContext } from './api'
 import { countTemplateFields, isRecord } from '../shared/template'
 import {
   FIELD_TYPES,
@@ -61,11 +61,10 @@ type SchemaPanelProps = {
     message: string,
     recordDescription?: string,
   ) => void
-  beforeSchemaEdit: () => Promise<void>
+  beforeSchemaEdit: () => Promise<SchemaModelContext | null>
   history: SchemaRevisionSummary[]
   currentRevisionNumber?: number
   loadRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
-  documentMarkdown: string | null
   sourceDocumentName: string
   schemaName?: string | null
   onRenameSchema?: (name: string) => Promise<string | null>
@@ -621,7 +620,6 @@ function SchemaPanel({
   history,
   currentRevisionNumber,
   loadRevision,
-  documentMarkdown,
   sourceDocumentName,
   schemaName,
   onRenameSchema,
@@ -1067,13 +1065,27 @@ function SchemaPanel({
 
     const originalBeforeFlush = nodesRef.current
     try {
-      await beforeSchemaEdit()
+      const modelContext = await beforeSchemaEdit()
       if (nodesRef.current !== originalBeforeFlush) {
         setChat(c => [...c, { role: 'assistant', text: 'Schema changed while the request was running. Send the request again.' }])
         return
       }
       const original = nodesRef.current
-      const response = await requestSchemaEdit(original, userMsg, documentMarkdown, controller.signal)
+      if (!modelContext) {
+        setChat(c => [
+          ...c,
+          {
+            role: 'assistant',
+            text: 'Save this Extraction Schema before requesting a model edit.',
+          },
+        ])
+        return
+      }
+      const response = await requestSchemaEdit(
+        modelContext,
+        userMsg,
+        controller.signal,
+      )
       if (nodesRef.current !== original) {
         setChat(c => [...c, { role: 'assistant', text: 'Schema changed while the request was running. Send the request again.' }])
         return

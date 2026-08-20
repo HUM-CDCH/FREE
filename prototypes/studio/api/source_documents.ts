@@ -13,11 +13,10 @@ import {
   type CanonicalPackageDescriptor,
 } from '../../../packages/db/src/artifact-store.js'
 import {
-  createProjectStore,
   IngestionKeyConflictError,
   type IngestSourceDocumentInput,
   type IngestedSourceDocument,
-  type ProjectStore,
+  type ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 
@@ -38,19 +37,16 @@ type CanonicalPackage = {
 type PackageStore = {
   save(packageBytes: Uint8Array): Promise<CanonicalPackage>
   available(descriptor: CanonicalPackageDescriptor): Promise<boolean>
-  remove(
-    descriptor: CanonicalPackageDescriptor,
-    isReferenced: () => Promise<boolean>,
-  ): Promise<boolean>
 }
 
 type IngestionStore = Pick<
-  ProjectStore,
-  'ingestSourceDocument' | 'isPackageReferenced'
+  ResearcherProjectStore,
+  | 'getProjectContextWithDocuments'
+  | 'ingestSourceDocument'
+  | 'discardCanonicalPackage'
 >
 
 type Dependencies = {
-  store?: IngestionStore
   packageStore?: PackageStore
   fetcher?: typeof fetch
   parsingServiceBase?: string
@@ -61,8 +57,8 @@ type Dependencies = {
 }
 
 type SourceDocumentDeletionStore = Pick<
-  ProjectStore,
-  'deleteSourceDocument' | 'isPackageReferenced'
+  ResearcherProjectStore,
+  'deleteSourceDocument'
 >
 
 function projectContextId(pathname: string): string {
@@ -283,47 +279,32 @@ async function completedTask(
   }
 }
 
-async function removePublishedPackage(
+async function discardPublishedPackage(
   saved: CanonicalPackage,
   store: IngestionStore,
-  packageStore: PackageStore,
 ): Promise<void> {
   if (saved.published !== true) return
   const descriptor = {
     artifactReference: saved.artifactReference,
     artifactSha256: saved.artifactSha256,
   }
-  const isReferenced = async () => {
-    try {
-      return await store.isPackageReferenced(descriptor.artifactReference)
-    } catch (cause) {
-      console.warn(
-        `Could not check whether the failed ingestion package ${descriptor.artifactReference} is referenced; retaining it: ${
-          cause instanceof Error ? cause.message : String(cause)
-        }`,
-      )
-      return true
-    }
-  }
-  await packageStore
-    .remove(descriptor, isReferenced)
-    .catch((cause: unknown) => {
-      console.warn(
-        `Could not remove the failed ingestion package ${descriptor.artifactReference}: ${
-          cause instanceof Error ? cause.message : String(cause)
-        }`,
-      )
-    })
+  await store.discardCanonicalPackage(descriptor).catch((cause: unknown) => {
+    console.warn(
+      `Could not discard the unused ingestion package ${descriptor.artifactReference}: ${
+        cause instanceof Error ? cause.message : String(cause)
+      }`,
+    )
+  })
 }
 
 export function createSourceDocumentIngestion(
+  store: IngestionStore,
   dependencies: Dependencies = {},
 ): (request: Request) => Promise<Response> {
-  const store =
-    dependencies.store ?? (createProjectStore() as unknown as IngestionStore)
   const packageStore = dependencies.packageStore ?? canonicalPackageStore
   const base =
     dependencies.parsingServiceBase ??
+    process.env.PARSING_SERVICE_URL ??
     (import.meta as ImportMeta & { env?: Record<string, string | undefined> })
       .env?.VITE_PARSING_SERVICE_URL ??
     DEFAULT_PARSING_SERVICE
@@ -341,6 +322,16 @@ export function createSourceDocumentIngestion(
     let saved: CanonicalPackage | undefined
     try {
       const id = projectContextId(new URL(request.url).pathname)
+      const projectContext = await store
+        .getProjectContextWithDocuments(id)
+        .catch((cause) => {
+          throw persistenceUnavailable(
+            cause,
+            'Source Document storage is unavailable.',
+          )
+        })
+      if (!projectContext)
+        throw new ApiError(404, 'not_found', 'Project Context was not found.')
       const form = await parseFormRequest(request)
       assertFormFields(form, ['file', 'ingestionKey'])
       if (
@@ -504,13 +495,13 @@ export function createSourceDocumentIngestion(
       // A replay may select an older package; discard only this request's
       // first-published package when no durable representation references it.
       if (!sameDescriptor(descriptor, saved))
-        await removePublishedPackage(saved, store, packageStore)
+        await discardPublishedPackage(saved, store)
       return json(
         { ...sourceDocument, pageCount: parsed.pageCount },
         { status: 201, headers: noStore },
       )
     } catch (error) {
-      if (saved) await removePublishedPackage(saved, store, packageStore)
+      if (saved) await discardPublishedPackage(saved, store)
       return noStoreError(error)
     }
   }
@@ -520,11 +511,8 @@ function fetcher(dependencies: Dependencies): typeof fetch {
   return dependencies.fetcher ?? fetch
 }
 
-export const POST = createSourceDocumentIngestion()
-
 export function createSourceDocumentDeletion(
-  store: SourceDocumentDeletionStore = createProjectStore(),
-  packageStore: Pick<PackageStore, 'remove'> = canonicalPackageStore,
+  store: SourceDocumentDeletionStore,
 ) {
   return async function deleteSourceDocument(
     request: Request,
@@ -533,7 +521,7 @@ export function createSourceDocumentDeletion(
       const { projectContextId, sourceDocumentId } = sourceDocumentIds(
         new URL(request.url).pathname,
       )
-      const candidates = await store
+      const deleted = await store
         .deleteSourceDocument(projectContextId, sourceDocumentId)
         .catch((cause) => {
           throw persistenceUnavailable(
@@ -541,35 +529,8 @@ export function createSourceDocumentDeletion(
             'Source Document storage is unavailable.',
           )
         })
-      if (!candidates)
+      if (!deleted)
         throw new ApiError(404, 'not_found', 'Source Document was not found.')
-      const asked = new Set<string>()
-      for (const descriptor of candidates)
-        if (!asked.has(descriptor.artifactReference)) {
-          asked.add(descriptor.artifactReference)
-          await packageStore
-            .remove(descriptor, async () => {
-              try {
-                return await store.isPackageReferenced(
-                  descriptor.artifactReference,
-                )
-              } catch (cause) {
-                console.warn(
-                  `Could not check whether deleted Source Document package ${descriptor.artifactReference} is still referenced; retaining it: ${
-                    cause instanceof Error ? cause.message : String(cause)
-                  }`,
-                )
-                return true
-              }
-            })
-            .catch((cause: unknown) => {
-              console.warn(
-                `Could not remove the deleted Source Document package ${descriptor.artifactReference}: ${
-                  cause instanceof Error ? cause.message : String(cause)
-                }`,
-              )
-            })
-        }
       return new Response(null, { status: 204, headers: noStore })
     } catch (error) {
       return noStoreError(error)
@@ -577,6 +538,15 @@ export function createSourceDocumentDeletion(
   }
 }
 
-export const DELETE = createSourceDocumentDeletion()
+export function createResearcherApiHandlers(
+  store: ResearcherProjectStore,
+): Readonly<
+  Record<string, (request: Request) => Response | Promise<Response>>
+> {
+  return {
+    POST: createSourceDocumentIngestion(store),
+    DELETE: createSourceDocumentDeletion(store),
+  }
+}
 
 export type { IngestedSourceDocument }

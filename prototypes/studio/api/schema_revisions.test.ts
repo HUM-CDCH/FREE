@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ProjectStore, SchemaRevisionRecord } from '../../../packages/db/src/project-store.js'
+import type {
+  ResearcherProjectStore,
+  SchemaRevisionRecord,
+} from '../../../packages/db/src/project-store.js'
 import {
   schemaRevisionListResponseSchema,
   schemaRevisionResponseSchema,
@@ -20,7 +23,7 @@ const revisions: SchemaRevisionRecord[] = [
   { schemaRevisionId: REVISION_1, extractionSchemaId: SCHEMA, revisionNumber: 1, origin: 'suggestion', schemaTree: definition('site'), createdAt: new Date('2026-08-01T12:00:00Z') },
 ]
 
-function store(overrides: Partial<Pick<ProjectStore, 'initializeSchemaRevision' | 'appendSchemaRevision' | 'listSchemaRevisions' | 'getSchemaRevision'>> = {}) {
+function store(overrides: Partial<Pick<ResearcherProjectStore, 'initializeSchemaRevision' | 'appendSchemaRevision' | 'listSchemaRevisions' | 'getSchemaRevision'>> = {}) {
   return {
     initializeSchemaRevision: vi.fn(async () => ({ status: 'created' as const, revision: revisions[1] })),
     appendSchemaRevision: vi.fn(async () => ({ status: 'created' as const, revision: revisions[0] })),
@@ -110,8 +113,59 @@ describe('Schema Revision routes', () => {
 
     vi.mocked(fixture.getSchemaRevision).mockResolvedValueOnce(null)
     const mismatch = await GET(new Request(`http://test/api/schema-revisions/${REVISION_1}?projectContextId=${PROJECT}&extractionSchemaId=${SCHEMA}`))
-    expect(mismatch.status).toBe(409)
-    await expect(mismatch.json()).resolves.toMatchObject({ error: { code: 'selection_mismatch' } })
+    expect(mismatch.status).toBe(404)
+    await expect(mismatch.json()).resolves.toMatchObject({ error: { code: 'not_found' } })
+  })
+
+  it('keeps cross-owner list, initialization, and append failures indistinguishable from missing data', async () => {
+    const missingList = store({
+      listSchemaRevisions: vi.fn(async () => null),
+    })
+    const listResponse = await createSchemaRevisionHandlers(missingList).GET(
+      new Request(
+        `http://test/api/schema-revisions?projectContextId=${PROJECT}&extractionSchemaId=${SCHEMA}`,
+      ),
+    )
+    expect(listResponse.status).toBe(404)
+    await expect(listResponse.json()).resolves.toMatchObject({
+      error: { code: 'not_found' },
+    })
+    expect(missingList.initializeSchemaRevision).not.toHaveBeenCalled()
+    expect(missingList.appendSchemaRevision).not.toHaveBeenCalled()
+
+    const missingWrite = store({
+      initializeSchemaRevision: vi.fn(async () => null),
+      appendSchemaRevision: vi.fn(async () => null),
+    })
+    const handlers = createSchemaRevisionHandlers(missingWrite)
+    const write = (body: unknown) =>
+      handlers.POST(
+        new Request('http://test/api/schema-revisions', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        }),
+      )
+    expect(
+      (
+        await write({
+          projectContextId: PROJECT,
+          extractionSchemaId: SCHEMA,
+          expectedRevisionNumber: 1,
+          ...definition('cross-owner'),
+        })
+      ).status,
+    ).toBe(404)
+    expect(
+      (
+        await write({
+          projectContextId: PROJECT,
+          ...definition('cross-owner'),
+        })
+      ).status,
+    ).toBe(404)
+    expect(missingWrite.appendSchemaRevision).toHaveBeenCalledOnce()
+    expect(missingWrite.initializeSchemaRevision).toHaveBeenCalledOnce()
   })
 
   it('rejects malformed identities, unbounded limits, unknown fields, and sanitizes store failures', async () => {

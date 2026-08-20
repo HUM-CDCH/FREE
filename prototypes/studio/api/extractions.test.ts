@@ -1,11 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { ResearcherProjectStore } from 'db'
 import {
   ExtractionError,
   type ExtractionModule,
   type ExtractionSnapshot,
 } from 'extraction'
-import { createExtractionsApi } from './extractions.js'
+import { createResearcherApiHandlers } from './extractions.js'
+import type * as ExtractionRuntimeModule from './_extraction_runtime.js'
 
+const runtime = vi.hoisted(() => ({
+  createResearcherExtractions: vi.fn(),
+}))
+
+vi.mock('./_extraction_runtime.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof ExtractionRuntimeModule>()
+  return {
+    ...actual,
+    createResearcherExtractions: runtime.createResearcherExtractions,
+  }
+})
+
+const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const EXTRACTION = '51000000-0000-4000-8006-000000000001'
 const DOCUMENT = '51000000-0000-4000-8001-000000000001'
 const REPRESENTATION = '51000000-0000-4000-8002-000000000001'
@@ -101,6 +116,12 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
   }
   return module
 }
+function handlerFor(module: ExtractionModule) {
+  runtime.createResearcherExtractions.mockReturnValue(module)
+  return createResearcherApiHandlers({
+    researcherAccountId: ACCOUNT,
+  } as ResearcherProjectStore).POST
+}
 
 const request = (body: unknown) =>
   new Request('http://test/api/extractions', {
@@ -119,7 +140,7 @@ const fresh = {
 describe('/api/extractions transport', () => {
   it('maps a fresh request to runSingle and preserves created/replayed status', async () => {
     const module = extractionModule()
-    const handle = createExtractionsApi(module)
+    const handle = handlerFor(module)
 
     const created = await handle(request(fresh))
     expect(created.status).toBe(201)
@@ -162,7 +183,7 @@ describe('/api/extractions transport', () => {
 
   it('rejects targeted retry requests', async () => {
     const module = extractionModule()
-    const handle = createExtractionsApi(module)
+    const handle = handlerFor(module)
     const response = await handle(
       request({
         id: EXTRACTION,
@@ -179,7 +200,7 @@ describe('/api/extractions transport', () => {
 
   it('reads canonical review preparation and finalizes submitted decisions', async () => {
     const module = extractionModule()
-    const handle = createExtractionsApi(module)
+    const handle = handlerFor(module)
     const read = await handle(
       new Request(`http://test/api/extractions/${EXTRACTION}`),
     )
@@ -215,7 +236,7 @@ describe('/api/extractions transport', () => {
 
   it('uses bounded cancellation and domain-error HTTP mappings', async () => {
     const module = extractionModule()
-    const handle = createExtractionsApi(module)
+    const handle = handlerFor(module)
     const cancelled = await handle(
       new Request(`http://test/api/extractions/${EXTRACTION}`, {
         method: 'DELETE',

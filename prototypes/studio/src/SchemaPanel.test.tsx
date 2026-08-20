@@ -7,6 +7,7 @@ import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import { nodesToTemplate, type SchemaNode } from 'extraction/schema'
 import SchemaPanel from './SchemaPanel'
+import type { SchemaModelContext } from './api'
 
 const { requestSchemaEdit } = vi.hoisted(() => ({ requestSchemaEdit: vi.fn() }))
 vi.mock('./api', async (importOriginal) => ({
@@ -19,6 +20,14 @@ const nodes: SchemaNode[] = [
   { id: 'gender', name: 'gender', type: 'string', allowedValues: ['woman', 'man'] },
 ]
 
+const modelContext: SchemaModelContext = {
+  projectContextId: '51000000-0000-4000-8000-000000000001',
+  sourceRepresentationRevisionId:
+    '51000000-0000-4000-8002-000000000001',
+  extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+  schemaRevisionId: '51000000-0000-4000-8004-000000000002',
+}
+
 function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes, onResetSchema = vi.fn()) {
   render(<SchemaPanel
     state={{ status: 'ready', recordDescription: 'One test record.', nodes: panelNodes, inputsKey: 'test' }}
@@ -26,10 +35,9 @@ function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes, onResetSchema 
     onCancelGenerate={vi.fn()}
     onResetSchema={onResetSchema}
     onNodesChange={onNodesChange}
-    beforeSchemaEdit={vi.fn()}
+    beforeSchemaEdit={vi.fn(async () => modelContext)}
     history={[]}
     loadRevision={vi.fn()}
-    documentMarkdown={null}
     sourceDocumentName="test.pdf"
   />)
   return onNodesChange
@@ -61,7 +69,7 @@ const historicalNodes: SchemaNode[] = [
 
 type HistoryPanelOptions = {
   onNodesChange?: (nodes: SchemaNode[], message: string) => void
-  beforeSchemaEdit?: () => Promise<void>
+  beforeSchemaEdit?: () => Promise<SchemaModelContext | null>
   loadRevision?: (schemaRevisionId: string) => Promise<SchemaRevision>
   panelNodes?: SchemaNode[]
   currentRevisionNumber?: number
@@ -69,7 +77,7 @@ type HistoryPanelOptions = {
 
 function renderHistoryPanel({
   onNodesChange = vi.fn(),
-  beforeSchemaEdit = vi.fn(async () => undefined),
+  beforeSchemaEdit = vi.fn(async () => modelContext),
   loadRevision = vi.fn(async () => ({
     ...schemaHistory[1],
     recordDescription: 'One historical record.',
@@ -85,7 +93,6 @@ function renderHistoryPanel({
     onResetSchema={vi.fn()}
     onNodesChange={onNodesChange}
     beforeSchemaEdit={beforeSchemaEdit}
-    documentMarkdown={null}
     sourceDocumentName="test.pdf"
     history={schemaHistory}
     currentRevisionNumber={currentRevisionNumber}
@@ -120,7 +127,6 @@ describe.sequential('SchemaPanel schema proposal review', () => {
         beforeSchemaEdit={vi.fn()}
         history={[]}
         loadRevision={vi.fn()}
-        documentMarkdown={null}
         sourceDocumentName="test.pdf"
         schemaName="Places"
         onRenameSchema={onRenameSchema}
@@ -149,6 +155,11 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       additions: [],
       issues: [],
     })
+    expect(requestSchemaEdit).toHaveBeenCalledWith(
+      modelContext,
+      'Update fields',
+      expect.any(AbortSignal),
+    )
 
     const row = screen.getByText('title').parentElement!
     expect(within(row).queryAllByText('string')).toHaveLength(0)
@@ -165,7 +176,10 @@ describe.sequential('SchemaPanel schema proposal review', () => {
         schemaNodes: historicalNodes,
       }
     })
-    const beforeSchemaEdit = vi.fn(async () => { order.push('flush') })
+    const beforeSchemaEdit = vi.fn(async () => {
+      order.push('flush')
+      return modelContext
+    })
     onNodesChange.mockImplementation(() => { order.push('edit') })
     renderHistoryPanel({ onNodesChange, beforeSchemaEdit, loadRevision })
 
@@ -205,7 +219,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   it('keeps the current schema when loading or pre-restore flushing fails', async () => {
     const onNodesChange = vi.fn()
     const loadRevision = vi.fn(async () => { throw new Error('Load failed') })
-    const beforeSchemaEdit = vi.fn(async () => undefined)
+    const beforeSchemaEdit = vi.fn(async () => modelContext)
     renderHistoryPanel({ onNodesChange, beforeSchemaEdit, loadRevision })
 
     fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
@@ -229,7 +243,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   it('keeps the restored editable tree when its append flush fails', async () => {
     const onNodesChange = vi.fn()
     const beforeSchemaEdit = vi.fn()
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(modelContext)
       .mockRejectedValueOnce(new Error('Append failed'))
     renderHistoryPanel({ onNodesChange, beforeSchemaEdit })
 

@@ -66,7 +66,7 @@ function renderRail({
       onCancelGenerate={vi.fn()}
       onResetSchema={vi.fn()}
       onNodesChange={vi.fn()}
-      beforeSchemaEdit={vi.fn(async () => {})}
+      beforeSchemaEdit={vi.fn(async () => null)}
       schemaHistory={[]}
       loadSchemaRevision={vi.fn(async () => ({} as never))}
       extraction={defaultController}

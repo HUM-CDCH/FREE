@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type {
   ExtractionSchemaSummary,
-  ProjectStore,
+  ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { extractionSchemaListResponseSchema } from '../shared/schemaRevision.contract.js'
 import {
@@ -27,7 +27,7 @@ const schemas: ExtractionSchemaSummary[] = [
 ]
 
 function handler(
-  listExtractionSchemas: ProjectStore['listExtractionSchemas'] = vi.fn(
+  listExtractionSchemas: ResearcherProjectStore['listExtractionSchemas'] = vi.fn(
     async () => schemas,
   ),
 ) {

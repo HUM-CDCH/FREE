@@ -8,6 +8,7 @@ import {
   readExtraction,
   requestExtraction,
   requestSchema,
+  requestSchemaEdit,
 } from './api'
 
 function jsonResponse(body: unknown): Response {
@@ -76,6 +77,7 @@ describe('Article extraction lifecycle client', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string, init: RequestInit) => {
+        expect(init.credentials).toBe('same-origin')
         submitted.push({ url, body: init.body ? JSON.parse(String(init.body)) : null })
         return Promise.resolve(jsonResponse(attempt))
       }),
@@ -118,26 +120,86 @@ describe('Article extraction lifecycle client', () => {
       },
       pendingReviewDecisions: [],
     }
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+    const fetch = vi.fn().mockResolvedValue(jsonResponse(response))
+    vi.stubGlobal('fetch', fetch)
 
     await expect(readExtraction(extractionId)).resolves.toEqual(response)
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/extractions/${extractionId}`,
+      expect.objectContaining({ credentials: 'same-origin' }),
+    )
   })
 })
 
 describe('requestSchema', () => {
-  it('calls the schema generation endpoint', async () => {
+  it('submits only the owner-scoped source identity', async () => {
     let submittedUrl = ''
+    let submittedBody: FormData | null = null
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation((url: string) => {
+      vi.fn().mockImplementation((url: string, init: RequestInit) => {
+        expect(init.credentials).toBe('same-origin')
         submittedUrl = url
-        return Promise.resolve(jsonResponse({ template: {}, raw: '', pages: null }))
+        submittedBody = init.body as FormData
+        return Promise.resolve(
+          jsonResponse({ template: {}, raw: '', pages: null }),
+        )
       }),
     )
 
-    await requestSchema(new Blob(['pdf']), 'report.pdf')
+    await requestSchema({
+      projectContextId: '51000000-0000-4000-8000-000000000001',
+      sourceRepresentationRevisionId:
+        '51000000-0000-4000-8002-000000000001',
+    })
 
     expect(submittedUrl).toBe('/api/generate_schema')
+    expect(Object.fromEntries(submittedBody!)).toEqual({
+      project_context_id: '51000000-0000-4000-8000-000000000001',
+      source_representation_revision_id:
+        '51000000-0000-4000-8002-000000000001',
+    })
+  })
+})
+
+describe('requestSchemaEdit', () => {
+  it('submits durable schema pins without browser-authored schema or source data', async () => {
+    let submittedBody: FormData | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        expect(init.credentials).toBe('same-origin')
+        submittedBody = init.body as FormData
+        return Promise.resolve(
+          jsonResponse({
+            status: 'proposed',
+            fields: {},
+            additions: [],
+            issues: [],
+          }),
+        )
+      }),
+    )
+
+    await requestSchemaEdit(
+      {
+        projectContextId: '51000000-0000-4000-8000-000000000001',
+        sourceRepresentationRevisionId:
+          '51000000-0000-4000-8002-000000000001',
+        extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+        schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+      },
+      'Add title',
+    )
+
+    expect(Object.fromEntries(submittedBody!)).toEqual({
+      project_context_id: '51000000-0000-4000-8000-000000000001',
+      source_representation_revision_id:
+        '51000000-0000-4000-8002-000000000001',
+      extraction_schema_id: '51000000-0000-4000-8003-000000000001',
+      schema_revision_id: '51000000-0000-4000-8004-000000000001',
+      instruction: 'Add title',
+    })
   })
 })
 

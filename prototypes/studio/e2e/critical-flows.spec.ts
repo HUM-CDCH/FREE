@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { createGetDocumentReopen } from '../api/document_reopen.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
 import { projectContextFixture } from '../api/project_contexts.fixture.js'
+import { gotoAuthenticated } from './auth.js'
 
 const sourcePdf = fileURLToPath(
   new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
@@ -13,16 +14,22 @@ const parsedDocument = await readFile(
   'utf8',
 )
 
+const emptyExtractions = {
+  async readDocumentExtractions() {
+    return null
+  },
+}
+
 const schemaResponse = {
   template: { _description: 'One grave record.', graves: [{ name: 'verbatim-string' }] },
   raw: '...',
   pages: 6,
 }
 
-test('bundled parsed document exposes page-scoped source Evidence @deterministic', async ({ page }) => {
+test('bundled parsed document renders its page-scoped PDF @deterministic', async ({ page }) => {
   const store = projectContextFixture()
   const projectContexts = createGetProjectContexts(store)
-  const reopen = createGetDocumentReopen(store)
+  const reopen = createGetDocumentReopen(store, emptyExtractions)
   await page.route('**/api/project-contexts**', async (route) => {
     const request = new Request(route.request().url())
     const response = await (request.url.endsWith('/reopen')
@@ -34,32 +41,40 @@ test('bundled parsed document exposes page-scoped source Evidence @deterministic
       body: await response.text(),
     })
   })
-  await page.route('**/api/source-representations/**', (route) => {
-    const path = new URL(route.request().url()).pathname
-    if (path.endsWith('/pdf'))
-      return route.fulfill({ path: sourcePdf, contentType: 'application/pdf' })
-    if (path.endsWith('/source'))
-      return route.fulfill({ body: parsedDocument, contentType: 'application/json' })
-    return route.fulfill({ body: '# Source Document\n\nGrav 8' })
-  })
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Ellekilde, TAK 1355', exact: true }).click()
+  await page.route(
+    '**/api/project-contexts/*/source-representations/**',
+    (route) => {
+      const path = new URL(route.request().url()).pathname
+      if (path.endsWith('/pdf'))
+        return route.fulfill({ path: sourcePdf, contentType: 'application/pdf' })
+      if (path.endsWith('/source'))
+        return route.fulfill({
+          body: parsedDocument,
+          contentType: 'application/json',
+        })
+      return route.fulfill({ body: '# Source Document\n\nGrav 8' })
+    },
+  )
+  await gotoAuthenticated(page, '/')
+  await page
+    .getByRole('button', {
+      name: /Source Documents in Ellekilde, TAK 1355$/,
+    })
+    .click()
   await page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
-  await expect(page.getByText('6 pages · text highlights only')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
+    timeout: 15_000,
+  })
   await expect(page.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   await expect(page.locator('.pdfViewer .page')).toHaveCount(6)
-  await page.getByRole('tab', { name: /Evidence/ }).click()
-  await expect(page.getByRole('heading', { name: 'Source Evidence' })).toBeVisible()
-  await expect(page.getByText('Physical page 1')).toBeVisible()
-  await page.getByRole('button', { name: /Evidence anchor bundled-anchor/ }).click()
 })
 
-test('application editors retain clipboard and keyboard ownership in a reopened Source Document @deterministic', async ({
+test('schema instruction editor retains clipboard ownership in a reopened Source Document @deterministic', async ({
   page,
 }) => {
   const store = projectContextFixture()
   const projectContexts = createGetProjectContexts(store)
-  const reopen = createGetDocumentReopen(store)
+  const reopen = createGetDocumentReopen(store, emptyExtractions)
   await page.route('**/api/project-contexts**', async (route) => {
     const request = new Request(route.request().url())
     const response = await (request.url.endsWith('/reopen')
@@ -71,14 +86,23 @@ test('application editors retain clipboard and keyboard ownership in a reopened 
       body: await response.text(),
     })
   })
-  await page.route('**/api/source-representations/**', (route) => {
-    const path = new URL(route.request().url()).pathname
-    if (path.endsWith('/pdf'))
-      return route.fulfill({ path: sourcePdf, contentType: 'application/pdf' })
-    if (path.endsWith('/source'))
-      return route.fulfill({ body: parsedDocument, contentType: 'application/json' })
-    return route.fulfill({ body: '# Source Document\n\nGrav 8', contentType: 'text/markdown' })
-  })
+  await page.route(
+    '**/api/project-contexts/*/source-representations/**',
+    (route) => {
+      const path = new URL(route.request().url()).pathname
+      if (path.endsWith('/pdf'))
+        return route.fulfill({ path: sourcePdf, contentType: 'application/pdf' })
+      if (path.endsWith('/source'))
+        return route.fulfill({
+          body: parsedDocument,
+          contentType: 'application/json',
+        })
+      return route.fulfill({
+        body: '# Source Document\n\nGrav 8',
+        contentType: 'text/markdown',
+      })
+    },
+  )
   await page.route('**/api/generate_schema', (route) =>
     route.fulfill({ json: schemaResponse }),
   )
@@ -102,10 +126,14 @@ test('application editors retain clipboard and keyboard ownership in a reopened 
       },
     })
   })
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Ellekilde, TAK 1355', exact: true }).click()
+  await gotoAuthenticated(page, '/')
+  await page
+    .getByRole('button', {
+      name: /Source Documents in Ellekilde, TAK 1355$/,
+    })
+    .click()
   await page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
-  await expect(page.getByText('6 pages · text highlights only')).toBeVisible({
+  await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
     timeout: 15_000,
   })
 
@@ -127,8 +155,9 @@ test('application editors retain clipboard and keyboard ownership in a reopened 
   await page.mouse.up()
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain('Grav 8')
 
-  await page.getByRole('tab', { name: 'Chat' }).click()
-  const chatInput = page.getByPlaceholder('Ask about this source document...')
+  const chatInput = page.getByPlaceholder(
+    /Add a generation instruction/,
+  )
   const canceled = await chatInput.evaluate((target) =>
     ['copy', 'cut', 'paste'].map((type) => {
       const clipboardData = new DataTransfer()
@@ -143,40 +172,6 @@ test('application editors retain clipboard and keyboard ownership in a reopened 
     }),
   )
   expect(canceled).toEqual([false, false, false])
-
-  await page.getByRole('tab', { name: 'Schema' }).click()
-  await page.getByRole('button', { name: 'Generate schema' }).click()
-  await page.getByRole('button', { name: 'JSON' }).click()
-  await page.getByRole('button', { name: 'Edit' }).click()
-
-  const textarea = page.locator('textarea')
-  const originalJson = await textarea.inputValue()
-  const isMac = await page.evaluate(() => navigator.platform.startsWith('Mac'))
-  await textarea.press(isMac ? 'Meta+A' : 'Control+A')
-  await expect
-    .poll(() =>
-      textarea.evaluate((element) => {
-        if (!(element instanceof HTMLTextAreaElement))
-          throw new Error('Expected a textarea')
-        return {
-          start: element.selectionStart,
-          end: element.selectionEnd,
-          length: element.value.length,
-        }
-      }),
-    )
-    .toEqual({
-      start: 0,
-      end: originalJson.length,
-      length: originalJson.length,
-    })
-
-  await textarea.press('Backspace')
-  await expect(textarea).toHaveValue('')
-  await textarea.press(isMac ? 'Meta+Z' : 'Control+Z')
-  await expect(textarea).toHaveValue(originalJson)
-  await textarea.press(isMac ? 'Meta+Shift+Z' : 'Control+Y')
-  await expect(textarea).toHaveValue('')
 
   await expect(page.locator('.highlightEditor')).toHaveCount(0)
 })

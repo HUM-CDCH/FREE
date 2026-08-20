@@ -69,6 +69,7 @@ export interface ExtractionPersistence {
   ): Promise<LoadedExtractionInputs | null>
   readCanonicalParsedDocument(sourceRepresentationRevisionId: string): Promise<unknown | null>
   readExtraction(extractionId: string): Promise<ExtractionSnapshot | null>
+  isExtractionIdAvailable(extractionId: string): Promise<boolean>
   persistExtraction(extraction: TerminalExtraction): Promise<PersistExtractionResult>
   finalizeReview(extractionId: string, authority: ReviewAuthority): Promise<PersistedReviewResult>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>

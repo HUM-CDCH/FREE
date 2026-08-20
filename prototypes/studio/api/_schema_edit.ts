@@ -7,6 +7,15 @@ import {
   type SchemaEditIssue,
   type SchemaEditResponse,
 } from '../shared/schemaEdit.contract.js'
+import type {
+  CanonicalPackageDescriptor,
+  CanonicalPackageStore,
+} from '../../../packages/db/src/artifact-store.js'
+import type {
+  ResearcherProjectStore,
+  SchemaRevisionRecord,
+} from '../../../packages/db/src/project-store.js'
+import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import {
   duplicateFieldKeys,
   enumerateFieldPaths,
@@ -20,7 +29,7 @@ import {
 import { parseUnknownJson } from './_model_output.js'
 import { generateSchemaEditJson } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
-import { ApiError } from './_http.js'
+import { ApiError, persistenceUnavailable } from './_http.js'
 
 const modelEnvelopeSchema = z.object({
   fields: z.record(z.string(), z.unknown()),
@@ -39,6 +48,135 @@ type SchemaEditOptions = {
   temperature?: number
   target?: ExecutionTarget
   generate?: Generate
+}
+
+type SourceContextStore = Pick<
+  ResearcherProjectStore,
+  'getSourceRepresentation'
+>
+
+type SchemaRevisionStore = Pick<
+  ResearcherProjectStore,
+  'getSchemaRevision'
+>
+
+type SchemaContextStore = Pick<
+  ResearcherProjectStore,
+  'getSourceRepresentation' | 'getSchemaRevision'
+>
+
+type CanonicalMarkdownReader = Pick<CanonicalPackageStore, 'read'>
+
+const markdownDecoder = new TextDecoder('utf-8', { fatal: true })
+
+export function formContextIdentity(form: FormData, name: string): string {
+  const value = form.get(name)
+  if (typeof value !== 'string' || !canonicalUuidSchema.safeParse(value).success)
+    throw new ApiError(
+      422,
+      'invalid_request',
+      `${name} must be a canonical lowercase UUID.`,
+    )
+  return value
+}
+
+async function readCanonicalMarkdown(
+  reader: CanonicalMarkdownReader,
+  descriptor: CanonicalPackageDescriptor,
+): Promise<string> {
+  try {
+    return markdownDecoder.decode((await reader.read(descriptor, 'markdown')).bytes)
+  } catch (cause) {
+    throw persistenceUnavailable(
+      cause,
+      'Source Document artifact is unavailable.',
+    )
+  }
+}
+
+export async function loadOwnedSourceMarkdown(
+  store: SourceContextStore,
+  reader: CanonicalMarkdownReader,
+  projectContextId: string,
+  sourceRepresentationRevisionId: string,
+): Promise<string> {
+  const descriptor = await store
+    .getSourceRepresentation(
+      projectContextId,
+      sourceRepresentationRevisionId,
+    )
+    .catch((cause) => {
+      throw persistenceUnavailable(cause)
+    })
+  if (!descriptor)
+    throw new ApiError(
+      404,
+      'not_found',
+      'Project model context was not found.',
+    )
+  return readCanonicalMarkdown(reader, descriptor)
+}
+
+export async function loadOwnedSchemaRevision(
+  store: SchemaRevisionStore,
+  projectContextId: string,
+  extractionSchemaId: string,
+  schemaRevisionId: string,
+): Promise<SchemaRevisionRecord> {
+  const revision = await store
+    .getSchemaRevision(
+      projectContextId,
+      extractionSchemaId,
+      schemaRevisionId,
+    )
+    .catch((cause) => {
+      throw persistenceUnavailable(cause)
+    })
+  if (!revision)
+    throw new ApiError(
+      404,
+      'not_found',
+      'Project model context was not found.',
+    )
+  return revision
+}
+
+export async function loadOwnedSchemaModelContext(
+  store: SchemaContextStore,
+  reader: CanonicalMarkdownReader,
+  pins: {
+    projectContextId: string
+    sourceRepresentationRevisionId: string
+    extractionSchemaId: string
+    schemaRevisionId: string
+  },
+): Promise<{
+  documentMarkdown: string
+  revision: SchemaRevisionRecord
+}> {
+  const [descriptor, revision] = await Promise.all([
+    store.getSourceRepresentation(
+      pins.projectContextId,
+      pins.sourceRepresentationRevisionId,
+    ),
+    store.getSchemaRevision(
+      pins.projectContextId,
+      pins.extractionSchemaId,
+      pins.schemaRevisionId,
+    ),
+  ]).catch((cause) => {
+    throw persistenceUnavailable(cause)
+  })
+  if (!descriptor || !revision)
+    throw new ApiError(
+      404,
+      'not_found',
+      'Project model context was not found.',
+    )
+  return {
+    documentMarkdown: await readCanonicalMarkdown(reader, descriptor),
+    revision,
+  }
 }
 
 export async function proposeSchemaEdit(

@@ -1,16 +1,13 @@
-# One local FREE stack: PostgreSQL, the simple Docling Parsing Service, and
-# Studio. Studio's API has no authentication, so every published port binds to
-# host loopback only — this is a local run, not a hosted deployment.
+# Private production topology. Caddy is the only host-published service; all
+# application traffic reaches Studio through the dedicated proxy network.
 services:
   db:
     image: postgres:17
     restart: unless-stopped
     environment:
       POSTGRES_DB: free
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: "${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}"
       POSTGRES_USER: postgres
-    ports:
-      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d free"]
       interval: 2s
@@ -18,6 +15,8 @@ services:
       retries: 15
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    networks:
+      - app
 
   parsing_service:
     build:
@@ -29,8 +28,6 @@ services:
     environment:
       DOCLING_DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
-    ports:
-      - "127.0.0.1:8000:8000"
     healthcheck:
       # `/status` answers only once the Docling pipeline is initialized, and the
       # first start downloads its models, so the start period is generous.
@@ -46,6 +43,51 @@ services:
     volumes:
       - parsing-tasks:/app/data
       - parsing-models:/models
+    networks:
+      - app
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    environment:
+      STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
+    ports:
+      - "443:443"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'wget -qO /dev/null --no-check-certificate --header="Host: $${STUDIO_ORIGIN#https://}" https://127.0.0.1/api/healthz'
+      interval: 30s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      studio:
+        condition: service_healthy
+    networks:
+      proxy:
+        ipv4_address: 172.30.0.2
+    volumes:
+      - type: bind
+        source: ./docker/Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${FREE_TLS_CERTIFICATE_PATH:?FREE_TLS_CERTIFICATE_PATH must point to the supplied PEM certificate}"
+        target: /etc/caddy/tls/studio.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${FREE_TLS_PRIVATE_KEY_PATH:?FREE_TLS_PRIVATE_KEY_PATH must point to the supplied PEM private key}"
+        target: /etc/caddy/tls/studio.key
+        read_only: true
+        bind:
+          create_host_path: false
+      - caddy-data:/data
+      - caddy-config:/config
 
   studio:
     build:
@@ -53,26 +95,39 @@ services:
       dockerfile: prototypes/studio/Dockerfile
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/free
-      VITE_PARSING_SERVICE_URL: http://parsing_service:8000
-    ports:
-      - "127.0.0.1:5173:5173"
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/api/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
-      interval: 30s
-      timeout: 10s
-      retries: 12
-      start_period: 60s
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
+      PARSING_SERVICE_URL: http://parsing_service:8000
+      STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
+      FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes}"
+      FREE_STUDIO_PROXY: trusted-caddy
+      FREE_STUDIO_PROXY_ADDRESS: 172.30.0.2
     depends_on:
       db:
         condition: service_healthy
       parsing_service:
         condition: service_started
+    healthcheck:
+      # The hosted server rejects direct HTTP peers other than pinned Caddy.
+      # A local TCP connection proves the Node host started after migrations.
+      test:
+        - CMD
+        - node
+        - -e
+        - "const socket=require('node:net').connect(5173,'127.0.0.1');socket.setTimeout(3000);socket.once('connect',()=>{socket.end();process.exit(0)});socket.once('timeout',()=>{socket.destroy();process.exit(1)});socket.once('error',()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     volumes:
       # Canonical ingestion packages under `env-paths('FREE Studio').data`.
       - studio-data:/root/.local/share
       # `model-config.json` under `env-paths('FREE Studio').config`.
       - studio-config:/root/.config
+    networks:
+      app:
+      proxy:
+        ipv4_address: 172.30.0.3
 
 volumes:
   postgres-data:
@@ -80,3 +135,12 @@ volumes:
   parsing-models:
   studio-data:
   studio-config:
+  caddy-data:
+  caddy-config:
+
+networks:
+  app:
+  proxy:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

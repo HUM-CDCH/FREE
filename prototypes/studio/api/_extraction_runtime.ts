@@ -1,11 +1,15 @@
 import {
   createExtractionRuntime,
   ExtractionError,
+  type ExtractionDiagnostics,
   type ExtractionModel,
   type ExtractionModelSessions,
+  type ExtractionModule,
+  type ExtractionSnapshot,
   type GroundingModel,
   type ModelAttribution,
 } from 'extraction'
+import { extractionAttemptSchema } from '../shared/extraction.contract.js'
 import { ApiError } from './_http.js'
 import { extractWithModel } from './_model.js'
 import { readModelConfig } from './_model_config.js'
@@ -15,6 +19,90 @@ import {
 } from './_provider.js'
 
 const ABSTAIN = 'NONE'
+const GROUNDING_ISSUE_CODES: Readonly<Record<string, true>> = {
+  missing_claim: true,
+  unknown_claim_label: true,
+  unknown_anchor_label: true,
+  malformed_selection: true,
+  grounding_failed: true,
+}
+
+function transportDiagnostics(
+  extraction: ExtractionSnapshot,
+): {
+  phase: ExtractionDiagnostics['phase']
+  durationMs: number
+  modelCalls: number
+  finishReason: string | null
+  inputTokens: number | null
+  outputTokens: number | null
+  grounding: {
+    groundedPaths: readonly (readonly (string | number)[])[]
+    ungroundedPaths: readonly (readonly (string | number)[])[]
+    issueCodes: string[]
+    batches: ExtractionDiagnostics['groundingBatches']
+  } | null
+} {
+  const diagnostics = extraction.diagnostics
+  const phase = extraction.failure?.phase ?? diagnostics.phase
+  const groundingReached =
+    extraction.result !== null ||
+    diagnostics.ungroundedPaths.length > 0 ||
+    diagnostics.groundingIssues.length > 0 ||
+    phase === 'grounding'
+  return {
+    phase,
+    durationMs: diagnostics.durationMs,
+    modelCalls: diagnostics.modelCalls,
+    finishReason: diagnostics.finishReason,
+    inputTokens: diagnostics.inputTokens,
+    outputTokens: diagnostics.outputTokens,
+    grounding: groundingReached
+      ? {
+          groundedPaths:
+            extraction.evidence?.map((link) => link.resultPath) ?? [],
+          ungroundedPaths: diagnostics.ungroundedPaths,
+          issueCodes: diagnostics.groundingIssues.flatMap((issue) => {
+            const code = issue.code
+            return typeof code === 'string' && GROUNDING_ISSUE_CODES[code]
+              ? [code]
+              : []
+          }),
+          batches: diagnostics.groundingBatches,
+        }
+      : null,
+  }
+}
+
+export function extractionAttemptDto(extraction: ExtractionSnapshot) {
+  return extractionAttemptSchema.parse({
+    extractionId: extraction.extractionId,
+    sourceDocumentId: extraction.sourceDocumentId,
+    sourceRepresentationRevisionId:
+      extraction.sourceRepresentationRevisionId,
+    schemaRevisionId: extraction.schemaRevisionId,
+    strategy: extraction.strategy,
+    outcome: extraction.outcome,
+    complete: extraction.complete,
+    modelAttribution: extraction.modelAttribution,
+    diagnostics: transportDiagnostics(extraction),
+    failure:
+      extraction.outcome === 'FAILED' && extraction.failure
+        ? {
+            code: extraction.failure.code,
+            message: extraction.failure.message.slice(0, 512),
+          }
+        : null,
+    resultPayload: extraction.result,
+    evidenceLinks: extraction.evidence,
+    reviewable: extraction.reviewable,
+    retryOfId: extraction.retryOfId,
+    batchExtractionId: extraction.batchExtractionId,
+    createdAt: extraction.createdAt.toISOString(),
+    reviewedAt: extraction.reviewedAt?.toISOString() ?? null,
+    reviewDecisions: extraction.reviewDecisions,
+  })
+}
 
 
 function modelError(error: unknown): never {
@@ -169,4 +257,8 @@ const models: ExtractionModelSessions = {
 export const extractionRuntime = createExtractionRuntime({
   models,
 })
-export const extractions = extractionRuntime.extractions
+export function createResearcherExtractions(
+  researcherAccountId: string,
+): ExtractionModule {
+  return extractionRuntime.forResearcher(researcherAccountId)
+}
