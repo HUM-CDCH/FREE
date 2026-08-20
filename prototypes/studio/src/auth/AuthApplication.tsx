@@ -28,6 +28,11 @@ type AuthState =
   | { phase: 'resolving' }
   | { phase: 'failed' }
   | { phase: 'anonymous'; notice?: string }
+  | {
+      phase: 'password-change'
+      session: AuthenticatedSession
+      temporaryPassword: string
+    }
   | { phase: 'authenticated'; session: AuthenticatedSession }
 
 function loadProjectNavigation(): Promise<ProjectNavigationModule> {
@@ -97,17 +102,33 @@ export default function AuthApplication({
   const [resolutionAttempt, setResolutionAttempt] = useState(0)
   const authenticationTransitioned = useRef(true)
 
-  const acceptSession = useCallback((session: AuthSession) => {
-    if (!session.authenticated) {
-      authenticationTransitioned.current = true
-      setState({ phase: 'anonymous' })
-      return
-    }
-    authenticationTransitioned.current = session.account.mustChangePassword
-    if (!session.account.mustChangePassword)
+  const acceptSession = useCallback(
+    (session: AuthSession, temporaryPassword?: string) => {
+      if (!session.authenticated) {
+        authenticationTransitioned.current = true
+        setState({ phase: 'anonymous' })
+        return
+      }
+      if (session.account.mustChangePassword) {
+        authenticationTransitioned.current = true
+        // The password change re-authenticates with the password just typed,
+        // so a session resolved without one starts at the login form again.
+        setState(
+          temporaryPassword === undefined
+            ? {
+                phase: 'anonymous',
+                notice: 'Sign in again to choose a permanent password.',
+              }
+            : { phase: 'password-change', session, temporaryPassword },
+        )
+        return
+      }
+      authenticationTransitioned.current = false
       history.replaceState(null, '', currentReturnPath())
-    setState({ phase: 'authenticated', session })
-  }, [])
+      setState({ phase: 'authenticated', session })
+    },
+    [],
+  )
 
   useEffect(
     () =>
@@ -149,10 +170,11 @@ export default function AuthApplication({
     return (
       <LoginForm notice={state.notice} onAuthenticated={acceptSession} />
     )
-  if (state.session.account.mustChangePassword)
+  if (state.phase === 'password-change')
     return (
       <PasswordChangeForm
         session={state.session}
+        temporaryPassword={state.temporaryPassword}
         onPasswordChanged={() => {
           history.replaceState(null, '', '/login')
           setState({

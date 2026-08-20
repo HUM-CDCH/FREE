@@ -28,6 +28,100 @@ FREE-managed provider credentials use the Dev Container user's GNOME Keyring.
 A Dev Container rebuild creates a fresh operating-system keyring, so enter any
 managed credentials again after rebuilding.
 
+## Local HTTPS Podman setup on Windows
+
+The production deployment below expects an institution- or VPN-managed
+certificate and an NVIDIA runtime. For a local Windows workstation without
+those prerequisites, create a localhost certificate, stable secrets, and a CPU
+override before the first start. `.env`, `.certs/`, and `compose.local.yaml` are
+ignored by Git. Keep `.env` and `.certs/studio.key` private and retain them while
+the corresponding Podman volumes exist.
+
+Run these commands from the repository root in PowerShell. Git for Windows
+provides the OpenSSL executable used here:
+
+```powershell
+$openssl = 'C:\Program Files\Git\usr\bin\openssl.exe'
+New-Item -ItemType Directory -Force .certs | Out-Null
+
+& $openssl req -x509 -newkey rsa:3072 -sha256 -days 825 -nodes `
+  -keyout .certs/studio.key -out .certs/studio.crt `
+  -subj '/CN=localhost' `
+  -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1'
+
+$sessionBytes = [byte[]]::new(32)
+[Security.Cryptography.RandomNumberGenerator]::Fill($sessionBytes)
+$passwordBytes = [byte[]]::new(32)
+[Security.Cryptography.RandomNumberGenerator]::Fill($passwordBytes)
+$sessionSecret = [Convert]::ToBase64String($sessionBytes)
+$postgresPassword = [Convert]::ToHexString($passwordBytes).ToLowerInvariant()
+$certificatePath = (Resolve-Path .certs/studio.crt).Path.Replace('\', '/')
+$privateKeyPath = (Resolve-Path .certs/studio.key).Path.Replace('\', '/')
+
+@"
+COMPOSE_PROJECT_NAME=free-local
+STUDIO_ORIGIN=https://localhost
+FREE_SESSION_SECRET=$sessionSecret
+FREE_POSTGRES_PASSWORD=$postgresPassword
+FREE_TLS_CERTIFICATE_PATH=$certificatePath
+FREE_TLS_PRIVATE_KEY_PATH=$privateKeyPath
+"@ | Set-Content -Encoding utf8NoBOM .env
+```
+
+On a machine without an NVIDIA runtime, create `compose.local.yaml`:
+
+```yaml
+services:
+  parsing_service:
+    runtime: crun
+    environment:
+      DOCLING_DEVICE: cpu
+      NVIDIA_VISIBLE_DEVICES: ""
+```
+
+Validate the generated certificate and key before trusting them:
+
+```powershell
+& $openssl x509 -in .certs/studio.crt -noout -checkend 0 `
+  -subject -issuer -dates -ext subjectAltName
+& $openssl x509 -in .certs/studio.crt -pubkey -noout |
+  & $openssl pkey -pubin -outform DER |
+  & $openssl sha256
+& $openssl pkey -in .certs/studio.key -pubout -outform DER |
+  & $openssl sha256
+```
+
+The two SHA-256 outputs must match. To avoid a browser warning, trust only this
+locally generated certificate for the current Windows account:
+
+```powershell
+certutil -user -addstore Root .certs\studio.crt
+```
+
+Start and verify the isolated local stack:
+
+```powershell
+podman machine start
+podman compose -f compose.yaml -f compose.local.yaml config --quiet
+podman compose -f compose.yaml -f compose.local.yaml up --build -d
+podman compose -f compose.yaml -f compose.local.yaml ps
+curl.exe --fail --silent --show-error https://localhost/api/healthz
+```
+
+A clean database has no Researcher Accounts. Create one interactively after
+Studio is healthy; passwords contain 6 through 128 Unicode scalar values:
+
+```powershell
+podman exec -it free-local-studio-1 pnpm --filter studio account create researcher@example.edu
+```
+
+Open `https://localhost`, sign in with the temporary password, choose a new
+password when prompted, and sign in again. To stop the stack without deleting
+its volumes, run:
+
+```powershell
+podman compose -f compose.yaml -f compose.local.yaml down
+```
 ## Private HTTPS Docker deployment
 
 The root `compose.yaml` is the production topology for one private LAN or VPN
@@ -181,7 +275,7 @@ docker compose exec studio pnpm --filter studio account create researcher@exampl
 ```
 
 The command prompts for and confirms a hidden temporary password. Creation and
-reset accept exactly 15 through 128 Unicode scalar values without Unicode
+reset accept exactly 6 through 128 Unicode scalar values without Unicode
 normalization. They can also read the password once from standard input with
 `docker compose exec -T`, but the password must never be appended to the command
 or exposed in process arguments.
@@ -200,7 +294,7 @@ durable. There is no default account, default password, public registration, or
 self-service reset.
 
 Open the exact `STUDIO_ORIGIN`, log in with the temporary password, and choose a
-new 15–128-scalar password on the required password-change screen. Research and
+new 6–128-scalar password on the required password-change screen. Research and
 model pages remain unavailable until that succeeds. The change invalidates the
 temporary session, so log in once more with the new password.
 

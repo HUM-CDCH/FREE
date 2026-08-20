@@ -399,7 +399,7 @@ describe('authentication routes', () => {
         },
         body: JSON.stringify({
           currentPassword: TEMPORARY_PASSWORD,
-          newPassword: 'too short',
+          newPassword: 'short',
         }),
       },
       CLIENT,
@@ -409,7 +409,7 @@ describe('authentication routes', () => {
     await expect(errorBody(response)).resolves.toEqual({
       error: {
         code: 'invalid_password',
-        message: 'Password must contain between 15 and 128 Unicode characters.',
+        message: 'Password must contain between 6 and 128 Unicode characters.',
       },
     })
     expect(test.account()).toEqual(before)

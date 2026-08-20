@@ -14,7 +14,7 @@ const fieldClass =
 const labelClass = 'flex flex-col gap-1.5 text-xs font-semibold text-ink-muted'
 const invalidCredentials = 'Email or password is incorrect.'
 const passwordPolicy =
-  'Password must contain between 15 and 128 Unicode characters.'
+  'Password must contain between 6 and 128 Unicode characters.'
 
 type AuthCardProps = {
   title: string
@@ -86,7 +86,7 @@ export function LoginForm({
   onAuthenticated,
 }: {
   notice?: string
-  onAuthenticated: (session: AuthenticatedSession) => void
+  onAuthenticated: (session: AuthenticatedSession, password: string) => void
 }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -99,7 +99,7 @@ export function LoginForm({
     setPending(true)
     setFailure(null)
     try {
-      onAuthenticated(await login(email, password))
+      onAuthenticated(await login(email, password), password)
     } catch (error) {
       if (error instanceof AuthHttpError && error.status === 429)
         setFailure('Too many login attempts. Try again later.')
@@ -211,14 +211,15 @@ function LogoutButton({ onLoggedOut }: { onLoggedOut: () => void }) {
 
 export function PasswordChangeForm({
   session,
+  temporaryPassword,
   onPasswordChanged,
   onLoggedOut,
 }: {
   session: AuthenticatedSession
+  temporaryPassword: string
   onPasswordChanged: () => void
   onLoggedOut: () => void
 }) {
-  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [pending, setPending] = useState(false)
@@ -240,7 +241,7 @@ export function PasswordChangeForm({
     setPending(true)
     setFailure(null)
     try {
-      await changePassword(currentPassword, newPassword)
+      await changePassword(temporaryPassword, newPassword)
       onPasswordChanged()
     } catch (error) {
       if (
@@ -251,7 +252,7 @@ export function PasswordChangeForm({
       else if (error instanceof AuthHttpError && error.status === 400)
         setFailure(passwordPolicy)
       else if (error instanceof AuthHttpError && error.status === 401)
-        setFailure('Password change failed. Check the current password and try again.')
+        setFailure('Password change failed. Sign out and sign in again.')
       else setFailure('Password change is unavailable. Try again.')
     } finally {
       setPending(false)
@@ -273,18 +274,6 @@ export function PasswordChangeForm({
       </div>
       <form className="flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
         <label className={labelClass}>
-          Current temporary password
-          <input
-            name="currentPassword"
-            type="password"
-            autoComplete="current-password"
-            required
-            className={fieldClass}
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-          />
-        </label>
-        <label className={labelClass}>
           New password
           <input
             name="newPassword"
@@ -298,7 +287,7 @@ export function PasswordChangeForm({
           />
         </label>
         <p id="password-policy" className="-mt-2 text-xs leading-5 text-ink-faint">
-          Use 15–128 Unicode characters. The password is stored exactly as entered.
+          Use 6–128 Unicode characters. The password is stored exactly as entered.
         </p>
         <label className={labelClass}>
           Confirm new password

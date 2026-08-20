@@ -177,11 +177,14 @@ describe('AuthApplication', () => {
 
   it('gates a temporary account to password change and logout only', async () => {
     const request = mockFetch((url) => {
-      if (url === '/api/auth/session') return jsonResponse(temporarySession)
+      if (url === '/api/auth/session') return jsonResponse(anonymousSession)
+      if (url === '/api/auth/login') return jsonResponse(temporarySession)
       throw new Error(`Unexpected request: ${url}`)
     })
     const loadNavigation = projectLoader()
     render(<AuthApplication loadNavigation={loadNavigation} />)
+
+    await submitLogin()
 
     expect(
       await screen.findByRole('heading', {
@@ -192,8 +195,29 @@ describe('AuthApplication', () => {
     expect(screen.getByRole('button', { name: 'Change password' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument()
     expect(
+      screen.queryByLabelText('Current temporary password'),
+    ).not.toBeInTheDocument()
+    expect(
       screen.queryByRole('heading', { name: 'Sign in to FREE Studio' }),
     ).not.toBeInTheDocument()
+    expect(loadNavigation).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('sends a temporary session resolved without a typed password back to login', async () => {
+    const request = mockFetch((url) => {
+      if (url === '/api/auth/session') return jsonResponse(temporarySession)
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    const loadNavigation = projectLoader()
+    render(<AuthApplication loadNavigation={loadNavigation} />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Sign in to FREE Studio' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Sign in again to choose a permanent password.',
+    )
     expect(loadNavigation).not.toHaveBeenCalled()
     expect(request).toHaveBeenCalledTimes(1)
   })
@@ -201,7 +225,8 @@ describe('AuthApplication', () => {
   it('changes a temporary password and requires a new normal login', async () => {
     history.replaceState(null, '', '/change-password')
     const request = mockFetch((url, init) => {
-      if (url === '/api/auth/session') return jsonResponse(temporarySession)
+      if (url === '/api/auth/session') return jsonResponse(anonymousSession)
+      if (url === '/api/auth/login') return jsonResponse(temporarySession)
       if (url === '/api/auth/password') {
         expect(init.method).toBe('POST')
         expect(init.credentials).toBe('same-origin')
@@ -216,10 +241,9 @@ describe('AuthApplication', () => {
     const loadNavigation = projectLoader()
     render(<AuthApplication loadNavigation={loadNavigation} />)
 
+    await submitLogin()
+
     await screen.findByRole('heading', { name: 'Choose a permanent password' })
-    fireEvent.change(screen.getByLabelText('Current temporary password'), {
-      target: { value: 'temporary-password' },
-    })
     fireEvent.change(screen.getByLabelText('New password'), {
       target: { value: 'a permanent password 🔐' },
     })
@@ -236,12 +260,13 @@ describe('AuthApplication', () => {
     )
     expect(location.pathname).toBe('/login')
     expect(loadNavigation).not.toHaveBeenCalled()
-    expect(request).toHaveBeenCalledTimes(2)
+    expect(request).toHaveBeenCalledTimes(3)
   })
 
   it('returns to login when password change discovers revoked authority', async () => {
     mockFetch((url) => {
-      if (url === '/api/auth/session') return jsonResponse(temporarySession)
+      if (url === '/api/auth/session') return jsonResponse(anonymousSession)
+      if (url === '/api/auth/login') return jsonResponse(temporarySession)
       if (url === '/api/auth/password')
         return jsonResponse(
           {
@@ -256,10 +281,9 @@ describe('AuthApplication', () => {
     })
     render(<AuthApplication loadNavigation={projectLoader()} />)
 
+    await submitLogin()
+
     await screen.findByRole('heading', { name: 'Choose a permanent password' })
-    fireEvent.change(screen.getByLabelText('Current temporary password'), {
-      target: { value: 'temporary-password' },
-    })
     fireEvent.change(screen.getByLabelText('New password'), {
       target: { value: 'a permanent password 🔐' },
     })

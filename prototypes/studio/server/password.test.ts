@@ -9,26 +9,26 @@ import {
 const temporaryPassword = 'temporary-password'
 
 describe('password policy', () => {
-  it('accepts exactly 15 through 128 Unicode scalar values', () => {
-    expect(() => validatePassword('a'.repeat(15))).not.toThrow()
+  it('accepts exactly 6 through 128 Unicode scalar values', () => {
+    expect(() => validatePassword('a'.repeat(6))).not.toThrow()
     expect(() => validatePassword('a'.repeat(128))).not.toThrow()
-    expect(() => validatePassword('a'.repeat(14))).toThrow(PasswordPolicyError)
+    expect(() => validatePassword('a'.repeat(5))).toThrow(PasswordPolicyError)
     expect(() => validatePassword('a'.repeat(129))).toThrow(PasswordPolicyError)
   })
 
   it('counts astral characters as one scalar instead of two UTF-16 code units', () => {
-    expect('🔬'.repeat(15)).toHaveLength(30)
-    expect(() => validatePassword('🔬'.repeat(15))).not.toThrow()
-    expect(() => validatePassword('🔬'.repeat(14))).toThrow(PasswordPolicyError)
+    expect('🔬'.repeat(6)).toHaveLength(12)
+    expect(() => validatePassword('🔬'.repeat(6))).not.toThrow()
+    expect(() => validatePassword('🔬'.repeat(5))).toThrow(PasswordPolicyError)
     expect(() => validatePassword('🔬'.repeat(128))).not.toThrow()
     expect(() => validatePassword('🔬'.repeat(129))).toThrow(PasswordPolicyError)
   })
 
   it('rejects strings containing unpaired surrogate code units', () => {
-    expect(() => validatePassword(`${'a'.repeat(15)}\ud800`)).toThrow(
+    expect(() => validatePassword(`${'a'.repeat(6)}\ud800`)).toThrow(
       PasswordPolicyError,
     )
-    expect(() => validatePassword(`\udc00${'a'.repeat(15)}`)).toThrow(
+    expect(() => validatePassword(`\udc00${'a'.repeat(6)}`)).toThrow(
       PasswordPolicyError,
     )
   })

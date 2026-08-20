@@ -181,13 +181,13 @@ describe('account CLI failures', () => {
       const store = accountStore({
         findByEmail: vi.fn(async () => account()),
       })
-      const result = await run([command, email], store, 'too-short')
+      const result = await run([command, email], store, 'short')
 
       expect(result).toEqual({
         exitCode: 1,
         output: '',
         error:
-          'Password must contain 15 through 128 Unicode scalar values.\n',
+          'Password must contain 6 through 128 Unicode scalar values.\n',
       })
       expect(store.findByEmail).not.toHaveBeenCalled()
       expect(store.create).not.toHaveBeenCalled()

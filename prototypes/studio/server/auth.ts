@@ -21,7 +21,7 @@ import type { SessionManager } from './session.js'
 const DUMMY_PASSWORD = 'invalid-password-verification'
 const INVALID_CREDENTIALS_MESSAGE = 'Email or password is incorrect.'
 const INVALID_PASSWORD_MESSAGE =
-  'Password must contain between 15 and 128 Unicode characters.'
+  'Password must contain between 6 and 128 Unicode characters.'
 
 export type SessionView =
   | { authenticated: false }

@@ -1,6 +1,6 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 
-export const PASSWORD_MIN_SCALARS = 15
+export const PASSWORD_MIN_SCALARS = 6
 export const PASSWORD_MAX_SCALARS = 128
 
 const SCRYPT_VERSION = 'v=1'
