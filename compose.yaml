@@ -52,14 +52,14 @@ services:
     environment:
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
     ports:
-      - "8443:443"
+      - "8443:8443/tcp"
+      - "8443:8443/udp"
     healthcheck:
       test:
         - CMD-SHELL
         - >-
           wget -qO /dev/null --no-check-certificate
-          --header="Host: $${STUDIO_ORIGIN#https://}"
-          https://127.0.0.1:8443/api/healthz
+          "https://$${STUDIO_ORIGIN#https://}/api/healthz"
       interval: 30s
       timeout: 10s
       start_period: 60s
