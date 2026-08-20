@@ -11,7 +11,7 @@ pnpm install
 pnpm start
 ```
 
-Studio uses Vite's implicit localhost binding at `http://localhost:5173`; the parsing service defaults to `http://127.0.0.1:8000`. Non-loopback exposure and hosted deployment are unsupported. Supporting either requires a separate authenticated-host design.
+Studio uses Vite's implicit localhost binding at `http://localhost:5173`; the parsing service defaults to `http://127.0.0.1:8055`. Non-loopback exposure and hosted deployment are unsupported. Supporting either requires a separate authenticated-host design.
 
 From this folder:
 

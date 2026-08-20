@@ -68,7 +68,7 @@ async function mockConfiguration(page: Page) {
   let putDelay = 0
   let probeStatus: 'connected' | 'unreachable' = 'connected'
   let probeDelay = 0
-  await page.route('http://127.0.0.1:8000/**', (route) => route.abort())
+  await page.route('http://127.0.0.1:8055/**', (route) => route.abort())
   await page.route('**/api/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
@@ -375,7 +375,7 @@ test('probe failures do not gate retryable offline Apply and pending state', asy
 test('corrupt saved configuration renders the stable backend error', async ({
   page,
 }) => {
-  await page.route('http://127.0.0.1:8000/**', (route) => route.abort())
+  await page.route('http://127.0.0.1:8055/**', (route) => route.abort())
   await page.route('**/api/model_config', (route) =>
     route.fulfill({
       status: 409,

@@ -21,7 +21,7 @@ import {
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 
 const CONTRACT_VERSION = 'parsed_document.v2'
-const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8000'
+const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8055'
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 1000
 const MAX_FILENAME_LENGTH = 180

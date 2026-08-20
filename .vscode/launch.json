@@ -12,7 +12,7 @@
         "--host",
         "127.0.0.1",
         "--port",
-        "8000"
+        "8055"
       ],
       "cwd": "${workspaceFolder}/prototypes/parsing_service",
       "envFile": "${workspaceFolder}/prototypes/parsing_service/.env",
@@ -28,7 +28,7 @@
       "command": "pnpm --filter studio run dev --host 127.0.0.1 --port 5173",
       "cwd": "${workspaceFolder}",
       "env": {
-        "VITE_API_BASE": "http://127.0.0.1:8000"
+        "VITE_API_BASE": "http://127.0.0.1:8055"
       }
     }
   ],

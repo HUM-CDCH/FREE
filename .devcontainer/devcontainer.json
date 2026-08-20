@@ -19,12 +19,12 @@
     "XDG_RUNTIME_DIR": "/tmp/free-keyring-runtime",
     "UV_LINK_MODE": "copy"
   },
-  "forwardPorts": [5173, 8000],
+  "forwardPorts": [5173, 8055],
   "portsAttributes": {
     "5173": {
       "label": "Studio"
     },
-    "8000": {
+    "8055": {
       "label": "Parsing service"
     }
   },

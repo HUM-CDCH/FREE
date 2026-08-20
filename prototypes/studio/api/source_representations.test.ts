@@ -195,7 +195,7 @@ describe('GET|HEAD /api/project-contexts/:projectId/source-representations/:id/:
     [
       'an unreachable Parsing Service',
       () => {
-        throw new Error('connect ECONNREFUSED 127.0.0.1:8000')
+        throw new Error('connect ECONNREFUSED 127.0.0.1:8055')
       },
     ],
     [
