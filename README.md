@@ -61,6 +61,7 @@ $privateKeyPath = (Resolve-Path .certs/studio.key).Path.Replace('\', '/')
 @"
 COMPOSE_PROJECT_NAME=free-local
 STUDIO_ORIGIN=https://localhost
+STUDIO_BASE_PATH=/
 FREE_SESSION_SECRET=$sessionSecret
 FREE_POSTGRES_PASSWORD=$postgresPassword
 FREE_TLS_CERTIFICATE_PATH=$certificatePath
@@ -158,6 +159,7 @@ absolute host paths to the supplied TLS files:
 
 ```dotenv
 STUDIO_ORIGIN=https://free.example.edu:8443
+STUDIO_BASE_PATH=/free
 FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
 FREE_TLS_CERTIFICATE_PATH=/srv/free-tls/studio.crt
@@ -167,6 +169,8 @@ FREE_TLS_PRIVATE_KEY_PATH=/srv/free-tls/studio.key
 - `STUDIO_ORIGIN` is the one externally visible, canonical HTTPS origin served
   on port 8443. Use the certificate's DNS name with `:8443` and no trailing
   slash, path, query, fragment, or credentials.
+- `STUDIO_BASE_PATH` is `/` for an origin-root deployment or one canonical path
+  such as `/free` for a prefixed deployment. Do not add a trailing slash.
 - `FREE_SESSION_SECRET` must be canonical standard Base64 that decodes to at
   least 32 bytes. Keep it secret and stable; replacing it invalidates every
   browser session.
@@ -178,10 +182,10 @@ FREE_TLS_PRIVATE_KEY_PATH=/srv/free-tls/studio.key
 - The two TLS paths must already be regular, readable files. The private key
   must match the certificate and should be readable only by the operator and
   Docker.
-- Compose fixes `FREE_STUDIO_PROXY=trusted-caddy` and
+- Compose fixes `FREE_STUDIO_PROXY=trusted-proxy` and
   `FREE_STUDIO_PROXY_ADDRESS=172.30.0.2`. Caddy owns that address on the
   dedicated `172.30.0.0/24` proxy network. Do not change one value without the
-  other: hosted Studio rejects every socket peer except that Caddy address
+  other: hosted Studio rejects every socket peer except the configured proxy
   before it will trust the overwritten `X-FREE-Client-Address` header.
 
 Before starting, inspect the subject alternative names and validity period and
@@ -255,7 +259,7 @@ Wait for `caddy` to report healthy, then check the public shallow health route
 through the canonical HTTPS origin:
 
 ```bash
-curl --fail --silent --show-error https://free.example.edu:8443/api/healthz
+curl --fail --silent --show-error https://free.example.edu:8443/free/api/healthz
 docker compose exec caddy caddy validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
@@ -293,10 +297,11 @@ future login while leaving the account's Project Contexts and descendants
 durable. There is no default account, default password, public registration, or
 self-service reset.
 
-Open the exact `STUDIO_ORIGIN`, log in with the temporary password, and choose a
-new 6–128-scalar password on the required password-change screen. Research and
-model pages remain unavailable until that succeeds. The change invalidates the
-temporary session, so log in once more with the new password.
+Open `STUDIO_ORIGIN` followed by `STUDIO_BASE_PATH` (for example,
+`https://free.example.edu:8443/free`), log in with the temporary password, and
+choose a new 6–128-scalar password on the required password-change screen.
+Research and model pages remain unavailable until that succeeds. The change
+invalidates the temporary session, so log in once more with the new password.
 
 ### Configure shared models
 
@@ -334,9 +339,47 @@ Only Caddy and Studio join `proxy`; only Studio, PostgreSQL, and the Parsing
 Service join `app`. Caddy cannot reach the database or Parsing Service. It
 discards any inbound `X-FREE-Client-Address`, writes exactly one value from the
 direct client socket, and proxies to Studio. Studio checks that the socket peer
-is the pinned Caddy address before consuming that value. Browser session cookies
-are never forwarded to the Parsing Service. Ports 80, 5173, 5432, and 8055 are
-not published on the host.
+is its configured trusted proxy before consuming that value. Browser session
+cookies are never forwarded to the Parsing Service. Ports 80, 5173, 5432, and
+8055 are not published on the host.
+
+#### Use a different reverse proxy
+
+Studio does not inspect or depend on the proxy implementation. Any reverse
+proxy can use the hosted contract:
+
+```dotenv
+FREE_STUDIO_PROXY=trusted-proxy
+FREE_STUDIO_PROXY_ADDRESS=<canonical IP address seen by Studio on the socket>
+```
+
+The configured address must be the proxy's direct socket address as observed by
+Studio. When both processes run on the host and Nginx connects over IPv4
+loopback, that value is `127.0.0.1`. When Studio runs in a container and Nginx
+runs on the host, it is normally the relevant container bridge gateway instead;
+pin the address actually used by that deployment.
+
+The proxy must replace, not append to, `X-FREE-Client-Address` with the address
+of its direct client. Set `STUDIO_BASE_PATH=/free`, preserve that prefix when
+proxying, and use these host Nginx locations for a host Studio process:
+
+```nginx
+location = /free {
+    return 308 /free/;
+}
+
+location ^~ /free/ {
+    proxy_pass http://127.0.0.1:5173;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-FREE-Client-Address $remote_addr;
+}
+```
+
+The absence of a trailing slash on `proxy_pass` is intentional: Nginx must send
+the original `/free/...` path to Studio. Keep the upstream private.
+`STUDIO_ORIGIN` remains the origin only; `STUDIO_BASE_PATH` owns the path. The
+same Studio image can run at `/`, `/free`, or another configured prefix without
+proxy-specific URL rewriting.
 
 Caddy adds `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and a
 no-referrer policy to every response. The deployment intentionally does not
@@ -369,7 +412,7 @@ docker compose exec caddy caddy validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile
 docker compose exec caddy caddy reload \
   --config /etc/caddy/Caddyfile --adapter caddyfile --force
-curl --fail --silent --show-error https://free.example.edu:8443/api/healthz
+curl --fail --silent --show-error https://free.example.edu:8443/free/api/healthz
 ```
 
 If validation fails, restore both previous files in place and do not reload.

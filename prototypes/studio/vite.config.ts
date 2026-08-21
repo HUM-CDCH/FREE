@@ -6,7 +6,11 @@ import { randomBytes } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-
+import {
+  applyStudioBaseTag,
+  canonicalStudioBasePath,
+  studioBaseHref,
+} from './shared/studioBasePath.js'
 
 export function developmentStudioOrigin(server: {
   https?: unknown
@@ -25,8 +29,18 @@ export function developmentStudioOrigin(server: {
   const originHost = host.includes(':') ? `[${host}]` : host
   return `${server.https ? 'https' : 'http'}://${originHost}:${server.port ?? 5173}`
 }
+
+function studioBaseHtml(basePath: string): Plugin {
+  return {
+    name: 'free-studio-base-path',
+    transformIndexHtml(html) {
+      return applyStudioBaseTag(html, basePath)
+    },
+  }
+}
 // Local development invokes the same Hono composition root as the Node host.
-export function apiFunctions(): Plugin {
+export function apiFunctions(configuredBasePath: string): Plugin {
+  const basePath = canonicalStudioBasePath(configuredBasePath)
   const generatedSessionSecret = randomBytes(32)
   return {
     name: 'free-api-functions',
@@ -67,6 +81,7 @@ export function apiFunctions(): Plugin {
       const studioModule = (await server.ssrLoadModule('/server/app.ts')) as {
         createStudioApp(options: {
           studioOrigin: string
+          basePath: string
           sessionSecret: Uint8Array
           clientHandler: () => Response
           viteDevelopmentAssets: boolean
@@ -96,6 +111,7 @@ export function apiFunctions(): Plugin {
         : generatedSessionSecret
       const app = await studioModule.createStudioApp({
         studioOrigin,
+        basePath,
         sessionSecret,
         clientHandler: studioModule.viteClientFallback,
         viteDevelopmentAssets: true,
@@ -121,6 +137,10 @@ export function apiFunctions(): Plugin {
 // Keep Studio on IPv4 loopback so dev-container port forwarding reaches the
 // same address on every host without exposing the server on the container LAN.
 export default defineConfig(({ command, mode }) => {
+  const environment = loadEnv(mode, import.meta.dirname, '')
+  const basePath = canonicalStudioBasePath(
+    process.env.STUDIO_BASE_PATH ?? environment.STUDIO_BASE_PATH ?? '/',
+  )
   if (command === 'serve') {
     process.env.DATABASE_URL ??= loadEnv(
       mode,
@@ -129,7 +149,13 @@ export default defineConfig(({ command, mode }) => {
     ).DATABASE_URL
   }
   return {
-    plugins: [react(), tailwindcss(), apiFunctions()],
+    base: command === 'build' ? './' : studioBaseHref(basePath),
+    plugins: [
+      ...(command === 'serve' ? [studioBaseHtml(basePath)] : []),
+      react(),
+      tailwindcss(),
+      apiFunctions(basePath),
+    ],
     build: {
       outDir: 'dist/client',
       emptyOutDir: true,

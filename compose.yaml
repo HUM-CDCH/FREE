@@ -51,6 +51,7 @@ services:
     restart: unless-stopped
     environment:
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
+      STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:?STUDIO_BASE_PATH must be / or a canonical path such as /free}"
     ports:
       - "8443:8443/tcp"
       - "8443:8443/udp"
@@ -59,7 +60,7 @@ services:
         - CMD-SHELL
         - >-
           wget -qO /dev/null --no-check-certificate
-          "https://$${STUDIO_ORIGIN#https://}/api/healthz"
+          "https://$${STUDIO_ORIGIN#https://}$${STUDIO_BASE_PATH%/}/api/healthz"
       interval: 30s
       timeout: 10s
       start_period: 60s
@@ -102,8 +103,9 @@ services:
       DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
       PARSING_SERVICE_URL: http://parsing_service:8055
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
+      STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:?STUDIO_BASE_PATH must be / or a canonical path such as /free}"
       FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes}"
-      FREE_STUDIO_PROXY: trusted-caddy
+      FREE_STUDIO_PROXY: trusted-proxy
       FREE_STUDIO_PROXY_ADDRESS: 172.30.0.2
     depends_on:
       db:
@@ -111,7 +113,7 @@ services:
       parsing_service:
         condition: service_started
     healthcheck:
-      # The hosted server rejects direct HTTP peers other than pinned Caddy.
+      # The hosted server rejects direct HTTP peers other than its pinned proxy.
       # A local TCP connection proves the Node host started after migrations.
       test:
         - CMD

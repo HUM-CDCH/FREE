@@ -1,15 +1,17 @@
 import type { IncomingMessage } from 'node:http'
 import { isIP } from 'node:net'
 import { ApiError } from '../api/_http.js'
+import { canonicalStudioBasePath } from '../shared/studioBasePath.js'
 import { normalizeClientAddress } from './login-limiter.js'
 import { canonicalStudioOrigin } from './origin.js'
 
 export const STUDIO_PORT = 5173
 export const CLIENT_ADDRESS_HEADER = 'X-FREE-Client-Address'
 
-export type StudioProxyMode = 'trusted-caddy' | 'loopback'
+export type StudioProxyMode = 'trusted-proxy' | 'loopback'
 export type StudioServerConfig = {
   studioOrigin: string
+  basePath: string
   sessionSecret: Buffer
   proxyMode: StudioProxyMode
   proxyAddress: string | null
@@ -71,7 +73,7 @@ function studioOrigin(value: string, proxyMode: StudioProxyMode): string {
   }
 
   const parsed = new URL(origin)
-  if (proxyMode === 'trusted-caddy') {
+  if (proxyMode === 'trusted-proxy') {
     if (parsed.protocol !== 'https:')
       throw new StudioConfigurationError(
         'Hosted STUDIO_ORIGIN must use HTTPS.',
@@ -108,6 +110,17 @@ function canonicalProxyAddress(value: string): string {
   return value
 }
 
+function studioBasePath(value: string): string {
+  try {
+    return canonicalStudioBasePath(value)
+  } catch (cause) {
+    throw new StudioConfigurationError(
+      'STUDIO_BASE_PATH must be / or one canonical absolute path without a trailing slash.',
+      { cause },
+    )
+  }
+}
+
 function studioPort(
   environment: NodeJS.ProcessEnv,
   proxyMode: StudioProxyMode,
@@ -119,7 +132,7 @@ function studioPort(
       'PORT must be an integer from 1 through 65535.',
     )
   const port = Number(supplied)
-  if (proxyMode === 'trusted-caddy' && port !== STUDIO_PORT)
+  if (proxyMode === 'trusted-proxy' && port !== STUDIO_PORT)
     throw new StudioConfigurationError(
       `Hosted Studio must listen on port ${STUDIO_PORT}.`,
     )
@@ -130,13 +143,13 @@ export function loadStudioServerConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): StudioServerConfig {
   const proxy = required(environment, 'FREE_STUDIO_PROXY')
-  if (proxy !== 'trusted-caddy' && proxy !== 'loopback')
+  if (proxy !== 'trusted-proxy' && proxy !== 'loopback')
     throw new StudioConfigurationError(
-      'FREE_STUDIO_PROXY must be trusted-caddy or loopback.',
+      'FREE_STUDIO_PROXY must be trusted-proxy or loopback.',
     )
   const proxyMode: StudioProxyMode = proxy
   let proxyAddress: string | null = null
-  if (proxyMode === 'trusted-caddy')
+  if (proxyMode === 'trusted-proxy')
     proxyAddress = canonicalProxyAddress(
       required(environment, 'FREE_STUDIO_PROXY_ADDRESS'),
     )
@@ -150,12 +163,13 @@ export function loadStudioServerConfig(
       required(environment, 'STUDIO_ORIGIN'),
       proxyMode,
     ),
+    basePath: studioBasePath(required(environment, 'STUDIO_BASE_PATH')),
     sessionSecret: sessionSecret(
       required(environment, 'FREE_SESSION_SECRET'),
     ),
     proxyMode,
     proxyAddress,
-    hostname: proxyMode === 'trusted-caddy' ? '0.0.0.0' : '127.0.0.1',
+    hostname: proxyMode === 'trusted-proxy' ? '0.0.0.0' : '127.0.0.1',
     port: studioPort(environment, proxyMode),
   }
 }

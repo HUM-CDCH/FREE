@@ -125,6 +125,7 @@ async function modelAuthFixture(
   const dispatcher = vi.fn(createApiDispatcher(registry))
   const app = await createStudioApp({
     studioOrigin: ORIGIN,
+    basePath: '/',
     sessionSecret: SECRET,
     now: () => NOW,
     accountStore,

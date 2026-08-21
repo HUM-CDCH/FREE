@@ -1,3 +1,5 @@
+import { browserStudioPathname } from '../studioUrl.js'
+
 const DEFAULT_RETURN_PATH = '/projects'
 const LOCAL_URL_BASE = 'https://free.local'
 const AUTH_PATHS: Partial<Record<string, true>> = {
@@ -33,8 +35,9 @@ export function validateLocalReturnPath(candidate: string | null): string | null
 
 /** Resolve the server's protected-navigation return target or preserve a local deep link. */
 export function currentReturnPath(): string {
-  const candidate = AUTH_PATHS[location.pathname]
+  const pathname = browserStudioPathname()
+  const candidate = AUTH_PATHS[pathname]
     ? new URLSearchParams(location.search).get('returnTo')
-    : `${location.pathname}${location.search}${location.hash}`
+    : `${pathname}${location.search}${location.hash}`
   return validateLocalReturnPath(candidate) ?? DEFAULT_RETURN_PATH
 }

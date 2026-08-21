@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   authenticatedFetch,
@@ -5,6 +7,7 @@ import {
 } from './authenticatedFetch.ts'
 
 afterEach(() => {
+  document.querySelector('base')?.remove()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -49,5 +52,19 @@ describe('authenticatedFetch', () => {
     unsubscribe()
     await authenticatedFetch('/api/extractions')
     expect(transition).toHaveBeenCalledTimes(1)
+  })
+
+  it('targets the configured Studio base path', async () => {
+    const base = document.createElement('base')
+    base.href = '/free/'
+    document.head.prepend(base)
+    const request = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', request)
+
+    await authenticatedFetch('/api/project-contexts')
+
+    expect(request).toHaveBeenCalledWith('/free/api/project-contexts', {
+      credentials: 'same-origin',
+    })
   })
 })

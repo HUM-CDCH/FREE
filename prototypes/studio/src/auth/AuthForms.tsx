@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import Button from '../ui/Button.tsx'
+import { browserStudioPath } from '../studioUrl.js'
 import {
   AuthHttpError,
   changePassword,
@@ -28,7 +29,7 @@ function AuthCard({ title, description, children }: AuthCardProps) {
       <section className="w-full max-w-md animate-fadeup overflow-hidden rounded-2xl border border-line bg-surface shadow-page">
         <header className="border-b border-line bg-surface-muted px-7 pb-5 pt-6">
           <img
-            src="/free-logo.png"
+            src={browserStudioPath('/free-logo.png')}
             alt=""
             className="mb-1 h-14 w-auto object-contain object-left"
           />

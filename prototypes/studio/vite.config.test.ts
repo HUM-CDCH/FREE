@@ -18,6 +18,7 @@ function temporaryDirectory(): string {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   for (const directory of temporaryDirectories.splice(0))
     rmSync(directory, { recursive: true, force: true })
 })
@@ -53,7 +54,7 @@ describe('Vite Hono integration', () => {
       middlewares: { use },
       ssrLoadModule,
     }
-    const plugin = apiFunctions()
+    const plugin = apiFunctions('/free')
     if (typeof plugin.configureServer !== 'function')
       throw new Error('Expected a Vite configureServer hook.')
 
@@ -62,6 +63,7 @@ describe('Vite Hono integration', () => {
     expect(ssrLoadModule).toHaveBeenCalledWith('/server/app.ts')
     expect(createStudioApp).toHaveBeenCalledWith({
       studioOrigin: 'http://127.0.0.1:5173',
+      basePath: '/free',
       sessionSecret: expect.any(Uint8Array),
       clientHandler: clientFallback,
       viteDevelopmentAssets: true,
@@ -147,5 +149,24 @@ describe('Vite HTTPS mode', () => {
     })
 
     expect(config.server).toEqual({ host: '127.0.0.1' })
+  })
+
+  it('serves a configured path prefix and keeps production assets relocatable', async () => {
+    vi.stubEnv('STUDIO_BASE_PATH', '/free')
+    const development = await studioConfig({
+      command: 'serve',
+      mode: 'development',
+      isSsrBuild: false,
+      isPreview: false,
+    })
+    const production = await studioConfig({
+      command: 'build',
+      mode: 'production',
+      isSsrBuild: false,
+      isPreview: false,
+    })
+
+    expect(development.base).toBe('/free/')
+    expect(production.base).toBe('./')
   })
 })

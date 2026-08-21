@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { browserStudioPath } from '../studioUrl.js'
 
 const anonymousSessionSchema = z
   .object({ authenticated: z.literal(false) })
@@ -70,7 +71,7 @@ const jsonHeaders = {
 
 export async function getAuthSession(signal?: AbortSignal): Promise<AuthSession> {
   return sessionFrom(
-    await fetch('/api/auth/session', {
+    await fetch(browserStudioPath('/api/auth/session'), {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' },
       cache: 'no-store',
@@ -84,7 +85,7 @@ export async function login(
   password: string,
 ): Promise<AuthenticatedSession> {
   const session = await sessionFrom(
-    await fetch('/api/auth/login', {
+    await fetch(browserStudioPath('/api/auth/login'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: jsonHeaders,
@@ -100,7 +101,7 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<void> {
-  const response = await fetch('/api/auth/password', {
+  const response = await fetch(browserStudioPath('/api/auth/password'), {
     method: 'POST',
     credentials: 'same-origin',
     headers: jsonHeaders,
@@ -110,7 +111,7 @@ export async function changePassword(
 }
 
 export async function logout(): Promise<void> {
-  const response = await fetch('/api/auth/logout', {
+  const response = await fetch(browserStudioPath('/api/auth/logout'), {
     method: 'POST',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },

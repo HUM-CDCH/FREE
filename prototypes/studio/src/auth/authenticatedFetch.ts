@@ -1,3 +1,5 @@
+import { browserStudioPath } from '../studioUrl.js'
+
 const authenticationEvents = new EventTarget()
 const authenticationRequired = 'authentication-required'
 
@@ -19,7 +21,11 @@ export async function authenticatedFetch(
   input: string | URL | Request,
   init?: RequestInit,
 ): Promise<Response> {
-  const response = await fetch(input, {
+  const scopedInput =
+    typeof input === 'string' && input.startsWith('/') && !input.startsWith('//')
+      ? browserStudioPath(input)
+      : input
+  const response = await fetch(scopedInput, {
     ...init,
     credentials: 'same-origin',
   })

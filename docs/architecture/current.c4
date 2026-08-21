@@ -30,7 +30,7 @@ model {
     ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence, and Model Connections.' 'React'
     browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts.ts`, and `src/schemaRevisions.ts` send parsing and same-origin requests.' 'TypeScript'
     handlers = container 'Hono Node host' '`server/*.ts` authenticates and scopes browser requests, serves the built client, and dispatches `api/*.ts` same-origin handlers.' 'Hono, Node.js'
-    authentication = component 'Authentication boundary' 'Password sessions, mandatory temporary-password replacement, login throttling, canonical-origin enforcement, and the trusted-Caddy peer contract.' 'TypeScript'
+    authentication = component 'Authentication boundary' 'Password sessions, mandatory temporary-password replacement, login throttling, canonical-origin enforcement, and the trusted-proxy peer contract.' 'TypeScript'
     account_cli = component 'Researcher Account CLI' '`pnpm account` explicitly creates, resets, or disables an account; no migration or seed creates one.' 'TypeScript, tsx'
     provider_registry = component 'Provider registry' '`api/_provider.ts` resolves a Capability Route and adapts the configured provider.' 'AI SDK v7 provider adapters'
     extraction_module = component 'Extraction module' '`packages/extraction` owns Extraction execution, grounding, review, batch scheduling, and their PostgreSQL persistence.' 'TypeScript, Prisma Next'
