@@ -126,10 +126,11 @@ podman compose -f compose.yaml -f compose.local.yaml down
 ## Private HTTPS Docker deployment
 
 The root `compose.yaml` is the production topology for one private LAN or VPN
-deployment. It builds the production Studio client and Node server, runs exactly
-one Studio process, and puts Caddy at the only host-facing boundary. Restrict
-host TCP port 8443 to the intended private network with the host or perimeter
-firewall.
+deployment. It builds the production Studio client and Node server and runs
+exactly one Studio process. TLS terminates in the nginx reverse proxy that
+already runs on the host machine; it forwards the configured base path to
+Studio's loopback-published port. Restrict host TCP port 443 to the intended
+private network with the host or perimeter firewall.
 
 ### Prerequisites and hosted settings
 
@@ -140,11 +141,11 @@ the CUDA `nvidia-*` wheel set, and the first start downloads Docling layout and
 table models, so both can take several minutes and substantial disk space.
 Later builds and starts reuse the named model cache.
 
-Obtain a PEM certificate or full chain and its matching PEM private key from
-the institution or VPN that owns the private hostname. Put both files outside
-the repository build context. FREE does not request a public ACME certificate,
-run an internal CA, generate a self-signed certificate, or expose a plain-HTTP
-fallback.
+The host nginx reverse proxy terminates TLS. Obtain a PEM certificate or full
+chain and its matching PEM private key from the institution or VPN that owns
+the private hostname, and configure nginx with both outside this repository.
+FREE does not request a public ACME certificate, run an internal CA, generate
+a self-signed certificate, or expose a plain-HTTP fallback.
 
 Generate the session secret and database password once and retain both across
 restarts:
@@ -154,21 +155,17 @@ openssl rand -base64 32
 openssl rand -hex 32
 ```
 
-Create the ignored root `.env` file with the generated single-line value and
-absolute host paths to the supplied TLS files:
+Create the ignored root `.env` file with the generated single-line values:
 
-```dotenv
-STUDIO_ORIGIN=https://free.example.edu:8443
+STUDIO_ORIGIN=https://free.example.edu
 STUDIO_BASE_PATH=/free
 FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
-FREE_TLS_CERTIFICATE_PATH=/srv/free-tls/studio.crt
-FREE_TLS_PRIVATE_KEY_PATH=/srv/free-tls/studio.key
 ```
 
 - `STUDIO_ORIGIN` is the one externally visible, canonical HTTPS origin served
-  on port 8443. Use the certificate's DNS name with `:8443` and no trailing
-  slash, path, query, fragment, or credentials.
+  on port 443. Use the certificate's DNS name with no trailing slash, path,
+  query, fragment, or credentials.
 - `STUDIO_BASE_PATH` is `/` for an origin-root deployment or one canonical path
   such as `/free` for a prefixed deployment. Do not add a trailing slash.
 - `FREE_SESSION_SECRET` must be canonical standard Base64 that decodes to at
@@ -179,17 +176,17 @@ FREE_TLS_PRIVATE_KEY_PATH=/srv/free-tls/studio.key
   `DATABASE_URL`; restricting it to hexadecimal avoids URI-encoding and
   Compose-interpolation ambiguity. Changing it does not update an existing
   PostgreSQL volume's password, so retain it with that volume.
-- The two TLS paths must already be regular, readable files. The private key
-  must match the certificate and should be readable only by the operator and
-  Docker.
 - Compose fixes `FREE_STUDIO_PROXY=trusted-proxy` and
-  `FREE_STUDIO_PROXY_ADDRESS=172.30.0.2`. Caddy owns that address on the
-  dedicated `172.30.0.0/24` proxy network. Do not change one value without the
+  `FREE_STUDIO_PROXY_ADDRESS=172.30.0.1`. That address is the bridge gateway of
+  the dedicated `172.30.0.0/24` proxy network: nginx on the host reaches the
+  container through the published `127.0.0.1:5173` port, and every such
+  connection arrives from the gateway. Do not change one value without the
   other: hosted Studio rejects every socket peer except the configured proxy
   before it will trust the overwritten `X-FREE-Client-Address` header.
 
-Before starting, inspect the subject alternative names and validity period and
-confirm that the certificate and key produce the same public-key digest:
+Before installing a certificate into nginx, inspect the subject alternative
+names and validity period and confirm that the certificate and key produce the
+same public-key digest:
 
 ```bash
 openssl x509 -in /srv/free-tls/studio.crt -noout -checkend 0 \
@@ -244,10 +241,9 @@ docker compose ps
 ```
 
 `docker compose down --volumes --remove-orphans` permanently removes
-`postgres-data`, `parsing-tasks`, `parsing-models`, `studio-data`,
-`studio-config`, `caddy-data`, and `caddy-config`. A plain
-`docker compose down` retains them and therefore does not perform this clean
-cutover.
+`postgres-data`, `parsing-tasks`, `parsing-models`, `studio-data`, and
+`studio-config`. A plain `docker compose down` retains them and therefore does
+not perform this clean cutover.
 
 On every Studio container start, the entrypoint runs only
 `pnpm --filter db db:init` to replay authored migrations before starting the
@@ -255,19 +251,19 @@ built Node host. It never runs `db:update`, seeds sample data, or creates an
 account or credential. A clean start therefore contains zero Researcher
 Accounts, zero Project Contexts, and no Model Connections or Capability Routes.
 
-Wait for `caddy` to report healthy, then check the public shallow health route
+Wait for `studio` to report healthy, then check the public shallow health route
 through the canonical HTTPS origin:
 
 ```bash
-curl --fail --silent --show-error https://free.example.edu:8443/free/api/healthz
-docker compose exec caddy caddy validate \
-  --config /etc/caddy/Caddyfile --adapter caddyfile
+curl --fail --silent --show-error https://free.example.edu/free/api/healthz
 ```
 
-Do not probe Studio directly: hosted Studio intentionally accepts the Caddy
-proxy peer only. Studio's container healthcheck instead opens a local TCP
-connection; because the entrypoint starts the Node host only after migrations,
-Caddy does not start until that readiness check passes.
+Do not probe the container port directly: hosted Studio intentionally accepts
+only the pinned bridge-gateway proxy peer, which is exactly the path host nginx
+takes through the published loopback port. Studio's container healthcheck
+instead opens a local TCP connection; because the entrypoint starts the Node
+host only after migrations, a healthy container proves the schema replay
+succeeded.
 
 ### Manage Researcher Accounts
 
@@ -298,7 +294,7 @@ durable. There is no default account, default password, public registration, or
 self-service reset.
 
 Open `STUDIO_ORIGIN` followed by `STUDIO_BASE_PATH` (for example,
-`https://free.example.edu:8443/free`), log in with the temporary password, and
+`https://free.example.edu/free`), log in with the temporary password, and
 choose a new 6–128-scalar password on the required password-change screen.
 Research and model pages remain unavailable until that succeeds. The change
 invalidates the temporary session, so log in once more with the new password.
@@ -330,20 +326,24 @@ The resolved production topology is:
 
 | Service | Private reachability | Host-published port |
 | --- | --- | --- |
-| Caddy | `proxy` at `172.30.0.2` | TCP 8443 only |
-| Studio | `proxy` and `app`, port 5173 | none |
+| Host nginx | host network | TCP 443 (TLS) |
+| Studio | `proxy` and `app`, port 5173 | TCP 127.0.0.1:5173 |
 | PostgreSQL | `app`, port 5432 | none |
-| Parsing Service | `app`, port 8055 | none |
+| Parsing Service | `app`, port 8055 | TCP 127.0.0.1:8055 |
 
-Only Caddy and Studio join `proxy`; only Studio, PostgreSQL, and the Parsing
-Service join `app`. Caddy cannot reach the database or Parsing Service. It
-discards any inbound `X-FREE-Client-Address`, writes exactly one value from the
-direct client socket, and proxies to Studio. Studio checks that the socket peer
-is its configured trusted proxy before consuming that value. Browser session
-cookies are never forwarded to the Parsing Service. Ports 80, 5173, 5432, and
-8055 are not published on the host.
+Only Studio joins the dedicated `172.30.0.0/24` `proxy` network; only Studio,
+PostgreSQL, and the Parsing Service join `app`. Host nginx reaches Studio
+exclusively through the published loopback port, so every such connection
+arrives at Studio from the proxy network's bridge gateway (`172.30.0.1`), the
+peer Compose pins. Nginx discards any inbound `X-FREE-Client-Address`, writes
+exactly one value from the direct client socket, and proxies to Studio. Studio
+checks that the socket peer is its configured trusted proxy before consuming
+that value. Browser session cookies are never forwarded to the Parsing Service.
+Port 5432 is not published on the host; the Parsing Service publishes only its
+loopback port for the operator's own web app (8000 is already taken on the
+deployment machine, hence 8055).
 
-#### Use a different reverse proxy
+#### Proxy contract
 
 Studio does not inspect or depend on the proxy implementation. Any reverse
 proxy can use the hosted contract:
@@ -354,14 +354,14 @@ FREE_STUDIO_PROXY_ADDRESS=<canonical IP address seen by Studio on the socket>
 ```
 
 The configured address must be the proxy's direct socket address as observed by
-Studio. When both processes run on the host and Nginx connects over IPv4
-loopback, that value is `127.0.0.1`. When Studio runs in a container and Nginx
-runs on the host, it is normally the relevant container bridge gateway instead;
-pin the address actually used by that deployment.
+Studio. When both processes run on the host and nginx connects over IPv4
+loopback, that value is `127.0.0.1`. When Studio runs in a container and nginx
+runs on the host — the shipped `compose.yaml` topology — it is the container
+bridge gateway; Compose pins `172.30.0.1` on the dedicated proxy network.
 
 The proxy must replace, not append to, `X-FREE-Client-Address` with the address
 of its direct client. Set `STUDIO_BASE_PATH=/free`, preserve that prefix when
-proxying, and use these host Nginx locations for a host Studio process:
+proxying, and use these host nginx locations:
 
 ```nginx
 location = /free {
@@ -372,6 +372,9 @@ location ^~ /free/ {
     proxy_pass http://127.0.0.1:5173;
     proxy_set_header Host $http_host;
     proxy_set_header X-FREE-Client-Address $remote_addr;
+    add_header X-Frame-Options "DENY";
+    add_header X-Content-Type-Options "nosniff";
+    add_header Referrer-Policy "no-referrer";
 }
 ```
 
@@ -381,7 +384,7 @@ the original `/free/...` path to Studio. Keep the upstream private.
 same Studio image can run at `/`, `/free`, or another configured prefix without
 proxy-specific URL rewriting.
 
-Caddy adds `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and a
+Nginx adds `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and a
 no-referrer policy to every response. The deployment intentionally does not
 send HSTS: a private hostname depends on institution- or VPN-managed trust and
 certificate renewal, and pinning HTTPS in browsers could prevent operator
@@ -391,9 +394,9 @@ published transport.
 ### Replace a certificate
 
 Validate a renewed certificate and key at their staging paths with the same
-OpenSSL checks above. Keep the configured host paths unchanged. Because Compose
-bind-mounts the two individual files, back them up and overwrite their contents
-in place rather than renaming new files over the mounted paths:
+OpenSSL checks above. Keep the configured host paths unchanged. Because nginx
+reads the two individual files, back them up and overwrite their contents in
+place rather than renaming new files over the configured paths:
 
 ```bash
 cp /srv/free-tls/studio.crt /srv/free-tls/studio.crt.previous
@@ -403,16 +406,12 @@ cat /srv/free-tls/renewed-studio.key > /srv/free-tls/studio.key
 chmod 600 /srv/free-tls/studio.key
 ```
 
-Make Caddy load and validate the replacement, force the reload even though the
-configuration path is unchanged, and then check the live certificate through
-the gateway:
+Make nginx load and validate the replacement, reload it, and then check the
+live certificate through the gateway:
 
 ```bash
-docker compose exec caddy caddy validate \
-  --config /etc/caddy/Caddyfile --adapter caddyfile
-docker compose exec caddy caddy reload \
-  --config /etc/caddy/Caddyfile --adapter caddyfile --force
-curl --fail --silent --show-error https://free.example.edu:8443/free/api/healthz
+nginx -t && systemctl reload nginx
+curl --fail --silent --show-error https://free.example.edu/free/api/healthz
 ```
 
 If validation fails, restore both previous files in place and do not reload.

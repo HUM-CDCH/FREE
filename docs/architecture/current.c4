@@ -24,7 +24,7 @@ model {
   operator = person 'FREE Operator' 'Deploys FREE and provisions or disables Researcher Accounts through the container CLI.'
   researcher = person 'Humanities Researcher' 'Opens a Source Document, shapes an Extraction Schema, runs Extraction, and reviews Evidence.'
 
-  gateway = container 'HTTPS Gateway' 'The only host-published service. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Caddy 2'
+  gateway = container 'HTTPS Gateway' 'The host nginx reverse proxy on the university machine. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Nginx'
 
   studio = system 'Studio Application' 'React UI plus a production Hono Node host on one authenticated same-origin boundary.' {
     ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence, and Model Connections.' 'React'
@@ -84,7 +84,8 @@ views {
     title 'FREE — current runtime context'
     description '''
       Implemented runtime boundaries only. The production topology publishes
-      only Caddy on private HTTPS. The Hono Node host authenticates each browser
+      only the host nginx reverse proxy on private HTTPS. The Hono Node host
+      authenticates each browser
       session and scopes research state to its Researcher Account. Model
       configuration and credentials remain deployment-wide shared state.
 
