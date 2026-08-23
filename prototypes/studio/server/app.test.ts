@@ -1360,4 +1360,34 @@ describe('session gate characterization', () => {
       expect(test.dispatcher, path).not.toHaveBeenCalled()
     }
   })
+
+  it('renewal survives handler failure once the gate has proceeded', async () => {
+    const test = await fixture()
+    const activeCookie = cookie(await login(test.app))
+
+    // Returned error: the ordinary post-next() append applies.
+    test.dispatcher.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ error: { code: 'not_found', message: 'Missing.' } }),
+        { status: 404, headers: { 'content-type': 'application/json' } },
+      ),
+    )
+    const returned = await send(test.app, 'GET', '/api/project-contexts', activeCookie)
+    expect(returned.status).toBe(404)
+    renewed(returned)
+
+    // Thrown error: onError resolves the response first, then middleware resumes
+    // after next(), so the append still happens. Contrast the 503 test above,
+    // where the failure throws inside the guard itself before any append.
+    test.dispatcher.mockRejectedValueOnce(new Error('dispatch exploded'))
+    const thrown = await send(test.app, 'GET', '/api/project-contexts', activeCookie)
+    expect(thrown.status).toBe(500)
+    await expect(errorBody(thrown)).resolves.toEqual({
+      error: {
+        code: 'unexpected_failure',
+        message: 'An unexpected failure occurred.',
+      },
+    })
+    renewed(thrown)
+  })
 })
