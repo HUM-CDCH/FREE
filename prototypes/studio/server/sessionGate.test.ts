@@ -94,16 +94,17 @@ const DENY_401_CLEAR: ApiExpectation = {
   reason: 'unauthenticated',
   setCookie: CLEAR,
 }
-/** 403 with no renewal. Commit 2 (plan §5.2) adds the renewal cookie here. */
-const DENY_403_NO_RENEWAL: ApiExpectation = {
+/** 403 that still renews the session it denies. */
+const DENY_403_RENEWED: ApiExpectation = {
   verdict: 'deny',
   reason: 'passwordChangeRequired',
+  setCookie: RENEWAL,
 }
 const PROCEED_RENEWED: ApiExpectation = {
   verdict: 'proceed',
   setCookie: RENEWAL,
 }
-/** Handler-owned cookie paths: renewal suppressed by pathname today. */
+/** Handler-owned method+path pairs: the handler sets the cookie itself. */
 const PROCEED_SUPPRESSED: ApiExpectation = { verdict: 'proceed' }
 
 const API_ROWS: ReadonlyArray<{
@@ -126,15 +127,15 @@ const API_ROWS: ReadonlyArray<{
   },
   {
     // HEAD variants of public GETs are not public: method-keyed classification.
-    // Plan Table A records 200 +R for the password-pending column; the code
-    // denies with 403 because /api/healthz is not a mandatory-change path.
+    // Plan Table A records 200 +R for the password-pending column; the gate
+    // denies with 403 +R because /api/healthz is not a mandatory-change path.
     row: 'A2',
     method: 'HEAD',
     path: '/api/healthz',
     anonymousClean: DENY_401,
     anonymousStale: DENY_401_CLEAR,
     authenticated: PROCEED_RENEWED,
-    passwordPending: DENY_403_NO_RENEWAL,
+    passwordPending: DENY_403_RENEWED,
   },
   {
     row: 'A3',
@@ -152,7 +153,7 @@ const API_ROWS: ReadonlyArray<{
     anonymousClean: DENY_401,
     anonymousStale: DENY_401_CLEAR,
     authenticated: PROCEED_RENEWED,
-    passwordPending: DENY_403_NO_RENEWAL,
+    passwordPending: DENY_403_RENEWED,
   },
   {
     row: 'A5',
@@ -196,8 +197,8 @@ const API_ROWS: ReadonlyArray<{
     path: '/api/auth/password',
     anonymousClean: DENY_401,
     anonymousStale: DENY_401_CLEAR,
-    authenticated: PROCEED_SUPPRESSED,
-    passwordPending: PROCEED_SUPPRESSED,
+    authenticated: PROCEED_RENEWED,
+    passwordPending: PROCEED_RENEWED,
   },
   {
     row: 'A10',
@@ -214,8 +215,8 @@ const API_ROWS: ReadonlyArray<{
     path: '/api/auth/logout',
     anonymousClean: DENY_401,
     anonymousStale: DENY_401_CLEAR,
-    authenticated: PROCEED_SUPPRESSED,
-    passwordPending: PROCEED_SUPPRESSED,
+    authenticated: PROCEED_RENEWED,
+    passwordPending: PROCEED_RENEWED,
   },
   {
     row: 'A12',
@@ -224,7 +225,7 @@ const API_ROWS: ReadonlyArray<{
     anonymousClean: DENY_401,
     anonymousStale: DENY_401_CLEAR,
     authenticated: PROCEED_RENEWED,
-    passwordPending: DENY_403_NO_RENEWAL,
+    passwordPending: DENY_403_RENEWED,
   },
   {
     row: 'A13',
@@ -233,7 +234,7 @@ const API_ROWS: ReadonlyArray<{
     anonymousClean: DENY_401,
     anonymousStale: DENY_401_CLEAR,
     authenticated: PROCEED_RENEWED,
-    passwordPending: DENY_403_NO_RENEWAL,
+    passwordPending: DENY_403_RENEWED,
   },
   {
     row: 'A13 (POST)',
@@ -242,7 +243,7 @@ const API_ROWS: ReadonlyArray<{
     anonymousClean: DENY_401,
     anonymousStale: DENY_401_CLEAR,
     authenticated: PROCEED_RENEWED,
-    passwordPending: DENY_403_NO_RENEWAL,
+    passwordPending: DENY_403_RENEWED,
   },
   {
     row: 'A13 (bare /api)',
@@ -251,7 +252,7 @@ const API_ROWS: ReadonlyArray<{
     anonymousClean: DENY_401,
     anonymousStale: DENY_401_CLEAR,
     authenticated: PROCEED_RENEWED,
-    passwordPending: DENY_403_NO_RENEWAL,
+    passwordPending: DENY_403_RENEWED,
   },
 ]
 
@@ -648,10 +649,10 @@ describe('cross-surface agreement', () => {
       cookieRequest('GET', '/projects/deep', fixture.sessionCookie),
     )
 
-    // ⚠ Commit 2 (plan §5.2) adds the renewal cookie to the API denial.
     expect(api).toEqual({
       verdict: 'deny',
       reason: 'passwordChangeRequired',
+      setCookie: fixture.renewalCookie,
     })
     expect(page).toEqual({
       verdict: 'deny',
