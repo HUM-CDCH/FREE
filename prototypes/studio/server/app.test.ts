@@ -1178,9 +1178,8 @@ describe('session gate characterization', () => {
     expect(await authenticated.text()).toBe('')
     renewed(authenticated)
 
-    // The plan's Table A records 200 +R here; the guard actually denies because
-    // /api/healthz is not a mandatory-change path. The Commit 2 renewal rule
-    // will add +R to this denial.
+    // The plan's Table A records 200 +R here; the guard denies because
+    // /api/healthz is not a mandatory-change path, and the denial renews.
     const pending = await fixture({ mustChangePassword: true })
     const denied = await send(
       pending.app,
@@ -1191,7 +1190,7 @@ describe('session gate characterization', () => {
     expect(denied.status).toBe(403)
     expect(denied.headers.get('content-type')).toContain('application/json')
     expect(await denied.text()).toBe('')
-    expect(denied.headers.get('set-cookie')).toBeNull()
+    renewed(denied)
   })
 
   it('inspects twice for HEAD /api/auth/session and renews once (A6)', async () => {
@@ -1216,7 +1215,7 @@ describe('session gate characterization', () => {
     expect(anonymous.headers.get('set-cookie')).toBeNull()
   })
 
-  it('suppresses renewal on wrong-method handler-owned paths (A9, A11)', async () => {
+  it('renews on wrong-method requests to handler-owned paths (A9, A11)', async () => {
     for (const path of ['/api/auth/password', '/api/auth/logout']) {
       const active = await fixture()
       const wrongMethod = await send(
@@ -1227,8 +1226,8 @@ describe('session gate characterization', () => {
       )
       expect(wrongMethod.status, path).toBe(405)
       expect(wrongMethod.headers.get('allow'), path).toBe('POST')
-      // Commit 2 narrows suppression to POST, so these gain +R.
-      expect(wrongMethod.headers.get('set-cookie'), path).toBeNull()
+      // Suppression covers only the handler-owned POST pairs.
+      renewed(wrongMethod)
 
       const pending = await fixture({ mustChangePassword: true })
       const whilePending = await send(
@@ -1238,11 +1237,11 @@ describe('session gate characterization', () => {
         cookie(await login(pending.app)),
       )
       expect(whilePending.status, path).toBe(405)
-      expect(whilePending.headers.get('set-cookie'), path).toBeNull()
+      renewed(whilePending)
     }
   })
 
-  it('denies a password-pending researcher without renewal (A4, A12, A13)', async () => {
+  it('renews while denying a password-pending researcher (A4, A12, A13)', async () => {
     const pending = await fixture({ mustChangePassword: true })
     const pendingCookie = cookie(await login(pending.app))
     for (const path of [
@@ -1252,11 +1251,10 @@ describe('session gate characterization', () => {
     ]) {
       const response = await send(pending.app, 'GET', path, pendingCookie)
       expect(response.status, path).toBe(403)
+      renewed(response)
       await expect(errorBody(response), path).resolves.toMatchObject({
         error: { code: 'password_change_required' },
       })
-      // Commit 2 appends the renewal cookie to these denials.
-      expect(response.headers.get('set-cookie'), path).toBeNull()
     }
     expect(pending.dispatcher).not.toHaveBeenCalled()
 

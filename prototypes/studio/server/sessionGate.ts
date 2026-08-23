@@ -21,9 +21,10 @@ const MANDATORY_CHANGE_API: Readonly<Record<string, true>> = {
   '/api/auth/password': true,
   '/api/auth/logout': true,
 }
+/** The pairs whose handlers own the session cookie themselves. */
 const RENEWAL_SUPPRESSED_API: Readonly<Record<string, true>> = {
-  '/api/auth/password': true,
-  '/api/auth/logout': true,
+  'POST /api/auth/password': true,
+  'POST /api/auth/logout': true,
 }
 
 export type SessionGateDenyReason = 'unauthenticated' | 'passwordChangeRequired'
@@ -74,8 +75,8 @@ export function createSessionGate(deps: {
   return {
     async api(request) {
       const pathname = new URL(request.url).pathname
-      if (PUBLIC_API[`${request.method} ${pathname}`] === true)
-        return { verdict: 'bypass' }
+      const pair = `${request.method} ${pathname}`
+      if (PUBLIC_API[pair] === true) return { verdict: 'bypass' }
 
       const state = await backend.inspect(request)
       if (!state.authenticated)
@@ -88,13 +89,17 @@ export function createSessionGate(deps: {
         state.account.mustChangePassword &&
         MANDATORY_CHANGE_API[pathname] !== true
       )
-        return { verdict: 'deny', reason: 'passwordChangeRequired' }
+        return {
+          verdict: 'deny',
+          reason: 'passwordChangeRequired',
+          setCookie: state.renewalCookie,
+        }
 
       return {
         verdict: 'proceed',
         authentication: state,
         setCookie:
-          RENEWAL_SUPPRESSED_API[pathname] === true
+          RENEWAL_SUPPRESSED_API[pair] === true
             ? undefined
             : state.renewalCookie,
       }
