@@ -1102,3 +1102,239 @@ describe('deny-by-default application boundary', () => {
   })
 
 })
+
+describe('session gate characterization', () => {
+  async function send(
+    app: StudioApp,
+    method: string,
+    path: string,
+    sessionCookie?: string,
+  ): Promise<Response> {
+    const headers: Record<string, string> = { origin: ORIGIN }
+    if (sessionCookie) headers.cookie = sessionCookie
+    return app.request(`${ORIGIN}${path}`, { method, headers }, CLIENT)
+  }
+
+  function tamper(sessionCookie: string): string {
+    const last = sessionCookie.at(-1)!
+    return `${sessionCookie.slice(0, -1)}${last === 'A' ? 'B' : 'A'}`
+  }
+
+  function renewed(response: Response): string {
+    const setCookie = response.headers.get('set-cookie')
+    if (!setCookie) throw new Error('Expected a renewal cookie.')
+    expect(setCookie).not.toContain('Max-Age=0')
+    return setCookie
+  }
+
+  it('treats HEAD /api/healthz as protected because public routes are method-keyed (A2)', async () => {
+    const anonymous = await fixture()
+    const clean = await send(anonymous.app, 'HEAD', '/api/healthz')
+    expect(clean.status).toBe(401)
+    expect(clean.headers.get('set-cookie')).toBeNull()
+
+    const stale = await send(
+      anonymous.app,
+      'HEAD',
+      '/api/healthz',
+      tamper(cookie(await login(anonymous.app))),
+    )
+    expect(stale.status).toBe(401)
+    expect(stale.headers.get('set-cookie')).toContain('Max-Age=0')
+
+    const active = await fixture()
+    const authenticated = await send(
+      active.app,
+      'HEAD',
+      '/api/healthz',
+      cookie(await login(active.app)),
+    )
+    expect(authenticated.status).toBe(200)
+    expect(await authenticated.text()).toBe('')
+    renewed(authenticated)
+
+    // The plan's Table A records 200 +R here; the guard actually denies because
+    // /api/healthz is not a mandatory-change path. The Commit 2 renewal rule
+    // will add +R to this denial.
+    const pending = await fixture({ mustChangePassword: true })
+    const denied = await send(
+      pending.app,
+      'HEAD',
+      '/api/healthz',
+      cookie(await login(pending.app)),
+    )
+    expect(denied.status).toBe(403)
+    expect(denied.headers.get('content-type')).toContain('application/json')
+    expect(await denied.text()).toBe('')
+    expect(denied.headers.get('set-cookie')).toBeNull()
+  })
+
+  it('inspects twice for HEAD /api/auth/session and renews once (A6)', async () => {
+    const test = await fixture()
+    const activeCookie = cookie(await login(test.app))
+    vi.mocked(test.store.findById).mockClear()
+
+    const response = await send(
+      test.app,
+      'HEAD',
+      '/api/auth/session',
+      activeCookie,
+    )
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('')
+    expect(response.headers.getSetCookie()).toHaveLength(1)
+    renewed(response)
+    expect(test.store.findById).toHaveBeenCalledTimes(2)
+
+    const anonymous = await send(test.app, 'HEAD', '/api/auth/session')
+    expect(anonymous.status).toBe(401)
+    expect(anonymous.headers.get('set-cookie')).toBeNull()
+  })
+
+  it('suppresses renewal on wrong-method handler-owned paths (A9, A11)', async () => {
+    for (const path of ['/api/auth/password', '/api/auth/logout']) {
+      const active = await fixture()
+      const wrongMethod = await send(
+        active.app,
+        'GET',
+        path,
+        cookie(await login(active.app)),
+      )
+      expect(wrongMethod.status, path).toBe(405)
+      expect(wrongMethod.headers.get('allow'), path).toBe('POST')
+      // Commit 2 narrows suppression to POST, so these gain +R.
+      expect(wrongMethod.headers.get('set-cookie'), path).toBeNull()
+
+      const pending = await fixture({ mustChangePassword: true })
+      const whilePending = await send(
+        pending.app,
+        'GET',
+        path,
+        cookie(await login(pending.app)),
+      )
+      expect(whilePending.status, path).toBe(405)
+      expect(whilePending.headers.get('set-cookie'), path).toBeNull()
+    }
+  })
+
+  it('denies a password-pending researcher without renewal (A4, A12, A13)', async () => {
+    const pending = await fixture({ mustChangePassword: true })
+    const pendingCookie = cookie(await login(pending.app))
+    for (const path of [
+      '/api/auth/login',
+      '/api/auth/unknown-operation',
+      '/api/project-contexts',
+    ]) {
+      const response = await send(pending.app, 'GET', path, pendingCookie)
+      expect(response.status, path).toBe(403)
+      await expect(errorBody(response), path).resolves.toMatchObject({
+        error: { code: 'password_change_required' },
+      })
+      // Commit 2 appends the renewal cookie to these denials.
+      expect(response.headers.get('set-cookie'), path).toBeNull()
+    }
+    expect(pending.dispatcher).not.toHaveBeenCalled()
+
+    const active = await fixture()
+    const activeCookie = cookie(await login(active.app))
+    const wrongMethod = await send(
+      active.app,
+      'GET',
+      '/api/auth/login',
+      activeCookie,
+    )
+    expect(wrongMethod.status).toBe(405)
+    expect(wrongMethod.headers.get('allow')).toBe('POST')
+    renewed(wrongMethod)
+
+    const unknownOperation = await send(
+      active.app,
+      'GET',
+      '/api/auth/unknown-operation',
+      activeCookie,
+    )
+    expect(unknownOperation.status).toBe(404)
+    await expect(errorBody(unknownOperation)).resolves.toEqual({
+      error: { code: 'not_found', message: 'API route not found.' },
+    })
+    renewed(unknownOperation)
+
+    const dispatched = await send(
+      active.app,
+      'GET',
+      '/api/project-contexts',
+      activeCookie,
+    )
+    expect(dispatched.status).toBe(200)
+    renewed(dispatched)
+  })
+
+  it('serves the login page for any method without touching the session (B2)', async () => {
+    const test = await fixture()
+    for (const method of ['GET', 'POST', 'DELETE']) {
+      const response = await send(test.app, method, '/login')
+      expect(response.status, method).toBe(200)
+      expect(response.headers.get('set-cookie'), method).toBeNull()
+    }
+    expect(test.clientHandler).toHaveBeenCalledTimes(3)
+    expect(test.store.findById).not.toHaveBeenCalled()
+
+    const rejected = await send(test.app, 'POST', '/projects/anything')
+    expect(rejected.status).toBe(404)
+    await expect(errorBody(rejected)).resolves.toEqual({
+      error: { code: 'not_found', message: 'Page not found.' },
+    })
+    expect(test.store.findById).not.toHaveBeenCalled()
+  })
+
+  it('redirects a password-pending page load without returnTo and with renewal (B4)', async () => {
+    const pending = await fixture({ mustChangePassword: true })
+    const response = await send(
+      pending.app,
+      'GET',
+      `/projects/${ACCOUNT_ID}?tab=sources`,
+      cookie(await login(pending.app)),
+    )
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe('/change-password')
+    renewed(response)
+    expect(pending.clientHandler).not.toHaveBeenCalled()
+
+    const allowed = await send(
+      pending.app,
+      'GET',
+      '/change-password',
+      cookie(await login(pending.app)),
+    )
+    expect(allowed.status).toBe(200)
+    expect(await allowed.text()).toBe('studio-client')
+    renewed(allowed)
+  })
+
+  it('returns 503 without a cookie when the account store fails on any surface', async () => {
+    for (const path of [
+      '/api/auth/session',
+      '/api/project-contexts',
+      `/projects/${ACCOUNT_ID}`,
+    ]) {
+      const test = await fixture()
+      const activeCookie = cookie(await login(test.app))
+      vi.mocked(test.store.findById).mockRejectedValue(
+        new Error('store unavailable'),
+      )
+
+      const response = await send(test.app, 'GET', path, activeCookie)
+      expect(response.status, path).toBe(503)
+      expect(response.headers.get('cache-control'), path).toBe('no-store')
+      expect(response.headers.get('set-cookie'), path).toBeNull()
+      await expect(errorBody(response), path).resolves.toEqual({
+        error: {
+          code: 'authentication_unavailable',
+          message: 'Authentication is temporarily unavailable.',
+        },
+      })
+      expect(test.clientHandler, path).not.toHaveBeenCalled()
+      expect(test.dispatcher, path).not.toHaveBeenCalled()
+    }
+  })
+})
