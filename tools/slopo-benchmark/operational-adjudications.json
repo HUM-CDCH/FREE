@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "criterion": "Operational negative means reviewed as intentional similarity or false positive; exclude it from future merged review queues.",
+  "clusters": {
+    "ada65d8d14c0c077": {
+      "duplicate": false,
+      "verdict": "intentional_similarity",
+      "note": "Tiny record guards are intentionally local narrowing primitives across package boundaries."
+    },
+    "6c05aa97e376ebe1": {
+      "duplicate": false,
+      "verdict": "intentional_similarity",
+      "note": "Failure-code selection is domain-specific; only a small durability envelope is similar."
+    },
+    "e8106c30ba2292f8": {
+      "duplicate": false,
+      "verdict": "intentional_similarity",
+      "note": "Typed SQL joins express different ownership and projection queries."
+    },
+    "4acb9019163cae83": {
+      "duplicate": false,
+      "verdict": "intentional_similarity",
+      "note": "Typed SQL projections serve distinct queries and result shapes."
+    },
+    "c43bcb485ccf275e": {
+      "duplicate": false,
+      "verdict": "false_positive",
+      "note": "Persistence-to-domain mapping and HTTP-to-JSON mapping are different layers."
+    },
+    "168f11b741199fe6": {
+      "duplicate": false,
+      "verdict": "intentional_similarity",
+      "note": "Thin adapters already delegate to persistSuggestedBatch; another wrapper would add indirection."
+    },
+    "0777f6296dce50b7": {
+      "duplicate": false,
+      "verdict": "false_positive",
+      "note": "One-line uniqueness refinements belong to separate Zod contracts."
+    },
+    "607a4e3294c0f098": {
+      "duplicate": false,
+      "verdict": "false_positive",
+      "note": "Idiomatic React state updates represent different lifecycle states."
+    },
+    "9d48f0c5bdd64145": {
+      "duplicate": false,
+      "verdict": "false_positive",
+      "note": "Two local immutable-array replacements inside one hook do not justify extraction."
+    },
+    "f31bec74661e3e19": {
+      "duplicate": false,
+      "verdict": "false_positive",
+      "note": "An HTTP client operation and database implementation share a verb, not a responsibility."
+    },
+    "c5ee09dfd6229208": {
+      "duplicate": false,
+      "verdict": "false_positive",
+      "note": "Static-path rejection is a subset of validation in a different security context."
+    },
+    "4f3626515b8fc513": {
+      "duplicate": false,
+      "verdict": "false_positive",
+      "note": "A two-use comparator is clearer at each local sort and has no independent policy."
+    },
+    "6c340aa57354ea0b": {
+      "duplicate": false,
+      "verdict": "intentional_similarity",
+      "note": "Validators intentionally differ in throw-versus-null boundary behavior."
+    }
+  }
+}

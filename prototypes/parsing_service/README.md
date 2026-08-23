@@ -1,75 +1,78 @@
-# Parsing Service
+# Parsing service
 
-FastAPI service for PDF Source Document ingestion. It publishes one strict
-`parsed_document.v2` document, canonical Markdown, and a portable package.
+The small Docling-backed service that owns FREE's parsing boundary: it turns an
+uploaded PDF Source Document into one `parsed_document.v2` document, canonical
+Markdown, and a deterministic canonical ingestion package for Studio.
 
-## Installation
+The implementation has four main modules:
 
-Select one OCR profile, then preserve it with `uv run --no-sync`:
+- `app.main` exposes the FastAPI routes.
+- `app.tasks` owns the bounded FIFO queue and persisted task lifecycle.
+- `app.storage` owns atomic task files and deterministic package publication.
+- `app.docling_parser` owns one reusable `DocumentConverter` and publishes the
+  canonical `parsed_document.v2` document and Markdown.
+
+There is one in-process worker and at most two admitted tasks. Task metadata and
+completed artifacts survive restarts; work interrupted by a restart is marked
+failed instead of being recovered through a second durable queue. Cancellation
+is cooperative because Docling conversion is a blocking native call: a running
+conversion finishes in its worker thread, but its result is discarded.
+
+## Run
+
+From the repository root:
 
 ```bash
-uv sync --extra ocr-cpu
-# or: uv sync --extra ocr-gpu
+pnpm --filter parsing-service dev
 ```
 
-Docling is the primary parser. PaddleOCR is a page-level fallback. PyMuPDF is
-used for PDF inspection only. Camelot may enrich matching Docling geometry;
-Camelot-only candidates are diagnostics and are never canonical tables.
+Or directly:
 
-The service installs `opencv-contrib-python` as its single `cv2` provider.
-Docling/RapidOCR and Camelot declare the overlapping `opencv-python` and
-`opencv-python-headless` distributions, so those transitive dependencies are
-excluded in `pyproject.toml`; installing multiple OpenCV wheel variants into one
-environment corrupts their shared `cv2` namespace. The excluded distributions'
-published metadata cannot express that the contrib build provides the same API,
-so `uv pip check` reports those names as missing; the installed-Docling contract
-test is the runtime compatibility check.
+```powershell
+cd prototypes/parsing_service
+uv sync
+uv run --no-sync python -X utf8 -m fastapi run main.py --host 127.0.0.1 --port 8055
+```
 
-## Canonical pipeline
+The service stores processor-cache data in `data/` by default. Run exactly one
+Uvicorn/FastAPI process; the queue and converter intentionally live in that
+process.
 
-1. Accept and validate one uploaded PDF.
-2. Store source bytes by SHA-256 and inspect physical pages.
-3. Run Docling and export page-scoped DocTags.
-4. Use PaddleOCR only for unresolved pages.
-5. Convert semantic blocks and producer-observed tables through the typed
-   placement and continuation modules.
-6. Render one canonical Markdown byte stream and build its Evidence index.
-7. Validate the v2 contract, publish an immutable generation atomically, and
-   write the internal generation manifest.
+## Run in Docker
 
-`build_canonical_generation` is the only parsing interface. Public JSON contains
-sanitized parser provenance and typed diagnostics. Cache paths, raw artifacts,
-parser input/output refs, and internal digests stay in the generation manifest.
-
-## Public routes
-
-- `POST /tasks`
-- `GET /tasks/{task_id}`
-- `GET /tasks/{task_id}/document`
-- `GET /tasks/{task_id}/source` (the same `parsed_document.v2` payload)
-- `GET /tasks/{task_id}/pdf` (the retained upload)
-- `GET /tasks/{task_id}/markdown`
-- `GET /tasks/{task_id}/download`
-
-There is no URL ingestion and no `/parsed-document` alias.
-
-## v2 contract highlights
-
-- `app.models.parsed_document_v2.ParsedDocument` is the sole public model;
-  `parsed_document.v2` is the only accepted schema.
-- Source is upload-only PDF.
-- `MarkdownByteSpan` is a half-open UTF-8 byte range into canonical Markdown.
-- Every canonical table cell has one Evidence anchor owning all producer
-  occurrences.
-- Page spans contain page/range/producer identity only.
-- Route JSON and packaged JSON are the same portable payload.
-- Package entries are `manifest.json`, `source.pdf`, `parsed_document.json`,
-  and `artifacts/document.llm.md`.
-
-## Verification
-
-The suite is `unittest`. Keep `--no-sync` to hold the installed OCR profile.
+The service is one of the three containers in the repository-root
+`compose.yaml`:
 
 ```bash
+docker compose up --build parsing_service
+```
+
+The image leaves Docling's layout and table models out of its layers. They are
+downloaded into `HOME=/models` on the first conversion and kept in the
+`parsing-models` volume; `/app/data` holds the task directory. Both are
+processor caches, never a durable Source Representation dependency, so removing
+either volume is safe.
+
+The container runs a single Uvicorn process for the same reason the host command
+does: the FIFO queue and the reusable `DocumentConverter` are in-process state.
+The root Compose service selects `DOCLING_DEVICE=cpu` so the default local stack
+works without GPU passthrough. GPU deployments must explicitly provide their
+NVIDIA runtime/device configuration and select `DOCLING_DEVICE=cuda`.
+
+The first build is long and the image is large because `uv.lock` resolves the
+CUDA build of torch: `uv sync --frozen` downloads the whole `nvidia-*` wheel set.
+
+## Test
+
+```powershell
+cd prototypes/parsing_service
 uv run --no-sync python -m unittest discover -s tests
 ```
+
+Contract tests inject a lightweight parser at the same seam used by the Docling
+adapter, so they do not download models.
+
+The parser design follows Docling's official documentation for its
+[architecture](https://docling-project.github.io/docling/concepts/architecture/),
+[document model](https://docling-project.github.io/docling/concepts/docling_document/),
+and [serialization](https://docling-project.github.io/docling/concepts/serialization/).

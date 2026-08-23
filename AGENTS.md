@@ -53,7 +53,7 @@ Backend commands must use the selected `uv` environment:
 
 ```bash
 cd prototypes/parsing_service
-uv sync --extra ocr-cpu
+uv sync
 uv run --no-sync python -m unittest discover -s tests
 ```
 

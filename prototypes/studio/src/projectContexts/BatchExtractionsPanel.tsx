@@ -4,7 +4,6 @@ import {
   type ExportChoices,
   type ExportFormat,
 } from 'extraction-result-export'
-import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import type { NavigableRoute } from '../projectNavigation'
 import {
   getSchemaRevision,
@@ -14,9 +13,7 @@ import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import { Button } from '../ui'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
-  batchExtractionProgress,
   type BatchExtraction,
-  type BatchExtractionMember,
 } from '../../shared/batchExtraction.contract'
 import type { SchemaDefinition } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
@@ -32,16 +29,16 @@ import {
 } from '../useCurrentSchemaRevision'
 import type { AcknowledgedSchemaRevision } from '../schemaSaveCoordinator'
 import {
-  BatchSchemaSuggestionRequestError,
-  createBatchSchemaSuggestion,
   getBatchExtractionResults,
   listBatchExtractions,
   listBatchSchemaSuggestions,
   openBatchExtraction,
-  retryBatchSchemaSuggestion,
-  runBatchSchemaSuggestion,
-  updateBatchSchemaSuggestionDraft,
 } from './batchExtractions'
+import { useBatchSchemaSuggestion } from './useBatchSchemaSuggestion'
+import {
+  BatchExtractionHistory,
+  BatchExtractionMembers,
+} from './BatchExtractionScreens'
 
 type Screen = 'history' | 'prepare' | 'members'
 
@@ -63,11 +60,6 @@ const SUGGEST_SCHEMA = '__suggest_common_fields__'
 /** A read is loading while it has neither answered nor failed. */
 type Read<T> = { value: T | null; failure: string | null }
 
-type SuggestionEvent =
-  | { type: 'reset' }
-  | { type: 'suggestion.requested' }
-  | { type: 'proposal.changed'; definition: SchemaDefinition }
-  | { type: 'run.requested' }
 
 const reading = <T,>(read: Read<T>) =>
   read.value === null && read.failure === null
@@ -84,100 +76,6 @@ function stamp(value: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
-}
-
-/** What one member's persisted Extraction says. */
-function memberStatus(member: BatchExtractionMember): {
-  label: string
-  tone: string
-  message: string | null
-} {
-  const extraction = member.latestExtraction
-  if (member.executionStatus === 'RUNNING')
-    return { label: 'Running', tone: 'text-accent', message: null }
-  if (member.executionStatus === 'FAILED' && !extraction)
-    return {
-      label: 'No result in this batch',
-      tone: 'text-danger',
-      message:
-        member.executionFailureMessage ??
-        'The member Extraction did not finish.',
-    }
-  if (!extraction)
-    return {
-      label: member.executionStatus === 'QUEUED' ? 'Queued' : 'Not run',
-      tone: 'text-ink-faint',
-      message: null,
-    }
-  if (extraction.outcome === 'FAILED')
-    return {
-      label: 'Failed',
-      tone: 'text-danger',
-      message:
-        extraction.failureMessage ??
-        'The Extraction failed without a recorded reason.',
-    }
-  if (extraction.outcome === 'CANCELLED')
-    return {
-      label: 'Cancelled',
-      tone: 'text-ink-muted',
-      message: 'The Extraction was cancelled before completion.',
-    }
-  if (extraction.reviewedAt)
-    return { label: 'Reviewed', tone: 'text-success', message: null }
-  if (!extraction.reviewable)
-    return {
-      label: 'No reviewable result',
-      tone: 'text-ink-muted',
-      message: 'The Extraction produced no grounded Evidence to review.',
-    }
-  return { label: 'Needs review', tone: 'text-accent', message: null }
-}
-
-/** One Batch Extraction's persisted state as a sentence. */
-function batchStatus(batch: BatchExtraction) {
-  const progress = batchExtractionProgress(batch)
-  if (batch.executionStatus === 'QUEUED')
-    return { label: 'Queued', tone: 'text-ink-muted' }
-  if (batch.executionStatus === 'RUNNING')
-    return {
-      label: `Running, ${progress.extracted} of ${progress.total} completed`,
-      tone: 'text-accent',
-    }
-  if (batch.executionStatus === 'FAILED')
-    return {
-      label: batch.executionFailureMessage ?? 'Execution failed',
-      tone: 'text-danger',
-    }
-  const withoutResult = batch.members.filter(
-    (member) =>
-      member.executionStatus === 'FAILED' && member.latestExtraction === null,
-  ).length
-  const parts = [
-    withoutResult
-      ? `${withoutResult} without a result`
-      : null,
-    progress.needsReview ? `${progress.needsReview} need review` : null,
-    progress.unreviewable
-      ? `${progress.unreviewable} with no reviewable result`
-      : null,
-    progress.failed ? `${progress.failed} failed` : null,
-    progress.cancelled ? `${progress.cancelled} cancelled` : null,
-  ].filter((part): part is string => part !== null)
-  if (parts.length === 0) return { label: 'Reviewed', tone: 'text-success' }
-  return {
-    label: parts.join(' · '),
-    tone: progress.failed ? 'text-danger' : 'text-accent',
-  }
-}
-
-function schemaLine(batch: BatchExtraction): string {
-  return `${batch.extractionSchemaName} · Schema Revision ${batch.schemaRevisionNumber}`
-}
-
-function selectionLine(batch: BatchExtraction): string {
-  const count = batch.members.length
-  return `${count} Source Document${count === 1 ? '' : 's'} · Article`
 }
 
 /**
@@ -208,6 +106,10 @@ export default function BatchExtractionsPanel({
     : openBatchExtractionId
       ? 'members'
       : 'history'
+  const showHistory = useCallback(() => {
+    setPreparing(false)
+    onNavigate({ kind: 'project', projectContextId, tab: 'extractions' })
+  }, [onNavigate, projectContextId])
   const [batches, setBatches] = useState<Read<BatchExtraction[]>>({
     value: null,
     failure: null,
@@ -248,33 +150,37 @@ export default function BatchExtractionsPanel({
     value: null,
     failure: null,
   })
-  const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(
-    null,
-  )
-  const [suggestionRun, setSuggestionRun] = useState(false)
-  const [draftConflict, setDraftConflict] = useState(false)
-  const suggestionSave = useRef<number | undefined>(undefined)
-  const suggestionSaveInFlight =
-    useRef<Promise<BatchSchemaSuggestion | null> | null>(null)
-  const pendingSuggestionDraft = useRef<{
-    snapshot: BatchSchemaSuggestion
-    definition: SchemaDefinition
-  } | null>(null)
-  const activeSuggestion =
-    suggestions.value?.find(
-      (item) => item.batchSchemaSuggestionId === activeSuggestionId,
-    ) ?? null
+  const replaceSuggestion = useCallback((next: BatchSchemaSuggestion) => {
+    setSuggestions((current) => ({
+      value: [
+        next,
+        ...(current.value ?? []).filter(
+          (item) => item.batchSchemaSuggestionId !== next.batchSchemaSuggestionId,
+        ),
+      ],
+      failure: null,
+    }))
+  }, [])
+  const [suggestion, sendSuggestion] = useBatchSchemaSuggestion({
+    projectContextId,
+    onSuggestion: replaceSuggestion,
+    onRun: () => {
+      setSelected(new Set())
+      showHistory()
+      setReload((value) => value + 1)
+    },
+  })
+  const activeSuggestion = suggestion.context.suggestion
   const confirmedSuggestion =
     activeSuggestion?.confirmedSchemaRevisionId !== null
       ? activeSuggestion
       : null
   const suggestionProposal =
-    activeSuggestion?.phase === 'READY' &&
-    activeSuggestion.draft
+    activeSuggestion?.phase === 'READY' && suggestion.context.draft
       ? {
           status: 'ready' as const,
           selectionKey: activeSuggestion.selectionKey,
-          ...activeSuggestion.draft,
+          ...suggestion.context.draft,
           coverage: activeSuggestion.coverage ?? [],
         }
       : activeSuggestion?.phase === 'HETEROGENEOUS'
@@ -283,20 +189,7 @@ export default function BatchExtractionsPanel({
             selectionKey: activeSuggestion.selectionKey,
           }
         : null
-  const suggestion = {
-    context: {
-      proposal: suggestionProposal,
-      failure: activeSuggestion?.failure ?? null,
-    },
-    matches: (state: string) =>
-      (state === 'idle' && activeSuggestion === null) ||
-      (state === 'suggesting' &&
-        (activeSuggestion?.executionStatus === 'QUEUED' ||
-          activeSuggestion?.executionStatus === 'RUNNING')) ||
-      (state === 'suggestionFailed' &&
-        activeSuggestion?.executionStatus === 'FAILED') ||
-      ((state === 'confirming' || state === 'opening') && suggestionRun),
-  }
+  const draftConflict = suggestion.matches('conflict')
 
   const documentName = useCallback(
     (sourceDocumentId: string) =>
@@ -307,11 +200,7 @@ export default function BatchExtractionsPanel({
   )
 
   const clearSuggestedFields = () => {
-    clearTimeout(suggestionSave.current)
-    suggestionSave.current = undefined
-    pendingSuggestionDraft.current = null
-    setActiveSuggestionId(null)
-    setDraftConflict(false)
+    sendSuggestion({ type: 'reset' })
   }
 
   useEffect(() => {
@@ -360,6 +249,15 @@ export default function BatchExtractionsPanel({
     )
     return () => controller.abort()
   }, [projectContextId, reload])
+  useEffect(() => {
+    const activeId = suggestion.context.suggestion?.batchSchemaSuggestionId
+    if (!activeId) return
+    const refreshed = suggestions.value?.find(
+      (candidate) => candidate.batchSchemaSuggestionId === activeId,
+    )
+    if (refreshed)
+      sendSuggestion({ type: 'suggestion.updated', suggestion: refreshed })
+  }, [sendSuggestion, suggestion.context.suggestion?.batchSchemaSuggestionId, suggestions.value])
 
   useEffect(() => {
     if (screen !== 'prepare') return
@@ -436,10 +334,6 @@ export default function BatchExtractionsPanel({
     batchList.find(
       (batch) => batch.batchExtractionId === openBatchExtractionId,
     ) ?? null
-  const showHistory = useCallback(() => {
-    setPreparing(false)
-    onNavigate({ kind: 'project', projectContextId, tab: 'extractions' })
-  }, [onNavigate, projectContextId])
   const pinnedExtractionSchemaId =
     screen === 'members' ? (openBatch?.extractionSchemaId ?? null) : null
   const pinnedSchemaRevisionId =
@@ -552,205 +446,14 @@ export default function BatchExtractionsPanel({
     },
     [recordBatch, showHistory],
   )
-  const replaceSuggestion = useCallback((next: BatchSchemaSuggestion) => {
-    setSuggestions((current) => ({
-      value: [
-        next,
-        ...(current.value ?? []).filter(
-          (item) => item.batchSchemaSuggestionId !== next.batchSchemaSuggestionId,
-        ),
-      ],
-      failure: null,
-    }))
-  }, [])
-
-  const saveSuggestedDraftRef = useRef<
-    (
-      snapshot: BatchSchemaSuggestion,
-      definition: SchemaDefinition,
-    ) => Promise<BatchSchemaSuggestion | null>
-  >(async () => null)
-  const saveSuggestedDraft = useCallback(
-    (
-      snapshot: BatchSchemaSuggestion,
-      definition: SchemaDefinition,
-    ): Promise<BatchSchemaSuggestion | null> => {
-      if (suggestionSaveInFlight.current)
-        return suggestionSaveInFlight.current
-
-
-      let succeeded = false
-      const request = (async () => {
-        try {
-          const saved = await updateBatchSchemaSuggestionDraft(
-            projectContextId,
-            snapshot.batchSchemaSuggestionId,
-            definition,
-            snapshot.draftVersion,
-          )
-          succeeded = true
-          if (
-            pendingSuggestionDraft.current?.snapshot
-              .batchSchemaSuggestionId === saved.batchSchemaSuggestionId &&
-            pendingSuggestionDraft.current.definition === definition
-          )
-            pendingSuggestionDraft.current = null
-          const newer = pendingSuggestionDraft.current
-          if (
-            newer?.snapshot.batchSchemaSuggestionId ===
-            saved.batchSchemaSuggestionId
-          ) {
-            newer.snapshot = saved
-            replaceSuggestion({ ...saved, draft: newer.definition })
-          } else replaceSuggestion(saved)
-          setDraftConflict(false)
-          return saved
-        } catch (error) {
-          if (
-            error instanceof BatchSchemaSuggestionRequestError &&
-            error.failure.code === 'draft_conflict'
-          ) {
-            setDraftConflict(true)
-            return null
-          }
-          setRunFailure(
-            failureText(error, 'The suggested draft could not be saved.'),
-          )
-          return null
-        } finally {
-          suggestionSaveInFlight.current = null
-          if (
-            succeeded &&
-            pendingSuggestionDraft.current &&
-            suggestionSave.current === undefined
-          ) {
-            const pending = pendingSuggestionDraft.current
-            void saveSuggestedDraftRef.current(
-              pending.snapshot,
-              pending.definition,
-            )
-          }
-        }
-      })()
-      suggestionSaveInFlight.current = request
-      return request
-    },
-    [projectContextId, replaceSuggestion],
-  )
-  useEffect(() => {
-    saveSuggestedDraftRef.current = saveSuggestedDraft
-  }, [saveSuggestedDraft])
-  useEffect(() => {
-    const flush = () => {
-      clearTimeout(suggestionSave.current)
-      suggestionSave.current = undefined
-      const pending = pendingSuggestionDraft.current
-      if (!pending) return
-      void saveSuggestedDraftRef.current(pending.snapshot, pending.definition)
-    }
-    window.addEventListener('pagehide', flush)
-    return () => {
-      window.removeEventListener('pagehide', flush)
-      flush()
-    }
-  }, [])
-
-  const sendSuggestion = (event: SuggestionEvent) => {
-    if (event.type === 'reset') {
-      clearSuggestedFields()
-      return
-    }
-    if (event.type === 'suggestion.requested') {
-      void createBatchSchemaSuggestion(projectContextId, [...selected]).then(
-        (created) => {
-          replaceSuggestion(created)
-          setActiveSuggestionId(created.batchSchemaSuggestionId)
-          setDraftConflict(false)
-          setReload((value) => value + 1)
-        },
-        (error: unknown) =>
-          setRunFailure(
-            failureText(error, 'Common fields could not be suggested.'),
-          ),
-      )
-      return
-    }
-    if (event.type === 'proposal.changed' && activeSuggestion) {
-      const optimistic = { ...activeSuggestion, draft: event.definition }
-      replaceSuggestion(optimistic)
-      setDraftConflict(false)
-      pendingSuggestionDraft.current = {
-        snapshot: activeSuggestion,
-        definition: event.definition,
-      }
-      clearTimeout(suggestionSave.current)
-      suggestionSave.current = window.setTimeout(() => {
-        suggestionSave.current = undefined
-        const pending = pendingSuggestionDraft.current
-        if (!pending) return
-        void saveSuggestedDraft(pending.snapshot, pending.definition)
-      }, 500)
-      return
-    }
-    if (event.type === 'run.requested' && activeSuggestion?.draft) {
-      clearTimeout(suggestionSave.current)
-      suggestionSave.current = undefined
-      setSuggestionRun(true)
-      void (async () => {
-        try {
-          let saved = activeSuggestion
-          while (
-            suggestionSaveInFlight.current ||
-            pendingSuggestionDraft.current
-          ) {
-            const inFlight = suggestionSaveInFlight.current
-            if (inFlight) {
-              const acknowledged = await inFlight
-              if (!acknowledged)
-                throw new Error('The suggested draft could not be saved.')
-              saved = acknowledged
-              continue
-            }
-            const pending = pendingSuggestionDraft.current!
-            const acknowledged = await saveSuggestedDraftRef.current(
-              pending.snapshot,
-              pending.definition,
-            )
-            if (!acknowledged)
-              throw new Error('The suggested draft could not be saved.')
-            saved = acknowledged
-          }
-          const started = await runBatchSchemaSuggestion(
-            projectContextId,
-            saved.batchSchemaSuggestionId,
-            'ARTICLE',
-          )
-          replaceSuggestion(started)
-          setSelected(new Set())
-          showHistory()
-          setReload((value) => value + 1)
-        } catch (error) {
-          if (
-            error instanceof BatchSchemaSuggestionRequestError &&
-            error.failure.code === 'draft_conflict'
-          )
-            setDraftConflict(true)
-          else
-            setRunFailure(
-              failureText(
-                error,
-                'The suggested Batch Extraction could not start.',
-              ),
-            )
-        } finally {
-          setSuggestionRun(false)
-        }
-      })()
-    }
-  }
 
   const suggestFields = () => {
     if (selected.size === 0 || overSelectionLimit) return
+    sendSuggestion({
+      type: 'selection.changed',
+      sourceDocumentIds: [...selected],
+      suggestion: null,
+    })
     sendSuggestion({ type: 'suggestion.requested' })
   }
 
@@ -758,33 +461,16 @@ export default function BatchExtractionsPanel({
     if (!activeSuggestion || selected.size === 0 || overSelectionLimit) return
     setRunFailure(null)
     setRunNotice(null)
-    void retryBatchSchemaSuggestion(
-      projectContextId,
-      activeSuggestion.batchSchemaSuggestionId,
-    ).then(
-      (retried) => {
-        replaceSuggestion(retried)
-        setDraftConflict(false)
-        setReload((value) => value + 1)
-      },
-      (error: unknown) =>
-        setRunFailure(
-          failureText(error, 'The suggestion could not be regenerated.'),
-        ),
-    )
+    sendSuggestion({ type: 'suggestion.retry' })
   }
 
   const updateSuggestedDefinition = (
     update: (definition: SchemaDefinition) => SchemaDefinition,
   ) => {
-    const proposal = suggestion.context.proposal
-    if (proposal?.status !== 'ready') return
+    if (!suggestion.context.draft) return
     sendSuggestion({
       type: 'proposal.changed',
-      definition: update({
-        recordDescription: proposal.recordDescription,
-        schemaNodes: proposal.schemaNodes,
-      }),
+      definition: update(suggestion.context.draft),
     })
   }
 
@@ -853,14 +539,12 @@ export default function BatchExtractionsPanel({
     if (schemaRevisionId === SUGGEST_SCHEMA) {
       if (
         confirmedSuggestion ||
-        suggestion.context.proposal?.status !== 'ready' ||
-        !suggestion.context.proposal.recordDescription.trim() ||
-        suggestion.context.proposal.schemaNodes.some(
-          (node) => !node.name.trim(),
-        ) ||
+        suggestionProposal?.status !== 'ready' ||
+        !suggestionProposal.recordDescription.trim() ||
+        suggestionProposal.schemaNodes.some((node) => !node.name.trim()) ||
         new Set(
-          suggestion.context.proposal.schemaNodes.map((node) => node.name.trim()),
-        ).size !== suggestion.context.proposal.schemaNodes.length ||
+          suggestionProposal.schemaNodes.map((node) => node.name.trim()),
+        ).size !== suggestionProposal.schemaNodes.length ||
         draftConflict
       )
         return
@@ -880,7 +564,6 @@ export default function BatchExtractionsPanel({
     })
   }
 
-  const openStatus = openBatch ? batchStatus(openBatch) : null
   const openBatchHasSuccessfulResult =
     openBatch?.members.some(
       (member) => member.latestExtraction?.outcome === 'SUCCEEDED',
@@ -896,13 +579,18 @@ export default function BatchExtractionsPanel({
       selected.has(document.sourceDocumentId),
     )
   const overSelectionLimit = selected.size > BATCH_EXTRACTION_SELECTION_LIMIT
-  const suggestedFields = suggestion.context.proposal
+  const suggestedFields = suggestionProposal
   const selectedSchema = schemas.value?.find(
     (schema) => schema.currentRevision?.schemaRevisionId === schemaRevisionId,
   )
-  const suggestingFields = suggestion.matches('suggesting')
+  const suggestingFields =
+    suggestion.matches('creating') ||
+    suggestion.matches('suggesting') ||
+    suggestion.matches('retrying')
   const preparingSuggestedBatch =
-    suggestion.matches('confirming') || suggestion.matches('opening')
+    suggestion.matches('running') ||
+    (suggestion.matches({ drafting: 'saving' }) &&
+      suggestion.context.runAfterSave)
   const openingAnyBatch = openingBatch || preparingSuggestedBatch
   const toggleAllSourceDocuments = () => {
     if (schemaRevisionId === SUGGEST_SCHEMA) clearSuggestedFields()
@@ -997,50 +685,8 @@ export default function BatchExtractionsPanel({
         {screen === 'history' ? (
           batchesUnread ? (
             batchesUnread
-          ) : batchList.length === 0 ? (
-            <p className="py-6 text-center text-xs text-ink-muted">
-              No Batch Extractions yet.
-            </p>
           ) : (
-            <ul className="space-y-1" aria-live="polite">
-              {batchList.map((batch) => {
-                const status = batchStatus(batch)
-                return (
-                  <li key={batch.batchExtractionId}>
-                    <button
-                      className="grid w-full grid-cols-1 items-center gap-2 rounded-md px-2 py-3 text-left outline-none hover:bg-line/20 focus-visible:ring-2 focus-visible:ring-accent/40 sm:grid-cols-[1fr_auto] sm:gap-6"
-                      type="button"
-                      onClick={() => openMembers(batch)}
-                    >
-                      <span>
-                        <strong className="block text-xs text-ink">
-                          <time dateTime={batch.createdAt}>
-                            {stamp(batch.createdAt)}
-                          </time>
-                        </strong>
-                        <span className="mt-1 block text-[11px] text-ink-muted">
-                          {schemaLine(batch)}
-                        </span>
-                        <span className="block text-[11px] text-ink-faint">
-                          {selectionLine(batch)}
-                        </span>
-                      </span>
-                      <span
-                        className={`text-[11px] font-semibold ${status.tone}`}
-                      >
-                        {status.label}
-                        <span
-                          className="ml-3 text-ink-faint"
-                          aria-hidden="true"
-                        >
-                          ›
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+            <BatchExtractionHistory batches={batchList} onOpen={openMembers} />
           )
         ) : screen === 'prepare' ? (
           <>
@@ -1065,10 +711,11 @@ export default function BatchExtractionsPanel({
                           selected.has(source.sourceDocumentId),
                         ),
                     )
-                    setActiveSuggestionId(
-                      matching?.batchSchemaSuggestionId ?? null,
-                    )
-                    setDraftConflict(false)
+                    sendSuggestion({
+                      type: 'selection.changed',
+                      sourceDocumentIds: [...selected],
+                      suggestion: matching ?? null,
+                    })
                   }}
                 >
                   {schemas.value ? (
@@ -1142,30 +789,20 @@ export default function BatchExtractionsPanel({
                     Suggesting common fields…
                   </p>
                 )}
-                {suggestion.context.failure && (
+                {(activeSuggestion?.failure || suggestion.context.error) && (
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-[11px] text-danger" role="alert">
-                        {suggestion.context.failure.message}
+                        {activeSuggestion?.failure?.message ??
+                          suggestion.context.error}
                       </p>
-                      {suggestion.matches('suggestionFailed') && (
+                      {suggestion.matches('failed') && (
                         <Button
                           size="sm"
                           disabled={selected.size === 0 || overSelectionLimit}
-                          onClick={() => {
-                            if (!activeSuggestion) return
-                            void retryBatchSchemaSuggestion(
-                              projectContextId,
-                              activeSuggestion.batchSchemaSuggestionId,
-                            ).then(replaceSuggestion, (error: unknown) =>
-                              setRunFailure(
-                                failureText(
-                                  error,
-                                  'The suggestion could not be retried.',
-                                ),
-                              ),
-                            )
-                          }}
+                          onClick={() =>
+                            sendSuggestion({ type: 'suggestion.retry' })
+                          }
                         >
                           Try again
                         </Button>
@@ -1198,7 +835,6 @@ export default function BatchExtractionsPanel({
                       size="sm"
                       variant="secondary"
                       onClick={() => {
-                        setDraftConflict(false)
                         setReload((value) => value + 1)
                       }}
                     >
@@ -1350,114 +986,40 @@ export default function BatchExtractionsPanel({
             That Batch Extraction is no longer listed.
           </p>
         ) : (
-          <>
-            <div className="mb-5 flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-end">
-              <p className="text-[11px] text-ink-faint">
-                {schemaLine(openBatch)} ·{' '}
-                Article
-              </p>
-              <p className={`text-xs font-semibold ${openStatus!.tone}`}>
-                {openStatus!.label}
-              </p>
-              <div className="flex items-start gap-2">
-                <div className="flex flex-col items-end gap-1">
-                  <ExtractionResultExportControl
-                    schema={
-                      currentPinnedBatchSchema && {
-                        recordDescription:
-                          currentPinnedBatchSchema.recordDescription,
-                        schemaNodes: currentPinnedBatchSchema.schemaNodes,
-                      }
-                    }
-                    disabled={!openBatchHasSuccessfulResult}
-                    disabledReason={
-                      !openBatchHasSuccessfulResult
-                        ? 'No successful Extraction Results are available to export.'
-                        : null
-                    }
-                    onExport={exportOpenBatch}
-                  />
-                  {currentPinnedBatchSchemaFailure && (
-                    <div className="flex max-w-72 flex-col items-end gap-1">
-                      <p
-                        className="text-right text-[11.5px] leading-snug text-danger"
-                        role="alert"
-                      >
-                        {currentPinnedBatchSchemaFailure}
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          setPinnedBatchSchemaReload((value) => value + 1)
-                        }
-                      >
-                        Retry Schema Revision
-                      </Button>
-                    </div>
-                  )}
-                  {exportCoverage?.batchExtractionId ===
-                    openBatch.batchExtractionId && (
-                    <p
-                      className="max-w-96 text-right text-[11.5px] leading-snug text-ink-muted"
-                      role="status"
-                    >
-                      {exportCoverage.message}
-                    </p>
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={openingAnyBatch}
-                  onClick={() => {
-                    void runOpenBatchAgain(openBatch)
-                  }}
-                >
-                  {openingAnyBatch ? 'Running again…' : 'Run again'}
-                </Button>
-              </div>
-            </div>
-            <ul className="space-y-1" aria-label="Batch Extraction members">
-              {openBatch.members.map((member) => {
-                const status = memberStatus(member)
-                return (
-                  <li key={member.sourceDocumentId}>
-                    <button
-                      className="w-full rounded-md px-2 py-3 text-left outline-none hover:bg-line/20 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:hover:bg-transparent"
-                      type="button"
-                      disabled={!member.latestExtraction}
-                      onClick={() => {
-                        if (!member.latestExtraction) return
-                        onNavigate({
-                          kind: 'document',
-                          projectContextId,
-                          sourceDocumentId: member.sourceDocumentId,
-                          extractionId: member.latestExtraction.extractionId,
-                        })
-                      }}
-                    >
-                      <span className="flex items-baseline justify-between gap-3">
-                        <span className="min-w-0 truncate text-xs font-semibold text-ink">
-                          {documentName(member.sourceDocumentId)}
-                        </span>
-                        <small className={`shrink-0 ${status.tone}`}>
-                          {status.label}
-                        </small>
-                      </span>
-                      {status.message && (
-                        <span
-                          className={`mt-1 block text-[11px] leading-snug ${status.tone}`}
-                        >
-                          {status.message}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </>
+          <BatchExtractionMembers
+            batch={openBatch}
+            pinnedSchema={
+              currentPinnedBatchSchema
+                ? {
+                    recordDescription:
+                      currentPinnedBatchSchema.recordDescription,
+                    schemaNodes: currentPinnedBatchSchema.schemaNodes,
+                  }
+                : null
+            }
+            pinnedSchemaFailure={currentPinnedBatchSchemaFailure}
+            hasSuccessfulResult={openBatchHasSuccessfulResult}
+            coverageMessage={
+              exportCoverage?.batchExtractionId === openBatch.batchExtractionId
+                ? exportCoverage.message
+                : null
+            }
+            opening={openingAnyBatch}
+            documentName={documentName}
+            onExport={exportOpenBatch}
+            onRetrySchema={() =>
+              setPinnedBatchSchemaReload((value) => value + 1)
+            }
+            onRunAgain={() => void runOpenBatchAgain(openBatch)}
+            onOpenMember={(sourceDocumentId, extractionId) =>
+              onNavigate({
+                kind: 'document',
+                projectContextId,
+                sourceDocumentId,
+                extractionId,
+              })
+            }
+          />
         )}
       </div>
     </div>
