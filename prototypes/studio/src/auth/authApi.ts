@@ -1,31 +1,14 @@
-import { z } from 'zod'
 import { browserStudioPath } from '../studioUrl.js'
+import {
+  authSessionSchema,
+  type AuthenticatedSession,
+  type AuthSession,
+} from '../../shared/authSession.contract'
 
-const anonymousSessionSchema = z
-  .object({ authenticated: z.literal(false) })
-  .strict()
-const authenticatedSessionSchema = z
-  .object({
-    authenticated: z.literal(true),
-    account: z
-      .object({
-        id: z.string(),
-        email: z.string(),
-        mustChangePassword: z.boolean(),
-      })
-      .strict(),
-  })
-  .strict()
-const authSessionSchema = z.discriminatedUnion('authenticated', [
-  anonymousSessionSchema,
-  authenticatedSessionSchema,
-])
-
-export type AuthSession = z.infer<typeof authSessionSchema>
-export type AuthenticatedSession = Extract<
+export type {
   AuthSession,
-  { authenticated: true }
->
+  AuthenticatedSession,
+} from '../../shared/authSession.contract'
 
 export class AuthHttpError extends Error {
   readonly status: number
