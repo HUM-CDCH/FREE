@@ -5,8 +5,12 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RightRail from './RightRail'
 import type { ExtractionController } from './useExtraction'
-import type { TemplateState } from './SchemaPanel'
 import type { ExtractionInspection } from './RightRail'
+import {
+  createSchemaEditorController,
+  localSchemaPersistence,
+  type SchemaEditorController,
+} from './currentSchemaRevision'
 
 afterEach(() => {
   cleanup()
@@ -43,8 +47,19 @@ const defaultInspection: ExtractionInspection = {
   exportSchema: null,
 }
 
-const defaultSchemaState: TemplateState = {
-  status: 'idle',
+function testSchema(): SchemaEditorController {
+  return createSchemaEditorController(
+    localSchemaPersistence({ onEdit: () => {} }),
+    {
+      initialDraft: {
+        recordDescription: 'One record.',
+        schemaNodes: [
+          { id: 'title', name: 'title', type: 'string' },
+          { id: 'gender', name: 'gender', type: 'string' },
+        ],
+      },
+    },
+  )
 }
 function renderRail({
   open = true,
@@ -59,17 +74,11 @@ function renderRail({
       onToggle={vi.fn()}
       tab={tab}
       onTabChange={vi.fn()}
-      schemaState={defaultSchemaState}
-      schemaReady={true}
-      schemaFieldCount={2}
-      onGenerate={vi.fn()}
-      onCancelGenerate={vi.fn()}
-      onResetSchema={vi.fn()}
-      onNodesChange={vi.fn()}
-      beforeSchemaEdit={vi.fn(async () => null)}
-      schemaHistory={[]}
-      loadSchemaRevision={vi.fn(async () => ({} as never))}
+      schema={testSchema()}
+      onClearDraft={vi.fn()}
       extraction={defaultController}
+      onRunExtraction={vi.fn()}
+      runExtractionDisabled={false}
       inspection={defaultInspection}
       sourceDocumentName="test.pdf"
       onSelectEvidence={vi.fn()}

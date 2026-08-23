@@ -151,8 +151,13 @@ export function useExtraction({
     }
   }
 
-  async function runRequest(isRerun: boolean) {
-    if (!canRun || !reviewTarget) return
+  async function runRequest(isRerun: boolean, target: ReviewTarget) {
+    if (
+      !schemaReady ||
+      state.status === 'running' ||
+      indexing
+    )
+      return
     abandonRunning()
     const controller = new AbortController()
     const extractionId = crypto.randomUUID()
@@ -166,8 +171,8 @@ export function useExtraction({
       const terminal = await requestExtraction(
         {
           id: extractionId,
-          sourceRepresentationRevisionId: reviewTarget.sourceRepresentationId,
-          schemaRevisionId: reviewTarget.schemaRevisionId,
+          sourceRepresentationRevisionId: target.sourceRepresentationId,
+          schemaRevisionId: target.schemaRevisionId,
           strategy: 'ARTICLE',
         },
         controller.signal,
@@ -188,8 +193,9 @@ export function useExtraction({
     }
   }
 
-  async function runExtraction() {
-    await runRequest(attempt !== null)
+  async function runExtraction(target: ReviewTarget | null = reviewTarget) {
+    if (!target) return
+    await runRequest(attempt !== null, target)
   }
 
   async function acceptResult() {

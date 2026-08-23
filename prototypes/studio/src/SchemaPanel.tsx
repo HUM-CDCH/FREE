@@ -1,5 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
-import { requestSchemaEdit, type SchemaModelContext } from './api'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
+import { requestSchemaEdit } from './api'
+import type { SchemaEditorController } from './currentSchemaRevision'
 import { countTemplateFields, isRecord } from '../shared/template'
 import {
   FIELD_TYPES,
@@ -8,7 +15,6 @@ import {
   type ScalarFieldType,
 } from 'extraction/allowed-values'
 import {
-  duplicateFieldKeys,
   enumerateFieldPaths,
   type SchemaNode,
   mkId,
@@ -16,10 +22,7 @@ import {
   schemaDefinitionToTemplate,
   templateToSchemaDefinition,
 } from 'extraction/schema'
-import type {
-  SchemaRevision,
-  SchemaRevisionSummary,
-} from '../shared/schemaRevision.contract'
+import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import SchemaNameEditor from './SchemaNameEditor'
 import {
   deriveSchemaProposal,
@@ -30,40 +33,16 @@ import {
   type ReplayOutcome,
 } from './schemaChanges'
 
-// ────────────────────────────────────────────────────────────────────────────
-// Exported types (App.tsx depends on TemplateState)
-// ────────────────────────────────────────────────────────────────────────────
+const EMPTY_NODES: SchemaNode[] = []
 
-export type TemplateState =
-  | { status: 'idle' }
-  | { status: 'generating' }
-  | {
-      status: 'ready'
-      recordDescription: string
-      nodes: SchemaNode[]
-      inputsKey: string
-      edited?: boolean
-    }
-  | { status: 'error'; message: string }
-
-// ────────────────────────────────────────────────────────────────────────────
-// Internal types
-// ────────────────────────────────────────────────────────────────────────────
+const CHAT_GREETING = "Edit through drag and drop, or describe a change. I'll show you the changes before you apply them."
 
 type SchemaPanelProps = {
-  state: TemplateState
-  onGenerate: (instruction: string) => void
-  onCancelGenerate: () => void
-  onResetSchema: () => void
-  onNodesChange: (
-    nodes: SchemaNode[],
-    message: string,
-    recordDescription?: string,
-  ) => void
-  beforeSchemaEdit: () => Promise<SchemaModelContext | null>
-  history: SchemaRevisionSummary[]
-  currentRevisionNumber?: number
-  loadRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
+  schema: SchemaEditorController
+  /** Extraction Schema generation; omitted where generation is unavailable. */
+  onGenerateInstructions?: (instruction: string) => void
+  /** Clear-schema behaviour: workspace reset, batch empty-and-flush, etc. */
+  onClearDraft: () => void | Promise<void>
   sourceDocumentName: string
   schemaName?: string | null
   onRenameSchema?: (name: string) => Promise<string | null>
@@ -454,18 +433,6 @@ function deepClone(nodes: SchemaNode[]): SchemaNode[] {
   return nodes.map(n => n.children ? { ...n, children: deepClone(n.children) } : { ...n })
 }
 
-function withUniqueNodeIds(nodes: readonly SchemaNode[]): SchemaNode[] {
-  const seen = new Set<string>()
-  const visit = (node: SchemaNode): SchemaNode => {
-    let id = node.id
-    while (seen.has(id)) id = mkId()
-    seen.add(id)
-    return node.children === undefined
-      ? { ...node, id }
-      : { ...node, id, children: node.children.map(visit) }
-  }
-  return nodes.map(visit)
-}
 
 function extractNode(nodes: SchemaNode[], id: string): [SchemaNode | null, SchemaNode[]] {
   const root = deepClone(nodes)
@@ -780,23 +747,18 @@ function DescriptionEditForm({ value, onChange, onSave, onDelete, onCancel }: {
 // ────────────────────────────────────────────────────────────────────────────
 
 function SchemaPanel({
-  state,
-  onGenerate,
-  onCancelGenerate,
-  onResetSchema,
-  onNodesChange,
-  beforeSchemaEdit,
-  history,
-  currentRevisionNumber,
-  loadRevision,
+  schema,
+  onGenerateInstructions,
+  onClearDraft,
   sourceDocumentName,
   schemaName,
   onRenameSchema,
   readOnly = false,
   showRegenerate = true,
 }: SchemaPanelProps) {
+  const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
+  const nodes = snap.draft?.schemaNodes ?? EMPTY_NODES
   // ── render state ──
-  const [nodes, setNodes] = useState<SchemaNode[]>([])
   const [dragging, setDragging] = useState<DragState | null>(null)
   const [dragX, setDragX] = useState(0)
   const [dragY, setDragY] = useState(0)
@@ -805,7 +767,7 @@ function SchemaPanel({
   const [editingError, setEditingError] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
   const [chat, setChat] = useState<ChatMsg[]>([
-    { role: 'assistant', text: "Edit through drag and drop, or describe a change--I'll show you the changes before you apply them." },
+    { role: 'assistant', text: CHAT_GREETING },
   ])
   const [pending, setPending] = useState<PendingChange | null>(null)
   const [acceptedChangeIds, setAcceptedChangeIds] = useState<Set<string>>(new Set())
@@ -820,11 +782,10 @@ function SchemaPanel({
   const [jsonEditMode, setJsonEditMode] = useState(false)
   const [jsonDraft, setJsonDraft] = useState('')
   const [jsonEditError, setJsonEditError] = useState<string | null>(null)
-  const [recordDescriptionDraft, setRecordDescriptionDraft] = useState('')
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [instructionsOpen, setInstructionsOpen] = useState(false)
-  const [historyRestoring, setHistoryRestoring] = useState(false)
+  const [creatingFromHistory, setCreatingFromHistory] = useState(false)
   const [confirmingDeleteSchema, setConfirmingDeleteSchema] = useState(false)
 
   // Pre-generation instructions: recorded locally, sent as the instruction
@@ -834,8 +795,6 @@ function SchemaPanel({
   const docChatRef = useRef<HTMLDivElement>(null)
 
   // ── refs for event handlers (avoid stale closures) ──
-  const nodesRef = useRef<SchemaNode[]>([])
-  const recordDescriptionRef = useRef('')
   const draggingRef = useRef<DragState | null>(null)
   const overTargetRef = useRef<DropTarget | null>(null)
   const dragYRef = useRef(0)
@@ -844,36 +803,66 @@ function SchemaPanel({
   const dragStartYRef = useRef(0)
   const rafRef = useRef<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [recordDescriptionDraft, setRecordDescriptionDraft] = useState(
+    () => snap.draft?.recordDescription ?? '',
+  )
   const chatRef = useRef<HTMLDivElement>(null)
-  const onNodesChangeRef = useRef(onNodesChange)
-  const historyRestoringRef = useRef(false)
-  onNodesChangeRef.current = onNodesChange
+  const creatingFromHistoryRef = useRef(false)
 
-  const ready = state.status === 'ready'
-  const fieldCount = ready ? countTemplateFields(nodesToTemplate(state.nodes)) : 0
-  const displayedFieldCount = fieldCount
-  const inputsKey = state.status === 'ready' ? state.inputsKey : null
+  const ready = snap.view === 'editing'
+  const displayedFieldCount = ready ? countTemplateFields(nodesToTemplate(nodes)) : 0
   const dx = dragging ? dragX - dragStartXRef.current : 0
   const dy = dragging ? dragY - dragStartYRef.current : 0
   const horizontalIntent = Math.abs(dx) > INDENT_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE
   const dragMode = horizontalIntent ? (dx > 0 ? 'indent' : 'outdent') : 'normal'
 
-  // sync nodes when a new schema is generated
+  // Keep local keystrokes while editing normally. Wholesale external
+  // replacements reset every draft-dependent editor surface together.
+  const committedRecordDescription = snap.draft?.recordDescription
   useEffect(() => {
-    if (state.status === 'ready') {
-      const uniqueNodes = withUniqueNodeIds(state.nodes)
-      setNodes(uniqueNodes)
-      nodesRef.current = uniqueNodes
-      setRecordDescriptionDraft(state.recordDescription)
-      recordDescriptionRef.current = state.recordDescription
+    if (committedRecordDescription === undefined) return
+    setRecordDescriptionDraft(committedRecordDescription)
+  }, [committedRecordDescription])
+
+  const resetEditorUi = useCallback(
+    (clearConversation = false) => {
+      chatAbortRef.current?.abort()
+      chatAbortRef.current = null
+      setChatLoading(false)
       setEditing(null)
       setEditingError(null)
       setMutationError(null)
       setPending(null)
       setAcceptedChangeIds(new Set())
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inputsKey])
+      setSelectedIds(new Set())
+      setOpenDescId(null)
+      setJsonEditMode(false)
+      setJsonDraft('')
+      setJsonEditError(null)
+      setView('fields')
+      setExpandedIds(new Set())
+      setDescDraft('')
+      setChatInput('')
+      setHistoryError(null)
+      setConfirmingDeleteSchema(false)
+      setRecordDescriptionDraft(
+        schema.snapshot().draft?.recordDescription ?? '',
+      )
+      if (clearConversation) {
+        setHistoryOpen(false)
+        setDocInstructions([])
+        setDocChatDraft('')
+        setChat([{ role: 'assistant', text: CHAT_GREETING }])
+      }
+    },
+    [schema],
+  )
+  const observedReplacementVersion = useRef(snap.replacementVersion)
+  useEffect(() => {
+    if (observedReplacementVersion.current === snap.replacementVersion) return
+    observedReplacementVersion.current = snap.replacementVersion
+    resetEditorUi()
+  }, [resetEditorUi, snap.replacementVersion])
 
   // Keep the newest chat message visible.
   useEffect(() => {
@@ -908,104 +897,68 @@ function SchemaPanel({
     rafRef.current = requestAnimationFrame(tick)
   }
 
-  // Reads refs to avoid stale closures.
-  function commitNodes(nextNodes: SchemaNode[], message: string): boolean {
-    if (!sameNodeIds(nodesRef.current, nextNodes)) {
+  // The drag gesture itself must preserve every node; the module's gate then
+  // rejects duplicate sibling names.
+  function applyMove(nextNodes: SchemaNode[], message: string) {
+    const current = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
+    if (!sameNodeIds(current, nextNodes)) {
       setMutationError('Cannot move field into its own contents.')
-      return false
+      return
     }
-    const fields = enumerateFieldPaths(nextNodes)
-    const duplicates = duplicateFieldKeys(fields)
-    if (duplicates.length > 0) {
-      const duplicateName = fields.find(({ key }) => key === duplicates[0])!.node.name
-      setMutationError(`Cannot move field: a sibling field already uses “${duplicateName}”.`)
-      return false
-    }
-    setMutationError(null)
-    nodesRef.current = nextNodes
-    setNodes(nextNodes)
-    onNodesChangeRef.current(nextNodes, message)
-    return true
+    const result = schema.commit(() => nextNodes, message)
+    if (result.ok) setMutationError(null)
+    else if (result.reason === 'duplicate-name')
+      setMutationError(
+        `Cannot move field: a sibling field already uses “${result.duplicateName}”.`,
+      )
+    else setMutationError('No schema draft is open.')
   }
 
-  async function restoreRevision(revision: SchemaRevisionSummary) {
+  async function createFromHistory(revision: SchemaRevisionSummary) {
     setHistoryOpen(false)
-    if (historyRestoringRef.current || revision.revisionNumber === currentRevisionNumber) return
+    if (
+      creatingFromHistoryRef.current ||
+      revision.revisionNumber === snap.currentRevisionNumber
+    )
+      return
 
-    historyRestoringRef.current = true
-    setHistoryRestoring(true)
+    creatingFromHistoryRef.current = true
+    setCreatingFromHistory(true)
     setHistoryError(null)
     try {
-      const loaded = await loadRevision(revision.schemaRevisionId)
-      await beforeSchemaEdit()
-      const uniqueNodes = withUniqueNodeIds(loaded.schemaNodes)
-      nodesRef.current = uniqueNodes
-      setNodes(uniqueNodes)
-      setRecordDescriptionDraft(loaded.recordDescription)
-      recordDescriptionRef.current = loaded.recordDescription
-      setEditing(null)
-      setEditingError(null)
-      setMutationError(null)
-      setPending(null)
-      setAcceptedChangeIds(new Set())
-      setSelectedIds(new Set())
-      setOpenDescId(null)
-      setJsonEditMode(false)
-      setJsonEditError(null)
-      setView('fields')
-      onNodesChangeRef.current(
-        uniqueNodes,
-        `↺ Restored revision ${revision.revisionNumber}`,
-        loaded.recordDescription,
-      )
-      await beforeSchemaEdit()
+      await schema.createCurrentRevisionFromHistory(revision.schemaRevisionId)
     } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : 'Could not restore Schema Revision.')
+      setHistoryError(
+        error instanceof Error
+          ? error.message
+          : 'Could not create a Current Schema Revision from history.',
+      )
     } finally {
-      historyRestoringRef.current = false
-      setHistoryRestoring(false)
+      creatingFromHistoryRef.current = false
+      setCreatingFromHistory(false)
     }
   }
 
   async function deleteSchema() {
     try {
-      await onResetSchema()
+      await onClearDraft()
     } catch {
       return
     }
-    setConfirmingDeleteSchema(false)
-    setHistoryOpen(false)
-    nodesRef.current = []
-    recordDescriptionRef.current = ''
-    setNodes([])
-    setChat([
-      { role: 'assistant', text: "Edit through drag and drop, or describe a change. I'll show a diff to review first." },
-    ])
-    setPending(null)
-    setAcceptedChangeIds(new Set())
-    setSelectedIds(new Set())
-    setEditing(null)
-    setEditingError(null)
-    setMutationError(null)
-    setOpenDescId(null)
-    setJsonEditMode(false)
-    setJsonEditError(null)
-    setView('fields')
-    setHistoryError(null)
-    setDocInstructions([])
-    setDocChatDraft('')
+    resetEditorUi(true)
   }
+
 
   function commitDrop() {
     const drag = draggingRef.current
     const target = overTargetRef.current
     if (!drag) return
-    const cur = nodesRef.current
+    const cur = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
     const dx = dragXRef.current - dragStartXRef.current
     const dy = dragYRef.current - dragStartYRef.current
     const horizontalIntent = Math.abs(dx) > INDENT_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE
 
-    const apply = (nodes: SchemaNode[]) => commitNodes(nodes, '⠿ Schema reordered')
+    const apply = (nodes: SchemaNode[]) => applyMove(nodes, '⠿ Schema reordered')
 
     if (horizontalIntent && dx > 0) {
       const siblings = siblingsOf(cur, drag.parentId)
@@ -1056,7 +1009,7 @@ function SchemaPanel({
       const [moved, root] = extractNode(cur, drag.id)
       if (!moved) return
       const finalNodes = insertIntoNode(root, target.id, moved)
-      commitNodes(finalNodes, '⠿ Schema reordered')
+      applyMove(finalNodes, '⠿ Schema reordered')
     } else {
       const { parentId, index } = target
       const si = srcIndex(cur, drag)
@@ -1065,7 +1018,7 @@ function SchemaPanel({
       let ii = index
       if (drag.parentId === (parentId ?? null) && si < ii) ii--
       const finalNodes = insertAtSlot(root, parentId ?? null, ii, moved)
-      commitNodes(finalNodes, '⠿ Schema reordered')
+      applyMove(finalNodes, '⠿ Schema reordered')
     }
   }
 
@@ -1149,31 +1102,33 @@ function SchemaPanel({
       return
     }
     const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_') || 'field'
-    const newNodes = updateNodeById(
-      nodesRef.current,
-      editing.id,
-      (node) => editedField(node, name, editing),
+    const result = schema.commit(
+      (current) => updateNodeById(current, editing.id, (node) => editedField(node, name, editing)),
+      '✎ Schema updated',
     )
-    if (duplicateFieldKeys(enumerateFieldPaths(newNodes)).length > 0) {
-      setEditingError(`A sibling field already uses “${name}”.`)
+    if (!result.ok) {
+      setEditingError(
+        result.reason === 'duplicate-name'
+          ? `A sibling field already uses “${result.duplicateName}”.`
+          : 'No schema draft is open.',
+      )
       return
     }
-    nodesRef.current = newNodes
-    setNodes(newNodes)
-    onNodesChange(newNodes, '✎ Schema updated')
     setEditing(null)
     setEditingError(null)
   }
 
   function bulkRemoveNodes() {
-    let newNodes = nodesRef.current
-    for (const id of selectedIds) {
-      const [, after] = extractNode(newNodes, id)
-      newNodes = after
-    }
-    nodesRef.current = newNodes
-    setNodes(newNodes)
-    onNodesChange(newNodes, `${selectedIds.size} field${selectedIds.size !== 1 ? 's' : ''} removed`)
+    const count = selectedIds.size
+    // Removals cannot create duplicate sibling names; the gate's scan passes.
+    schema.commit((current) => {
+      let next = current
+      for (const id of selectedIds) {
+        const [, after] = extractNode(next, id)
+        next = after
+      }
+      return next
+    }, `${count} field${count !== 1 ? 's' : ''} removed`)
     if (editing && selectedIds.has(editing.id)) setEditing(null)
     setSelectedIds(new Set())
   }
@@ -1192,35 +1147,26 @@ function SchemaPanel({
   }
 
   function updateNodeDescription(id: string, description: string | undefined) {
-    const newNodes = updateNodeById(nodesRef.current, id, (node) => ({ ...node, description }))
-    nodesRef.current = newNodes
-    setNodes(newNodes)
-    onNodesChangeRef.current(newNodes, '✎ Description updated')
+    schema.commit(
+      (current) => updateNodeById(current, id, (node) => ({ ...node, description })),
+      '✎ Description updated',
+    )
   }
 
   function addField() {
-    const cur = nodesRef.current
+    const cur = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
     let name = 'nyt_felt'
     let suffix = 2
     while (cur.some(n => n.name === name)) name = `nyt_felt_${suffix++}`
     const id = mkId()
     const newNode: SchemaNode = { id, name, type: 'verbatim-string' }
-    const newNodes = [...cur, newNode]
-    nodesRef.current = newNodes
-    setNodes(newNodes)
-    onNodesChange(newNodes, '✎ Schema updated')
+    schema.commit(() => [...cur, newNode], '✎ Schema updated')
     setView('fields')
     setEditing({ id, name, type: 'verbatim-string' })
   }
 
   function commitRecordDescription() {
-    if (recordDescriptionDraft === recordDescriptionRef.current) return
-    recordDescriptionRef.current = recordDescriptionDraft
-    onNodesChangeRef.current(
-      nodesRef.current,
-      '✎ Record description updated',
-      recordDescriptionDraft,
-    )
+    schema.setRecordDescription(recordDescriptionDraft)
   }
 
   // ── Chat ──
@@ -1233,14 +1179,14 @@ function SchemaPanel({
     const controller = new AbortController()
     chatAbortRef.current = controller
 
-    const originalBeforeFlush = nodesRef.current
+    const originalBeforeFlush = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
     try {
-      const modelContext = await beforeSchemaEdit()
-      if (nodesRef.current !== originalBeforeFlush) {
+      const modelContext = await schema.requestModelEdit()
+      if ((schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES) !== originalBeforeFlush) {
         setChat(c => [...c, { role: 'assistant', text: 'Schema changed while the request was running. Send the request again.' }])
         return
       }
-      const original = nodesRef.current
+      const original = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
       if (!modelContext) {
         setChat(c => [
           ...c,
@@ -1256,7 +1202,7 @@ function SchemaPanel({
         userMsg,
         controller.signal,
       )
-      if (nodesRef.current !== original) {
+      if ((schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES) !== original) {
         setChat(c => [...c, { role: 'assistant', text: 'Schema changed while the request was running. Send the request again.' }])
         return
       }
@@ -1311,7 +1257,7 @@ function SchemaPanel({
   // Apply pending proposal.
   function applyPending() {
     if (!pending) return
-    if (nodesRef.current !== pending.original) {
+    if ((schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES) !== pending.original) {
       setChat(c => [...c, { role: 'assistant', text: 'Schema changed during review. The proposal was discarded.' }])
       setPending(null)
       setAcceptedChangeIds(new Set())
@@ -1319,9 +1265,21 @@ function SchemaPanel({
     }
     const replayed = replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds)
     if (!replayed.hasChanges) return
-    nodesRef.current = replayed.nodes
-    setNodes(replayed.nodes)
-    onNodesChange(replayed.nodes, '✦ Schema updated via chat')
+    const result = schema.commit(
+      () => replayed.nodes,
+      '✦ Schema updated via chat',
+    )
+    if (!result.ok) {
+      const message =
+        result.reason === 'duplicate-name'
+          ? `Cannot apply the proposal: a sibling field already uses “${result.duplicateName}”.`
+          : 'Cannot apply the proposal because no schema draft is open.'
+      setChat((current) => [
+        ...current,
+        { role: 'assistant', text: message },
+      ])
+      return
+    }
     setChat(c => [...c, { role: 'assistant', text: `✓ ${replayed.appliedCount} schema change${replayed.appliedCount === 1 ? '' : 's'} applied.` }])
     setPending(null)
     setAcceptedChangeIds(new Set())
@@ -1708,7 +1666,24 @@ function SchemaPanel({
       {/* ── Schema list / states ── */}
       <div ref={scrollRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {historyError && <p role="alert" className="mb-2 text-xs text-danger">{historyError}</p>}
-        {state.status === 'idle' && (
+        {snap.save?.status === 'conflict' && (
+          <div
+            className="mb-2 flex items-center justify-between gap-3 rounded-md border border-danger/30 bg-danger-soft px-3 py-2"
+            role="alert"
+          >
+            <p className="text-[11px] text-danger">
+              The Current Schema Revision changed elsewhere.
+            </p>
+            <button
+              className="shrink-0 cursor-pointer rounded-md border border-danger/40 bg-surface px-2 py-1 text-[11px] font-semibold text-danger outline-none hover:bg-danger-soft focus-visible:ring-2 focus-visible:ring-danger/30"
+              type="button"
+              onClick={() => schema.reloadCurrent()}
+            >
+              Reload Current Schema Revision
+            </button>
+          </div>
+        )}
+        {snap.view === 'empty' && (
           <div className="rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
             <p className="text-[13px] font-semibold text-ink">No schema yet</p>
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
@@ -1717,12 +1692,14 @@ function SchemaPanel({
           </div>
         )}
 
-        {state.status === 'generating' && <WorkingIndicator onStop={onCancelGenerate} />}
+        {snap.view === 'generating' && <WorkingIndicator onStop={() => schema.cancelGeneration()} />}
 
-        {state.status === 'error' && (
+        {snap.view === 'failed' && (
           <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
-            <p className="text-[13px] leading-snug text-danger">{state.message}</p>
-            <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerate(docInstruction)}>Retry</button>
+            <p className="text-[13px] leading-snug text-danger">{snap.generationError}</p>
+            {onGenerateInstructions && (
+              <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerateInstructions(docInstruction)}>Retry</button>
+            )}
           </div>
         )}
 
@@ -1782,16 +1759,7 @@ function SchemaPanel({
                         const parsed: unknown = JSON.parse(jsonDraft)
                         if (!isRecord(parsed)) throw new Error('JSON must be an object')
                         const definition = templateToSchemaDefinition(parsed)
-                        const newNodes = definition.schemaNodes
-                        nodesRef.current = newNodes
-                        setNodes(newNodes)
-                        setRecordDescriptionDraft(definition.recordDescription)
-                        recordDescriptionRef.current = definition.recordDescription
-                        onNodesChangeRef.current(
-                          newNodes,
-                          '✎ Schema updated via JSON editor',
-                          definition.recordDescription,
-                        )
+                        schema.replaceDraft(definition, '✎ Schema updated via JSON editor')
                         setJsonEditMode(false)
                         setJsonEditError(null)
                       } catch (e) {
@@ -1839,7 +1807,7 @@ function SchemaPanel({
               )}
             </div>
             {mutationError && <p className="mb-2 text-[11px] font-semibold text-danger" role="alert">{mutationError}</p>}
-            {selectedIds.size > 0 && (
+            {!readOnly && selectedIds.size > 0 && (
               <div className="sticky top-0 z-10 mb-2 flex items-center justify-between rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5 shadow-float">
                 <span className="text-[12px] font-semibold text-danger">
                   {selectedIds.size} field{selectedIds.size !== 1 ? 's' : ''} selected
@@ -1886,8 +1854,8 @@ function SchemaPanel({
         <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: '60%' }}>
           <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1.5">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
-            {state.status === 'idle' && (
-              <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
+            {snap.view === 'empty' && onGenerateInstructions && (
+              <button className={genBtnCls} type="button" onClick={() => onGenerateInstructions(docInstruction)}>
                 Generate schema{instructionCountLabel}
               </button>
             )}
@@ -1926,7 +1894,7 @@ function SchemaPanel({
                     <CountBadge count={docInstructions.length} />
                     <span aria-hidden="true" className="text-[9px]">{instructionsOpen ? '▾' : '▸'}</span>
                   </button>
-                  <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
+                  <button className={genBtnCls} type="button" onClick={() => onGenerateInstructions?.(docInstruction)}>
                     Regenerate
                     <CountBadge count={docInstructions.length} />
                   </button>
@@ -1938,7 +1906,7 @@ function SchemaPanel({
                   type="button"
                   aria-label="Schema history"
                   title="Schema edit history"
-                  disabled={history.length === 0 || historyRestoring}
+                  disabled={snap.history.length === 0 || creatingFromHistory || snap.creatingFromRevisionId !== null}
                   onClick={() => setHistoryOpen((open) => !open)}
                 >
                   <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
@@ -1947,17 +1915,17 @@ function SchemaPanel({
                 </button>
                 {historyOpen && (
                 <div className="scrollbar-subtle absolute right-0 bottom-full z-30 mb-1.5 max-h-80 w-72 overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-float">
-                  {history.map((revision) => (
+                  {snap.history.map((revision) => (
                     <button
                       key={revision.schemaRevisionId}
                       type="button"
                       className="block w-full rounded-md px-3 py-2 text-left outline-none hover:bg-accent-ghost"
                       aria-label={`Revision ${revision.revisionNumber}: ${revision.summary}`}
-                      disabled={historyRestoring}
-                      onClick={() => void restoreRevision(revision)}
+                      disabled={creatingFromHistory}
+                      onClick={() => void createFromHistory(revision)}
                     >
                       <span className="block text-xs font-semibold text-ink">
-                        Revision {revision.revisionNumber}{revision.revisionNumber === currentRevisionNumber ? ' · Current' : ''}
+                        Revision {revision.revisionNumber}{revision.revisionNumber === snap.currentRevisionNumber ? ' · Current' : ''}
                       </span>
                       <span className="block text-[11px] text-ink-muted">{revision.origin} · {revision.summary}</span>
                       <span className="block text-[10px] text-ink-faint">{new Date(revision.createdAt).toLocaleString()}</span>
@@ -2060,15 +2028,15 @@ function SchemaPanel({
       {/* ── Footer ── */}
       <footer className="flex min-h-10 shrink-0 items-center justify-between gap-2 border-t border-line px-4 py-2">
         <p className="text-[11px] leading-snug text-ink-faint">
-          {state.status === 'generating' && (
+          {snap.view === 'generating' && (
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-amber-500" />
               Producing schema from the document…
             </span>
           )}
           {ready && `${displayedFieldCount} field${displayedFieldCount === 1 ? '' : 's'} `}
-          {state.status === 'idle' && 'Generate to produce the schema from the document'}
-          {state.status === 'error' && 'Generation failed'}
+          {snap.view === 'empty' && 'Generate to produce the schema from the document'}
+          {snap.view === 'failed' && 'Generation failed'}
         </p>
       </footer>
 

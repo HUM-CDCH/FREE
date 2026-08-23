@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   exportBatchExtractionResults,
   type ExportChoices,
@@ -7,15 +7,10 @@ import {
 import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import type { NavigableRoute } from '../projectNavigation'
 import {
-  appendSchemaRevision,
   getSchemaRevision,
   listExtractionSchemas,
-  listSchemaRevisions,
 } from '../schemaRevisions'
-import type {
-  SchemaRevision,
-  SchemaRevisionSummary,
-} from '../../shared/schemaRevision.contract'
+import type { SchemaRevision } from '../../shared/schemaRevision.contract'
 import { Button } from '../ui'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
@@ -27,10 +22,15 @@ import type { SchemaDefinition } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
 import SchemaPanel from '../SchemaPanel'
 import {
-  createSchemaSaveCoordinator,
-  type SchemaSaveCoordinator,
-  type SchemaSaveState,
-} from '../schemaSaveCoordinator'
+  createSchemaEditorController,
+  localSchemaPersistence,
+  sameSchemaDefinition,
+} from '../currentSchemaRevision'
+import {
+  useDurableCurrentSchemaRevision,
+  useSchemaEditorController,
+} from '../useCurrentSchemaRevision'
+import type { AcknowledgedSchemaRevision } from '../schemaSaveCoordinator'
 import {
   BatchSchemaSuggestionRequestError,
   createBatchSchemaSuggestion,
@@ -50,6 +50,11 @@ type SourceDocument = {
   name: string
   pageCount: number | null
 }
+
+type SuggestionDraftVersion = Pick<
+  BatchSchemaSuggestion,
+  'draftVersion' | 'finishedAt'
+>
 
 type ExtractionSchemas = Awaited<ReturnType<typeof listExtractionSchemas>>
 
@@ -230,17 +235,14 @@ export default function BatchExtractionsPanel({
     batchExtractionId: string
     message: string
   } | null>(null)
-  const [savedSchemaState, setSavedSchemaState] =
-    useState<SchemaSaveState | null>(null)
-  const [savedSchemaHistory, setSavedSchemaHistory] = useState<
-    SchemaRevisionSummary[]
-  >([])
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () => new Set(sourceDocumentIds),
   )
   const [filter, setFilter] = useState('')
   const opening = useRef(false)
-  const savedSchemaCoordinator = useRef<SchemaSaveCoordinator | null>(null)
+  // The saved-schema editor registers its flush so opening a Batch Extraction
+  // can wait for the chosen schema's pending save.
+  const savedSchemaFlush = useRef<(() => Promise<AcknowledgedSchemaRevision | null>) | null>(null)
   const historyGeneration = useRef(0)
   const [suggestions, setSuggestions] = useState<Read<BatchSchemaSuggestion[]>>({
     value: null,
@@ -251,7 +253,9 @@ export default function BatchExtractionsPanel({
   )
   const [suggestionRun, setSuggestionRun] = useState(false)
   const [draftConflict, setDraftConflict] = useState(false)
-  const suggestionSave = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suggestionSave = useRef<number | undefined>(undefined)
+  const suggestionSaveInFlight =
+    useRef<Promise<BatchSchemaSuggestion | null> | null>(null)
   const pendingSuggestionDraft = useRef<{
     snapshot: BatchSchemaSuggestion
     definition: SchemaDefinition
@@ -303,8 +307,8 @@ export default function BatchExtractionsPanel({
   )
 
   const clearSuggestedFields = () => {
-    if (suggestionSave.current) clearTimeout(suggestionSave.current)
-    suggestionSave.current = null
+    clearTimeout(suggestionSave.current)
+    suggestionSave.current = undefined
     pendingSuggestionDraft.current = null
     setActiveSuggestionId(null)
     setDraftConflict(false)
@@ -399,60 +403,12 @@ export default function BatchExtractionsPanel({
       controller.signal,
     ).then(
       (revision) => {
-        if (!controller.signal.aborted) {
-          setChosenSchema(revision)
-          setSavedSchemaState({
-            status: 'saved',
-            acknowledged: revision,
-            draft: {
-              recordDescription: revision.recordDescription,
-              schemaNodes: revision.schemaNodes,
-            },
-          })
-        }
+        if (!controller.signal.aborted) setChosenSchema(revision)
       },
       () => {},
     )
     return () => controller.abort()
   }, [projectContextId, schemaRevisionId, schemas.value])
-
-  useEffect(() => {
-    if (!chosenSchema) return
-    const coordinator = createSchemaSaveCoordinator(
-      chosenSchema,
-      (expectedRevisionNumber, definition) =>
-        appendSchemaRevision(
-          projectContextId,
-          chosenSchema.extractionSchemaId,
-          expectedRevisionNumber,
-          definition,
-        ),
-      0,
-      setSavedSchemaState,
-    )
-    savedSchemaCoordinator.current = coordinator
-    return () => {
-      coordinator.dispose()
-      if (savedSchemaCoordinator.current === coordinator)
-        savedSchemaCoordinator.current = null
-    }
-  }, [chosenSchema, projectContextId])
-
-  useEffect(() => {
-    if (!chosenSchema) return
-    const controller = new AbortController()
-    void listSchemaRevisions(
-      projectContextId,
-      chosenSchema.extractionSchemaId,
-      20,
-      controller.signal,
-    ).then(setSavedSchemaHistory, () => setSavedSchemaHistory([]))
-    return () => controller.abort()
-  }, [
-    chosenSchema,
-    projectContextId,
-    savedSchemaState?.acknowledged.schemaRevisionId,
-  ])
 
   useEffect(() => {
     const active = [
@@ -608,49 +564,88 @@ export default function BatchExtractionsPanel({
     }))
   }, [])
 
+  const saveSuggestedDraftRef = useRef<
+    (
+      snapshot: BatchSchemaSuggestion,
+      definition: SchemaDefinition,
+    ) => Promise<BatchSchemaSuggestion | null>
+  >(async () => null)
   const saveSuggestedDraft = useCallback(
-    async (snapshot: BatchSchemaSuggestion, definition: SchemaDefinition) => {
-      try {
-        const saved = await updateBatchSchemaSuggestionDraft(
-          projectContextId,
-          snapshot.batchSchemaSuggestionId,
-          definition,
-          snapshot.draftVersion,
-        )
-        replaceSuggestion(saved)
-        if (
-          pendingSuggestionDraft.current?.snapshot
-            .batchSchemaSuggestionId === snapshot.batchSchemaSuggestionId &&
-          pendingSuggestionDraft.current.snapshot.draftVersion ===
-            snapshot.draftVersion
-        )
-          pendingSuggestionDraft.current = null
-        setDraftConflict(false)
-      } catch (error) {
-        if (
-          error instanceof BatchSchemaSuggestionRequestError &&
-          error.failure.code === 'draft_conflict'
-        ) {
-          setDraftConflict(true)
-          return
+    (
+      snapshot: BatchSchemaSuggestion,
+      definition: SchemaDefinition,
+    ): Promise<BatchSchemaSuggestion | null> => {
+      if (suggestionSaveInFlight.current)
+        return suggestionSaveInFlight.current
+
+
+      let succeeded = false
+      const request = (async () => {
+        try {
+          const saved = await updateBatchSchemaSuggestionDraft(
+            projectContextId,
+            snapshot.batchSchemaSuggestionId,
+            definition,
+            snapshot.draftVersion,
+          )
+          succeeded = true
+          if (
+            pendingSuggestionDraft.current?.snapshot
+              .batchSchemaSuggestionId === saved.batchSchemaSuggestionId &&
+            pendingSuggestionDraft.current.definition === definition
+          )
+            pendingSuggestionDraft.current = null
+          const newer = pendingSuggestionDraft.current
+          if (
+            newer?.snapshot.batchSchemaSuggestionId ===
+            saved.batchSchemaSuggestionId
+          ) {
+            newer.snapshot = saved
+            replaceSuggestion({ ...saved, draft: newer.definition })
+          } else replaceSuggestion(saved)
+          setDraftConflict(false)
+          return saved
+        } catch (error) {
+          if (
+            error instanceof BatchSchemaSuggestionRequestError &&
+            error.failure.code === 'draft_conflict'
+          ) {
+            setDraftConflict(true)
+            return null
+          }
+          setRunFailure(
+            failureText(error, 'The suggested draft could not be saved.'),
+          )
+          return null
+        } finally {
+          suggestionSaveInFlight.current = null
+          if (
+            succeeded &&
+            pendingSuggestionDraft.current &&
+            suggestionSave.current === undefined
+          ) {
+            const pending = pendingSuggestionDraft.current
+            void saveSuggestedDraftRef.current(
+              pending.snapshot,
+              pending.definition,
+            )
+          }
         }
-        setRunFailure(failureText(error, 'The suggested draft could not be saved.'))
-      }
+      })()
+      suggestionSaveInFlight.current = request
+      return request
     },
     [projectContextId, replaceSuggestion],
   )
-
-  const saveSuggestedDraftRef = useRef(saveSuggestedDraft)
   useEffect(() => {
     saveSuggestedDraftRef.current = saveSuggestedDraft
   }, [saveSuggestedDraft])
   useEffect(() => {
     const flush = () => {
-      if (suggestionSave.current) clearTimeout(suggestionSave.current)
-      suggestionSave.current = null
+      clearTimeout(suggestionSave.current)
+      suggestionSave.current = undefined
       const pending = pendingSuggestionDraft.current
       if (!pending) return
-      pendingSuggestionDraft.current = null
       void saveSuggestedDraftRef.current(pending.snapshot, pending.definition)
     }
     window.addEventListener('pagehide', flush)
@@ -688,9 +683,9 @@ export default function BatchExtractionsPanel({
         snapshot: activeSuggestion,
         definition: event.definition,
       }
-      if (suggestionSave.current) clearTimeout(suggestionSave.current)
-      suggestionSave.current = setTimeout(() => {
-        suggestionSave.current = null
+      clearTimeout(suggestionSave.current)
+      suggestionSave.current = window.setTimeout(() => {
+        suggestionSave.current = undefined
         const pending = pendingSuggestionDraft.current
         if (!pending) return
         void saveSuggestedDraft(pending.snapshot, pending.definition)
@@ -698,18 +693,33 @@ export default function BatchExtractionsPanel({
       return
     }
     if (event.type === 'run.requested' && activeSuggestion?.draft) {
-      if (suggestionSave.current) clearTimeout(suggestionSave.current)
-      suggestionSave.current = null
+      clearTimeout(suggestionSave.current)
+      suggestionSave.current = undefined
       setSuggestionRun(true)
       void (async () => {
         try {
-          const saved = await updateBatchSchemaSuggestionDraft(
-            projectContextId,
-            activeSuggestion.batchSchemaSuggestionId,
-            activeSuggestion.draft!,
-            activeSuggestion.draftVersion,
-          )
-          replaceSuggestion(saved)
+          let saved = activeSuggestion
+          while (
+            suggestionSaveInFlight.current ||
+            pendingSuggestionDraft.current
+          ) {
+            const inFlight = suggestionSaveInFlight.current
+            if (inFlight) {
+              const acknowledged = await inFlight
+              if (!acknowledged)
+                throw new Error('The suggested draft could not be saved.')
+              saved = acknowledged
+              continue
+            }
+            const pending = pendingSuggestionDraft.current!
+            const acknowledged = await saveSuggestedDraftRef.current(
+              pending.snapshot,
+              pending.definition,
+            )
+            if (!acknowledged)
+              throw new Error('The suggested draft could not be saved.')
+            saved = acknowledged
+          }
           const started = await runBatchSchemaSuggestion(
             projectContextId,
             saved.batchSchemaSuggestionId,
@@ -727,7 +737,10 @@ export default function BatchExtractionsPanel({
             setDraftConflict(true)
           else
             setRunFailure(
-              failureText(error, 'The suggested Batch Extraction could not start.'),
+              failureText(
+                error,
+                'The suggested Batch Extraction could not start.',
+              ),
             )
         } finally {
           setSuggestionRun(false)
@@ -782,7 +795,7 @@ export default function BatchExtractionsPanel({
     setRunFailure(null)
     setRunNotice(null)
     try {
-      const savedRevision = await savedSchemaCoordinator.current?.flush()
+      const savedRevision = await savedSchemaFlush.current?.()
       const request = {
         projectContextId,
         schemaRevisionId: savedRevision?.schemaRevisionId ?? schemaRevisionId,
@@ -887,12 +900,6 @@ export default function BatchExtractionsPanel({
   const selectedSchema = schemas.value?.find(
     (schema) => schema.currentRevision?.schemaRevisionId === schemaRevisionId,
   )
-  const savedSchemaFailure =
-    savedSchemaState?.status === 'conflict'
-      ? 'The Current Schema Revision changed elsewhere. Reopen this schema before editing it.'
-      : savedSchemaState?.status === 'error'
-        ? savedSchemaState.error?.message ?? 'The schema could not be saved.'
-        : null
   const suggestingFields = suggestion.matches('suggesting')
   const preparingSuggestedBatch =
     suggestion.matches('confirming') || suggestion.matches('opening')
@@ -1047,7 +1054,6 @@ export default function BatchExtractionsPanel({
                   onChange={(event) => {
                     const nextRevisionId = event.target.value
                     setSchemaRevisionId(nextRevisionId)
-                    setSavedSchemaHistory([])
                     if (nextRevisionId !== SUGGEST_SCHEMA) {
                       clearSuggestedFields()
                       return
@@ -1103,78 +1109,20 @@ export default function BatchExtractionsPanel({
               </p>
             )}
             {chosenSchema?.schemaRevisionId === schemaRevisionId && (
-              <section
-                className="mb-5 h-[32rem] overflow-hidden rounded-md border border-line bg-surface"
-                aria-label="Extraction Schema fields"
-              >
-                <SchemaPanel
-                  key={chosenSchema.schemaRevisionId}
-                  state={{
-                    status: 'ready',
-                    recordDescription: chosenSchema.recordDescription,
-                    nodes: chosenSchema.schemaNodes,
-                    inputsKey: chosenSchema.schemaRevisionId,
-                  }}
-                  sourceDocumentName={
-                    selectedSchema
-                      ? `${selectedSchema.name} · Schema Revision ${chosenSchema.revisionNumber}`
-                      : `Schema Revision ${chosenSchema.revisionNumber}`
-                  }
-                  showRegenerate={false}
-                  history={savedSchemaHistory}
-                  currentRevisionNumber={
-                    savedSchemaState?.acknowledged.revisionNumber ??
-                    chosenSchema.revisionNumber
-                  }
-                  onGenerate={() => {}}
-                  onCancelGenerate={() => {}}
-                  onResetSchema={async () => {
-                    const coordinator = savedSchemaCoordinator.current
-                    if (!coordinator) return
-                    coordinator.edit({
-                      recordDescription:
-                        coordinator.state.draft.recordDescription,
-                      schemaNodes: [],
-                    })
-                    await coordinator.flush()
-                  }}
-                  onNodesChange={(nodes, _message, recordDescription) => {
-                    const coordinator = savedSchemaCoordinator.current
-                    if (!coordinator) return
-                    coordinator.edit({
-                      recordDescription:
-                        recordDescription ??
-                        coordinator.state.draft.recordDescription,
-                      schemaNodes: nodes,
-                    })
-                  }}
-                  beforeSchemaEdit={async () => {
-                    const revision =
-                      await savedSchemaCoordinator.current?.flush()
-                    return revision
-                      ? {
-                          projectContextId,
-                          extractionSchemaId: revision.extractionSchemaId,
-                          schemaRevisionId: revision.schemaRevisionId,
-                        }
-                      : null
-                  }}
-                  loadRevision={(revisionId) =>
-                    getSchemaRevision(
-                      projectContextId,
-                      chosenSchema.extractionSchemaId,
-                      revisionId,
-                    )
-                  }
-                />
-              </section>
+              <SavedSchemaEditor
+                key={chosenSchema.schemaRevisionId}
+                projectContextId={projectContextId}
+                chosenSchema={chosenSchema}
+                sourceDocumentName={
+                  selectedSchema
+                    ? `${selectedSchema.name} · Schema Revision ${chosenSchema.revisionNumber}`
+                    : `Schema Revision ${chosenSchema.revisionNumber}`
+                }
+                registerFlush={(flush) => {
+                  savedSchemaFlush.current = flush
+                }}
+              />
             )}
-            {chosenSchema?.schemaRevisionId === schemaRevisionId &&
-              savedSchemaFailure && (
-                <p className="-mt-3 mb-5 text-[11px] text-danger" role="alert">
-                  {savedSchemaFailure}
-                </p>
-              )}
             {schemaRevisionId === SUGGEST_SCHEMA && (
               <section
                 className="mb-5 space-y-3"
@@ -1270,37 +1218,18 @@ export default function BatchExtractionsPanel({
                     aria-busy={preparingSuggestedBatch}
                     inert={preparingSuggestedBatch ? true : undefined}
                   >
-                    <SchemaPanel
+                    <SuggestedSchemaEditor
                       key={suggestedFields.selectionKey}
-                      state={{
-                        status: 'ready',
-                        recordDescription: suggestedFields.recordDescription,
-                        nodes: suggestedFields.schemaNodes,
-                        inputsKey: suggestedFields.selectionKey,
+                      proposal={suggestedFields}
+                      proposalVersion={{
+                        draftVersion: activeSuggestion?.draftVersion ?? 0,
+                        finishedAt: activeSuggestion?.finishedAt ?? null,
                       }}
                       sourceDocumentName={`${selected.size} selected Source Document${selected.size === 1 ? '' : 's'}`}
-                      history={[]}
                       readOnly={confirmedSuggestion !== null}
                       showRegenerate={confirmedSuggestion === null}
-                      onGenerate={regenerateSuggestedFields}
-                      onCancelGenerate={() => {}}
-                      onResetSchema={() =>
-                        updateSuggestedDefinition((definition) => ({
-                          ...definition,
-                          schemaNodes: [],
-                        }))
-                      }
-                      onNodesChange={(nodes, _message, recordDescription) =>
-                        updateSuggestedDefinition((definition) => ({
-                          recordDescription:
-                            recordDescription ?? definition.recordDescription,
-                          schemaNodes: nodes,
-                        }))
-                      }
-                      beforeSchemaEdit={async () => null}
-                      loadRevision={async () => {
-                        throw new Error('Suggested schemas have no revision history.')
-                      }}
+                      onGenerateInstructions={regenerateSuggestedFields}
+                      onProposalEdit={updateSuggestedDefinition}
                     />
                   </div>
                 )}
@@ -1532,5 +1461,132 @@ export default function BatchExtractionsPanel({
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * The chosen Extraction Schema's fields before running a Batch Extraction.
+ * Edits append revisions immediately (debounce 0): the run that follows must
+ * bind to what the researcher just saw.
+ */
+function SavedSchemaEditor({
+  projectContextId,
+  chosenSchema,
+  sourceDocumentName,
+  registerFlush,
+}: {
+  projectContextId: string
+  chosenSchema: SchemaRevision
+  sourceDocumentName: string
+  registerFlush: (
+    flush: (() => Promise<AcknowledgedSchemaRevision | null>) | null,
+  ) => void
+}) {
+  const schema = useDurableCurrentSchemaRevision({
+    projectContextId,
+    extractionSchema: chosenSchema,
+    debounceMs: 0,
+  })
+  useEffect(() => {
+    registerFlush(() => schema.flush())
+    return () => registerFlush(null)
+  }, [schema, registerFlush])
+  const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
+  const failure =
+    snap.save?.status === 'error'
+      ? snap.save.error?.message ?? 'The schema could not be saved.'
+      : null
+  // Clear keeps the record description and empties the fields — the same
+  // empty-draft-saved-immediately semantics this screen always had.
+  async function clearDraft() {
+    const result = schema.clearDraft('Cleared fields')
+    if (!result.ok) return
+    await schema.flush()
+  }
+  return (
+    <>
+      <section
+        className="mb-5 h-[32rem] overflow-hidden rounded-md border border-line bg-surface"
+        aria-label="Extraction Schema fields"
+      >
+        <SchemaPanel
+          schema={schema}
+          onClearDraft={clearDraft}
+          sourceDocumentName={sourceDocumentName}
+          showRegenerate={false}
+        />
+      </section>
+      {failure && (
+        <p className="-mt-3 mb-5 text-[11px] text-danger" role="alert">
+          {failure}
+        </p>
+      )}
+    </>
+  )
+}
+
+/**
+ * A Batch Schema Suggestion's editable proposal. Nothing here is durable:
+ * every committed edit forwards into the caller-owned suggestion draft
+ * machinery, and chat-driven edits stay unavailable exactly as before.
+ */
+function SuggestedSchemaEditor({
+  proposal,
+  proposalVersion,
+  sourceDocumentName,
+  readOnly,
+  showRegenerate,
+  onGenerateInstructions,
+  onProposalEdit,
+}: {
+  proposal: SchemaDefinition
+  proposalVersion: SuggestionDraftVersion
+  sourceDocumentName: string
+  readOnly: boolean
+  showRegenerate: boolean
+  onGenerateInstructions?: (instruction: string) => void
+  onProposalEdit: (
+    update: (definition: SchemaDefinition) => SchemaDefinition,
+  ) => void
+}) {
+  // The parent's suggestion machinery changes identity every render; the
+  // latest callback is read from the ref inside the persistence's onEdit.
+  const onProposalEditRef = useRef(onProposalEdit)
+  useEffect(() => {
+    onProposalEditRef.current = onProposalEdit
+  })
+  const proposalVersionRef = useRef(proposalVersion)
+  const schema = useSchemaEditorController(() => {
+    const persistence = localSchemaPersistence({
+      onEdit: (definition) => onProposalEditRef.current(() => definition),
+    })
+    return createSchemaEditorController(persistence, {
+      initialDraft: proposal,
+    })
+  })
+  useEffect(() => {
+    const previous = proposalVersionRef.current
+    if (
+      previous.draftVersion === proposalVersion.draftVersion &&
+      previous.finishedAt === proposalVersion.finishedAt
+    )
+      return
+    proposalVersionRef.current = proposalVersion
+    const current = schema.snapshot().draft
+    if (current && sameSchemaDefinition(current, proposal)) return
+    schema.adoptDraft(proposal)
+  }, [proposal, proposalVersion, schema])
+  function clearDraft() {
+    schema.clearDraft('')
+  }
+  return (
+    <SchemaPanel
+      schema={schema}
+      onGenerateInstructions={onGenerateInstructions}
+      onClearDraft={clearDraft}
+      sourceDocumentName={sourceDocumentName}
+      readOnly={readOnly}
+      showRegenerate={showRegenerate}
+    />
   )
 }

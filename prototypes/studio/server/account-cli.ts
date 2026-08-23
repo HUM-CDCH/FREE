@@ -1,3 +1,4 @@
+import './env.js'
 import { resolve } from 'node:path'
 import { emitKeypressEvents } from 'node:readline'
 import { pathToFileURL } from 'node:url'

@@ -94,6 +94,29 @@ describe('useExtraction server-owned lifecycle', () => {
     })
   })
 
+  it('runs with an explicit acknowledged target before the next render', async () => {
+    const acknowledgedTarget = {
+      sourceRepresentationId: representationId,
+      schemaRevisionId: '55555555-5555-4555-8555-555555555555',
+    }
+    vi.mocked(api.requestExtraction).mockResolvedValue(
+      attempt({ schemaRevisionId: acknowledgedTarget.schemaRevisionId }),
+    )
+    const input = { ...options(), reviewTarget: null }
+    const { result } = renderHook(() => useExtraction(input))
+
+    await act(() => result.current.runExtraction(acknowledgedTarget))
+
+    expect(api.requestExtraction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceRepresentationRevisionId:
+          acknowledgedTarget.sourceRepresentationId,
+        schemaRevisionId: acknowledgedTarget.schemaRevisionId,
+      }),
+      expect.any(AbortSignal),
+    )
+  })
+
   it('returns to idle when changed pins cancel a running extraction', () => {
     vi.mocked(api.requestExtraction).mockImplementation(
       () => new Promise(() => {}),

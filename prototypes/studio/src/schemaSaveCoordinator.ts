@@ -144,7 +144,7 @@ export function createSchemaSaveCoordinator(
         publish({ ...state, status: 'saved' })
         return Promise.resolve(state.acknowledged)
       }
-      if (timer) clearTimeout(timer)
+      clearTimeout(timer)
       timer = undefined
       const promise = new Promise<AcknowledgedSchemaRevision>(
         (resolve, reject) => {
@@ -166,7 +166,7 @@ export function createSchemaSaveCoordinator(
       return acknowledged
     },
     dispose() {
-      if (timer) clearTimeout(timer)
+      clearTimeout(timer)
     },
   }
 }
