@@ -37,6 +37,7 @@ import {
   enforceCanonicalOrigin,
 } from './origin.js'
 import { createSessionManager } from './session.js'
+import { createSessionGate } from './sessionGate.js'
 import {
   canonicalStudioBasePath,
   studioPath,
@@ -46,21 +47,11 @@ import {
 export const VITE_CLIENT_FALLBACK_HEADER = 'x-free-vite-client-fallback'
 export const GENERAL_API_REQUEST_LIMIT = 1024 * 1024
 
-const PUBLIC_API: Readonly<Record<string, true>> = {
-  'GET /api/healthz': true,
-  'GET /api/auth/session': true,
-  'POST /api/auth/login': true,
-}
 const AUTH_METHOD: Readonly<Record<string, string>> = {
   login: 'POST',
   session: 'GET',
   password: 'POST',
   logout: 'POST',
-}
-const MANDATORY_CHANGE_API: Readonly<Record<string, true>> = {
-  '/api/auth/session': true,
-  '/api/auth/password': true,
-  '/api/auth/logout': true,
 }
 const PUBLIC_BUILD_ASSET_PREFIXES = ['/assets/'] as const
 const VITE_DEVELOPMENT_DEPENDENCY_PREFIXES = [
@@ -205,8 +196,8 @@ function authenticationRequired(clearCookie?: string): Response {
   return clearCookie ? withCookie(response, clearCookie) : response
 }
 
-function passwordChangeRequired(): Response {
-  return noStoreResponse(
+function passwordChangeRequired(cookie?: string): Response {
+  const response = noStoreResponse(
     apiErrorResponse(
       new ApiError(
         403,
@@ -215,6 +206,7 @@ function passwordChangeRequired(): Response {
       ),
     ),
   )
+  return cookie ? withCookie(response, cookie) : response
 }
 
 function methodNotAllowed(allow: string): Response {
@@ -324,6 +316,10 @@ export async function createStudioApp(
   const clientHandler = options.clientHandler ?? defaultClientHandler
   const resolveClientAddress = options.clientAddress ?? clientAddressFromBindings
   const verifyRequestPeer = options.requestPeer
+  const gate = createSessionGate({
+    backend,
+    clearSessionCookie: () => sessions.clear(),
+  })
   const app = new Hono<StudioEnvironment>()
 
   app.onError((error) => authErrorResponse(error))
@@ -338,31 +334,20 @@ export async function createStudioApp(
     context,
     next,
   ) => {
-    const request = context.req.raw
-    const pathname = new URL(request.url).pathname
-    if (PUBLIC_API[`${request.method} ${pathname}`]) {
+    const decision = await gate.api(context.req.raw)
+    if (decision.verdict === 'bypass') {
       await next()
       return
     }
+    if (decision.verdict === 'deny')
+      return decision.reason === 'unauthenticated'
+        ? authenticationRequired(decision.setCookie)
+        : passwordChangeRequired(decision.setCookie)
 
-    const state = await backend.inspect(request)
-    if (!state.authenticated)
-      return authenticationRequired(
-        state.clearCookie ? sessions.clear() : undefined,
-      )
-    if (
-      state.account.mustChangePassword &&
-      MANDATORY_CHANGE_API[pathname] !== true
-    )
-      return passwordChangeRequired()
-
-    context.set('authentication', state)
+    context.set('authentication', decision.authentication)
     await next()
-    if (
-      pathname !== '/api/auth/password' &&
-      pathname !== '/api/auth/logout'
-    )
-      context.res = withCookie(context.res, state.renewalCookie)
+    if (decision.setCookie)
+      context.res = withCookie(context.res, decision.setCookie)
   }
   app.use('/api', authGuard)
   app.use('/api/*', authGuard)
@@ -404,11 +389,11 @@ export async function createStudioApp(
   })
 
   app.get('/api/auth/session', async (context) => {
-    const state = await backend.inspect(context.req.raw)
-    let response = noStoreResponse(Response.json(sessionView(state)))
-    if (state.authenticated) response = withCookie(response, state.renewalCookie)
-    else if (state.clearCookie) response = withCookie(response, sessions.clear())
-    return response
+    const inspected = await gate.session(context.req.raw)
+    const response = noStoreResponse(Response.json(inspected.view))
+    return inspected.setCookie
+      ? withCookie(response, inspected.setCookie)
+      : response
   })
 
   app.post('/api/auth/password', async (context) => {
@@ -466,21 +451,21 @@ export async function createStudioApp(
     if (request.method !== 'GET' && request.method !== 'HEAD')
       return apiErrorResponse(new ApiError(404, 'not_found', 'Page not found.'))
 
-    const state = await backend.inspect(request)
-    if (!state.authenticated) {
-      const returnTo = `${url.pathname}${url.search}`
+    const decision = await gate.page(request)
+    if (decision.verdict === 'deny') {
+      const { path, returnTo } = decision.redirectTo
       return redirect(
         basePath,
-        `/login?${new URLSearchParams({ returnTo })}`,
-        state.clearCookie ? sessions.clear() : undefined,
+        returnTo === undefined
+          ? path
+          : `${path}?${new URLSearchParams({ returnTo })}`,
+        decision.setCookie,
       )
     }
-    if (
-      state.account.mustChangePassword &&
-      url.pathname !== '/change-password'
-    )
-      return redirect(basePath, '/change-password', state.renewalCookie)
-    return withCookie(await clientHandler(request), state.renewalCookie)
+    const response = await clientHandler(request)
+    return decision.setCookie
+      ? withCookie(response, decision.setCookie)
+      : response
   })
 
   if (basePath === '/') return app
