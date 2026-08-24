@@ -27,6 +27,7 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 // import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { renameExtractionSchema } from './schemaRevisions'
+import type { SchemaDefinition } from 'extraction/schema'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -146,6 +147,11 @@ export type DocumentWorkspaceProps = {
   tabBarSlot?: HTMLElement | null
 }
 
+type PinnedAttemptSchema = SchemaDefinition & {
+  schemaRevisionId: string
+  revisionNumber: number
+}
+
 export function DocumentWorkspace({
   pdfUrl,
   filename,
@@ -196,6 +202,16 @@ export function DocumentWorkspace({
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
+  const [latestAttemptSchema, setLatestAttemptSchema] = useState<PinnedAttemptSchema | null>(
+    persistedExtraction
+      ? {
+          schemaRevisionId: persistedExtraction.schemaRevisionId,
+          revisionNumber: persistedExtraction.extractionSchema.revisionNumber,
+          recordDescription: persistedExtraction.extractionSchema.recordDescription,
+          schemaNodes: persistedExtraction.extractionSchema.schemaNodes,
+        }
+      : null,
+  )
   const pdfSource = useMemo(
     () => ({ url: pdfUrl, filename }),
     [filename, pdfUrl],
@@ -212,6 +228,16 @@ export function DocumentWorkspace({
       return
     previousSourceRepresentationIdRef.current = sourceRepresentationId
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
+    setLatestAttemptSchema(
+      persistedExtraction
+        ? {
+            schemaRevisionId: persistedExtraction.schemaRevisionId,
+            revisionNumber: persistedExtraction.extractionSchema.revisionNumber,
+            recordDescription: persistedExtraction.extractionSchema.recordDescription,
+            schemaNodes: persistedExtraction.extractionSchema.schemaNodes,
+          }
+        : null,
+    )
     setResultPath(null)
     setToast(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -646,15 +672,22 @@ export function DocumentWorkspace({
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
+  const inspectedAttemptSchema = useMemo(() => pinnedAttempt
+    ? {
+        schemaRevisionId: pinnedAttempt.schemaRevisionId,
+        revisionNumber: pinnedAttempt.extractionSchema.revisionNumber,
+        recordDescription: pinnedAttempt.extractionSchema.recordDescription,
+        schemaNodes: pinnedAttempt.extractionSchema.schemaNodes,
+      }
+    : latestAttemptSchema?.schemaRevisionId === latestAttempt?.schemaRevisionId
+      ? latestAttemptSchema
+      : null,
+  [latestAttempt?.schemaRevisionId, latestAttemptSchema, pinnedAttempt])
 
   const evidenceFieldNames = useMemo(
     () =>
-      pinnedAttempt
-        ? pinnedAttempt.extractionSchema.schemaNodes.map((node) => node.name)
-        : schemaSnap.draft !== null && schemaSnap.view === 'editing'
-          ? schemaSnap.draft.schemaNodes.map((node) => node.name)
-          : [],
-    [pinnedAttempt, schemaSnap.draft, schemaSnap.view],
+      inspectedAttemptSchema?.schemaNodes.map((node) => node.name) ?? [],
+    [inspectedAttemptSchema],
   )
   const selectEvidenceAnchor = useEvidenceOverlays({
     containerRef,
@@ -679,10 +712,17 @@ export function DocumentWorkspace({
         return
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
-      await extraction.runExtraction({
+      const terminal = await extraction.runExtraction({
         sourceRepresentationId: targetSourceRepresentationId,
         schemaRevisionId: revision.schemaRevisionId,
       })
+      if (terminal)
+        setLatestAttemptSchema({
+          schemaRevisionId: revision.schemaRevisionId,
+          revisionNumber: revision.revisionNumber,
+          recordDescription: revision.recordDescription,
+          schemaNodes: revision.schemaNodes,
+        })
     } catch (error) {
       showToast(
         error instanceof Error
@@ -865,17 +905,8 @@ export function DocumentWorkspace({
                 documentMarkdown,
                 parsedDocument,
                 reviewDecisions: inspectedAttempt?.reviewDecisions ?? [],
-                pinnedSchema: pinnedAttempt?.extractionSchema ?? null,
-                // A pinned historical Extraction carries its own Extraction Schema;
-                // the latest attempt shows against the current one.
-                exportSchema:
-                  pinnedAttempt?.extractionSchema ??
-                  (schemaSnap.draft !== null && schemaSnap.view === 'editing'
-                    ? {
-                        recordDescription: schemaSnap.draft.recordDescription,
-                        schemaNodes: schemaSnap.draft.schemaNodes,
-                      }
-                    : null),
+                pinnedSchema: inspectedAttemptSchema,
+                exportSchema: inspectedAttemptSchema,
               }}
               sourceDocumentName={pdfSource.filename}
               schemaName={schemaName}

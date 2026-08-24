@@ -16,6 +16,18 @@ test.describe.configure({ mode: 'serial' })
 const sha256 = (value: Uint8Array) =>
   createHash('sha256').update(value).digest('hex')
 
+const lifecycleSchemaNodes = [
+  { id: 'title', name: 'title', type: 'string' },
+  { id: 'year', name: 'year', type: 'integer' },
+  { id: 'tags', name: 'tags', type: 'array', itemType: 'string' },
+  {
+    id: 'findings', name: 'findings', type: 'array', children: [
+      { id: 'kind', name: 'kind', type: 'string' },
+      { id: 'detail', name: 'detail', type: 'verbatim-string' },
+    ],
+  },
+] as const
+
 async function canonicalPackage(
   originalFilename: string,
   sourceDocument?: ParsedDocument,
@@ -75,7 +87,7 @@ async function canonicalPackage(
   }
 }
 
-test('real Article lifecycle persists review and reopens newer unreviewed pins independently', async ({
+test('real Article lifecycle persists review, exports its reviewed result, and reopens newer unreviewed pins independently @deterministic', async ({
   browser,
   page,
 }) => {
@@ -93,6 +105,7 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   await rm(configHome, { recursive: true, force: true })
 
   let delayNextResponse = false
+  let omitGrounding = false
   const modelServer = createServer((request, response) => {
     let body = ''
     request.setEncoding('utf8')
@@ -102,8 +115,25 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
     request.on('end', () => {
       const prompt = JSON.parse(body) as { prompt: string }
       const generated = prompt.prompt.includes('"links"')
-        ? '{"links":{"C1":"E1"}}'
-        : '{"records":[{"title":"Grav 8"}]}'
+        ? JSON.stringify({
+            links: Object.fromEntries(
+              [...prompt.prompt.matchAll(/"(C\d+)"\s*:/g)]
+                .map((match) => match[1]!)
+                .filter((label, index, labels) => labels.indexOf(label) === index)
+                .map((label) => [label, omitGrounding ? 'E999' : 'E1']),
+            ),
+          })
+        : JSON.stringify({
+            records: [{
+              title: 'Résumé, source\nline',
+              year: 1801,
+              tags: ['æ', 'quoted "tag"'],
+              findings: [
+                { kind: 'A', detail: 'First,\nline' },
+                { kind: 'B', detail: 'Second' },
+              ],
+            }],
+          })
       const send = () => {
         response.writeHead(200, { 'content-type': 'application/json' })
         response.end(JSON.stringify({ response: generated, done_reason: 'stop', prompt_eval_count: 10, eval_count: 4, total_duration: 1_000_000 }))
@@ -203,7 +233,7 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
     origin: 'RESEARCHER_EDIT',
     schemaTree: {
       recordDescription: 'One lifecycle fixture record.',
-      schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+      schemaNodes: lifecycleSchemaNodes,
     },
   })
 
@@ -219,19 +249,74 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   await expect(
     page.getByRole('button', { name: 'View Evidence for title' }),
   ).toBeVisible()
+  const titleReview = page.getByRole('group', { name: 'Review title' })
+  await titleReview.getByRole('button', { name: 'Edit title' }).click()
+  await page.getByRole('textbox', { name: 'Reviewed value for title', exact: true }).fill('Reviewed, café')
+  await page.getByRole('button', { name: 'Save reviewed value for title' }).click()
+  await expect(page.getByText('Reviewed, café', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Save Review' }).click()
   await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
+
+  // A real browser download is produced once even when the format action is
+  // double-clicked. Inspect both archive structure and the exact CSV bytes.
+  const downloads: import('@playwright/test').Download[] = []
+  page.on('download', (download) => downloads.push(download))
+  await page.getByRole('button', { name: 'Export' }).click()
+  let exportDialog = page.getByRole('dialog', { name: 'Export options' })
+  await exportDialog.getByLabel('Rows represent').selectOption('findings')
+  const workbookEvent = page.waitForEvent('download')
+  await exportDialog.getByRole('button', { name: 'Excel' }).dblclick()
+  const workbookDownload = await workbookEvent
+  await expect.poll(() => downloads.length).toBe(1)
+  expect(workbookDownload.suggestedFilename()).toBe('article-lifecycle-extraction-result.xlsx')
+  const { strFromU8, unzipSync } = await import('fflate')
+  const workbookArchive = unzipSync(new Uint8Array(await readFile((await workbookDownload.path())!)))
+  const workbook = Object.fromEntries(
+    Object.entries(workbookArchive).map(([path, bytes]) => [path, strFromU8(bytes)]),
+  )
+  expect(workbook['xl/workbook.xml']).toMatch(/<sheet[^>]*name="Results"/)
+  const sharedStrings = workbook['xl/sharedStrings.xml']!
+  const orderedHeaders = ['title', 'year', 'tags', 'findings.kind', 'findings.detail']
+  for (let index = 1; index < orderedHeaders.length; index++)
+    expect(sharedStrings.indexOf(orderedHeaders[index - 1]!)).toBeLessThan(
+      sharedStrings.indexOf(orderedHeaders[index]!),
+    )
+  for (const value of ['Reviewed, café', 'æ', 'quoted "tag"', 'First,\nline', 'Second'])
+    expect(sharedStrings).toContain(value)
+  const sheet = workbook['xl/worksheets/sheet1.xml']!
+  expect(sheet.match(/<row/g)).toHaveLength(3)
+  expect(sheet).toContain('<autoFilter ref="A1:E3"/>')
+  expect(sheet.match(/<v>1801<\/v>/g)).toHaveLength(2)
+
+  await page.getByRole('button', { name: 'Export' }).click()
+  exportDialog = page.getByRole('dialog', { name: 'Export options' })
+  await expect(exportDialog.getByLabel('Rows represent')).toHaveValue('findings')
+  const csvEvent = page.waitForEvent('download')
+  await exportDialog.getByRole('button', { name: 'CSV' }).click()
+  const csvDownload = await csvEvent
+  expect(csvDownload.suggestedFilename()).toBe('article-lifecycle-extraction-result.csv')
+  expect(await readFile((await csvDownload.path())!, 'utf8')).toBe(
+    'title,year,tags,findings.kind,findings.detail\r\n' +
+    '"Reviewed, café",1801,"æ, quoted ""tag""",A,"First,\nline"\r\n' +
+    '"Reviewed, café",1801,"æ, quoted ""tag""",B,Second',
+  )
 
   const reviewed = await db.orm.public.Extraction.where({ sourceDocumentId })
     .select('id', 'reviewedAt')
     .orderBy((attempt) => attempt.createdAt.desc())
     .first()
   expect(reviewed?.reviewedAt).not.toBeNull()
-  expect(
-    await db.orm.public.ReviewDecision.where({ extractionId: reviewed!.id })
-      .select('id')
-      .all(),
-  ).toHaveLength(1)
+  const persistedDecisions = await db.orm.public.ReviewDecision.where({ extractionId: reviewed!.id })
+    .select('resultPath', 'action', 'reviewedValue', 'createdAt')
+    .all()
+  expect(persistedDecisions.length).toBeGreaterThan(1)
+  expect(persistedDecisions.find(
+    (decision) => JSON.stringify(decision.resultPath) === JSON.stringify(['records', 0, 'title']),
+  )).toMatchObject({
+    action: 'EDITED',
+    reviewedValue: { value: 'Reviewed, café' },
+    createdAt: expect.any(Date),
+  })
 
   const secondPackage = await canonicalPackage('newer-unreviewed.pdf')
   const secondDescriptor = await packageStore.save(secondPackage.bytes)
@@ -253,11 +338,12 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
     origin: 'RESEARCHER_EDIT',
     schemaTree: {
       recordDescription: 'One lifecycle fixture record.',
-      schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+      schemaNodes: lifecycleSchemaNodes,
     },
   })
 
   const newerExtractionId = randomUUID()
+  omitGrounding = true
   const created = await page.request.post('/api/extractions', {
     headers: { Origin: E2E_ORIGIN },
     data: {
@@ -274,12 +360,10 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   await loginResearcher(freshPage, researcherEmail)
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
-  await expect(
-    freshPage.getByRole('button', { name: 'View Evidence for title' }),
-  ).toBeVisible()
-  await expect(
-    freshPage.getByRole('button', { name: 'Save Review' }),
-  ).toBeVisible()
+  await expect(freshPage.getByText('No reviewable result')).toBeVisible()
+  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
+  await freshPage.getByRole('button', { name: 'Raw JSON' }).click()
+  await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
   const reopened = documentReopenResponseSchema.parse(
     await (
       await freshPage.request.get(
@@ -304,6 +388,10 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   await expect(freshPage.locator('.pdfViewer .page')).toHaveCount(6)
   await freshPage.getByRole('button', { name: 'Pinned schema' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
+  await expect(freshPage.getByText(firstSchemaRevisionId, { exact: true })).toBeVisible()
+  await freshPage.getByRole('button', { name: 'Review' }).click()
+  await expect(freshPage.getByText('Reviewed, café', { exact: true })).toBeVisible()
+  await expect(freshPage.getByRole('button', { name: /^Edit / })).toHaveCount(0)
   await freshPage.getByLabel('Extraction snapshot').selectOption(newerExtractionId)
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   delayNextResponse = true

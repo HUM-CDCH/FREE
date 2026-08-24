@@ -24,7 +24,10 @@ export type ExtractionInspection = {
   documentMarkdown: string | null
   parsedDocument: ParsedDocument | null
   reviewDecisions: ExtractionAttempt['reviewDecisions']
-  pinnedSchema: SchemaDefinition | null
+  pinnedSchema: (SchemaDefinition & {
+    revisionNumber?: number
+    schemaRevisionId?: string
+  }) | null
   /** Extraction Schema of the inspected Extraction Result, current or historical. */
   exportSchema: SchemaDefinition | null
 }

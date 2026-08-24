@@ -984,8 +984,11 @@ describe('reopened Source Document workspace', () => {
               reviewDecisions: [],
             },
             pendingReviewDecisions: [{
+              resultPath: ['records', 0, 'number'],
               evidenceAnchorId: 'bundled-anchor',
               reviewedOccurrenceIds: ['bundled-occurrence'],
+              action: 'APPROVED',
+              reviewedValue: null,
             }],
           })
         }
@@ -1002,7 +1005,7 @@ describe('reopened Source Document workspace', () => {
             failure: null, resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
             reviewable: true, retryOfId: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',
-            reviewDecisions: [{ evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'] }],
+            reviewDecisions: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor', reviewedOccurrenceIds: ['bundled-occurrence'], action: 'APPROVED', reviewedValue: null, createdAt: '2026-08-10T00:01:00.000Z' }],
           })
         }
         return new Response('# Beretning')
@@ -1015,6 +1018,12 @@ describe('reopened Source Document workspace', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     const accept = await screen.findByRole('button', { name: 'Save Review' })
+    await waitFor(() => expect(accept).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned schema' }))
+    expect(screen.getByText(reopened.extractionSchema!.schemaRevisionId)).toBeInTheDocument()
+    expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
+    expect(screen.queryByText(/"number": "string"/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
     fireEvent.click(accept)
 
     await waitFor(() =>
@@ -1025,8 +1034,11 @@ describe('reopened Source Document workspace', () => {
     expect(review.body).toEqual({
       reviewDecisions: [
         {
+          resultPath: ['records', 0, 'number'],
           evidenceAnchorId: 'bundled-anchor',
           reviewedOccurrenceIds: ['bundled-occurrence'],
+          action: 'APPROVED',
+          reviewedValue: null,
         },
       ],
     })

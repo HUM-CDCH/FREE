@@ -8,6 +8,11 @@ import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/sc
 import { resultStats } from './resultStats'
 import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+import {
+  applyReviewDecisions,
+  resultPathKey,
+  schemaNodeAtResultPath,
+} from './reviewDecisions'
 
 type ResultsTabProps = {
   controller: ExtractionController
@@ -18,7 +23,10 @@ type ResultsTabProps = {
   sourceDocumentName: string
   onSelectEvidence?: (anchorId: string) => void
   onResultPathChange?: (path: string[] | null) => void
-  pinnedSchema?: SchemaDefinition | null
+  pinnedSchema?: (SchemaDefinition & {
+    revisionNumber?: number
+    schemaRevisionId?: string
+  }) | null
   /** Extraction Schema of the displayed Extraction Result; leads the export columns. */
   exportSchema?: SchemaDefinition | null
   inspectedAttempt?: ExtractionAttempt
@@ -164,12 +172,20 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
   const state = inspectedAttempt
     ? extractionStateFromAttempt(inspectedAttempt)
     : controller.state
+  const visibleReviewDecisions = inspectedAttempt?.reviewDecisions ??
+    (attempt?.reviewedAt ? attempt.reviewDecisions : controller.review.decisions)
+  const reviewedResult = useMemo(
+    () => state.status === 'ready'
+      ? applyReviewDecisions(state.result, visibleReviewDecisions)
+      : null,
+    [state, visibleReviewDecisions],
+  )
   const [view, setView] = useState<View>('review')
   const articleRecords =
     state.status === 'ready' &&
-    isRecord(state.result) &&
-    Array.isArray(state.result.records)
-      ? state.result.records
+    isRecord(reviewedResult) &&
+    Array.isArray(reviewedResult.records)
+      ? reviewedResult.records
       : null
   const articlePathPrefix = useMemo(
     () =>
@@ -180,10 +196,18 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
         : [],
     [articleRecords],
   )
+  const absoluteReviewPath = (path: readonly string[]) => [
+    ...(articleRecords
+      ? articleRecords.length === 1
+        ? ['records', 0]
+        : ['records']
+      : []),
+    ...path.map((segment) => /^\d+$/.test(segment) ? Number(segment) : segment),
+  ]
   const displayResult =
     articleRecords?.length === 1
       ? articleRecords[0]
-      : articleRecords ?? (state.status === 'ready' ? state.result : null)
+      : articleRecords ?? reviewedResult
   const stats = useMemo(
     () => (displayResult !== null ? resultStats(displayResult) : null),
     [displayResult],
@@ -213,6 +237,14 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
       ),
     [articlePathPrefix.length, state],
   )
+  const reviewDecisionByPath = useMemo(
+    () => new Map(visibleReviewDecisions.map((decision) => [
+      resultPathKey(decision.resultPath),
+      decision,
+    ])),
+    [visibleReviewDecisions],
+  )
+  const noReviewableResult = state.status === 'ready' && state.evidenceLinks.length === 0
 
   function navTo(newPath: string[]) {
     setBackStack(prev => [...prev, navPath])
@@ -267,6 +299,14 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
+              {state.evidenceLinks.length > 0 && summaryItem(
+                'Decisions',
+                attempt?.reviewedAt
+                  ? `${visibleReviewDecisions.length} saved`
+                  : controller.review.loading
+                    ? 'loading'
+                    : `${visibleReviewDecisions.length} pending`,
+              )}
               {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)}
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -311,6 +351,8 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                   >
                     {controller.review.reviewedExtractionId
                       ? 'Review saved'
+                      : controller.review.loading
+                        ? 'Loading review…'
                       : controller.review.saving
                         ? 'Saving…'
                         : 'Save Review'}
@@ -358,9 +400,15 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 {controller.review.error}
               </p>
             )}
+            {noReviewableResult && (
+              <div className="mt-2 rounded-md border border-line-strong bg-surface-muted px-2.5 py-2 text-[11.5px] leading-snug text-ink" role="status">
+                <p className="font-semibold">No reviewable result</p>
+                <p className="text-ink-muted">No populated value has Evidence. Raw JSON and diagnostics remain available.</p>
+              </div>
+            )}
             {state.ungroundedCount > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
-                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. You can still save the review; {state.ungroundedCount === 1 ? 'it' : 'they'} will remain recorded without Evidence.
+                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. {noReviewableResult ? 'No Review Decisions can be saved; ' : 'You can still save the grounded Review Decisions; '}{state.ungroundedCount === 1 ? 'it' : 'they'} will remain recorded without Evidence.
               </p>
             )}
             {attempt && <AttemptDetails attempt={attempt} />}
@@ -426,6 +474,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               </nav>
               {/* Content */}
               <div className="scrollbar-subtle min-h-0 flex-1 overflow-auto bg-canvas px-3 py-2">
+                {controller.review.loading && !readOnly && (
+                  <p role="status" className="py-2 text-[11.5px] text-ink-muted">Loading Review Decisions…</p>
+                )}
                 {currentEntries.map(({ pathKey, displayName, value: val }) => (
                   <ResultValue
                     key={pathKey}
@@ -439,6 +490,20 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                       evidenceAnchorIdByPath.get(JSON.stringify(path))
                     }
                     onSelectEvidence={onSelectEvidence}
+                    review={noReviewableResult ? undefined : {
+                      getDecision: (path) => reviewDecisionByPath.get(resultPathKey(absoluteReviewPath(path))),
+                      getSchemaNode: (path) => pinnedSchema
+                        ? schemaNodeAtResultPath(pinnedSchema.schemaNodes, absoluteReviewPath(path))
+                        : null,
+                      onDecision: readOnly || inspectedAttempt
+                        ? undefined
+                        : (path, action, reviewedValue) => controller.review.setDecision(
+                            absoluteReviewPath(path),
+                            action,
+                            reviewedValue,
+                          ),
+                      readOnly: readOnly || Boolean(inspectedAttempt),
+                    }}
                   />
                 ))}
               </div>
@@ -448,7 +513,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
           {view === 'json' && <pre className={preClasses}>{JSON.stringify(displayResult, null, 2)}</pre>}
 
           {view === 'schema' && pinnedSchema && (
-            <pre className={preClasses}>{JSON.stringify(schemaDefinitionToTemplate({ recordDescription: pinnedSchema.recordDescription, schemaNodes: pinnedSchema.schemaNodes }), null, 2)}</pre>
+            <div className="flex min-h-0 flex-1 flex-col">
+              <p className="shrink-0 border-b border-line bg-surface-muted px-4 py-2 text-[11.5px] text-ink-muted">
+                Schema Revision{pinnedSchema.revisionNumber ? ` ${pinnedSchema.revisionNumber}` : ''} · <span className="font-mono text-ink">{pinnedSchema.schemaRevisionId ?? attempt?.schemaRevisionId ?? 'unknown'}</span> · read-only
+              </p>
+              <pre className={preClasses}>{JSON.stringify(schemaDefinitionToTemplate({ recordDescription: pinnedSchema.recordDescription, schemaNodes: pinnedSchema.schemaNodes }), null, 2)}</pre>
+            </div>
           )}
 
           {view === 'markdown' && (

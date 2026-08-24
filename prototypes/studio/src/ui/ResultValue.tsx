@@ -1,5 +1,12 @@
 import { useState } from 'react'
 import pluralize from 'pluralize'
+import type { SchemaNode } from 'extraction/schema'
+import type {
+  ReviewDecision,
+  ReviewDecisionAction,
+  ReviewDecisionInput,
+} from '../../shared/extraction.contract'
+import { parseReviewedValue } from '../reviewDecisions'
 
 // Local copy so the UI lib imports zero app code (mirrors template.ts#isRecord).
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -18,6 +25,18 @@ export function singularItemLabel(fieldName: string, index: number): string {
 
 export type ResultPath = string[]
 export type OnResultChange = (path: ResultPath, value: string) => void
+type VisibleReviewDecision = ReviewDecision | ReviewDecisionInput
+
+export type ResultReview = {
+  getDecision: (path: ResultPath) => VisibleReviewDecision | undefined
+  getSchemaNode: (path: ResultPath) => SchemaNode | null
+  onDecision?: (
+    path: ResultPath,
+    action: ReviewDecisionAction,
+    reviewedValue?: ReviewDecisionInput['reviewedValue'],
+  ) => void
+  readOnly?: boolean
+}
 
 export type ResultValueProps = {
   name: string
@@ -35,6 +54,7 @@ export type ResultValueProps = {
   /** Exact canonical Evidence link for a scalar result path, when grounded. */
   getEvidenceAnchorId?: (path: ResultPath) => string | undefined
   onSelectEvidence?: (anchorId: string) => void
+  review?: ResultReview
 }
 
 // ── Shared UI atoms ───────────────────────────────────────────────────────────
@@ -87,41 +107,98 @@ function firstStringValue(obj: Record<string, unknown>): string | null {
 // ── PrimitiveRow ──────────────────────────────────────────────────────────────
 
 function PrimitiveRow({
-  name, value, path, onChange, expandText, evidenceAnchorId, onSelectEvidence,
-}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; onSelectEvidence?: (anchorId: string) => void }) {
+  name, value, path, onChange, expandText, evidenceAnchorId, onSelectEvidence, review,
+}: { name: string; value: unknown; path: ResultPath; onChange?: OnResultChange; expandText?: boolean; evidenceAnchorId?: string; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const missing = value === null || value === undefined || value === ''
   const text = missing ? '' : String(value)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [expanded, setExpanded] = useState(false)
+  const [reviewError, setReviewError] = useState<string | null>(null)
   const long = !expandText && text.length > 80
+  const decision = review?.getDecision(path)
+  const reviewEditable = Boolean(decision && review?.onDecision && !review.readOnly)
+  const decisionLabel = decision
+    ? decision.action === 'APPROVED'
+      ? 'Approved'
+      : decision.action === 'EDITED'
+        ? 'Edited'
+        : 'Rejected'
+    : null
 
-  function startEdit() { setDraft(text); setEditing(true) }
-  function save() { onChange?.(path, draft); setEditing(false) }
-  function cancel() { setEditing(false) }
+  function startEdit() {
+    setReviewError(null)
+    setDraft(text)
+    setEditing(true)
+  }
+  function save() {
+    if (reviewEditable) {
+      const parsed = parseReviewedValue(review?.getSchemaNode(path) ?? null, draft)
+      if (parsed.error) {
+        setReviewError(parsed.error)
+        return
+      }
+      review?.onDecision?.(path, 'EDITED', parsed.value)
+    } else {
+      onChange?.(path, draft)
+    }
+    setEditing(false)
+  }
+  function cancel() { setReviewError(null); setEditing(false) }
 
   if (editing) {
     return (
       <div className="my-0.5 flex items-center gap-1.5 rounded-lg border border-accent bg-accent-ghost px-2.5 py-2">
         <span className="w-2 shrink-0" />
         <span className="shrink-0 font-mono text-[13.5px] font-medium text-ink">{name}</span>
-        <input
-          className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
-          value={draft}
-          autoFocus
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
-        />
+        {review?.getSchemaNode(path)?.allowedValues ? (
+          <select
+            aria-label={`Reviewed value for ${name}`}
+            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            value={draft}
+            autoFocus
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+          >
+            {review.getSchemaNode(path)?.allowedValues?.map((option) => <option key={option}>{option}</option>)}
+          </select>
+        ) : review?.getSchemaNode(path)?.type === 'boolean' ? (
+          <select
+            aria-label={`Reviewed value for ${name}`}
+            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            value={draft}
+            autoFocus
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+          >
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        ) : (
+          <input
+            aria-label={`Reviewed value for ${name}`}
+            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            type={review?.getSchemaNode(path)?.type === 'date' ? 'date' : review?.getSchemaNode(path)?.type === 'number' || review?.getSchemaNode(path)?.type === 'integer' ? 'number' : 'text'}
+            step={review?.getSchemaNode(path)?.type === 'integer' ? '1' : undefined}
+            value={draft}
+            autoFocus
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+          />
+        )}
         <button
           className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108"
           type="button"
+          aria-label={`Save reviewed value for ${name}`}
           onClick={save}
         >Save</button>
         <button
           className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
           type="button"
+          aria-label={`Cancel editing reviewed value for ${name}`}
           onClick={cancel}
         >✗</button>
+        {reviewError && <span role="alert" className="text-[11px] text-danger">{reviewError}</span>}
       </div>
     )
   }
@@ -152,10 +229,21 @@ function PrimitiveRow({
               Evidence
             </button>
           )}
+          {decisionLabel && decision && <ReviewBadge label={decisionLabel} decision={decision} />}
         </div>
         <div className="pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
           {text}
         </div>
+        {reviewEditable && (
+          <ReviewActions
+            name={name}
+            action={decision?.action ?? 'APPROVED'}
+            onApprove={() => review?.onDecision?.(path, 'APPROVED', null)}
+            onEdit={startEdit}
+            onReject={() => review?.onDecision?.(path, 'REJECTED', null)}
+            onReverse={() => review?.onDecision?.(path, 'APPROVED', null)}
+          />
+        )}
       </div>
     )
   }
@@ -193,7 +281,8 @@ function PrimitiveRow({
             Evidence
           </button>
         )}
-        {onChange && (
+        {decisionLabel && decision && <ReviewBadge label={decisionLabel} decision={decision} />}
+        {(onChange || reviewEditable) && !reviewEditable && (
           <button
             className="shrink-0 cursor-pointer px-0.5 text-ink-faint opacity-0 outline-none transition-all group-hover:opacity-100 hover:text-accent"
             type="button"
@@ -209,6 +298,48 @@ function PrimitiveRow({
           {text}
         </div>
       )}
+      {reviewEditable && (
+        <ReviewActions
+          name={name}
+          action={decision?.action ?? 'APPROVED'}
+          onApprove={() => review?.onDecision?.(path, 'APPROVED', null)}
+          onEdit={startEdit}
+          onReject={() => review?.onDecision?.(path, 'REJECTED', null)}
+          onReverse={() => review?.onDecision?.(path, 'APPROVED', null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function ReviewBadge({ label, decision }: { label: string; decision: VisibleReviewDecision }) {
+  const timestamp = 'createdAt' in decision
+    ? new Date(decision.createdAt).toLocaleString()
+    : null
+  return (
+    <span
+      className="shrink-0 rounded-full border border-line-strong bg-surface-muted px-2 py-0.5 text-[10.5px] font-bold text-ink-muted"
+      title={timestamp ? `Saved ${timestamp}` : 'Pending Review Decision'}
+    >
+      {label}{timestamp ? ` · ${timestamp}` : ''}
+    </span>
+  )
+}
+
+function ReviewActions({ name, action, onApprove, onEdit, onReject, onReverse }: {
+  name: string
+  action: ReviewDecisionAction
+  onApprove: () => void
+  onEdit: () => void
+  onReject: () => void
+  onReverse: () => void
+}) {
+  return (
+    <div className="mb-1 ml-4 flex flex-wrap gap-1" role="group" aria-label={`Review ${name}`}>
+      <button type="button" aria-label={`Approve ${name}`} aria-pressed={action === 'APPROVED'} className="rounded border border-line px-2 py-0.5 text-[10.5px] font-semibold text-ink-muted aria-pressed:border-accent aria-pressed:text-accent" onClick={onApprove}>Approve</button>
+      <button type="button" aria-label={`Edit ${name}`} aria-pressed={action === 'EDITED'} className="rounded border border-line px-2 py-0.5 text-[10.5px] font-semibold text-ink-muted aria-pressed:border-accent aria-pressed:text-accent" onClick={onEdit}>Edit</button>
+      <button type="button" aria-label={`Reject ${name}`} aria-pressed={action === 'REJECTED'} className="rounded border border-line px-2 py-0.5 text-[10.5px] font-semibold text-ink-muted aria-pressed:border-accent aria-pressed:text-accent" onClick={onReject}>Reject</button>
+      {action !== 'APPROVED' && <button type="button" aria-label={`Reverse decision for ${name}`} className="rounded px-2 py-0.5 text-[10.5px] font-semibold text-ink-muted underline" onClick={onReverse}>Reverse</button>}
     </div>
   )
 }
@@ -216,8 +347,8 @@ function PrimitiveRow({
 // ── ObjectSection ─────────────────────────────────────────────────────────────
 
 function ObjectSection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence,
-}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence, review,
+}: { name: string; value: Record<string, unknown>; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const entries = Object.entries(value)
   const preview = firstStringValue(value)
@@ -258,6 +389,7 @@ function ObjectSection({
                 expandText={expandText}
                 getEvidenceAnchorId={getEvidenceAnchorId}
                 onSelectEvidence={onSelectEvidence}
+                review={review}
                 depth={depth + 1}
               />
             ))
@@ -271,8 +403,8 @@ function ObjectSection({
 // ── ArraySection ──────────────────────────────────────────────────────────────
 
 function ArraySection({
-  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence,
-}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void }) {
+  name, value, path, onChange, depth, defaultExpanded = true, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence, review,
+}: { name: string; value: readonly unknown[]; path: ResultPath; onChange?: OnResultChange; depth: number; defaultExpanded?: boolean; onNavigateTo?: (path: string[]) => void; expandText?: boolean; getEvidenceAnchorId?: (path: ResultPath) => string | undefined; onSelectEvidence?: (anchorId: string) => void; review?: ResultReview }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
@@ -306,6 +438,7 @@ function ArraySection({
                 expandText={expandText}
                 getEvidenceAnchorId={getEvidenceAnchorId}
                 onSelectEvidence={onSelectEvidence}
+                review={review}
               />
             ))
           )}
@@ -317,14 +450,14 @@ function ArraySection({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence }: ResultValueProps) {
+function ResultValue({ name, value, path = [], onChange, depth = 0, defaultExpanded, onNavigateTo, expandText, getEvidenceAnchorId, onSelectEvidence, review }: ResultValueProps) {
   if (Array.isArray(value)) {
-    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} />
+    return <ArraySection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} review={review} />
   }
   if (isRecord(value)) {
-    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} />
+    return <ObjectSection name={name} value={value} path={path} onChange={onChange} depth={depth} defaultExpanded={defaultExpanded} onNavigateTo={onNavigateTo} expandText={expandText} getEvidenceAnchorId={getEvidenceAnchorId} onSelectEvidence={onSelectEvidence} review={review} />
   }
-  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} onSelectEvidence={onSelectEvidence} />
+  return <PrimitiveRow name={name} value={value} path={path} onChange={onChange} expandText={expandText} evidenceAnchorId={getEvidenceAnchorId?.(path)} onSelectEvidence={onSelectEvidence} review={review} />
 }
 
 export default ResultValue
