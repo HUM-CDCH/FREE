@@ -1,11 +1,19 @@
-import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
+import {
+  type ReactNode,
+  type RefObject,
+  useId,
+  useRef,
+  useState,
+} from 'react'
 import Button from './Button'
+import ModalDialog from './ModalDialog'
 
 export type DeleteDialogProps = {
   title: string
   description: ReactNode
   onConfirm: () => Promise<{ message: string } | null>
   onCancel: () => void
+  returnFocusRef?: RefObject<HTMLElement | null>
 }
 
 /** Permanent deletion is confirmed in a labelled modal, never on one click. */
@@ -14,31 +22,23 @@ export default function DeleteDialog({
   description,
   onConfirm,
   onCancel,
+  returnFocusRef,
 }: DeleteDialogProps) {
   const [failure, setFailure] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const dialog = useRef<HTMLDialogElement>(null)
+  const initialFocus = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const descriptionId = useId()
 
-  // Native modality owns focus: `showModal` moves focus in and contains Tab.
-  useEffect(() => {
-    dialog.current?.showModal()
-  }, [])
-
   return (
-    <dialog
-      ref={dialog}
+    <ModalDialog
       className="m-auto w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
-      onClose={onCancel}
-      // Escape and every other dismissal wait for a write in flight, so a
-      // failure keeps the dialog and its retry.
-      onCancel={(event) => {
-        event.preventDefault()
-        if (!deleting) dialog.current?.close()
-      }}
+      labelledBy={titleId}
+      describedBy={descriptionId}
+      initialFocusRef={initialFocus}
+      returnFocusRef={returnFocusRef}
+      dismissDisabled={deleting}
+      onDismiss={onCancel}
     >
       <h2 id={titleId} className="text-sm font-bold text-ink">
         {title}
@@ -56,9 +56,9 @@ export default function DeleteDialog({
       )}
       <div className="mt-4 flex justify-end gap-2">
         <Button
+          ref={initialFocus}
           size="md"
-          autoFocus
-          onClick={() => dialog.current?.close()}
+          onClick={onCancel}
           disabled={deleting}
         >
           Cancel
@@ -74,12 +74,12 @@ export default function DeleteDialog({
             if (rejected) {
               setDeleting(false)
               setFailure(rejected.message)
-            } else dialog.current?.close()
+            } else onCancel()
           }}
         >
           {deleting ? 'Deleting…' : 'Delete permanently'}
         </Button>
       </div>
-    </dialog>
+    </ModalDialog>
   )
 }

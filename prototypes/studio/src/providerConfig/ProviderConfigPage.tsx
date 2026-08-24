@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { type RefObject, useEffect, useState } from 'react'
 import type { CredentialState, ProviderDescriptor, ProviderKind } from '../../shared/modelConfig.contract'
 import { Button, EmptyState, Overline } from '../ui'
 import { ProviderConnectionCard, providerFieldClass } from './ProviderConnectionCard'
@@ -8,7 +8,13 @@ import { useProbeLifecycle } from './useProbeLifecycle'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
 
 
-function ProviderConfigPage({ onClose }: { onClose: () => void }) {
+function ProviderConfigPage({
+  onClose,
+  initialFocusRef,
+}: {
+  onClose: () => void
+  initialFocusRef?: RefObject<HTMLButtonElement | null>
+}) {
   const [providers, setProviders] = useState<ProviderDescriptor[]>([])
   const [credentialStates, setCredentialStates] = useState<Record<string, CredentialState>>({})
   const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(new Set())
@@ -91,7 +97,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
       <div className="mx-auto max-w-4xl rounded-2xl border border-danger/40 bg-surface p-6">
         <p className="text-sm font-semibold text-danger">Model configuration could not be loaded.</p>
         {error && <p role="alert" className="mt-2 whitespace-pre-line font-mono text-xs text-danger">{error}</p>}
-        <Button variant="secondary" size="sm" onClick={onClose}>Close</Button>
+        <Button ref={initialFocusRef} autoFocus variant="secondary" size="sm" onClick={onClose}>Close</Button>
       </div>
     )
   }
@@ -126,7 +132,7 @@ function ProviderConfigPage({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           )}
-          <button type="button" onClick={onClose} aria-label="Close Model Connections" className="text-lg text-ink-faint hover:text-ink">×</button>
+          <button ref={initialFocusRef} autoFocus type="button" onClick={onClose} aria-label="Close Model Connections" className="text-lg text-ink-faint hover:text-ink">×</button>
         </div>
       </header>
 

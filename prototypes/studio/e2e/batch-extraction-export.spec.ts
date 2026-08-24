@@ -397,13 +397,18 @@ async function prepareBatch(page: Page): Promise<void> {
 
 /** Opens the export popover on the member list and downloads the chosen format. */
 async function exportBatch(page: Page, format: 'Excel' | 'CSV') {
-  await panel(page).getByRole('button', { name: 'Export' }).click()
+  const trigger = panel(page).getByRole('button', { name: 'Export' })
+  await trigger.click()
   const options = page.getByRole('dialog', { name: 'Export options' })
-  await expect(options.getByLabel('Rows represent')).toHaveValue('$')
+  const rowsRepresent = options.getByLabel('Rows represent')
+  await expect(rowsRepresent).toHaveValue('$')
+  await expect(rowsRepresent).toBeFocused()
   await expect(options.getByLabel('Other repeated fields')).toHaveValue('preserve')
   const download = page.waitForEvent('download')
   await options.getByRole('button', { name: format }).click()
-  return await download
+  const completed = await download
+  await expect(trigger).toBeFocused()
+  return completed
 }
 
 test('a Batch Extraction runs over selected Source Documents and exports one spreadsheet @deterministic', async ({

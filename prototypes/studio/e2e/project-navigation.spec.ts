@@ -345,6 +345,38 @@ test.describe('rail navigation', () => {
     await expect(rename).toBeFocused()
   })
 
+  test('Escape and source-delete cancellation restore each exact opener', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await gotoAuthenticated(page, '/')
+
+    const create = page.getByRole('button', { name: '+ New project' })
+    await create.click()
+    await expect(page.getByRole('textbox', { name: 'Project name' })).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(create).toBeFocused()
+
+    await openProject(page, 'Hørsholm, TAK 1402')
+    const pageActions = projectPage(page).getByLabel(
+      'Actions for Oversigt_Hoersholm.pdf',
+    )
+    await pageActions.click()
+    await projectPage(page)
+      .getByRole('button', {
+        name: 'Delete Source Document Oversigt_Hoersholm.pdf',
+      })
+      .click()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(pageActions).toBeFocused()
+
+    const railDocument = documentRow(page, 'Oversigt_Hoersholm.pdf')
+    await railDocument.click({ button: 'right' })
+    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(railDocument).toBeFocused()
+  })
+
   test('moves focus deliberately after successful create and rename writes', async ({
     page,
   }) => {

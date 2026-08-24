@@ -34,7 +34,7 @@ export type ProjectContextRailProps = {
     sourceDocumentId: string,
     name: string,
   ) => void
-  onConfigure: () => void
+  onConfigure: (opener: HTMLButtonElement) => void
 }
 
 const guide = 'border-l border-line pl-3'
@@ -145,6 +145,7 @@ export function ProjectContextRail({
     name: string
   } | null>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
+  const deleteSourceReturnFocus = useRef<HTMLButtonElement>(null)
 
   // Only one row menu stays open at a time; a pointerdown outside every open
   // <details> closes it, matching the Project Context page's source menus.
@@ -421,6 +422,8 @@ export function ProjectContextRail({
                               }
                               onContextMenu={(event) => {
                                 event.preventDefault()
+                                deleteSourceReturnFocus.current =
+                                  event.currentTarget
                                 setSourceContextMenu({
                                   projectContextId,
                                   sourceDocumentId: document.sourceDocumentId,
@@ -459,7 +462,7 @@ export function ProjectContextRail({
             type="button"
             aria-label="Configure providers"
             title="Configure providers"
-            onClick={onConfigure}
+            onClick={(event) => onConfigure(event.currentTarget)}
           >
             <GearIcon />
           </button>
@@ -506,6 +509,7 @@ export function ProjectContextRail({
             )
           }
           onCancel={() => setDeletingSource(null)}
+          returnFocusRef={deleteSourceReturnFocus}
         />
       )}
 
