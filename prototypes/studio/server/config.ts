@@ -6,7 +6,7 @@ import { normalizeClientAddress } from './login-limiter.js'
 import { canonicalStudioOrigin } from './origin.js'
 
 export const STUDIO_PORT = 5173
-export const CLIENT_ADDRESS_HEADER = 'X-FREE-Client-Address'
+export const CLIENT_ADDRESS_HEADER = 'X-Real-IP'
 
 export type StudioProxyMode =
   | 'trusted-proxy'

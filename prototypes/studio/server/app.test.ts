@@ -1076,7 +1076,7 @@ describe('deny-by-default application boundary', () => {
     const bindings = (remoteAddress: string) =>
       ({
         incoming: {
-          headers: { 'x-free-client-address': '198.51.100.7' },
+          headers: { 'x-real-ip': '198.51.100.7' },
           socket: { remoteAddress },
         },
       }) as unknown as StudioBindings

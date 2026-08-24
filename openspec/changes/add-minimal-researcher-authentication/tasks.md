@@ -60,7 +60,7 @@ Each numbered section is a delivery layer and must leave the product working end
 
 - [x] 7.1 Replace the Studio container's Vite development-server command with the built production Node host and migration-replay startup.
 - [x] 7.2 Add Caddy as the only host-published Compose service; place Caddy and Studio alone on a dedicated proxy network and keep Studio, database, and Parsing Service host ports closed.
-- [x] 7.3 Configure Caddy to discard inbound `X-FREE-Client-Address` and set it from the direct client socket; make hosted Studio require that proxy contract and test spoofed headers plus independent client buckets.
+- [x] 7.3 Configure Caddy to discard inbound `X-Real-IP` and set it from the direct client socket; make hosted Studio require that proxy contract and test spoofed headers plus independent client buckets.
 - [x] 7.4 Mount institution/VPN-supplied certificate and key files read-only with no ACME, internal-CA, self-signed, or plain-HTTP fallback.
 - [x] 7.5 Document clean-volume initialization, required origin/session/proxy/certificate settings, first-account CLI use, shared model setup, certificate validation and forced reload, and explicit old-data loss.
 - [x] 7.6 Update `CONTEXT.md` with the resolved Researcher Account ownership language while retaining Project Context as the research aggregate and avoiding “user workspace.”
