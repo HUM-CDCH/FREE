@@ -476,7 +476,7 @@ describe('reopened Source Document workspace', () => {
     expect(schemaNodes).toHaveLength(1)
   })
 
-  it('loads an older revision before appending the pending and historical trees', async () => {
+  it('keeps cancelled fields and historical previews non-mutating until explicit creation', async () => {
     const currentRevisionId = '51000000-0000-4000-8005-000000000020'
     const historicalRevisionId = '51000000-0000-4000-8005-000000000019'
     const currentNodes: SchemaNode[] = [{ id: 'current-field', name: 'current_field', type: 'string' }]
@@ -571,10 +571,22 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Schema history' })).toBeEnabled())
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    fireEvent.keyDown(screen.getByDisplayValue('nyt_felt'), { key: 'Escape' })
+    expect(requests.filter((request) => request.method === 'POST')).toHaveLength(0)
+
     fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
 
-    await waitFor(() => expect(requests.filter((request) => request.method === 'POST')).toHaveLength(2))
+    expect(await screen.findByText('historical_group')).toBeInTheDocument()
+    expect(screen.getByText('historical_title')).toBeInTheDocument()
+    expect(requests.filter((request) => request.method === 'POST')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: '+ Add field' })).not.toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create Current Schema Revision' }),
+    )
+
+    await waitFor(() => expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1))
     const getIndex = requests.findIndex((request) =>
       request.url.startsWith(`/api/schema-revisions/${historicalRevisionId}?`),
     )
@@ -582,16 +594,16 @@ describe('reopened Source Document workspace', () => {
     expect(getIndex).toBeGreaterThan(-1)
     expect(requests.indexOf(postRequests[0])).toBeGreaterThan(getIndex)
     expect((postRequests[0].body as { expectedRevisionNumber: number }).expectedRevisionNumber).toBe(2)
-    expect((postRequests[0].body as { schemaNodes: Array<{ name: string }> }).schemaNodes.map((node) => node.name)).toEqual(['current_field', 'nyt_felt'])
-    expect(postRequests[1].body).toEqual({
+    expect(postRequests[0].body).toEqual({
       projectContextId: reopened.projectContextId,
       extractionSchemaId: reopened.extractionSchema!.extractionSchemaId,
-      expectedRevisionNumber: 3,
+      expectedRevisionNumber: 2,
       recordDescription: 'One historical record.',
       schemaNodes: historicalNodes,
     })
-    expect(await screen.findByText('historical_group')).toBeInTheDocument()
+    expect(screen.getByText('historical_group')).toBeInTheDocument()
     expect(screen.getByText('historical_title')).toBeInTheDocument()
+    expect(screen.queryByText('nyt_felt')).not.toBeInTheDocument()
   })
 
   it('flushes edits before clearing, then regenerates onto the existing schema', async () => {
@@ -645,6 +657,7 @@ describe('reopened Source Document workspace', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
     fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear schema' }))
 

@@ -253,9 +253,13 @@ export type SchemaMutationResult =
 export type SchemaEditorSnapshot = {
   /** What the editor body renders: ungenerated / producing / failed / editing. */
   view: 'empty' | 'generating' | 'failed' | 'editing'
+  /** Generation can run while the acknowledged current draft stays mounted. */
+  generating: boolean
   generationError: string | null
   /** Editor payload; null until the first generation or adoption. */
   draft: SchemaDefinition | null
+  /** Increments for every whole-draft mutation, including description edits. */
+  draftVersion: number
   /** Increments when a wholesale external payload replaces the editor draft. */
   replacementVersion: number
   /** Durable save lifecycle; null when the persistence is not durable. */
@@ -271,6 +275,8 @@ export type SchemaEditorSnapshot = {
    */
   extractableSchemaRevisionId: string | null
   creatingFromRevisionId: string | null
+  previewingRevisionId: string | null
+  historicalPreview: SchemaRevision | null
 }
 
 export type SchemaEditorController = {
@@ -294,6 +300,8 @@ export type SchemaEditorController = {
   setRecordDescription(recordDescription: string): void
 
   /** Create a new Current Schema Revision from a Historical Schema Revision. */
+  previewHistoricalRevision(schemaRevisionId: string): Promise<SchemaRevision>
+  closeHistoricalPreview(): void
   createCurrentRevisionFromHistory(
     schemaRevisionId: string,
   ): Promise<AcknowledgedSchemaRevision>
@@ -329,9 +337,12 @@ export function createSchemaEditorController(
   let extractableSchemaRevisionId =
     options.initialExtractableRevisionId ?? null
   let creatingFromRevisionId: string | null = null
+  let previewingRevisionId: string | null = null
+  let historicalPreview: SchemaRevision | null = null
   let history: SchemaRevisionSummary[] = options.initialHistory ?? []
   let historyAbort: AbortController | null = null
   let replacementVersion = 0
+  let draftVersion = 0
   let disposed = false
 
   const listeners = new Set<() => void>()
@@ -340,15 +351,18 @@ export function createSchemaEditorController(
   function buildSnapshot(): SchemaEditorSnapshot {
     const save = persistence.saveState?.() ?? null
     return {
-      view: generating
-        ? 'generating'
-        : generationError !== null
-          ? 'failed'
-          : draft !== null
-            ? 'editing'
-            : 'empty',
+      view:
+        draft !== null
+          ? 'editing'
+          : generating
+            ? 'generating'
+            : generationError !== null
+              ? 'failed'
+              : 'empty',
+      generating,
       generationError,
       draft,
+      draftVersion,
       replacementVersion,
       save,
       history,
@@ -357,6 +371,8 @@ export function createSchemaEditorController(
         save?.acknowledged.revisionNumber ?? options.initialRevisionNumber,
       extractableSchemaRevisionId,
       creatingFromRevisionId,
+      previewingRevisionId,
+      historicalPreview,
     }
   }
   function publish() {
@@ -368,7 +384,9 @@ export function createSchemaEditorController(
     // The draft has drifted from the acknowledged revision, so the accepted
     // result pin drops until the save engine acknowledges again.
     extractableSchemaRevisionId = null
+    historicalPreview = null
     draft = definition
+    draftVersion += 1
     publish()
     options.onCommitMessage?.(message)
     persistence.edit(definition)
@@ -407,8 +425,10 @@ export function createSchemaEditorController(
       if (save?.status === 'saved' && draft !== null) {
         // The server owns canonicalization. Once the coordinator reports saved,
         // its acknowledgement is the authoritative visible and extractable tree.
-        if (!sameSchemaDefinition(draft, save.acknowledged))
+        if (!sameSchemaDefinition(draft, save.acknowledged)) {
           draft = normalizeSchemaDefinition(save.acknowledged)
+          draftVersion += 1
+        }
         extractableSchemaRevisionId = save.acknowledged.schemaRevisionId
       } else if (save?.status === 'saved') {
         extractableSchemaRevisionId = null
@@ -442,6 +462,7 @@ export function createSchemaEditorController(
       generationAbort = abort
       generating = true
       generationError = null
+      historicalPreview = null
       publish()
       try {
         const generatedSchema = await request(abort.signal)
@@ -449,13 +470,19 @@ export function createSchemaEditorController(
         const parsed = templateToSchemaDefinition(generatedSchema)
         const definition = normalizeSchemaDefinition(parsed)
         if ((persistence.extractionSchemaId?.() ?? null) !== null) {
-          // The Extraction Schema exists: the generated definition joins its
-          // revision chain through the save engine.
-          extractableSchemaRevisionId = null
-          replacementVersion += 1
-          draft = definition
-          publish()
+          // Keep the acknowledged current draft mounted and extractable while
+          // the generated candidate joins the revision chain. The save
+          // acknowledgement is the only event allowed to replace it.
           persistence.edit(definition)
+          const revision = await flushPersistence()
+          if (!revision)
+            throw new Error('A durable Extraction Schema is required.')
+          if (draft === null || !sameSchemaDefinition(draft, revision)) {
+            draft = normalizeSchemaDefinition(revision)
+            draftVersion += 1
+          }
+          extractableSchemaRevisionId = revision.schemaRevisionId
+          replacementVersion += 1
         } else {
           if (!persistence.initialize)
             throw new Error('Schema generation is unavailable for this draft.')
@@ -463,6 +490,7 @@ export function createSchemaEditorController(
           if (abort.signal.aborted || disposed) return
           replacementVersion += 1
           draft = definition
+          draftVersion += 1
           extractableSchemaRevisionId = revision.schemaRevisionId
           publish()
         }
@@ -470,6 +498,7 @@ export function createSchemaEditorController(
         publish()
       } catch (error) {
         if (abort.signal.aborted || disposed) return
+        persistence.reloadCurrent?.()
         generating = false
         generationError =
           error instanceof Error ? error.message : 'Schema generation failed.'
@@ -506,6 +535,8 @@ export function createSchemaEditorController(
       extractableSchemaRevisionId = null
       replacementVersion += 1
       draft = normalizeSchemaDefinition(definition)
+      draftVersion += 1
+      historicalPreview = null
       generationError = null
       publish()
     },
@@ -525,6 +556,28 @@ export function createSchemaEditorController(
       )
     },
 
+    async previewHistoricalRevision(schemaRevisionId) {
+      if (!persistence.getRevision)
+        throw new Error('Revision history is unavailable for this draft.')
+      previewingRevisionId = schemaRevisionId
+      publish()
+      try {
+        const loaded = await persistence.getRevision(schemaRevisionId)
+        historicalPreview = {
+          ...loaded,
+          ...normalizeSchemaDefinition(loaded),
+        }
+        return historicalPreview
+      } finally {
+        previewingRevisionId = null
+        if (!disposed) publish()
+      }
+    },
+    closeHistoricalPreview() {
+      if (historicalPreview === null) return
+      historicalPreview = null
+      publish()
+    },
     async createCurrentRevisionFromHistory(schemaRevisionId) {
       if (!persistence.getRevision)
         throw new Error('Revision history is unavailable for this draft.')
@@ -533,17 +586,35 @@ export function createSchemaEditorController(
       creatingFromRevisionId = schemaRevisionId
       publish()
       try {
-        const loaded = await persistence.getRevision(schemaRevisionId)
+        const loaded =
+          historicalPreview?.schemaRevisionId === schemaRevisionId
+            ? historicalPreview
+            : await persistence.getRevision(schemaRevisionId)
         await flushPersistence()
-        replacementVersion += 1
-        applyDraft(
-          normalizeSchemaDefinition(loaded),
-          `Created from Schema Revision ${loaded.revisionNumber}`,
-        )
+        persistence.edit(normalizeSchemaDefinition(loaded))
         const created = await flushPersistence()
         if (!created)
           throw new Error('A durable Extraction Schema is required.')
+        if (draft === null || !sameSchemaDefinition(draft, created)) {
+          draft = normalizeSchemaDefinition(created)
+          draftVersion += 1
+        }
+        replacementVersion += 1
+        extractableSchemaRevisionId = created.schemaRevisionId
+        historicalPreview = null
+        options.onCommitMessage?.(
+          `Created from Schema Revision ${loaded.revisionNumber}`,
+        )
+        publish()
         return created
+      } catch (error) {
+        const current = persistence.reloadCurrent?.() ?? null
+        if (current) {
+          draft = normalizeSchemaDefinition(current)
+          extractableSchemaRevisionId = current.schemaRevisionId
+          publish()
+        }
+        throw error
       } finally {
         creatingFromRevisionId = null
         if (!disposed) publish()
@@ -559,6 +630,7 @@ export function createSchemaEditorController(
       const revision = persistence.reloadCurrent?.() ?? null
       if (!revision) return null
       draft = normalizeSchemaDefinition(revision)
+      draftVersion += 1
       replacementVersion += 1
       generationError = null
       extractableSchemaRevisionId = revision.schemaRevisionId
@@ -575,7 +647,9 @@ export function createSchemaEditorController(
       generating = false
       generationError = null
       draft = null
+      draftVersion += 1
       replacementVersion += 1
+      historicalPreview = null
       extractableSchemaRevisionId = null
       publish()
     },
