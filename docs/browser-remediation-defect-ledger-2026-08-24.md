@@ -27,3 +27,28 @@ evidence and release disposition belong in the updated run report.
 | DEF-BAT-002 | Optimistically recording a replay always prepended it, contradicting durable newest-first ordering; replay also returned to history instead of opening the existing batch. | `BatchExtractionsPanel.tsx`; component replay-order case; PostgreSQL batch replay contracts | Replayed batches are identity-replaced and sorted by immutable `createdAt`/ID, routed open directly with an explicit notice, and never force or duplicate. Component tests preserve an older replay's order; PostgreSQL concurrent handoff/replay tests preserve one durable identity. | Closed — `6c3c34b` |
 | DEF-BSS-001 | Suggestion failures exposed only failed rows and their stored message, with no coherent all-source progress; retry preservation lacked end-to-end evidence. | `BatchExtractionsPanel.tsx`, `_project_operations.ts`, project-store retry; component/worker/PostgreSQL tests | Every selected source now shows its name and queued/running/complete/failed terminal state, aggregate progress derives only from `suggestion.sources[]`, and failures render a code-derived category without the stored provider message. Retry updates the same durable suggestion, preserves completed source definition/timestamps, resets only failed sources, and the worker skips completed checkpoints. | Closed — `6c3c34b` |
 | DEF-BSS-002 | Run gating duplicated a partial draft check and could accept an uncommitted invalid field editor, pending/failed save, or a draft that bypassed client validation. | shared batch limit and executable-draft parser; XState machine; `SchemaPanel.tsx`; suggestion-to-batch transaction; UI/contract/machine/PostgreSQL/two-tab Playwright tests | One UI `canRun` combines the shared 1–50 selection boundary, valid suggestion definition, XState `snapshot.can(run.requested)` (clean acknowledged draft only), no local editor/proposal work, no opening run, and no confirmation. Run is no longer accepted from dirty/saving/save-failed/conflict states. The atomic database handoff revalidates the same draft and member limit before creating schema/batch rows. Tests cover 50/51, blank/duplicate drafts, pending local edits, save failure, and two-tab conflict/reload. | Closed — `6c3c34b` |
+
+## Phase 6 coverage closure
+
+Commit `f241ea6` closes the original run's remaining partial/unexecuted Browser
+coverage with deterministic controls instead of human-only submissions:
+
+- authentication outage, password boundary/replacement, logout retry, unsafe
+  return targets, tampered sessions, and non-root return routing;
+- project/source/database recovery, exact PDF download-byte inspection, deferred
+  navigation races, batch list/detail/result/pin retry paths, and fresh-context
+  durability;
+- inert markup-like values, public/console/inspector/filename redaction, isolated
+  invalid-origin writes, and production gating of the developer inspector;
+- keyboard-only composite flows, exact focus restoration, 200% zoom, and
+  1280×800, 1024×768, 859×800, and 390×844 viewport checks; and
+- root/non-root canonical lifecycles, developer inspector ordering/Copy/Clear,
+  plus a real Ollama P0 profile for catalogue discovery, schema generation, and
+  extraction.
+
+Focused evidence before Phase 7: Studio Vitest with the named disposable
+database (82 files, 797 passed, 5 skipped), export package (33 passed), recovery
+and accessibility Playwright (27 passed), developer-UI Playwright (1 passed),
+non-root canonical Playwright (1 passed with structural XLSX/CSV inspection),
+and live `qwen3.8:latest` (3 passed; extended capture cases intentionally
+skipped without the optional authorized capture).
