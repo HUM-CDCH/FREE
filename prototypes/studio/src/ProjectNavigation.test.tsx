@@ -742,9 +742,9 @@ describe('Project Context navigation', () => {
       'multiple',
     )
     expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
-    // Exactly five: the row's disclosure, its add-sources and actions
-    // controls, the one action that menu holds, and its one Source Document.
-    expect(rail().getAllByRole('button')).toHaveLength(5)
+    // Exactly six: the row's disclosure, its add-sources and actions
+    // controls, the menu's open/delete actions, and its one Source Document.
+    expect(rail().getAllByRole('button')).toHaveLength(6)
     expect(fetch).toHaveBeenCalledTimes(2)
 
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))

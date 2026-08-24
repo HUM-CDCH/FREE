@@ -151,7 +151,7 @@ describe('ResultsTab grounded values', () => {
     expect(screen.queryByText(/could not be grounded/)).not.toBeInTheDocument()
   })
 
-  it('reports the persisted ungrounded value count', () => {
+  it('does not expose the persisted ungrounded value count', () => {
     render(
       <ResultsTab
         {...defaultRunProps}
@@ -166,11 +166,7 @@ describe('ResultsTab grounded values', () => {
       />,
     )
 
-    expect(
-      screen.getByText(
-        '2 values could not be grounded. You can still save the review; they will remain recorded without Evidence.',
-      ),
-    ).toBeInTheDocument()
+    expect(screen.queryByText(/could not be grounded/)).not.toBeInTheDocument()
   })
 
   it('hides the Article records envelope while preserving Evidence paths', () => {

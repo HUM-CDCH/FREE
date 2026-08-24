@@ -688,7 +688,7 @@ describe('deny-by-default application boundary', () => {
       )
       expect(response.status).toBe(302)
     }
-    expect(development.clientHandler).toHaveBeenCalledTimes(9)
+    expect(development.clientHandler).toHaveBeenCalledTimes(10)
   })
 
   it('creates a distinct scoped store from each reloaded account', async () => {

@@ -168,7 +168,7 @@ describe('deriveSchemaProposal', () => {
     expect(result.nodes[0]).toEqual({ id: 'leaf', name: 'leaf', type: 'object', children: [] })
     expect(result.nodes[1]).toEqual({ id: 'group', name: 'group', type: 'string' })
     const groupChange = result.changes.find(({ id }) => id === 'group')
-    expect(groupChange).toMatchObject({ note: expect.any(String) })
+    expect(groupChange).toMatchObject({ kind: 'modified', outcome: 'applied' })
     expect(groupChange).not.toHaveProperty('reason')
   })
 
@@ -187,7 +187,8 @@ describe('deriveSchemaProposal', () => {
     expect(result.reviewNodes[0]).toEqual(original[0])
     expect(result.issues).toContainEqual({ kind: 'unknown-key', key: 'missing.new' })
     expect(result.changes.find(({ id }) => id === 'g')).toMatchObject({
-      note: expect.stringContaining('description'),
+      kind: 'removed',
+      outcome: 'applied',
     })
   })
 
@@ -328,7 +329,6 @@ describe('deriveSchemaProposal', () => {
     expect(result.changes).toEqual([
       expect.objectContaining({ id: 'entries', kind: 'modified', outcome: 'applied' }),
     ])
-    expect(result.changes[0].note).toContain('nested fields')
   })
 
   it('adds a repeating scalar with its requested item type', () => {

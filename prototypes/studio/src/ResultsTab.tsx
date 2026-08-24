@@ -323,18 +323,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 )}
               </div>
             </div>
-            {attempt?.complete === false && (
-              <div
-                className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
-                role="status"
-              >
-                <p className="font-semibold">Incomplete Extraction</p>
-                <p>
-                  Successful values remain visible. See the persisted stage
-                  diagnostics for details.
-                </p>
-              </div>
-            )}
             {!readOnly && !inspectedAttempt && controller.stale && (
               <div
                 className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
@@ -356,11 +344,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
             {controller.review.error && (
               <p role="alert" className="mt-2 text-[11.5px] leading-snug text-danger">
                 {controller.review.error}
-              </p>
-            )}
-            {state.ungroundedCount > 0 && (
-              <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
-                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. You can still save the review; {state.ungroundedCount === 1 ? 'it' : 'they'} will remain recorded without Evidence.
               </p>
             )}
             {attempt && <AttemptDetails attempt={attempt} />}

@@ -225,6 +225,23 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.queryByRole('button', { name: /Revision 1/ })).not.toBeInTheDocument()
   })
 
+  it('regenerates from instructions edited in the compact popover', () => {
+    const onGenerateInstructions = vi.fn()
+    renderPanel({}, { showRegenerate: true, onGenerateInstructions })
+
+    const regenerate = screen.getByRole('button', { name: 'Regenerate' })
+    fireEvent.click(regenerate)
+
+    const instruction = screen.getByPlaceholderText(/Add a generation instruction/)
+    fireEvent.change(instruction, { target: { value: 'Focus on dates' } })
+    fireEvent.keyDown(instruction, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: /Regenerate schema/ }))
+
+    expect(onGenerateInstructions).toHaveBeenCalledWith('Focus on dates')
+    expect(regenerate).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByPlaceholderText(/Add a generation instruction/)).not.toBeInTheDocument()
+  })
+
   it('resets stale JSON when an external draft replaces the editor payload', async () => {
     const setup = renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'JSON' }))
@@ -780,7 +797,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('renamed_leaf')).toBeInTheDocument()
   })
 
-  it('reveals the contents and losses of a removed nested group', async () => {
+  it('reveals the contents of a removed nested group', async () => {
     renderPanel({ panelNodes: [{
       id: 'root',
       name: 'root',
@@ -806,10 +823,9 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     })
 
     expect(screen.getByText('leaf')).toBeInTheDocument()
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Removing this field also removes its description and its nested fields.')
   })
 
-  it('shows nested fields that a container-to-scalar change will delete', async () => {
+  it('reveals the contents of a container-to-scalar change that will delete nested fields', async () => {
     renderPanel({ panelNodes: [{
       id: 'group',
       name: 'group',
@@ -828,7 +844,6 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     })
 
     expect(screen.getByText('leaf')).toBeInTheDocument()
-    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Retyping across the container boundary removed its nested fields.')
   })
 
   it('discards the proposal without changing the schema', async () => {

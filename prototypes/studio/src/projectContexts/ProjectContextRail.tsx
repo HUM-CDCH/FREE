@@ -96,11 +96,10 @@ function AddSourceDocumentsControl({
 }
 
 /**
- * Renaming and deleting live on the Project Context page, so the rail's list
- * is exactly the persisted research state and never grows entries that are
- * not Source Documents. The row's name and chevron both only expand or
- * collapse its Source Documents; opening the Project Context page and adding
- * a Source Document to it are actions in the row's own menu.
+ * Renaming still lives only on the Project Context page. The row's name and
+ * chevron both only expand or collapse its Source Documents; opening the
+ * Project Context page, adding a Source Document to it, and deleting it are
+ * actions in the row's own menu.
  */
 export function ProjectContextRail({
   open,
@@ -119,6 +118,7 @@ export function ProjectContextRail({
     retryList,
     createProject,
     addSources,
+    deleteProject,
     deleteSourceDocument,
   } = useProjectContexts()
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
@@ -142,6 +142,10 @@ export function ProjectContextRail({
   const [deletingSource, setDeletingSource] = useState<{
     projectContextId: string
     sourceDocumentId: string
+    name: string
+  } | null>(null)
+  const [deletingProject, setDeletingProject] = useState<{
+    projectContextId: string
     name: string
   } | null>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
@@ -360,6 +364,19 @@ export function ProjectContextRail({
                       >
                         Open project
                       </button>
+                      <button
+                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-danger hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
+                        type="button"
+                        onClick={(event) => {
+                          event.currentTarget
+                            .closest('details')
+                            ?.removeAttribute('open')
+                          setDeletingProject({ projectContextId, name: project.name })
+                        }}
+                      >
+                        <TrashIcon />
+                        Delete project
+                      </button>
                     </div>
                   </details>
                 </div>
@@ -506,6 +523,29 @@ export function ProjectContextRail({
             )
           }
           onCancel={() => setDeletingSource(null)}
+        />
+      )}
+
+      {deletingProject && (
+        <DeleteDialog
+          title="Delete Project Context"
+          description={
+            <>
+              Deleting “{deletingProject.name}” permanently removes its Source
+              Documents, Annotations, Extraction Schema, Extractions, and
+              Review Decisions. This cannot be undone.
+            </>
+          }
+          onConfirm={async () => {
+            const rejected = await deleteProject(
+              deletingProject.projectContextId,
+            )
+            // The routed Project Context page can't survive its own removal.
+            if (!rejected && activeProjectContextId === deletingProject.projectContextId)
+              onNavigate({ kind: 'root' })
+            return rejected
+          }}
+          onCancel={() => setDeletingProject(null)}
         />
       )}
 
