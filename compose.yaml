@@ -92,6 +92,10 @@ services:
       app:
       proxy:
         ipv4_address: 172.30.0.3
+        # Host port forwarding must enter through this network: Docker otherwise
+        # routes the published port via the `app` network, so nginx connections
+        # would arrive from its gateway and be rejected as an untrusted peer.
+        gw_priority: 1
 
 volumes:
   postgres-data:
