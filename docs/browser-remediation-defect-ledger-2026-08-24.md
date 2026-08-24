@@ -52,3 +52,12 @@ and accessibility Playwright (27 passed), developer-UI Playwright (1 passed),
 non-root canonical Playwright (1 passed with structural XLSX/CSV inspection),
 and live `qwen3.8:latest` (3 passed; extended capture cases intentionally
 skipped without the optional authorized capture).
+
+## Phase 7 release gate
+
+Verified implementation/evidence tip `d8d6436` passes every mandated command,
+the root and non-root canonical database profiles, schema-order restore,
+developer-UI isolation, account/session isolation, and the bounded live Ollama
+P0 profile. The audited final report classifies all 210 plan IDs and records a
+**PASS** release disposition at
+`artifacts/browser-test-20260824-0138/report.md`.
