@@ -100,7 +100,7 @@ async function canonicalPackage(
 test('real Article lifecycle persists review, exports its reviewed result, and reopens newer unreviewed pins independently @deterministic', async ({
   browser,
   page,
-}) => {
+}, testInfo) => {
   test.skip(
     !process.env.EXTRACTION_TEST_DATABASE_URL ||
       process.env.DATABASE_URL !== process.env.EXTRACTION_TEST_DATABASE_URL,
@@ -320,6 +320,10 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     page.getByRole('button', { name: 'Save Review' }),
   )
   await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
+  await page.screenshot({
+    path: testInfo.outputPath('canonical-reviewed-results.png'),
+    fullPage: true,
+  })
 
   // A real browser download is produced once even when the format action is
   // double-clicked. Inspect both archive structure and the exact CSV bytes.
@@ -461,6 +465,10 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await freshPage.getByRole('button', { name: 'Review' }).click()
   await expect(freshPage.getByText('Reviewed, café', { exact: true })).toBeVisible()
   await expect(freshPage.getByRole('button', { name: /^Edit / })).toHaveCount(0)
+  await freshPage.screenshot({
+    path: testInfo.outputPath('canonical-fresh-context-review.png'),
+    fullPage: true,
+  })
   await freshPage.getByLabel('Extraction snapshot').selectOption(newerExtractionId)
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   delayNextResponse = true

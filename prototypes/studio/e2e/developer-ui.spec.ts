@@ -16,7 +16,7 @@ test.skip(
 
 test('developer inspector is ordered, redacted, copyable, clearable, and modal @deterministic', async ({
   browser,
-}) => {
+}, testInfo) => {
   const context = await browser.newContext({
     permissions: ['clipboard-read', 'clipboard-write'],
   })
@@ -72,6 +72,10 @@ test('developer inspector is ordered, redacted, copyable, clearable, and modal @
     'a'.repeat(64),
   ])
     expect(text).not.toContain(forbidden)
+  await page.screenshot({
+    path: testInfo.outputPath('developer-inspector.png'),
+    fullPage: true,
+  })
 
   const requestPayload = traces[0]!.request
   await activateWithKeyboard(
