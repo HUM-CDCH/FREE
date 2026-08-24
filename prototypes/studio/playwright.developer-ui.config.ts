@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 const port = Number(process.env.FREE_PLAYWRIGHT_PORT ?? 41751)
 const origin = `http://localhost:${port}`
 process.env.FREE_PLAYWRIGHT_PORT = String(port)
+process.env.FREE_PLAYWRIGHT_DEVELOPER_UI = '1'
 delete process.env.FREE_PLAYWRIGHT_BASE_PATH
 
 export default defineConfig({

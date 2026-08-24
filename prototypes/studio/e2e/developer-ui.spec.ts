@@ -9,6 +9,11 @@ const operations = [
   'schema-suggestion',
 ] as const
 
+test.skip(
+  process.env.FREE_PLAYWRIGHT_DEVELOPER_UI !== '1',
+  'The LLM inspector is exercised only by the isolated developer-UI profile.',
+)
+
 test('developer inspector is ordered, redacted, copyable, clearable, and modal @deterministic', async ({
   browser,
 }) => {
