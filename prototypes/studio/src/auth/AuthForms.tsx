@@ -230,7 +230,7 @@ export function PasswordChangeForm({
     event.preventDefault()
     if (pending) return
     const scalarLength = Array.from(newPassword).length
-    if (scalarLength < 15 || scalarLength > 128) {
+    if (scalarLength < 6 || scalarLength > 128) {
       setFailure(passwordPolicy)
       return
     }
@@ -288,7 +288,7 @@ export function PasswordChangeForm({
           />
         </label>
         <p id="password-policy" className="-mt-2 text-xs leading-5 text-ink-faint">
-          Use 6–128 Unicode characters. The password is stored exactly as entered.
+          Use 6–128 Unicode characters.
         </p>
         <label className={labelClass}>
           Confirm new password
