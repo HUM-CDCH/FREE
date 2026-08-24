@@ -327,7 +327,7 @@ export default function AppFrame({
               )
                 return
               event.preventDefault()
-              onNavigate({ kind: 'root' })
+              if (route.kind !== 'root') onNavigate({ kind: 'root' })
             }}
           >
             <img
