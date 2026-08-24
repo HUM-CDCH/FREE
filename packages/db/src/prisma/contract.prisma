@@ -80,7 +80,7 @@ model SourceDocument {
   annotationSetRevisions AnnotationSetRevision[]
 
   @@unique([projectContextId, ingestionKey])
-  @@index([contentSha256])
+  @@unique([projectContextId, contentSha256])
 }
 
 model SourceRepresentationRevision {

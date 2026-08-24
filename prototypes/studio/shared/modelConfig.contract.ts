@@ -95,18 +95,12 @@ export const PROBE_STATUSES = [
 export const probeStatusSchema = z.enum(PROBE_STATUSES)
 export type ProbeStatus = z.infer<typeof probeStatusSchema>
 
-export const immediateUpstreamDetailSchema = z
-  .object({ status: z.number().nullable(), body: z.string(), truncated: z.boolean() })
-  .strict()
-export type ImmediateUpstreamDetail = z.infer<typeof immediateUpstreamDetailSchema>
-
 export const probeResultSchema = z
   .object({
     checkedAt: z.string(),
     status: probeStatusSchema,
     message: z.string(),
     catalog: z.array(modelDescriptorSchema),
-    upstream: immediateUpstreamDetailSchema.optional(),
   })
   .strict()
 export type ProbeResult = z.infer<typeof probeResultSchema>

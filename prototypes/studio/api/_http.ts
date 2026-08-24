@@ -3,7 +3,6 @@ export type FormValue = string | File
 
 const MAX_VALIDATION_ISSUES = 20
 const MAX_VALIDATION_TEXT = 512
-const MAX_UPSTREAM_BYTES = 8192
 
 export class ApiError extends Error {
   readonly status: number
@@ -135,26 +134,10 @@ export function parseTemperature(value: FormValue | null): number | undefined {
   return parsed
 }
 
-export function boundedUpstreamDetail(status: number | null, body: string) {
-  const encoded = new TextEncoder().encode(body)
-  const truncated = encoded.byteLength > MAX_UPSTREAM_BYTES
-  return {
-    status,
-    body: new TextDecoder().decode(truncated ? encoded.subarray(0, MAX_UPSTREAM_BYTES) : encoded),
-    truncated,
-  }
-}
-
-/** Convert only known provider-response fields; arbitrary thrown objects are never serialized. */
+/** Provider failures keep their technical cause server-side and expose stable copy only. */
 export function asModelOperationError(error: unknown, message = 'The model operation failed.'): ApiError {
   if (error instanceof ApiError) return error
-  const data = typeof error === 'object' && error !== null ? (error as Record<string, unknown>) : {}
-  const status = typeof data.statusCode === 'number' ? data.statusCode : null
-  const responseBody = typeof data.responseBody === 'string' ? data.responseBody : null
   return new ApiError(502, 'model_operation_failed', message, {
-    ...(status !== null || responseBody !== null
-      ? { details: { upstream: boundedUpstreamDetail(status, responseBody ?? '') } }
-      : {}),
     cause: error,
   })
 }

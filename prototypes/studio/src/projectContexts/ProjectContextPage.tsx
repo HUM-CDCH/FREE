@@ -694,14 +694,15 @@ export default function ProjectContextPage({
                         </span>
                       )}
                     </span>
-                    {source.status === 'failed' && (
+                    {source.status === 'failed' &&
+                      source.validationFailure === undefined && (
                       <Button
                         onClick={() => retrySource(source.ingestionKey)}
                         aria-label={`Retry ${source.file.name}`}
                       >
                         Retry
                       </Button>
-                    )}
+                      )}
                   </li>
                 ))}
                 {sourceDocuments.map((document) => (

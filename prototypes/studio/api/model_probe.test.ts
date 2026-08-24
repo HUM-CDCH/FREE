@@ -171,7 +171,7 @@ describe('POST /api/model_probe', () => {
     expect(JSON.stringify(result)).not.toContain(transient ?? stored)
   })
 
-  it('returns provider failures as completed 200 observations', async () => {
+  it('returns provider failures as sanitized completed 200 observations', async () => {
     const post = createPostModelProbe({
       configRoot: await temporaryRoot(),
       credentialStore: store(),
@@ -179,10 +179,12 @@ describe('POST /api/model_probe', () => {
     })
     const response = await post(request({ connection, credential: null }))
     expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({
+    const result = await response.json()
+    expect(result).toMatchObject({
       status: 'authentication_failed',
-      upstream: { status: 403, body: 'unauthorized', truncated: false },
     })
+    expect(result).not.toHaveProperty('upstream')
+    expect(JSON.stringify(result)).not.toContain('unauthorized')
   })
 
 

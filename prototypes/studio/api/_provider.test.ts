@@ -186,8 +186,9 @@ describe('probeConnection', () => {
     expect(result).toMatchObject({
       status: 'authentication_failed',
       catalog: [],
-      upstream: { status: 401, body: 'denied', truncated: false },
     })
+    expect(result).not.toHaveProperty('upstream')
+    expect(JSON.stringify(result)).not.toContain('denied')
   })
 
   it.each([
@@ -240,7 +241,7 @@ describe('probeConnection', () => {
       'invalid_response',
       'invalid_response',
     ])
-    expect(oversized.upstream).toMatchObject({ truncated: true })
+    expect(oversized).not.toHaveProperty('upstream')
   })
 
   it('keeps concurrent probes independent', async () => {

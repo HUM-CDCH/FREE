@@ -19,6 +19,7 @@ import {
   type WriteResult,
 } from './useProjectContexts'
 import type { SourceDocumentIngestionResponse } from '../../shared/sourceDocumentIngestion.contract'
+import { sourceDocumentFilenameFailure } from '../../shared/sourceDocumentFilename'
 
 /**
  * Owns the Project Context list, the id-keyed branch cache, and acknowledged
@@ -254,6 +255,8 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         items: sources.map((source) => ({
           ...source,
           ingestionKey: crypto.randomUUID(),
+          validationFailure:
+            sourceDocumentFilenameFailure(source.file.name) ?? undefined,
         })),
       }),
     [sendIngestion],

@@ -1623,6 +1623,48 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     expect(rail().getAllByRole('button', { name: 'A.pdf' })).toHaveLength(1)
   })
 
+  it('queues a 180-scalar filename and holds a 181-scalar filename as an item error', async () => {
+    vi.stubGlobal('crypto', {
+      randomUUID: vi
+        .fn()
+        .mockReturnValueOnce(ingestionKeys.A)
+        .mockReturnValueOnce(ingestionKeys.B),
+    })
+    const acceptedName = `${'😀'.repeat(176)}.pdf`
+    const rejectedName = `${'😀'.repeat(177)}.pdf`
+    const writes: string[] = []
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        writes.push(((init.body as FormData).get('file') as File).name)
+        return ingestionResult(uploadedA)
+      }
+      if (url.endsWith(projectContextId)) return branch([])
+      return Response.json({ projectContexts: [project] })
+    })
+
+    renderRoutes(fetcher)
+    await openProjectPage()
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
+      target: {
+        files: [
+          new File(['a'], acceptedName, { type: 'application/pdf' }),
+          new File(['b'], rejectedName, { type: 'application/pdf' }),
+        ],
+      },
+    })
+
+    expect(
+      await screen.findByText(
+        'The Source Document filename must contain at most 180 Unicode characters.',
+      ),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(writes).toEqual([acceptedName]))
+    expect(screen.queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument()
+    expect(Array.from(acceptedName)).toHaveLength(180)
+    expect(Array.from(rejectedName)).toHaveLength(181)
+  })
+
   it('stays on the Project Context route when every selected PDF fails', async () => {
     const randomUUID = vi
       .fn()
