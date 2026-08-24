@@ -15,9 +15,18 @@ export type EvidenceLink = Readonly<{
   evidenceAnchorId: string
 }>
 
-export type ReviewDecision = Readonly<{
+export type ReviewDecisionAction = 'APPROVED' | 'EDITED' | 'REJECTED'
+
+export type ReviewDecisionInput = Readonly<{
+  resultPath: ResultPath
   evidenceAnchorId: string
   reviewedOccurrenceIds: readonly string[]
+  action: ReviewDecisionAction
+  reviewedValue: unknown | null
+}>
+
+export type ReviewDecision = ReviewDecisionInput & Readonly<{
+  createdAt: Date
 }>
 
 export type ModelGenerationMetadata = Readonly<{
@@ -113,7 +122,7 @@ export type FinalizeReviewResult = Readonly<{
 
 export type ReviewPreparation = Readonly<{
   extraction: ExtractionSnapshot
-  reviewDecisions: readonly ReviewDecision[]
+  reviewDecisions: readonly ReviewDecisionInput[]
 }>
 
 export type BatchExtractionMemberSnapshot = Readonly<{
@@ -211,7 +220,7 @@ export interface ExtractionModule {
   runSingle(input: RunSingleInput, signal?: AbortSignal): Promise<RunSingleResult>
   cancelSingle(extractionId: string): Promise<CancellationResult>
   prepareReview(extractionId: string): Promise<ReviewPreparation>
-  finalizeReview(extractionId: string, decisions: readonly ReviewDecision[]): Promise<FinalizeReviewResult>
+  finalizeReview(extractionId: string, decisions: readonly ReviewDecisionInput[]): Promise<FinalizeReviewResult>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult>
   scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult>

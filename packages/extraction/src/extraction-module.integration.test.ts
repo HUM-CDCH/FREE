@@ -690,38 +690,57 @@ if (!disposableDatabaseUrl) {
       const prepared = await module.prepareReview(extractionId)
       assert.deepEqual(prepared.reviewDecisions, [
         {
+          resultPath: ['records', 0, 'title'],
           evidenceAnchorId: 'anchor-alpha',
           reviewedOccurrenceIds: ['occurrence-alpha'],
+          action: 'APPROVED',
+          reviewedValue: null,
         },
       ])
       await assert.rejects(
         module.finalizeReview(extractionId, [
           {
+            resultPath: ['records', 0, 'title'],
             evidenceAnchorId: 'anchor-alpha',
             reviewedOccurrenceIds: ['occurrence-beta'],
+            action: 'APPROVED',
+            reviewedValue: null,
           },
         ]),
         rejectsWithCode('invalid_review'),
       )
 
-      const reviewed = await module.finalizeReview(
-        extractionId,
-        prepared.reviewDecisions,
+      await assert.rejects(
+        module.finalizeReview(extractionId, [{
+          ...prepared.reviewDecisions[0]!,
+          action: 'EDITED',
+          reviewedValue: 42,
+        }]),
+        rejectsWithCode('invalid_review'),
       )
+      const edited = [{
+        ...prepared.reviewDecisions[0]!,
+        action: 'EDITED' as const,
+        reviewedValue: 'Alpha corrected',
+      }]
+      const reviewed = await module.finalizeReview(extractionId, edited)
       assert.equal(reviewed.disposition, 'reviewed')
       assert.ok(reviewed.extraction.reviewedAt)
-      assert.deepEqual(reviewed.extraction.reviewDecisions, prepared.reviewDecisions)
-
-      const replayed = await module.finalizeReview(
-        extractionId,
-        prepared.reviewDecisions,
+      assert.deepEqual(
+        reviewed.extraction.reviewDecisions.map(({ createdAt: _createdAt, ...decision }) => decision),
+        edited,
       )
+
+      const replayed = await module.finalizeReview(extractionId, edited)
       assert.equal(replayed.disposition, 'replayed')
       await assert.rejects(
         module.finalizeReview(extractionId, [
           {
+            resultPath: ['records', 0, 'title'],
             evidenceAnchorId: 'anchor-alpha',
-            reviewedOccurrenceIds: [],
+            reviewedOccurrenceIds: ['occurrence-alpha'],
+            action: 'REJECTED',
+            reviewedValue: null,
           },
         ]),
         rejectsWithCode('review_conflict'),
@@ -788,6 +807,64 @@ if (!disposableDatabaseUrl) {
       assert.ok(reviewed.extraction.reviewedAt)
       assert.equal(reviewed.extraction.reviewDecisions.length, 1)
       assert.equal(reviewed.extraction.diagnostics.ungroundedPaths.length, 1)
+    })
+
+    it('stores independent value decisions when two paths share one Evidence anchor', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject({
+        recordDescription: 'One record with two grounded values.',
+        schemaNodes: [
+          { id: 'title-node', name: 'title', type: 'string' },
+          { id: 'note-node', name: 'note', type: 'string' },
+        ],
+      })
+      const adapters = deterministicAdapters()
+      adapters.model = {
+        async extract() {
+          return {
+            result: { records: [{ title: 'Alpha', note: 'Alpha' }] },
+            metadata,
+            attribution,
+          }
+        },
+      }
+      adapters.groundingModel = {
+        async ground(request) {
+          const anchorLabel = Object.keys(request.anchors)[0]!
+          return {
+            selections: Object.keys(request.claims).map((claimLabel) => ({
+              claimLabel,
+              anchorLabel,
+            })),
+            metadata,
+            attribution,
+          }
+        },
+      }
+      const { module } = createRuntime(project.researcherAccountId, adapters)
+      const completed = await module.runSingle(freshInput(project))
+      const prepared = await module.prepareReview(completed.extraction.extractionId)
+      assert.equal(prepared.reviewDecisions.length, 2)
+      assert.equal(new Set(prepared.reviewDecisions.map((decision) => decision.evidenceAnchorId)).size, 1)
+
+      const decisions = prepared.reviewDecisions.map((decision, index) => ({
+        ...decision,
+        action: index === 0 ? 'EDITED' as const : 'REJECTED' as const,
+        reviewedValue: index === 0 ? 'Alpha corrected' : null,
+      }))
+      const reviewed = await module.finalizeReview(
+        completed.extraction.extractionId,
+        decisions,
+      )
+      assert.equal(reviewed.extraction.reviewDecisions.length, 2)
+      for (const decision of decisions) {
+        const stored = reviewed.extraction.reviewDecisions.find(
+          (candidate) => JSON.stringify(candidate.resultPath) === JSON.stringify(decision.resultPath),
+        )
+        assert.equal(stored?.action, decision.action)
+        assert.equal(stored?.reviewedValue, decision.reviewedValue)
+        assert.ok(stored?.createdAt)
+      }
     })
 
     it('selects latest attempt and latest reviewed across representation history', async (t) => {

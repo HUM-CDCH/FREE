@@ -100,7 +100,10 @@ export function extractionAttemptDto(extraction: ExtractionSnapshot) {
     batchExtractionId: extraction.batchExtractionId,
     createdAt: extraction.createdAt.toISOString(),
     reviewedAt: extraction.reviewedAt?.toISOString() ?? null,
-    reviewDecisions: extraction.reviewDecisions,
+    reviewDecisions: extraction.reviewDecisions.map((decision) => ({
+      ...decision,
+      createdAt: decision.createdAt.toISOString(),
+    })),
   })
 }
 

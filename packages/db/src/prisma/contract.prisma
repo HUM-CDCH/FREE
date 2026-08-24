@@ -368,10 +368,14 @@ model ExtractionReview {
 model ReviewDecision {
   id                    Uuid       @id @default(uuid())
   extractionId          Uuid
+  resultPath            Json
+  resultPathKey         String
   evidenceAnchorId      String
   reviewedOccurrenceIds Json
+  action                String
+  reviewedValue         Json?
   createdAt             Timestamptz6 @default(now())
   extraction            Extraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
 
-  @@unique([extractionId, evidenceAnchorId])
+  @@unique([extractionId, resultPathKey])
 }

@@ -13,7 +13,7 @@ import type {
   ModelGenerationMetadata,
   ReadBatchInput,
   ReadDocumentExtractionsInput,
-  ReviewDecision,
+  ReviewDecisionInput,
   RunSingleResult,
   ScheduleBatchInput,
   ScheduleBatchResult,
@@ -53,7 +53,7 @@ export type PersistExtractionResult =
   | Readonly<{ status: 'invalid' }>
 
 export type ReviewAuthority = Readonly<{
-  reviewDecisions: readonly ReviewDecision[]
+  reviewDecisions: readonly ReviewDecisionInput[]
   occurrenceIdsByAnchor: ReadonlyMap<string, ReadonlySet<string>>
   evidenceResultPathKeys: ReadonlySet<string>
 }>

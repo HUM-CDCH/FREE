@@ -50,8 +50,12 @@ const extraction: ExtractionSnapshot = {
   reviewedAt: new Date('2026-08-10T01:30:00Z'),
   reviewDecisions: [
     {
+      resultPath: ['records', 0, 'title'],
       evidenceAnchorId: 'anchor-1',
       reviewedOccurrenceIds: ['occurrence-1'],
+      action: 'APPROVED',
+      reviewedValue: null,
+      createdAt: new Date('2026-08-10T01:30:00Z'),
     },
   ],
 }
@@ -131,7 +135,10 @@ describe('document reopen ExtractionModule projection', () => {
       resultPayload: extraction.result,
     })
     expect(body.latestReviewed?.reviewDecisions).toEqual(
-      extraction.reviewDecisions,
+      extraction.reviewDecisions.map((decision) => ({
+        ...decision,
+        createdAt: decision.createdAt.toISOString(),
+      })),
     )
     expect(
       body.latestAttempt?.sourceRepresentation.resources.sourcePdfUrl,

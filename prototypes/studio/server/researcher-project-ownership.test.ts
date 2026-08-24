@@ -1199,8 +1199,11 @@ describe('two-account reopen, extraction, result, review, and batch isolation', 
         jsonRequest('POST', {
           reviewDecisions: [
             {
+              resultPath: ['records', 0, 'title'],
               evidenceAnchorId: 'foreign-anchor',
               reviewedOccurrenceIds: ['foreign-occurrence'],
+              action: 'APPROVED',
+              reviewedValue: null,
             },
           ],
         }),
