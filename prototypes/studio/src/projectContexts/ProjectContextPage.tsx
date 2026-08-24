@@ -329,7 +329,7 @@ export default function ProjectContextPage({
 
   return (
     <div className="scrollbar-subtle h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 pt-6 pb-28 sm:p-8 sm:pb-28">
         <header>
           {renaming && project ? (
             <RenameForm

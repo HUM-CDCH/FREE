@@ -83,6 +83,55 @@ export function parseSchemaDefinition(value: unknown): SchemaDefinition {
   return schemaDefinitionSchema.parse(value)
 }
 
+const reservedBatchSuggestionFieldNames = new Set([
+  'evidence',
+  'snippet',
+  'snippets',
+  'page',
+  'pages',
+  'bbox',
+  'bboxes',
+  'occurrenceid',
+  'occurrenceids',
+  'fuzzymatch',
+  'fuzzymatches',
+])
+
+function normalizedBatchSuggestionFieldName(name: string): string {
+  return name.replace(/[^a-z0-9]/gi, '').toLowerCase()
+}
+
+function validateBatchSuggestionNodes(nodes: readonly SchemaNode[]): void {
+  const names = new Set<string>()
+  for (const node of nodes) {
+    if (
+      reservedBatchSuggestionFieldNames.has(
+        normalizedBatchSuggestionFieldName(node.name),
+      )
+    )
+      throw new Error(
+        `Schema suggestions cannot define reserved Evidence field ${node.name}.`,
+      )
+    if (names.has(node.name))
+      throw new Error(
+        `Schema suggestions cannot repeat field name ${node.name}.`,
+      )
+    names.add(node.name)
+    if (node.children) validateBatchSuggestionNodes(node.children)
+  }
+}
+
+/**
+ * The single executable-draft boundary for Batch Schema Suggestions. It is
+ * shared by model output, editable-draft HTTP validation, UI run gating, and
+ * the atomic suggestion-to-batch transaction.
+ */
+export function parseBatchSuggestionDefinition(value: unknown): SchemaDefinition {
+  const definition = parseSchemaDefinition(value)
+  validateBatchSuggestionNodes(definition.schemaNodes)
+  return definition
+}
+
 export function parseSchemaNodes(value: unknown): SchemaNode[] {
   return schemaNodesSchema.parse(value)
 }

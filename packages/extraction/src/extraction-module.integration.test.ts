@@ -42,10 +42,16 @@ if (!disposableDatabaseUrl) {
 } else {
   process.env.DATABASE_URL = disposableDatabaseUrl
 
-  const [{ db }, { createCanonicalPackageStore }, { createExtractionRuntimeWithInfrastructure }] =
+  const [
+    { db },
+    { createCanonicalPackageStore },
+    { createResearcherProjectStore },
+    { createExtractionRuntimeWithInfrastructure },
+  ] =
     await Promise.all([
       import('../../db/src/prisma/db.js'),
       import('../../db/src/artifact-store.js'),
+      import('../../db/src/project-store.js'),
       import('./runtime.js'),
     ])
 
@@ -1116,6 +1122,165 @@ if (!disposableDatabaseUrl) {
       assert.equal(
         handoffs[0]!.batch.schemaRevisionId,
         persisted.confirmedSchemaRevisionId,
+      )
+    })
+
+    it('rejects invalid stored suggestion drafts inside the atomic batch transaction', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf'])
+      const { module } = createRuntime(project.researcherAccountId)
+      const invalidDrafts = [
+        {
+          recordDescription: '   ',
+          schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
+        },
+        {
+          recordDescription: 'One invalid record.',
+          schemaNodes: [
+            { id: 'title-1', name: 'title', type: 'string' },
+            { id: 'title-2', name: 'title', type: 'integer' },
+          ],
+        },
+      ]
+
+      for (const draft of invalidDrafts) {
+        const batchSchemaSuggestionId = randomUUID()
+        await db.orm.public.BatchSchemaSuggestion.create({
+          id: batchSchemaSuggestionId,
+          projectContextId: project.projectContextId,
+          selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+        })
+        await db.orm.public.BatchSchemaSuggestionSource.create({
+          batchSchemaSuggestionId,
+          sourceDocumentId: project.documents[0]!.sourceDocumentId,
+          sourceRepresentationRevisionId:
+            project.documents[0]!.sourceRepresentationRevisionId,
+        })
+        await db.orm.public.BatchSchemaSuggestion.where({
+          id: batchSchemaSuggestionId,
+        }).update({
+          executionStatus: 'COMPLETED',
+          phase: 'READY',
+          draft,
+          draftVersion: 1,
+          finishedAt: new Date(),
+        })
+
+        await assert.rejects(
+          module.scheduleSuggestedBatch({
+            projectContextId: project.projectContextId,
+            batchSchemaSuggestionId,
+            strategy: 'ARTICLE',
+          }),
+          rejectsWithCode('batch_not_ready'),
+        )
+        const persisted = await db.orm.public.BatchSchemaSuggestion.select(
+          'confirmedSchemaRevisionId',
+          'batchExtractionId',
+        ).first({ id: batchSchemaSuggestionId })
+        assert.deepEqual(persisted, {
+          confirmedSchemaRevisionId: null,
+          batchExtractionId: null,
+        })
+      }
+
+      assert.equal(
+        (
+          await db.orm.public.BatchExtraction.where({
+            projectContextId: project.projectContextId,
+          })
+            .select('id')
+            .all()
+        ).length,
+        0,
+      )
+    })
+
+    it('retries one durable suggestion while preserving successful source checkpoints', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
+      const store = createResearcherProjectStore(
+        project.researcherAccountId,
+        db,
+      )
+      const batchSchemaSuggestionId = randomUUID()
+      await db.orm.public.BatchSchemaSuggestion.create({
+        id: batchSchemaSuggestionId,
+        projectContextId: project.projectContextId,
+        selectionKey: sha256(strToU8(batchSchemaSuggestionId)),
+      })
+      for (const document of project.documents)
+        await db.orm.public.BatchSchemaSuggestionSource.create({
+          batchSchemaSuggestionId,
+          sourceDocumentId: document.sourceDocumentId,
+          sourceRepresentationRevisionId:
+            document.sourceRepresentationRevisionId,
+        })
+      const completedAt = new Date('2026-08-24T10:00:00.000Z')
+      await db.orm.public.BatchSchemaSuggestionSource.where({
+        batchSchemaSuggestionId,
+        sourceDocumentId: project.documents[0]!.sourceDocumentId,
+      }).update({
+        executionStatus: 'COMPLETED',
+        definition: ARTICLE_SCHEMA,
+        startedAt: completedAt,
+        finishedAt: completedAt,
+      })
+      await db.orm.public.BatchSchemaSuggestionSource.where({
+        batchSchemaSuggestionId,
+        sourceDocumentId: project.documents[1]!.sourceDocumentId,
+      }).update({
+        executionStatus: 'FAILED',
+        failure: {
+          code: 'invalid_model_output',
+          message: 'Sanitized durable failure.',
+        },
+        startedAt: completedAt,
+        finishedAt: completedAt,
+      })
+      await db.orm.public.BatchSchemaSuggestion.where({
+        id: batchSchemaSuggestionId,
+      }).update({
+        executionStatus: 'FAILED',
+        phase: 'SOURCES',
+        failure: {
+          code: 'source_suggestion_failed',
+          message: 'One source failed.',
+        },
+        startedAt: completedAt,
+        finishedAt: completedAt,
+      })
+
+      const retried = await store.retryBatchSchemaSuggestion(
+        project.projectContextId,
+        batchSchemaSuggestionId,
+      )
+      assert.equal(retried?.suggestion.batchSchemaSuggestionId, batchSchemaSuggestionId)
+      assert.equal(retried?.suggestion.executionStatus, 'QUEUED')
+      const successful = retried?.suggestion.sources.find(
+        (source) =>
+          source.sourceDocumentId === project.documents[0]!.sourceDocumentId,
+      )
+      const failed = retried?.suggestion.sources.find(
+        (source) =>
+          source.sourceDocumentId === project.documents[1]!.sourceDocumentId,
+      )
+      assert.equal(successful?.executionStatus, 'COMPLETED')
+      assert.deepEqual(successful?.definition, ARTICLE_SCHEMA)
+      assert.equal(successful?.finishedAt?.toISOString(), completedAt.toISOString())
+      assert.equal(failed?.executionStatus, 'QUEUED')
+      assert.equal(failed?.failure, null)
+      assert.equal(failed?.startedAt, null)
+      assert.equal(failed?.finishedAt, null)
+      assert.equal(
+        (
+          await db.orm.public.BatchSchemaSuggestion.where({
+            projectContextId: project.projectContextId,
+          })
+            .select('id')
+            .all()
+        ).length,
+        1,
       )
     })
   })

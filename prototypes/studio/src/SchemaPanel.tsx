@@ -59,6 +59,8 @@ type SchemaPanelProps = {
   onRenameSchema?: (name: string) => Promise<string | null>
   readOnly?: boolean
   showRegenerate?: boolean
+  /** Reports edits visible in the panel that are not yet in its controller. */
+  onPendingLocalEditChange?: (pending: boolean) => void
 }
 
 type DragState = {
@@ -468,6 +470,7 @@ function SchemaPanel({
   onRenameSchema,
   readOnly = false,
   showRegenerate = true,
+  onPendingLocalEditChange,
 }: SchemaPanelProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const nodes =
@@ -547,6 +550,23 @@ function SchemaPanel({
     if (committedRecordDescription === undefined) return
     setRecordDescriptionDraft(committedRecordDescription)
   }, [committedRecordDescription])
+
+  const pendingLocalEdit =
+    !editorReadOnly &&
+    (editing !== null ||
+      provisionalField !== null ||
+      openDescId !== null ||
+      jsonEditMode ||
+      chatLoading ||
+      pending !== null ||
+      recordDescriptionDraft !== (committedRecordDescription ?? ''))
+  useEffect(() => {
+    onPendingLocalEditChange?.(pendingLocalEdit)
+  }, [onPendingLocalEditChange, pendingLocalEdit])
+  useEffect(
+    () => () => onPendingLocalEditChange?.(false),
+    [onPendingLocalEditChange],
+  )
 
   const resetEditorUi = useCallback(
     (clearConversation = false) => {

@@ -15,7 +15,10 @@ import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
-import type { SchemaDefinition } from 'extraction/schema'
+import {
+  parseBatchSuggestionDefinition,
+  type SchemaDefinition,
+} from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
 import SchemaPanel from '../SchemaPanel'
 import {
@@ -78,6 +81,97 @@ function stamp(value: string): string {
   })
 }
 
+function newestBatchFirst(left: BatchExtraction, right: BatchExtraction): number {
+  return (
+    Date.parse(right.createdAt) - Date.parse(left.createdAt) ||
+    right.batchExtractionId.localeCompare(left.batchExtractionId)
+  )
+}
+
+function runnableSuggestionDefinition(value: unknown): boolean {
+  try {
+    parseBatchSuggestionDefinition(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const suggestionFailureCategories: Readonly<Record<string, string>> = {
+  invalid_model_config: 'Model configuration error',
+  model_operation_failed: 'Model request failed',
+  invalid_model_output: 'Invalid model output',
+  unexpected_failure: 'Unexpected failure',
+}
+
+function SuggestionSourceProgress({
+  suggestion,
+  documentName,
+}: {
+  suggestion: BatchSchemaSuggestion
+  documentName(sourceDocumentId: string): string
+}) {
+  const counts = suggestion.sources.reduce(
+    (current, source) => ({
+      ...current,
+      [source.executionStatus]: current[source.executionStatus] + 1,
+    }),
+    { QUEUED: 0, RUNNING: 0, COMPLETED: 0, FAILED: 0 },
+  )
+  const progress = [
+    `${counts.COMPLETED} of ${suggestion.sources.length} complete`,
+    counts.RUNNING ? `${counts.RUNNING} running` : null,
+    counts.QUEUED ? `${counts.QUEUED} queued` : null,
+    counts.FAILED ? `${counts.FAILED} failed` : null,
+    suggestion.phase === 'MERGING' ? 'merging common fields' : null,
+  ].filter((part): part is string => part !== null)
+  return (
+    <div className="space-y-2" aria-label="Source suggestion progress">
+      <p className="text-[11px] text-ink-muted" role="status">
+        {progress.join(' · ')}
+      </p>
+      <ul className="space-y-1 text-[11px]">
+        {suggestion.sources.map((source) => {
+          const status =
+            source.executionStatus === 'COMPLETED'
+              ? 'Complete'
+              : source.executionStatus === 'RUNNING'
+                ? 'Running'
+                : source.executionStatus === 'FAILED'
+                  ? 'Failed'
+                  : 'Queued'
+          const category = source.failure
+            ? suggestionFailureCategories[source.failure.code] ??
+              'Unexpected failure'
+            : null
+          return (
+            <li
+              className="flex items-baseline justify-between gap-3"
+              key={source.sourceDocumentId}
+            >
+              <span className="min-w-0 truncate text-ink-muted">
+                {documentName(source.sourceDocumentId)}
+              </span>
+              <span
+                className={
+                  source.executionStatus === 'FAILED'
+                    ? 'shrink-0 font-semibold text-danger'
+                    : source.executionStatus === 'COMPLETED'
+                      ? 'shrink-0 font-semibold text-success'
+                      : 'shrink-0 font-semibold text-ink-faint'
+                }
+              >
+                {status}
+                {category ? ` — ${category}` : ''}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
 /**
  * The Extractions tab: past Batch Extractions, opening a new one over selected
  * Source Documents, and their persisted member history. Extraction Results and
@@ -120,6 +214,8 @@ export default function BatchExtractionsPanel({
   // A replayed selection reopens a Batch Extraction the researcher already has,
   // which is indistinguishable from nothing happening unless it is said.
   const [runNotice, setRunNotice] = useState<string | null>(null)
+  const [suggestionHasPendingLocalEdit, setSuggestionHasPendingLocalEdit] =
+    useState(false)
   const [schemas, setSchemas] = useState<Read<ExtractionSchemas>>({
     value: null,
     failure: null,
@@ -429,7 +525,7 @@ export default function BatchExtractionsPanel({
         ...(current.value ?? []).filter(
           (item) => item.batchExtractionId !== batch.batchExtractionId,
         ),
-      ],
+      ].sort(newestBatchFirst),
       failure: null,
     }))
   }, [])
@@ -439,12 +535,20 @@ export default function BatchExtractionsPanel({
       setSelected(new Set())
       setRunNotice(
         opened.disposition === 'replayed'
-          ? 'This selection had already been run. Its Batch Extraction is reopened below — open it and choose Run again to run the same selection fresh.'
+          ? 'This selection had already been run. Its existing Batch Extraction is open below; choose Run again to run the same selection fresh.'
           : null,
       )
-      showHistory()
+      if (opened.disposition === 'replayed') {
+        setPreparing(false)
+        onNavigate({
+          kind: 'project',
+          projectContextId,
+          tab: 'extractions',
+          batchExtractionId: opened.batchExtraction.batchExtractionId,
+        })
+      } else showHistory()
     },
-    [recordBatch, showHistory],
+    [onNavigate, projectContextId, recordBatch, showHistory],
   )
 
   const suggestFields = () => {
@@ -536,18 +640,8 @@ export default function BatchExtractionsPanel({
   const openNewBatch = () => {
     setRunFailure(null)
     setRunNotice(null)
+    if (!canRun) return
     if (schemaRevisionId === SUGGEST_SCHEMA) {
-      if (
-        confirmedSuggestion ||
-        suggestionProposal?.status !== 'ready' ||
-        !suggestionProposal.recordDescription.trim() ||
-        suggestionProposal.schemaNodes.some((node) => !node.name.trim()) ||
-        new Set(
-          suggestionProposal.schemaNodes.map((node) => node.name.trim()),
-        ).size !== suggestionProposal.schemaNodes.length ||
-        draftConflict
-      )
-        return
       sendSuggestion({ type: 'run.requested' })
       return
     }
@@ -588,10 +682,20 @@ export default function BatchExtractionsPanel({
     suggestion.matches('suggesting') ||
     suggestion.matches('retrying')
   const preparingSuggestedBatch =
-    suggestion.matches('running') ||
-    (suggestion.matches({ drafting: 'saving' }) &&
-      suggestion.context.runAfterSave)
+    suggestion.matches('running')
   const openingAnyBatch = openingBatch || preparingSuggestedBatch
+  const validSelection =
+    selected.size > 0 && selected.size <= BATCH_EXTRACTION_SELECTION_LIMIT
+  const canRun =
+    validSelection &&
+    !openingAnyBatch &&
+    (schemaRevisionId === SUGGEST_SCHEMA
+      ? confirmedSuggestion === null &&
+        suggestedFields?.status === 'ready' &&
+        suggestion.can({ type: 'run.requested' }) &&
+        !suggestionHasPendingLocalEdit &&
+        runnableSuggestionDefinition(suggestion.context.draft)
+      : schemaRevisionId.length > 0)
   const toggleAllSourceDocuments = () => {
     if (schemaRevisionId === SUGGEST_SCHEMA) clearSuggestedFields()
     setSelected(
@@ -808,22 +912,13 @@ export default function BatchExtractionsPanel({
                         </Button>
                       )}
                     </div>
-                    {activeSuggestion &&
-                      activeSuggestion.sources.some(
-                        (source) => source.failure !== null,
-                      ) && (
-                      <ul className="space-y-1 text-[11px] text-danger">
-                        {activeSuggestion.sources
-                          .filter((source) => source.failure !== null)
-                          .map((source) => (
-                            <li key={source.sourceDocumentId}>
-                              {documentName(source.sourceDocumentId)}:{' '}
-                              {source.failure!.message}
-                            </li>
-                          ))}
-                      </ul>
-                    )}
                   </div>
+                )}
+                {activeSuggestion && activeSuggestion.sources.length > 0 && (
+                  <SuggestionSourceProgress
+                    suggestion={activeSuggestion}
+                    documentName={documentName}
+                  />
                 )}
                 {draftConflict && (
                   <div className="flex flex-wrap items-center gap-2">
@@ -866,6 +961,9 @@ export default function BatchExtractionsPanel({
                       showRegenerate={confirmedSuggestion === null}
                       onGenerateInstructions={regenerateSuggestedFields}
                       onProposalEdit={updateSuggestedDefinition}
+                      onPendingLocalEditChange={
+                        setSuggestionHasPendingLocalEdit
+                      }
                     />
                   </div>
                 )}
@@ -960,17 +1058,7 @@ export default function BatchExtractionsPanel({
               <Button
                 variant="primary"
                 size="md"
-                disabled={
-                  selected.size === 0 ||
-                  (schemaRevisionId === SUGGEST_SCHEMA
-                    ? confirmedSuggestion !== null ||
-                      suggestedFields?.status !== 'ready' ||
-                      !suggestedFields.recordDescription.trim() ||
-                      draftConflict
-                    : !schemaRevisionId) ||
-                  overSelectionLimit ||
-                  openingAnyBatch
-                }
+                disabled={!canRun}
                 onClick={openNewBatch}
               >
                 {openingAnyBatch ? 'Opening…' : 'Run'} {selected.size} Source
@@ -1100,6 +1188,7 @@ function SuggestedSchemaEditor({
   showRegenerate,
   onGenerateInstructions,
   onProposalEdit,
+  onPendingLocalEditChange,
 }: {
   proposal: SchemaDefinition
   proposalVersion: SuggestionDraftVersion
@@ -1110,6 +1199,7 @@ function SuggestedSchemaEditor({
   onProposalEdit: (
     update: (definition: SchemaDefinition) => SchemaDefinition,
   ) => void
+  onPendingLocalEditChange(pending: boolean): void
 }) {
   // The parent's suggestion machinery changes identity every render; the
   // latest callback is read from the ref inside the persistence's onEdit.
@@ -1149,6 +1239,7 @@ function SuggestedSchemaEditor({
       sourceDocumentName={sourceDocumentName}
       readOnly={readOnly}
       showRegenerate={showRegenerate}
+      onPendingLocalEditChange={onPendingLocalEditChange}
     />
   )
 }

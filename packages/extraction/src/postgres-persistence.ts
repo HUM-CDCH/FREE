@@ -8,6 +8,7 @@ import {
 } from 'db'
 import { ExtractionError } from './errors.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
+import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type {
   ExtractionPersistence,
   PersistedReviewResult,
@@ -785,7 +786,12 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
     try {
       const opened = await this.database.transaction(async ({ orm }) => {
         if (!await orm.public.ProjectContext.select('id').first({ id: input.projectContextId })) return 'missing' as const
-        if (input.sourceDocumentIds.length === 0) return 'invalid' as const
+        if (
+          input.sourceDocumentIds.length === 0 ||
+          input.sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT ||
+          new Set(input.sourceDocumentIds).size !== input.sourceDocumentIds.length
+        )
+          return 'invalid' as const
         const schema = await orm.public.SchemaRevision.select('extractionSchemaId').first({ id: input.schemaRevisionId })
         const owner = schema ? await orm.public.ExtractionSchema.select('projectContextId').first({ id: schema.extractionSchemaId }) : null
         if (!schema || !owner || owner.projectContextId !== input.projectContextId) return 'invalid' as const
@@ -1329,7 +1335,12 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           }))
         )
           return 'missing' as const
-        if (input.sourceDocumentIds.length === 0) return 'invalid' as const
+        if (
+          input.sourceDocumentIds.length === 0 ||
+          input.sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT ||
+          new Set(input.sourceDocumentIds).size !== input.sourceDocumentIds.length
+        )
+          return 'invalid' as const
         const schema =
           await orm.public.SchemaRevision.select(
             'extractionSchemaId',

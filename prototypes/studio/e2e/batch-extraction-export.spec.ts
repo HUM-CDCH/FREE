@@ -48,6 +48,45 @@ const results = [
   },
 ]
 
+function readySuggestionDto(
+  draft = schemaTree,
+  draftVersion = 0,
+) {
+  return {
+    batchSchemaSuggestionId: '74000000-0000-4000-8008-000000000001',
+    projectContextId: id.project,
+    selectionKey: 'a'.repeat(64),
+    executionStatus: 'COMPLETED',
+    phase: 'READY',
+    proposal: schemaTree,
+    coverage: schemaTree.schemaNodes.map((node) => ({
+      nodeId: node.id,
+      present: 2,
+      total: 2,
+    })),
+    draft,
+    draftVersion,
+    failure: null,
+    confirmedSchemaRevisionId: null,
+    batchExtractionId: null,
+    startedAt: '2026-08-19T10:00:00.000Z',
+    finishedAt: '2026-08-19T10:00:01.000Z',
+    createdAt: '2026-08-19T10:00:00.000Z',
+    sources: [
+      [id.beretning, id.beretningRevision],
+      [id.fundliste, id.fundlisteRevision],
+    ].map(([sourceDocumentId, sourceRepresentationRevisionId]) => ({
+      sourceDocumentId,
+      sourceRepresentationRevisionId,
+      executionStatus: 'COMPLETED',
+      definition: schemaTree,
+      failure: null,
+      startedAt: '2026-08-19T10:00:00.000Z',
+      finishedAt: '2026-08-19T10:00:01.000Z',
+    })),
+  }
+}
+
 const at = (minute: number) => new Date(`2026-08-19T10:${String(minute).padStart(2, '0')}:00.000Z`)
 
 type StudioStore = Pick<
@@ -411,6 +450,84 @@ async function exportBatch(page: Page, format: 'Excel' | 'CSV') {
   return completed
 }
 
+async function stubSharedSuggestionDraft(
+  page: Page,
+  shared: { suggestion: ReturnType<typeof readySuggestionDto> },
+): Promise<void> {
+  await page.route('**/api/batch-schema-suggestions**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'GET')
+      return route.fulfill({
+        json: path.endsWith('/api/batch-schema-suggestions')
+          ? { batchSchemaSuggestions: [shared.suggestion] }
+          : { batchSchemaSuggestion: shared.suggestion },
+      })
+    if (request.method() === 'PATCH' && path.endsWith('/draft')) {
+      const body = request.postDataJSON() as {
+        expectedDraftVersion: number
+        recordDescription: string
+        schemaNodes: typeof schemaTree.schemaNodes
+      }
+      if (body.expectedDraftVersion !== shared.suggestion.draftVersion)
+        return route.fulfill({
+          status: 409,
+          json: {
+            error: {
+              code: 'draft_conflict',
+              message: 'The saved suggestion draft changed in another tab.',
+            },
+          },
+        })
+      shared.suggestion = readySuggestionDto(
+        {
+          recordDescription: body.recordDescription,
+          schemaNodes: body.schemaNodes,
+        },
+        body.expectedDraftVersion + 1,
+      )
+      return route.fulfill({
+        json: { batchSchemaSuggestion: shared.suggestion },
+      })
+    }
+    return route.fulfill({ status: 405, body: 'Method not allowed' })
+  })
+}
+
+async function expectBatchRunClearOfSession(page: Page): Promise<void> {
+  const run = panel(page).getByRole('button', {
+    name: 'Run 2 Source Documents',
+  })
+  await run.scrollIntoViewIfNeeded()
+  const scrollRegion = page
+    .getByRole('region', { name: 'Project Context' })
+    .locator('.scrollbar-subtle')
+    .first()
+  await scrollRegion.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  const [runBox, sessionBox, viewport] = await Promise.all([
+    run.boundingBox(),
+    page.getByLabel('Researcher session').boundingBox(),
+    page.evaluate(() => ({ width: innerWidth, height: innerHeight })),
+  ])
+  expect(runBox).not.toBeNull()
+  expect(sessionBox).not.toBeNull()
+  if (!runBox || !sessionBox) return
+  expect(runBox.x).toBeGreaterThanOrEqual(0)
+  expect(runBox.y).toBeGreaterThanOrEqual(0)
+  expect(runBox.x + runBox.width).toBeLessThanOrEqual(viewport.width)
+  expect(runBox.y + runBox.height).toBeLessThanOrEqual(viewport.height)
+  const overlapsSession = !(
+    runBox.x + runBox.width <= sessionBox.x ||
+    sessionBox.x + sessionBox.width <= runBox.x ||
+    runBox.y + runBox.height <= sessionBox.y ||
+    sessionBox.y + sessionBox.height <= runBox.y
+  )
+  expect(overlapsSession).toBe(false)
+  await expect(run).toBeEnabled()
+}
+
 test('a Batch Extraction runs over selected Source Documents and exports one spreadsheet @deterministic', async ({
   page,
 }) => {
@@ -503,6 +620,102 @@ test('a Batch Extraction runs over selected Source Documents and exports one spr
     'Hørsholm',
     '1802',
   ])
+})
+
+test('Batch Builder Run stays operable at every required viewport and 200% zoom @deterministic', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await stubStudio(page)
+  await openExtractions(page)
+  await prepareBatch(page)
+
+  for (const viewport of [
+    { width: 1280, height: 720 },
+    { width: 1280, height: 800 },
+    { width: 1024, height: 768 },
+    { width: 859, height: 800 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport)
+    await expectBatchRunClearOfSession(page)
+  }
+
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '2'
+  })
+  await expectBatchRunClearOfSession(page)
+})
+
+for (const key of ['Enter', 'Space'] as const) {
+  test(`Batch Builder Run activates with ${key} @deterministic`, async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await openExtractions(page)
+    await prepareBatch(page)
+    const run = panel(page).getByRole('button', {
+      name: 'Run 2 Source Documents',
+    })
+    await expect(run).toBeEnabled()
+    await run.focus()
+    await expect(run).toBeFocused()
+    const opened = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        new URL(request.url()).pathname === '/api/batch-extractions',
+    )
+    await run.press(key)
+    expect((await opened).postDataJSON()).toMatchObject({
+      projectContextId: id.project,
+      schemaRevisionId: id.revision,
+      strategy: 'ARTICLE',
+      sourceDocumentIds: [id.beretning, id.fundliste],
+    })
+  })
+}
+
+test('two tabs expose and recover a durable Batch Schema Suggestion draft conflict @deterministic', async ({
+  page,
+  context,
+}) => {
+  const shared = { suggestion: readySuggestionDto() }
+  const otherPage = await context.newPage()
+  for (const candidate of [page, otherPage]) {
+    await stubStudio(candidate)
+    await stubSharedSuggestionDraft(candidate, shared)
+    await openExtractions(candidate)
+    await prepareBatch(candidate)
+    await candidate.getByLabel('Extraction Schema').selectOption(
+      '__suggest_common_fields__',
+    )
+    await expect(candidate.getByText('place', { exact: true })).toBeVisible()
+  }
+
+  const firstSuggestion = page.getByLabel('Suggested common fields')
+  await firstSuggestion.getByTitle('Edit place').click()
+  await firstSuggestion.getByPlaceholder('field_name').fill('city')
+  await firstSuggestion.getByRole('button', { name: 'Save' }).click()
+  await expect.poll(() => shared.suggestion.draftVersion).toBe(1)
+
+  const secondSuggestion = otherPage.getByLabel('Suggested common fields')
+  await secondSuggestion.getByTitle('Edit place').click()
+  await secondSuggestion.getByPlaceholder('field_name').fill('town')
+  await secondSuggestion.getByRole('button', { name: 'Save' }).click()
+  await expect(
+    otherPage.getByText('This draft changed in another tab.'),
+  ).toBeVisible()
+  await expect(
+    otherPage.getByRole('button', { name: 'Run 2 Source Documents' }),
+  ).toBeDisabled()
+
+  await otherPage.getByRole('button', { name: 'Reload saved draft' }).click()
+  await expect(secondSuggestion.getByText('city', { exact: true })).toBeVisible()
+  await expect(secondSuggestion.getByText('town', { exact: true })).toHaveCount(0)
+  await expect(
+    otherPage.getByRole('button', { name: 'Run 2 Source Documents' }),
+  ).toBeEnabled()
 })
 
 test('the export stays unavailable until the batch has produced a result @deterministic', async ({
