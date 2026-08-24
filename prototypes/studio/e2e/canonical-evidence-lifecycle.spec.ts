@@ -9,7 +9,17 @@ import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import { hashPassword } from '../server/password.js'
-import { E2E_ORIGIN, E2E_PASSWORD, loginResearcher } from './auth.js'
+import {
+  E2E_ORIGIN,
+  E2E_PASSWORD,
+  e2eStudioPath,
+  loginResearcher,
+} from './auth.js'
+import {
+  activateWithKeyboard,
+  expectOperableInViewport,
+  REQUIRED_VIEWPORTS,
+} from './accessibility.js'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -237,31 +247,85 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     },
   })
 
-  await loginResearcher(page, researcherEmail)
-  const url = `/projects/${projectContextId}/documents/${sourceDocumentId}`
-  await page.goto(url)
+  const internalUrl = `/projects/${projectContextId}/documents/${sourceDocumentId}`
+  const url = e2eStudioPath(internalUrl)
+  await page.goto(
+    `${e2eStudioPath('/login')}?${new URLSearchParams({ returnTo: internalUrl })}`,
+  )
+  const email = page.getByLabel('Email address')
+  await expect(email).toBeFocused()
+  await page.keyboard.type(researcherEmail)
+  await page.keyboard.press('Tab')
+  await page.keyboard.type(E2E_PASSWORD)
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(url)
   await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
     timeout: 20_000,
   })
-  await page.getByRole('button', { name: '▶ Run extraction' }).click()
+  await activateWithKeyboard(
+    page,
+    page.getByRole('button', { name: '▶ Run extraction' }),
+  )
   await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible()
-  await page.getByRole('tab', { name: /Results/ }).click()
+  await activateWithKeyboard(page, page.getByRole('tab', { name: /Results/ }))
   await expect(
     page.getByRole('button', { name: 'View Evidence for title' }),
   ).toBeVisible()
+  for (const viewport of REQUIRED_VIEWPORTS) {
+    await page.setViewportSize(viewport)
+    await expectOperableInViewport(
+      page,
+      page.getByRole('button', { name: 'View Evidence for title' }),
+    )
+    const exportTrigger = page.getByRole('button', { name: 'Export' })
+    await expectOperableInViewport(page, exportTrigger)
+    await activateWithKeyboard(page, exportTrigger)
+    const responsiveExportDialog = page.getByRole('dialog', {
+      name: 'Export options',
+    })
+    await expectOperableInViewport(
+      page,
+      responsiveExportDialog.getByRole('button', { name: 'CSV' }),
+    )
+    await page.keyboard.press('Escape')
+    await expect(responsiveExportDialog).toBeHidden()
+    await expect(exportTrigger).toBeFocused()
+  }
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '2'
+  })
+  await expectOperableInViewport(
+    page,
+    page.getByRole('button', { name: 'View Evidence for title' }),
+  )
+  await expectOperableInViewport(page, page.getByRole('button', { name: 'Export' }))
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = ''
+  })
   const titleReview = page.getByRole('group', { name: 'Review title' })
-  await titleReview.getByRole('button', { name: 'Edit title' }).click()
+  await activateWithKeyboard(
+    page,
+    titleReview.getByRole('button', { name: 'Edit title' }),
+  )
   await page.getByRole('textbox', { name: 'Reviewed value for title', exact: true }).fill('Reviewed, café')
-  await page.getByRole('button', { name: 'Save reviewed value for title' }).click()
+  await activateWithKeyboard(
+    page,
+    page.getByRole('button', { name: 'Save reviewed value for title' }),
+  )
   await expect(page.getByText('Reviewed, café', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Save Review' }).click()
+  await activateWithKeyboard(
+    page,
+    page.getByRole('button', { name: 'Save Review' }),
+  )
   await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
 
   // A real browser download is produced once even when the format action is
   // double-clicked. Inspect both archive structure and the exact CSV bytes.
   const downloads: import('@playwright/test').Download[] = []
   page.on('download', (download) => downloads.push(download))
-  await page.getByRole('button', { name: 'Export' }).click()
+  await activateWithKeyboard(page, page.getByRole('button', { name: 'Export' }))
   let exportDialog = page.getByRole('dialog', { name: 'Export options' })
   await exportDialog.getByLabel('Rows represent').selectOption('findings')
   const workbookEvent = page.waitForEvent('download')
@@ -288,11 +352,14 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   expect(sheet).toContain('<autoFilter ref="A1:E3"/>')
   expect(sheet.match(/<v>1801<\/v>/g)).toHaveLength(2)
 
-  await page.getByRole('button', { name: 'Export' }).click()
+  await activateWithKeyboard(page, page.getByRole('button', { name: 'Export' }))
   exportDialog = page.getByRole('dialog', { name: 'Export options' })
   await expect(exportDialog.getByLabel('Rows represent')).toHaveValue('findings')
   const csvEvent = page.waitForEvent('download')
-  await exportDialog.getByRole('button', { name: 'CSV' }).click()
+  await activateWithKeyboard(
+    page,
+    exportDialog.getByRole('button', { name: 'CSV' }),
+  )
   const csvDownload = await csvEvent
   expect(csvDownload.suggestedFilename()).toBe('article-lifecycle-extraction-result.csv')
   expect(await readFile((await csvDownload.path())!, 'utf8')).toBe(
@@ -344,7 +411,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
 
   const newerExtractionId = randomUUID()
   omitGrounding = true
-  const created = await page.request.post('/api/extractions', {
+  const created = await page.request.post(e2eStudioPath('/api/extractions'), {
     headers: { Origin: E2E_ORIGIN },
     data: {
       id: newerExtractionId,
@@ -367,7 +434,9 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   const reopened = documentReopenResponseSchema.parse(
     await (
       await freshPage.request.get(
-        `/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/reopen`,
+        e2eStudioPath(
+          `/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/reopen`,
+        ),
       )
     ).json(),
   )

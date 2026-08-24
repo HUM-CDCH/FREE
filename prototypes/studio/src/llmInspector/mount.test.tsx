@@ -27,8 +27,19 @@ describe('LLM inspector launcher', () => {
       request: 'Complete source text',
       response: 'Complete model text',
     }
-    const request = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
-      init?.method === 'DELETE' ? new Response(null, { status: 204 }) : Response.json({ traces: [trace] }))
+    let traces = [trace]
+    const request = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        traces = []
+        return new Response(null, { status: 204 })
+      }
+      return Response.json({ traces })
+    })
+    const writeText = vi.fn(async () => undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
     vi.stubGlobal('fetch', request)
     act(() => { unmount = mountLlmInspector() })
 
@@ -37,6 +48,8 @@ describe('LLM inspector launcher', () => {
     expect(screen.getByText(/Provider exchanges only/)).toBeVisible()
     expect(await screen.findByText('Complete source text')).toBeInTheDocument()
     expect(screen.getByText('Complete model text')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Copy' })[0])
+    expect(writeText).toHaveBeenCalledWith('Complete source text')
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
 
     await waitFor(() =>
@@ -53,5 +66,17 @@ describe('LLM inspector launcher', () => {
         ([, init]) => init?.credentials === 'same-origin',
       ),
     ).toBe(true)
+    expect(await screen.findByText(/No provider calls yet/)).toBeVisible()
+    expect(screen.getByText('Select a call to inspect its complete payload.')).toBeVisible()
+
+    const dialog = screen.getByRole('dialog', { name: 'LLM message inspector' })
+    fireEvent.click(dialog)
+    expect(dialog).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect LLM messages' }))
+    const reopened = await screen.findByRole('dialog', {
+      name: 'LLM message inspector',
+    })
+    fireEvent(reopened, new Event('cancel', { cancelable: true }))
+    expect(reopened).not.toBeInTheDocument()
   })
 })

@@ -2,7 +2,7 @@ import type { LanguageModel } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'
 import { DELETE, GET, type LlmTrace } from './llm_inspector.js'
-import type { GeneralExecutionTarget, NuExtractRawExecutionTarget } from './_provider.js'
+import type { GeneralExecutionTarget, ModelOperation, NuExtractRawExecutionTarget } from './_provider.js'
 
 const rawTarget: NuExtractRawExecutionTarget = {
   profile: 'nuextract-raw',
@@ -35,14 +35,17 @@ function model(overrides: Partial<CallableModel> = {}): LanguageModel {
   } as unknown as LanguageModel
 }
 
-function inspected(providerModel: LanguageModel): CallableModel {
+function inspected(
+  providerModel: LanguageModel,
+  operation: ModelOperation = 'chat',
+): CallableModel {
   const target: GeneralExecutionTarget = {
     profile: 'general',
     model: providerModel,
     jsonOutput: 'prompt',
     temperatureSupported: true,
   }
-  return inspectTarget('chat', target).model as unknown as CallableModel
+  return inspectTarget(operation, target).model as unknown as CallableModel
 }
 
 async function traces(): Promise<LlmTrace[]> {
@@ -83,6 +86,47 @@ describe('LLM inspector middleware', () => {
     for (const secret of ['alice', 'password', 'query-secret']) {
       expect(history[1].response).not.toContain(secret)
     }
+  })
+
+  it('captures every operation newest-first and redacts paths, hashes, and URL credentials', async () => {
+    const operations = [
+      'schema-suggestion',
+      'schema-edit',
+      'extraction',
+      'chat',
+    ] as const
+    for (const operation of operations) {
+      const wrapped = inspected(model(), operation)
+      await wrapped.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: operation }] }],
+      })
+    }
+    const unsafe = new Error(
+      `failed at C:\\Users\\researcher\\secret.txt /tmp/free/private.json ${'a'.repeat(64)} postgresql://alice:password@db.internal/free?token=query-secret`,
+    )
+    const failed = inspected(
+      model({ doGenerate: async () => Promise.reject(unsafe) }),
+      'extraction',
+    )
+    await expect(failed.doGenerate({ prompt: [] })).rejects.toBe(unsafe)
+
+    const history = await traces()
+    expect(history.map(({ operation }) => operation)).toEqual([
+      'extraction',
+      ...operations.toReversed(),
+    ])
+    const failedPayload = history[0].response ?? ''
+    for (const forbidden of [
+      'Users\\researcher',
+      '/tmp/free',
+      'a'.repeat(64),
+      'alice',
+      'password',
+      'query-secret',
+    ])
+      expect(failedPayload).not.toContain(forbidden)
+    expect(failedPayload).toContain('[REDACTED_PATH]')
+    expect(failedPayload).toContain('[REDACTED_HASH]')
   })
 
   it('taps streamed chunks without changing them and records stream failures', async () => {

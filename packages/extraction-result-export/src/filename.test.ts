@@ -21,3 +21,17 @@ test("removes Windows hazards, reserved names, and trailing dots", () => {
 test("stays within the Windows name limit", () => {
   assert.equal(createExportFilename(`${"a".repeat(300)}.pdf`, "xlsx").length, 255);
 });
+
+test("strips paths and neutralizes markup-like filename characters", () => {
+  const filename = createExportFilename(
+    'C:\\private\\<img src=x onerror="credential-secret">.pdf',
+    "xlsx",
+  );
+
+  assert.equal(
+    filename,
+    '-img src=x onerror=-credential-secret---extraction-result.xlsx',
+  );
+  assert.doesNotMatch(filename, /[<>:"/\\|?*]/u);
+  assert.doesNotMatch(filename, /C:|private/u);
+});

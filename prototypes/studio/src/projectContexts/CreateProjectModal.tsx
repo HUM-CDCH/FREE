@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
 import { Button, ModalDialog } from '../ui'
 import type { WriteResult } from './useProjectContexts'
@@ -21,6 +21,10 @@ export function CreateProjectModal({
   // The shared contract decides, so the field never narrows it: a name that
   // trims down to the limit stays submittable however it was typed.
   const named = projectContextNameSchema.safeParse(name)
+
+  useEffect(() => {
+    if (failure) initialFocus.current?.focus()
+  }, [failure])
 
   return (
     <ModalDialog

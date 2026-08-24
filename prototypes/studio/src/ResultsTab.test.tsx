@@ -111,6 +111,53 @@ const historicalExportSchema: SchemaDefinition = {
 }
 
 describe('ResultsTab grounded values', () => {
+  it('renders markup-like schema names and extracted values as inert text', () => {
+    const fieldName = '<script>field-secret</script>'
+    const value = '<img src=x onerror="value-secret">'
+    const attempt: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ [fieldName]: value }] },
+      evidenceLinks: [
+        {
+          resultPath: ['records', 0, fieldName],
+          evidenceAnchorId: 'anchor-markup',
+        },
+      ],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          {
+            status: 'ready',
+            result: attempt.resultPayload!,
+            evidenceLinks: attempt.evidenceLinks!,
+            ungroundedCount: 0,
+          },
+          attempt,
+        )}
+        schemaReady
+        pinnedSchema={{
+          recordDescription: '<b>record-secret</b>',
+          schemaNodes: [{ id: 'markup', name: fieldName, type: 'string' }],
+        }}
+        documentMarkdown="# Source"
+        sourceDocumentName="<svg onload='source-secret'>.pdf"
+      />,
+    )
+
+    expect(screen.getByText(value, { exact: true })).toBeVisible()
+    expect(screen.getByText(fieldName, { exact: true })).toBeVisible()
+    expect(document.querySelector('script')).toBeNull()
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+    expect(document.querySelector('svg')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Raw JSON' }))
+    expect(screen.getByText(new RegExp('value-secret'))).toBeVisible()
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+  })
+
   it('shows one server-owned progress state without raw output', () => {
     render(
       <ResultsTab

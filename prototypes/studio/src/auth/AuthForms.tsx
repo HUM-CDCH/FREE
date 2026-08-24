@@ -235,7 +235,7 @@ export function PasswordChangeForm({
     event.preventDefault()
     if (pending) return
     const scalarLength = Array.from(newPassword).length
-    if (scalarLength < 15 || scalarLength > 128) {
+    if (scalarLength < 6 || scalarLength > 128) {
       setFailure({ message: passwordPolicy, field: 'new-password' })
       newPasswordRef.current?.focus()
       return

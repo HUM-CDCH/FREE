@@ -201,6 +201,33 @@ describe('AuthApplication', () => {
     expect(loadNavigation).not.toHaveBeenCalled()
   })
 
+  it('renders a retryable unavailable login failure without loading project navigation', async () => {
+    mockFetch((url) => {
+      if (url === '/api/auth/session') return jsonResponse(anonymousSession)
+      if (url === '/api/auth/login')
+        return jsonResponse(
+          {
+            error: {
+              code: 'authentication_unavailable',
+              message: 'connection refused: pg://secret@database.internal/free',
+            },
+          },
+          503,
+        )
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    const loadNavigation = projectLoader()
+    render(<AuthApplication loadNavigation={loadNavigation} />)
+
+    await submitLogin()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Sign in is unavailable. Try again.')
+    expect(alert).not.toHaveTextContent('database.internal')
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+    expect(loadNavigation).not.toHaveBeenCalled()
+  })
+
   it('gates a temporary account to password change and logout only', async () => {
     const request = mockFetch((url) => {
       if (url === '/api/auth/session') return jsonResponse(anonymousSession)
@@ -261,6 +288,104 @@ describe('AuthApplication', () => {
     expect(confirmation).toHaveAccessibleDescription(error.textContent ?? '')
     expect(request).toHaveBeenCalledTimes(2)
   })
+
+  it('enforces the same 6-to-128 Unicode-scalar password boundary as the server', async () => {
+    const request = mockFetch((url, init) => {
+      if (url === '/api/auth/session') return jsonResponse(anonymousSession)
+      if (url === '/api/auth/login') return jsonResponse(temporarySession)
+      if (url === '/api/auth/password') {
+        expect(JSON.parse(String(init.body))).toEqual({
+          currentPassword: 'temporary-password',
+          newPassword: '🔐abcde',
+        })
+        return new Response(null, { status: 204 })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    render(<AuthApplication loadNavigation={projectLoader()} />)
+
+    await submitLogin()
+    await screen.findByRole('heading', { name: 'Choose a permanent password' })
+    const password = screen.getByLabelText('New password')
+    const confirmation = screen.getByLabelText('Confirm new password')
+    const tooLong = '🔐'.repeat(129)
+    fireEvent.change(password, { target: { value: tooLong } })
+    fireEvent.change(confirmation, { target: { value: tooLong } })
+    fireEvent.click(screen.getByRole('button', { name: 'Change password' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Password must contain between 6 and 128 Unicode characters.',
+    )
+    expect(password).toHaveFocus()
+    expect(request).toHaveBeenCalledTimes(2)
+
+    fireEvent.change(password, { target: { value: '🔐abcde' } })
+    fireEvent.change(confirmation, { target: { value: '🔐abcde' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Change password' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Sign in to FREE Studio' }),
+    ).toBeInTheDocument()
+    expect(request).toHaveBeenCalledTimes(3)
+  })
+
+  it.each([
+    {
+      label: 'server validation',
+      status: 400,
+      code: 'invalid_password',
+      message: 'Password must contain between 6 and 128 Unicode characters.',
+      field: 'New password',
+    },
+    {
+      label: 'wrong temporary authority',
+      status: 401,
+      code: 'invalid_credentials',
+      message: 'Password change failed. Sign out and sign in again.',
+      field: null,
+    },
+    {
+      label: 'service outage',
+      status: 503,
+      code: 'authentication_unavailable',
+      message: 'Password change is unavailable. Try again.',
+      field: null,
+    },
+  ])(
+    'keeps password values and recovery controls after $label failure',
+    async ({ status, code, message, field }) => {
+      const request = mockFetch((url) => {
+        if (url === '/api/auth/session') return jsonResponse(anonymousSession)
+        if (url === '/api/auth/login') return jsonResponse(temporarySession)
+        if (url === '/api/auth/password')
+          return jsonResponse(
+            { error: { code, message: 'unsafe internal authentication detail' } },
+            status,
+          )
+        throw new Error(`Unexpected request: ${url}`)
+      })
+      render(<AuthApplication loadNavigation={projectLoader()} />)
+
+      await submitLogin()
+      await screen.findByRole('heading', { name: 'Choose a permanent password' })
+      const password = screen.getByLabelText('New password')
+      const confirmation = screen.getByLabelText('Confirm new password')
+      fireEvent.change(password, { target: { value: 'a permanent password 🔐' } })
+      fireEvent.change(confirmation, {
+        target: { value: 'a permanent password 🔐' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Change password' }))
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(message)
+      expect(alert).not.toHaveTextContent('unsafe internal')
+      expect(password).toHaveValue('a permanent password 🔐')
+      expect(confirmation).toHaveValue('a permanent password 🔐')
+      expect(screen.getByRole('button', { name: 'Change password' })).toBeEnabled()
+      if (field) expect(screen.getByLabelText(field)).toHaveAttribute('aria-invalid', 'true')
+      expect(request).toHaveBeenCalledTimes(3)
+    },
+  )
 
   it('sends a temporary session resolved without a typed password back to login', async () => {
     const request = mockFetch((url) => {
@@ -466,5 +591,68 @@ describe('AuthApplication', () => {
       await screen.findByRole('heading', { name: 'Sign in to FREE Studio' }),
     ).toBeInTheDocument()
     expect(screen.queryByText('Project application')).not.toBeInTheDocument()
+  })
+
+  it('keeps protected UI mounted and logout retryable after a non-401 failure', async () => {
+    let logoutAttempts = 0
+    const request = mockFetch((url) => {
+      if (url === '/api/auth/session') return jsonResponse(usableSession)
+      if (url === '/api/auth/logout') {
+        logoutAttempts += 1
+        return logoutAttempts === 1
+          ? jsonResponse(
+              {
+                error: {
+                  code: 'authentication_unavailable',
+                  message: 'unsafe database connection detail',
+                },
+              },
+              503,
+            )
+          : new Response(null, { status: 204 })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    render(<AuthApplication loadNavigation={projectLoader()} />)
+
+    expect(await screen.findByText('Project application')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Could not sign out. Try again.')
+    expect(alert).not.toHaveTextContent('database connection')
+    expect(screen.getByText('Project application')).toBeInTheDocument()
+    const retry = screen.getByRole('button', { name: 'Sign out' })
+    expect(retry).toBeEnabled()
+
+    fireEvent.click(retry)
+    expect(
+      await screen.findByRole('heading', { name: 'Sign in to FREE Studio' }),
+    ).toBeInTheDocument()
+    expect(request).toHaveBeenCalledTimes(3)
+  })
+
+  it('separately retries a failed lazy project-module load', async () => {
+    mockFetch((url) => {
+      if (url === '/api/auth/session') return jsonResponse(usableSession)
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    const module = await projectLoader()()
+    const loadNavigation = vi
+      .fn<ProjectNavigationLoader>()
+      .mockRejectedValueOnce(new Error('chunk unavailable'))
+      .mockResolvedValueOnce(module)
+    render(<AuthApplication loadNavigation={loadNavigation} />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Workspace unavailable' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('researcher@example.org')).toBeInTheDocument()
+    expect(loadNavigation).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByText('Project application')).toBeInTheDocument()
+    expect(loadNavigation).toHaveBeenCalledTimes(2)
   })
 })
