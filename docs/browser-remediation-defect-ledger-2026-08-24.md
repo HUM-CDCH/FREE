@@ -1,0 +1,29 @@
+# FREE browser remediation defect ledger — 2026-08-24
+
+This is the live implementation ledger for
+`browser-remediation-action-plan-2026-08-24.md`. A row is closed only when the
+implementation and focused regression evidence both exist. Full Phase 7
+evidence and release disposition belong in the updated run report.
+
+| Defect | Root cause | Changed files | Regression evidence | Status |
+| --- | --- | --- | --- | --- |
+| DEF-PREFLIGHT-001 | The development-asset list gained `/shared/authSession.contract.ts`; the test still asserted the old aggregate count instead of the exact handled paths. | `server/app.test.ts` | `vitest run server/app.test.ts vite.config.test.ts`; full `pnpm test` | Closed — `bf8e583` |
+| DEF-PREFLIGHT-002 | Browser specs mocked only `/api/auth/session`; the protected lazy `ProjectNavigation.tsx` request therefore had no real server session and was redirected. | `e2e/auth.ts`, `e2e/authenticated-workspace.spec.ts`, `playwright.config.ts`, `server/playwright-auth.ts`, `vite.config.ts` | Authenticated empty-shell smoke; full Playwright: 31 passed, 2 database-profile skips after Phase 1 | Closed — `bf8e583` |
+| DEF-AUTH-001 | Client-side mismatch had no field target, focus repair, or ARIA association. | `src/auth/AuthForms.tsx`, `src/auth/AuthApplication.test.tsx` | Mismatch retains both values, focuses/associates confirmation, and leaves request count unchanged | Closed — `f49d1af` |
+| DEF-DIALOG-001 | Dialogs used separate native/custom dismissal paths and relied on browser restoration after React unmounted the opener relationship. | `src/ui/ModalDialog.tsx`, create/delete/provider/export consumers and browser specs | Shared modal unit test; project/create/source/provider/export Playwright focus and Escape matrix | Closed — `f49d1af` |
+| DEF-PROJ-001 | Current rename is a native form whose Enter and Save paths share the same acknowledged submit; browser regression evidence was missing from the original failed bootstrap run. | Existing `ProjectContextPage.tsx`; strengthened Phase 1 browser matrix | `moves focus deliberately after successful create and rename writes` persists Enter; Escape test remains non-writing | Closed — verified at `f49d1af` |
+| DEF-MODEL-001 | Combobox Escape closed its list but bubbled to a dialog-level window listener; active-option semantics were incomplete. | `src/providerConfig/ModelCombobox.tsx`, shared provider dialog, unit/E2E specs | First Escape closes list/preserves draft; second dismisses dialog/restores opener; Arrow/Enter/free-form unit coverage | Closed — `f49d1af` |
+| DEF-SRC-001 | Ingestion-key uniqueness made retries idempotent but allowed the same bytes under a different key/name to create another durable document. | Source Document contract migration; `project-store.ts`; DB/API/UI regression specs | Real PostgreSQL concurrent different-key ingestion yields one document/representation; repeated API requests return one identity; cross-project same bytes and same-name/different-content remain distinct as required; full Studio and Playwright suites pass | Closed — `65162a3` |
+| DEF-SRC-002 | The API sanitized and silently truncated the UTF-16 filename instead of rejecting the pre-sanitization Unicode-scalar overflow; the client had no item validation state. | `shared/sourceDocumentFilename.ts`; ingestion API/machine/provider/page and specs | API and browser accept 180 astral Unicode scalars and reject 181 before parser/package/store work; rejected card is item-scoped and non-retryable | Closed — `65162a3` |
+| DEF-SEC-001 | Parser task failures, package-cleanup logging, credentialless provider probes, and model errors serialized raw upstream paths, hashes, messages, or bodies. | `_http.ts`, `_model.ts`, `_provider.ts`, `modelConfig.contract.ts`, `source_documents.ts` and regression specs | Stable parser operation copy; forbidden-token scan covers `docling-parse`, PDFium, local path, task endpoint, and 64-character hash; provider/model responses no longer expose `upstream`; full Studio and Playwright suites pass | Closed — `65162a3` |
+| DEF-SCH-001 | Pending Phase 3 investigation. | — | Required: cancelled provisional field creates no revision and vanishes on reload | Open — Phase 3 |
+| DEF-SCH-002 | Pending Phase 3 investigation. | — | Required: read-only historical preview plus explicit create action | Open — Phase 3 |
+| DEF-SCH-003 | Pending Phase 3 investigation. | — | Required: stopped/failed regeneration retains the last-good schema | Open — Phase 3 |
+| DEF-CHAT-001 | Pending Phase 3 investigation. | — | Required: late response rejected before rendering and Apply | Open — Phase 3 |
+| DEF-A11Y-002 | Pending Phase 3 investigation. | — | Required: named keyboard-operable chat Stop control | Open — Phase 3 |
+| DEF-RES-001 | Pending Phase 4 investigation. | — | Required: pinned Schema view and durable nested Review Decisions | Open — Phase 4 |
+| DEF-RES-002 | Pending Phase 4 investigation. | — | Required: explicit zero-grounded no-reviewable state | Open — Phase 4 |
+| DEF-BAT-001 | Pending Phase 5 investigation. | — | Required: pointer/keyboard operation at four viewports and 200% zoom | Open — Phase 5 |
+| DEF-BAT-002 | Pending Phase 5 investigation. | — | Required: replay preserves optimistic and durable newest-first ordering | Open — Phase 5 |
+| DEF-BSS-001 | Pending Phase 5 investigation. | — | Required: per-source sanitized terminal progress and coherent retry | Open — Phase 5 |
+| DEF-BSS-002 | Pending Phase 5 investigation. | — | Required: one UI/API `canRun` contract for every invalid/pending/conflict state | Open — Phase 5 |
