@@ -12,6 +12,7 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import AuthApplication from './AuthApplication.tsx'
 import type { ProjectNavigationLoader } from './AuthApplication.tsx'
+import { SessionControls } from './AuthForms.tsx'
 import { authenticatedFetch } from './authenticatedFetch.ts'
 
 const account = {
@@ -54,7 +55,14 @@ function projectLoader(): ProjectNavigationLoader {
     ProjectNavigationProvider: ({ children }: { children: ReactNode }) => (
       <section data-testid="project-navigation-provider">{children}</section>
     ),
-    ProjectRoutes: () => <p>Project application</p>,
+    // The real ProjectRoutes renders SessionControls in the rail footer;
+    // the mock keeps it so sign-out flows stay testable here.
+    ProjectRoutes: () => (
+      <>
+        <p>Project application</p>
+        <SessionControls />
+      </>
+    ),
   }))
 }
 

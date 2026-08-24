@@ -110,7 +110,10 @@ const emptyExtractions: ReopenExtractions = {
 
 const base: NavigationStore = {
   async listProjectContexts(limit) {
-    return SEED.slice(0, limit).map(summary)
+    return SEED.slice(0, limit).map((seed) => ({
+      ...summary(seed),
+      sourceDocumentCount: seed.sourceDocuments.length,
+    }))
   },
   async getProjectContextWithDocuments(projectContextId) {
     const seed = seedOf(projectContextId)
@@ -286,6 +289,8 @@ const rail = (page: Page) =>
   page.getByRole('navigation', { name: 'Project Contexts' })
 const workspace = (page: Page) =>
   page.getByRole('region', { name: 'Source Document' })
+/** The unrouted landing page: a card per Project Context. */
+const home = (page: Page) => page.getByRole('region', { name: 'Projects' })
 /** The management page for the routed Project Context. */
 const projectPage = (page: Page) =>
   page.getByRole('region', { name: 'Project Context' })
@@ -331,7 +336,7 @@ test.describe('rail navigation', () => {
     await stubStudio(page)
     await gotoAuthenticated(page, '/')
 
-    const create = page.getByRole('button', { name: '+ New project' })
+    const create = page.getByRole('button', { name: 'New Project Context' })
     await create.click()
     await page.getByRole('button', { name: 'Cancel' }).click()
     await expect(create).toBeFocused()
@@ -381,13 +386,13 @@ test.describe('rail navigation', () => {
     })
     await gotoAuthenticated(page, '/')
 
-    await page.getByRole('button', { name: '+ New project' }).click()
+    await page.getByRole('button', { name: 'New Project Context' }).click()
     await page
       .getByRole('textbox', { name: 'Project name' })
       .fill('Created project')
     await page.getByRole('button', { name: 'Create' }).click()
     await expect(
-      page.getByRole('button', { name: '+ New project' }),
+      page.getByRole('button', { name: 'New Project Context' }),
     ).toBeFocused()
 
     await openProject(page, 'Hørsholm, TAK 1402')
@@ -420,7 +425,7 @@ test.describe('rail navigation', () => {
       /Ellekilde, TAK 1355/,
     ])
     await expect(
-      workspace(page).getByRole('heading', { name: 'No project open' }),
+      home(page).getByRole('heading', { name: 'Projects' }),
     ).toBeVisible()
 
     await openProject(page, 'Ellekilde, TAK 1355')
@@ -436,7 +441,7 @@ test.describe('rail navigation', () => {
     await page.goBack()
     await expect(page).toHaveURL('/')
     await expect(
-      workspace(page).getByRole('heading', { name: 'No project open' }),
+      home(page).getByRole('heading', { name: 'Projects' }),
     ).toBeVisible()
   })
 

@@ -176,6 +176,9 @@ export type ProjectContextSummary = {
   name: string
   createdAt: Date
 }
+export type ProjectContextListItem = ProjectContextSummary & {
+  sourceDocumentCount: number
+}
 
 export type SourceDocumentSummary = {
   sourceDocumentId: string
@@ -477,7 +480,7 @@ export type ResearcherProjectStore = {
     projectContextId: string,
     sourceDocumentId: string,
   ): Promise<boolean>
-  listProjectContexts(limit: number): Promise<ProjectContextSummary[]>
+  listProjectContexts(limit: number): Promise<ProjectContextListItem[]>
   getProjectContextWithDocuments(projectContextId: string): Promise<{
     projectContext: ProjectContextSummary
     sourceDocuments: SourceDocumentSummary[]
@@ -830,10 +833,28 @@ export function createResearcherProjectStore(
         ])
         .take(limit)
         .all()
+      // Count only the owned, limited result set in one grouped query.
+      const counts =
+        rows.length === 0
+          ? []
+          : await database.orm.public.SourceDocument.where((document) =>
+              document.projectContextId.in(rows.map((row) => row.id)),
+            )
+              .groupBy('projectContextId')
+              .aggregate((aggregate) => ({
+                sourceDocumentCount: aggregate.count(),
+              }))
+      const countsByProject: Record<string, number> = Object.fromEntries(
+        counts.map(({ projectContextId, sourceDocumentCount }) => [
+          projectContextId,
+          sourceDocumentCount,
+        ]),
+      )
       return rows.map(({ id, name, createdAt }) => ({
         projectContextId: id,
         name,
         createdAt,
+        sourceDocumentCount: countsByProject[id] ?? 0,
       }))
     },
     async getProjectContextWithDocuments(projectContextId) {

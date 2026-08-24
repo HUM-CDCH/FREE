@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { ProjectContextRail } from './projectContexts/ProjectContextRail'
+import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
@@ -49,18 +50,15 @@ function EmptyWorkspace({
   failure: Failure | null
   onRetry: () => void
 }) {
-  let title = 'No project open'
-  let description = 'Choose one from the rail.'
-  let tone: 'neutral' | 'danger' = 'neutral'
+  let title = 'That Project Context reference is invalid'
+  let description = 'Choose a valid Project Context from the rail.'
+  let tone: 'neutral' | 'danger' = 'danger'
   let retry = false
 
-  if (route.kind === 'badReference') {
-    title = 'That Project Context reference is invalid'
-    description = 'Choose a valid Project Context from the rail.'
-    tone = 'danger'
-    // A `project` route renders ProjectContextPage, which owns its own loading
-    // and failure copy; only a `document` route falls through to here.
-  } else if (route.kind === 'document') {
+  // A `project` route renders ProjectContextPage and a `root` route renders
+  // StudioHome, each owning its own loading and failure copy; only a
+  // `document` route joins `badReference` here.
+  if (route.kind === 'document') {
     if (branch?.status === 'loading') {
       return (
         <div
@@ -104,7 +102,7 @@ function EmptyWorkspace({
     <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
       <EmptyState
         className="max-w-sm bg-surface"
-        icon={route.kind === 'root' ? undefined : '▢'}
+        icon="▢"
         title={title}
         description={description}
         tone={tone}
@@ -315,11 +313,29 @@ export default function AppFrame({
             effectiveNavOpen ? 'justify-start px-4' : 'justify-center px-2'
           }`}
         >
-          <img
-            src={browserStudioPath('/free-logo.png')}
-            alt=""
-            className="size-20 shrink-0 -translate-y-1 object-contain"
-          />
+          <a
+            href={browserStudioPath('/projects')}
+            aria-label="Studio home"
+            className="outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            onClick={(event) => {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return
+              event.preventDefault()
+              onNavigate({ kind: 'root' })
+            }}
+          >
+            <img
+              src={browserStudioPath('/free-logo.png')}
+              alt=""
+              className="size-20 shrink-0 -translate-y-1 object-contain"
+            />
+          </a>
           {/* {effectiveNavOpen && (
             <h1 className="text-[17px] font-extrabold tracking-[0.06em]">
               FREE
@@ -381,7 +397,11 @@ export default function AppFrame({
         <section
           className="relative min-h-0 min-w-0 flex-1"
           aria-label={
-            route.kind === 'project' ? 'Project Context' : 'Source Document'
+            route.kind === 'root'
+              ? 'Projects'
+              : route.kind === 'project'
+                ? 'Project Context'
+                : 'Source Document'
           }
         >
           {workspace ? (
@@ -412,6 +432,8 @@ export default function AppFrame({
                 onOpenSourceDocument={openSourceDocument}
               />
             </Suspense>
+          ) : route.kind === 'root' ? (
+            <StudioHome onNavigate={onNavigate} />
           ) : (
             <EmptyWorkspace
               route={route}

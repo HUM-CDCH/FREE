@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
+import { ResearcherSessionContext } from './sessionContext.ts'
 import Button from '../ui/Button.tsx'
 import { browserStudioPath } from '../studioUrl.js'
 import {
@@ -321,25 +322,32 @@ export function PasswordChangeForm({
   )
 }
 
-export function SessionControls({
-  session,
-  onLoggedOut,
-}: {
-  session: AuthenticatedSession
-  onLoggedOut: () => void
-}) {
+/**
+ * The Researcher Account control in the rail footer: the signed-in email
+ * opens a popup holding Sign out. Renders nothing outside an authenticated
+ * session (e.g. component tests without the provider).
+ */
+export function SessionControls() {
+  const researcherSession = useContext(ResearcherSessionContext)
+  if (!researcherSession) return null
+  const { session, onLoggedOut } = researcherSession
   return (
-    <aside
-      aria-label="Researcher session"
-      className="fixed bottom-3 right-3 z-40 flex max-w-[min(28rem,calc(100vw-1.5rem))] items-center gap-2 rounded-lg border border-line bg-surface/95 px-2.5 py-2 shadow-float backdrop-blur-sm"
-    >
-      <span className="min-w-0 truncate text-[11px] font-medium text-ink-muted">
-        {session.account.email}
-      </span>
-      <div className="flex flex-col items-end gap-1">
+    <details className="relative min-w-0 flex-1">
+      <summary
+        className="flex cursor-pointer list-none items-center rounded-sm text-[11px] font-semibold text-ink-muted outline-none hover:text-accent focus-visible:ring-1 focus-visible:ring-accent [&::-webkit-details-marker]:hidden"
+        role="button"
+        aria-label="Researcher Account"
+        title={session.account.email}
+      >
+        <span className="min-w-0 truncate">{session.account.email}</span>
+      </summary>
+      <div
+        aria-label="Researcher session"
+        className="absolute bottom-full left-0 z-10 mb-2 flex w-max max-w-56 flex-col items-start gap-1 rounded-2xl border border-line bg-surface p-2.5 shadow-float"
+      >
         <LogoutButton onLoggedOut={onLoggedOut} />
       </div>
-    </aside>
+    </details>
   )
 }
 

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import GearIcon from '../GearIcon'
+import PlusIcon from '../PlusIcon'
 import PanelToggleIcon from '../PanelToggleIcon'
 import type { NavigableRoute } from '../projectNavigation'
+import { SessionControls } from '../auth/AuthForms.tsx'
 import { DeleteDialog, Overline } from '../ui'
 import { CreateProjectModal } from './CreateProjectModal'
 import { useProjectContexts } from './useProjectContexts'
@@ -38,19 +40,6 @@ export type ProjectContextRailProps = {
 }
 
 const guide = 'border-l border-line pl-3'
-
-function PlusIcon() {
-  return (
-    <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="none">
-      <path
-        d="M10 3.5v13M3.5 10h13"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
 
 function AddSourceDocumentsControl({
   projectContextId,
@@ -128,7 +117,7 @@ export function ProjectContextRail({
   const [creating, setCreating] = useState(false)
   const restoreCreateFocus = useRef(false)
   const createTrigger = useRef<HTMLButtonElement>(null)
-  const listRef = useRef<HTMLUListElement>(null)
+  const railRef = useRef<HTMLDivElement>(null)
   // Right-click on a Source Document row opens this instead of a visible
   // "•••" button — deleting stays a deliberate, out-of-the-way action here,
   // unlike the Project Context page's own always-visible menu.
@@ -150,11 +139,12 @@ export function ProjectContextRail({
   } | null>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
 
-  // Only one row menu stays open at a time; a pointerdown outside every open
-  // <details> closes it, matching the Project Context page's source menus.
+  // Only one menu stays open at a time — row menus and the footer's account
+  // popup alike; a pointerdown outside every open <details> closes it,
+  // matching the Project Context page's source menus.
   useEffect(() => {
     const closeOtherMenus = (event: PointerEvent) => {
-      const openMenus = listRef.current?.querySelectorAll('details[open]')
+      const openMenus = railRef.current?.querySelectorAll('details[open]')
       openMenus?.forEach((details) => {
         if (!details.contains(event.target as Node)) {
           details.removeAttribute('open')
@@ -256,19 +246,31 @@ export function ProjectContextRail({
     )
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col" ref={railRef}>
       <header className="flex shrink-0 items-center justify-between py-3 pl-4 pr-2.5">
         <Overline as="h2">Project</Overline>
-        <button
-          data-rail-toggle
-          className="cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
-          type="button"
-          aria-label="Collapse Project Contexts"
-          title="Collapse Project Contexts"
-          onClick={onToggle}
-        >
-          <PanelToggleIcon side="left" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            ref={createTrigger}
+            className="cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+            type="button"
+            aria-label="New Project Context"
+            title="New Project Context"
+            onClick={() => setCreating(true)}
+          >
+            <PlusIcon />
+          </button>
+          <button
+            data-rail-toggle
+            className="cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+            type="button"
+            aria-label="Collapse Project Contexts"
+            title="Collapse Project Contexts"
+            onClick={onToggle}
+          >
+            <PanelToggleIcon side="left" />
+          </button>
+        </div>
       </header>
 
       <nav
@@ -297,7 +299,7 @@ export function ProjectContextRail({
             No Project Contexts yet.
           </p>
         )}
-        <ul className="flex flex-col" ref={listRef}>
+        <ul className="flex flex-col">
           {projects.map((project) => {
             const projectContextId = project.projectContextId
             const isExpanded = visibleExpanded.has(projectContextId)
@@ -461,16 +463,8 @@ export function ProjectContextRail({
       </nav>
 
       <footer className="shrink-0 border-t border-line px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <button
-            ref={createTrigger}
-            className="flex cursor-pointer items-center gap-1.5 rounded-sm text-[11px] font-semibold text-ink-muted outline-none hover:text-accent focus-visible:ring-1 focus-visible:ring-accent"
-            type="button"
-            onClick={() => setCreating(true)}
-          >
-            + New project
-          </button>
-          <span className="flex-1" />
+        <div className="flex items-center">
+          <SessionControls />
           <button
             className="rounded p-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
             type="button"

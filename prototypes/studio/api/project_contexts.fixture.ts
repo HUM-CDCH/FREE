@@ -28,7 +28,7 @@ export function projectContextFixture(): ProjectStoreReads {
   }
   return {
     async listProjectContexts() {
-      return [project]
+      return [{ ...project, sourceDocumentCount: 1 }]
     },
     async getProjectContextWithDocuments(id) {
       return id === DEMO_PROJECT_ID
