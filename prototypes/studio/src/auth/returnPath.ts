@@ -9,23 +9,22 @@ const AUTH_PATHS: Partial<Record<string, true>> = {
 
 /** Accept only an origin-relative browser path; absolute and scheme-relative URLs fail closed. */
 export function validateLocalReturnPath(candidate: string | null): string | null {
-  let decodedCandidate: string | null = null
+  if (candidate === null) return null
+  let decodedCandidate: string
   try {
-    decodedCandidate = candidate === null ? null : decodeURI(candidate)
+    decodedCandidate = decodeURI(candidate)
   } catch {
     return null
   }
   const containsControlCharacter =
-    decodedCandidate !== null &&
     Array.from(decodedCandidate).some((character) => {
       const codePoint = character.codePointAt(0)!
       return codePoint <= 0x1f || codePoint === 0x7f
     })
   if (
-    candidate === null ||
     !candidate.startsWith('/') ||
     candidate.startsWith('//') ||
-    decodedCandidate?.includes('\\') ||
+    decodedCandidate.includes('\\') ||
     containsControlCharacter
   )
     return null
