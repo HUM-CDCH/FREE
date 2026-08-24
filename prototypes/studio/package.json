@@ -24,6 +24,7 @@
     "@hono/node-server": "^2.0.12",
     "@napi-rs/canvas": "^1.0.3",
     "@napi-rs/keyring": "^1.2.0",
+    "@openai/codex": "0.148.0",
     "@tailwindcss/vite": "^4.3.0",
     "@xstate/react": "^6.1.0",
     "ai": "^7.0.15",

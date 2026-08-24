@@ -49,3 +49,14 @@ A fresh Studio starts without Model Connections or Capability Routes. Open **Mod
 - Connection checks run after edited provider inputs settle and through **Refresh models**. Their status and model catalog are advisory session state: checks never generate content, change configuration, or gate manual model IDs or Apply.
 
 Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and generic OpenAI-compatible connections are supported. Enter provider base URLs exactly as their adapters expect. Ollama uses the server base, such as `http://127.0.0.1:11434`, and FREE reaches its native resources beneath `/api`. Other HTTP providers may require a version prefix such as `/v1` or `/v1beta`; generic OpenAI-compatible bases provide `/models` and `/chat/completions` beneath the entered base.
+
+The Studio container includes the Codex CLI. Authenticate it once inside the
+running container before using a Codex CLI Model Connection:
+
+```bash
+docker compose exec studio codex login --device-auth
+docker compose exec studio codex login status
+```
+
+Codex home and the container keyring use the existing persistent Studio
+volumes, so rebuilding the image does not discard the login.

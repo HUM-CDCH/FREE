@@ -171,6 +171,24 @@ describe('production Studio configuration', () => {
       }),
     ).toThrow(/must be omitted/)
   })
+
+  it('allows an explicit container loopback exception', () => {
+    const config = loadStudioServerConfig({
+      STUDIO_ORIGIN: 'http://localhost:5173',
+      STUDIO_BASE_PATH: '/',
+      FREE_SESSION_SECRET: SECRET,
+      FREE_STUDIO_PROXY: 'container-loopback',
+    })
+    expect(config).toMatchObject({
+      proxyMode: 'container-loopback',
+      proxyAddress: null,
+      hostname: '0.0.0.0',
+    })
+
+    const bindings = requestBindings('172.18.0.1', '203.0.113.99')
+    expect(() => createRequestPeerVerifier(config)(bindings)).not.toThrow()
+    expect(createClientAddressResolver(config)(bindings)).toBe('172.18.0.1')
+  })
 })
 
 describe('trusted request peer and client address', () => {

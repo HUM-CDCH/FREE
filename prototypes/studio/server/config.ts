@@ -8,7 +8,10 @@ import { canonicalStudioOrigin } from './origin.js'
 export const STUDIO_PORT = 5173
 export const CLIENT_ADDRESS_HEADER = 'X-FREE-Client-Address'
 
-export type StudioProxyMode = 'trusted-proxy' | 'loopback'
+export type StudioProxyMode =
+  | 'trusted-proxy'
+  | 'loopback'
+  | 'container-loopback'
 export type StudioServerConfig = {
   studioOrigin: string
   basePath: string
@@ -143,9 +146,13 @@ export function loadStudioServerConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): StudioServerConfig {
   const proxy = required(environment, 'FREE_STUDIO_PROXY')
-  if (proxy !== 'trusted-proxy' && proxy !== 'loopback')
+  if (
+    proxy !== 'trusted-proxy' &&
+    proxy !== 'loopback' &&
+    proxy !== 'container-loopback'
+  )
     throw new StudioConfigurationError(
-      'FREE_STUDIO_PROXY must be trusted-proxy or loopback.',
+      'FREE_STUDIO_PROXY must be trusted-proxy, loopback, or container-loopback.',
     )
   const proxyMode: StudioProxyMode = proxy
   let proxyAddress: string | null = null
@@ -169,13 +176,14 @@ export function loadStudioServerConfig(
     ),
     proxyMode,
     proxyAddress,
-    hostname: proxyMode === 'trusted-proxy' ? '0.0.0.0' : '127.0.0.1',
+    hostname:
+      proxyMode === 'loopback' ? '127.0.0.1' : '0.0.0.0',
     port: studioPort(environment, proxyMode),
   }
 }
 
 export function createRequestPeerVerifier(config: StudioServerConfig) {
-  if (config.proxyMode === 'loopback') return (): void => {}
+  if (config.proxyMode !== 'trusted-proxy') return (): void => {}
 
   const expected = config.proxyAddress!
   return (bindings: ClientAddressBindings): void => {
@@ -192,7 +200,7 @@ export function createRequestPeerVerifier(config: StudioServerConfig) {
 }
 
 export function createClientAddressResolver(config: StudioServerConfig) {
-  if (config.proxyMode === 'loopback')
+  if (config.proxyMode !== 'trusted-proxy')
     return (bindings: ClientAddressBindings): string =>
       normalizeClientAddress(bindings.incoming?.socket.remoteAddress)
 

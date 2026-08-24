@@ -663,6 +663,7 @@ describe('deny-by-default application boundary', () => {
       '/src/index.css',
       '/node_modules/.vite/deps/react.js',
       '/@fs/D:/workspace/node_modules/react/index.js',
+      '/shared/authSession.contract.ts'
     ]) {
       const response = await development.app.request(
         `${ORIGIN}${path}`,

@@ -78,6 +78,7 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/src/ui/Button.tsx': true,
   '/src/studioUrl.ts': true,
   '/shared/studioBasePath.ts': true,
+  '/shared/authSession.contract.ts': true
 }
 
 function viteDependencyAsset(pathname: string): boolean {

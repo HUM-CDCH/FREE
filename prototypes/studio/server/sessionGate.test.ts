@@ -126,9 +126,6 @@ const API_ROWS: ReadonlyArray<{
     passwordPending: BYPASS,
   },
   {
-    // HEAD variants of public GETs are not public: method-keyed classification.
-    // Plan Table A records 200 +R for the password-pending column; the gate
-    // denies with 403 +R because /api/healthz is not a mandatory-change path.
     row: 'A2',
     method: 'HEAD',
     path: '/api/healthz',

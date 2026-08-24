@@ -8,9 +8,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates dbus-daemon gnome-keyring \
     && rm -rf /var/lib/apt/lists/*
 
+# The provider starts Codex from an isolated temporary cwd, so its bin directory
+# must be absolute. CODEX_HOME lives in the mounted Studio configuration volume.
 ENV PNPM_HOME=/pnpm \
-    PATH=/pnpm:$PATH \
-    HOME=/root
+    PATH=/workspace/prototypes/studio/node_modules/.bin:/pnpm:$PATH \
+    HOME=/root \
+    CODEX_HOME=/root/.config/codex
 RUN corepack enable && corepack prepare pnpm@10.9.0 --activate
 
 WORKDIR /workspace
@@ -22,7 +25,6 @@ COPY packages/extraction/package.json packages/extraction/
 COPY packages/extraction-result-export/package.json packages/extraction-result-export/
 COPY prototypes/studio/package.json prototypes/studio/
 COPY prototypes/parsing_service/package.json prototypes/parsing_service/
-COPY prototypes/parsing_service_simple/package.json prototypes/parsing_service_simple/
 
 # The root `postinstall` runs `uv sync` for the Python services, which this
 # JavaScript-only image neither contains nor needs, so install skips scripts.
@@ -32,7 +34,9 @@ COPY prototypes/parsing_service_simple/package.json prototypes/parsing_service_s
 RUN --mount=type=cache,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store --global \
     && pnpm install --frozen-lockfile --ignore-scripts \
-    && pnpm rebuild @prisma/engines esbuild prisma
+    && pnpm rebuild @prisma/engines esbuild prisma \
+    && install -d -m 700 "$CODEX_HOME" \
+    && pnpm --filter studio exec codex --version
 
 COPY . .
 
