@@ -653,7 +653,7 @@ describe('deny-by-default application boundary', () => {
     expect(production.clientHandler).not.toHaveBeenCalled()
 
     const development = await fixture({ viteDevelopmentAssets: true })
-    for (const path of [
+    const publicDevelopmentPaths = [
       '/src/main.tsx',
       '/src/auth/AuthApplication.tsx',
       '/src/llmInspector/mount.tsx',
@@ -663,8 +663,9 @@ describe('deny-by-default application boundary', () => {
       '/src/index.css',
       '/node_modules/.vite/deps/react.js',
       '/@fs/D:/workspace/node_modules/react/index.js',
-      '/shared/authSession.contract.ts'
-    ]) {
+      '/shared/authSession.contract.ts',
+    ]
+    for (const path of publicDevelopmentPaths) {
       const response = await development.app.request(
         `${ORIGIN}${path}`,
         undefined,
@@ -688,7 +689,11 @@ describe('deny-by-default application boundary', () => {
       )
       expect(response.status).toBe(302)
     }
-    expect(development.clientHandler).toHaveBeenCalledTimes(9)
+    expect(
+      development.clientHandler.mock.calls.map(
+        ([request]) => new URL(request.url).pathname,
+      ),
+    ).toEqual(publicDevelopmentPaths)
   })
 
   it('creates a distinct scoped store from each reloaded account', async () => {
