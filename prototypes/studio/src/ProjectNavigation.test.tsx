@@ -402,6 +402,50 @@ describe('Studio home', () => {
     ).toHaveAttribute('aria-current', 'page')
   })
 
+  it('renders the first-run walkthrough when no Project Context exists', async () => {
+    renderRoutes(lifecycleFetch({ projects: [] }))
+
+    expect(
+      await home().findByRole('heading', {
+        name: 'From source to structured data, with the evidence to prove it',
+      }),
+    ).toBeVisible()
+    // The five workflow phases, named per the design.
+    for (const phase of ['Ingest', 'Chat', 'Approve', 'Extract', 'Validate'])
+      expect(home().getByText(phase)).toBeInTheDocument()
+    expect(home().queryByRole('heading', { name: 'Projects' })).toBeNull()
+
+    // The create action opens the existing modal and routes into the created
+    // Project Context.
+    fireEvent.click(
+      home().getByRole('button', { name: 'Create your first project' }),
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), {
+      target: { value: secondProject.name },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(
+      await screen.findByText('Empty Project Context.'),
+    ).toBeInTheDocument()
+    expect(location.pathname).toBe(
+      `/projects/${secondProject.projectContextId}`,
+    )
+  })
+
+  it('renders the card grid, not the first-run state, once a Project Context exists', async () => {
+    renderRoutes()
+
+    expect(
+      await home().findByRole('button', { name: project.name }),
+    ).toBeInTheDocument()
+    expect(
+      home().queryByRole('heading', {
+        name: 'From source to structured data, with the evidence to prove it',
+      }),
+    ).toBeNull()
+  })
+
   it('shows the Source Document count from the initial list read', async () => {
     const fetch = renderRoutes()
 
@@ -600,8 +644,11 @@ describe('Project Context lifecycle in the rail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
 
+    // Deleting the last Project Context lands on the first-run home state.
     expect(
-      await screen.findByRole('heading', { name: 'Projects' }),
+      await screen.findByRole('heading', {
+        name: 'From source to structured data, with the evidence to prove it',
+      }),
     ).toBeInTheDocument()
     expect(location.pathname).toBe('/projects')
     expect(
@@ -1904,8 +1951,11 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       within(page).getByRole('button', { name: 'Delete Project Context' }),
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Delete permanently' }))
+    // The deleted Project Context was the only one; home is first-run again.
     expect(
-      await screen.findByRole('heading', { name: 'Projects' }),
+      await screen.findByRole('heading', {
+        name: 'From source to structured data, with the evidence to prove it',
+      }),
     ).toBeInTheDocument()
     expect(location.pathname).toBe('/projects')
 
