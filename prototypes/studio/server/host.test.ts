@@ -17,7 +17,10 @@ const roots: string[] = []
 async function clientRoot() {
   const root = await mkdtemp(join(tmpdir(), 'free-studio-host-'))
   roots.push(root)
-  await writeFile(join(root, 'index.html'), '<main>Production Studio</main>')
+  await writeFile(
+    join(root, 'index.html'),
+    '<base href="/" /><main>Production Studio</main>',
+  )
   return root
 }
 
@@ -61,6 +64,7 @@ describe('production Studio process', () => {
     const logger = { log: vi.fn(), error: vi.fn() }
     const config = loadStudioServerConfig({
       STUDIO_ORIGIN: 'http://127.0.0.1:5173',
+      STUDIO_BASE_PATH: '/free',
       FREE_SESSION_SECRET: SECRET,
       FREE_STUDIO_PROXY: 'loopback',
     })
@@ -83,19 +87,21 @@ describe('production Studio process', () => {
     )
 
     const health = (await fetchApplication!(
-      new Request('http://127.0.0.1:5173/api/healthz'),
+      new Request('http://127.0.0.1:5173/free/api/healthz'),
       {},
     )) as Response
     expect(health.status).toBe(200)
     await expect(health.json()).resolves.toEqual({ status: 'ok' })
 
     const login = (await fetchApplication!(
-      new Request('http://127.0.0.1:5173/login'),
+      new Request('http://127.0.0.1:5173/free/login'),
       {},
     )) as Response
     expect(login.status).toBe(200)
     expect(login.headers.get('cache-control')).toBe('no-cache')
-    expect(await login.text()).toBe('<main>Production Studio</main>')
+    expect(await login.text()).toBe(
+      '<base href="/free/" /><main>Production Studio</main>',
+    )
 
     signalEmitter.emit('SIGTERM')
     await host.shutdown()

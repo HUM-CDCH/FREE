@@ -206,6 +206,7 @@ const failureResponse = (
 
 afterEach(() => {
   cleanup()
+  document.querySelector('base')?.remove()
   vi.unstubAllGlobals()
   history.replaceState(null, '', '/')
 })
@@ -697,6 +698,24 @@ describe('Project Context lifecycle in the rail', () => {
 })
 
 describe('Project Context navigation', () => {
+  it('keeps routing and reads beneath the configured Studio base path', async () => {
+    const base = document.createElement('base')
+    base.href = '/free/'
+    document.head.prepend(base)
+    history.replaceState(null, '', '/free/projects')
+    const fetch = renderRoutes()
+
+    await screen.findByRole('heading', { name: 'No project open' })
+    await openProjectPage()
+
+    expect(location.pathname).toBe(`/free/projects/${projectContextId}`)
+    expect(
+      fetch.mock.calls.every(([input]) =>
+        String(input).startsWith('/free/api/'),
+      ),
+    ).toBe(true)
+  })
+
   it('keeps the persistent rail while navigating to a lazily loaded Project Context', async () => {
     const fetch = renderRoutes()
 

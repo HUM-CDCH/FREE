@@ -24,13 +24,13 @@ model {
   operator = person 'FREE Operator' 'Deploys FREE and provisions or disables Researcher Accounts through the container CLI.'
   researcher = person 'Humanities Researcher' 'Opens a Source Document, shapes an Extraction Schema, runs Extraction, and reviews Evidence.'
 
-  gateway = container 'HTTPS Gateway' 'The only host-published service. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Caddy 2'
+  gateway = container 'HTTPS Gateway' 'The host nginx reverse proxy on the university machine. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Nginx'
 
   studio = system 'Studio Application' 'React UI plus a production Hono Node host on one authenticated same-origin boundary.' {
     ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence, and Model Connections.' 'React'
     browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts.ts`, and `src/schemaRevisions.ts` send parsing and same-origin requests.' 'TypeScript'
     handlers = container 'Hono Node host' '`server/*.ts` authenticates and scopes browser requests, serves the built client, and dispatches `api/*.ts` same-origin handlers.' 'Hono, Node.js'
-    authentication = component 'Authentication boundary' 'Password sessions, mandatory temporary-password replacement, login throttling, canonical-origin enforcement, and the trusted-Caddy peer contract.' 'TypeScript'
+    authentication = component 'Authentication boundary' 'Password sessions, mandatory temporary-password replacement, login throttling, canonical-origin enforcement, and the trusted-proxy peer contract.' 'TypeScript'
     account_cli = component 'Researcher Account CLI' '`pnpm account` explicitly creates, resets, or disables an account; no migration or seed creates one.' 'TypeScript, tsx'
     provider_registry = component 'Provider registry' '`api/_provider.ts` resolves a Capability Route and adapts the configured provider.' 'AI SDK v7 provider adapters'
     extraction_module = component 'Extraction module' '`packages/extraction` owns Extraction execution, grounding, review, batch scheduling, and their PostgreSQL persistence.' 'TypeScript, Prisma Next'
@@ -84,7 +84,8 @@ views {
     title 'FREE — current runtime context'
     description '''
       Implemented runtime boundaries only. The production topology publishes
-      only Caddy on private HTTPS. The Hono Node host authenticates each browser
+      only the host nginx reverse proxy on private HTTPS. The Hono Node host
+      authenticates each browser
       session and scopes research state to its Researcher Account. Model
       configuration and credentials remain deployment-wide shared state.
 

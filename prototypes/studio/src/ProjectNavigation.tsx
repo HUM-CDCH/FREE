@@ -10,6 +10,7 @@ import {
   parseRoute,
   type NavigableRoute,
 } from './projectNavigation'
+import { browserStudioPathname } from './studioUrl.js'
 
 const Navigation = createActorContext(navigationMachine)
 
@@ -24,7 +25,7 @@ export function ProjectNavigationProvider({
       options={{
         input: {
           deps: browserNavigationDeps(),
-          initialRoute: parseRoute(location.pathname, location.search),
+          initialRoute: parseRoute(browserStudioPathname(), location.search),
         },
       }}
     >
@@ -68,7 +69,7 @@ export function ProjectRoutes() {
     const changed = () =>
       actor.send({
         type: 'ROUTE_CHANGED',
-        route: parseRoute(location.pathname, location.search),
+        route: parseRoute(browserStudioPathname(), location.search),
       })
     addEventListener('popstate', changed)
     return () => removeEventListener('popstate', changed)

@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { canonicalStudioBasePath } from '../shared/studioBasePath.js'
 
 export const SESSION_COOKIE_NAME = 'free_session'
 export const SESSION_IDLE_MILLISECONDS = 12 * 60 * 60 * 1_000
@@ -104,13 +105,18 @@ function decode(value: string, secret: Buffer, now: number): SessionPayload | nu
   }
 }
 
-function serializeCookie(value: string, expiresAt: number, now: number): string {
+function serializeCookie(
+  value: string,
+  expiresAt: number,
+  now: number,
+  path: string,
+): string {
   const maxAge = Math.max(0, Math.floor((expiresAt - now) / 1_000))
-  return `${SESSION_COOKIE_NAME}=${value}; Path=/; Expires=${new Date(expiresAt).toUTCString()}; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`
+  return `${SESSION_COOKIE_NAME}=${value}; Path=${path}; Expires=${new Date(expiresAt).toUTCString()}; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Strict`
 }
 
-export function clearSessionCookie(): string {
-  return `${SESSION_COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; HttpOnly; SameSite=Strict`
+export function clearSessionCookie(path: string): string {
+  return `${SESSION_COOKIE_NAME}=; Path=${canonicalStudioBasePath(path)}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; HttpOnly; SameSite=Strict`
 }
 
 export function readSessionCookie(request: Request): SessionCookie {
@@ -134,10 +140,12 @@ export function readSessionCookie(request: Request): SessionCookie {
 export function createSessionManager(
   secretValue: Uint8Array,
   now: () => number = Date.now,
+  basePath = '/',
 ): SessionManager {
   if (secretValue.byteLength < 32)
     throw new Error('The session secret must contain at least 32 bytes.')
   const secret = Buffer.from(secretValue)
+  const cookiePath = canonicalStudioBasePath(basePath)
 
   return {
     issue(accountId, sessionVersion) {
@@ -172,10 +180,15 @@ export function createSessionManager(
 
     serialize(payload) {
       const currentTime = now()
-      return serializeCookie(encode(payload, secret), payload.expiresAt, currentTime)
+      return serializeCookie(
+        encode(payload, secret),
+        payload.expiresAt,
+        currentTime,
+        cookiePath,
+      )
     },
 
-    clear: clearSessionCookie,
+    clear: () => clearSessionCookie(cookiePath),
     read: readSessionCookie,
   }
 }

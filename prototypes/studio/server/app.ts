@@ -37,6 +37,11 @@ import {
   enforceCanonicalOrigin,
 } from './origin.js'
 import { createSessionManager } from './session.js'
+import {
+  canonicalStudioBasePath,
+  studioPath,
+  stripStudioBasePath,
+} from '../shared/studioBasePath.js'
 
 export const VITE_CLIENT_FALLBACK_HEADER = 'x-free-vite-client-fallback'
 export const GENERAL_API_REQUEST_LIMIT = 1024 * 1024
@@ -63,7 +68,7 @@ const VITE_DEVELOPMENT_DEPENDENCY_PREFIXES = [
   '/node_modules/.vite/deps/',
 ] as const
 const PUBLIC_ASSETS: Readonly<Record<string, true>> = {
-  '/favicon.svg': true,
+  '/favicon.png': true,
   '/free-logo.png': true,
   '/--free-logo.png': true,
 }
@@ -124,6 +129,7 @@ export type ClientHandler = (request: Request) => Response | Promise<Response>
 
 export type StudioAppOptions = {
   studioOrigin: string
+  basePath: string
   sessionSecret: Uint8Array
   accountStore?: ResearcherAccountStore
   limiter?: LoginLimiter
@@ -255,10 +261,17 @@ function publicAsset(
   )
 }
 
-function redirect(location: string, cookie?: string): Response {
+function redirect(
+  basePath: string,
+  location: string,
+  cookie?: string,
+): Response {
   const response = new Response(null, {
     status: 302,
-    headers: { Location: location, 'Cache-Control': 'no-store' },
+    headers: {
+      Location: studioPath(basePath, location),
+      'Cache-Control': 'no-store',
+    },
   })
   return cookie ? withCookie(response, cookie) : response
 }
@@ -284,7 +297,12 @@ export async function createStudioApp(
   options: StudioAppOptions,
 ): Promise<StudioApp> {
   const studioOrigin = canonicalStudioOrigin(options.studioOrigin)
-  const sessions = createSessionManager(options.sessionSecret, options.now)
+  const basePath = canonicalStudioBasePath(options.basePath)
+  const sessions = createSessionManager(
+    options.sessionSecret,
+    options.now,
+    basePath,
+  )
   const limiter = options.limiter ?? createLoginLimiter({ now: options.now })
   const backend = await createAuthenticationBackend({
     store: options.accountStore,
@@ -450,6 +468,7 @@ export async function createStudioApp(
     if (!state.authenticated) {
       const returnTo = `${url.pathname}${url.search}`
       return redirect(
+        basePath,
         `/login?${new URLSearchParams({ returnTo })}`,
         state.clearCookie ? sessions.clear() : undefined,
       )
@@ -458,11 +477,42 @@ export async function createStudioApp(
       state.account.mustChangePassword &&
       url.pathname !== '/change-password'
     )
-      return redirect('/change-password', state.renewalCookie)
+      return redirect(basePath, '/change-password', state.renewalCookie)
     return withCookie(await clientHandler(request), state.renewalCookie)
   })
 
-  return app
+  if (basePath === '/') return app
+
+  const publicApp = new Hono<StudioEnvironment>()
+  publicApp.onError((error) => authErrorResponse(error))
+  publicApp.all('*', (context) => {
+    const request = internalStudioRequest(context.req.raw, basePath)
+    return request
+      ? app.fetch(request, context.env)
+      : apiErrorResponse(new ApiError(404, 'not_found', 'Page not found.'))
+  })
+  return publicApp
+}
+
+function internalStudioRequest(
+  request: Request,
+  basePath: string,
+): Request | null {
+  const url = new URL(request.url)
+  const pathname = stripStudioBasePath(basePath, url.pathname)
+  if (pathname === null) return null
+  url.pathname = pathname
+
+  const init: RequestInit & { duplex?: 'half' } = {
+    method: request.method,
+    headers: request.headers,
+    signal: request.signal,
+  }
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    init.body = request.body
+    init.duplex = 'half'
+  }
+  return new Request(url, init)
 }
 
 function nodeRequest(request: IncomingMessage, studioOrigin: string): Request {

@@ -90,9 +90,12 @@ describe('signed browser sessions', () => {
   })
 
   it('clears with the same hardened cookie boundary and rejects short secrets', () => {
-    const sessions = createSessionManager(SECRET)
+    const sessions = createSessionManager(SECRET, Date.now, '/free')
     expect(sessions.clear()).toBe(
-      `${SESSION_COOKIE_NAME}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; HttpOnly; SameSite=Strict`,
+      `${SESSION_COOKIE_NAME}=; Path=/free; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; HttpOnly; SameSite=Strict`,
+    )
+    expect(sessions.serialize(sessions.issue(ACCOUNT_ID, 0))).toContain(
+      'Path=/free',
     )
     expect(() => createSessionManager(Buffer.alloc(31))).toThrow(
       /at least 32 bytes/,

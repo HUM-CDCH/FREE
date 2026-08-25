@@ -759,6 +759,7 @@ async function appFixture(): Promise<AppFixture> {
   })
   const app = await createStudioApp({
     studioOrigin: ORIGIN,
+    basePath: '/',
     sessionSecret: SECRET,
     accountStore: accountStore(),
     apiDispatcher: createApiDispatcher(ownershipRegistry(stores)),

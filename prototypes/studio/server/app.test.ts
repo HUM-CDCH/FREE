@@ -73,13 +73,14 @@ type Fixture = {
   researcherProjectStore: Mock<
     (researcherAccountId: string) => ResearcherProjectStore
   >
-  clientHandler: Mock<() => Promise<Response>>
+  clientHandler: Mock<(request: Request) => Promise<Response>>
   verify: Mock<
     (password: string, representation: string) => Promise<boolean>
   >
 }
 
 type FixtureOptions = {
+  basePath?: string
   mustChangePassword?: boolean
   disabled?: boolean
   now?: () => number
@@ -157,6 +158,7 @@ async function fixture(options: FixtureOptions = {}): Promise<Fixture> {
   const clientHandler = vi.fn(async () => new Response('studio-client'))
   const app = await createStudioApp({
     studioOrigin: ORIGIN,
+    basePath: options.basePath ?? '/',
     sessionSecret: SECRET,
     accountStore: store,
     limiter: options.limiter,
@@ -579,12 +581,59 @@ describe('deny-by-default application boundary', () => {
     for (const path of [
       '/login',
       '/assets/application.js',
-      '/favicon.svg',
+      '/favicon.png',
     ]) {
       const asset = await test.app.request(`${ORIGIN}${path}`, undefined, CLIENT)
       expect(asset.status).toBe(200)
       expect(await asset.text()).toBe('studio-client')
     }
+  })
+
+  it('mounts every route beneath one configured public base path', async () => {
+    const test = await fixture({ basePath: '/free' })
+
+    for (const path of ['/api/healthz', '/free-adjacent/api/healthz'])
+      expect(
+        (await test.app.request(`${ORIGIN}${path}`, undefined, CLIENT)).status,
+      ).toBe(404)
+
+    const health = await test.app.request(
+      `${ORIGIN}/free/api/healthz`,
+      undefined,
+      CLIENT,
+    )
+    expect(health.status).toBe(200)
+
+    const loginPage = await test.app.request(
+      `${ORIGIN}/free/login`,
+      undefined,
+      CLIENT,
+    )
+    expect(loginPage.status).toBe(200)
+    const handledRequest = test.clientHandler.mock.calls[0][0] as Request
+    expect(new URL(handledRequest.url).pathname).toBe('/login')
+
+    const navigation = await test.app.request(
+      `${ORIGIN}/free/projects/${ACCOUNT_ID}?tab=sources`,
+      undefined,
+      CLIENT,
+    )
+    expect(navigation.status).toBe(302)
+    expect(navigation.headers.get('location')).toBe(
+      `/free/login?returnTo=%2Fprojects%2F${ACCOUNT_ID}%3Ftab%3Dsources`,
+    )
+
+    const authenticated = await test.app.request(
+      `${ORIGIN}/free/api/auth/login`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: ORIGIN },
+        body: JSON.stringify({ email: EMAIL, password: TEMPORARY_PASSWORD }),
+      },
+      CLIENT,
+    )
+    expect(authenticated.status).toBe(200)
+    expect(authenticated.headers.get('set-cookie')).toContain('Path=/free')
   })
 
   it('exposes only the anonymous authentication graph through the Vite development bridge', async () => {
@@ -688,6 +737,7 @@ describe('deny-by-default application boundary', () => {
     const time = Date.UTC(2026, 7, 20)
     const app = await createStudioApp({
       studioOrigin: ORIGIN,
+      basePath: '/',
       sessionSecret: SECRET,
       accountStore,
       researcherProjectStore,
@@ -1012,8 +1062,9 @@ describe('deny-by-default application boundary', () => {
   it('rejects a direct hosted peer before routing, even with a spoofed header', async () => {
     const config = loadStudioServerConfig({
       STUDIO_ORIGIN: ORIGIN,
+      STUDIO_BASE_PATH: '/',
       FREE_SESSION_SECRET: SECRET.toString('base64'),
-      FREE_STUDIO_PROXY: 'trusted-caddy',
+      FREE_STUDIO_PROXY: 'trusted-proxy',
       FREE_STUDIO_PROXY_ADDRESS: '172.30.0.2',
     })
     const test = await fixture({

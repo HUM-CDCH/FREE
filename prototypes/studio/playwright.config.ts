@@ -18,6 +18,7 @@ export default defineConfig({
         process.env.DATABASE_URL ??
         'postgresql://postgres:postgres@localhost:5432/free',
       STUDIO_ORIGIN: 'http://localhost:41739',
+      STUDIO_BASE_PATH: '/',
       APPDATA: e2eConfigHome,
       XDG_CONFIG_HOME: e2eConfigHome,
     },

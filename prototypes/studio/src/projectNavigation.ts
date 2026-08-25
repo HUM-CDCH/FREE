@@ -9,6 +9,7 @@ import {
   getDocumentReopenSnapshot,
   toProjectContextFailure,
 } from './projectContexts/transport'
+import { browserStudioPath } from './studioUrl.js'
 
 /**
  * The Project Context page's routed view: which resource tab is open, and —
@@ -270,5 +271,8 @@ export const navigationMachine = setup({
 })
 
 export function browserNavigationDeps(): Deps {
-  return { push: (route) => history.pushState(null, '', href(route)) }
+  return {
+    push: (route) =>
+      history.pushState(null, '', browserStudioPath(href(route))),
+  }
 }

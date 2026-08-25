@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs'
-import { stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import {
   extname,
   isAbsolute,
@@ -8,6 +8,10 @@ import {
   resolve,
 } from 'node:path'
 import { Readable } from 'node:stream'
+import {
+  applyStudioBaseTag,
+  canonicalStudioBasePath,
+} from '../shared/studioBasePath.js'
 import type { ClientHandler } from './app.js'
 
 const MIME_TYPE: Readonly<Record<string, string>> = {
@@ -28,7 +32,7 @@ const MIME_TYPE: Readonly<Record<string, string>> = {
   '.woff2': 'font/woff2',
 }
 const PUBLIC_FILES: Readonly<Record<string, true>> = {
-  '/favicon.svg': true,
+  '/favicon.png': true,
   '/free-logo.png': true,
   '/--free-logo.png': true,
 }
@@ -86,8 +90,30 @@ function fileResponse(
   )
 }
 
-export function createStaticClientHandler(clientRoot: string): ClientHandler {
+async function indexResponse(
+  absolutePath: string,
+  request: Request,
+  basePath: string,
+): Promise<Response> {
+  const source = await readFile(absolutePath, 'utf8')
+  const body = Buffer.from(applyStudioBaseTag(source, basePath))
+  const headers = new Headers({
+    'Cache-Control': REVALIDATE,
+    'Content-Length': String(body.byteLength),
+    'Content-Type': MIME_TYPE['.html'],
+    'X-Content-Type-Options': 'nosniff',
+  })
+  return request.method === 'HEAD'
+    ? new Response(null, { headers })
+    : new Response(body, { headers })
+}
+
+export function createStaticClientHandler(
+  clientRoot: string,
+  configuredBasePath: string,
+): ClientHandler {
   const root = resolve(clientRoot)
+  const basePath = canonicalStudioBasePath(configuredBasePath)
   return async function staticClient(request: Request): Promise<Response> {
     if (request.method !== 'GET' && request.method !== 'HEAD') return notFound()
     const pathname = new URL(request.url).pathname
@@ -108,6 +134,9 @@ export function createStaticClientHandler(clientRoot: string): ClientHandler {
     } catch {
       return notFound()
     }
+
+    if (relativeFile === 'index.html')
+      return indexResponse(absolutePath, request, basePath)
 
     const immutable =
       pathname.startsWith('/assets/') && HASHED_ASSET.test(relativeFile)

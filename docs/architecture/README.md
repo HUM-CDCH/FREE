@@ -4,7 +4,8 @@ The LikeC4 model keeps the implemented runtime apart from the target
 deployment:
 
 - [`current.c4`](./current.c4) documents the implemented private HTTPS runtime.
-  Caddy is the only published boundary, the Hono Node host authenticates each
+  The host nginx reverse proxy is the only published boundary, the Hono Node
+  host authenticates each
   browser session, Project Context graphs are owned by Researcher Accounts,
   and the canonical package is the durable ingestion artifact.
 - [`distribution.c4`](./distribution.c4) documents the university-hosted
@@ -22,7 +23,7 @@ Open the URL that LikeC4 prints, then follow this path.
 
 Implemented runtime:
 
-1. `current_context` — the private Caddy + Studio runtime and its stores.
+1. `current_context` — the private host-nginx + Studio runtime and its stores.
 2. `current_modules` — the module seams inside each system.
 3. `current_account_session` — explicit account provisioning and mandatory password replacement.
 4. `project_context_lifecycle` — account-owned create, rename, and deletion.
