@@ -19,6 +19,12 @@ export { default as Spinner } from './Spinner'
 export type { SpinnerProps } from './Spinner'
 export { default as Overline } from './Overline'
 export type { OverlineProps } from './Overline'
+export { default as PhaseProgress } from './PhaseProgress'
+export type {
+  PhaseProgressProps,
+  PhaseProgressTone,
+  WorkflowPhase,
+} from './PhaseProgress'
 export { default as Panel } from './Panel'
 export type { PanelProps } from './Panel'
 export { default as ResultValue } from './ResultValue'
