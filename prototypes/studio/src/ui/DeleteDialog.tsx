@@ -32,7 +32,7 @@ export default function DeleteDialog({
 
   return (
     <ModalDialog
-      className="m-auto w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
+      className="m-auto w-full max-w-sm rounded-[3px] border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
       labelledBy={titleId}
       describedBy={descriptionId}
       initialFocusRef={initialFocus}
