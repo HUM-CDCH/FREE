@@ -171,6 +171,17 @@ describe('production Studio configuration', () => {
       }),
     ).toThrow(/must be omitted/)
   })
+
+  it('rejects the removed unverified container-loopback mode', () => {
+    expect(() =>
+      loadStudioServerConfig({
+        STUDIO_ORIGIN: 'http://localhost:5173',
+        STUDIO_BASE_PATH: '/',
+        FREE_SESSION_SECRET: SECRET,
+        FREE_STUDIO_PROXY: 'container-loopback',
+      }),
+    ).toThrow(/FREE_STUDIO_PROXY/)
+  })
 })
 
 describe('trusted request peer and client address', () => {

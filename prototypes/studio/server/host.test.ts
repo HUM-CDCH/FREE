@@ -62,6 +62,7 @@ describe('production Studio process', () => {
     const signalEmitter = new EventEmitter() as EventEmitter &
       StudioSignalTarget
     const logger = { log: vi.fn(), error: vi.fn() }
+    const providerRuntime = { close: vi.fn(async () => undefined) }
     const config = loadStudioServerConfig({
       STUDIO_ORIGIN: 'http://127.0.0.1:5173',
       STUDIO_BASE_PATH: '/free',
@@ -75,6 +76,7 @@ describe('production Studio process', () => {
       serve: serve as never,
       signals: signalEmitter,
       logger,
+      providerRuntime,
     })
     expect(serve).toHaveBeenCalledOnce()
     expect(serve.mock.calls[0][0]).toMatchObject({
@@ -108,6 +110,7 @@ describe('production Studio process', () => {
     await host.shutdown()
     expect(close).toHaveBeenCalledOnce()
     expect(runtime.close).toHaveBeenCalledOnce()
+    expect(providerRuntime.close).toHaveBeenCalledOnce()
     await expect(runtimeStopped.promise).resolves.toBeUndefined()
     expect(signalEmitter.listenerCount('SIGINT')).toBe(0)
     expect(signalEmitter.listenerCount('SIGTERM')).toBe(0)

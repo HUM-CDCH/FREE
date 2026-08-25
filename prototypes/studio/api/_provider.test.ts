@@ -4,6 +4,7 @@ import type { ModelConfig, ModelConnection } from '../shared/modelConfig.contrac
 import {
   PROVIDERS,
   appendProviderResource,
+  createRestrictedCodexProvider,
   probeConnection,
   providerTable,
   resolveCapabilityRoute,
@@ -39,6 +40,43 @@ function routed(overrides: Partial<ModelConfig> = {}): ModelConfig {
 }
 
 describe('provider table', () => {
+  it('creates Codex with every local tool surface disabled', () => {
+    const provider = vi.fn() as never
+    const create = vi.fn(() => provider)
+
+    expect(
+      createRestrictedCodexProvider('/tmp/free-codex-sandbox', create as never),
+    ).toBe(provider)
+    expect(create).toHaveBeenCalledWith({
+      defaultSettings: {
+        approvalPolicy: 'never',
+        codexPath: expect.stringMatching(/node_modules[\\/]\.bin[\\/]codex/),
+        cwd: '/tmp/free-codex-sandbox',
+        effort: 'none',
+        sandboxPolicy: 'read-only',
+        connectionTimeoutMs: 15_000,
+        requestTimeoutMs: 15_000,
+        idleTimeoutMs: 60_000,
+        minCodexVersion: '0.144.0',
+        logger: false,
+        configOverrides: {
+          mcp_servers: {},
+          'tools.web_search': false,
+          'features.apps': false,
+          'features.browser_use': false,
+          'features.code_mode_host': false,
+          'features.computer_use': false,
+          'features.image_generation': false,
+          'features.multi_agent': false,
+          'features.shell_snapshot': false,
+          'features.shell_tool': false,
+          'features.tool_suggest': false,
+          'features.unified_exec': false,
+        },
+      },
+    })
+  })
+
   it.each([
     ['default server', 'http://127.0.0.1:11434', 'http://127.0.0.1:11434/api/chat'],
     ['path-prefixed server', 'https://gateway.example/ollama/', 'https://gateway.example:443/ollama/api/chat'],

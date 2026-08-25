@@ -1,5 +1,5 @@
 import { execFile as execFileCallback, type ExecFileException } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -74,14 +74,20 @@ function isolatedCodexWorkingDirectory(): string {
   }
 }
 
-// The app server owns a process and intentionally survives requests. Models are not cached.
-let codexAppServer: CodexAppServerProvider | null = null
-function codexProvider(): CodexAppServerProvider {
-  codexAppServer ??= createCodexAppServer({
+export function createRestrictedCodexProvider(
+  cwd: string,
+  factory: typeof createCodexAppServer = createCodexAppServer,
+): CodexAppServerProvider {
+  return factory({
     defaultSettings: {
       approvalPolicy: 'never',
-      codexPath: 'codex',
-      cwd: isolatedCodexWorkingDirectory(),
+      codexPath: join(
+        process.cwd(),
+        'node_modules',
+        '.bin',
+        process.platform === 'win32' ? 'codex.CMD' : 'codex',
+      ),
+      cwd,
       effort: 'none',
       sandboxPolicy: 'read-only',
       connectionTimeoutMs: PROBE_TIMEOUT_MS,
@@ -105,8 +111,42 @@ function codexProvider(): CodexAppServerProvider {
       },
     },
   })
+}
+
+// The app server owns a process and intentionally survives requests. Models are not cached.
+let codexAppServer: CodexAppServerProvider | null = null
+let codexSandboxDirectory: string | null = null
+function codexProvider(): CodexAppServerProvider {
+  if (codexAppServer) return codexAppServer
+  const workingDirectory = isolatedCodexWorkingDirectory()
+  try {
+    codexAppServer = createRestrictedCodexProvider(workingDirectory)
+    codexSandboxDirectory = workingDirectory
+  } catch (cause) {
+    try {
+      rmSync(workingDirectory, { recursive: true, force: true })
+    } catch {
+      // Preserve the provider initialization failure.
+    }
+    throw cause
+  }
   return codexAppServer
 }
+
+export async function closeProviderRuntime(): Promise<void> {
+  const provider = codexAppServer
+  const workingDirectory = codexSandboxDirectory
+  codexAppServer = null
+  codexSandboxDirectory = null
+  try {
+    await provider?.close()
+  } finally {
+    if (workingDirectory)
+      rmSync(workingDirectory, { recursive: true, force: true })
+  }
+}
+
+export const providerRuntime = { close: closeProviderRuntime }
 
 async function productionCodexListModels(): Promise<readonly CodexModel[]> {
   return (await codexProvider().listModels()).models
