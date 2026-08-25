@@ -228,6 +228,37 @@ describe('AuthApplication', () => {
     expect(loadNavigation).not.toHaveBeenCalled()
   })
 
+  it('renders a safe throttled-login message and keeps the form retryable', async () => {
+    mockFetch((url) => {
+      if (url === '/api/auth/session') return jsonResponse(anonymousSession)
+      if (url === '/api/auth/login')
+        return jsonResponse(
+          {
+            error: {
+              code: 'too_many_attempts',
+              message: 'rate limiter database detail must not be rendered',
+            },
+          },
+          429,
+        )
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    const loadNavigation = projectLoader()
+    render(<AuthApplication loadNavigation={loadNavigation} />)
+
+    await submitLogin()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Too many login attempts. Try again later.')
+    expect(alert).not.toHaveTextContent('database detail')
+    expect(screen.getByLabelText('Email address')).toHaveValue(
+      'researcher@example.org',
+    )
+    expect(screen.getByLabelText('Password')).toHaveValue('temporary-password')
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+    expect(loadNavigation).not.toHaveBeenCalled()
+  })
+
   it('gates a temporary account to password change and logout only', async () => {
     const request = mockFetch((url) => {
       if (url === '/api/auth/session') return jsonResponse(anonymousSession)
@@ -530,12 +561,13 @@ describe('AuthApplication', () => {
       'Your session expired. Sign in again.',
     )
     expect(screen.queryByText('Project application')).not.toBeInTheDocument()
-    expect(`${location.pathname}${location.search}`).toBe(deepLink)
+    expect(`${location.pathname}${location.search}`).toBe('/login')
 
     await submitLogin()
 
     expect(await screen.findByText('Project application')).toBeInTheDocument()
     expect(screen.getByText('next-researcher@example.org')).toBeInTheDocument()
+    expect(`${location.pathname}${location.search}`).toBe('/projects')
     expect(loadNavigation).toHaveBeenCalledTimes(2)
     expect(request).toHaveBeenCalledTimes(4)
   })
@@ -563,7 +595,7 @@ describe('AuthApplication', () => {
       await screen.findByRole('heading', { name: 'Sign in to FREE Studio' }),
     ).toBeInTheDocument()
     expect(screen.queryByText('Project application')).not.toBeInTheDocument()
-    expect(`${location.pathname}${location.search}`).toBe(deepLink)
+    expect(`${location.pathname}${location.search}`).toBe('/login')
     expect(request).toHaveBeenCalledTimes(2)
   })
 

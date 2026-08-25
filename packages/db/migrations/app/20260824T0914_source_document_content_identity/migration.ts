@@ -16,6 +16,10 @@ export default class M extends Migration<Start, End> {
         table: 'sourceDocument',
         index: 'sourceDocument_contentSha256_idx',
       }),
+      // Content identity intentionally replaces duplicate uploads. Existing
+      // pre-release databases that contain duplicates must be reset; guessing
+      // how to merge their revision and ingestion histories would corrupt the
+      // domain model and violates this repository's no-compatibility policy.
       this.addUnique({
         schema: 'public',
         table: 'sourceDocument',

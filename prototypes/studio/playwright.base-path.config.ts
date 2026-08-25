@@ -15,7 +15,7 @@ export default defineConfig({
   webServer: {
     command: `pnpm dev --port ${port}`,
     url: `${origin}${basePath}/login`,
-    reuseExistingServer: false,
+    reuseExistingServer: process.env.FREE_PLAYWRIGHT_REUSE_SERVER === '1',
     env: {
       DATABASE_URL:
         process.env.DATABASE_URL ??

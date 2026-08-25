@@ -7,6 +7,14 @@ export const REQUIRED_VIEWPORTS = [
   { width: 390, height: 844 },
 ] as const
 
+/**
+ * Chromium does not expose its browser-zoom UI to Playwright. Halving the CSS
+ * viewport exercises the same layout space as a 1280x800 viewport at 200%.
+ */
+export async function emulateBrowserZoom200(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 640, height: 400 })
+}
+
 export async function activateWithKeyboard(
   page: Page,
   control: Locator,

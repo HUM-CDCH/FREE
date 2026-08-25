@@ -136,6 +136,7 @@ export default function AuthApplication({
       subscribeToAuthenticationRequired(() => {
         if (authenticationTransitioned.current) return
         authenticationTransitioned.current = true
+        history.replaceState(null, '', browserStudioPath('/login'))
         setState({
           phase: 'anonymous',
           notice: 'Your session expired. Sign in again.',
@@ -196,6 +197,7 @@ export default function AuthApplication({
       loadNavigation={loadNavigation}
       onLoggedOut={() => {
         authenticationTransitioned.current = true
+        history.replaceState(null, '', browserStudioPath('/login'))
         setState({ phase: 'anonymous', notice: 'You have signed out.' })
       }}
     />

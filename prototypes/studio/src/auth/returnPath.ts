@@ -32,7 +32,8 @@ export function validateLocalReturnPath(candidate: string | null): string | null
   try {
     const parsed = new URL(candidate, LOCAL_URL_BASE)
     if (parsed.origin !== LOCAL_URL_BASE) return null
-    return `${parsed.pathname}${parsed.search}${parsed.hash}`
+    const normalizedPath = `${parsed.pathname}${parsed.search}${parsed.hash}`
+    return normalizedPath.startsWith('//') ? null : normalizedPath
   } catch {
     return null
   }

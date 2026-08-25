@@ -17,6 +17,7 @@ import {
 } from './auth.js'
 import {
   activateWithKeyboard,
+  emulateBrowserZoom200,
   expectOperableInViewport,
   REQUIRED_VIEWPORTS,
 } from './accessibility.js'
@@ -292,18 +293,13 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     await expect(responsiveExportDialog).toBeHidden()
     await expect(exportTrigger).toBeFocused()
   }
-  await page.setViewportSize({ width: 1280, height: 800 })
-  await page.evaluate(() => {
-    document.documentElement.style.zoom = '2'
-  })
+  await emulateBrowserZoom200(page)
   await expectOperableInViewport(
     page,
     page.getByRole('button', { name: 'View Evidence for title' }),
   )
   await expectOperableInViewport(page, page.getByRole('button', { name: 'Export' }))
-  await page.evaluate(() => {
-    document.documentElement.style.zoom = ''
-  })
+  await page.setViewportSize({ width: 1280, height: 800 })
   const titleReview = page.getByRole('group', { name: 'Review title' })
   await activateWithKeyboard(
     page,
@@ -463,7 +459,9 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await expect(freshPage.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
   await expect(freshPage.getByText(firstSchemaRevisionId, { exact: true })).toBeVisible()
   await freshPage.getByRole('button', { name: 'Review' }).click()
-  await expect(freshPage.getByText('Reviewed, café', { exact: true })).toBeVisible()
+  await expect(
+    freshPage.getByRole('tabpanel', { name: /Results/ }),
+  ).toContainText('Reviewed, café')
   await expect(freshPage.getByRole('button', { name: /^Edit / })).toHaveCount(0)
   await freshPage.screenshot({
     path: testInfo.outputPath('canonical-fresh-context-review.png'),

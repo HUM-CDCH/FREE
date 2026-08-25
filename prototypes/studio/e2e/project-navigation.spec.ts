@@ -13,6 +13,7 @@ import {
 import { gotoAuthenticated } from './auth.js'
 import {
   activateWithKeyboard,
+  emulateBrowserZoom200,
   expectOperableInViewport,
   REQUIRED_VIEWPORTS,
 } from './accessibility.js'
@@ -635,17 +636,12 @@ test.describe('rail navigation', () => {
         projectPage(page).getByLabel('Actions for Beretning_Ellekilde_8_13.pdf'),
       )
     }
-    await page.setViewportSize({ width: 1280, height: 800 })
-    await page.evaluate(() => {
-      document.documentElement.style.zoom = '2'
-    })
+    await emulateBrowserZoom200(page)
     await expectOperableInViewport(
       page,
       projectPage(page).getByLabel('Actions for Beretning_Ellekilde_8_13.pdf'),
     )
-    await page.evaluate(() => {
-      document.documentElement.style.zoom = ''
-    })
+    await page.setViewportSize({ width: 1280, height: 800 })
 
     const actions = projectPage(page).getByLabel(
       'Actions for Beretning_Ellekilde_8_13.pdf',

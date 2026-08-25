@@ -17,6 +17,8 @@ describe('authentication return paths', () => {
     ],
     ['https://attacker.example/projects/secret', null],
     ['//attacker.example/projects/secret', null],
+    ['/..//attacker.example/projects/secret', null],
+    ['/%2e%2e//attacker.example/projects/secret', null],
     ['javascript:alert(1)', null],
     ['/projects\\secret', null],
     ['/projects/%5Csecret', null],

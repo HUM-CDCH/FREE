@@ -7,6 +7,7 @@ import { createGetExtractionSchemas } from '../api/extraction_schemas.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
 import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
 import { gotoAuthenticated } from './auth.js'
+import { emulateBrowserZoom200 } from './accessibility.js'
 
 const id = {
   project: '74000000-0000-4000-8000-000000000001',
@@ -622,7 +623,7 @@ test('a Batch Extraction runs over selected Source Documents and exports one spr
   ])
 })
 
-test('Batch Builder Run stays operable at every required viewport and 200% zoom @deterministic', async ({
+test('Batch Builder Run stays operable at every required viewport and a 200% zoom-equivalent viewport @deterministic', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
@@ -641,10 +642,7 @@ test('Batch Builder Run stays operable at every required viewport and 200% zoom 
     await expectBatchRunClearOfSession(page)
   }
 
-  await page.setViewportSize({ width: 1280, height: 720 })
-  await page.evaluate(() => {
-    document.documentElement.style.zoom = '2'
-  })
+  await emulateBrowserZoom200(page)
   await expectBatchRunClearOfSession(page)
 })
 
@@ -661,6 +659,14 @@ for (const key of ['Enter', 'Space'] as const) {
     await expect(run).toBeEnabled()
     await run.focus()
     await expect(run).toBeFocused()
+    const runRequests: string[] = []
+    page.on('request', (request) => {
+      if (
+        request.method() === 'POST' &&
+        new URL(request.url()).pathname === '/api/batch-extractions'
+      )
+        runRequests.push(request.url())
+    })
     const opened = page.waitForRequest(
       (request) =>
         request.method() === 'POST' &&
@@ -673,6 +679,12 @@ for (const key of ['Enter', 'Space'] as const) {
       strategy: 'ARTICLE',
       sourceDocumentIds: [id.beretning, id.fundliste],
     })
+    await expect(
+      panel(page).getByRole('button', {
+        name: /Places · Schema Revision 4/,
+      }),
+    ).toBeVisible()
+    expect(runRequests).toHaveLength(1)
   })
 }
 
@@ -687,9 +699,9 @@ test('two tabs expose and recover a durable Batch Schema Suggestion draft confli
     await stubSharedSuggestionDraft(candidate, shared)
     await openExtractions(candidate)
     await prepareBatch(candidate)
-    await candidate.getByLabel('Extraction Schema').selectOption(
-      '__suggest_common_fields__',
-    )
+    await candidate
+      .getByRole('combobox', { name: 'Extraction Schema', exact: true })
+      .selectOption('__suggest_common_fields__')
     await expect(candidate.getByText('place', { exact: true })).toBeVisible()
   }
 
