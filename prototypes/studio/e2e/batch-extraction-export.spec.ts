@@ -2,11 +2,11 @@ import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import { strFromU8, unzipSync } from 'fflate'
 import type { BatchExtractionSnapshot, ExtractionModule } from 'extraction'
-import type { ProjectStore } from '../../../packages/db/src/project-store.js'
-import { createBatchExtractionsApi } from '../api/batch_extractions.js'
+import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 import { createGetExtractionSchemas } from '../api/extraction_schemas.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
 import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
+import { gotoAuthenticated } from './auth.js'
 
 const id = {
   project: '74000000-0000-4000-8000-000000000001',
@@ -51,7 +51,7 @@ const results = [
 const at = (minute: number) => new Date(`2026-08-19T10:${String(minute).padStart(2, '0')}:00.000Z`)
 
 type StudioStore = Pick<
-  ProjectStore,
+  ResearcherProjectStore,
   | 'listProjectContexts'
   | 'getProjectContextWithDocuments'
   | 'listExtractionSchemas'
@@ -60,6 +60,105 @@ type StudioStore = Pick<
   | 'initializeSchemaRevision'
   | 'appendSchemaRevision'
 >
+function batchDto(batch: BatchExtractionSnapshot) {
+  return {
+    batchExtractionId: batch.batchExtractionId,
+    projectContextId: batch.projectContextId,
+    schemaRevisionId: batch.schemaRevisionId,
+    extractionSchemaId: batch.extractionSchemaId,
+    extractionSchemaName: batch.extractionSchemaName,
+    schemaRevisionNumber: batch.schemaRevisionNumber,
+    strategy: batch.strategy,
+    executionStatus: batch.executionStatus,
+    executionFailureMessage: batch.failureMessage,
+    startedAt: batch.startedAt?.toISOString() ?? null,
+    finishedAt: batch.finishedAt?.toISOString() ?? null,
+    createdAt: batch.createdAt.toISOString(),
+    members: batch.members.map((member) => ({
+      sourceDocumentId: member.sourceDocumentId,
+      sourceRepresentationRevisionId:
+        member.sourceRepresentationRevisionId,
+      executionStatus: member.executionStatus,
+      executionFailureMessage: member.failureMessage,
+      startedAt: member.startedAt?.toISOString() ?? null,
+      finishedAt: member.finishedAt?.toISOString() ?? null,
+      latestExtraction: member.latestExtraction && {
+        extractionId: member.latestExtraction.extractionId,
+        outcome: member.latestExtraction.outcome,
+        complete: member.latestExtraction.complete,
+        reviewable: member.latestExtraction.reviewable,
+        createdAt: member.latestExtraction.createdAt.toISOString(),
+        reviewedAt:
+          member.latestExtraction.reviewedAt?.toISOString() ?? null,
+        failureMessage: member.latestExtraction.failureMessage,
+      },
+    })),
+  }
+}
+
+function createBatchFixtureHandler(
+  extractions: ExtractionModule,
+): (request: Request) => Promise<Response> {
+  return async (request) => {
+    const url = new URL(request.url)
+    if (request.method === 'POST') {
+      const input = (await request.json()) as {
+        projectContextId: string
+        schemaRevisionId: string
+        strategy: 'ARTICLE'
+        sourceDocumentIds: string[]
+        force?: boolean
+      }
+      const { force, ...selection } = input
+      const opened = await extractions.scheduleBatch({
+        ...selection,
+        repetition: force
+          ? 'create-new'
+          : 'reuse-equal-selection',
+      })
+      return Response.json(
+        {
+          batchExtraction: batchDto(opened.batch),
+          disposition: opened.disposition,
+        },
+        { status: 202 },
+      )
+    }
+    if (url.pathname === '/api/batch-extractions') {
+      const batches = await extractions.listBatches({
+        projectContextId: url.searchParams.get('projectContextId')!,
+        limit: Number(url.searchParams.get('limit') ?? 50),
+      })
+      return Response.json({
+        batchExtractions: batches.map(batchDto),
+      })
+    }
+    const results =
+      /^\/api\/batch-extractions\/([^/]+)\/results$/.exec(
+        url.pathname,
+      )
+    const projectContextId = url.searchParams.get('projectContextId')!
+    if (results)
+      return Response.json(
+        await extractions.readBatchResults({
+          projectContextId,
+          batchExtractionId: results[1]!,
+        }),
+      )
+    const item = /^\/api\/batch-extractions\/([^/]+)$/.exec(
+      url.pathname,
+    )
+    if (!item) return Response.json({}, { status: 404 })
+    return Response.json({
+      batchExtraction: batchDto(
+        await extractions.readBatch({
+          projectContextId,
+          batchExtractionId: item[1]!,
+        }),
+      ),
+    })
+  }
+}
 
 /**
  * The persisted state Studio would serve from PostgreSQL, plus the one moving
@@ -224,13 +323,13 @@ function batchFixture(): {
   return { store, extractions }
 }
 
-/** The real handlers over that state, so the browser reads the shipped contract. */
+/** Browser-facing fixture responses over the same shipped JSON contracts. */
 async function stubStudio(page: Page): Promise<void> {
   const { store, extractions } = batchFixture()
   const projectContexts = createGetProjectContexts(store)
   const extractionSchemas = createGetExtractionSchemas(store)
   const schemaRevisions = createSchemaRevisionHandlers(store)
-  const batchExtractions = createBatchExtractionsApi(extractions)
+  const batchExtractions = createBatchFixtureHandler(extractions)
 
   const serve = async (
     route: Parameters<Parameters<Page['route']>[1]>[0],
@@ -276,7 +375,7 @@ const panel = (page: Page) => page.getByRole('tabpanel', { name: 'Extractions' }
  * read, which is what the panel offers a new Batch Extraction over.
  */
 async function openExtractions(page: Page): Promise<void> {
-  await page.goto(`/projects/${id.project}`)
+  await gotoAuthenticated(page, `/projects/${id.project}`)
   const project = page.getByRole('region', { name: 'Project Context' })
   for (const name of Object.values(documentName))
     await expect(project.getByText(name, { exact: true })).toBeVisible()

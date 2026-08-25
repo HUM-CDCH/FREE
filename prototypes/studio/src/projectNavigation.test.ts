@@ -128,9 +128,9 @@ const snapshotOf = (documentId: string) =>
       sourceRepresentationId: '00000000-0000-4000-8000-0000000000a1',
       revisionNumber: 1,
       resources: {
-        sourcePdfUrl: `/api/source-representations/${documentId}/pdf`,
-        markdownUrl: `/api/source-representations/${documentId}/markdown`,
-        parsedDocumentUrl: `/api/source-representations/${documentId}/source`,
+        sourcePdfUrl: `/api/project-contexts/${projectContextId}/source-representations/${documentId}/pdf`,
+        markdownUrl: `/api/project-contexts/${projectContextId}/source-representations/${documentId}/markdown`,
+        parsedDocumentUrl: `/api/project-contexts/${projectContextId}/source-representations/${documentId}/source`,
       },
     },
     annotationSet: null,

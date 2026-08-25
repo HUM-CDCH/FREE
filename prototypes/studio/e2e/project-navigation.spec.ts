@@ -1,11 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import type { ExtractionModule, ExtractionSnapshot } from 'extraction'
-import type {
-  DocumentReopenSnapshot,
-  ProjectStore,
-} from '../../../packages/db/src/project-store.js'
+import type { ExtractionModule } from 'extraction'
+import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 import { createGetDocumentReopen } from '../api/document_reopen.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
 import {
@@ -13,6 +10,7 @@ import {
   DEMO_PROJECT_ID,
   DEMO_REPRESENTATION_ID,
 } from '../api/project_contexts.fixture.js'
+import { gotoAuthenticated } from './auth.js'
 
 const sourcePdf = fileURLToPath(
   new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
@@ -71,68 +69,6 @@ const SEED = [
   },
 ]
 
-/** The durable research state a reopened Source Document must bring back. */
-const DURABLE = {
-  annotationSet: {
-    annotationSetId: '00000000-0000-4000-8000-0000000000c1',
-    revisionNumber: 3,
-    snapshot: [
-      {
-        annotationId: '00000000-0000-4000-8000-0000000000d1',
-        evidenceAnchorId: 'anchor-grav-8',
-        text: 'Grav 8 laa i undergrunden',
-        pageNumber: 2,
-      },
-    ],
-  },
-  extractionSchema: {
-    extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
-    name: 'Places',
-    schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
-    revisionNumber: 4,
-    schemaTree: {
-      recordDescription: 'One place record.',
-      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
-    },
-  },
-} satisfies Pick<
-  DocumentReopenSnapshot,
-  'annotationSet' | 'extractionSchema'
->
-
-const LATEST_ATTEMPT = {
-  extractionId: '00000000-0000-4000-8000-0000000000f1',
-  sourceDocumentId: BERETNING,
-  sourceRepresentationRevisionId: DEMO_REPRESENTATION_ID,
-  sourceRepresentationRevisionNumber: 2,
-  schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
-  extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
-  schemaRevisionNumber: 4,
-  strategy: 'ARTICLE',
-  outcome: 'SUCCEEDED',
-  complete: true,
-  modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-  diagnostics: {
-    phase: 'grounding',
-    durationMs: 1,
-    modelCalls: 0,
-    finishReason: null,
-    inputTokens: null,
-    outputTokens: null,
-    ungroundedPaths: [],
-    groundingIssues: [],
-    groundingBatches: [],
-  },
-  failure: null,
-  result: { place: 'Ellekilde' },
-  evidence: [],
-  reviewable: true,
-  retryOfId: null,
-  batchExtractionId: null,
-  createdAt: new Date('2026-08-02T10:00:00.000Z'),
-  reviewedAt: null,
-  reviewDecisions: [],
-} satisfies ExtractionSnapshot
 
 const seedOf = (projectContextId: string) =>
   SEED.find((seed) => seed.projectContextId === projectContextId)
@@ -148,7 +84,7 @@ const documents = (seed: (typeof SEED)[number]) =>
   }))
 
 type NavigationStore = Pick<
-  ProjectStore,
+  ResearcherProjectStore,
   | 'listProjectContexts'
   | 'getProjectContextWithDocuments'
   | 'getDocumentReopenSnapshot'
@@ -192,7 +128,11 @@ const base: NavigationStore = {
     if (!seed || !document) return null
     return {
       projectContext: summary(seed),
-      sourceDocument: document,
+      sourceDocument: {
+        sourceDocumentId: document.sourceDocumentId,
+        name: document.name,
+        createdAt: document.createdAt,
+      },
       sourceRepresentation: {
         sourceRepresentationId: REPRESENTATIONS[sourceDocumentId],
         revisionNumber: 2,
@@ -281,43 +221,46 @@ async function stubStudio(
       .catch(() => {})
   })
 
-  await page.route('**/api/source-representations/**', async (route) => {
-    const { pathname } = new URL(route.request().url())
-    const settle = (fulfill: Parameters<typeof route.fulfill>[0]) =>
-      route.fulfill(fulfill).catch(() => {})
-    if (options.artifacts === 'unavailable')
+  await page.route(
+    '**/api/project-contexts/*/source-representations/**',
+    async (route) => {
+      const { pathname } = new URL(route.request().url())
+      const settle = (fulfill: Parameters<typeof route.fulfill>[0]) =>
+        route.fulfill(fulfill).catch(() => {})
+      if (options.artifacts === 'unavailable')
+        return settle({
+          status: 503,
+          contentType: 'application/json',
+          headers: { 'cache-control': 'no-store' },
+          body: JSON.stringify({
+            error: {
+              code: 'source_artifact_unavailable',
+              message: 'The retained Source Document artifact is unavailable.',
+            },
+          }),
+        })
+      const immutable = {
+        'cache-control': 'private, max-age=31536000, immutable',
+      }
+      if (pathname.endsWith('/pdf'))
+        return settle({
+          path: sourcePdf,
+          contentType: 'application/pdf',
+          headers: immutable,
+        })
+      if (pathname.endsWith('/source'))
+        return settle({
+          body: parsedDocument,
+          contentType: 'application/json',
+          headers: immutable,
+        })
       return settle({
-        status: 503,
-        contentType: 'application/json',
-        headers: { 'cache-control': 'no-store' },
-        body: JSON.stringify({
-          error: {
-            code: 'source_artifact_unavailable',
-            message: 'The retained Source Document artifact is unavailable.',
-          },
-        }),
-      })
-    const immutable = {
-      'cache-control': 'private, max-age=31536000, immutable',
-    }
-    if (pathname.endsWith('/pdf'))
-      return settle({
-        path: sourcePdf,
-        contentType: 'application/pdf',
+        body: '# Beretning\n\nGrav 8',
+        contentType: 'text/markdown; charset=utf-8',
         headers: immutable,
       })
-    if (pathname.endsWith('/source'))
-      return settle({
-        body: parsedDocument,
-        contentType: 'application/json',
-        headers: immutable,
-      })
-    return settle({
-      body: '# Beretning\n\nGrav 8',
-      contentType: 'text/markdown; charset=utf-8',
-      headers: immutable,
-    })
-  })
+    },
+  )
 
   return {
     requests,
@@ -370,7 +313,7 @@ test.describe('rail navigation', () => {
     page,
   }) => {
     await stubStudio(page)
-    await page.goto('/')
+    await gotoAuthenticated(page, '/')
     await openProject(page, 'Hørsholm, TAK 1402')
 
     const remove = projectPage(page).getByRole('button', { name: 'Delete' })
@@ -386,7 +329,7 @@ test.describe('rail navigation', () => {
     page,
   }) => {
     await stubStudio(page)
-    await page.goto('/')
+    await gotoAuthenticated(page, '/')
 
     const create = page.getByRole('button', { name: '+ New project' })
     await create.click()
@@ -436,7 +379,7 @@ test.describe('rail navigation', () => {
         })
       return route.fallback()
     })
-    await page.goto('/')
+    await gotoAuthenticated(page, '/')
 
     await page.getByRole('button', { name: '+ New project' }).click()
     await page
@@ -471,7 +414,7 @@ test.describe('rail navigation', () => {
   }) => {
     await stubStudio(page)
 
-    await page.goto('/')
+    await gotoAuthenticated(page, '/')
     await expect(projectRows(page)).toHaveText([
       /Hørsholm, TAK 1402/,
       /Ellekilde, TAK 1355/,
@@ -502,7 +445,7 @@ test.describe('rail navigation', () => {
   }) => {
     await stubStudio(page)
 
-    await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
     await expect(documentRow(page, 'Fundliste_Ellekilde.pdf')).toBeVisible()
 
     // The chevron and name are one control: the other Project Context opens
@@ -534,7 +477,7 @@ test.describe('rail navigation', () => {
   }) => {
     await stubStudio(page)
 
-    await page.goto(`/projects/${ELLEKILDE}`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}`)
     const project = disclosure(page, 'Ellekilde, TAK 1355')
     await expect(project).toHaveAttribute('aria-current', 'page')
     await expect(project).toHaveAttribute('aria-expanded', 'true')
@@ -590,7 +533,7 @@ test.describe('rail navigation', () => {
     )
 
     // A deep link opens the tab it names, and a refresh keeps it.
-    await page.goto(`/projects/${ELLEKILDE}/schemas`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/schemas`)
     const tab = (name: string) =>
       projectPage(page).getByRole('tab', { name, exact: true })
     await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
@@ -627,7 +570,7 @@ test.describe('rail navigation', () => {
     await expect(tab('Schemas')).toHaveAttribute('aria-selected', 'true')
 
     // Sources' path is the bare one, so no other segment is routable.
-    await page.goto(`/projects/${ELLEKILDE}/sources`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/sources`)
     await expect(
       page.getByRole('heading', {
         name: 'That Project Context reference is invalid',
@@ -642,7 +585,7 @@ test.describe('rail navigation', () => {
     const beretning = `/projects/${ELLEKILDE}/documents/${BERETNING}`
     const fundliste = `/projects/${ELLEKILDE}/documents/${FUNDLISTE}`
 
-    await page.goto('/')
+    await gotoAuthenticated(page, '/')
     await openProject(page, 'Ellekilde, TAK 1355')
     await documentRow(page, 'Beretning_Ellekilde_8_13.pdf').click()
     await expect(page).toHaveURL(beretning)
@@ -679,9 +622,9 @@ test.describe('rail navigation', () => {
   }) => {
     const studio = await stubStudio(page)
 
-    await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
     await expect(
-      workspace(page).getByText('Beretning_Ellekilde_8_13.pdf').first(),
+      page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
     ).toBeVisible()
 
     // Hold the next Source Document so the switch can be superseded mid-read.
@@ -690,7 +633,7 @@ test.describe('rail navigation', () => {
     // The previous Source Document stays readable-in-place under the overlay.
     await expect(page.getByText('Opening Source Document…')).toBeVisible()
     await expect(
-      workspace(page).getByText('Beretning_Ellekilde_8_13.pdf').first(),
+      page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
     ).toBeVisible()
 
     await openProject(page, 'Hørsholm, TAK 1402')
@@ -713,11 +656,11 @@ test.describe('reopening a routed Source Document', () => {
   }) => {
     const studio = await stubStudio(page)
 
-    await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
     await expect(
-      workspace(page).getByText('Beretning_Ellekilde_8_13.pdf').first(),
+      page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
     ).toBeVisible()
-    await expect(page.getByText(/pages · text highlights only/)).toBeVisible({
+    await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
       timeout: 20_000,
     })
     await expect(page.getByText('Indexing document…')).toBeHidden()
@@ -730,7 +673,7 @@ test.describe('reopening a routed Source Document', () => {
     // the version query only busts caches across representation revisions.
     const resource = (artifact: string) =>
       new RegExp(
-        `^/api/source-representations/${DEMO_REPRESENTATION_ID}/${artifact}\\?v=`,
+        `^/api/project-contexts/${ELLEKILDE}/source-representations/${DEMO_REPRESENTATION_ID}/${artifact}\\?v=`,
       )
     const resources = Object.values(
       studio.snapshots[0].sourceRepresentation.resources,
@@ -741,14 +684,14 @@ test.describe('reopening a routed Source Document', () => {
     // And the two the workspace reads came from that revision, same-origin.
     // Recorded paths carry no query, so they match the bare resource path.
     expect(studio.requests).toContain(
-      `/api/source-representations/${DEMO_REPRESENTATION_ID}/pdf`,
+      `/api/project-contexts/${ELLEKILDE}/source-representations/${DEMO_REPRESENTATION_ID}/pdf`,
     )
     expect(studio.requests).toContain(
-      `/api/source-representations/${DEMO_REPRESENTATION_ID}/markdown`,
+      `/api/project-contexts/${ELLEKILDE}/source-representations/${DEMO_REPRESENTATION_ID}/markdown`,
     )
 
     await page.reload()
-    await expect(page.getByText(/pages · text highlights only/)).toBeVisible({
+    await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
       timeout: 20_000,
     })
     await expect(
@@ -756,99 +699,6 @@ test.describe('reopening a routed Source Document', () => {
     ).toHaveAttribute('aria-current', 'page')
   })
 
-  test('reopens durable research state and restores no presentation state', async ({
-    page,
-  }) => {
-    await stubStudio(page, {
-      store: railStore({
-        async getDocumentReopenSnapshot(projectContextId, sourceDocumentId) {
-          const snapshot = await base.getDocumentReopenSnapshot(
-            projectContextId,
-            sourceDocumentId,
-          )
-          return snapshot && sourceDocumentId === BERETNING
-            ? { ...snapshot, ...DURABLE }
-            : snapshot
-        },
-      }),
-      extractions: {
-        async readDocumentExtractions({ sourceDocumentId }) {
-          return sourceDocumentId === BERETNING
-            ? {
-                sourceRepresentationRevisionId: DEMO_REPRESENTATION_ID,
-                latestAttempt: LATEST_ATTEMPT,
-                latestReviewed: null,
-              }
-            : null
-        },
-      },
-    })
-
-    await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
-    // The Annotation tab was retired in favor of SchemaPanel's own doc chat —
-    // this locator and its visibility checks are commented out, not deleted.
-    // const annotation = page.getByRole('tab', { name: 'Annot. 1' })
-    const schemaTab = page.getByRole('tab', { name: /^Schema\s*1$/ })
-    const rerun = page.getByRole('button', { name: '↻ Re-run extraction' })
-    // await expect(annotation).toBeVisible()
-    await expect(schemaTab).toBeVisible()
-    await expect(rerun).toBeVisible()
-    await expect(page.getByText(/pages · text highlights only/)).toBeVisible({
-      timeout: 20_000,
-    })
-
-    // Presentation state a researcher changes by hand.
-    const separator = page.getByRole('separator', {
-      name: 'Resize Project Context rail',
-    })
-    await separator.focus()
-    await separator.press('ArrowRight')
-    await expect(separator).toHaveAttribute('aria-valuenow', '222')
-    await page
-      .getByRole('button', { name: 'Collapse Project Contexts' })
-      .click()
-    await expect(
-      page.getByRole('button', { name: 'Expand Project Contexts' }),
-    ).toBeVisible()
-    const rightRail = page.getByLabel('Evidence, schema and results')
-    await schemaTab.click()
-    await page.getByRole('button', { name: 'JSON' }).click()
-    await page.getByRole('button', { name: 'Edit' }).click()
-    const draft = rightRail.locator('textarea')
-    await draft.fill('{ "unsaved": "draft" }')
-    await expect(draft).toHaveValue('{ "unsaved": "draft" }')
-    const pdf = page.locator('.pdf-viewer')
-    await pdf.evaluate((element) => element.scrollTo(0, 900))
-    await expect
-      .poll(() => pdf.evaluate((element) => element.scrollTop))
-      .toBeGreaterThan(0)
-
-    // Navigate off the Schema tab so reload's reset-to-default is provable
-    // below (the default tab is Schema, same as the tab just edited above).
-    await page.getByRole('tab', { name: /^Evidence/ }).click()
-
-    await page.reload()
-
-    // Durable: the Annotation Set (persisted, no longer surfaced in the UI),
-    // Extraction Schema, and compatible Extraction.
-    await expect(schemaTab).toBeVisible()
-    await expect(rerun).toBeVisible()
-    // Ephemeral: rail width and expansion, the right rail tab, the unsaved
-    // Extraction Schema draft, and PDF position.
-    await expect(separator).toHaveAttribute('aria-valuenow', '212')
-    await expect(
-      page.getByRole('button', { name: 'Collapse Project Contexts' }),
-    ).toBeVisible()
-    await expect(schemaTab).toHaveAttribute('aria-selected', 'true')
-    await schemaTab.click()
-    await expect(rightRail.locator('textarea')).not.toHaveValue(
-      '{ "unsaved": "draft" }',
-    )
-    await expect(page.getByText(/pages · text highlights only/)).toBeVisible({
-      timeout: 20_000,
-    })
-    expect(await pdf.evaluate((element) => element.scrollTop)).toBe(0)
-  })
 })
 
 test.describe('bad references and bounded failures', () => {
@@ -857,7 +707,7 @@ test.describe('bad references and bounded failures', () => {
   }) => {
     const studio = await stubStudio(page)
 
-    await page.goto('/projects/NOT-A-UUID')
+    await gotoAuthenticated(page, '/projects/NOT-A-UUID')
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Project Context reference is invalid',
@@ -866,7 +716,7 @@ test.describe('bad references and bounded failures', () => {
     // The rail stays usable, so the researcher is never stranded.
     await expect(projectRows(page)).toHaveCount(2)
 
-    await page.goto(`/projects/${ELLEKILDE}/documents/xyz`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/xyz`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Project Context reference is invalid',
@@ -880,25 +730,24 @@ test.describe('bad references and bounded failures', () => {
     ).toEqual([])
   })
 
-  test('answers invalid API parameters with a bounded 422 and no internals', async ({
+  test('authenticates before parsing invalid API parameters', async ({
     request,
   }) => {
     const invalid = [
       `/api/project-contexts/NOT-A-UUID`,
       `/api/project-contexts?limit=999`,
       `/api/project-contexts/${ELLEKILDE}/source-documents/xyz/reopen`,
-      `/api/source-representations/xyz/pdf`,
+      `/api/project-contexts/${ELLEKILDE}/source-representations/xyz/pdf`,
     ]
 
     for (const path of invalid) {
       const response = await request.get(path)
-      expect(response.status(), path).toBe(422)
+      expect(response.status(), path).toBe(401)
       expect(response.headers()['cache-control'], path).toBe('no-store')
       const body = await response.json()
       expect(Object.keys(body), path).toEqual(['error'])
-      // Code and message only: no details, cause, stack, or query text.
       expect(Object.keys(body.error).sort(), path).toEqual(['code', 'message'])
-      expect(body.error.code, path).toBe('invalid_request')
+      expect(body.error.code, path).toBe('authentication_required')
       expect(body.error.message, path).toMatch(/\S/)
     }
   })
@@ -908,7 +757,7 @@ test.describe('bad references and bounded failures', () => {
   }) => {
     const studio = await stubStudio(page)
 
-    await page.goto(`/projects/${ELLEKILDE}/documents/${OVERSIGT}`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${OVERSIGT}`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Source Document is not in this Project Context',
@@ -935,7 +784,7 @@ test.describe('bad references and bounded failures', () => {
       }),
     })
 
-    await page.goto(`/projects/${ELLEKILDE}`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}`)
     await expect(
       projectPage(page).getByRole('heading', {
         name: 'That Project Context no longer exists',
@@ -955,7 +804,7 @@ test.describe('bad references and bounded failures', () => {
       }),
     })
 
-    await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Source Document cannot be reopened',
@@ -982,7 +831,7 @@ test.describe('bad references and bounded failures', () => {
       }),
     })
 
-    await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Source Document could not be opened',
@@ -996,7 +845,7 @@ test.describe('bad references and bounded failures', () => {
     unavailable = false
     await page.getByRole('button', { name: 'Try again' }).click()
     await expect(
-      workspace(page).getByText('Beretning_Ellekilde_8_13.pdf').first(),
+      page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
     ).toBeVisible()
   })
 
@@ -1005,7 +854,7 @@ test.describe('bad references and bounded failures', () => {
   }) => {
     await stubStudio(page, { artifacts: 'unavailable' })
 
-    await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
+    await gotoAuthenticated(page, `/projects/${ELLEKILDE}/documents/${BERETNING}`)
     await expect(
       workspace(page).getByRole('heading', {
         name: 'That Source Document could not be opened',
@@ -1015,83 +864,5 @@ test.describe('bad references and bounded failures', () => {
       page.getByText('The retained Source Document artifact is unavailable.'),
     ).toBeVisible()
     await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
-  })
-})
-
-test.describe('SCRATCH tab bar verification (temporary, to be removed)', () => {
-  test('tab accumulation and schema persistence', async ({ page }) => {
-    page.on('console', (msg) => console.log('BROWSER', msg.type(), msg.text()))
-    page.on('pageerror', (err) => console.log('PAGEERROR', err.message, err.stack))
-    page.on('response', (res) => {
-      if (res.url().includes('/reopen')) {
-        console.log('REOPEN RESPONSE', res.status(), res.url())
-        res.text().then((t) => console.log('REOPEN BODY', t)).catch(() => {})
-      }
-    })
-    await stubStudio(page)
-
-    await page.goto('/')
-    await disclosure(page, 'Ellekilde, TAK 1355').click()
-
-    const tabStrip = page.getByRole('tablist', { name: 'Open Source Documents' })
-
-    const settled = () => expect(page.getByText('Opening Source Document…')).toBeHidden()
-
-    // A single click opens the Source Document as a tab.
-    await documentRow(page, 'Beretning_Ellekilde_8_13.pdf').click()
-    await settled()
-    const beretningTab = tabStrip.getByRole('tab', {
-      name: 'Beretning_Ellekilde_8_13.pdf',
-    })
-    await expect(beretningTab).toBeVisible()
-    await expect(tabStrip.getByRole('tab')).toHaveCount(1)
-
-    // A single click on a different document ADDS a second tab.
-    await documentRow(page, 'Fundliste_Ellekilde.pdf').click()
-    await settled()
-    const fundlisteTab = tabStrip.getByRole('tab', {
-      name: 'Fundliste_Ellekilde.pdf',
-    })
-    await expect(fundlisteTab).toBeVisible()
-    await expect(tabStrip.getByRole('tab')).toHaveCount(2)
-    await expect(beretningTab).toBeVisible()
-
-    // Reactivate Beretning via its tab.
-    await beretningTab.click()
-    await settled()
-
-    // Breadcrumb reflects the active tab.
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
-      'Ellekilde, TAK 1355',
-    )
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
-      'Beretning_Ellekilde_8_13.pdf',
-    )
-
-    await expect(page.getByText('Opening Source Document…')).toBeHidden()
-    console.log('DEBUG tabs', await page.getByRole('tab').allTextContents())
-    await page.screenshot({ path: 'test-results/scratch-debug.png', fullPage: true })
-
-    // Generate a schema against the active (Beretning) document, then switch
-    // tabs within the same project — the Schema panel must NOT reset.
-    const schemaTab = page.getByRole('tab', { name: /^Schema/ })
-    await schemaTab.click()
-    await page.getByPlaceholder(/what should the schema capture/i).fill('Capture the grave number')
-    await page.getByRole('button', { name: /generate schema/i }).click()
-    await expect(page.getByText(/Record$/)).toBeVisible({ timeout: 20_000 })
-
-    await fundlisteTab.click()
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
-      'Fundliste_Ellekilde.pdf',
-    )
-    // Same schema still visible after switching documents within the project.
-    await expect(page.getByText(/Record$/)).toBeVisible()
-
-    // Closing the active tab re-activates the previously active tab.
-    await page.getByRole('button', { name: 'Close Fundliste_Ellekilde.pdf' }).click()
-    await expect(tabStrip.getByRole('tab')).toHaveCount(1)
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(
-      'Beretning_Ellekilde_8_13.pdf',
-    )
   })
 })

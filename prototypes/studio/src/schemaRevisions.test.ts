@@ -53,7 +53,7 @@ describe('schema revision client', () => {
     await expect(listExtractionSchemas(PROJECT, 10)).resolves.toHaveLength(1)
     expect(fetch).toHaveBeenCalledWith(
       `/api/extraction-schemas?projectContextId=${PROJECT}&limit=10`,
-      { signal: undefined },
+      { signal: undefined, credentials: 'same-origin' },
     )
   })
 
@@ -79,6 +79,7 @@ describe('schema revision client', () => {
         accept: 'application/json',
       },
       body: JSON.stringify({ projectContextId: PROJECT, name: 'Historic places' }),
+      credentials: 'same-origin',
       signal: undefined,
     })
   })
@@ -96,6 +97,9 @@ describe('schema revision client', () => {
     expect((await getSchemaRevision(PROJECT, SCHEMA, REVISION)).schemaNodes).toEqual(revision.schemaNodes)
     expect((await appendSchemaRevision(PROJECT, SCHEMA, 0, definition)).revisionNumber).toBe(1)
     expect(fetch.mock.calls[0][1]).toMatchObject({ method: 'POST' })
+    expect(
+      fetch.mock.calls.every(([, init]) => init.credentials === 'same-origin'),
+    ).toBe(true)
     expect(fetch.mock.calls[3][1]).toMatchObject({ method: 'POST' })
   })
 

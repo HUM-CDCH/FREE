@@ -41,6 +41,13 @@ COPY . .
 # the connection string below is never dialled.
 RUN DATABASE_URL=postgresql://contract:emit@127.0.0.1:5432/free pnpm db:generate
 
+# Produce both the browser bundle and the Node server before the runtime image
+# is started. The image deliberately retains the workspace tooling so operators
+# can run the account CLI against the same database and credential store.
+RUN pnpm --filter studio build
+
+ENV NODE_ENV=production
+
 COPY docker/studio-entrypoint.sh /usr/local/bin/studio-entrypoint
 RUN sed -i 's/\r$//' /usr/local/bin/studio-entrypoint \
     && chmod +x /usr/local/bin/studio-entrypoint
@@ -51,6 +58,5 @@ ENV XDG_RUNTIME_DIR=/tmp/free-keyring-runtime \
 
 EXPOSE 5173
 ENTRYPOINT ["/usr/local/bin/studio-entrypoint"]
-# Studio's `/api` routes are Vite dev-server middleware, so the dev server is
-# the application server. `--host` publishes it on the container network.
-CMD ["pnpm", "--filter", "studio", "dev", "--host", "0.0.0.0", "--strictPort"]
+# Run the built Hono host; Vite is never part of the hosted request path.
+CMD ["pnpm", "--filter", "studio", "start"]

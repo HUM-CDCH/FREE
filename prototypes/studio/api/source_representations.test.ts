@@ -2,16 +2,21 @@ import { describe, expect, it, vi } from 'vitest'
 import parsedDocument from '../src/assets/parsed_document.v2.json'
 import {
   DEMO_ARTIFACT_REFERENCE,
+  DEMO_PROJECT_ID,
   DEMO_REPRESENTATION_ID,
   projectContextFixture,
 } from './project_contexts.fixture.js'
 import { createSourceRepresentationResource } from './source_representations.js'
 
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37])
-const IMMUTABLE = 'private, max-age=31536000, immutable'
+const PRIVATE_RESPONSE = 'no-store'
 
-const url = (artifact: string, id = DEMO_REPRESENTATION_ID) =>
-  `http://test/api/source-representations/${id}/${artifact}`
+const url = (
+  artifact: string,
+  id = DEMO_REPRESENTATION_ID,
+  projectContextId = DEMO_PROJECT_ID,
+) =>
+  `http://test/api/project-contexts/${projectContextId}/source-representations/${id}/${artifact}`
 
 type Artifact = { bytes: Uint8Array; mediaType: string }
 
@@ -64,14 +69,14 @@ function resource(
   }
 }
 
-describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
-  it('streams the retained PDF with immutable private caching and range support', async () => {
+describe('GET|HEAD /api/project-contexts/:projectId/source-representations/:id/:artifact', () => {
+  it('streams the retained PDF without cross-session caching and with range support', async () => {
     const { handler, calls } = resource()
 
     const full = await handler(new Request(url('pdf')))
     expect(full.status).toBe(200)
     expect(full.headers.get('content-type')).toBe('application/pdf')
-    expect(full.headers.get('cache-control')).toBe(IMMUTABLE)
+    expect(full.headers.get('cache-control')).toBe(PRIVATE_RESPONSE)
     expect(full.headers.get('accept-ranges')).toBe('bytes')
     expect(full.headers.get('etag')).toBeNull()
     expect(new Uint8Array(await full.arrayBuffer())).toEqual(PDF_BYTES)
@@ -103,7 +108,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
       )
       expect(response.status).toBe(200)
       expect(response.body).toBeNull()
-      expect(response.headers.get('cache-control')).toBe(IMMUTABLE)
+      expect(response.headers.get('cache-control')).toBe(PRIVATE_RESPONSE)
       expect(response.headers.get('content-length')).toBeTruthy()
     }
     expect(calls.map((call) => call.artifact)).toEqual([
@@ -124,7 +129,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
 
     const parsed = await handler(new Request(url('source')))
     expect(parsed.headers.get('content-type')).toContain('application/json')
-    expect(parsed.headers.get('cache-control')).toBe(IMMUTABLE)
+    expect(parsed.headers.get('cache-control')).toBe(PRIVATE_RESPONSE)
     const body: unknown = await parsed.json()
     expect(body).toEqual(parsedDocument)
     expect(JSON.stringify(body)).not.toMatch(/data\/documents|artifactReference/i)
@@ -138,7 +143,7 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('cache-control')).toBe(IMMUTABLE)
+    expect(response.headers.get('cache-control')).toBe(PRIVATE_RESPONSE)
     expect(response.headers.get('etag')).toBeNull()
     expect(calls).toHaveLength(1)
 
@@ -152,8 +157,8 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     expect(new Uint8Array(await ranged.arrayBuffer())).toEqual(PDF_BYTES)
   })
 
-  it('bounds an unknown representation and a malformed identity', async () => {
-    const { handler } = resource()
+  it('bounds unknown and mixed-owner identities before reading an artifact', async () => {
+    const { handler, calls } = resource()
 
     const unknown = await handler(
       new Request(url('pdf', '00000000-0000-4000-8000-000000000099')),
@@ -162,6 +167,18 @@ describe('GET|HEAD /api/source-representations/:id/:artifact', () => {
     await expect(unknown.json()).resolves.toMatchObject({
       error: { code: 'not_found' },
     })
+
+    const mixedOwner = await handler(
+      new Request(
+        url(
+          'pdf',
+          DEMO_REPRESENTATION_ID,
+          '00000000-0000-4000-8000-000000000099',
+        ),
+      ),
+    )
+    expect(mixedOwner.status).toBe(404)
+    expect(calls).toHaveLength(0)
 
     const malformed = await handler(new Request(url('pdf', 'NOT-A-UUID')))
     expect(malformed.status).toBe(422)

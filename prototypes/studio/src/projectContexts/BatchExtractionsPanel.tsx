@@ -1121,7 +1121,6 @@ export default function BatchExtractionsPanel({
                       : `Schema Revision ${chosenSchema.revisionNumber}`
                   }
                   showRegenerate={false}
-                  documentMarkdown={null}
                   history={savedSchemaHistory}
                   currentRevisionNumber={
                     savedSchemaState?.acknowledged.revisionNumber ??
@@ -1150,7 +1149,15 @@ export default function BatchExtractionsPanel({
                     })
                   }}
                   beforeSchemaEdit={async () => {
-                    await savedSchemaCoordinator.current?.flush()
+                    const revision =
+                      await savedSchemaCoordinator.current?.flush()
+                    return revision
+                      ? {
+                          projectContextId,
+                          extractionSchemaId: revision.extractionSchemaId,
+                          schemaRevisionId: revision.schemaRevisionId,
+                        }
+                      : null
                   }}
                   loadRevision={(revisionId) =>
                     getSchemaRevision(
@@ -1272,7 +1279,6 @@ export default function BatchExtractionsPanel({
                         inputsKey: suggestedFields.selectionKey,
                       }}
                       sourceDocumentName={`${selected.size} selected Source Document${selected.size === 1 ? '' : 's'}`}
-                      documentMarkdown={null}
                       history={[]}
                       readOnly={confirmedSuggestion !== null}
                       showRegenerate={confirmedSuggestion === null}
@@ -1291,7 +1297,7 @@ export default function BatchExtractionsPanel({
                           schemaNodes: nodes,
                         }))
                       }
-                      beforeSchemaEdit={async () => {}}
+                      beforeSchemaEdit={async () => null}
                       loadRevision={async () => {
                         throw new Error('Suggested schemas have no revision history.')
                       }}

@@ -1,11 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { ResearcherProjectStore } from 'db'
 import {
   ExtractionError,
   type BatchExtractionSnapshot,
   type ExtractionModule,
 } from 'extraction'
-import { createBatchExtractionsApi } from './batch_extractions.js'
+import { createResearcherApiHandlers } from './batch_extractions.js'
 
+const runtime = vi.hoisted(() => ({
+  createResearcherExtractions: vi.fn(),
+}))
+
+vi.mock('./_extraction_runtime.js', () => ({
+  createResearcherExtractions: runtime.createResearcherExtractions,
+}))
+
+const ACCOUNT = '51000000-0000-4000-8009-000000000001'
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const BATCH = '51000000-0000-4000-8007-000000000001'
 const REVISION = '51000000-0000-4000-8004-000000000001'
@@ -74,6 +84,12 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
   }
   return module
 }
+function handlerFor(module: ExtractionModule) {
+  runtime.createResearcherExtractions.mockReturnValue(module)
+  return createResearcherApiHandlers({
+    researcherAccountId: ACCOUNT,
+  } as ResearcherProjectStore).POST
+}
 
 const open = (body: unknown) =>
   new Request('http://test/api/batch-extractions', {
@@ -92,7 +108,7 @@ const selection = {
 describe('/api/batch-extractions transport', () => {
   it('schedules reusable and explicit-new selections without client batch IDs', async () => {
     const module = extractionModule()
-    const handle = createBatchExtractionsApi(module)
+    const handle = handlerFor(module)
 
     const reusable = await handle(open(selection))
     expect(reusable.status).toBe(202)
@@ -117,7 +133,7 @@ describe('/api/batch-extractions transport', () => {
 
   it('lists, reads, and exports through caller-shaped module methods', async () => {
     const module = extractionModule()
-    const handle = createBatchExtractionsApi(module)
+    const handle = handlerFor(module)
 
     const listed = await handle(
       new Request(
@@ -170,7 +186,7 @@ describe('/api/batch-extractions transport', () => {
         throw new ExtractionError('not_found', 'Missing.')
       }),
     })
-    const handle = createBatchExtractionsApi(module)
+    const handle = handlerFor(module)
 
     const invalid = await handle(open(selection))
     expect(invalid.status).toBe(422)

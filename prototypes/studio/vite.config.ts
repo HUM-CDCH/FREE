@@ -2,67 +2,32 @@ import type { ExtractionRuntime } from 'extraction'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { Readable } from 'node:stream'
+import { randomBytes } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { ApiError, apiErrorResponse } from './api/_http.js'
 
-// The leading [a-z] keeps `_`-prefixed private modules such as /api/_model_config
-// unreachable; handlers themselves declare which methods they export.
-const API_ROUTE = /^\/api\/([a-z][a-z_]*)$/
-const SOURCE_DOCUMENT_INGESTION_ROUTE =
-  /^\/api\/project-contexts\/[^/]+\/source-documents$/
-const SOURCE_DOCUMENT_ROUTE =
-  /^\/api\/project-contexts\/[^/]+\/source-documents(?:\/[^/]+)?$/
-const SOURCE_DOCUMENT_REOPEN_ROUTE =
-  /^\/api\/project-contexts\/[^/]+\/source-documents\/[^/]+\/reopen$/
-const SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT = 51 * 1024 * 1024
 
-// Parameterized resources cannot be named by their pathname, so they are the one
-// explicit table; every other route stays discoverable from `api/`. Each pattern
-// admits the complete route grammar before selecting its handler module.
-const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
-  [SOURCE_DOCUMENT_ROUTE, 'source_documents'],
-  [SOURCE_DOCUMENT_REOPEN_ROUTE, 'document_reopen'],
-  [/^\/api\/project-contexts(?:\/[^/]+)?$/, 'project_contexts'],
-  [/^\/api\/schema-revisions(?:\/[^/]+)?$/, 'schema_revisions'],
-  [/^\/api\/extraction-schemas(?:\/[^/]+)?$/, 'extraction_schemas'],
-  [/^\/api\/extractions(?:\/[^/]+)?(?:\/review)?$/, 'extractions'],
-  [
-    /^\/api\/batch-extractions(?:\/[^/]+)?(?:\/results)?$/,
-    'batch_extractions',
-  ],
-  [
-    /^\/api\/batch-schema-suggestions(?:\/[^/]+)?(?:\/(?:draft|run|retry))?$/,
-    'batch_schema_suggestions',
-  ],
-  [
-    /^\/api\/source-representations\/[^/]+\/(?:pdf|markdown|source)$/,
-    'source_representations',
-  ],
-]
-
-/**
- * `api/` is the route list, so an unknown path is a 404 rather than a module
- * load failure. Avoids a second hand-maintained table of handler names.
- */
-export function apiHandlerName(pathname: string, root: string): string | null {
-  const parameterized = PARAMETERIZED.find(([route]) => route.test(pathname))
-  if (parameterized) return parameterized[1]
-  const name = API_ROUTE.exec(pathname)?.[1]
-  return name && existsSync(join(root, 'api', `${name}.ts`)) ? name : null
+export function developmentStudioOrigin(server: {
+  https?: unknown
+  host?: string | boolean
+  port?: number
+}): string {
+  const configuredHost = server.host
+  const host =
+    typeof configuredHost === 'string' &&
+    configuredHost !== '0.0.0.0' &&
+    configuredHost !== '::'
+      ? configuredHost
+      : server.https
+        ? 'localhost'
+        : '127.0.0.1'
+  const originHost = host.includes(':') ? `[${host}]` : host
+  return `${server.https ? 'https' : 'http'}://${originHost}:${server.port ?? 5173}`
 }
-
-async function send(response: Response, res: ServerResponse): Promise<void> {
-  res.statusCode = response.status
-  response.headers.forEach((value, key) => res.setHeader(key, value))
-  if (response.body) Readable.fromWeb(response.body).pipe(res)
-  else res.end()
-}
-
-// Local dev adapter for the Studio Request/Response handlers under `api/`.
+// Local development invokes the same Hono composition root as the Node host.
 export function apiFunctions(): Plugin {
+  const generatedSessionSecret = randomBytes(32)
   return {
     name: 'free-api-functions',
     async configureServer(server) {
@@ -99,96 +64,58 @@ export function apiFunctions(): Plugin {
             })
         })
       }
-      server.middlewares.use(
-        async (req: IncomingMessage, res: ServerResponse, next) => {
-          try {
-            const pathname = new URL(req.url ?? '/', 'http://localhost')
-              .pathname
-            if (pathname !== '/api' && !pathname.startsWith('/api/'))
-              return next()
-
-            // Never fall through to index.html: a mistyped fetch must fail as JSON
-            // rather than as HTML that explodes inside response.json().
-            const name = apiHandlerName(pathname, server.config.root)
-            if (!name) {
-              return await send(
-                apiErrorResponse(
-                  new ApiError(404, 'not_found', 'API route not found.'),
-                ),
-                res,
-              )
-            }
-
-            const mod = await server.ssrLoadModule(`/api/${name}.ts`)
-            const handler = mod[req.method ?? 'GET']
-            if (typeof handler !== 'function') {
-              return await send(
-                apiErrorResponse(
-                  new ApiError(
-                    405,
-                    'method_not_allowed',
-                    'The requested method is not supported.',
-                  ),
-                ),
-                res,
-              )
-            }
-
-            const hasBody = req.method !== 'GET' && req.method !== 'HEAD'
-            const headers = new Headers()
-            for (const [k, v] of Object.entries(req.headers))
-              if (!k.startsWith(':'))
-                for (const val of Array.isArray(v) ? v : v == null ? [] : [v])
-                  headers.append(k, val)
-
-            const request = new Request(`http://localhost${req.url}`, {
-              method: req.method,
-              headers,
-              body: hasBody
-                ? await readBody(
-                    req,
-                    SOURCE_DOCUMENT_INGESTION_ROUTE.test(pathname)
-                      ? SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT
-                      : undefined,
-                  )
-                : undefined,
-            })
-            await send(await handler(request), res)
-          } catch (error) {
-            await send(apiErrorResponse(error), res)
-          }
-        },
+      const studioModule = (await server.ssrLoadModule('/server/app.ts')) as {
+        createStudioApp(options: {
+          studioOrigin: string
+          sessionSecret: Uint8Array
+          clientHandler: () => Response
+          viteDevelopmentAssets: boolean
+        }): Promise<unknown>
+        viteClientFallback(): Response
+        handleStudioNodeRequest(
+          app: unknown,
+          studioOrigin: string,
+          incoming: IncomingMessage,
+          outgoing: ServerResponse,
+        ): Promise<boolean>
+      }
+      const environment = loadEnv(
+        server.config.mode,
+        server.config.root,
+        '',
       )
+      const developmentOrigin = developmentStudioOrigin(server.config.server)
+      const studioOrigin =
+        process.env.STUDIO_ORIGIN ??
+        environment.STUDIO_ORIGIN ??
+        developmentOrigin
+      const encodedSecret =
+        process.env.FREE_SESSION_SECRET ?? environment.FREE_SESSION_SECRET
+      const sessionSecret = encodedSecret
+        ? Buffer.from(encodedSecret, 'base64')
+        : generatedSessionSecret
+      const app = await studioModule.createStudioApp({
+        studioOrigin,
+        sessionSecret,
+        clientHandler: studioModule.viteClientFallback,
+        viteDevelopmentAssets: true,
+      })
+
+      server.middlewares.use(async (request, response, next) => {
+        try {
+          const handled = await studioModule.handleStudioNodeRequest(
+            app,
+            studioOrigin,
+            request,
+            response,
+          )
+          if (!handled) next()
+        } catch (error) {
+          next(error instanceof Error ? error : new Error(String(error)))
+        }
+      })
     },
   }
-}
-
-export async function readBody(
-  req: IncomingMessage,
-  maxBytes?: number,
-): Promise<Buffer> {
-  const declared = req.headers['content-length']
-  if (
-    maxBytes !== undefined &&
-    typeof declared === 'string' &&
-    /^\d+$/.test(declared) &&
-    Number(declared) > maxBytes
-  )
-    throw new ApiError(413, 'invalid_request', 'The request body is too large.')
-  const chunks: Buffer[] = []
-  let bytes = 0
-  for await (const chunk of req) {
-    const buffer = chunk as Buffer
-    bytes += buffer.byteLength
-    if (maxBytes !== undefined && bytes > maxBytes)
-      throw new ApiError(
-        413,
-        'invalid_request',
-        'The request body is too large.',
-      )
-    chunks.push(buffer)
-  }
-  return Buffer.concat(chunks)
 }
 
 // Keep Studio on IPv4 loopback so dev-container port forwarding reaches the
@@ -203,6 +130,10 @@ export default defineConfig(({ command, mode }) => {
   }
   return {
     plugins: [react(), tailwindcss(), apiFunctions()],
+    build: {
+      outDir: 'dist/client',
+      emptyOutDir: true,
+    },
     server: mode === 'https' ? localHttps() : { host: '127.0.0.1' as const },
   }
 })

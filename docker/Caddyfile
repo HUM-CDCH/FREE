@@ -1,0 +1,16 @@
+{
+	auto_https off
+}
+
+{$STUDIO_ORIGIN} {
+	tls /etc/caddy/tls/studio.crt /etc/caddy/tls/studio.key
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+	}
+
+	reverse_proxy studio:5173 {
+		header_up X-FREE-Client-Address {remote_host}
+	}
+}

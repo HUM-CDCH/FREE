@@ -1,7 +1,7 @@
 #!/bin/sh
 # Studio owns two pieces of operating-system state that a container starts
-# without: the Secret Service its credential store talks to, and a `free`
-# database matching this branch's contract.
+# without: the Secret Service its credential store talks to, and an authored
+# database schema replayed before the production Node host starts.
 set -eu
 
 : "${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}"
@@ -19,11 +19,9 @@ dbus-daemon --session --fork --address="$DBUS_SESSION_BUS_ADDRESS"
 printf '\n' | gnome-keyring-daemon --unlock >/dev/null
 gnome-keyring-daemon --start --components=secrets >/dev/null
 
-# `db:update` applies the contract itself rather than replaying migration
-# history, which is what a disposable local database needs: it converges an
-# empty volume and a drifted one alike, is a no-op once the schema matches, and
-# leaves existing rows in place. `db:init` replays migrations instead, and this
-# branch's committed history no longer satisfies the contract.
-pnpm --filter db db:update
+# Hosted startup replays the authored migration history. It never updates the
+# schema directly or seeds an account; the first account is created explicitly
+# through the operator CLI after this command succeeds.
+pnpm --filter db db:init
 
 exec "$@"

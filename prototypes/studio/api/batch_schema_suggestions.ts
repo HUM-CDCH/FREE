@@ -1,9 +1,8 @@
-import { ExtractionError, type ExtractionModule } from 'extraction'
-import {
-  createProjectStore,
-  type BatchSchemaSuggestionRecord,
-  type ProjectStore,
-} from '../../../packages/db/src/project-store.js'
+import type {
+  BatchSchemaSuggestionRecord,
+  ResearcherProjectStore,
+} from 'db'
+import { ExtractionError } from 'extraction'
 import {
   batchSchemaSuggestionCreateRequestSchema,
   batchSchemaSuggestionDraftRequestSchema,
@@ -21,11 +20,8 @@ import {
   persistenceUnavailable,
 } from './_http.js'
 import { validateEditableSuggestion } from './_batch_schema_suggestions.js'
-import {
-  projectOperations,
-  type ProjectOperations,
-} from './_project_operations.js'
-import { extractions } from './_extraction_runtime.js'
+import { projectOperations } from './_project_operations.js'
+import { createResearcherExtractions } from './_extraction_runtime.js'
 
 const ROUTE = '/api/batch-schema-suggestions'
 const ITEM_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)$/
@@ -33,14 +29,6 @@ const DRAFT_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/draft$/
 const RUN_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/run$/
 const RETRY_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/retry$/
 
-type DurableSuggestionStore = Pick<
-  ProjectStore,
-  | 'createBatchSchemaSuggestion'
-  | 'getBatchSchemaSuggestion'
-  | 'listBatchSchemaSuggestions'
-  | 'updateBatchSchemaSuggestionDraft'
-  | 'retryBatchSchemaSuggestion'
->
 
 function failureDto(value: unknown) {
   if (
@@ -95,11 +83,15 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
 }
 
 /** Durable schema-suggestion HTTP lifecycle: all model work runs after 202. */
-export function createBatchSchemaSuggestionsApi(
-  store: DurableSuggestionStore = createProjectStore(),
-  operations: ProjectOperations = projectOperations,
-  extractionModule: ExtractionModule = extractions,
-) {
+export function createResearcherApiHandlers(
+  store: ResearcherProjectStore,
+): Readonly<
+  Record<string, (request: Request) => Response | Promise<Response>>
+> {
+  const operations = projectOperations
+  const extractionModule = createResearcherExtractions(
+    store.researcherAccountId,
+  )
   const projectId = (url: URL) => {
     const value = url.searchParams.get('projectContextId')
     if (!value)
@@ -269,9 +261,7 @@ export function createBatchSchemaSuggestionsApi(
     return json(suggestionDto(result.suggestion), { status: 202, headers: noStore })
   }
 
-  return async function batchSchemaSuggestionsApi(
-    request: Request,
-  ): Promise<Response> {
+  const handle = async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url)
       if (request.method === 'POST' && url.pathname === ROUTE)
@@ -294,9 +284,6 @@ export function createBatchSchemaSuggestionsApi(
       return noStoreError(error)
     }
   }
-}
 
-const handle = createBatchSchemaSuggestionsApi()
-export const GET = handle
-export const POST = handle
-export const PATCH = handle
+  return { GET: handle, POST: handle, PATCH: handle }
+}

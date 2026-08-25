@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { gotoAuthenticated } from './auth.js'
 
 const providers = [
   ['ollama', 'Ollama', 'http', 'http://127.0.0.1:11434', 'optional', true],
@@ -155,7 +156,7 @@ test('Single model saves, reloads, and checks without probing on open or Apply',
   page,
 }) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await expect(page.getByText('No Model Connections yet.')).toBeVisible()
   expect(state.probes()).toBe(0)
@@ -193,7 +194,7 @@ test('probe scheduling supersedes stale connection edits', async ({
   page,
 }) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await page
@@ -220,7 +221,7 @@ test('removing a connection disposes its pending and late probe state', async ({
   })
   const state = await mockConfiguration(page)
   state.setProbeDelay(150)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await page.getByRole('button', { name: 'Delete Ollama' }).click()
@@ -242,7 +243,7 @@ test('Capability Routes save mixed exact targets and Ollama-only raw mode', asyn
   page,
 }) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await page.getByLabel('New connection provider').selectOption('openai')
@@ -302,7 +303,7 @@ test('a draft provider change probes again, drops raw NuExtract, and locks once 
   page,
 }) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await expect.poll(state.probes).toBe(1)
@@ -339,7 +340,7 @@ test('probe failures do not gate retryable offline Apply and pending state', asy
 }) => {
   const state = await mockConfiguration(page)
   state.setProbeStatus('unreachable')
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   // A connection FREE manages no credential for yet is not a broken keyring.
@@ -386,7 +387,10 @@ test('corrupt saved configuration renders the stable backend error', async ({
       },
     }),
   )
-  await page.goto('/')
+  await page.route('**/api/project-contexts**', (route) =>
+    route.fulfill({ json: { projectContexts: [] } }),
+  )
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await expect(page.getByRole('alert')).toContainText(
     'invalid_model_config: Saved model configuration is invalid.',

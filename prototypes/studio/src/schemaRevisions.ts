@@ -1,3 +1,4 @@
+import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import type { SchemaDefinition } from 'extraction/schema'
 import {
   extractionSchemaListResponseSchema,
@@ -26,7 +27,7 @@ export async function listExtractionSchemas(
   signal?: AbortSignal,
 ) {
   const query = new URLSearchParams({ projectContextId, limit: String(limit) })
-  const response = await fetch(`/api/extraction-schemas?${query}`, { signal })
+  const response = await authenticatedFetch(`/api/extraction-schemas?${query}`, { signal })
   const value = await body(response)
   if (!response.ok) throw failure(value, response.status)
   return extractionSchemaListResponseSchema.parse(value).extractionSchemas
@@ -38,7 +39,7 @@ export async function renameExtractionSchema(
   name: string,
   signal?: AbortSignal,
 ) {
-  const response = await fetch(`/api/extraction-schemas/${extractionSchemaId}`, {
+  const response = await authenticatedFetch(`/api/extraction-schemas/${extractionSchemaId}`, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({ projectContextId, name }),
@@ -73,7 +74,7 @@ export async function listSchemaRevisions(
     extractionSchemaId,
     limit: String(limit),
   })
-  const response = await fetch(`/api/schema-revisions?${query}`, { signal })
+  const response = await authenticatedFetch(`/api/schema-revisions?${query}`, { signal })
   const value = await body(response)
   if (!response.ok) throw failure(value, response.status)
   return schemaRevisionListResponseSchema.parse(value).revisions
@@ -86,10 +87,8 @@ export async function getSchemaRevision(
   signal?: AbortSignal,
 ): Promise<SchemaRevision> {
   const query = new URLSearchParams({ projectContextId, extractionSchemaId })
-  const response = await fetch(
-    `/api/schema-revisions/${schemaRevisionId}?${query}`,
-    { signal },
-  )
+  const response = await authenticatedFetch(`/api/schema-revisions/${schemaRevisionId}?${query}`,
+  { signal },)
   const value = await body(response)
   if (!response.ok) throw failure(value, response.status)
   return schemaRevisionResponseSchema.parse(value).revision
@@ -99,7 +98,7 @@ async function writeSchemaRevision(
   request: object,
   signal?: AbortSignal,
 ): Promise<SchemaRevision> {
-  const response = await fetch('/api/schema-revisions', {
+  const response = await authenticatedFetch('/api/schema-revisions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify(request),

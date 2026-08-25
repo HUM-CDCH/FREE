@@ -1,18 +1,30 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { canonicalPackageStore } from './artifact-store.js'
 import {
-  createProjectStore,
+  createInternalProjectWorkerStore,
+  createResearcherProjectStore,
   type IngestSourceDocumentInput,
 } from './project-store.js'
 
 type Row = Record<string, unknown>
 type Order = { field: string; direction: 'asc' | 'desc' }
+type FieldReference = { table: string; field: string }
+type JoinedRows = Record<string, Row>
+type Predicate = (rows: JoinedRows) => boolean
+type SqlFunctions = {
+  eq(left: unknown, right: unknown): Predicate
+  and(...predicates: Predicate[]): Predicate
+}
 
+const RESEARCHER_A = '52000000-0000-4000-8000-000000000001'
+const RESEARCHER_B = '52000000-0000-4000-8000-000000000002'
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const OTHER_PROJECT = '51000000-0000-4000-8000-000000000002'
 const EMPTY_PROJECT = '51000000-0000-4000-8000-000000000003'
 const SCHEMA = '51000000-0000-4000-8003-000000000001'
 const REVISION_1 = '51000000-0000-4000-8004-000000000001'
+const FOREIGN_REVISION = '51000000-0000-4000-8004-000000000002'
 
 const DOCUMENT = '51000000-0000-4000-8001-000000000001'
 const OTHER_DOCUMENT = '51000000-0000-4000-8001-000000000002'
@@ -45,19 +57,26 @@ function fakeDatabase(
   } = {},
 ) {
   const tables: Record<string, Row[]> = {
+    ResearcherAccount: [
+      { id: RESEARCHER_A, email: 'researcher-a@example.org' },
+      { id: RESEARCHER_B, email: 'researcher-b@example.org' },
+    ],
     ProjectContext: [
       {
         id: PROJECT,
+        researcherAccountId: RESEARCHER_A,
         name: 'Ellekilde, TAK 1355',
         createdAt: new Date('2026-08-01T11:00:00Z'),
       },
       {
         id: OTHER_PROJECT,
+        researcherAccountId: RESEARCHER_B,
         name: 'Other',
         createdAt: new Date('2026-08-01T11:01:00Z'),
       },
       {
         id: EMPTY_PROJECT,
+        researcherAccountId: RESEARCHER_A,
         name: 'Empty',
         createdAt: new Date('2026-08-01T11:02:00Z'),
       },
@@ -173,13 +192,26 @@ function fakeDatabase(
         return (await query.all())[0] ?? null
       },
       async create(input: Row) {
+        if (
+          table === 'ProjectContext' &&
+          !tables.ResearcherAccount.some(
+            (account) => account.id === input.researcherAccountId,
+          )
+        )
+          throw Object.assign(new Error('foreign key constraint'), {
+            sqlState: '23503',
+          })
         if (input.id !== undefined && rows.some((row) => row.id === input.id))
           throw Object.assign(new Error('unique constraint'), {
             sqlState: '23505',
           })
         if (
           table === 'SourceDocument' &&
-          rows.some((row) => row.ingestionKey === input.ingestionKey)
+          rows.some(
+            (row) =>
+              row.projectContextId === input.projectContextId &&
+              row.ingestionKey === input.ingestionKey,
+          )
         )
           throw Object.assign(new Error('unique constraint'), {
             sqlState: '23505',
@@ -229,11 +261,32 @@ function fakeDatabase(
         Object.assign(row, input)
         return row
       },
-      // No cascade: the owned graph is PostgreSQL's job, proven by
-      // `project-store.postgres.check.ts`. Re-implementing it here would only
-      // prove that two hand-written copies agree.
       async delete() {
         const doomed = await query.all()
+        if (table === 'ProjectContext') {
+          const projectIds = new Set(doomed.map((row) => row.id))
+          const documentIds = new Set(
+            tables.SourceDocument.filter((document) =>
+              projectIds.has(document.projectContextId),
+            ).map((document) => document.id),
+          )
+          tables.SourceRepresentationRevision =
+            tables.SourceRepresentationRevision.filter(
+              (representation) =>
+                !documentIds.has(representation.sourceDocumentId),
+            )
+          tables.SourceDocument = tables.SourceDocument.filter(
+            (document) => !projectIds.has(document.projectContextId),
+          )
+        }
+        if (table === 'SourceDocument') {
+          const documentIds = new Set(doomed.map((row) => row.id))
+          tables.SourceRepresentationRevision =
+            tables.SourceRepresentationRevision.filter(
+              (representation) =>
+                !documentIds.has(representation.sourceDocumentId),
+            )
+        }
         for (const row of doomed) rows.splice(rows.indexOf(row), 1)
         return doomed[0] ?? null
       },
@@ -246,10 +299,119 @@ function fakeDatabase(
       { get: (_target, table: string) => collection(table) },
     ),
   }
+  const fieldValue = (value: unknown, rows: JoinedRows) => {
+    if (
+      value &&
+      typeof value === 'object' &&
+      'table' in value &&
+      'field' in value
+    ) {
+      const reference = value as FieldReference
+      return rows[reference.table]?.[reference.field]
+    }
+    return value
+  }
+  const fields = new Proxy(
+    {},
+    {
+      get: (_target, table: string) =>
+        new Proxy(
+          {},
+          {
+            get: (_fields, field: string): FieldReference => ({
+              table,
+              field,
+            }),
+          },
+        ),
+    },
+  ) as Record<string, Row>
+  const functions: SqlFunctions = {
+    eq: (left: unknown, right: unknown): Predicate => (rows) =>
+      fieldValue(left, rows) === fieldValue(right, rows),
+    and: (...predicates: Predicate[]): Predicate => (rows) =>
+      predicates.every((predicate) => predicate(rows)),
+  }
+  const sqlQuery = (baseTable: string) => {
+    const tableRows = (table: string) =>
+      tables[`${table[0]?.toUpperCase()}${table.slice(1)}`] ?? []
+    const joins: Array<{ table: string; predicate: Predicate }> = []
+    let predicate: Predicate = () => true
+    let projection: (rows: JoinedRows) => Record<string, unknown> = () => ({})
+    const query = {
+      innerJoin(
+        joined: { table: string },
+        condition: (
+          fields: Record<string, Row>,
+          functions: SqlFunctions,
+        ) => Predicate,
+      ) {
+        joins.push({ table: joined.table, predicate: condition(fields, functions) })
+        return query
+      },
+      select(
+        select: (fields: Record<string, Row>) => Record<string, unknown>,
+      ) {
+        const selected = select(fields)
+        projection = (rows) =>
+          Object.fromEntries(
+            Object.entries(selected).map(([key, value]) => [
+              key,
+              fieldValue(value, rows),
+            ]),
+          )
+        return query
+      },
+      where(
+        condition: (
+          fields: Record<string, Row>,
+          functions: SqlFunctions,
+        ) => Predicate,
+      ) {
+        predicate = condition(fields, functions)
+        return query
+      },
+      build() {
+        let joinedRows = tableRows(baseTable).map((row) => ({
+          [baseTable]: row,
+        }))
+        for (const join of joins)
+          joinedRows = joinedRows.flatMap((rows) =>
+            tableRows(join.table)
+              .map((row) => ({ ...rows, [join.table]: row }))
+              .filter(join.predicate),
+          )
+        return joinedRows.filter(predicate).map(projection)
+      },
+    }
+    return query
+  }
+  const sql = {
+    public: new Proxy(
+      {},
+      {
+        get: (_target, table: string) => ({
+          table,
+          innerJoin: sqlQuery(table).innerJoin,
+        }),
+      },
+    ),
+  }
+  const execute = (rows: Record<string, unknown>[]) => ({
+    async first() {
+      return rows[0] ?? null
+    },
+  })
   return {
     tables,
     orm,
-    transaction: async <T>(run: (tx: { orm: typeof orm }) => Promise<T>) => {
+    transaction: async <T>(
+      run: (tx: {
+        orm: typeof orm
+        sql: typeof sql
+        execute: typeof execute
+      }) => Promise<T>,
+    ) => {
       const snapshot = Object.fromEntries(
         Object.entries(tables).map(([name, rows]) => [
           name,
@@ -257,7 +419,7 @@ function fakeDatabase(
         ]),
       )
       try {
-        return await run({ orm })
+        return await run({ orm, sql, execute })
       } catch (error) {
         const concurrentSchemaWinner =
           options.raceOnCreate &&
@@ -295,10 +457,10 @@ function fakeDatabase(
   }
 }
 
-describe('ProjectStore Project Context lifecycle', () => {
+describe('ResearcherProjectStore Project Context lifecycle', () => {
   it('creates a Project Context and answers its durable identity', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     const created = await store.createProjectContext('  Ellekilde, TAK 1356  ')
 
@@ -308,12 +470,45 @@ describe('ProjectStore Project Context lifecycle', () => {
       database.tables.ProjectContext.at(-1)?.id,
       created.projectContextId,
     )
+    assert.equal(
+      database.tables.ProjectContext.at(-1)?.researcherAccountId,
+      RESEARCHER_A,
+    )
     assert.ok(created.createdAt instanceof Date)
+  })
+
+  it('keeps request and worker capabilities separate at runtime', () => {
+    const database = fakeDatabase()
+    const researcher = createResearcherProjectStore(
+      RESEARCHER_A,
+      database as never,
+    )
+    const worker = createInternalProjectWorkerStore(database as never)
+
+    assert.equal(researcher.researcherAccountId, RESEARCHER_A)
+    assert.equal('isPackageReferenced' in researcher, false)
+    assert.equal('claimBatchSchemaSuggestion' in researcher, false)
+    assert.equal('createProjectContext' in worker, false)
+    assert.equal('getSourceRepresentation' in worker, false)
+  })
+
+  it('rejects Project Context creation for a nonexistent account owner', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(
+      '52000000-0000-4000-8000-000000000099',
+      database as never,
+    )
+
+    await assert.rejects(
+      store.createProjectContext('Unowned research'),
+      /foreign key constraint/,
+    )
+    assert.equal(database.tables.ProjectContext.length, 3)
   })
 
   it('persists no blank, untrimmed, or oversized name from any caller', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     const invalid = ['', '   ', '\n\t', 'x'.repeat(513)]
 
     for (const name of invalid) {
@@ -334,7 +529,7 @@ describe('ProjectStore Project Context lifecycle', () => {
 
   it('renames only the named Project Context and refuses an unknown one', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     const renamed = await store.renameProjectContext(PROJECT, ' Ellekilde II ')
 
@@ -345,6 +540,10 @@ describe('ProjectStore Project Context lifecycle', () => {
     })
     assert.equal(database.tables.ProjectContext[1].name, 'Other')
     assert.equal(
+      await store.renameProjectContext(OTHER_PROJECT, 'Foreign rename'),
+      null,
+    )
+    assert.equal(
       await store.renameProjectContext(
         '51000000-0000-4000-8000-000000000099',
         'Absent',
@@ -353,27 +552,99 @@ describe('ProjectStore Project Context lifecycle', () => {
     )
   })
 
-  it('deletes the Project Context and answers every package its revisions pinned', async () => {
+  it('scopes project, document, and representation reads to one account', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const storeA = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const storeB = createResearcherProjectStore(RESEARCHER_B, database as never)
+    const ownRepresentation = '51000000-0000-4000-8002-000000000001'
+    const foreignRepresentation = '51000000-0000-4000-8002-000000000003'
 
-    const candidates = await store.deleteProjectContext(PROJECT)
-
-    // Candidates, not a verdict: the caller re-asks `isPackageReferenced`
-    // immediately before it removes each one.
-    assert.deepEqual(candidates, [
-      { artifactReference: OWN_PACKAGE, artifactSha256: OWN_PACKAGE },
-      { artifactReference: SHARED_PACKAGE, artifactSha256: SHARED_PACKAGE },
-    ])
     assert.deepEqual(
-      database.tables.ProjectContext.map((row) => row.id),
-      [OTHER_PROJECT, EMPTY_PROJECT],
+      (await storeA.listProjectContexts(20)).map(
+        ({ projectContextId }) => projectContextId,
+      ),
+      [EMPTY_PROJECT, PROJECT],
     )
+    assert.equal(
+      await storeA.getProjectContextWithDocuments(OTHER_PROJECT),
+      null,
+    )
+    assert.equal(
+      await storeA.getDocumentReopenSnapshot(OTHER_PROJECT, OTHER_DOCUMENT),
+      null,
+    )
+    database.tables.SchemaRevision.push({
+      id: FOREIGN_REVISION,
+      extractionSchemaId: '51000000-0000-4000-8003-000000000002',
+      revisionNumber: 1,
+      origin: 'RESEARCHER_EDIT',
+      schemaTree: nodes('foreign-secret'),
+      createdAt: new Date('2026-08-01T12:00:00Z'),
+    })
+    const foreignPinnedSchema = await storeA.getDocumentReopenSnapshot(
+      PROJECT,
+      DOCUMENT,
+      {
+        sourceRepresentationRevisionId: ownRepresentation,
+        schemaRevisionId: FOREIGN_REVISION,
+      },
+    )
+    assert.equal(
+      foreignPinnedSchema?.extractionSchema?.extractionSchemaId,
+      SCHEMA,
+    )
+    assert.notDeepEqual(
+      foreignPinnedSchema?.extractionSchema?.schemaTree,
+      nodes('foreign-secret'),
+    )
+    assert.deepEqual(
+      await storeA.getSourceRepresentation(PROJECT, ownRepresentation),
+      { artifactReference: OWN_PACKAGE, artifactSha256: OWN_PACKAGE },
+    )
+    assert.equal(
+      await storeA.getSourceRepresentation(PROJECT, foreignRepresentation),
+      null,
+    )
+    assert.deepEqual(
+      await storeB.getSourceRepresentation(
+        OTHER_PROJECT,
+        foreignRepresentation,
+      ),
+      { artifactReference: SHARED_PACKAGE, artifactSha256: SHARED_PACKAGE },
+    )
+  })
+
+  it('deletes only owned research and removes packages only after their final reference', async () => {
+    const database = fakeDatabase()
+    const storeA = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const storeB = createResearcherProjectStore(RESEARCHER_B, database as never)
+    const removed: string[] = []
+    const originalRemove = canonicalPackageStore.remove
+    canonicalPackageStore.remove = async (descriptor, isReferenced) => {
+      if (await isReferenced()) return false
+      removed.push(descriptor.artifactReference)
+      return true
+    }
+
+    try {
+      assert.equal(await storeA.deleteProjectContext(OTHER_PROJECT), false)
+      assert.equal(await storeA.deleteProjectContext(PROJECT), true)
+      assert.deepEqual(removed, [OWN_PACKAGE])
+      assert.deepEqual(
+        database.tables.ProjectContext.map((row) => row.id),
+        [OTHER_PROJECT, EMPTY_PROJECT],
+      )
+
+      assert.equal(await storeB.deleteProjectContext(OTHER_PROJECT), true)
+      assert.deepEqual(removed, [OWN_PACKAGE, SHARED_PACKAGE])
+    } finally {
+      canonicalPackageStore.remove = originalRemove
+    }
   })
 
   it('reports whether any surviving revision pins a content-addressed package', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createInternalProjectWorkerStore(database as never)
 
     assert.equal(await store.isPackageReferenced(SHARED_PACKAGE), true)
     assert.equal(await store.isPackageReferenced('f'.repeat(64)), false)
@@ -388,20 +659,20 @@ describe('ProjectStore Project Context lifecycle', () => {
 
   it('refuses to delete an unknown Project Context', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     assert.equal(
       await store.deleteProjectContext('51000000-0000-4000-8000-000000000099'),
-      null,
+      false,
     )
     assert.equal(database.tables.ProjectContext.length, 3)
   })
 })
 
-describe('ProjectStore Source Document ingestion', () => {
+describe('ResearcherProjectStore Source Document ingestion', () => {
   it('creates one Source Document and revision 1 together', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     const result = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
 
@@ -432,13 +703,13 @@ describe('ProjectStore Source Document ingestion', () => {
     })
   })
 
-  it('does not make a package visible when the Project Context is absent', async () => {
+  it('does not make a package visible through a missing or foreign Project Context', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     assert.equal(
       await store.ingestSourceDocument(
-        '51000000-0000-4000-8000-000000000099',
+        OTHER_PROJECT,
         ingestion(),
       ),
       null,
@@ -458,7 +729,7 @@ describe('ProjectStore Source Document ingestion', () => {
 
   it('rolls back the Source Document when its first representation fails', async () => {
     const database = fakeDatabase({ failRepresentationCreate: true })
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     await assert.rejects(
       store.ingestSourceDocument(EMPTY_PROJECT, ingestion()),
@@ -470,7 +741,7 @@ describe('ProjectStore Source Document ingestion', () => {
 
   it('removes only its new Source Document when post-commit retention fails', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     await assert.rejects(
       store.ingestSourceDocument(
@@ -484,14 +755,12 @@ describe('ProjectStore Source Document ingestion', () => {
       /package unavailable/,
     )
     assert.equal(database.tables.SourceDocument.length, 2)
-    // The fake intentionally does not reproduce PostgreSQL cascades; the real
-    // check proves the owned representation is removed with this document.
-    assert.equal(database.tables.SourceRepresentationRevision.length, 4)
+    assert.equal(database.tables.SourceRepresentationRevision.length, 3)
   })
 
   it('returns the durable result when equal content is replayed with a different package', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
     let retained: unknown
     const replay = await store.ingestSourceDocument(
@@ -516,7 +785,7 @@ describe('ProjectStore Source Document ingestion', () => {
 
   it('returns and reasserts a concurrent unique-key winner', async () => {
     const racedDatabase = fakeDatabase({ raceOnIngestion: true })
-    const race = createProjectStore(racedDatabase as never)
+    const race = createResearcherProjectStore(RESEARCHER_A, racedDatabase as never)
     let retained: unknown
     const winner = await race.ingestSourceDocument(
       EMPTY_PROJECT,
@@ -546,7 +815,7 @@ describe('ProjectStore Source Document ingestion', () => {
 
   it('makes distinct Source Documents for distinct keys, even with the same bytes', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
     const second = await store.ingestSourceDocument(
       EMPTY_PROJECT,
@@ -558,20 +827,49 @@ describe('ProjectStore Source Document ingestion', () => {
     assert.equal(database.tables.SourceRepresentationRevision.length, 5)
   })
 
-  it("does not disclose another Project Context's ingestion key", async () => {
+  it('scopes identical ingestion keys to each account-owned Project Context', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
-    await store.ingestSourceDocument(PROJECT, ingestion())
+    const storeA = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const storeB = createResearcherProjectStore(RESEARCHER_B, database as never)
+    const first = await storeA.ingestSourceDocument(PROJECT, ingestion())
+    const second = await storeB.ingestSourceDocument(
+      OTHER_PROJECT,
+      ingestion({
+        artifactReference: 'e'.repeat(64),
+        artifactSha256: 'e'.repeat(64),
+      }),
+    )
 
-    await assert.rejects(
-      store.ingestSourceDocument(EMPTY_PROJECT, ingestion()),
-      /already belongs to another Source Document/,
+    assert.notEqual(first?.sourceDocumentId, second?.sourceDocumentId)
+    assert.deepEqual(
+      database.tables.SourceDocument.filter(
+        (row) =>
+          row.ingestionKey === '51000000-0000-4000-9000-000000000001',
+      ).map((row) => row.projectContextId),
+      [PROJECT, OTHER_PROJECT],
+    )
+    assert.equal(
+      await storeA.getSourceRepresentation(
+        PROJECT,
+        second?.sourceRepresentationId ?? '',
+      ),
+      null,
+    )
+    assert.deepEqual(
+      await storeB.getSourceRepresentation(
+        OTHER_PROJECT,
+        second?.sourceRepresentationId ?? '',
+      ),
+      {
+        artifactReference: 'e'.repeat(64),
+        artifactSha256: 'e'.repeat(64),
+      },
     )
   })
 
   it('rejects one ingestion key reused for different content', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
 
     await assert.rejects(
@@ -587,9 +885,12 @@ describe('ProjectStore Source Document ingestion', () => {
     )
   })
 })
-describe('ProjectStore Schema Revisions', () => {
+describe('ResearcherProjectStore Schema Revisions', () => {
   it('lists project-owned Extraction Schemas with their Current Schema Revision', async () => {
-    const store = createProjectStore(fakeDatabase() as never)
+    const store = createResearcherProjectStore(
+      RESEARCHER_A,
+      fakeDatabase() as never,
+    )
 
     assert.deepEqual(await store.listExtractionSchemas(PROJECT, 20), [
       {
@@ -605,17 +906,14 @@ describe('ProjectStore Schema Revisions', () => {
       },
     ])
     assert.equal(
-      await store.listExtractionSchemas(
-        '51000000-0000-4000-8000-000000000099',
-        20,
-      ),
+      await store.listExtractionSchemas(OTHER_PROJECT, 20),
       null,
     )
   })
 
   it('renames only a project-owned Extraction Schema with a durable bounded name', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     assert.deepEqual(
       await store.renameExtractionSchema(PROJECT, SCHEMA, '  Historic places  '),
@@ -637,27 +935,24 @@ describe('ProjectStore Schema Revisions', () => {
     assert.equal(database.tables.ExtractionSchema[0].name, 'Historic places')
   })
 
-  it('deletes only an owned Source Document and answers its package candidates', async () => {
+  it('deletes only an owned Source Document without exposing package metadata', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
-    assert.deepEqual(await store.deleteSourceDocument(PROJECT, DOCUMENT), [
-      { artifactReference: OWN_PACKAGE, artifactSha256: OWN_PACKAGE },
-      { artifactReference: SHARED_PACKAGE, artifactSha256: SHARED_PACKAGE },
-    ])
+    assert.equal(await store.deleteSourceDocument(PROJECT, DOCUMENT), true)
     assert.deepEqual(
       database.tables.SourceDocument.map((row) => row.id),
       [OTHER_DOCUMENT],
     )
     assert.equal(
       await store.deleteSourceDocument(PROJECT, OTHER_DOCUMENT),
-      null,
+      false,
     )
   })
 
   it('creates the shared Extraction Schema and its initial suggestion revision atomically', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     const result = await store.initializeSchemaRevision(
       EMPTY_PROJECT,
@@ -683,7 +978,7 @@ describe('ProjectStore Schema Revisions', () => {
 
   it('appends one immutable researcher revision and returns its durable identity', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     const result = await store.appendSchemaRevision(
       PROJECT,
@@ -706,7 +1001,7 @@ describe('ProjectStore Schema Revisions', () => {
 
   it('rejects a stale expected revision without writing', async () => {
     const database = fakeDatabase()
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     const result = await store.appendSchemaRevision(
       PROJECT,
@@ -731,7 +1026,7 @@ describe('ProjectStore Schema Revisions', () => {
 
   it('maps a concurrent unique race to the winning head with no partial write', async () => {
     const database = fakeDatabase({ raceOnCreate: true })
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     const result = await store.appendSchemaRevision(
       PROJECT,
@@ -766,7 +1061,7 @@ describe('ProjectStore Schema Revisions', () => {
         createdAt: new Date('2026-08-01T12:02:00Z'),
       },
     )
-    const store = createProjectStore(database as never)
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
 
     assert.deepEqual(
       (await store.listSchemaRevisions(PROJECT, SCHEMA, 2))?.map(

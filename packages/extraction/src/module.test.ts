@@ -72,6 +72,9 @@ function harness(
     async readExtraction() {
       return null
     },
+    async isExtractionIdAvailable() {
+      return true
+    },
     async loadExtractionInputs(
       sourceRepresentationRevisionId: string,
       schemaRevisionId: string,

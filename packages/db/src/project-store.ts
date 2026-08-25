@@ -1,6 +1,13 @@
-import type { CanonicalPackageDescriptor } from './artifact-store.js'
+import {
+  canonicalPackageStore,
+  type CanonicalPackageDescriptor,
+} from './artifact-store.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { db, type Database } from './prisma/db.js'
+
+type DatabaseTransaction = Parameters<
+  Parameters<Database['transaction']>[0]
+>[0]
 
 export type SchemaRevisionOrigin =
   'suggestion' | 'researcher-edit' | 'model-edit'
@@ -69,6 +76,90 @@ function schemaRevision(row: StoredSchemaRevision): SchemaRevisionRecord {
     schemaTree: row.schemaTree,
     createdAt: row.createdAt,
   }
+}
+
+async function ownedSchemaRevision(
+  transaction: DatabaseTransaction,
+  researcherAccountId: string,
+  projectContextId: string,
+  schemaRevisionId: string,
+): Promise<StoredSchemaRevision | null> {
+  const { sql } = transaction
+  const query = sql.public.schemaRevision
+    .innerJoin(sql.public.extractionSchema, (fields, functions) =>
+      functions.eq(
+        fields.schemaRevision.extractionSchemaId,
+        fields.extractionSchema.id,
+      ),
+    )
+    .innerJoin(sql.public.projectContext, (fields, functions) =>
+      functions.eq(
+        fields.extractionSchema.projectContextId,
+        fields.projectContext.id,
+      ),
+    )
+    .select((fields) => ({
+      id: fields.schemaRevision.id,
+      extractionSchemaId: fields.schemaRevision.extractionSchemaId,
+      revisionNumber: fields.schemaRevision.revisionNumber,
+      origin: fields.schemaRevision.origin,
+      schemaTree: fields.schemaRevision.schemaTree,
+      createdAt: fields.schemaRevision.createdAt,
+    }))
+    .where((fields, functions) =>
+      functions.and(
+        functions.eq(fields.schemaRevision.id, schemaRevisionId),
+        functions.eq(fields.projectContext.id, projectContextId),
+        functions.eq(
+          fields.projectContext.researcherAccountId,
+          researcherAccountId,
+        ),
+      ),
+    )
+  return (await transaction.execute(query.build()).first()) as
+    | StoredSchemaRevision
+    | null
+}
+
+async function ownedSourceRepresentationDescriptor(
+  transaction: DatabaseTransaction,
+  researcherAccountId: string,
+  projectContextId: string,
+  sourceRepresentationId: string,
+): Promise<CanonicalPackageDescriptor | null> {
+  const { sql } = transaction
+  const query = sql.public.sourceRepresentationRevision
+    .innerJoin(sql.public.sourceDocument, (fields, functions) =>
+      functions.eq(
+        fields.sourceRepresentationRevision.sourceDocumentId,
+        fields.sourceDocument.id,
+      ),
+    )
+    .innerJoin(sql.public.projectContext, (fields, functions) =>
+      functions.eq(
+        fields.sourceDocument.projectContextId,
+        fields.projectContext.id,
+      ),
+    )
+    .select((fields) => ({
+      artifactReference:
+        fields.sourceRepresentationRevision.artifactReference,
+      artifactSha256: fields.sourceRepresentationRevision.artifactSha256,
+    }))
+    .where((fields, functions) =>
+      functions.and(
+        functions.eq(
+          fields.sourceRepresentationRevision.id,
+          sourceRepresentationId,
+        ),
+        functions.eq(fields.projectContext.id, projectContextId),
+        functions.eq(
+          fields.projectContext.researcherAccountId,
+          researcherAccountId,
+        ),
+      ),
+    )
+  return await transaction.execute(query.build()).first()
 }
 
 function uniqueConstraint(error: unknown): boolean {
@@ -270,6 +361,7 @@ function batchSuggestionSelectionKey(
 
 async function currentBatchMembers(
   orm: Orm,
+  researcherAccountId: string,
   projectContextId: string,
   sourceDocumentIds: readonly string[],
 ): Promise<
@@ -277,6 +369,7 @@ async function currentBatchMembers(
 > {
   const project = await orm.public.ProjectContext.select('id').first({
     id: projectContextId,
+    researcherAccountId,
   })
   if (!project || sourceDocumentIds.length === 0) return null
   const members: {
@@ -368,27 +461,22 @@ export type RetryBatchSchemaSuggestionResult =
   | { status: 'retried'; suggestion: BatchSchemaSuggestionRecord }
   | null
 
-export type ProjectStore = {
+export type ResearcherProjectStore = {
+  readonly researcherAccountId: string
   createProjectContext(name: string): Promise<ProjectContextSummary>
   renameProjectContext(
     projectContextId: string,
     name: string,
   ): Promise<ProjectContextSummary | null>
   /**
-   * Deletes the Project Context and everything the relational cascade owns,
-   * and answers the canonical packages its Source Representation Revisions
-   * pinned. Packages are content-addressed and shareable, so the caller removes
-   * only candidates no surviving revision references.
+   * Deletes only an owned Project Context. Canonical package cleanup remains
+   * deployment-wide and reference-safe, but no reference state leaves the store.
    */
-  deleteProjectContext(
-    projectContextId: string,
-  ): Promise<CanonicalPackageDescriptor[] | null>
+  deleteProjectContext(projectContextId: string): Promise<boolean>
   deleteSourceDocument(
     projectContextId: string,
     sourceDocumentId: string,
-  ): Promise<CanonicalPackageDescriptor[] | null>
-  /** Whether any surviving Source Representation Revision pins this package. */
-  isPackageReferenced(artifactReference: string): Promise<boolean>
+  ): Promise<boolean>
   listProjectContexts(limit: number): Promise<ProjectContextSummary[]>
   getProjectContextWithDocuments(projectContextId: string): Promise<{
     projectContext: ProjectContextSummary
@@ -404,8 +492,16 @@ export type ProjectStore = {
     },
   ): Promise<DocumentReopenSnapshot | null>
   getSourceRepresentation(
+    projectContextId: string,
     sourceRepresentationId: string,
   ): Promise<CanonicalPackageDescriptor | null>
+  /**
+   * Attempts reference-safe cleanup for a package produced by this request.
+   * The caller learns nothing about deployment-wide package references.
+   */
+  discardCanonicalPackage(
+    descriptor: CanonicalPackageDescriptor,
+  ): Promise<void>
   /**
    * Makes a retained canonical package visible as one Source Document and its
    * first representation. The unique ingestion key is the retry authority.
@@ -440,6 +536,40 @@ export type ProjectStore = {
     projectContextId: string,
     batchSchemaSuggestionId: string,
   ): Promise<RetryBatchSchemaSuggestionResult>
+  initializeSchemaRevision(
+    projectContextId: string,
+    schemaTree: unknown,
+  ): Promise<AppendSchemaRevisionResult | null>
+  listExtractionSchemas(
+    projectContextId: string,
+    limit: number,
+  ): Promise<ExtractionSchemaSummary[] | null>
+  renameExtractionSchema(
+    projectContextId: string,
+    extractionSchemaId: string,
+    name: string,
+  ): Promise<ExtractionSchemaRecord | null>
+  appendSchemaRevision(
+    projectContextId: string,
+    extractionSchemaId: string,
+    expectedRevisionNumber: number,
+    schemaTree: unknown,
+  ): Promise<AppendSchemaRevisionResult | null>
+  listSchemaRevisions(
+    projectContextId: string,
+    extractionSchemaId: string,
+    limit: number,
+  ): Promise<SchemaRevisionRecord[] | null>
+  getSchemaRevision(
+    projectContextId: string,
+    extractionSchemaId: string,
+    schemaRevisionId: string,
+  ): Promise<SchemaRevisionRecord | null>
+}
+
+export type InternalProjectWorkerStore = {
+  /** Whether any surviving Source Representation Revision pins this package. */
+  isPackageReferenced(artifactReference: string): Promise<boolean>
   claimBatchSchemaSuggestion(
     owner: string,
     now: Date,
@@ -481,35 +611,6 @@ export type ProjectStore = {
     failure: unknown,
     finishedAt: Date,
   ): Promise<boolean>
-  initializeSchemaRevision(
-    projectContextId: string,
-    schemaTree: unknown,
-  ): Promise<AppendSchemaRevisionResult | null>
-  listExtractionSchemas(
-    projectContextId: string,
-    limit: number,
-  ): Promise<ExtractionSchemaSummary[] | null>
-  renameExtractionSchema(
-    projectContextId: string,
-    extractionSchemaId: string,
-    name: string,
-  ): Promise<ExtractionSchemaRecord | null>
-  appendSchemaRevision(
-    projectContextId: string,
-    extractionSchemaId: string,
-    expectedRevisionNumber: number,
-    schemaTree: unknown,
-  ): Promise<AppendSchemaRevisionResult | null>
-  listSchemaRevisions(
-    projectContextId: string,
-    extractionSchemaId: string,
-    limit: number,
-  ): Promise<SchemaRevisionRecord[] | null>
-  getSchemaRevision(
-    projectContextId: string,
-    extractionSchemaId: string,
-    schemaRevisionId: string,
-  ): Promise<SchemaRevisionRecord | null>
 }
 
 type StoredProjectContext = { id: string; name: string; createdAt: Date }
@@ -576,11 +677,69 @@ function ingestedSourceDocument(
   }
 }
 
-export function createProjectStore(database: Database = db): ProjectStore {
+async function ownsProjectContext(
+  orm: Orm,
+  researcherAccountId: string,
+  projectContextId: string,
+): Promise<boolean> {
+  return Boolean(
+    await orm.public.ProjectContext.select('id').first({
+      id: projectContextId,
+      researcherAccountId,
+    }),
+  )
+}
+
+async function packageIsReferenced(
+  database: Database,
+  artifactReference: string,
+): Promise<boolean> {
+  return Boolean(
+    await database.orm.public.SourceRepresentationRevision.select('id').first({
+      artifactReference,
+    }),
+  )
+}
+
+async function discardPackageIfUnreferenced(
+  database: Database,
+  descriptor: CanonicalPackageDescriptor,
+): Promise<void> {
+  try {
+    await canonicalPackageStore.remove(descriptor, () =>
+      packageIsReferenced(database, descriptor.artifactReference),
+    )
+  } catch (error) {
+    console.warn(
+      `Could not clean up canonical package ${descriptor.artifactReference}; retaining it: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+  }
+}
+
+async function discardPackagesIfUnreferenced(
+  database: Database,
+  descriptors: readonly CanonicalPackageDescriptor[],
+): Promise<void> {
+  const attempted = new Set<string>()
+  for (const descriptor of descriptors) {
+    if (attempted.has(descriptor.artifactReference)) continue
+    attempted.add(descriptor.artifactReference)
+    await discardPackageIfUnreferenced(database, descriptor)
+  }
+}
+
+export function createResearcherProjectStore(
+  researcherAccountId: string,
+  database: Database = db,
+): ResearcherProjectStore {
   return {
+    researcherAccountId,
     async createProjectContext(name) {
       return projectContextSummary(
         (await database.orm.public.ProjectContext.create({
+          researcherAccountId,
           name: projectContextName(name),
         })) as StoredProjectContext,
       )
@@ -588,15 +747,17 @@ export function createProjectStore(database: Database = db): ProjectStore {
     async renameProjectContext(projectContextId, name) {
       const row = (await database.orm.public.ProjectContext.where({
         id: projectContextId,
+        researcherAccountId,
       }).update({
         name: projectContextName(name),
       })) as StoredProjectContext | null
       return row && projectContextSummary(row)
     },
     async deleteProjectContext(projectContextId) {
-      return database.transaction(async ({ orm }) => {
+      const candidates = await database.transaction(async ({ orm }) => {
         const project = await orm.public.ProjectContext.select('id').first({
           id: projectContextId,
+          researcherAccountId,
         })
         if (!project) return null
 
@@ -605,7 +766,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
         })
           .select('id')
           .all()
-        const candidates: CanonicalPackageDescriptor[] = []
+        const descriptors: CanonicalPackageDescriptor[] = []
         for (const document of documents) {
           const representations =
             await orm.public.SourceRepresentationRevision.where({
@@ -613,21 +774,27 @@ export function createProjectStore(database: Database = db): ProjectStore {
             })
               .select('artifactReference', 'artifactSha256')
               .all()
-          // Rebuilt, like every other descriptor boundary: no other persisted
-          // column leaves the store.
           for (const row of representations)
-            candidates.push({
+            descriptors.push({
               artifactReference: row.artifactReference,
               artifactSha256: row.artifactSha256,
             })
         }
 
-        await orm.public.ProjectContext.where({ id: projectContextId }).delete()
-        return candidates
+        await orm.public.ProjectContext.where({
+          id: projectContextId,
+          researcherAccountId,
+        }).delete()
+        return descriptors
       })
+      if (!candidates) return false
+      await discardPackagesIfUnreferenced(database, candidates)
+      return true
     },
     async deleteSourceDocument(projectContextId, sourceDocumentId) {
-      return database.transaction(async ({ orm }) => {
+      const candidates = await database.transaction(async ({ orm }) => {
+        if (!(await ownsProjectContext(orm, researcherAccountId, projectContextId)))
+          return null
         const document = await orm.public.SourceDocument.select('id').first({
           id: sourceDocumentId,
           projectContextId,
@@ -639,25 +806,24 @@ export function createProjectStore(database: Database = db): ProjectStore {
           })
             .select('artifactReference', 'artifactSha256')
             .all()
-        await orm.public.SourceDocument.where({ id: sourceDocumentId }).delete()
+        await orm.public.SourceDocument.where({
+          id: sourceDocumentId,
+          projectContextId,
+        }).delete()
         return representations.map((row) => ({
           artifactReference: row.artifactReference,
           artifactSha256: row.artifactSha256,
         }))
       })
-    },
-    async isPackageReferenced(artifactReference) {
-      const row = await database.orm.public.SourceRepresentationRevision.select(
-        'id',
-      ).first({ artifactReference })
-      return row !== null
+      if (!candidates) return false
+      await discardPackagesIfUnreferenced(database, candidates)
+      return true
     },
     async listProjectContexts(limit) {
-      const rows = await database.orm.public.ProjectContext.select(
-        'id',
-        'name',
-        'createdAt',
-      )
+      const rows = await database.orm.public.ProjectContext.where({
+        researcherAccountId,
+      })
+        .select('id', 'name', 'createdAt')
         .orderBy([
           (project) => project.createdAt.desc(),
           (project) => project.id.desc(),
@@ -675,7 +841,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
         'id',
         'name',
         'createdAt',
-      ).first({ id: projectContextId })
+      ).first({ id: projectContextId, researcherAccountId })
       if (!row) return null
       const sourceDocuments = await database.orm.public.SourceDocument.where({
         projectContextId,
@@ -706,22 +872,21 @@ export function createProjectStore(database: Database = db): ProjectStore {
       sourceDocumentId,
       pins,
     ) {
-      return database.transaction(async ({ orm }) => {
+      return database.transaction(async (transaction) => {
+        const { orm } = transaction
         const project = await orm.public.ProjectContext.select(
           'id',
           'name',
           'createdAt',
-        ).first({ id: projectContextId })
+        ).first({ id: projectContextId, researcherAccountId })
         if (!project) return null
 
         const document = await orm.public.SourceDocument.select(
           'id',
-          'projectContextId',
           'originalName',
           'createdAt',
-        ).first({ id: sourceDocumentId })
-        if (!document || document.projectContextId !== projectContextId)
-          return null
+        ).first({ id: sourceDocumentId, projectContextId })
+        if (!document) return null
 
         const representation = pins
           ? await orm.public.SourceRepresentationRevision.select(
@@ -749,12 +914,12 @@ export function createProjectStore(database: Database = db): ProjectStore {
           .first()
 
         const schemaRevision = pins
-          ? await orm.public.SchemaRevision.select(
-              'id',
-              'extractionSchemaId',
-              'revisionNumber',
-              'schemaTree',
-            ).first({ id: pins.schemaRevisionId })
+          ? await ownedSchemaRevision(
+              transaction,
+              researcherAccountId,
+              projectContextId,
+              pins.schemaRevisionId,
+            )
           : null
         const extractionSchema = schemaRevision
           ? await orm.public.ExtractionSchema.select('id', 'name').first({
@@ -820,25 +985,25 @@ export function createProjectStore(database: Database = db): ProjectStore {
         }
       })
     },
-    async getSourceRepresentation(sourceRepresentationId) {
-      const row = await database.orm.public.SourceRepresentationRevision.select(
-        'artifactReference',
-        'artifactSha256',
-      ).first({ id: sourceRepresentationId })
-      // Rebuilt rather than returned: the descriptor is the boundary that keeps
-      // every other persisted column server-side.
-      return (
-        row && {
-          artifactReference: row.artifactReference,
-          artifactSha256: row.artifactSha256,
-        }
+    async getSourceRepresentation(projectContextId, sourceRepresentationId) {
+      return database.transaction((transaction) =>
+        ownedSourceRepresentationDescriptor(
+          transaction,
+          researcherAccountId,
+          projectContextId,
+          sourceRepresentationId,
+        ),
       )
+    },
+    discardCanonicalPackage(descriptor) {
+      return discardPackageIfUnreferenced(database, descriptor)
     },
     async ingestSourceDocument(projectContextId, input) {
       const project = await database.orm.public.ProjectContext.select(
         'id',
       ).first({
         id: projectContextId,
+        researcherAccountId,
       })
       if (!project) return null
 
@@ -883,6 +1048,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
         const result = await database.transaction(async ({ orm }) => {
           const project = await orm.public.ProjectContext.select('id').first({
             id: projectContextId,
+            researcherAccountId,
           })
           if (!project) return null
 
@@ -934,10 +1100,12 @@ export function createProjectStore(database: Database = db): ProjectStore {
         database.transaction(async ({ orm }) => {
           const project = await orm.public.ProjectContext.select('id').first({
             id: projectContextId,
+            researcherAccountId,
           })
           if (!project) return 'missing' as const
           const members = await currentBatchMembers(
             orm,
+            researcherAccountId,
             projectContextId,
             sourceDocumentIds,
           )
@@ -977,7 +1145,12 @@ export function createProjectStore(database: Database = db): ProjectStore {
       } catch (error) {
         if (!uniqueConstraint(error)) throw error
         const members = await database.transaction(({ orm }) =>
-          currentBatchMembers(orm, projectContextId, sourceDocumentIds),
+          currentBatchMembers(
+            orm,
+            researcherAccountId,
+            projectContextId,
+            sourceDocumentIds,
+          ),
         )
         if (!members) return { status: 'invalid' as const }
         const suggestion = await loadBatchSchemaSuggestion(
@@ -993,6 +1166,14 @@ export function createProjectStore(database: Database = db): ProjectStore {
       }
     },
     async getBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
       return loadBatchSchemaSuggestion(
         database.orm,
         projectContextId,
@@ -1002,7 +1183,7 @@ export function createProjectStore(database: Database = db): ProjectStore {
     async listBatchSchemaSuggestions(projectContextId, limit) {
       const project = await database.orm.public.ProjectContext.select(
         'id',
-      ).first({ id: projectContextId })
+      ).first({ id: projectContextId, researcherAccountId })
       if (!project) return null
       const rows = await database.orm.public.BatchSchemaSuggestion.where({
         projectContextId,
@@ -1032,6 +1213,14 @@ export function createProjectStore(database: Database = db): ProjectStore {
       draft,
     ) {
       const result = await database.transaction(async ({ orm }) => {
+        if (
+          !(await ownsProjectContext(
+            orm,
+            researcherAccountId,
+            projectContextId,
+          ))
+        )
+          return 'missing' as const
         const suggestion = await orm.public.BatchSchemaSuggestion.select(
           'id',
           'executionStatus',
@@ -1067,6 +1256,14 @@ export function createProjectStore(database: Database = db): ProjectStore {
     },
     async retryBatchSchemaSuggestion(projectContextId, batchSchemaSuggestionId) {
       const result = await database.transaction(async ({ orm }) => {
+        if (
+          !(await ownsProjectContext(
+            orm,
+            researcherAccountId,
+            projectContextId,
+          ))
+        )
+          return 'missing' as const
         const suggestion = await orm.public.BatchSchemaSuggestion.select(
           'id',
         ).first({ id: batchSchemaSuggestionId, projectContextId })
@@ -1114,6 +1311,247 @@ export function createProjectStore(database: Database = db): ProjectStore {
       if (!suggestion)
         throw new Error('Retried Batch Schema Suggestion could not be read.')
       return { status: result, suggestion }
+    },
+    async initializeSchemaRevision(projectContextId, schemaTree) {
+      return database.transaction(async ({ orm }) => {
+        const project = await orm.public.ProjectContext.select('id').first({
+          id: projectContextId,
+          researcherAccountId,
+        })
+        if (!project) return null
+
+        const extractionSchema = await orm.public.ExtractionSchema.where({
+          projectContextId,
+        })
+          .select('id')
+          .orderBy([
+            (schema) => schema.createdAt.desc(),
+            (schema) => schema.id.desc(),
+          ])
+          .first()
+        if (extractionSchema) {
+          const row = await orm.public.SchemaRevision.where({
+            extractionSchemaId: extractionSchema.id,
+          })
+            .select(...revisionFields)
+            .orderBy((revision) => revision.revisionNumber.desc())
+            .first()
+          if (row)
+            return {
+              status: 'conflict' as const,
+              currentRevision: schemaRevision(row as StoredSchemaRevision),
+            }
+        }
+        const extractionSchemaId = extractionSchema?.id ?? randomUUID()
+        if (!extractionSchema) {
+          await orm.public.ExtractionSchema.create({
+            id: extractionSchemaId,
+            projectContextId,
+            name: 'Extraction Schema',
+          })
+        }
+
+        const created = await orm.public.SchemaRevision.create({
+          extractionSchemaId,
+          revisionNumber: 1,
+          origin: 'SUGGESTION',
+          schemaTree,
+        })
+        return {
+          status: 'created' as const,
+          revision: schemaRevision(created as StoredSchemaRevision),
+        }
+      })
+    },
+    async listExtractionSchemas(projectContextId, limit) {
+      return database.transaction(async ({ orm }) => {
+        const project = await orm.public.ProjectContext.select('id').first({
+          id: projectContextId,
+          researcherAccountId,
+        })
+        if (!project) return null
+        const schemas = await orm.public.ExtractionSchema.where({
+          projectContextId,
+        })
+          .select('id', 'name', 'createdAt')
+          .orderBy([
+            (schema) => schema.createdAt.desc(),
+            (schema) => schema.id.desc(),
+          ])
+          .take(limit)
+          .all()
+        // ponytail: bounded to 50 schemas; use a window query if this becomes hot.
+        const summaries: ExtractionSchemaSummary[] = []
+        for (const schema of schemas) {
+          const revision = await orm.public.SchemaRevision.where({
+            extractionSchemaId: schema.id,
+          })
+            .select('id', 'revisionNumber', 'origin', 'createdAt')
+            .orderBy((row) => row.revisionNumber.desc())
+            .first()
+          summaries.push({
+            extractionSchemaId: schema.id,
+            name: schema.name,
+            createdAt: schema.createdAt,
+            currentRevision: revision
+              ? {
+                  schemaRevisionId: revision.id,
+                  revisionNumber: revision.revisionNumber,
+                  origin:
+                    revisionOrigins[
+                      revision.origin as StoredSchemaRevision['origin']
+                    ],
+                  createdAt: revision.createdAt,
+                }
+              : null,
+          })
+        }
+        return summaries
+      })
+    },
+    async renameExtractionSchema(projectContextId, extractionSchemaId, name) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const row = await database.orm.public.ExtractionSchema.where({
+        id: extractionSchemaId,
+        projectContextId,
+      }).update({ name: extractionSchemaName(name) })
+      return row
+        ? {
+            extractionSchemaId: row.id,
+            name: row.name,
+            createdAt: row.createdAt,
+          }
+        : null
+    },
+    async appendSchemaRevision(
+      projectContextId,
+      extractionSchemaId,
+      expectedRevisionNumber,
+      schemaTree,
+    ) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const currentHead = async (): Promise<SchemaRevisionRecord | null> => {
+        const row = await database.orm.public.SchemaRevision.where({
+          extractionSchemaId,
+        })
+          .select(...revisionFields)
+          .orderBy((revision) => revision.revisionNumber.desc())
+          .first()
+        return row ? schemaRevision(row as StoredSchemaRevision) : null
+      }
+      const owner = await database.orm.public.ExtractionSchema.select(
+        'id',
+      ).first({
+        id: extractionSchemaId,
+        projectContextId,
+      })
+      if (!owner) return null
+
+      try {
+        return await database.transaction(async ({ orm }) => {
+          const row = await orm.public.SchemaRevision.where({
+            extractionSchemaId,
+          })
+            .select(...revisionFields)
+            .orderBy((revision) => revision.revisionNumber.desc())
+            .first()
+          const head = row ? schemaRevision(row as StoredSchemaRevision) : null
+          if ((head?.revisionNumber ?? 0) !== expectedRevisionNumber) {
+            return head
+              ? { status: 'conflict' as const, currentRevision: head }
+              : null
+          }
+          const created = await orm.public.SchemaRevision.create({
+            extractionSchemaId,
+            revisionNumber: expectedRevisionNumber + 1,
+            origin: 'RESEARCHER_EDIT',
+            schemaTree,
+          })
+          return {
+            status: 'created' as const,
+            revision: schemaRevision(created as StoredSchemaRevision),
+          }
+        })
+      } catch (error) {
+        if (!uniqueConstraint(error)) throw error
+        const head = await currentHead()
+        if (!head) throw error
+        return { status: 'conflict', currentRevision: head }
+      }
+    },
+    async listSchemaRevisions(projectContextId, extractionSchemaId, limit) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const owner = await database.orm.public.ExtractionSchema.select(
+        'id',
+      ).first({
+        id: extractionSchemaId,
+        projectContextId,
+      })
+      if (!owner) return null
+      const rows = await database.orm.public.SchemaRevision.where({
+        extractionSchemaId,
+      })
+        .select(...revisionFields)
+        .orderBy((revision) => revision.revisionNumber.desc())
+        .take(limit)
+        .all()
+      return rows.map((row) => schemaRevision(row as StoredSchemaRevision))
+    },
+    async getSchemaRevision(
+      projectContextId,
+      extractionSchemaId,
+      schemaRevisionId,
+    ) {
+      if (
+        !(await ownsProjectContext(
+          database.orm,
+          researcherAccountId,
+          projectContextId,
+        ))
+      )
+        return null
+      const owner = await database.orm.public.ExtractionSchema.select(
+        'id',
+      ).first({
+        id: extractionSchemaId,
+        projectContextId,
+      })
+      if (!owner) return null
+      const row = await database.orm.public.SchemaRevision.select(
+        ...revisionFields,
+      ).first({ id: schemaRevisionId, extractionSchemaId })
+      return row ? schemaRevision(row as StoredSchemaRevision) : null
+    },
+  }
+}
+
+export function createInternalProjectWorkerStore(
+  database: Database = db,
+): InternalProjectWorkerStore {
+  return {
+    isPackageReferenced(artifactReference) {
+      return packageIsReferenced(database, artifactReference)
     },
     async claimBatchSchemaSuggestion(owner, now, leaseExpiresAt) {
       const queued = await database.orm.public.BatchSchemaSuggestion.where({
@@ -1307,203 +1745,6 @@ export function createProjectStore(database: Database = db): ProjectStore {
           leaseExpiresAt: null,
         }),
       )
-    },
-    async initializeSchemaRevision(projectContextId, schemaTree) {
-      return database.transaction(async ({ orm }) => {
-        const project = await orm.public.ProjectContext.select('id').first({
-          id: projectContextId,
-        })
-        if (!project) return null
-
-        const extractionSchema = await orm.public.ExtractionSchema.where({
-          projectContextId,
-        })
-          .select('id')
-          .orderBy([
-            (schema) => schema.createdAt.desc(),
-            (schema) => schema.id.desc(),
-          ])
-          .first()
-        if (extractionSchema) {
-          const row = await orm.public.SchemaRevision.where({
-            extractionSchemaId: extractionSchema.id,
-          })
-            .select(...revisionFields)
-            .orderBy((revision) => revision.revisionNumber.desc())
-            .first()
-          if (row)
-            return {
-              status: 'conflict' as const,
-              currentRevision: schemaRevision(row as StoredSchemaRevision),
-            }
-        }
-        const extractionSchemaId = extractionSchema?.id ?? randomUUID()
-        if (!extractionSchema) {
-          await orm.public.ExtractionSchema.create({
-            id: extractionSchemaId,
-            projectContextId,
-            name: 'Extraction Schema',
-          })
-        }
-
-        const created = await orm.public.SchemaRevision.create({
-          extractionSchemaId,
-          revisionNumber: 1,
-          origin: 'SUGGESTION',
-          schemaTree,
-        })
-        return {
-          status: 'created' as const,
-          revision: schemaRevision(created as StoredSchemaRevision),
-        }
-      })
-    },
-    async listExtractionSchemas(projectContextId, limit) {
-      return database.transaction(async ({ orm }) => {
-        const project = await orm.public.ProjectContext.select('id').first({
-          id: projectContextId,
-        })
-        if (!project) return null
-        const schemas = await orm.public.ExtractionSchema.where({
-          projectContextId,
-        })
-          .select('id', 'name', 'createdAt')
-          .orderBy([
-            (schema) => schema.createdAt.desc(),
-            (schema) => schema.id.desc(),
-          ])
-          .take(limit)
-          .all()
-        // ponytail: bounded to 50 schemas; use a window query if this becomes hot.
-        const summaries: ExtractionSchemaSummary[] = []
-        for (const schema of schemas) {
-          const revision = await orm.public.SchemaRevision.where({
-            extractionSchemaId: schema.id,
-          })
-            .select('id', 'revisionNumber', 'origin', 'createdAt')
-            .orderBy((row) => row.revisionNumber.desc())
-            .first()
-          summaries.push({
-            extractionSchemaId: schema.id,
-            name: schema.name,
-            createdAt: schema.createdAt,
-            currentRevision: revision
-              ? {
-                  schemaRevisionId: revision.id,
-                  revisionNumber: revision.revisionNumber,
-                  origin:
-                    revisionOrigins[
-                      revision.origin as StoredSchemaRevision['origin']
-                    ],
-                  createdAt: revision.createdAt,
-                }
-              : null,
-          })
-        }
-        return summaries
-      })
-    },
-    async renameExtractionSchema(projectContextId, extractionSchemaId, name) {
-      const row = await database.orm.public.ExtractionSchema.where({
-        id: extractionSchemaId,
-        projectContextId,
-      }).update({ name: extractionSchemaName(name) })
-      return row
-        ? {
-            extractionSchemaId: row.id,
-            name: row.name,
-            createdAt: row.createdAt,
-          }
-        : null
-    },
-    async appendSchemaRevision(
-      projectContextId,
-      extractionSchemaId,
-      expectedRevisionNumber,
-      schemaTree,
-    ) {
-      const currentHead = async (): Promise<SchemaRevisionRecord | null> => {
-        const row = await database.orm.public.SchemaRevision.where({
-          extractionSchemaId,
-        })
-          .select(...revisionFields)
-          .orderBy((revision) => revision.revisionNumber.desc())
-          .first()
-        return row ? schemaRevision(row as StoredSchemaRevision) : null
-      }
-      const owner = await database.orm.public.ExtractionSchema.select(
-        'id',
-      ).first({
-        id: extractionSchemaId,
-        projectContextId,
-      })
-      if (!owner) return null
-
-      try {
-        return await database.transaction(async ({ orm }) => {
-          const row = await orm.public.SchemaRevision.where({
-            extractionSchemaId,
-          })
-            .select(...revisionFields)
-            .orderBy((revision) => revision.revisionNumber.desc())
-            .first()
-          const head = row ? schemaRevision(row as StoredSchemaRevision) : null
-          if ((head?.revisionNumber ?? 0) !== expectedRevisionNumber) {
-            return head
-              ? { status: 'conflict' as const, currentRevision: head }
-              : null
-          }
-          const created = await orm.public.SchemaRevision.create({
-            extractionSchemaId,
-            revisionNumber: expectedRevisionNumber + 1,
-            origin: 'RESEARCHER_EDIT',
-            schemaTree,
-          })
-          return {
-            status: 'created' as const,
-            revision: schemaRevision(created as StoredSchemaRevision),
-          }
-        })
-      } catch (error) {
-        if (!uniqueConstraint(error)) throw error
-        const head = await currentHead()
-        if (!head) throw error
-        return { status: 'conflict', currentRevision: head }
-      }
-    },
-    async listSchemaRevisions(projectContextId, extractionSchemaId, limit) {
-      const owner = await database.orm.public.ExtractionSchema.select(
-        'id',
-      ).first({
-        id: extractionSchemaId,
-        projectContextId,
-      })
-      if (!owner) return null
-      const rows = await database.orm.public.SchemaRevision.where({
-        extractionSchemaId,
-      })
-        .select(...revisionFields)
-        .orderBy((revision) => revision.revisionNumber.desc())
-        .take(limit)
-        .all()
-      return rows.map((row) => schemaRevision(row as StoredSchemaRevision))
-    },
-    async getSchemaRevision(
-      projectContextId,
-      extractionSchemaId,
-      schemaRevisionId,
-    ) {
-      const owner = await database.orm.public.ExtractionSchema.select(
-        'id',
-      ).first({
-        id: extractionSchemaId,
-        projectContextId,
-      })
-      if (!owner) return null
-      const row = await database.orm.public.SchemaRevision.select(
-        ...revisionFields,
-      ).first({ id: schemaRevisionId, extractionSchemaId })
-      return row ? schemaRevision(row as StoredSchemaRevision) : null
     },
   }
 }

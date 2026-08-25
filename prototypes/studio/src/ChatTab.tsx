@@ -1,16 +1,23 @@
+import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import { DefaultChatTransport, readUIMessageStream } from 'ai'
 import type { UIMessage } from 'ai'
 import { useRef, useState } from 'react'
 import { API_BASE } from './api'
 
 type ChatTabProps = {
-  documentMarkdown: string | null
+  projectContextId: string
+  sourceRepresentationRevisionId: string
 }
 
 const transport = new DefaultChatTransport<UIMessage>({
   api: `${API_BASE}/chat`,
+  fetch: authenticatedFetch,
   prepareSendMessagesRequest: ({ messages, body }) => ({
-    body: { messages, documentMarkdown: body?.documentMarkdown },
+    body: {
+      messages,
+      projectContextId: body?.projectContextId,
+      sourceRepresentationRevisionId: body?.sourceRepresentationRevisionId,
+    },
   }),
 })
 
@@ -26,7 +33,10 @@ function nextId(): string {
 }
 
 
-function ChatTab({ documentMarkdown }: ChatTabProps) {
+function ChatTab({
+  projectContextId,
+  sourceRepresentationRevisionId,
+}: ChatTabProps) {
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<'ready' | 'running' | 'error'>('ready')
@@ -34,9 +44,7 @@ function ChatTab({ documentMarkdown }: ChatTabProps) {
 
   async function send() {
     const text = draft.trim()
-    if (!text || status === 'running' || documentMarkdown === null) {
-      return
-    }
+    if (!text || status === 'running') return
 
     abortRef.current?.abort()
     const abortController = new AbortController()
@@ -61,7 +69,7 @@ function ChatTab({ documentMarkdown }: ChatTabProps) {
         trigger: 'submit-message',
         messageId: undefined,
         abortSignal: abortController.signal,
-        body: { documentMarkdown },
+        body: { projectContextId, sourceRepresentationRevisionId },
       })
 
       for await (const assistantMessage of readUIMessageStream({ stream, terminateOnError: true })) {
@@ -92,9 +100,8 @@ function ChatTab({ documentMarkdown }: ChatTabProps) {
           <div className="mt-1.5 rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
             <p className="text-[13.5px] font-semibold text-ink">Ask about this source document</p>
             <p className="mt-1 text-[13px] leading-relaxed text-ink-muted">
-              {documentMarkdown !== null
-                ? 'Canonical Source Document Markdown is included with each question.'
-                : 'No Source Document Markdown is available yet.'}
+              Canonical Source Document Markdown is loaded by the server for
+              each question.
             </p>
           </div>
         )}
@@ -116,7 +123,7 @@ function ChatTab({ documentMarkdown }: ChatTabProps) {
           className="min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3 py-2 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-faint focus-visible:border-accent"
           value={draft}
           placeholder="Ask about this source document..."
-          disabled={status === 'running' || documentMarkdown === null}
+          disabled={status === 'running'}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
@@ -128,7 +135,7 @@ function ChatTab({ documentMarkdown }: ChatTabProps) {
           className="shrink-0 cursor-pointer rounded-lg border border-accent bg-accent px-3.5 py-2 text-[13px] font-bold text-white outline-none transition-[filter] hover:brightness-108 focus-visible:ring-2 focus-visible:ring-accent/40 disabled:cursor-default disabled:opacity-60"
           type="button"
           title="Send"
-          disabled={status === 'running' || documentMarkdown === null}
+          disabled={status === 'running'}
           onClick={() => void send()}
         >
           ↑

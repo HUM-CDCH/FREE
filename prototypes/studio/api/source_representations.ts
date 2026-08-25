@@ -5,10 +5,7 @@ import {
   noStoreError,
   persistenceUnavailable,
 } from './_http.js'
-import {
-  createProjectStore,
-  type ProjectStore,
-} from '../../../packages/db/src/project-store.js'
+import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 import {
   canonicalPackageStore,
   type CanonicalArtifact,
@@ -21,10 +18,10 @@ import {
 import { decodeParsedDocument } from 'extraction/parsed-document'
 
 const ROUTE =
-  /^\/api\/source-representations\/([^/]+)\/(pdf|markdown|source)$/
+  /^\/api\/project-contexts\/([^/]+)\/source-representations\/([^/]+)\/(pdf|markdown|source)$/
 
-/** Representation-pinned artifacts are immutable, and private to this researcher. */
-const IMMUTABLE = { 'Cache-Control': 'private, max-age=31536000, immutable' }
+/** Account-private artifacts must never survive a logout in the browser cache. */
+const PRIVATE_RESPONSE = { 'Cache-Control': 'no-store' }
 type ArtifactReader = (
   descriptor: CanonicalPackageDescriptor,
   artifact: CanonicalArtifact,
@@ -73,7 +70,7 @@ function pdfRange(
 }
 
 export function createSourceRepresentationResource(
-  store: Pick<ProjectStore, 'getSourceRepresentation'> = createProjectStore(),
+  store: Pick<ResearcherProjectStore, 'getSourceRepresentation'>,
   readArtifact: ArtifactReader = canonicalPackageStore.read,
 ) {
   async function retained(
@@ -91,16 +88,19 @@ export function createSourceRepresentationResource(
     try {
       const match = ROUTE.exec(new URL(request.url).pathname)
       if (!match) throw new ApiError(404, 'not_found', 'API route not found.')
-      const [, sourceRepresentationId, artifact] = match
-      if (!canonicalUuidSchema.safeParse(sourceRepresentationId).success)
+      const [, projectContextId, sourceRepresentationId, artifact] = match
+      if (
+        !canonicalUuidSchema.safeParse(projectContextId).success ||
+        !canonicalUuidSchema.safeParse(sourceRepresentationId).success
+      )
         throw new ApiError(
           422,
           'invalid_request',
-          'sourceRepresentationId must be a canonical lowercase UUID.',
+          'Project Context and Source Representation identities must be canonical lowercase UUIDs.',
         )
 
       const descriptor = await store
-        .getSourceRepresentation(sourceRepresentationId)
+        .getSourceRepresentation(projectContextId, sourceRepresentationId)
         .catch((cause) => {
           throw persistenceUnavailable(cause)
         })
@@ -124,13 +124,13 @@ export function createSourceRepresentationResource(
         return new Response(null, {
           status: 416,
           headers: {
-            ...IMMUTABLE,
+            ...PRIVATE_RESPONSE,
             'Accept-Ranges': 'bytes',
             'Content-Range': `bytes */${retainedArtifact.bytes.byteLength}`,
           },
         })
 
-      const headers = new Headers(IMMUTABLE)
+      const headers = new Headers(PRIVATE_RESPONSE)
       headers.set('Content-Type', retainedArtifact.mediaType)
       if (kind === 'pdf') headers.set('Accept-Ranges', 'bytes')
       const selectedSize = range
@@ -162,5 +162,11 @@ export function createSourceRepresentationResource(
   }
 }
 
-export const GET = createSourceRepresentationResource()
-export const HEAD = GET
+export function createResearcherApiHandlers(
+  store: ResearcherProjectStore,
+): Readonly<
+  Record<string, (request: Request) => Response | Promise<Response>>
+> {
+  const GET = createSourceRepresentationResource(store)
+  return { GET, HEAD: GET }
+}

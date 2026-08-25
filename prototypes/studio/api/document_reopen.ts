@@ -1,8 +1,7 @@
 import type { ExtractionModule, ExtractionSnapshot } from 'extraction'
-import {
-  createProjectStore,
-  type DocumentReopenSnapshot,
-  type ProjectStore,
+import type {
+  DocumentReopenSnapshot,
+  ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import {
   annotationSchema,
@@ -11,7 +10,10 @@ import {
 } from '../shared/projectContext.contract.js'
 import { schemaDefinitionSchema } from 'extraction/schema'
 import { z } from 'zod'
-import { extractions } from './_extraction_runtime.js'
+import {
+  createResearcherExtractions,
+  extractionAttemptDto,
+} from './_extraction_runtime.js'
 import {
   ApiError,
   json,
@@ -19,7 +21,6 @@ import {
   noStoreError,
   persistenceUnavailable,
 } from './_http.js'
-import { extractionAttemptDto } from './extractions.js'
 
 const ROUTE =
   /^\/api\/project-contexts\/([^/]+)\/source-documents\/([^/]+)\/reopen$/
@@ -40,11 +41,12 @@ function durable<T>(schema: z.ZodType<T>, value: unknown): T {
 }
 
 function representationResources(
+  projectContextId: string,
   sourceRepresentationId: string,
   version: string,
 ) {
   const resource = (artifact: string) =>
-    `/api/source-representations/${sourceRepresentationId}/${artifact}?v=${version}`
+    `/api/project-contexts/${projectContextId}/source-representations/${sourceRepresentationId}/${artifact}?v=${version}`
   return {
     sourcePdfUrl: resource('pdf'),
     markdownUrl: resource('markdown'),
@@ -54,6 +56,7 @@ function representationResources(
 
 function extractionDto(
   extraction: ExtractionSnapshot | null,
+  projectContextId: string,
   resourceVersion: string,
   schema: DocumentReopenSnapshot['extractionSchema'],
 ) {
@@ -73,6 +76,7 @@ function extractionDto(
     sourceRepresentation: {
       revisionNumber: extraction.sourceRepresentationRevisionNumber,
       resources: representationResources(
+        projectContextId,
         extraction.sourceRepresentationRevisionId,
         resourceVersion,
       ),
@@ -120,6 +124,7 @@ async function reopenResponse(
       sourceRepresentationId: representation.sourceRepresentationId,
       revisionNumber: representation.revisionNumber,
       resources: representationResources(
+        snapshot.projectContext.projectContextId,
         representation.sourceRepresentationId,
         resourceVersion,
       ),
@@ -141,11 +146,13 @@ async function reopenResponse(
     },
     latestAttempt: extractionDto(
       documentExtractions.latestAttempt,
+      snapshot.projectContext.projectContextId,
       resourceVersion,
       attemptSchema,
     ),
     latestReviewed: extractionDto(
       documentExtractions.latestReviewed,
+      snapshot.projectContext.projectContextId,
       resourceVersion,
       reviewedSchema,
     ),
@@ -153,8 +160,8 @@ async function reopenResponse(
 }
 
 export function createGetDocumentReopen(
-  store: Pick<ProjectStore, 'getDocumentReopenSnapshot'> = createProjectStore(),
-  module: Pick<ExtractionModule, 'readDocumentExtractions'> = extractions,
+  store: Pick<ResearcherProjectStore, 'getDocumentReopenSnapshot'>,
+  module: Pick<ExtractionModule, 'readDocumentExtractions'>,
 ) {
   return async function getDocumentReopen(request: Request): Promise<Response> {
     try {
@@ -186,7 +193,9 @@ export function createGetDocumentReopen(
             throw persistenceUnavailable(cause)
           })
       const readSnapshot = (
-        pins?: Parameters<ProjectStore['getDocumentReopenSnapshot']>[2],
+        pins?: Parameters<
+          ResearcherProjectStore['getDocumentReopenSnapshot']
+        >[2],
       ) =>
         store
           .getDocumentReopenSnapshot(
@@ -198,6 +207,13 @@ export function createGetDocumentReopen(
             throw persistenceUnavailable(cause)
           })
 
+      const currentSnapshot = await readSnapshot()
+      if (!currentSnapshot)
+        throw new ApiError(
+          404,
+          'not_found',
+          'That Source Document has no durable snapshot in this Project Context.',
+        )
       const selected = extractionId ? await readExtractions() : null
       if (extractionId && !selected?.latestAttempt)
         throw new ApiError(
@@ -206,15 +222,13 @@ export function createGetDocumentReopen(
           'That Source Document has no durable snapshot in this Project Context.',
         )
       const selectedAttempt = selected?.latestAttempt ?? null
-      const snapshot = await readSnapshot(
-        selectedAttempt
-          ? {
-              sourceRepresentationRevisionId:
-                selectedAttempt.sourceRepresentationRevisionId,
-              schemaRevisionId: selectedAttempt.schemaRevisionId,
-            }
-          : undefined,
-      )
+      const snapshot = selectedAttempt
+        ? await readSnapshot({
+            sourceRepresentationRevisionId:
+              selectedAttempt.sourceRepresentationRevisionId,
+            schemaRevisionId: selectedAttempt.schemaRevisionId,
+          })
+        : currentSnapshot
       if (!snapshot)
         throw new ApiError(
           404,
@@ -272,4 +286,15 @@ export function createGetDocumentReopen(
   }
 }
 
-export const GET = createGetDocumentReopen()
+export function createResearcherApiHandlers(
+  store: ResearcherProjectStore,
+): Readonly<
+  Record<string, (request: Request) => Response | Promise<Response>>
+> {
+  return {
+    GET: createGetDocumentReopen(
+      store,
+      createResearcherExtractions(store.researcherAccountId),
+    ),
+  }
+}

@@ -1,8 +1,8 @@
+import type { ResearcherProjectStore } from 'db'
 import {
   ExtractionError,
   type BatchExtractionResults,
   type BatchExtractionSnapshot,
-  type ExtractionModule,
   type ScheduleBatchResult,
 } from 'extraction'
 import {
@@ -22,7 +22,7 @@ import {
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
-import { extractions } from './_extraction_runtime.js'
+import { createResearcherExtractions } from './_extraction_runtime.js'
 
 const COLLECTION_ROUTE = '/api/batch-extractions'
 const ITEM_ROUTE = /^\/api\/batch-extractions\/([0-9a-f-]+)$/
@@ -69,9 +69,14 @@ function unavailableUnlessNotFound(error: unknown, message: string): never {
 }
 
 /** The HTTP boundary schedules durable work; it never waits for model execution. */
-export function createBatchExtractionsApi(
-  extractionModule: ExtractionModule = extractions,
-) {
+export function createResearcherApiHandlers(
+  store: ResearcherProjectStore,
+): Readonly<
+  Record<string, (request: Request) => Response | Promise<Response>>
+> {
+  const extractionModule = createResearcherExtractions(
+    store.researcherAccountId,
+  )
   const open = async (request: Request) => {
     const parsed = batchExtractionRequestSchema.safeParse(
       await parseJsonRequest(request),
@@ -198,9 +203,7 @@ export function createBatchExtractionsApi(
     )
   }
 
-  return async function batchExtractionsApi(
-    request: Request,
-  ): Promise<Response> {
+  const handle = async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url)
       if (request.method === 'POST' && url.pathname === COLLECTION_ROUTE)
@@ -218,8 +221,6 @@ export function createBatchExtractionsApi(
       return noStoreError(error)
     }
   }
-}
 
-const handle = createBatchExtractionsApi()
-export const GET = handle
-export const POST = handle
+  return { GET: handle, POST: handle }
+}

@@ -331,10 +331,153 @@ function normalizeDecisions(decisions: ReviewAuthority['reviewDecisions']) {
 async function reviewDigest(orm: DatabaseOrm, extractionId: string): Promise<string | null> {
   return (await orm.public.ExtractionReview.select('decisionDigest').first({ extractionId }))?.decisionDigest ?? null
 }
+type DatabaseTransaction = Parameters<
+  Parameters<Database['transaction']>[0]
+>[0]
 
-export class PostgresExtractionPersistence implements ExtractionPersistence {
-  private readonly database: Database
-  private readonly packages: CanonicalPackageStore
+async function ownsResearcherExtraction(
+  transaction: DatabaseTransaction,
+  researcherAccountId: string,
+  extractionId: string,
+): Promise<boolean> {
+  const { sql } = transaction
+  const query = sql.public.extraction
+    .innerJoin(sql.public.sourceDocument, (fields, functions) =>
+      functions.eq(
+        fields.extraction.sourceDocumentId,
+        fields.sourceDocument.id,
+      ),
+    )
+    .innerJoin(sql.public.projectContext, (fields, functions) =>
+      functions.eq(
+        fields.sourceDocument.projectContextId,
+        fields.projectContext.id,
+      ),
+    )
+    .select('extractionId', (fields) => fields.extraction.id)
+    .where((fields, functions) =>
+      functions.and(
+        functions.eq(fields.extraction.id, extractionId),
+        functions.eq(
+          fields.projectContext.researcherAccountId,
+          researcherAccountId,
+        ),
+      ),
+    )
+  const row = await transaction.execute(query.build()).first()
+  return row !== null
+}
+
+async function ownsResearcherDocument(
+  transaction: DatabaseTransaction,
+  researcherAccountId: string,
+  sourceDocumentId: string,
+): Promise<boolean> {
+  const { sql } = transaction
+  const query = sql.public.sourceDocument
+    .innerJoin(sql.public.projectContext, (fields, functions) =>
+      functions.eq(
+        fields.sourceDocument.projectContextId,
+        fields.projectContext.id,
+      ),
+    )
+    .select('sourceDocumentId', (fields) => fields.sourceDocument.id)
+    .where((fields, functions) =>
+      functions.and(
+        functions.eq(fields.sourceDocument.id, sourceDocumentId),
+        functions.eq(
+          fields.projectContext.researcherAccountId,
+          researcherAccountId,
+        ),
+      ),
+    )
+  const row = await transaction.execute(query.build()).first()
+  return row !== null
+}
+
+async function ownsResearcherBatch(
+  transaction: DatabaseTransaction,
+  researcherAccountId: string,
+  projectContextId: string,
+  batchExtractionId: string,
+): Promise<boolean> {
+  const { sql } = transaction
+  const query = sql.public.batchExtraction
+    .innerJoin(sql.public.projectContext, (fields, functions) =>
+      functions.eq(
+        fields.batchExtraction.projectContextId,
+        fields.projectContext.id,
+      ),
+    )
+    .select('batchExtractionId', (fields) => fields.batchExtraction.id)
+    .where((fields, functions) =>
+      functions.and(
+        functions.eq(fields.batchExtraction.id, batchExtractionId),
+        functions.eq(
+          fields.batchExtraction.projectContextId,
+          projectContextId,
+        ),
+        functions.eq(
+          fields.projectContext.researcherAccountId,
+          researcherAccountId,
+        ),
+      ),
+    )
+  const row = await transaction.execute(query.build()).first()
+  return row !== null
+}
+
+async function loadResearcherExtraction(
+  transaction: DatabaseTransaction,
+  researcherAccountId: string,
+  extractionId: string,
+): Promise<ExtractionSnapshot | null> {
+  if (
+    !(await ownsResearcherExtraction(
+      transaction,
+      researcherAccountId,
+      extractionId,
+    ))
+  )
+    return null
+  return loadExtraction(transaction.orm, extractionId)
+}
+
+export type InternalBatchExtractionWorkerStore = {
+  claimBatch(
+    owner: string,
+    now: Date,
+    leaseExpiresAt: Date,
+  ): Promise<ClaimedBatchExtraction | null>
+  renewBatchLease(
+    batchExtractionId: string,
+    lease: OperationLease,
+    leaseExpiresAt: Date,
+  ): Promise<boolean>
+  startBatchMember(
+    batchExtractionId: string,
+    sourceDocumentId: string,
+    lease: OperationLease,
+    startedAt: Date,
+  ): Promise<boolean>
+  completeBatchMember(
+    batchExtractionId: string,
+    sourceDocumentId: string,
+    lease: OperationLease,
+    result: Readonly<{ completed: true }> | Readonly<{ failure: unknown }>,
+    finishedAt: Date,
+  ): Promise<boolean>
+  failBatch(
+    batchExtractionId: string,
+    lease: OperationLease,
+    failure: unknown,
+    finishedAt: Date,
+  ): Promise<boolean>
+}
+
+class PostgresExtractionPersistence implements ExtractionPersistence {
+  protected readonly database: Database
+  protected readonly packages: CanonicalPackageStore
   constructor(
     database: Database = db,
     packages: CanonicalPackageStore = canonicalPackageStore,
@@ -387,6 +530,14 @@ export class PostgresExtractionPersistence implements ExtractionPersistence {
   }
 
   readExtraction(extractionId: string) { return loadExtraction(this.database.orm, extractionId) }
+
+  async isExtractionIdAvailable(extractionId: string): Promise<boolean> {
+    return (
+      (await this.database.orm.public.Extraction.select('id').first({
+        id: extractionId,
+      })) === null
+    )
+  }
 
   async readDocumentExtractions(
     input: ReadDocumentExtractionsInput,
@@ -600,7 +751,7 @@ export class PostgresExtractionPersistence implements ExtractionPersistence {
   }
 
   async scheduleSuggestedBatch(input: ScheduleSuggestedBatchInput): Promise<ScheduleBatchResult | null> {
-    return persistSuggestedBatch(this.database, input, {
+    return persistSuggestedBatch(this.database, null, input, {
       loadBatch,
       semanticSuggestionTree,
       snapshot,
@@ -683,7 +834,990 @@ export class PostgresExtractionPersistence implements ExtractionPersistence {
     }))
   }
 }
+class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
+  private readonly researcherAccountId: string
+  private readonly database: Database
+  private readonly packages: CanonicalPackageStore
 
-export function createPostgresExtractionPersistence(database: Database = db, packages: CanonicalPackageStore = canonicalPackageStore) {
-  return new PostgresExtractionPersistence(database, packages)
+  constructor(
+    researcherAccountId: string,
+    database: Database = db,
+    packages: CanonicalPackageStore = canonicalPackageStore,
+  ) {
+    this.researcherAccountId = researcherAccountId
+    this.database = database
+    this.packages = packages
+  }
+
+  private async ownedInputs(
+    transaction: DatabaseTransaction,
+    sourceRepresentationRevisionId: string,
+    schemaRevisionId: string,
+  ) {
+    const { sql } = transaction
+    const query = sql.public.sourceRepresentationRevision
+      .innerJoin(sql.public.sourceDocument, (fields, functions) =>
+        functions.eq(
+          fields.sourceRepresentationRevision.sourceDocumentId,
+          fields.sourceDocument.id,
+        ),
+      )
+      .innerJoin(sql.public.projectContext, (fields, functions) =>
+        functions.eq(
+          fields.sourceDocument.projectContextId,
+          fields.projectContext.id,
+        ),
+      )
+      .innerJoin(sql.public.extractionSchema, (fields, functions) =>
+        functions.eq(
+          fields.sourceDocument.projectContextId,
+          fields.extractionSchema.projectContextId,
+        ),
+      )
+      .innerJoin(sql.public.schemaRevision, (fields, functions) =>
+        functions.eq(
+          fields.extractionSchema.id,
+          fields.schemaRevision.extractionSchemaId,
+        ),
+      )
+      .select((fields) => ({
+        sourceDocumentId: fields.sourceDocument.id,
+        projectContextId: fields.projectContext.id,
+        sourceRepresentationRevisionId:
+          fields.sourceRepresentationRevision.id,
+        artifactReference:
+          fields.sourceRepresentationRevision.artifactReference,
+        artifactSha256: fields.sourceRepresentationRevision.artifactSha256,
+        schemaRevisionId: fields.schemaRevision.id,
+        schemaTree: fields.schemaRevision.schemaTree,
+      }))
+      .where((fields, functions) =>
+        functions.and(
+          functions.eq(
+            fields.sourceRepresentationRevision.id,
+            sourceRepresentationRevisionId,
+          ),
+          functions.eq(fields.schemaRevision.id, schemaRevisionId),
+          functions.eq(
+            fields.projectContext.researcherAccountId,
+            this.researcherAccountId,
+          ),
+        ),
+      )
+    return transaction.execute(query.build()).first()
+  }
+
+  private async ownedRepresentation(
+    transaction: DatabaseTransaction,
+    sourceRepresentationRevisionId: string,
+  ) {
+    const { sql } = transaction
+    const query = sql.public.sourceRepresentationRevision
+      .innerJoin(sql.public.sourceDocument, (fields, functions) =>
+        functions.eq(
+          fields.sourceRepresentationRevision.sourceDocumentId,
+          fields.sourceDocument.id,
+        ),
+      )
+      .innerJoin(sql.public.projectContext, (fields, functions) =>
+        functions.eq(
+          fields.sourceDocument.projectContextId,
+          fields.projectContext.id,
+        ),
+      )
+      .select((fields) => ({
+        artifactReference:
+          fields.sourceRepresentationRevision.artifactReference,
+        artifactSha256: fields.sourceRepresentationRevision.artifactSha256,
+      }))
+      .where((fields, functions) =>
+        functions.and(
+          functions.eq(
+            fields.sourceRepresentationRevision.id,
+            sourceRepresentationRevisionId,
+          ),
+          functions.eq(
+            fields.projectContext.researcherAccountId,
+            this.researcherAccountId,
+          ),
+        ),
+      )
+    return transaction.execute(query.build()).first()
+  }
+
+  async loadExtractionInputs(
+    sourceRepresentationRevisionId: string,
+    schemaRevisionId: string,
+  ): Promise<LoadedExtractionInputs | null> {
+    const loaded = await this.database.transaction((transaction) =>
+      this.ownedInputs(
+        transaction,
+        sourceRepresentationRevisionId,
+        schemaRevisionId,
+      ),
+    )
+    if (!loaded)
+      throw new ExtractionError(
+        'not_found',
+        'The Extraction inputs were not found.',
+      )
+    const artifact = await this.packages.read(
+      {
+        artifactReference: loaded.artifactReference,
+        artifactSha256: loaded.artifactSha256,
+      },
+      'source',
+    )
+    return {
+      sourceDocumentId: loaded.sourceDocumentId,
+      projectContextId: loaded.projectContextId,
+      sourceRepresentationRevisionId: loaded.sourceRepresentationRevisionId,
+      schemaRevisionId: loaded.schemaRevisionId,
+      schemaTree: loaded.schemaTree,
+      parsedDocument: JSON.parse(new TextDecoder().decode(artifact.bytes)),
+    }
+  }
+
+  async readCanonicalParsedDocument(
+    sourceRepresentationRevisionId: string,
+  ): Promise<unknown | null> {
+    const row = await this.database.transaction((transaction) =>
+      this.ownedRepresentation(transaction, sourceRepresentationRevisionId),
+    )
+    if (!row) return null
+    const artifact = await this.packages.read(row, 'source')
+    return JSON.parse(new TextDecoder().decode(artifact.bytes))
+  }
+
+  readExtraction(
+    extractionId: string,
+  ): Promise<ExtractionSnapshot | null> {
+    return this.database.transaction((transaction) =>
+      loadResearcherExtraction(
+        transaction,
+        this.researcherAccountId,
+        extractionId,
+      ),
+    )
+  }
+
+  async isExtractionIdAvailable(extractionId: string): Promise<boolean> {
+    return (
+      (await this.database.orm.public.Extraction.select('id').first({
+        id: extractionId,
+      })) === null
+    )
+  }
+
+  async readDocumentExtractions(
+    input: ReadDocumentExtractionsInput,
+  ): Promise<DocumentExtractionsSnapshot | null> {
+    return this.database.transaction(async (transaction) => {
+      const { orm } = transaction
+      if (
+        !(await ownsResearcherDocument(
+          transaction,
+          this.researcherAccountId,
+          input.sourceDocumentId,
+        ))
+      )
+        return null
+      const selected = input.extractionId
+        ? await orm.public.Extraction.select(
+            'id',
+            'sourceRepresentationRevisionId',
+          ).first({
+            id: input.extractionId,
+            sourceDocumentId: input.sourceDocumentId,
+          })
+        : null
+      if (input.extractionId && !selected) return null
+
+      const representationId =
+        selected?.sourceRepresentationRevisionId ??
+        (
+          await orm.public.SourceRepresentationRevision.where({
+            sourceDocumentId: input.sourceDocumentId,
+          })
+            .select('id')
+            .orderBy([
+              (revision) => revision.revisionNumber.desc(),
+              (revision) => revision.id.desc(),
+            ])
+            .first()
+        )?.id
+      if (!representationId) return null
+
+      const latestAttemptRow =
+        selected ??
+        (await orm.public.Extraction.where({
+          sourceDocumentId: input.sourceDocumentId,
+        })
+          .select('id')
+          .orderBy([
+            (attempt) => attempt.createdAt.desc(),
+            (attempt) => attempt.id.desc(),
+          ])
+          .first())
+      const latestAttempt = latestAttemptRow
+        ? await loadExtraction(orm, latestAttemptRow.id)
+        : null
+      const latestReviewedRow = await orm.public.Extraction.where({
+        sourceDocumentId: input.sourceDocumentId,
+      })
+        .where((attempt) => attempt.reviewedAt.isNotNull())
+        .select('id')
+        .orderBy([
+          (attempt) => attempt.reviewedAt.desc(),
+          (attempt) => attempt.createdAt.desc(),
+          (attempt) => attempt.id.desc(),
+        ])
+        .first()
+      return {
+        sourceRepresentationRevisionId: representationId,
+        latestAttempt,
+        latestReviewed: latestReviewedRow
+          ? await loadExtraction(orm, latestReviewedRow.id)
+          : null,
+      }
+    })
+  }
+
+  async persistExtraction(
+    input: TerminalExtraction,
+  ): Promise<PersistExtractionResult> {
+    if (input.batchExtractionId !== null) return { status: 'invalid' }
+    try {
+      const created = await this.database.transaction(async (transaction) => {
+        const inputs = await this.ownedInputs(
+          transaction,
+          input.sourceRepresentationRevisionId,
+          input.schemaRevisionId,
+        )
+        if (!inputs || inputs.sourceDocumentId !== input.sourceDocumentId)
+          return false
+        await transaction.orm.public.Extraction.create({
+          id: input.extractionId,
+          sourceDocumentId: input.sourceDocumentId,
+          sourceRepresentationRevisionId:
+            input.sourceRepresentationRevisionId,
+          schemaRevisionId: input.schemaRevisionId,
+          strategy: input.strategy,
+          outcome: input.outcome,
+          complete: input.complete,
+          modelAttribution: input.modelAttribution,
+          diagnostics: input.diagnostics,
+          failure: input.failure,
+          resultPayload: input.result,
+          evidenceLinks: input.evidence,
+          reviewable: input.reviewable,
+          retryOfId: input.retryOfId,
+          batchExtractionId: null,
+        })
+        return true
+      })
+      if (!created) return { status: 'invalid' }
+      const extraction = await this.readExtraction(input.extractionId)
+      if (!extraction)
+        throw new Error('Persisted Extraction could not be read.')
+      return { status: 'created', extraction }
+    } catch (error) {
+      if (!uniqueConstraint(error)) throw error
+      const extraction = await this.readExtraction(input.extractionId)
+      if (!extraction) throw error
+      const same =
+        extraction.sourceRepresentationRevisionId ===
+          input.sourceRepresentationRevisionId &&
+        extraction.schemaRevisionId === input.schemaRevisionId &&
+        extraction.strategy === input.strategy &&
+        extraction.batchExtractionId === null &&
+        extraction.retryOfId === input.retryOfId
+      return same
+        ? { status: 'replayed', extraction }
+        : { status: 'conflict', extraction }
+    }
+  }
+
+  async finalizeReview(
+    extractionId: string,
+    authority: ReviewAuthority,
+  ): Promise<PersistedReviewResult> {
+    const submitted = normalizeDecisions(authority.reviewDecisions)
+    const digest = JSON.stringify(submitted)
+    if (
+      submitted.length !== authority.reviewDecisions.length ||
+      new Set(submitted.map((decision) => decision.evidenceAnchorId)).size !==
+        submitted.length
+    )
+      return { status: 'invalid' }
+    let status:
+      | 'not-found'
+      | 'invalid'
+      | 'conflict'
+      | 'replayed'
+      | 'reviewed'
+    try {
+      status = await this.database.transaction(async (transaction) => {
+        const { orm } = transaction
+        const extraction = await loadResearcherExtraction(
+          transaction,
+          this.researcherAccountId,
+          extractionId,
+        )
+        if (!extraction) return 'not-found' as const
+        if (
+          extraction.outcome !== 'SUCCEEDED' ||
+          !extraction.reviewable ||
+          !Array.isArray(extraction.evidence)
+        )
+          return 'invalid' as const
+        const anchors = new Set<string>()
+        const paths = new Set<string>()
+        for (const link of extraction.evidence) {
+          if (
+            !link ||
+            typeof link !== 'object' ||
+            typeof link.evidenceAnchorId !== 'string' ||
+            !Array.isArray(link.resultPath) ||
+            !link.resultPath.every(
+              (segment: unknown) =>
+                typeof segment === 'string' ||
+                (typeof segment === 'number' &&
+                  Number.isInteger(segment) &&
+                  segment >= 0),
+            )
+          )
+            return 'invalid' as const
+          anchors.add(link.evidenceAnchorId)
+          paths.add(JSON.stringify(link.resultPath))
+        }
+        if (
+          paths.size !== authority.evidenceResultPathKeys.size ||
+          [...authority.evidenceResultPathKeys].some(
+            (key) => !paths.has(key),
+          ) ||
+          anchors.size !== submitted.length ||
+          submitted.some(
+            (decision) => !anchors.has(decision.evidenceAnchorId),
+          ) ||
+          submitted.some((decision) => {
+            const owned = authority.occurrenceIdsByAnchor.get(
+              decision.evidenceAnchorId,
+            )
+            return (
+              !owned ||
+              decision.reviewedOccurrenceIds.some((id) => !owned.has(id))
+            )
+          })
+        )
+          return 'invalid' as const
+        if (extraction.reviewedAt)
+          return (await reviewDigest(orm, extractionId)) === digest
+            ? ('replayed' as const)
+            : ('conflict' as const)
+        await orm.public.ExtractionReview.create({
+          extractionId,
+          decisionDigest: digest,
+        })
+        for (const decision of submitted)
+          await orm.public.ReviewDecision.create({
+            extractionId,
+            ...decision,
+          })
+        await orm.public.Extraction.where({
+          id: extractionId,
+          sourceDocumentId: extraction.sourceDocumentId,
+        }).update({ reviewedAt: new Date() })
+        return 'reviewed' as const
+      })
+    } catch (error) {
+      if (!uniqueConstraint(error)) throw error
+      status = await this.database.transaction(async (transaction) => {
+        if (
+          !(await ownsResearcherExtraction(
+            transaction,
+            this.researcherAccountId,
+            extractionId,
+          ))
+        )
+          return 'not-found' as const
+        return (await reviewDigest(transaction.orm, extractionId)) === digest
+          ? ('replayed' as const)
+          : ('conflict' as const)
+      })
+    }
+    if (
+      status === 'not-found' ||
+      status === 'invalid' ||
+      status === 'conflict'
+    )
+      return { status }
+    const extraction = await this.readExtraction(extractionId)
+    if (!extraction)
+      throw new Error('Reviewed Extraction could not be read.')
+    return { status, extraction }
+  }
+
+  private readBatchForResearcher(
+    projectContextId: string,
+    batchExtractionId: string,
+  ): Promise<DurableBatchExtraction | null> {
+    return this.database.transaction(async (transaction) => {
+      if (
+        !(await ownsResearcherBatch(
+          transaction,
+          this.researcherAccountId,
+          projectContextId,
+          batchExtractionId,
+        ))
+      )
+        return null
+      return loadBatch(
+        transaction.orm,
+        projectContextId,
+        batchExtractionId,
+      )
+    })
+  }
+
+  async scheduleBatch(
+    input: ScheduleBatchInput,
+  ): Promise<ScheduleBatchResult | null> {
+    const batchExtractionId =
+      input.repetition === 'create-new' ? randomUUID() : selectionId(input)
+    try {
+      const opened = await this.database.transaction(async ({ orm }) => {
+        if (
+          !(await orm.public.ProjectContext.select('id').first({
+            id: input.projectContextId,
+            researcherAccountId: this.researcherAccountId,
+          }))
+        )
+          return 'missing' as const
+        if (input.sourceDocumentIds.length === 0) return 'invalid' as const
+        const schema =
+          await orm.public.SchemaRevision.select(
+            'extractionSchemaId',
+          ).first({ id: input.schemaRevisionId })
+        const owner = schema
+          ? await orm.public.ExtractionSchema.select(
+              'projectContextId',
+            ).first({ id: schema.extractionSchemaId })
+          : null
+        if (
+          !schema ||
+          !owner ||
+          owner.projectContextId !== input.projectContextId
+        )
+          return 'missing' as const
+        const current = await orm.public.SchemaRevision.where({
+          extractionSchemaId: schema.extractionSchemaId,
+        })
+          .select('id')
+          .orderBy((revision) => revision.revisionNumber.desc())
+          .first()
+        if (current?.id !== input.schemaRevisionId)
+          return 'invalid' as const
+        const members: Array<{
+          sourceDocumentId: string
+          sourceRepresentationRevisionId: string
+        }> = []
+        for (const sourceDocumentId of canonicalIds(
+          input.sourceDocumentIds,
+        )) {
+          if (
+            !(await orm.public.SourceDocument.select('id').first({
+              id: sourceDocumentId,
+              projectContextId: input.projectContextId,
+            }))
+          )
+            return 'missing' as const
+          const representation =
+            await orm.public.SourceRepresentationRevision.where({
+              sourceDocumentId,
+            })
+              .select('id')
+              .orderBy((revision) => revision.revisionNumber.desc())
+              .first()
+          if (!representation) return 'invalid' as const
+          members.push({
+            sourceDocumentId,
+            sourceRepresentationRevisionId: representation.id,
+          })
+        }
+        await orm.public.BatchExtraction.create({
+          id: batchExtractionId,
+          projectContextId: input.projectContextId,
+          schemaRevisionId: input.schemaRevisionId,
+          strategy: input.strategy,
+        })
+        for (const member of members)
+          await orm.public.BatchExtractionMember.create({
+            batchExtractionId,
+            ...member,
+          })
+        return 'created' as const
+      })
+      if (opened === 'missing') return null
+      if (opened === 'invalid')
+        throw new ExtractionError(
+          'invalid_extraction_pins',
+          'Use the Current Schema Revision and Source Documents in this Project Context with a Source Representation.',
+        )
+      const batch = await this.readBatchForResearcher(
+        input.projectContextId,
+        batchExtractionId,
+      )
+      if (!batch)
+        throw new Error('Persisted Batch Extraction could not be read.')
+      return { disposition: 'created', batch: snapshot(batch) }
+    } catch (error) {
+      if (!uniqueConstraint(error)) throw error
+      const batch = await this.readBatchForResearcher(
+        input.projectContextId,
+        batchExtractionId,
+      )
+      const selected = canonicalIds(input.sourceDocumentIds)
+      if (
+        !batch ||
+        batch.schemaRevisionId !== input.schemaRevisionId ||
+        batch.strategy !== input.strategy ||
+        batch.members.length !== selected.length ||
+        !batch.members.every(
+          (member, index) => member.sourceDocumentId === selected[index],
+        )
+      )
+        throw new ExtractionError(
+          'batch_conflict',
+          'The Batch Extraction identity belongs to another selection.',
+          { cause: error },
+        )
+      return { disposition: 'replayed', batch: snapshot(batch) }
+    }
+  }
+
+  scheduleSuggestedBatch(
+    input: ScheduleSuggestedBatchInput,
+  ): Promise<ScheduleBatchResult | null> {
+    return persistSuggestedBatch(
+      this.database,
+      this.researcherAccountId,
+      input,
+      {
+        loadBatch,
+        semanticSuggestionTree,
+        snapshot,
+        stableJson,
+        stableUuid,
+        uniqueConstraint,
+      },
+    )
+  }
+
+  async listBatches(
+    projectContextId: string,
+    limit: number,
+  ): Promise<readonly BatchExtractionSnapshot[] | null> {
+    return this.database.transaction(async ({ orm }) => {
+      if (
+        !(await orm.public.ProjectContext.select('id').first({
+          id: projectContextId,
+          researcherAccountId: this.researcherAccountId,
+        }))
+      )
+        return null
+      const rows = await orm.public.BatchExtraction.where({
+        projectContextId,
+      })
+        .select('id')
+        .orderBy([
+          (batch) => batch.createdAt.desc(),
+          (batch) => batch.id.desc(),
+        ])
+        .take(limit)
+        .all()
+      const batches: BatchExtractionSnapshot[] = []
+      for (const row of rows) {
+        const batch = await loadBatch(orm, projectContextId, row.id)
+        if (batch) batches.push(snapshot(batch))
+      }
+      return batches
+    })
+  }
+
+  async readBatch(
+    input: ReadBatchInput,
+  ): Promise<BatchExtractionSnapshot | null> {
+    const batch = await this.readBatchForResearcher(
+      input.projectContextId,
+      input.batchExtractionId,
+    )
+    return batch ? snapshot(batch) : null
+  }
+
+  readBatchResults(
+    input: ReadBatchInput,
+  ): Promise<BatchExtractionResults | null> {
+    return this.database.transaction(async (transaction) => {
+      if (
+        !(await ownsResearcherBatch(
+          transaction,
+          this.researcherAccountId,
+          input.projectContextId,
+          input.batchExtractionId,
+        ))
+      )
+        return null
+      return loadResults(transaction.orm, input)
+    })
+  }
+}
+
+class ClaimedBatchPostgresExtractionPersistence implements ExtractionPersistence {
+  private readonly batchExtractionId: string
+  private readonly lease: OperationLease
+  private readonly database: Database
+  private readonly packages: CanonicalPackageStore
+
+  constructor(
+    batchExtractionId: string,
+    lease: OperationLease,
+    database: Database = db,
+    packages: CanonicalPackageStore = canonicalPackageStore,
+  ) {
+    this.batchExtractionId = batchExtractionId
+    this.lease = lease
+    this.database = database
+    this.packages = packages
+  }
+
+  private async claimedInputs(
+    transaction: DatabaseTransaction,
+    sourceRepresentationRevisionId: string,
+    schemaRevisionId: string,
+  ) {
+    const { sql } = transaction
+    const query = sql.public.batchExtraction
+      .innerJoin(sql.public.batchExtractionMember, (fields, functions) =>
+        functions.eq(
+          fields.batchExtraction.id,
+          fields.batchExtractionMember.batchExtractionId,
+        ),
+      )
+      .innerJoin(
+        sql.public.sourceRepresentationRevision,
+        (fields, functions) =>
+          functions.eq(
+            fields.batchExtractionMember.sourceRepresentationRevisionId,
+            fields.sourceRepresentationRevision.id,
+          ),
+      )
+      .innerJoin(sql.public.sourceDocument, (fields, functions) =>
+        functions.and(
+          functions.eq(
+            fields.batchExtractionMember.sourceDocumentId,
+            fields.sourceDocument.id,
+          ),
+          functions.eq(
+            fields.sourceRepresentationRevision.sourceDocumentId,
+            fields.sourceDocument.id,
+          ),
+        ),
+      )
+      .innerJoin(sql.public.schemaRevision, (fields, functions) =>
+        functions.eq(
+          fields.batchExtraction.schemaRevisionId,
+          fields.schemaRevision.id,
+        ),
+      )
+      .select((fields) => ({
+        sourceDocumentId: fields.sourceDocument.id,
+        projectContextId: fields.batchExtraction.projectContextId,
+        sourceRepresentationRevisionId:
+          fields.sourceRepresentationRevision.id,
+        artifactReference:
+          fields.sourceRepresentationRevision.artifactReference,
+        artifactSha256: fields.sourceRepresentationRevision.artifactSha256,
+        schemaRevisionId: fields.schemaRevision.id,
+        schemaTree: fields.schemaRevision.schemaTree,
+      }))
+      .where((fields, functions) =>
+        functions.and(
+          functions.eq(
+            fields.batchExtraction.id,
+            this.batchExtractionId,
+          ),
+          functions.eq(
+            fields.batchExtraction.leaseOwner,
+            this.lease.owner,
+          ),
+          functions.eq(
+            fields.batchExtraction.leaseVersion,
+            this.lease.version,
+          ),
+          functions.eq(
+            fields.batchExtraction.executionStatus,
+            'RUNNING',
+          ),
+          functions.eq(
+            fields.batchExtractionMember.executionStatus,
+            'RUNNING',
+          ),
+          functions.eq(
+            fields.sourceRepresentationRevision.id,
+            sourceRepresentationRevisionId,
+          ),
+          functions.eq(fields.schemaRevision.id, schemaRevisionId),
+        ),
+      )
+    return transaction.execute(query.build()).first()
+  }
+
+  private async ownsClaimedExtraction(
+    transaction: DatabaseTransaction,
+    extractionId: string,
+  ): Promise<boolean> {
+    const { sql } = transaction
+    const query = sql.public.extraction
+      .innerJoin(sql.public.batchExtraction, (fields, functions) =>
+        functions.eq(
+          fields.extraction.batchExtractionId,
+          fields.batchExtraction.id,
+        ),
+      )
+      .select('extractionId', (fields) => fields.extraction.id)
+      .where((fields, functions) =>
+        functions.and(
+          functions.eq(fields.extraction.id, extractionId),
+          functions.eq(
+            fields.batchExtraction.id,
+            this.batchExtractionId,
+          ),
+          functions.eq(
+            fields.batchExtraction.leaseOwner,
+            this.lease.owner,
+          ),
+          functions.eq(
+            fields.batchExtraction.leaseVersion,
+            this.lease.version,
+          ),
+          functions.eq(
+            fields.batchExtraction.executionStatus,
+            'RUNNING',
+          ),
+        ),
+      )
+    const row = await transaction.execute(query.build()).first()
+    return row !== null
+  }
+
+  async loadExtractionInputs(
+    sourceRepresentationRevisionId: string,
+    schemaRevisionId: string,
+  ): Promise<LoadedExtractionInputs | null> {
+    const loaded = await this.database.transaction((transaction) =>
+      this.claimedInputs(
+        transaction,
+        sourceRepresentationRevisionId,
+        schemaRevisionId,
+      ),
+    )
+    if (!loaded) return null
+    const artifact = await this.packages.read(
+      {
+        artifactReference: loaded.artifactReference,
+        artifactSha256: loaded.artifactSha256,
+      },
+      'source',
+    )
+    return {
+      sourceDocumentId: loaded.sourceDocumentId,
+      projectContextId: loaded.projectContextId,
+      sourceRepresentationRevisionId: loaded.sourceRepresentationRevisionId,
+      schemaRevisionId: loaded.schemaRevisionId,
+      schemaTree: loaded.schemaTree,
+      parsedDocument: JSON.parse(new TextDecoder().decode(artifact.bytes)),
+    }
+  }
+
+  async readCanonicalParsedDocument(
+    sourceRepresentationRevisionId: string,
+  ): Promise<unknown | null> {
+    const row = await this.database.transaction(async (transaction) => {
+      const loaded = await this.claimedInputs(
+        transaction,
+        sourceRepresentationRevisionId,
+        (
+          await transaction.orm.public.BatchExtraction.select(
+            'schemaRevisionId',
+          ).first({
+            id: this.batchExtractionId,
+            leaseOwner: this.lease.owner,
+            leaseVersion: this.lease.version,
+            executionStatus: 'RUNNING',
+          })
+        )?.schemaRevisionId ?? '',
+      )
+      return loaded
+        ? {
+            artifactReference: loaded.artifactReference,
+            artifactSha256: loaded.artifactSha256,
+          }
+        : null
+    })
+    if (!row) return null
+    const artifact = await this.packages.read(row, 'source')
+    return JSON.parse(new TextDecoder().decode(artifact.bytes))
+  }
+
+  readExtraction(
+    extractionId: string,
+  ): Promise<ExtractionSnapshot | null> {
+    return this.database.transaction(async (transaction) => {
+      if (!(await this.ownsClaimedExtraction(transaction, extractionId)))
+        return null
+      return loadExtraction(transaction.orm, extractionId)
+    })
+  }
+
+  async isExtractionIdAvailable(extractionId: string): Promise<boolean> {
+    return (
+      (await this.database.orm.public.Extraction.select('id').first({
+        id: extractionId,
+      })) === null
+    )
+  }
+
+  async persistExtraction(
+    input: TerminalExtraction,
+  ): Promise<PersistExtractionResult> {
+    if (input.batchExtractionId !== this.batchExtractionId)
+      return { status: 'invalid' }
+    try {
+      const created = await this.database.transaction(async (transaction) => {
+        const inputs = await this.claimedInputs(
+          transaction,
+          input.sourceRepresentationRevisionId,
+          input.schemaRevisionId,
+        )
+        if (!inputs || inputs.sourceDocumentId !== input.sourceDocumentId)
+          return false
+        await transaction.orm.public.Extraction.create({
+          id: input.extractionId,
+          sourceDocumentId: input.sourceDocumentId,
+          sourceRepresentationRevisionId:
+            input.sourceRepresentationRevisionId,
+          schemaRevisionId: input.schemaRevisionId,
+          strategy: input.strategy,
+          outcome: input.outcome,
+          complete: input.complete,
+          modelAttribution: input.modelAttribution,
+          diagnostics: input.diagnostics,
+          failure: input.failure,
+          resultPayload: input.result,
+          evidenceLinks: input.evidence,
+          reviewable: input.reviewable,
+          retryOfId: input.retryOfId,
+          batchExtractionId: this.batchExtractionId,
+        })
+        return true
+      })
+      if (!created) return { status: 'invalid' }
+      const extraction = await this.readExtraction(input.extractionId)
+      if (!extraction)
+        throw new Error('Persisted Batch Extraction member could not be read.')
+      return { status: 'created', extraction }
+    } catch (error) {
+      if (!uniqueConstraint(error)) throw error
+      const extraction = await this.readExtraction(input.extractionId)
+      if (!extraction) throw error
+      const same =
+        extraction.sourceRepresentationRevisionId ===
+          input.sourceRepresentationRevisionId &&
+        extraction.schemaRevisionId === input.schemaRevisionId &&
+        extraction.strategy === input.strategy &&
+        extraction.batchExtractionId === this.batchExtractionId &&
+        extraction.retryOfId === input.retryOfId
+      return same
+        ? { status: 'replayed', extraction }
+        : { status: 'conflict', extraction }
+    }
+  }
+
+
+  private unsupported<T>(operation: string): Promise<T> {
+    return Promise.reject(
+      new Error(
+        `Claimed Batch Extraction persistence cannot perform ${operation}.`,
+      ),
+    )
+  }
+
+  finalizeReview(): Promise<PersistedReviewResult> {
+    return this.unsupported('researcher review')
+  }
+
+  readDocumentExtractions(): Promise<DocumentExtractionsSnapshot | null> {
+    return this.unsupported('researcher document reads')
+  }
+
+  scheduleBatch(): Promise<ScheduleBatchResult | null> {
+    return this.unsupported('researcher batch scheduling')
+  }
+
+  scheduleSuggestedBatch(): Promise<ScheduleBatchResult | null> {
+    return this.unsupported('researcher suggested-batch scheduling')
+  }
+
+  listBatches(): Promise<readonly BatchExtractionSnapshot[] | null> {
+    return this.unsupported('researcher batch listing')
+  }
+
+  readBatch(): Promise<BatchExtractionSnapshot | null> {
+    return this.unsupported('researcher batch reads')
+  }
+
+  readBatchResults(): Promise<BatchExtractionResults | null> {
+    return this.unsupported('researcher batch-result reads')
+  }
+}
+
+export function createResearcherExtractionPersistence(
+  researcherAccountId: string,
+  database: Database = db,
+  packages: CanonicalPackageStore = canonicalPackageStore,
+): ExtractionPersistence {
+  return new ResearcherPostgresExtractionPersistence(
+    researcherAccountId,
+    database,
+    packages,
+  )
+}
+
+export function createInternalBatchExtractionWorkerStore(
+  database: Database = db,
+  packages: CanonicalPackageStore = canonicalPackageStore,
+): InternalBatchExtractionWorkerStore {
+  const persistence = new PostgresExtractionPersistence(database, packages)
+  return {
+    claimBatch: persistence.claimBatch.bind(persistence),
+    renewBatchLease: persistence.renewBatchLease.bind(persistence),
+    startBatchMember: persistence.startBatchMember.bind(persistence),
+    completeBatchMember: persistence.completeBatchMember.bind(persistence),
+    failBatch: persistence.failBatch.bind(persistence),
+  }
+}
+
+export function createClaimedBatchExtractionPersistence(
+  batchExtractionId: string,
+  lease: OperationLease,
+  database: Database = db,
+  packages: CanonicalPackageStore = canonicalPackageStore,
+): ExtractionPersistence {
+  return new ClaimedBatchPostgresExtractionPersistence(
+    batchExtractionId,
+    lease,
+    database,
+    packages,
+  )
 }

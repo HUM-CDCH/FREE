@@ -8,6 +8,8 @@ import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-s
 import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import type { ParsedDocument } from 'extraction/parsed-document'
+import { hashPassword } from '../server/password.js'
+import { E2E_ORIGIN, E2E_PASSWORD, loginResearcher } from './auth.js'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -145,6 +147,8 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
 
   try {
   const projectContextId = randomUUID()
+  const researcherAccountId = randomUUID()
+  const researcherEmail = `canonical-evidence-${researcherAccountId}@example.test`
   const sourceDocumentId = randomUUID()
   const extractionSchemaId = randomUUID()
   const firstRepresentationId = randomUUID()
@@ -155,8 +159,17 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   const firstPackage = await canonicalPackage('reviewed.pdf')
   const firstDescriptor = await packageStore.save(firstPackage.bytes)
 
+  await db.orm.public.ResearcherAccount.create({
+    id: researcherAccountId,
+    email: researcherEmail,
+    passwordHash: await hashPassword(E2E_PASSWORD),
+    mustChangePassword: false,
+    disabledAt: null,
+    sessionVersion: 0,
+  })
   await db.orm.public.ProjectContext.create({
     id: projectContextId,
+    researcherAccountId,
     name: 'Article lifecycle E2E',
   })
   await db.orm.public.SourceDocument.create({
@@ -194,9 +207,10 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
     },
   })
 
+  await loginResearcher(page, researcherEmail)
   const url = `/projects/${projectContextId}/documents/${sourceDocumentId}`
   await page.goto(url)
-  await expect(page.getByText(/6 pages · text highlights only/)).toBeVisible({
+  await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
     timeout: 20_000,
   })
   await page.getByRole('button', { name: '▶ Run extraction' }).click()
@@ -205,7 +219,7 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
   await expect(
     page.getByRole('button', { name: 'View Evidence for title' }),
   ).toBeVisible()
-  await page.getByRole('button', { name: 'Accept result' }).click()
+  await page.getByRole('button', { name: 'Save Review' }).click()
   await expect(page.getByRole('button', { name: 'Review saved' })).toBeVisible()
 
   const reviewed = await db.orm.public.Extraction.where({ sourceDocumentId })
@@ -245,6 +259,7 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
 
   const newerExtractionId = randomUUID()
   const created = await page.request.post('/api/extractions', {
+    headers: { Origin: E2E_ORIGIN },
     data: {
       id: newerExtractionId,
       sourceRepresentationRevisionId: secondRepresentationId,
@@ -256,13 +271,14 @@ test('real Article lifecycle persists review and reopens newer unreviewed pins i
 
   const fresh = await browser.newContext()
   const freshPage = await fresh.newPage()
+  await loginResearcher(freshPage, researcherEmail)
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   await expect(
     freshPage.getByRole('button', { name: 'View Evidence for title' }),
   ).toBeVisible()
   await expect(
-    freshPage.getByRole('button', { name: 'Accept result' }),
+    freshPage.getByRole('button', { name: 'Save Review' }),
   ).toBeVisible()
   const reopened = documentReopenResponseSchema.parse(
     await (

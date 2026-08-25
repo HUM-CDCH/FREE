@@ -221,7 +221,7 @@ export interface ExtractionModule {
 }
 
 export interface ExtractionRuntime {
-  readonly extractions: ExtractionModule
+  forResearcher(researcherAccountId: string): ExtractionModule
   run(signal: AbortSignal): Promise<void>
   close(): Promise<void>
 }
