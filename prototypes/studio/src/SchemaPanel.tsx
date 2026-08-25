@@ -9,7 +9,6 @@ import {
 } from 'extraction/allowed-values'
 import {
   duplicateFieldKeys,
-  countSchemaMetadata,
   enumerateFieldPaths,
   type SchemaNode,
   mkId,
@@ -166,7 +165,7 @@ function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?
       Unresolved
     </span>
   )
-  if (!change?.reason && !change?.note) {
+  if (!change?.reason) {
     if (outcome !== 'conflict') return null
     return (
       <span
@@ -177,13 +176,12 @@ function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?
       </span>
     )
   }
-  const text = change.reason ? 'Conflict' : 'Note'
   return (
     <span
-      className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold ${change.reason ? 'bg-danger-soft text-danger' : 'bg-amber-100 text-amber-800'}`}
-      title={change.reason ?? change.note}
+      className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[9px] font-semibold text-danger"
+      title={change.reason}
     >
-      {text}
+      Conflict
     </span>
   )
 }
@@ -212,6 +210,176 @@ type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
 type DocInstruction = { id: string; text: string }
 
+// Rotated by index so consecutive instructions don't echo the same
+// acknowledgment — each phrasing carries the same meaning, worded differently.
+const DOC_INSTRUCTION_ACKS: React.ReactNode[] = [
+  <>Got it — recorded for schema generation.</>,
+  <>Noted. That's added to the instructions guiding schema generation.</>,
+  <>Recorded — this'll factor into the generated schema.</>,
+  <>Good, saved. Keep adding instructions, or generate the schema whenever you're ready.</>,
+]
+
+function docInstructionAck(index: number): React.ReactNode {
+  return DOC_INSTRUCTION_ACKS[index % DOC_INSTRUCTION_ACKS.length]
+}
+
+function CountBadge({ count }: { count: number }) {
+  if (count === 0) return null
+  return (
+    <span className="inline-grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-ink/10 px-1 font-mono text-[9.5px] leading-none tabular-nums text-ink-muted">
+      {count}
+    </span>
+  )
+}
+
+// The post-generation "Instructions" drawer: a compact review/edit list for
+// what "Regenerate" will send, distinct from the doc chat's per-message
+// bubbles — here the researcher is scanning and pruning a list, not chatting.
+function InstructionsDrawer({
+  instructions,
+  onRemove,
+  draft,
+  onDraftChange,
+  onSend,
+}: {
+  instructions: DocInstruction[]
+  onRemove: (id: string) => void
+  draft: string
+  onDraftChange: (value: string) => void
+  onSend: () => void
+}) {
+  return (
+    <div className="flex min-h-0 flex-col border-b border-line bg-canvas">
+      <div className="scrollbar-subtle max-h-40 min-h-0 overflow-y-auto px-3.5 py-2">
+        {instructions.length === 0 ? (
+          <p className="text-[11px] leading-relaxed text-ink-faint">No instructions yet — add one below.</p>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {instructions.map((instruction) => (
+              <li
+                key={instruction.id}
+                className="flex items-start gap-1.5 rounded-md border border-line bg-surface px-2 py-1 text-[11px] leading-snug text-ink"
+              >
+                <span className="min-w-0 flex-1">{instruction.text}</span>
+                <button
+                  type="button"
+                  className="shrink-0 cursor-pointer font-semibold text-ink-faint outline-none hover:text-danger"
+                  title="Remove this instruction"
+                  onClick={() => onRemove(instruction.id)}
+                >
+                  ✗
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2 border-t border-line px-3.5 py-2">
+        <input
+          className="min-w-0 flex-1 bg-transparent font-sans text-xs text-ink outline-none placeholder:text-ink-faint"
+          placeholder='Add a generation instruction (e.g. "Focus on names, dates, and locations")…'
+          value={draft}
+          onChange={e => onDraftChange(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              onSend()
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
+          disabled={!draft.trim()}
+          onClick={onSend}
+        >
+          ↑
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Shared by the pre-generation panel and the post-generation "Instructions"
+// drawer — both let a researcher review, add to, and remove the instructions
+// that "Generate schema"/"Regenerate" will send.
+function DocInstructionsBody({
+  instructions,
+  onRemove,
+  draft,
+  onDraftChange,
+  onSend,
+  listRef,
+  msgCls,
+}: {
+  instructions: DocInstruction[]
+  onRemove: (id: string) => void
+  draft: string
+  onDraftChange: (value: string) => void
+  onSend: () => void
+  listRef: React.RefObject<HTMLDivElement | null>
+  msgCls: (role: 'user' | 'assistant') => string
+}) {
+  return (
+    <>
+      <div ref={listRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
+        <div className="flex flex-col gap-2">
+          {instructions.length === 0 && (
+            <p className="flex items-center gap-1.5 text-[11.5px] leading-relaxed text-ink-faint">
+              Add instructions for schema generation.
+              <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ink-faint">
+                Optional
+              </span>
+            </p>
+          )}
+          {instructions.map((instruction, i) => (
+            <div key={instruction.id} className="flex flex-col gap-1">
+              <div className={msgCls('user')}>{instruction.text}</div>
+              <div className="flex items-center gap-1.5 self-start pl-1 text-[10.5px] text-ink-faint">
+                <span>Message {i + 1} of {instructions.length}</span>
+                <button
+                  type="button"
+                  className="cursor-pointer font-semibold outline-none hover:text-danger"
+                  title="Remove this instruction"
+                  onClick={() => onRemove(instruction.id)}
+                >
+                  ✗
+                </button>
+              </div>
+              <div className={msgCls('assistant')}>{docInstructionAck(i)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="shrink-0 px-3.5 pb-3 pt-1.5">
+        <div className="flex items-end gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">
+          <textarea
+            className="min-w-0 flex-1 resize-none bg-transparent font-sans text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
+            rows={2}
+            placeholder='Add a generation instruction (e.g. "Focus on names, dates, and locations")…'
+            value={draft}
+            onChange={e => onDraftChange(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                onSend()
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
+            disabled={!draft.trim()}
+            onClick={onSend}
+          >
+            ↑
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 type PendingChange = DerivedProposal & { original: SchemaNode[] }
 
 function fieldTypeLabel(node: SchemaNode): string {
@@ -236,7 +404,7 @@ function FieldTypeBadge({ node, onEdit, disabled }: { node: SchemaNode; onEdit?:
   )
 }
 
-function FieldChangeLabel({ node, change }: { node: SchemaNode; change?: Change }) {
+function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; change?: Change; impliedRemoved?: boolean }) {
   if (change?.kind === 'modified' && change.before && change.after) {
     const nameChanged = change.before.name !== change.after.name
     const beforeType = fieldTypeLabel(change.before)
@@ -264,7 +432,7 @@ function FieldChangeLabel({ node, change }: { node: SchemaNode; change?: Change 
 
   const tone = change?.kind === 'added'
     ? 'text-green'
-    : change?.kind === 'removed'
+    : change?.kind === 'removed' || impliedRemoved
       ? 'text-danger line-through'
       : 'text-ink'
   return (
@@ -638,7 +806,7 @@ function SchemaPanel({
   const [editingError, setEditingError] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
   const [chat, setChat] = useState<ChatMsg[]>([
-    { role: 'assistant', text: "Edit through drag and drop, or describe a change. I'll show a diff to review first." },
+    { role: 'assistant', text: "Edit through drag and drop, or describe a change--I'll show you the changes before you apply them." },
   ])
   const [pending, setPending] = useState<PendingChange | null>(null)
   const [acceptedChangeIds, setAcceptedChangeIds] = useState<Set<string>>(new Set())
@@ -656,6 +824,7 @@ function SchemaPanel({
   const [recordDescriptionDraft, setRecordDescriptionDraft] = useState('')
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [instructionsOpen, setInstructionsOpen] = useState(false)
   const [historyRestoring, setHistoryRestoring] = useState(false)
   const [confirmingDeleteSchema, setConfirmingDeleteSchema] = useState(false)
 
@@ -1112,7 +1281,7 @@ function SchemaPanel({
   // for "Generate schema"/"Regenerate") ──
   const docInstruction = docInstructions.map((instruction) => instruction.text).join('\n\n')
   const instructionCountLabel = docInstructions.length > 0
-    ? ` (${docInstructions.length} instruction${docInstructions.length === 1 ? '' : 's'})`
+    ? ` (${docInstructions.length} message${docInstructions.length === 1 ? '' : 's'})`
     : ''
 
   function sendDocChatMessage() {
@@ -1186,21 +1355,6 @@ function SchemaPanel({
 
   const chatBlocked = !!pending || chatLoading
   const replay = pending ? replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds) : null
-  const metadataCounts = pending ? countSchemaMetadata(pending.original) : null
-  const replayOutcomes = replay ? [...replay.outcomes.entries()] : []
-  const proposalCounts = pending ? {
-    accepted: acceptedChangeIds.size,
-    rejected: pending.changes.length - acceptedChangeIds.size,
-    applied: replay!.appliedCount,
-    unresolved: new Set([
-      ...pending.changes.filter(({ outcome }) => outcome === 'unresolved').map(({ id }) => id),
-      ...replayOutcomes.filter(([, outcome]) => outcome === 'unresolved').map(([id]) => id),
-    ]).size,
-    conflicts: new Set([
-      ...pending.changes.filter(({ outcome }) => outcome === 'conflict').map(({ id }) => id),
-      ...replayOutcomes.filter(([, outcome]) => outcome === 'conflict').map(([id]) => id),
-    ]).size,
-  } : null
   const canApply = pending && replay!.hasChanges
 
   const tabCls = (active: boolean) =>
@@ -1318,7 +1472,7 @@ function SchemaPanel({
         {/* Nested children area — shown when there are children or dragging (for drop slot) */}
         {isGroup && ((node.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j))}
+            {(node.children ?? []).map((child, j) => renderChildField(child, node.id, j, diffStatus === 'removed'))}
             <div
               className={slotCls(node.id, (node.children ?? []).length)}
               onMouseEnter={() => setSlotTarget(node.id, (node.children ?? []).length)}
@@ -1329,14 +1483,14 @@ function SchemaPanel({
     )
   }
 
-  function renderChildField(child: SchemaNode, parentId: string, j: number): React.ReactNode {
+  function renderChildField(child: SchemaNode, parentId: string, j: number, ancestorRemoved = false): React.ReactNode {
     const isDragging = dragging?.id === child.id
     const isEditing = editing?.id === child.id
     const isGroup = child.children !== undefined
     const intoGroup = dragMode === 'normal' && overTarget?.type === 'group' && overTarget.id === child.id
     const isExpanded = expandedIds.has(child.id) || intoGroup
     const change = pending?.changes.find((item) => item.id === child.id)
-    const diffStatus = change?.kind ?? null
+    const diffStatus = change?.kind ?? (ancestorRemoved ? 'removed' : null)
     const isDiff = diffStatus !== null
     const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-amber-100' : ''
 
@@ -1377,7 +1531,7 @@ function SchemaPanel({
                 ⠿
               </span>
             )}
-            <FieldChangeLabel node={child} change={change} />
+            <FieldChangeLabel node={child} change={change} impliedRemoved={ancestorRemoved} />
             {!isDiff && (
               <FieldTypeBadge
                 node={child}
@@ -1458,7 +1612,7 @@ function SchemaPanel({
         {/* Children area — shown when expanded and has children or dragging (for drop slot) */}
         {isGroup && isExpanded && ((child.children ?? []).length > 0 || !!dragging) && (
           <div className="ml-3.5 mt-0.5 border-l border-line pl-3">
-            {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k))}
+            {(child.children ?? []).map((grandchild, k) => renderChildField(grandchild, child.id, k, ancestorRemoved || diffStatus === 'removed'))}
             <div
               className={slotCls(child.id, (child.children ?? []).length)}
               onMouseEnter={() => setSlotTarget(child.id, (child.children ?? []).length)}
@@ -1545,8 +1699,7 @@ function SchemaPanel({
           <div className="rounded-xl border border-dashed border-line-strong px-4 py-6 text-center">
             <p className="text-[13px] font-semibold text-ink">No schema yet</p>
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-              FREE produces the extraction schema from the document with the extraction model.
-              {' '}Add instructions in the chat below, or generate now.
+              Chat to add instructions, or generate now.
             </p>
           </div>
         )}
@@ -1717,96 +1870,85 @@ function SchemaPanel({
           switches to the schema edit-chat below — a different mechanism (it
           walks proposed changes node by node) that this doesn't replace. */}
       {!ready && (
-        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
+        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: '60%' }}>
           <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1.5">
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Instructions</span>
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
             {state.status === 'idle' && (
               <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
                 Generate schema{instructionCountLabel}
               </button>
             )}
           </div>
-          <div ref={docChatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
-            <div className="flex flex-col gap-2">
-              {docInstructions.length === 0 && (
-                <p className="flex items-center gap-1.5 text-[11.5px] leading-relaxed text-ink-faint">
-                  Add instructions for schema generation.
-                  <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ink-faint">
-                    Optional
-                  </span>
-                </p>
-              )}
-              {docInstructions.map((instruction, i) => (
-                <div key={instruction.id} className="flex flex-col gap-1">
-                  <div className={msgCls('user')}>{instruction.text}</div>
-                  <div className="flex items-center gap-1.5 self-start pl-1 text-[10.5px] text-ink-faint">
-                    <span>Instruction {i + 1} of {docInstructions.length}</span>
-                    <button
-                      type="button"
-                      className="cursor-pointer font-semibold outline-none hover:text-danger"
-                      title="Remove this instruction"
-                      onClick={() => removeDocInstruction(instruction.id)}
-                    >
-                      ✗
-                    </button>
-                  </div>
-                  {i === docInstructions.length - 1 && (
-                    <div className={msgCls('assistant')}>
-                      Got it — recorded for schema generation. Add more instructions, or click{' '}
-                      <span className="font-semibold text-ink">Generate schema</span> above when you're ready.
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="shrink-0 px-3.5 pb-3 pt-1.5">
-            <div className="flex items-end gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">
-              <textarea
-                className="min-w-0 flex-1 resize-none bg-transparent font-sans text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
-                rows={2}
-                placeholder='Add a generation instruction (e.g. "Focus on names, dates, and locations")…'
-                value={docChatDraft}
-                onChange={e => setDocChatDraft(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    sendDocChatMessage()
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
-                disabled={!docChatDraft.trim()}
-                onClick={sendDocChatMessage}
-              >
-                ↑
-              </button>
-            </div>
-          </div>
+          <DocInstructionsBody
+            instructions={docInstructions}
+            onRemove={removeDocInstruction}
+            draft={docChatDraft}
+            onDraftChange={setDocChatDraft}
+            onSend={sendDocChatMessage}
+            listRef={docChatRef}
+            msgCls={msgCls}
+          />
         </div>
       )}
 
-      {/* Chat panel */}
+      {/* Chat panel. Growing with conversation length is only wanted before a
+          schema exists (see the !ready panel above) — once a schema has been
+          generated, and especially while a diff is pending review, the chat
+          must stay capped low so it doesn't cover the schema/diff above it. */}
       {ready && !readOnly && (
-        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: 224 }}>
-          <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1">
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
-            <div className="relative">
-              <button
-                className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent disabled:cursor-default disabled:opacity-40"
-                type="button"
-                aria-label="Schema history"
-                title="Schema edit history"
-                disabled={history.length === 0 || historyRestoring}
-                onClick={() => setHistoryOpen((open) => !open)}
-              >
-                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v5a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V5z" clipRule="evenodd" />
-                </svg>
-              </button>
-              {historyOpen && (
+        <div className="flex shrink-0 flex-col border-t border-line bg-surface-muted" style={{ maxHeight: pending ? '32%' : '45%' }}>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-3.5 py-1">
+            <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
+            <div className="flex min-w-0 shrink items-center gap-1.5">
+              {showRegenerate && (
+                <div className="relative shrink-0">
+                  <button
+                    className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent"
+                    type="button"
+                    aria-expanded={instructionsOpen}
+                    title="Start over: regenerate the whole schema from the document and instructions"
+                    onClick={() => setInstructionsOpen((open) => !open)}
+                  >
+                    Regenerate
+                    <CountBadge count={docInstructions.length} />
+                    <span aria-hidden="true" className="text-[9px]">{instructionsOpen ? '▾' : '▸'}</span>
+                  </button>
+                  {instructionsOpen && (
+                    <div className="scrollbar-subtle absolute right-0 bottom-full z-30 mb-1.5 w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-float">
+                      <InstructionsDrawer
+                        instructions={docInstructions}
+                        onRemove={removeDocInstruction}
+                        draft={docChatDraft}
+                        onDraftChange={setDocChatDraft}
+                        onSend={sendDocChatMessage}
+                      />
+                      <div className="flex items-center justify-end gap-2 px-2.5 py-2">
+                        <button
+                          className={genBtnCls}
+                          type="button"
+                          onClick={() => { setInstructionsOpen(false); onGenerate(docInstruction) }}
+                        >
+                          Regenerate schema{instructionCountLabel}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="relative">
+                <button
+                  className="cursor-pointer rounded-md border border-line bg-surface p-1 text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent disabled:cursor-default disabled:opacity-40"
+                  type="button"
+                  aria-label="Schema history"
+                  title="Schema edit history"
+                  disabled={history.length === 0 || historyRestoring}
+                  onClick={() => setHistoryOpen((open) => !open)}
+                >
+                  <svg aria-hidden="true" width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v5a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V5z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {historyOpen && (
                 <div className="scrollbar-subtle absolute right-0 bottom-full z-30 mb-1.5 max-h-80 w-72 overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-float">
                   {history.map((revision) => (
                     <button
@@ -1825,7 +1967,8 @@ function SchemaPanel({
                     </button>
                   ))}
                 </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
@@ -1849,13 +1992,6 @@ function SchemaPanel({
           {pending && (
             <div className="shrink-0 border-t border-line px-3.5 py-2.5">
               <div className="mb-2 text-[10px] leading-relaxed text-ink-muted" data-testid="schema-proposal-summary">
-                <p>{proposalCounts!.accepted} accepted · {proposalCounts!.rejected} rejected</p>
-                <p>{proposalCounts!.applied} applied · {proposalCounts!.unresolved} unresolved · {proposalCounts!.conflicts} conflicts</p>
-                {metadataCounts && (metadataCounts.descriptions > 0 || metadataCounts.allowedValues > 0) && (
-                  <p>Metadata not directly editable by chat: {metadataCounts.descriptions} description{metadataCounts.descriptions === 1 ? '' : 's'} · {metadataCounts.allowedValues} allowed-value list{metadataCounts.allowedValues === 1 ? '' : 's'}</p>
-                )}
-                {pending.issues.map((issue, index) => <p key={`${issue.kind}-${issue.key}-${index}`}>{issue.kind}: {issue.key}</p>)}
-                {pending.changes.map((change) => change.note ? <p key={`note-${change.id}`}>{change.note}</p> : null)}
                 {pending.changes.map((change) => change.outcome === 'unresolved' && change.reason
                   ? <p key={`reason-${change.id}`}>{change.reason}</p>
                   : null)}
@@ -1927,13 +2063,6 @@ function SchemaPanel({
           {state.status === 'idle' && 'Generate to produce the schema from the document'}
           {state.status === 'error' && 'Generation failed'}
         </p>
-        {ready && !readOnly && showRegenerate && (
-          <div className="flex shrink-0 items-center gap-2">
-            <button className={genBtnCls} type="button" onClick={() => onGenerate(docInstruction)}>
-              Regenerate{instructionCountLabel}
-            </button>
-          </div>
-        )}
       </footer>
 
       {/* Drag overlay chip */}
