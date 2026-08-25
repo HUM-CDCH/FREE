@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import Button from '../ui/Button.tsx'
 import { browserStudioPath } from '../studioUrl.js'
@@ -224,18 +224,28 @@ export function PasswordChangeForm({
   const [newPassword, setNewPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [pending, setPending] = useState(false)
-  const [failure, setFailure] = useState<string | null>(null)
+  const [failure, setFailure] = useState<{
+    message: string
+    field: 'new-password' | 'confirmation' | 'form'
+  } | null>(null)
+  const newPasswordRef = useRef<HTMLInputElement>(null)
+  const confirmationRef = useRef<HTMLInputElement>(null)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (pending) return
     const scalarLength = Array.from(newPassword).length
     if (scalarLength < 15 || scalarLength > 128) {
-      setFailure(passwordPolicy)
+      setFailure({ message: passwordPolicy, field: 'new-password' })
+      newPasswordRef.current?.focus()
       return
     }
     if (newPassword !== confirmation) {
-      setFailure('The new password confirmation does not match.')
+      setFailure({
+        message: 'The new password confirmation does not match.',
+        field: 'confirmation',
+      })
+      confirmationRef.current?.focus()
       return
     }
 
@@ -251,10 +261,17 @@ export function PasswordChangeForm({
       )
         onLoggedOut()
       else if (error instanceof AuthHttpError && error.status === 400)
-        setFailure(passwordPolicy)
+        setFailure({ message: passwordPolicy, field: 'new-password' })
       else if (error instanceof AuthHttpError && error.status === 401)
-        setFailure('Password change failed. Sign out and sign in again.')
-      else setFailure('Password change is unavailable. Try again.')
+        setFailure({
+          message: 'Password change failed. Sign out and sign in again.',
+          field: 'form',
+        })
+      else
+        setFailure({
+          message: 'Password change is unavailable. Try again.',
+          field: 'form',
+        })
     } finally {
       setPending(false)
     }
@@ -277,11 +294,15 @@ export function PasswordChangeForm({
         <label className={labelClass}>
           New password
           <input
+            ref={newPasswordRef}
             name="newPassword"
             type="password"
             autoComplete="new-password"
             required
-            aria-describedby="password-policy"
+            aria-invalid={failure?.field === 'new-password'}
+            aria-describedby={`password-policy${
+              failure?.field === 'new-password' ? ' password-change-error' : ''
+            }`}
             className={fieldClass}
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
@@ -293,18 +314,29 @@ export function PasswordChangeForm({
         <label className={labelClass}>
           Confirm new password
           <input
+            ref={confirmationRef}
             name="confirmPassword"
             type="password"
             autoComplete="new-password"
             required
+            aria-invalid={failure?.field === 'confirmation'}
+            aria-describedby={
+              failure?.field === 'confirmation'
+                ? 'password-change-error'
+                : undefined
+            }
             className={fieldClass}
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
           />
         </label>
         {failure && (
-          <p role="alert" className="text-sm text-danger">
-            {failure}
+          <p
+            id="password-change-error"
+            role="alert"
+            className="text-sm text-danger"
+          >
+            {failure.message}
           </p>
         )}
         <Button

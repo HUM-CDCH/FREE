@@ -1,6 +1,8 @@
 import type { Database } from 'db'
 import { ExtractionError } from './errors.js'
 import type { DurableBatchExtraction } from './postgres-persistence.js'
+import { parseBatchSuggestionDefinition } from './schema.js'
+import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type {
   ScheduleBatchResult,
   ScheduleSuggestedBatchInput,
@@ -59,17 +61,29 @@ export async function persistSuggestedBatch(
         suggestion.draft === null
       )
         return 'not-ready' as const
+      let draft
+      try {
+        draft = parseBatchSuggestionDefinition(suggestion.draft)
+      } catch {
+        return 'invalid' as const
+      }
       const members = await orm.public.BatchSchemaSuggestionSource.where({
         batchSchemaSuggestionId: input.batchSchemaSuggestionId,
       })
         .select('sourceDocumentId', 'sourceRepresentationRevisionId')
         .orderBy((source) => source.sourceDocumentId.asc())
         .all()
-      if (members.length === 0) return 'invalid' as const
+      if (
+        members.length === 0 ||
+        members.length > BATCH_EXTRACTION_SELECTION_LIMIT ||
+        new Set(members.map((member) => member.sourceDocumentId)).size !==
+          members.length
+      )
+        return 'invalid' as const
       const extractionSchemaId = stableUuid(
         'confirmed-batch-schema-suggestion',
         `${input.batchSchemaSuggestionId}:${stableJson(
-          semanticSuggestionTree(suggestion.draft),
+          semanticSuggestionTree(draft),
         )}`,
       )
       const existing = await orm.public.SchemaRevision.where({
@@ -92,7 +106,7 @@ export async function persistSuggestedBatch(
           extractionSchemaId,
           revisionNumber: 1,
           origin: 'SUGGESTION',
-          schemaTree: suggestion.draft,
+          schemaTree: draft,
         })
       }
       const batchExtractionId = stableUuid(

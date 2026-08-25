@@ -12,7 +12,6 @@ import { createOllama } from 'ai-sdk-ollama'
 import { claudeCode } from 'ai-sdk-provider-claude-code'
 import { createCodexAppServer, type CodexAppServerProvider } from 'ai-sdk-provider-codex-cli'
 import type {
-  ImmediateUpstreamDetail,
   ModelConfig,
   ModelConnection,
   ModelDescriptor,
@@ -54,7 +53,6 @@ type ProviderEntry = ProviderDescriptor & {
 export type ProviderTable = { [K in ProviderKind]: ProviderEntry & { kind: K } }
 
 const MAX_DISCOVERY_BYTES = 1024 * 1024
-const MAX_UPSTREAM_BYTES = 8192
 const MAX_MODELS = 10_000
 const MAX_MODEL_TEXT = 512
 const MAX_MESSAGE_TEXT = 512
@@ -180,21 +178,20 @@ function httpDiscovery(
     }
 
     const body = await readBoundedBody(response)
-    const upstream = credential === null ? upstreamDetail(response.status, body.bytes) : undefined
     if (body.exceeded) {
-      return observation('invalid_response', 'The provider response exceeded the 1 MiB limit.', upstream)
+      return observation('invalid_response', 'The provider response exceeded the 1 MiB limit.')
     }
     if (!response.ok) {
       return response.status === 401 || response.status === 403
-        ? observation('authentication_failed', 'The provider rejected authentication.', upstream)
-        : observation('discovery_failed', 'The provider could not list models.', upstream)
+        ? observation('authentication_failed', 'The provider rejected authentication.')
+        : observation('discovery_failed', 'The provider could not list models.')
     }
 
     let value: unknown
     try {
       value = JSON.parse(new TextDecoder().decode(body.bytes))
     } catch {
-      return observation('invalid_response', 'The provider returned invalid JSON.', upstream)
+      return observation('invalid_response', 'The provider returned invalid JSON.')
     }
     try {
       const catalog = boundedCatalog(parse(value))
@@ -204,7 +201,7 @@ function httpDiscovery(
         catalog,
       }
     } catch {
-      return observation('invalid_response', 'The provider returned an invalid model catalog.', upstream)
+      return observation('invalid_response', 'The provider returned an invalid model catalog.')
     }
   }
 }
@@ -243,25 +240,14 @@ async function readBoundedBody(response: Response): Promise<{ bytes: Uint8Array;
   return { bytes, exceeded }
 }
 
-function upstreamDetail(status: number | null, bytes: Uint8Array): ImmediateUpstreamDetail {
-  const truncated = bytes.byteLength > MAX_UPSTREAM_BYTES
-  return {
-    status,
-    body: new TextDecoder().decode(truncated ? bytes.subarray(0, MAX_UPSTREAM_BYTES) : bytes),
-    truncated,
-  }
-}
-
 function observation(
   status: Exclude<ProbeStatus, 'connected' | 'timed_out'>,
   message: string,
-  upstream?: ImmediateUpstreamDetail,
 ): DiscoveryObservation {
   return {
     status,
     message: boundText(message, MAX_MESSAGE_TEXT),
     catalog: [],
-    ...(upstream ? { upstream } : {}),
   }
 }
 

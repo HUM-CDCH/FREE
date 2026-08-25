@@ -27,9 +27,11 @@ import type {
   CancellationResult,
   FinalizeReviewResult,
   ExtractionSnapshot,
+  ExtractionSchemaNode,
   ModelAttribution,
   ModelGenerationMetadata,
-  ReviewDecision,
+  ReviewDecisionInput,
+  ResultPath,
   RunSingleInput,
   RunSingleResult,
 } from './types.js'
@@ -169,14 +171,22 @@ export function createExtractionModule(
     if (!raw) throw new ExtractionError('invalid_source_representation', 'The pinned Source Representation is unavailable.')
     const document = decodeCanonical(raw)
     const occurrenceIdsByAnchor = occurrenceOwnership(document)
-    const decisions = [...new Set(extraction.evidence.map((link) => link.evidenceAnchorId))].flatMap((evidenceAnchorId) => {
-      const occurrences = occurrenceIdsByAnchor.get(evidenceAnchorId)
-      return occurrences ? [{ evidenceAnchorId, reviewedOccurrenceIds: [...occurrences] }] : []
+    const decisions = extraction.evidence.flatMap((link) => {
+      const occurrences = occurrenceIdsByAnchor.get(link.evidenceAnchorId)
+      return occurrences
+        ? [{
+            resultPath: [...link.resultPath],
+            evidenceAnchorId: link.evidenceAnchorId,
+            reviewedOccurrenceIds: [...occurrences],
+            action: 'APPROVED' as const,
+            reviewedValue: null,
+          }]
+        : []
     })
     return { extraction, reviewDecisions: decisions }
   }
 
-  const finalizeReview = async (extractionId: string, decisions: readonly ReviewDecision[]): Promise<FinalizeReviewResult> => {
+  const finalizeReview = async (extractionId: string, decisions: readonly ReviewDecisionInput[]): Promise<FinalizeReviewResult> => {
     const extraction = await dependencies.persistence.readExtraction(extractionId)
     if (!extraction) throw new ExtractionError('not_found', 'That Extraction was not found.')
     if (extraction.outcome !== 'SUCCEEDED' || !extraction.reviewable || !extraction.result || !extraction.evidence)
@@ -216,8 +226,32 @@ export function createExtractionModule(
       [...accountedResultPathKeys].some((key) => !populatedResultPathKeys.has(key))
     )
       throw new ExtractionError('invalid_review', 'The Extraction grounding coverage does not match its stored Extraction Result.')
+    const evidenceByPath = new Map(
+      extraction.evidence.map((link) => [resultPathKey(link.resultPath), link]),
+    )
+    if (
+      decisions.length !== evidenceByPath.size ||
+      decisions.some((decision) => {
+        const link = evidenceByPath.get(resultPathKey(decision.resultPath))
+        return (
+          !link ||
+          link.evidenceAnchorId !== decision.evidenceAnchorId ||
+          !reviewDecisionMatchesSchema(definition.schemaNodes, decision)
+        )
+      })
+    )
+      throw new ExtractionError(
+        'invalid_review',
+        'The Review Decisions do not match the pinned Extraction Result.',
+      )
     const finalized = await dependencies.persistence.finalizeReview(extractionId, {
-      reviewDecisions: decisions.map((decision) => ({ evidenceAnchorId: decision.evidenceAnchorId, reviewedOccurrenceIds: [...decision.reviewedOccurrenceIds] })),
+      reviewDecisions: decisions.map((decision) => ({
+        resultPath: [...decision.resultPath],
+        evidenceAnchorId: decision.evidenceAnchorId,
+        reviewedOccurrenceIds: [...decision.reviewedOccurrenceIds],
+        action: decision.action,
+        reviewedValue: decision.reviewedValue,
+      })),
       occurrenceIdsByAnchor: occurrenceOwnership(document),
       evidenceResultPathKeys,
     })
@@ -402,6 +436,53 @@ function extractionRecords(result: Readonly<Record<string, unknown>>): Record<st
 
 function occurrenceOwnership(document: ParsedDocument): ReadonlyMap<string, ReadonlySet<string>> {
   return new Map(document.evidence_index.anchors.map((anchor) => [anchor.anchor_id, new Set(anchor.producer_observations.map((observation) => observation.occurrence_id))]))
+}
+
+function reviewSchemaNode(
+  nodes: readonly ExtractionSchemaNode[],
+  resultPath: ResultPath,
+): ExtractionSchemaNode | null {
+  const path =
+    resultPath[0] === 'records' && typeof resultPath[1] === 'number'
+      ? resultPath.slice(2)
+      : resultPath
+  let candidates = nodes
+  let current: ExtractionSchemaNode | null = null
+  for (const segment of path) {
+    if (typeof segment === 'number') {
+      if (current?.type !== 'array') return null
+      continue
+    }
+    current = candidates.find((node) => node.name === segment) ?? null
+    if (!current) return null
+    candidates = current.children ?? []
+  }
+  return current
+}
+
+function reviewDecisionMatchesSchema(
+  nodes: readonly ExtractionSchemaNode[],
+  decision: ReviewDecisionInput,
+): boolean {
+  if (
+    !['APPROVED', 'EDITED', 'REJECTED'].includes(decision.action) ||
+    (decision.action === 'EDITED') !== (decision.reviewedValue !== null)
+  )
+    return false
+  if (decision.action !== 'EDITED') return true
+  const node = reviewSchemaNode(nodes, decision.resultPath)
+  if (!node) return false
+  const type =
+    node.type === 'array' && node.itemType ? node.itemType : node.type
+  const value = decision.reviewedValue
+  if (type === 'boolean') return typeof value === 'boolean'
+  if (type === 'integer') return typeof value === 'number' && Number.isInteger(value)
+  if (type === 'number') return typeof value === 'number' && Number.isFinite(value)
+  if (type === 'string' && node.allowedValues)
+    return typeof value === 'string' && node.allowedValues.includes(value)
+  return (
+    type === 'string' || type === 'verbatim-string' || type === 'date'
+  ) && typeof value === 'string'
 }
 
 function sameExtractionIdentity(stored: ExtractionSnapshot, input: InternalRunSingleInput): boolean {

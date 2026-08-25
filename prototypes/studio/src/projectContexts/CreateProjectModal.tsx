@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { projectContextNameSchema } from '../../shared/projectContext.contract'
-import { Button } from '../ui'
+import { Button, ModalDialog } from '../ui'
 import type { WriteResult } from './useProjectContexts'
 
 /**
@@ -14,7 +14,7 @@ export function CreateProjectModal({
   onSubmit: (name: string) => WriteResult
   onClose: () => void
 }) {
-  const dialog = useRef<HTMLDialogElement>(null)
+  const initialFocus = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [failure, setFailure] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -22,24 +22,14 @@ export function CreateProjectModal({
   // trims down to the limit stays submittable however it was typed.
   const named = projectContextNameSchema.safeParse(name)
 
-  // Native modality owns focus: `showModal` moves focus in and contains Tab.
-  useEffect(() => {
-    dialog.current?.showModal()
-  }, [])
-
   return (
-    <dialog
-      ref={dialog}
+    <ModalDialog
       className="m-auto w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
-      aria-labelledby="create-project-context-title"
-      aria-describedby="create-project-context-description"
-      onClose={onClose}
-      // Escape and every other dismissal wait for a write in flight, so a
-      // failure keeps the dialog and its retry.
-      onCancel={(event) => {
-        event.preventDefault()
-        if (!saving) dialog.current?.close()
-      }}
+      labelledBy="create-project-context-title"
+      describedBy="create-project-context-description"
+      initialFocusRef={initialFocus}
+      dismissDisabled={saving}
+      onDismiss={onClose}
     >
       <h2
         id="create-project-context-title"
@@ -65,7 +55,7 @@ export function CreateProjectModal({
           if (rejected) {
             setSaving(false)
             setFailure(rejected.message)
-          } else dialog.current?.close()
+          } else onClose()
         }}
       >
         <label
@@ -76,7 +66,7 @@ export function CreateProjectModal({
         </label>
         <input
           id="new-project-context-name"
-          autoFocus
+          ref={initialFocus}
           className="rounded-sm border border-line bg-canvas px-2 py-1.5 text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent disabled:opacity-60"
           value={name}
           disabled={saving}
@@ -99,7 +89,7 @@ export function CreateProjectModal({
           <Button
             type="button"
             size="md"
-            onClick={() => dialog.current?.close()}
+            onClick={onClose}
             disabled={saving}
           >
             Cancel
@@ -114,6 +104,6 @@ export function CreateProjectModal({
           </Button>
         </div>
       </form>
-    </dialog>
+    </ModalDialog>
   )
 }

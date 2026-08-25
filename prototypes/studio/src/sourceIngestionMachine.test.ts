@@ -125,4 +125,34 @@ describe('sourceIngestionMachine', () => {
     expect(writes).toEqual(['key-a'])
     expect(actor.getSnapshot().context.items).toEqual([])
   })
+
+  it('holds client validation failures as item-scoped non-retryable errors', () => {
+    const ingest = vi.fn()
+    const actor = createActor(sourceIngestionMachine, {
+      input: {
+        ingest,
+        onIngested: vi.fn(),
+        toFailureMessage: String,
+      },
+    }).start()
+    actor.send({
+      type: 'sources.added',
+      items: [
+        {
+          ...item('too-long.pdf', 'key-long'),
+          validationFailure: 'Filename is too long.',
+        },
+      ],
+    })
+
+    expect(actor.getSnapshot().context.items).toMatchObject([
+      {
+        ingestionKey: 'key-long',
+        status: 'failed',
+        failure: 'Filename is too long.',
+      },
+    ])
+    actor.send({ type: 'source.retry', ingestionKey: 'key-long' })
+    expect(ingest).not.toHaveBeenCalled()
+  })
 })

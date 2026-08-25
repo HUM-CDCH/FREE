@@ -104,7 +104,14 @@ function setupController({
       events.push('flush')
       flushCalls += 1
       if (flushImpl) return flushImpl(flushCalls)
-      return acknowledged
+      const latest = edits.at(-1)
+      return latest
+        ? {
+            ...acknowledged,
+            revisionNumber: acknowledged.revisionNumber + edits.length,
+            ...latest,
+          }
+        : acknowledged
     },
     saveState() {
       return null
@@ -199,7 +206,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(setup.edits).toHaveLength(0)
   })
 
-  it('loads, flushes, and appends an exact historical tree in order', async () => {
+  it('previews history read-only and appends only after the explicit create action', async () => {
     const loadRevision = vi.fn(async () => ({
       ...schemaHistory[1],
       recordDescription: 'One historical record.',
@@ -210,19 +217,58 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     const chatHeader = screen.getByText('Chat').parentElement!
     fireEvent.click(within(chatHeader).getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
-    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(await screen.findByText('historical_place')).toBeInTheDocument()
 
-    expect(setup.events).toEqual(['load', 'flush', 'edit', 'flush'])
+    expect(setup.events).toEqual(['load'])
+    expect(setup.edits).toHaveLength(0)
     expect(loadRevision).toHaveBeenCalledWith('51000000-0000-4000-8004-000000000001')
+    expect(screen.queryByRole('button', { name: '+ Add field' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Regenerate' })).not.toBeInTheDocument()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create Current Schema Revision' }),
+    )
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(setup.events).toEqual(['load', 'flush', 'edit', 'flush'])
     expect(setup.edits[0]).toEqual({
       recordDescription: 'One historical record.',
       schemaNodes: historicalNodes,
     })
-    expect(screen.getByText('historical_place')).toBeInTheDocument()
     expect(screen.getByText('historical_year')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Regenerate' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Revision 1/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps the current fields usable while regeneration is pending and after failure', async () => {
+    const setup = renderPanel()
+    let rejectGeneration!: (reason: Error) => void
+    const request = new Promise<unknown>((_resolve, reject) => {
+      rejectGeneration = reject
+    })
+    let generation!: Promise<void>
+
+    act(() => {
+      generation = setup.schema.generate(() => request)
+    })
+
+    expect(screen.getByText('title')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'The current saved schema remains available.',
+    )
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeDisabled()
+
+    await act(async () => {
+      rejectGeneration(new Error('Model unavailable'))
+      await generation
+    })
+
+    expect(screen.getByText('title')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Regeneration failed: Model unavailable The current saved schema is unchanged.',
+    )
+    expect(screen.getByRole('button', { name: 'Regenerate' })).toBeEnabled()
   })
 
   it('resets stale JSON when an external draft replaces the editor payload', async () => {
@@ -292,9 +338,14 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+    await screen.findByText('historical_place')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create Current Schema Revision' }),
+    )
     expect(await screen.findByRole('alert')).toHaveTextContent('Save current failed')
-    expect(failingSetup.events.filter((event) => event === 'flush')).toHaveLength(1)
+    expect(failingSetup.events).toEqual(['load', 'flush'])
     expect(failingSetup.edits).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Close preview' }))
     expect(screen.getByText('title')).toBeInTheDocument()
   })
 
@@ -310,6 +361,10 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+    await screen.findByText('historical_place')
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create Current Schema Revision' }),
+    )
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Append failed')
     expect(setup.edits).toHaveLength(1)
@@ -318,7 +373,9 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       schemaNodes: historicalNodes,
     })
     expect(screen.getByText('historical_place')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '+ Add field' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close preview' }))
+    expect(screen.getByText('title')).toBeInTheDocument()
   })
 
   it('applies an inline edit at arbitrary nesting depth', () => {
@@ -341,6 +398,74 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     expect(setup.edits[0].schemaNodes[0].children![0].children![0].name).toBe('renamed_leaf')
     expect(screen.getByText('renamed_leaf')).toBeInTheDocument()
+  })
+
+  it.each(['Escape', 'Cancel field edit'])(
+    'keeps a new field provisional when dismissed with %s',
+    (dismissal) => {
+      const setup = renderPanel()
+
+      fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+      expect(screen.getByDisplayValue('nyt_felt')).toBeInTheDocument()
+
+      if (dismissal === 'Escape') {
+        fireEvent.keyDown(screen.getByDisplayValue('nyt_felt'), {
+          key: 'Escape',
+        })
+      } else {
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Cancel field edit' }),
+        )
+      }
+
+      expect(screen.queryByDisplayValue('nyt_felt')).not.toBeInTheDocument()
+      expect(screen.queryByText('nyt_felt')).not.toBeInTheDocument()
+      expect(setup.edits).toHaveLength(0)
+      expect(setup.schema.snapshot().draft?.schemaNodes).toEqual(nodes)
+    },
+  )
+
+  it('commits a provisional field only when Save is activated', () => {
+    const setup = renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    fireEvent.change(screen.getByDisplayValue('nyt_felt'), {
+      target: { value: 'published field' },
+    })
+    expect(setup.edits).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(setup.edits).toHaveLength(1)
+    expect(setup.edits[0].schemaNodes.at(-1)?.name).toBe('published_field')
+    expect(screen.getByText('published_field')).toBeInTheDocument()
+  })
+
+  it('commits a provisional field with Enter and cancels existing edits without writing', () => {
+    const setup = renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add field' }))
+    fireEvent.change(screen.getByDisplayValue('nyt_felt'), {
+      target: { value: 'entered field' },
+    })
+    fireEvent.keyDown(screen.getByDisplayValue('entered field'), {
+      key: 'Enter',
+    })
+
+    expect(setup.edits).toHaveLength(1)
+    expect(screen.getByText('entered_field')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Edit title'))
+    fireEvent.change(screen.getByDisplayValue('title'), {
+      target: { value: 'discarded name' },
+    })
+    fireEvent.keyDown(screen.getByDisplayValue('discarded name'), {
+      key: 'Escape',
+    })
+
+    expect(setup.edits).toHaveLength(1)
+    expect(screen.getByText('title')).toBeInTheDocument()
+    expect(screen.queryByText('discarded_name')).not.toBeInTheDocument()
   })
 
   it('shows field types and lets an editor change them', () => {
@@ -878,6 +1003,93 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('heading')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
     expect(setup.edits[0].schemaNodes[0]).toEqual({ ...nodes[0], name: 'heading' })
+  })
+
+  it('discards a chat response when only the record description changed', async () => {
+    let resolveResponse!: (response: SchemaEditResponse) => void
+    requestSchemaEdit.mockReturnValueOnce(new Promise<SchemaEditResponse>((resolve) => {
+      resolveResponse = resolve
+    }))
+    const setup = renderPanel()
+    const chatInput = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(chatInput, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(chatInput, { key: 'Enter' })
+
+    const description = screen.getByPlaceholderText(
+      'Describe the record represented by this schema…',
+    )
+    fireEvent.change(description, { target: { value: 'One revised record.' } })
+    fireEvent.blur(description)
+
+    await act(async () => resolveResponse({
+      status: 'proposed',
+      fields: {
+        title: { name: 'heading', type: 'string', removed: false },
+        gender: { name: 'gender', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    }))
+
+    expect(await screen.findByText('Schema changed while the request was running. Send the request again.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(setup.edits.at(-1)?.recordDescription).toBe('One revised record.')
+    expect(screen.getByText('title')).toBeInTheDocument()
+  })
+
+  it('discards a proposal when the record description changes during review', async () => {
+    const setup = renderPanel()
+    await send({
+      status: 'proposed',
+      fields: {
+        title: { name: 'heading', type: 'string', removed: false },
+        gender: { name: 'gender', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    })
+
+    const description = screen.getByPlaceholderText(
+      'Describe the record represented by this schema…',
+    )
+    fireEvent.change(description, { target: { value: 'One revised record.' } })
+    fireEvent.blur(description)
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+
+    expect(await screen.findByText('Schema changed during review. The proposal was discarded.')).toBeInTheDocument()
+    expect(setup.edits).toHaveLength(1)
+    expect(setup.edits[0].recordDescription).toBe('One revised record.')
+    expect(setup.edits[0].schemaNodes).toEqual(nodes)
+    expect(screen.getByText('title')).toBeInTheDocument()
+  })
+
+  it('names the chat stop control and cancels it from the keyboard', async () => {
+    requestSchemaEdit.mockImplementationOnce((_context, _message, signal) =>
+      new Promise<SchemaEditResponse>((_resolve, reject) => {
+        if (signal.aborted) {
+          reject(new DOMException('Aborted', 'AbortError'))
+          return
+        }
+        signal.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'))
+        })
+      }),
+    )
+    renderPanel()
+    const chatInput = screen.getByPlaceholderText('Describe a change to the schema…')
+    fireEvent.change(chatInput, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(chatInput, { key: 'Enter' })
+
+    const stop = await screen.findByRole('button', {
+      name: 'Stop schema edit request',
+    })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledTimes(1))
+    stop.focus()
+    expect(stop).toHaveFocus()
+    fireEvent.click(stop)
+
+    expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Describe a change to the schema…')).toBeEnabled()
   })
   it.each([
     [{ status: 'refused', message: 'Duplicate field paths: title' } as const, 'Request refused: Duplicate field paths: title'],

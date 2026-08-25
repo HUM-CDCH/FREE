@@ -153,6 +153,19 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await history.click()
   await page.getByRole('button', { name: /^Revision 1:/ }).click()
 
+  await expect(page.getByText('Viewing historical Schema Revision 1. This preview is read-only.')).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Add field' })).toHaveCount(0)
+
+  const previewTimeline = await page.request.get(
+    `/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`,
+  )
+  const previewBody = (await previewTimeline.json()) as {
+    revisions: Array<{ revisionNumber: number }>
+  }
+  expect(previewBody.revisions[0]?.revisionNumber).toBe(2)
+
+  await page.getByRole('button', { name: 'Create Current Schema Revision' }).click()
+
   await expect.poll(async () => {
     const response = await page.request.get(
       `/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`,

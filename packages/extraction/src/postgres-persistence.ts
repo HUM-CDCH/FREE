@@ -8,6 +8,7 @@ import {
 } from 'db'
 import { ExtractionError } from './errors.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
+import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
 import type {
   ExtractionPersistence,
   PersistedReviewResult,
@@ -31,6 +32,23 @@ import type {
 
 export type OperationLease = Readonly<{ owner: string; version: number; expiresAt: Date }>
 type Status = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
+const encodeReviewedValue = (value: unknown) =>
+  value === null ? null : { value }
+
+function decodeReviewedValue(stored: unknown): unknown {
+  if (stored === null) return null
+  const envelope = typeof stored === 'string'
+    ? JSON.parse(stored) as unknown
+    : stored
+  if (
+    typeof envelope !== 'object' ||
+    envelope === null ||
+    Array.isArray(envelope) ||
+    !Object.hasOwn(envelope, 'value')
+  )
+    throw new Error('Stored reviewed value is invalid.')
+  return (envelope as { value: unknown }).value
+}
 type BatchMember = Readonly<{
   sourceDocumentId: string
   sourceRepresentationRevisionId: string
@@ -163,8 +181,16 @@ async function loadExtraction(orm: DatabaseOrm, extractionId: string): Promise<E
   })
   if (!representation || !schema) throw new Error('Stored Extraction pins are unavailable.')
   const decisions = await orm.public.ReviewDecision.where({ extractionId })
-    .select('evidenceAnchorId', 'reviewedOccurrenceIds')
-    .orderBy((decision) => decision.evidenceAnchorId.asc()).all()
+    .select(
+      'resultPath',
+      'resultPathKey',
+      'evidenceAnchorId',
+      'reviewedOccurrenceIds',
+      'action',
+      'reviewedValue',
+      'createdAt',
+    )
+    .orderBy((decision) => decision.resultPathKey.asc()).all()
   return {
     extractionId: row.id,
     sourceDocumentId: row.sourceDocumentId,
@@ -187,8 +213,12 @@ async function loadExtraction(orm: DatabaseOrm, extractionId: string): Promise<E
     createdAt: row.createdAt,
     reviewedAt: row.reviewedAt,
     reviewDecisions: decisions.map((decision) => ({
+      resultPath: decision.resultPath as ExtractionSnapshot['reviewDecisions'][number]['resultPath'],
       evidenceAnchorId: decision.evidenceAnchorId,
       reviewedOccurrenceIds: decision.reviewedOccurrenceIds as string[],
+      action: decision.action as ExtractionSnapshot['reviewDecisions'][number]['action'],
+      reviewedValue: decodeReviewedValue(decision.reviewedValue),
+      createdAt: decision.createdAt,
     })),
   }
 }
@@ -324,9 +354,65 @@ async function loadResults(
 
 function normalizeDecisions(decisions: ReviewAuthority['reviewDecisions']) {
   return decisions.map((decision) => ({
+    resultPath: [...decision.resultPath],
+    resultPathKey: JSON.stringify(decision.resultPath),
     evidenceAnchorId: decision.evidenceAnchorId,
     reviewedOccurrenceIds: [...new Set(decision.reviewedOccurrenceIds)].sort(),
-  })).sort((left, right) => left.evidenceAnchorId.localeCompare(right.evidenceAnchorId))
+    action: decision.action,
+    reviewedValue: decision.reviewedValue,
+  })).sort((left, right) => left.resultPathKey.localeCompare(right.resultPathKey))
+}
+
+function reviewAuthorityMatchesExtraction(
+  extraction: ExtractionSnapshot,
+  submitted: ReturnType<typeof normalizeDecisions>,
+  authority: ReviewAuthority,
+): boolean {
+  if (!Array.isArray(extraction.evidence)) return false
+  const evidenceByPath = new Map<string, string>()
+  for (const link of extraction.evidence) {
+    if (
+      !link ||
+      typeof link !== 'object' ||
+      typeof link.evidenceAnchorId !== 'string' ||
+      !Array.isArray(link.resultPath) ||
+      !link.resultPath.every(
+        (segment: unknown) =>
+          typeof segment === 'string' ||
+          (typeof segment === 'number' &&
+            Number.isInteger(segment) &&
+            segment >= 0),
+      )
+    )
+      return false
+    const key = JSON.stringify(link.resultPath)
+    if (evidenceByPath.has(key)) return false
+    evidenceByPath.set(key, link.evidenceAnchorId)
+  }
+  return (
+    evidenceByPath.size === authority.evidenceResultPathKeys.size &&
+    [...authority.evidenceResultPathKeys].every((key) =>
+      evidenceByPath.has(key),
+    ) &&
+    submitted.length === evidenceByPath.size &&
+    new Set(submitted.map((decision) => decision.resultPathKey)).size ===
+      submitted.length &&
+    submitted.every((decision) => {
+      const owned = authority.occurrenceIdsByAnchor.get(
+        decision.evidenceAnchorId,
+      )
+      return (
+        evidenceByPath.get(decision.resultPathKey) ===
+          decision.evidenceAnchorId &&
+        owned !== undefined &&
+        decision.reviewedOccurrenceIds.length === owned.size &&
+        decision.reviewedOccurrenceIds.every((id) => owned.has(id)) &&
+        ['APPROVED', 'EDITED', 'REJECTED'].includes(decision.action) &&
+        ((decision.action === 'EDITED') ===
+          (decision.reviewedValue !== null))
+      )
+    })
+  )
 }
 async function reviewDigest(orm: DatabaseOrm, extractionId: string): Promise<string | null> {
   return (await orm.public.ExtractionReview.select('decisionDigest').first({ extractionId }))?.decisionDigest ?? null
@@ -661,35 +747,26 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
   async finalizeReview(extractionId: string, authority: ReviewAuthority): Promise<PersistedReviewResult> {
     const submitted = normalizeDecisions(authority.reviewDecisions)
     const digest = JSON.stringify(submitted)
-    if (submitted.length !== authority.reviewDecisions.length ||
-      new Set(submitted.map((decision) => decision.evidenceAnchorId)).size !== submitted.length) return { status: 'invalid' }
+    if (submitted.length !== authority.reviewDecisions.length)
+      return { status: 'invalid' }
     let status: 'not-found' | 'invalid' | 'conflict' | 'replayed' | 'reviewed'
     try {
       status = await this.database.transaction(async ({ orm }) => {
         const extraction = await loadExtraction(orm, extractionId)
         if (!extraction) return 'not-found' as const
         if (extraction.outcome !== 'SUCCEEDED' || !extraction.reviewable || !Array.isArray(extraction.evidence)) return 'invalid' as const
-        const anchors = new Set<string>()
-        const paths = new Set<string>()
-        for (const link of extraction.evidence) {
-          if (!link || typeof link !== 'object' || typeof link.evidenceAnchorId !== 'string' ||
-            !Array.isArray(link.resultPath) || !link.resultPath.every((segment: unknown) =>
-              typeof segment === 'string' ||
-              (typeof segment === 'number' && Number.isInteger(segment) && segment >= 0))) return 'invalid' as const
-          anchors.add(link.evidenceAnchorId)
-          const key = JSON.stringify(link.resultPath)
-          paths.add(key)
-        }
-        if (paths.size !== authority.evidenceResultPathKeys.size ||
-          [...authority.evidenceResultPathKeys].some((key) => !paths.has(key)) ||
-          anchors.size !== submitted.length || submitted.some((decision) => !anchors.has(decision.evidenceAnchorId)) ||
-          submitted.some((decision) => {
-            const owned = authority.occurrenceIdsByAnchor.get(decision.evidenceAnchorId)
-            return !owned || decision.reviewedOccurrenceIds.some((id) => !owned.has(id))
-          })) return 'invalid' as const
+        if (!reviewAuthorityMatchesExtraction(extraction, submitted, authority))
+          return 'invalid' as const
         if (extraction.reviewedAt) return (await reviewDigest(orm, extractionId)) === digest ? 'replayed' as const : 'conflict' as const
         await orm.public.ExtractionReview.create({ extractionId, decisionDigest: digest })
-        for (const decision of submitted) await orm.public.ReviewDecision.create({ extractionId, ...decision })
+        for (const decision of submitted)
+          await orm.public.ReviewDecision.create({
+            extractionId,
+            ...decision,
+            // Prisma Next's JSONB decoder requires an object/array wire value;
+            // an explicit envelope preserves scalar review values losslessly.
+            reviewedValue: encodeReviewedValue(decision.reviewedValue),
+          })
         await orm.public.Extraction.where({ id: extractionId }).update({ reviewedAt: new Date() })
         return 'reviewed' as const
       })
@@ -709,7 +786,12 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
     try {
       const opened = await this.database.transaction(async ({ orm }) => {
         if (!await orm.public.ProjectContext.select('id').first({ id: input.projectContextId })) return 'missing' as const
-        if (input.sourceDocumentIds.length === 0) return 'invalid' as const
+        if (
+          input.sourceDocumentIds.length === 0 ||
+          input.sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT ||
+          new Set(input.sourceDocumentIds).size !== input.sourceDocumentIds.length
+        )
+          return 'invalid' as const
         const schema = await orm.public.SchemaRevision.select('extractionSchemaId').first({ id: input.schemaRevisionId })
         const owner = schema ? await orm.public.ExtractionSchema.select('projectContextId').first({ id: schema.extractionSchemaId }) : null
         if (!schema || !owner || owner.projectContextId !== input.projectContextId) return 'invalid' as const
@@ -1144,11 +1226,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
   ): Promise<PersistedReviewResult> {
     const submitted = normalizeDecisions(authority.reviewDecisions)
     const digest = JSON.stringify(submitted)
-    if (
-      submitted.length !== authority.reviewDecisions.length ||
-      new Set(submitted.map((decision) => decision.evidenceAnchorId)).size !==
-        submitted.length
-    )
+    if (submitted.length !== authority.reviewDecisions.length)
       return { status: 'invalid' }
     let status:
       | 'not-found'
@@ -1171,45 +1249,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           !Array.isArray(extraction.evidence)
         )
           return 'invalid' as const
-        const anchors = new Set<string>()
-        const paths = new Set<string>()
-        for (const link of extraction.evidence) {
-          if (
-            !link ||
-            typeof link !== 'object' ||
-            typeof link.evidenceAnchorId !== 'string' ||
-            !Array.isArray(link.resultPath) ||
-            !link.resultPath.every(
-              (segment: unknown) =>
-                typeof segment === 'string' ||
-                (typeof segment === 'number' &&
-                  Number.isInteger(segment) &&
-                  segment >= 0),
-            )
-          )
-            return 'invalid' as const
-          anchors.add(link.evidenceAnchorId)
-          paths.add(JSON.stringify(link.resultPath))
-        }
-        if (
-          paths.size !== authority.evidenceResultPathKeys.size ||
-          [...authority.evidenceResultPathKeys].some(
-            (key) => !paths.has(key),
-          ) ||
-          anchors.size !== submitted.length ||
-          submitted.some(
-            (decision) => !anchors.has(decision.evidenceAnchorId),
-          ) ||
-          submitted.some((decision) => {
-            const owned = authority.occurrenceIdsByAnchor.get(
-              decision.evidenceAnchorId,
-            )
-            return (
-              !owned ||
-              decision.reviewedOccurrenceIds.some((id) => !owned.has(id))
-            )
-          })
-        )
+        if (!reviewAuthorityMatchesExtraction(extraction, submitted, authority))
           return 'invalid' as const
         if (extraction.reviewedAt)
           return (await reviewDigest(orm, extractionId)) === digest
@@ -1223,6 +1263,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           await orm.public.ReviewDecision.create({
             extractionId,
             ...decision,
+            reviewedValue: encodeReviewedValue(decision.reviewedValue),
           })
         await orm.public.Extraction.where({
           id: extractionId,
@@ -1294,7 +1335,12 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           }))
         )
           return 'missing' as const
-        if (input.sourceDocumentIds.length === 0) return 'invalid' as const
+        if (
+          input.sourceDocumentIds.length === 0 ||
+          input.sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT ||
+          new Set(input.sourceDocumentIds).size !== input.sourceDocumentIds.length
+        )
+          return 'invalid' as const
         const schema =
           await orm.public.SchemaRevision.select(
             'extractionSchemaId',

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { ProjectContextRail } from './projectContexts/ProjectContextRail'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
@@ -9,7 +9,7 @@ import type { DocumentSnapshot } from './projectContexts/transport'
 import type { ProjectContextRouteState } from './projectContexts/useProjectContexts'
 import type { projectContextErrorSchema } from '../shared/projectContext.contract'
 import type { z } from 'zod'
-import { Button, EmptyState } from './ui'
+import { Button, EmptyState, ModalDialog } from './ui'
 import { browserStudioPath } from './studioUrl.js'
 
 const collapsedWidth = 46
@@ -132,6 +132,8 @@ export default function AppFrame({
   const [navWidth, setNavWidth] = useState(212)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [providersOpen, setProvidersOpen] = useState(false)
+  const providerTrigger = useRef<HTMLButtonElement>(null)
+  const providerInitialFocus = useRef<HTMLButtonElement>(null)
   const [tabBarSlot, setTabBarSlot] = useState<HTMLDivElement | null>(null)
   const tabs = useOpenDocumentTabs()
   const { projects } = useProjectContexts()
@@ -141,15 +143,6 @@ export default function AppFrame({
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-
-  useEffect(() => {
-    if (!providersOpen) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setProvidersOpen(false)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [providersOpen])
 
   const effectiveNavOpen = navOpen && viewportWidth >= 860
   const effectiveNavWidth = effectiveNavOpen ? navWidth : collapsedWidth
@@ -334,7 +327,10 @@ export default function AppFrame({
             onToggle={() => setNavOpen((open) => !open)}
             onNavigate={onNavigate}
             onOpenSourceDocument={openSourceDocument}
-            onConfigure={() => setProvidersOpen(true)}
+            onConfigure={(opener) => {
+              providerTrigger.current = opener
+              setProvidersOpen(true)
+            }}
           />
         </aside>
       </div>
@@ -437,17 +433,18 @@ export default function AppFrame({
         </section>
       </div>
       {providersOpen && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-ink/55 px-4 py-10 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Provider configuration"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setProvidersOpen(false)
-          }}
+        <ModalDialog
+          className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto border-0 bg-transparent p-0 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
+          ariaLabel="Provider configuration"
+          initialFocusRef={providerInitialFocus}
+          returnFocusRef={providerTrigger}
+          onDismiss={() => setProvidersOpen(false)}
         >
-          <ProviderConfigPage onClose={() => setProvidersOpen(false)} />
-        </div>
+          <ProviderConfigPage
+            initialFocusRef={providerInitialFocus}
+            onClose={() => setProvidersOpen(false)}
+          />
+        </ModalDialog>
       )}
     </main>
   )

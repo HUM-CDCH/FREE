@@ -15,7 +15,6 @@ import { schemaPrompt } from './_schema.js'
 import {
   ApiError,
   asModelOperationError,
-  boundedUpstreamDetail,
 } from './_http.js'
 import { applyAllowedValues } from 'extraction/allowed-values'
 import { parseExtractionResult, parseTemplate } from './_model_output.js'
@@ -363,9 +362,7 @@ async function generateWithNuExtractRawPrompt(
 
   const bodyText = await response.text()
   if (!response.ok) {
-    throw new ApiError(502, 'model_operation_failed', 'Ollama generation failed.', {
-      details: { upstream: boundedUpstreamDetail(response.status, bodyText) },
-    })
+    throw new ApiError(502, 'model_operation_failed', 'Ollama generation failed.')
   }
   let body: unknown
   try {

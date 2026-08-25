@@ -678,7 +678,7 @@ describe('deny-by-default application boundary', () => {
     expect(production.clientHandler).not.toHaveBeenCalled()
 
     const development = await fixture({ viteDevelopmentAssets: true })
-    const anonymousAssets = [
+    const publicDevelopmentPaths = [
       '/src/main.tsx',
       '/src/auth/AuthApplication.tsx',
       '/src/studioUrl.ts',
@@ -690,7 +690,7 @@ describe('deny-by-default application boundary', () => {
       '/@fs/D:/workspace/node_modules/react/index.js',
       '/shared/authSession.contract.ts',
     ]
-    for (const path of anonymousAssets) {
+    for (const path of publicDevelopmentPaths) {
       const response = await development.app.request(
         `${ORIGIN}${path}`,
         undefined,
@@ -714,9 +714,11 @@ describe('deny-by-default application boundary', () => {
       )
       expect(response.status).toBe(302)
     }
-    expect(development.clientHandler).toHaveBeenCalledTimes(
-      anonymousAssets.length,
-    )
+    expect(
+      development.clientHandler.mock.calls.map(
+        ([request]) => new URL(request.url).pathname,
+      ),
+    ).toEqual(publicDevelopmentPaths)
   })
 
   it('creates a distinct scoped store from each reloaded account', async () => {

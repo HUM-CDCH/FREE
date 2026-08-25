@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useExtraction } from './useExtraction'
 import * as api from './api'
@@ -167,28 +167,17 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.attempt?.outcome).toBe('CANCELLED')
   })
 
-  it('finalizes a result without populated values using an empty decision set', async () => {
-    const reviewed = attempt({ reviewedAt: '2026-08-10T00:01:00.000Z' })
-    vi.mocked(api.readExtraction).mockResolvedValue({
-      extraction: attempt(),
-      pendingReviewDecisions: [],
-    })
-    vi.mocked(api.finalizeExtractionReview).mockResolvedValue(reviewed)
+  it('does not offer review when no populated value has Evidence', async () => {
     const { result } = renderHook(() => useExtraction(options(attempt())))
 
-    expect(result.current.review.canAccept).toBe(true)
+    expect(result.current.review.available).toBe(false)
+    expect(result.current.review.canAccept).toBe(false)
     await act(() => result.current.review.accept())
-
-    expect(api.finalizeExtractionReview).toHaveBeenCalledWith(
-      attempt().extractionId,
-      [],
-    )
-    expect(result.current.review.reviewedExtractionId).toBe(
-      reviewed.extractionId,
-    )
+    expect(api.readExtraction).not.toHaveBeenCalled()
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
   })
 
-  it('offers review for a succeeded attempt with missing Evidence', () => {
+  it('keeps an ungrounded-only attempt visible but not reviewable', () => {
     const { result } = renderHook(() =>
       useExtraction(options(attempt({
         complete: false,
@@ -203,30 +192,100 @@ describe('useExtraction server-owned lifecycle', () => {
         },
       }))),
     )
-    expect(result.current.review.available).toBe(true)
-    expect(result.current.review.canAccept).toBe(true)
+    expect(result.current.review.available).toBe(false)
+    expect(result.current.review.canAccept).toBe(false)
   })
 
   it('uses server-derived pending decisions when finalizing review', async () => {
     const decisions = [{
+      resultPath: ['records', 0, 'title'],
       evidenceAnchorId: 'anchor-1',
       reviewedOccurrenceIds: ['occurrence-1'],
+      action: 'APPROVED' as const,
+      reviewedValue: null,
     }]
-    const reviewed = attempt({ reviewedAt: '2026-08-10T00:01:00.000Z' })
+    const unreviewed = attempt({
+      resultPayload: { records: [{ title: 'Grounded' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'title'],
+        evidenceAnchorId: 'anchor-1',
+      }],
+    })
+    const reviewed = attempt({
+      ...unreviewed,
+      reviewedAt: '2026-08-10T00:01:00.000Z',
+      reviewDecisions: [{
+        ...decisions[0],
+        createdAt: '2026-08-10T00:01:00.000Z',
+      }],
+    })
     vi.mocked(api.readExtraction).mockResolvedValue({
-      extraction: attempt(),
+      extraction: unreviewed,
       pendingReviewDecisions: decisions,
     })
     vi.mocked(api.finalizeExtractionReview).mockResolvedValue(reviewed)
-    const { result } = renderHook(() => useExtraction(options(attempt())))
+    const { result } = renderHook(() => useExtraction(options(unreviewed)))
 
+    await waitFor(() => expect(result.current.review.canAccept).toBe(true))
     await act(() => result.current.review.accept())
 
-    expect(api.readExtraction).toHaveBeenCalledWith(attempt().extractionId)
+    expect(api.readExtraction).toHaveBeenCalledWith(unreviewed.extractionId)
     expect(api.finalizeExtractionReview).toHaveBeenCalledWith(
-      attempt().extractionId,
+      unreviewed.extractionId,
       decisions,
     )
+  })
+
+  it('changes and reverses one value decision before submitting the exact draft', async () => {
+    const unreviewed = attempt({
+      resultPayload: { records: [{ title: 'Grounded' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'title'],
+        evidenceAnchorId: 'anchor-1',
+      }],
+    })
+    const pending = [{
+      resultPath: ['records', 0, 'title'],
+      evidenceAnchorId: 'anchor-1',
+      reviewedOccurrenceIds: ['occurrence-1'],
+      action: 'APPROVED' as const,
+      reviewedValue: null,
+    }]
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: unreviewed,
+      pendingReviewDecisions: pending,
+    })
+    vi.mocked(api.finalizeExtractionReview).mockImplementation(
+      async (_id, submitted) => attempt({
+        ...unreviewed,
+        reviewedAt: '2026-08-10T00:01:00.000Z',
+        reviewDecisions: submitted.map((decision) => ({
+          ...decision,
+          createdAt: '2026-08-10T00:01:00.000Z',
+        })),
+      }),
+    )
+    const { result } = renderHook(() => useExtraction(options(unreviewed)))
+    await waitFor(() => expect(result.current.review.canAccept).toBe(true))
+
+    act(() => result.current.review.setDecision(
+      ['records', 0, 'title'], 'REJECTED', null,
+    ))
+    expect(result.current.review.decisions[0]?.action).toBe('REJECTED')
+    act(() => result.current.review.setDecision(
+      ['records', 0, 'title'], 'APPROVED', null,
+    ))
+    expect(result.current.review.decisions[0]?.action).toBe('APPROVED')
+    act(() => result.current.review.setDecision(
+      ['records', 0, 'title'], 'EDITED', 'Corrected',
+    ))
+    await act(() => result.current.review.accept())
+
+    expect(api.finalizeExtractionReview).toHaveBeenCalledWith(
+      unreviewed.extractionId,
+      [{ ...pending[0], action: 'EDITED', reviewedValue: 'Corrected' }],
+    )
+    expect(result.current.review.reviewedExtractionId).toBe(unreviewed.extractionId)
   })
 
   it('blocks review of a historical attempt and reruns with current pins', async () => {

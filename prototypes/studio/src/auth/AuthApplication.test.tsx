@@ -230,6 +230,38 @@ describe('AuthApplication', () => {
     expect(request).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps mismatched passwords repairable without sending a request', async () => {
+    const request = mockFetch((url) => {
+      if (url === '/api/auth/session') return jsonResponse(anonymousSession)
+      if (url === '/api/auth/login') return jsonResponse(temporarySession)
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    render(<AuthApplication loadNavigation={projectLoader()} />)
+
+    await submitLogin()
+    await screen.findByRole('heading', { name: 'Choose a permanent password' })
+    const password = screen.getByLabelText('New password')
+    const confirmation = screen.getByLabelText('Confirm new password')
+    fireEvent.change(password, {
+      target: { value: 'a permanent password 🔐' },
+    })
+    fireEvent.change(confirmation, {
+      target: { value: 'a different password 🔐' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Change password' }))
+
+    const error = screen.getByRole('alert')
+    expect(error).toHaveTextContent(
+      'The new password confirmation does not match.',
+    )
+    expect(password).toHaveValue('a permanent password 🔐')
+    expect(confirmation).toHaveValue('a different password 🔐')
+    expect(confirmation).toHaveFocus()
+    expect(confirmation).toHaveAttribute('aria-invalid', 'true')
+    expect(confirmation).toHaveAccessibleDescription(error.textContent ?? '')
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
   it('sends a temporary session resolved without a typed password back to login', async () => {
     const request = mockFetch((url) => {
       if (url === '/api/auth/session') return jsonResponse(temporarySession)

@@ -200,12 +200,11 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
 
   it('parses, validates provenance, and persists one sanitized PDF', async () => {
     const { handler, fetcher, store } = dependencies()
-    const longName = `${'A'.repeat(220)}.pdf`
     const response = await handler(
       request(ids.project, [
         [
           'file',
-          new File(['%PDF-1.7\n'], `C:\\unsafe\\${longName}`, {
+          new File(['%PDF-1.7\n'], 'C:\\unsafe\\report draft.pdf', {
             type: 'application/pdf',
           }),
         ],
@@ -224,14 +223,62 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       ids.project,
       expect.objectContaining({
         ingestionKey: ids.ingestion,
-        originalName: expect.stringMatching(/^A+\.pdf$/),
+        originalName: 'report draft.pdf',
         contractVersion: 'parsed_document.v2',
         parserName: 'docling',
         parserVersion: '2.0',
       }),
     )
     const upload = fetcher.mock.calls[0]?.[1]?.body as FormData
-    expect((upload.get('file') as File).name.length).toBeLessThanOrEqual(180)
+    expect((upload.get('file') as File).name).toBe('report draft.pdf')
+  })
+
+  it('accepts exactly 180 Unicode scalars and rejects 181 before parsing or persistence', async () => {
+    const accepted = dependencies()
+    const acceptedName = `${'😀'.repeat(176)}.pdf`
+    expect(Array.from(acceptedName)).toHaveLength(180)
+    expect(
+      (
+        await accepted.handler(
+          request(ids.project, [
+            [
+              'file',
+              new File(['%PDF-1.7\n'], acceptedName, {
+                type: 'application/pdf',
+              }),
+            ],
+            ['ingestionKey', ids.ingestion],
+          ]),
+        )
+      ).status,
+    ).toBe(201)
+    expect(accepted.store.ingestSourceDocument).toHaveBeenCalledOnce()
+
+    const rejected = dependencies()
+    const rejectedName = `${'😀'.repeat(177)}.pdf`
+    expect(Array.from(rejectedName)).toHaveLength(181)
+    const response = await rejected.handler(
+      request(ids.project, [
+        [
+          'file',
+          new File(['%PDF-1.7\n'], rejectedName, {
+            type: 'application/pdf',
+          }),
+        ],
+        ['ingestionKey', ids.ingestion],
+      ]),
+    )
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'invalid_request',
+        message:
+          'The Source Document filename must contain at most 180 Unicode characters.',
+      },
+    })
+    expect(rejected.fetcher).not.toHaveBeenCalled()
+    expect(rejected.packageStore.save).not.toHaveBeenCalled()
+    expect(rejected.store.ingestSourceDocument).not.toHaveBeenCalled()
   })
 
   it('prefers the production runtime Parsing Service address', async () => {
@@ -266,6 +313,42 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       sourceRepresentationId: ids.representation,
       revisionNumber: 1,
     })
+    expect(store.ingestSourceDocument).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns one durable identity for concurrent same-byte requests', async () => {
+    const { handler, fetcher, store } = dependencies()
+    fetcher.mockReset()
+    fetcher.mockImplementation(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/tasks') && init?.method === 'POST')
+        return Response.json({ task_id: crypto.randomUUID() }, { status: 202 })
+      if (url.endsWith('/download'))
+        return new Response(new Uint8Array([1, 2, 3]))
+      return Response.json({ status: 'completed' })
+    })
+
+    const [first, second] = await Promise.all([
+      handler(request()),
+      handler(
+        request(ids.project, [
+          [
+            'file',
+            new File(['%PDF-1.7\n'], 'renamed.pdf', {
+              type: 'application/pdf',
+            }),
+          ],
+          [
+            'ingestionKey',
+            '22222222-2222-4222-8222-222222222223',
+          ],
+        ]),
+      ),
+    ])
+
+    expect([first.status, second.status]).toEqual([201, 201])
+    const bodies = await Promise.all([first.json(), second.json()])
+    expect(bodies[1]).toMatchObject(bodies[0] as Record<string, unknown>)
     expect(store.ingestSourceDocument).toHaveBeenCalledTimes(2)
   })
 
@@ -317,9 +400,24 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
   it('does not publish or persist when parsing fails or times out', async () => {
     const failed = dependencies()
     failed.fetcher.mockReset()
-    parser(failed.fetcher, { status: 'failed', error: 'bad PDF' })
+    parser(failed.fetcher, {
+      status: 'failed',
+      error:
+        'docling-parse PDFium C:\\private\\source.pdf /tasks/task-1 ' +
+        'a'.repeat(64),
+    })
     const failedResponse = await failed.handler(request())
     expect(failedResponse.status).toBe(422)
+    const failedBody = JSON.stringify(await failedResponse.json())
+    expect(failedBody).toContain('The Source Document could not be parsed.')
+    for (const forbidden of [
+      'docling-parse',
+      'PDFium',
+      'C:\\private',
+      '/tasks',
+      'a'.repeat(64),
+    ])
+      expect(failedBody).not.toContain(forbidden)
     expect(failed.packageStore.save).not.toHaveBeenCalled()
     expect(failed.store.ingestSourceDocument).not.toHaveBeenCalled()
 
@@ -368,6 +466,43 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const stalledDownloadResponse = await stalledDownload.handler(request())
     expect(stalledDownloadResponse.status).toBe(504)
     expect(stalledDownload.packageStore.save).not.toHaveBeenCalled()
+  })
+
+  it('maps rejected parser endpoints to stable public copy', async () => {
+    const cases = [
+      {
+        responses: [new Response('secret', { status: 503 })],
+        message: 'Source Document parsing could not be started.',
+      },
+      {
+        responses: [
+          Response.json({ task_id: 'task-1' }, { status: 202 }),
+          new Response('secret', { status: 503 }),
+        ],
+        message: 'Source Document parsing status is unavailable.',
+      },
+      {
+        responses: [
+          Response.json({ task_id: 'task-1' }, { status: 202 }),
+          Response.json({ status: 'completed' }),
+          new Response('secret', { status: 503 }),
+        ],
+        message: 'The parsed Source Document could not be retrieved.',
+      },
+    ]
+
+    for (const { responses, message } of cases) {
+      const current = dependencies()
+      current.fetcher.mockReset()
+      for (const response of responses)
+        current.fetcher.mockResolvedValueOnce(response)
+      const result = await current.handler(request())
+      expect(result.status).toBe(502)
+      const body = JSON.stringify(await result.json())
+      expect(body).toContain(message)
+      expect(body).not.toContain('/tasks')
+      expect(body).not.toContain('secret')
+    }
   })
 
   it('maps invalid package retention and cleans only a first-published package after persistence failure', async () => {

@@ -157,9 +157,10 @@ export function createSchemaSaveCoordinator(
       return promise
     },
     reloadCurrent(): AcknowledgedSchemaRevision {
-      if (state.status !== 'conflict' || !state.currentRevision)
-        return state.acknowledged
-      const acknowledged = state.currentRevision
+      const acknowledged =
+        state.status === 'conflict' && state.currentRevision
+          ? state.currentRevision
+          : state.acknowledged
       publish({
         status: 'saved',
         acknowledged,

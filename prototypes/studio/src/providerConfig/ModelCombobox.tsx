@@ -36,6 +36,9 @@ export function ModelCombobox({ value, onChange, options, probePhase, onOpen, ar
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>): void {
     if (event.key === 'Escape') {
+      if (!open) return
+      event.preventDefault()
+      event.stopPropagation()
       setOpen(false)
       return
     }
@@ -65,6 +68,11 @@ export function ModelCombobox({ value, onChange, options, probePhase, onOpen, ar
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-controls={listId}
+        aria-activedescendant={
+          open && highlighted >= 0
+            ? `${listId}-option-${highlighted}`
+            : undefined
+        }
         aria-autocomplete="list"
         autoComplete="off"
         disabled={disabled}
@@ -91,6 +99,7 @@ export function ModelCombobox({ value, onChange, options, probePhase, onOpen, ar
           )}
           {filtered.map((option, index) => (
             <li
+              id={`${listId}-option-${index}`}
               key={option.id}
               role="option"
               aria-selected={option.id === value}
