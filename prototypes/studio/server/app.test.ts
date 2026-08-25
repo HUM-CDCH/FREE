@@ -681,6 +681,8 @@ describe('deny-by-default application boundary', () => {
     for (const path of [
       '/src/main.tsx',
       '/src/auth/AuthApplication.tsx',
+      '/src/studioUrl.ts',
+      '/shared/studioBasePath.ts',
       '/src/llmInspector/mount.tsx',
       '/src/ui/Button.tsx',
       '/src/studioUrl.ts',
