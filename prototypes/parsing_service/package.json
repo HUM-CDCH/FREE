@@ -4,7 +4,7 @@
   "scripts": {
     "install:python": "uv sync --extra ocr-cpu --reinstall-package nvidia-cusparselt-cu13",
     "install:python:gpu": "uv sync --extra ocr-gpu",
-    "dev": "uv run --no-sync python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8000",
+    "dev": "uv run --no-sync python -X utf8 -m fastapi dev main.py --host 127.0.0.1 --port 8055",
     "dev:gpu": "pnpm install:python:gpu && pnpm dev",
     "test": "uv run --no-sync python -m unittest discover -s tests",
     "test:gpu": "pnpm install:python:gpu && pnpm test"
