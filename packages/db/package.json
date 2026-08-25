@@ -3,7 +3,8 @@
   "type": "module",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "private": true,
+  "exports": "./src/index.ts",
   "scripts": {
     "test": "tsx --test src/*.test.ts",
     "test:postgres": "tsx --test src/project-store.postgres.check.ts",

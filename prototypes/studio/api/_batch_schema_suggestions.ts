@@ -2,7 +2,7 @@ import {
   type SchemaDefinition,
   type SchemaNode,
   templateToSchemaDefinition,
-} from '../shared/schemaNode.js'
+} from 'extraction/schema'
 import { ApiError } from './_http.js'
 
 const reservedEvidenceNames = new Set([

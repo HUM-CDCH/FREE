@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { extractionStrategySchema } from './extraction.contract.js'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 
 /** A durable operation's execution lifecycle, distinct from research review. */
@@ -21,7 +20,7 @@ export const batchExtractionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
     schemaRevisionId: canonicalUuidSchema,
-    strategy: extractionStrategySchema,
+    strategy: z.literal('ARTICLE'),
     force: z.boolean().optional(),
     sourceDocumentIds: z
       .array(canonicalUuidSchema)
@@ -64,7 +63,7 @@ export const batchExtractionSchema = z
     extractionSchemaId: canonicalUuidSchema,
     extractionSchemaName: z.string(),
     schemaRevisionNumber: z.number().int().positive(),
-    strategy: extractionStrategySchema,
+    strategy: z.literal('ARTICLE'),
     executionStatus: projectOperationStatusSchema.optional(),
     executionFailureMessage: z.string().nullable().optional(),
     startedAt: z.iso.datetime().nullable().optional(),
@@ -77,27 +76,15 @@ export const batchExtractionSchema = z
 export type BatchExtraction = z.output<typeof batchExtractionSchema>
 export type BatchExtractionMember = BatchExtraction['members'][number]
 
-export const batchExtractionResponseSchema = z
+export const batchExtractionOpenResponseSchema = z
   .object({
     batchExtraction: batchExtractionSchema,
-    // `created` and `replayed` tell the researcher whether this request opened a
-    // fresh Batch Extraction or reopened the one their selection already has.
-    // The remaining values are response-only and let focused legacy API tests
-    // exercise the extracted execution core.
-    disposition: z
-      .enum(['created', 'replayed', 'running', 'retry', 'complete'])
-      .default('running'),
-    memberFailures: z
-      .array(
-        z
-          .object({
-            sourceDocumentId: canonicalUuidSchema,
-            message: z.string(),
-          })
-          .strict(),
-      )
-      .default([]),
+    disposition: z.enum(['created', 'replayed']),
   })
+  .strict()
+
+export const batchExtractionResponseSchema = z
+  .object({ batchExtraction: batchExtractionSchema })
   .strict()
 
 export const batchExtractionListResponseSchema = z

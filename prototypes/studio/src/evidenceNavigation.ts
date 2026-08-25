@@ -3,7 +3,7 @@ import type {
   ParsedDocument,
   ProducerObservation,
   TextProducerObservation,
-} from '../shared/parsedDocument'
+} from 'extraction/parsed-document'
 
 export type EvidenceOccurrence = TextProducerObservation | ProducerObservation
 

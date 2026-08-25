@@ -21,7 +21,7 @@ import {
   projectContextNameLimit,
   projectContextWriteRequestSchema,
 } from '../shared/projectContext.contract.js'
-import { decodeParsedDocument } from '../shared/parsedDocument.js'
+import { decodeParsedDocument } from 'extraction/parsed-document'
 
 type ProjectContextReadStore = Pick<
   ProjectStore,

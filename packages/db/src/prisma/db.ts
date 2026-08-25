@@ -6,3 +6,6 @@ export const db = postgres<Contract>({
   contractJson,
   url: process.env['DATABASE_URL']!,
 });
+
+export type Database = Pick<typeof db, 'orm' | 'transaction'>;
+export type DatabaseOrm = Database['orm'];
