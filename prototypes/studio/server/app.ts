@@ -71,6 +71,7 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/src/developerUi.ts': true,
   '/src/llmInspector/mount.tsx': true,
   '/src/auth/AuthApplication.tsx': true,
+  '/src/auth/sessionContext.ts': true,
   '/src/auth/AuthForms.tsx': true,
   '/src/auth/authApi.ts': true,
   '/src/auth/authenticatedFetch.ts': true,
@@ -78,7 +79,7 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/src/ui/Button.tsx': true,
   '/src/studioUrl.ts': true,
   '/shared/studioBasePath.ts': true,
-  '/shared/authSession.contract.ts': true
+  '/shared/authSession.contract.ts': true,
 }
 
 function viteDependencyAsset(pathname: string): boolean {
