@@ -33,7 +33,8 @@ Python services opt into the root install with an `install:python` script; the r
 
 VS Code tasks and launches should call pnpm workspace scripts from the repository root. Keep the backend debug launch direct through `debugpy`, but keep dev tasks on `pnpm --filter ...` so package scripts remain the source of truth.
 
-Per-prototype guidance loads with the directory: `prototypes/studio/CLAUDE.md`.
+Per-prototype guidance loads with the directory:
+`prototypes/parsing_service/CLAUDE.md` and `prototypes/studio/CLAUDE.md`.
 
 ## Persistence boundaries
 

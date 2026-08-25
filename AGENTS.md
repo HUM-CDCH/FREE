@@ -31,6 +31,7 @@
 
 - `CONTEXT.md`: product terminology and domain behavior.
 - `CLAUDE.md`: repository architecture and operational details.
+- `prototypes/parsing_service/CLAUDE.md`: Parsing Service-specific boundaries.
 - `prototypes/studio/CLAUDE.md`: Studio-specific architecture.
 - `openspec/changes/archive/2026-06-17-select-nuextract-control-channel/`:
   evidence behind NuExtract raw-prompt behavior.
