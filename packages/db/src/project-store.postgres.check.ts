@@ -229,10 +229,17 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     resultPayload: {},
     reviewable: true,
   })
+  await db.orm.public.ExtractionReview.create({
+    extractionId: extraction.id,
+    decisionDigest: 'cascade-check',
+  })
   await db.orm.public.ReviewDecision.create({
     extractionId: extraction.id,
+    resultPath: ['title'],
+    resultPathKey: '["title"]',
     evidenceAnchorId: 'anchor-1',
     reviewedOccurrenceIds: [],
+    action: 'approve',
   })
   const newerRepresentation =
     await db.orm.public.SourceRepresentationRevision.create({
@@ -268,6 +275,7 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     db.orm.public.SchemaRevision,
     db.orm.public.ConversationalSchemaEdit,
     db.orm.public.Extraction,
+    db.orm.public.ExtractionReview,
     db.orm.public.ReviewDecision,
   ])
     assert.deepEqual(await table.all(), [])

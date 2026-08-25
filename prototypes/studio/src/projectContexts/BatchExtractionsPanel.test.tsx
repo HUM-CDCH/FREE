@@ -165,6 +165,78 @@ afterEach(() => {
 })
 
 describe('BatchExtractionsPanel', () => {
+  it('renders markup-like batch schema and member names as inert text', async () => {
+    const schemaName = '<img src=x onerror="batch-secret">'
+    const sourceName = '<script>member-secret</script>.pdf'
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return response({
+          batchExtractions: [{ ...batch, extractionSchemaName: schemaName }],
+        })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+        return response({
+          revision: {
+            schemaRevisionId,
+            extractionSchemaId: batch.extractionSchemaId,
+            revisionNumber: 1,
+            origin: 'researcher-edit',
+            createdAt: '2026-08-14T10:00:00.000Z',
+            recordDescription: 'One record.',
+            schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+          },
+        })
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: [] })
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel(vi.fn(), null, [
+      { ...documents[0], name: sourceName },
+      documents[1],
+    ])
+
+    fireEvent.click(await screen.findByText(`${schemaName} · Schema Revision 1`))
+    expect(await screen.findByText(sourceName, { exact: true })).toBeVisible()
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+    expect(document.querySelector('script')).toBeNull()
+  })
+
+  it('bounds a Batch Extraction list outage and retries the same screen', async () => {
+    let listReads = 0
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?')) {
+        listReads += 1
+        return listReads === 1
+          ? Response.json(
+              {
+                error: {
+                  code: 'persistence_unavailable',
+                  message: 'Batch Extraction storage is unavailable.',
+                },
+              },
+              { status: 503 },
+            )
+          : response({ batchExtractions: [batch] })
+      }
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: [] })
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load Batch Extractions. Batch Extraction storage is unavailable.',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('Places · Schema Revision 1')).toBeVisible()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(listReads).toBe(2)
+  })
+
   it('allows exactly 50 selected sources and gates 51 in existing and suggested modes', async () => {
     const manyDocuments = Array.from({ length: 51 }, (_, index) => ({
       sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
@@ -1838,5 +1910,98 @@ describe('BatchExtractionsPanel', () => {
     expect(
       screen.queryByRole('button', { name: 'Retry Schema Revision' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('preserves export choices while a Batch result read fails and retries', async () => {
+    vi.mocked(exportBatchExtractionResults).mockClear()
+    const succeededMember = {
+      ...batch.members[0],
+      latestExtraction: {
+        ...batch.members[0].latestExtraction,
+        outcome: 'SUCCEEDED' as const,
+        complete: true,
+        reviewable: true,
+        failureMessage: null,
+      },
+    }
+    let resultReads = 0
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return response({
+          batchExtractions: [
+            { ...batch, executionStatus: 'COMPLETED', members: [succeededMember] },
+          ],
+        })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+        return response({
+          revision: {
+            schemaRevisionId,
+            extractionSchemaId: batch.extractionSchemaId,
+            revisionNumber: 1,
+            origin: 'researcher-edit',
+            createdAt: '2026-08-14T10:00:00.000Z',
+            recordDescription: 'One place record.',
+            schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+          },
+        })
+      if (url.includes(`/batch-extractions/${batchExtractionId}/results?`)) {
+        resultReads += 1
+        return resultReads === 1
+          ? Response.json(
+              {
+                error: {
+                  code: 'persistence_unavailable',
+                  message: 'Batch Extraction results are unavailable.',
+                },
+              },
+              { status: 503 },
+            )
+          : response({
+              batchExtractionId,
+              executionStatus: 'COMPLETED',
+              totalMembers: 1,
+              successfulResults: 1,
+              pending: 0,
+              failed: 0,
+              cancelled: 0,
+              results: [
+                {
+                  sourceDocumentId: failedDocumentId,
+                  extractionId,
+                  result: { records: [{ place: 'Rome' }] },
+                },
+              ],
+            })
+      }
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: [] })
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(await screen.findByText('Places · Schema Revision 1'))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.change(screen.getByLabelText('Other repeated fields'), {
+      target: { value: 'omit' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Batch Extraction results are unavailable.',
+    )
+    expect(exportBatchExtractionResults).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    expect(screen.getByLabelText('Other repeated fields')).toHaveValue('omit')
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+
+    await waitFor(() => expect(exportBatchExtractionResults).toHaveBeenCalledOnce())
+    expect(resultReads).toBe(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

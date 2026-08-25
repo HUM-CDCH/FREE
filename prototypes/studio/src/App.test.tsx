@@ -26,15 +26,49 @@ vi.mock('pdfjs-dist', () => ({
 // editors — exactly the state a reopened Source Document's annotations start in.
 vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
   EventBus: class {
-    on() {}
-    off() {}
+    private listeners = new Map<string, Set<(event: unknown) => void>>()
+
+    on(name: string, listener: (event: unknown) => void) {
+      const listeners = this.listeners.get(name) ?? new Set()
+      listeners.add(listener)
+      this.listeners.set(name, listeners)
+    }
+
+    off(name: string, listener: (event: unknown) => void) {
+      this.listeners.get(name)?.delete(listener)
+    }
+
+    dispatch(name: string, event: unknown) {
+      this.listeners.get(name)?.forEach((listener) => listener(event))
+    }
   },
   PDFViewer: class {
     private pagesReady = false
     private scaleValue: string | null = null
+    private scale = 1
+    private eventBus: {
+      dispatch: (name: string, event: { scale: number }) => void
+    }
 
-    currentScale = 1
     firstPagePromise: Promise<void> | null = null
+
+    constructor({
+      eventBus,
+    }: {
+      eventBus: { dispatch: (name: string, event: { scale: number }) => void }
+    }) {
+      this.eventBus = eventBus
+    }
+
+    get currentScale() {
+      return this.scale
+    }
+
+    set currentScale(value: number) {
+      this.scale = Math.min(25, Math.max(0.1, value))
+      this.scaleValue = String(this.scale)
+      this.eventBus.dispatch('scalechanging', { scale: this.scale })
+    }
 
     setDocument(pdfDocument: unknown) {
       if (!pdfDocument) return
@@ -52,6 +86,20 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => ({
         console.error('scrollPageIntoView: "1" is not a valid pageNumber parameter.')
       }
       this.scaleValue = value
+      const scale = Number(value)
+      if (Number.isFinite(scale)) this.currentScale = scale
+    }
+
+    increaseScale() {
+      this.currentScale = this.scale * 2
+    }
+
+    decreaseScale() {
+      this.currentScale = this.scale / 2
+    }
+
+    updateScale({ scaleFactor }: { scaleFactor: number }) {
+      this.currentScale = this.scale * scaleFactor
     }
 
     scrollPageIntoView = scrollPageIntoView
@@ -187,6 +235,36 @@ describe('reopened Source Document workspace', () => {
     } finally {
       consoleError.mockRestore()
     }
+  })
+
+  it('supports toolbar and keyboard zoom through the documented boundaries', async () => {
+    await renderReopened()
+
+    expect(await screen.findByText('3 pages')).toBeInTheDocument()
+    const zoomOut = screen.getByRole('button', { name: 'Zoom out' })
+    const resetZoom = screen.getByRole('button', {
+      name: 'Reset zoom to 100%',
+    })
+    const zoomIn = screen.getByRole('button', { name: 'Zoom in' })
+
+    expect(resetZoom).toHaveTextContent('100%')
+    fireEvent.keyDown(document, { key: '-', ctrlKey: true })
+    expect(resetZoom).toHaveTextContent('50%')
+    fireEvent.keyDown(document, { key: '+', ctrlKey: true })
+    expect(resetZoom).toHaveTextContent('100%')
+
+    for (let index = 0; index < 4; index += 1) fireEvent.click(zoomOut)
+    expect(resetZoom).toHaveTextContent('10%')
+    expect(zoomOut).toBeDisabled()
+
+    fireEvent.keyDown(document, { key: '0', ctrlKey: true })
+    expect(resetZoom).toHaveTextContent('100%')
+    for (let index = 0; index < 5; index += 1) fireEvent.click(zoomIn)
+    expect(resetZoom).toHaveTextContent('2500%')
+    expect(zoomIn).toBeDisabled()
+
+    fireEvent.click(resetZoom)
+    expect(resetZoom).toHaveTextContent('100%')
   })
 
   it('renames the reopened schema from the schema/chat panel', async () => {

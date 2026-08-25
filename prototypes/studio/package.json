@@ -13,6 +13,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:base-path": "playwright test --config playwright.base-path.config.ts",
+    "test:e2e:developer": "playwright test --config playwright.developer-ui.config.ts",
     "start": "node dist/server/index.js",
     "preview": "vite preview"
   },

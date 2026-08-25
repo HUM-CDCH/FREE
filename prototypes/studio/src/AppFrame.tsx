@@ -129,6 +129,7 @@ export default function AppFrame({
   onInitialResourceLoadFailure,
 }: AppFrameProps) {
   const [navOpen, setNavOpen] = useState(true)
+  const [narrowNavOpen, setNarrowNavOpen] = useState(false)
   const [navWidth, setNavWidth] = useState(212)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [providersOpen, setProvidersOpen] = useState(false)
@@ -139,12 +140,15 @@ export default function AppFrame({
   const { projects } = useProjectContexts()
 
   useEffect(() => {
-    const onResize = () => setViewportWidth(window.innerWidth)
+    const onResize = () => {
+      setViewportWidth(window.innerWidth)
+      if (window.innerWidth < 860) setNarrowNavOpen(false)
+    }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const effectiveNavOpen = navOpen && viewportWidth >= 860
+  const effectiveNavOpen = viewportWidth >= 860 ? navOpen : narrowNavOpen
   const effectiveNavWidth = effectiveNavOpen ? navWidth : collapsedWidth
   const { branch: routedBranch, documentContained: routedDocumentContained } =
     routedProjectContext
@@ -324,7 +328,10 @@ export default function AppFrame({
             open={effectiveNavOpen}
             selection={selection}
             routedProjectContextId={routedProjectContextId}
-            onToggle={() => setNavOpen((open) => !open)}
+            onToggle={() => {
+              if (viewportWidth >= 860) setNavOpen((open) => !open)
+              else setNarrowNavOpen((open) => !open)
+            }}
             onNavigate={onNavigate}
             onOpenSourceDocument={openSourceDocument}
             onConfigure={(opener) => {

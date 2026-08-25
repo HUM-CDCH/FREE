@@ -16,24 +16,6 @@ export default class M extends Migration<Start, End> {
       // obsolete review snapshot is removed instead of being guessed forward.
       this.dropTable({ schema: 'public', table: 'reviewDecision' }),
       this.dropTable({ schema: 'public', table: 'extractionReview' }),
-      this.dropColumn({
-        schema: 'public',
-        table: 'extraction',
-        column: 'reviewedAt',
-      }),
-      this.addColumn({
-        schema: 'public',
-        table: 'extraction',
-        column: col('reviewedAt', 'timestamptz(6)', {
-          codecRef: { codecId: 'pg/timestamptz@1', typeParams: { precision: 6 } },
-        }),
-      }),
-      this.createIndex({
-        schema: 'public',
-        table: 'extraction',
-        index: 'extraction_reviewedAt_idx',
-        columns: ['reviewedAt'],
-      }),
       this.createTable({
         schema: 'public',
         table: 'extractionReview',

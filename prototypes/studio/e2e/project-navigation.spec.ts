@@ -11,6 +11,12 @@ import {
   DEMO_REPRESENTATION_ID,
 } from '../api/project_contexts.fixture.js'
 import { gotoAuthenticated } from './auth.js'
+import {
+  activateWithKeyboard,
+  emulateBrowserZoom200,
+  expectOperableInViewport,
+  REQUIRED_VIEWPORTS,
+} from './accessibility.js'
 
 const sourcePdf = fileURLToPath(
   new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
@@ -309,6 +315,66 @@ const documentRow = (page: Page, name: string) =>
   rail(page).getByRole('button', { name, exact: true })
 
 test.describe('rail navigation', () => {
+  test('a failed Project Context write preserves the keyboard draft and retries cleanly', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    let unavailable = true
+    let writes = 0
+    await page.route('**/api/project-contexts', async (route) => {
+      const request = route.request()
+      if (request.method() !== 'POST') return route.fallback()
+      writes += 1
+      if (unavailable)
+        return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          json: {
+            error: {
+              code: 'persistence_unavailable',
+              message: 'Project Context storage is unavailable.',
+            },
+          },
+        })
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        json: {
+          projectContext: {
+            projectContextId: '00000000-0000-4000-8000-000000000047',
+            name: 'Recovered project',
+            createdAt: '2026-08-24T10:00:00.000Z',
+          },
+        },
+      })
+    })
+    await gotoAuthenticated(page, '/')
+
+    const create = page.getByRole('button', { name: '+ New project' })
+    await activateWithKeyboard(page, create)
+    const name = page.getByRole('textbox', { name: 'Project name' })
+    await expect(name).toBeFocused()
+    await page.keyboard.type('Recovered project')
+    await activateWithKeyboard(page, page.getByRole('button', { name: 'Create' }))
+
+    const dialog = page.getByRole('dialog', { name: 'New Project' })
+    await expect(dialog).toBeVisible()
+    await expect(name).toHaveValue('Recovered project')
+    await expect(dialog.getByRole('alert')).toHaveText(
+      'Project Context storage is unavailable.',
+    )
+    await expect(name).toBeFocused()
+    unavailable = false
+    await activateWithKeyboard(page, dialog.getByRole('button', { name: 'Create' }))
+
+    await expect(dialog).toBeHidden()
+    await expect(create).toBeFocused()
+    await expect(
+      rail(page).getByText('Recovered project', { exact: true }),
+    ).toBeVisible()
+    expect(writes).toBe(2)
+  })
+
   test('enforces the Unicode filename boundary as an item-scoped browser error', async ({
     page,
   }) => {
@@ -356,6 +422,64 @@ test.describe('rail navigation', () => {
     await expect(documentRow(page, 'accepted.pdf')).toBeVisible()
     expect(uploads).toBe(1)
     await expect(projectPage(page).getByRole('button', { name: /Retry/ })).toHaveCount(0)
+  })
+
+  test('a timed-out Source Document stays item-scoped and retries by keyboard', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    let attempts = 0
+    await page.route('**/api/project-contexts/*/source-documents', async (route) => {
+      attempts += 1
+      if (attempts === 1)
+        return route.fulfill({
+          status: 504,
+          contentType: 'application/json',
+          json: {
+            error: {
+              code: 'source_ingestion_timeout',
+              message: 'Source Document parsing did not finish within ten minutes.',
+            },
+          },
+        })
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        json: {
+          sourceDocumentId: '51000000-0000-4000-8001-000000000199',
+          name: 'timeout.pdf',
+          createdAt: '2026-08-24T09:00:00.000Z',
+          sourceRepresentationId: '51000000-0000-4000-8002-000000000199',
+          revisionNumber: 1,
+          pageCount: 1,
+        },
+      })
+    })
+    await gotoAuthenticated(page, '/')
+    await activateWithKeyboard(page, projectMenuTrigger(page, 'Hørsholm, TAK 1402'))
+    await activateWithKeyboard(
+      page,
+      rail(page).getByRole('button', { name: 'Open project' }),
+    )
+    await page.getByLabel('Drop PDFs here or browse').setInputFiles({
+      name: 'timeout.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.7\n'),
+    })
+
+    await expect(
+      projectPage(page).getByText(
+        'Source Document parsing did not finish within ten minutes.',
+        { exact: true },
+      ),
+    ).toBeVisible()
+    await activateWithKeyboard(
+      page,
+      projectPage(page).getByRole('button', { name: /Retry timeout\.pdf/ }),
+    )
+
+    await expect(documentRow(page, 'timeout.pdf')).toBeVisible()
+    expect(attempts).toBe(2)
   })
 
   test('returns focus to the delete control when cancellation closes the dialog', async ({
@@ -488,6 +612,87 @@ test.describe('rail navigation', () => {
     await expect(
       page.getByRole('button', { name: 'Collapse Project Contexts' }),
     ).toBeFocused()
+  })
+
+  test('downloads exact PDF bytes once, bounds a later failure, and stays operable at every viewport', async ({
+    page,
+  }) => {
+    const browserDiagnostics: string[] = []
+    page.on('console', (message) => browserDiagnostics.push(message.text()))
+    page.on('pageerror', (error) => browserDiagnostics.push(error.message))
+    await stubStudio(page)
+    await gotoAuthenticated(page, '/')
+    await openProject(page, 'Ellekilde, TAK 1355')
+    const routeBefore = page.url()
+
+    for (const viewport of REQUIRED_VIEWPORTS) {
+      await page.setViewportSize(viewport)
+      await expectOperableInViewport(
+        page,
+        projectPage(page).getByRole('heading', { name: 'Ellekilde, TAK 1355' }),
+      )
+      await expectOperableInViewport(
+        page,
+        projectPage(page).getByLabel('Actions for Beretning_Ellekilde_8_13.pdf'),
+      )
+    }
+    await emulateBrowserZoom200(page)
+    await expectOperableInViewport(
+      page,
+      projectPage(page).getByLabel('Actions for Beretning_Ellekilde_8_13.pdf'),
+    )
+    await page.setViewportSize({ width: 1280, height: 800 })
+
+    const actions = projectPage(page).getByLabel(
+      'Actions for Beretning_Ellekilde_8_13.pdf',
+    )
+    await activateWithKeyboard(page, actions)
+    const downloadEvent = page.waitForEvent('download')
+    await activateWithKeyboard(
+      page,
+      projectPage(page).getByRole('button', {
+        name: 'Download Beretning_Ellekilde_8_13.pdf',
+      }),
+    )
+    const download = await downloadEvent
+    expect(download.suggestedFilename()).toBe('Beretning_Ellekilde_8_13.pdf')
+    const bytes = await readFile((await download.path())!)
+    expect(bytes.byteLength).toBeGreaterThan(4)
+    expect(bytes.subarray(0, 4).toString('ascii')).toBe('%PDF')
+    expect(page.url()).toBe(routeBefore)
+
+    await page.route('**/source-representations/*/pdf**', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        json: {
+          error: {
+            code: 'source_artifact_unavailable',
+            message: 'internal package C:\\secrets\\artifact.zip is missing',
+          },
+        },
+      }),
+    )
+    let laterDownloads = 0
+    page.on('download', () => {
+      laterDownloads += 1
+    })
+    await activateWithKeyboard(page, actions)
+    await activateWithKeyboard(
+      page,
+      projectPage(page).getByRole('button', {
+        name: 'Download Beretning_Ellekilde_8_13.pdf',
+      }),
+    )
+    const alert = projectPage(page).getByRole('alert')
+    await expect(alert).toHaveText(
+      'Could not download “Beretning_Ellekilde_8_13.pdf”.',
+    )
+    await expect(alert).not.toContainText('artifact.zip')
+    await expect.poll(() => laterDownloads).toBe(0)
+    expect(page.url()).toBe(routeBefore)
+    expect(browserDiagnostics.join('\n')).not.toContain('artifact.zip')
+    expect(browserDiagnostics.join('\n')).not.toContain('C:\\secrets')
   })
 
   test('lists Project Contexts newest first and opens one into the single shell', async ({

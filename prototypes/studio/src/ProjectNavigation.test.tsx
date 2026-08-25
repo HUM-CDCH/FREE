@@ -339,6 +339,39 @@ function lifecycleFetch(
 }
 
 describe('Project Context lifecycle in the rail', () => {
+  it('renders markup-like Project Context and Source Document names as inert text', async () => {
+    const projectName = '<img src=x onerror="project-secret"> Project'
+    const sourceName = '<script>source-secret</script>.pdf'
+    const markedProject = { ...project, name: projectName }
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/extraction-schemas?'))
+        return Response.json({ extractionSchemas: [] })
+      if (url.startsWith('/api/batch-extractions?'))
+        return Response.json({ batchExtractions: [] })
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return Response.json({ batchSchemaSuggestions: [] })
+      if (url.endsWith(projectContextId))
+        return Response.json({
+          projectContext: markedProject,
+          sourceDocuments: [{ ...beretning, name: sourceName, pageCount: 6 }],
+        })
+      return Response.json({ projectContexts: [markedProject] })
+    })
+    renderRoutes(fetcher)
+
+    const projectRow = await screen.findByRole('button', {
+      name: `Expand Source Documents in ${projectName}`,
+    })
+    expect(projectRow).toHaveTextContent(projectName)
+    fireEvent.click(projectRow)
+    expect(
+      await screen.findByRole('button', { name: sourceName }),
+    ).toHaveTextContent(sourceName)
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+    expect(document.querySelector('script')).toBeNull()
+  })
+
   it('navigates to and expands an acknowledged new Project Context', async () => {
     renderRoutes(lifecycleFetch())
     fireEvent.click(
@@ -1951,6 +1984,58 @@ describe('routed Source Document reopening', () => {
       screen.queryByText('Opening Source Document…'),
     ).not.toBeInTheDocument()
     expect(reads).toBe(2)
+  })
+
+  it('closes inactive, active, and final Source Document tabs without losing route intent', async () => {
+    history.replaceState(null, '', documentPath())
+    renderRoutes(
+      studioFetch(
+        (documentId) =>
+          Response.json(
+            snapshot(
+              documentId === sourceDocumentId ? beretning : historical,
+            ),
+          ),
+        {
+          projectContext: project,
+          sourceDocuments: [
+            { ...beretning, pageCount: 6 },
+            { ...historical, pageCount: 4 },
+          ],
+        },
+      ),
+    )
+    await screen.findByText(/Opened Beretning.pdf/)
+
+    fireEvent.click(screen.getByRole('button', { name: historical.name }))
+    await screen.findByText(/Opened Historical.pdf/)
+    expect(location.pathname).toBe(documentPath(otherSourceDocumentId))
+    expect(
+      screen.getByRole('tab', { name: new RegExp(`^${historical.name}`) }),
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(
+      screen.getByRole('tab', { name: new RegExp(`^${beretning.name}`) }),
+    ).toHaveAttribute('aria-selected', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: `Close ${beretning.name}` }))
+    expect(location.pathname).toBe(documentPath(otherSourceDocumentId))
+    expect(screen.getByText(/Opened Historical.pdf/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: beretning.name }))
+    await screen.findByText(/Opened Beretning.pdf/)
+    fireEvent.click(screen.getByRole('button', { name: `Close ${beretning.name}` }))
+    await waitFor(() =>
+      expect(location.pathname).toBe(documentPath(otherSourceDocumentId)),
+    )
+    expect(await screen.findByText(/Opened Historical.pdf/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: `Close ${historical.name}` }))
+    await waitFor(() =>
+      expect(location.pathname).toBe(`/projects/${projectContextId}`),
+    )
+    expect(
+      await screen.findByRole('region', { name: 'Project Context' }),
+    ).toBeInTheDocument()
   })
 
   it('keeps the open selection paired to its Project Context during a cross-context opening', async () => {

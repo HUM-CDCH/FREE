@@ -16,7 +16,7 @@ export default defineConfig({
   webServer: {
     command: `pnpm dev --port ${e2ePort}`,
     url: e2eOrigin,
-    reuseExistingServer: false,
+    reuseExistingServer: process.env.FREE_PLAYWRIGHT_REUSE_SERVER === '1',
     // Focused lifecycle runs pass a disposable database; browser-only specs use
     // the fallback URL but do not reach it.
     env: {

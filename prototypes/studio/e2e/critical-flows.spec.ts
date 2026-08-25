@@ -5,6 +5,7 @@ import { createGetDocumentReopen } from '../api/document_reopen.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
 import { projectContextFixture } from '../api/project_contexts.fixture.js'
 import { gotoAuthenticated } from './auth.js'
+import { activateWithKeyboard } from './accessibility.js'
 
 const sourcePdf = fileURLToPath(
   new URL('../../../examples/Beretning_Ellekilde_8_13.pdf', import.meta.url),
@@ -56,12 +57,16 @@ test('bundled parsed document renders its page-scoped PDF @deterministic', async
     },
   )
   await gotoAuthenticated(page, '/')
-  await page
-    .getByRole('button', {
+  await activateWithKeyboard(
+    page,
+    page.getByRole('button', {
       name: /Source Documents in Ellekilde, TAK 1355$/,
-    })
-    .click()
-  await page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
+    }),
+  )
+  await activateWithKeyboard(
+    page,
+    page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
+  )
   await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
     timeout: 15_000,
   })
@@ -127,12 +132,16 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
     })
   })
   await gotoAuthenticated(page, '/')
-  await page
-    .getByRole('button', {
+  await activateWithKeyboard(
+    page,
+    page.getByRole('button', {
       name: /Source Documents in Ellekilde, TAK 1355$/,
-    })
-    .click()
-  await page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }).click()
+    }),
+  )
+  await activateWithKeyboard(
+    page,
+    page.getByRole('navigation', { name: 'Project Contexts' }).getByRole('button', { name: 'Beretning_Ellekilde_8_13.pdf' }),
+  )
   await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
     timeout: 15_000,
   })
@@ -172,6 +181,16 @@ test('schema instruction editor retains clipboard ownership in a reopened Source
     }),
   )
   expect(canceled).toEqual([false, false, false])
+
+  await chatInput.focus()
+  await page.keyboard.type('Extract the grave name')
+  await page.keyboard.press('Enter')
+  await expect(page.getByText('Extract the grave name', { exact: true })).toBeVisible()
+  await activateWithKeyboard(
+    page,
+    page.getByRole('button', { name: 'Generate schema' }),
+  )
+  await expect(page.getByText('graves', { exact: true })).toBeVisible()
 
   await expect(page.locator('.highlightEditor')).toHaveCount(0)
 })
