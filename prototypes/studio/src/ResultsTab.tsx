@@ -11,6 +11,8 @@ import type { ExtractionAttempt } from '../shared/extraction.contract'
 
 type ResultsTabProps = {
   controller: ExtractionController
+  onRunExtraction: () => void | Promise<void>
+  runExtractionDisabled: boolean
   schemaReady: boolean
   documentMarkdown: string | null
   sourceDocumentName: string
@@ -157,7 +159,7 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
+function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
   const state = inspectedAttempt
     ? extractionStateFromAttempt(inspectedAttempt)
@@ -315,7 +317,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
                   </Button>
                 )}
                 {!readOnly && (
-                  <Button variant="secondary" size="sm" onClick={() => void controller.runExtraction()}>
+                  <Button variant="secondary" size="sm" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
                     Rerun
                   </Button>
                 )}
@@ -344,8 +346,8 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
                   variant="secondary"
                   size="sm"
                   className="mt-1.5"
-                  disabled={!controller.canRun}
-                  onClick={() => void controller.runExtraction()}
+                  disabled={runExtractionDisabled}
+                  onClick={() => void onRunExtraction()}
                 >
                   Re-run extraction
                 </Button>
@@ -480,7 +482,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
           <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
           <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
           {!readOnly && (
-            <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction()}>
+            <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
               Retry extraction
             </Button>
           )}
@@ -501,8 +503,8 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
               variant="primary"
               size="md"
               className="mt-4"
-              disabled={!controller.canRun}
-              onClick={() => void controller.runExtraction()}
+              disabled={runExtractionDisabled}
+              onClick={() => void onRunExtraction()}
             >
               {schemaReady ? 'Run extraction' : 'Generate a schema first'}
             </Button>
@@ -513,7 +515,7 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
       {state.status === 'cancelled' && (
         <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-ink">Extraction cancelled</p>
-          {!readOnly && <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction()}>
+          {!readOnly && <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
             Run a new extraction
           </Button>}
           {attempt && <AttemptDetails attempt={attempt} />}

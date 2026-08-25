@@ -658,6 +658,8 @@ describe('deny-by-default application boundary', () => {
       '/src/auth/AuthApplication.tsx',
       '/src/llmInspector/mount.tsx',
       '/src/ui/Button.tsx',
+      '/src/studioUrl.ts',
+      '/shared/studioBasePath.ts',
       '/src/index.css',
       '/node_modules/.vite/deps/react.js',
       '/@fs/D:/workspace/node_modules/react/index.js',
@@ -685,7 +687,7 @@ describe('deny-by-default application boundary', () => {
       )
       expect(response.status).toBe(302)
     }
-    expect(development.clientHandler).toHaveBeenCalledTimes(7)
+    expect(development.clientHandler).toHaveBeenCalledTimes(9)
   })
 
   it('creates a distinct scoped store from each reloaded account', async () => {

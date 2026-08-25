@@ -9,7 +9,7 @@
     "dev:https": "vite --mode https --host 0.0.0.0 --strictPort",
     "build": "tsc -b && vite build && vite build --config vite.server.config.ts",
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
-    "account": "node -e \"if (!process.env.DATABASE_URL) { process.stderr.write('DATABASE_URL is required.\\n'); process.exit(1) }\" && tsx server/account-cli.ts",
+    "account": "tsx server/account-cli.ts",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
