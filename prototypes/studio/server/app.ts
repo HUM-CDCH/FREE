@@ -84,9 +84,9 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/src/auth/authApi.ts': true,
   '/src/auth/authenticatedFetch.ts': true,
   '/src/auth/returnPath.ts': true,
-  '/src/ui/Button.tsx': true,
   '/src/studioUrl.ts': true,
   '/shared/studioBasePath.ts': true,
+  '/src/ui/Button.tsx': true,
 }
 
 function viteDependencyAsset(pathname: string): boolean {
