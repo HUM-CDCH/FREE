@@ -441,7 +441,7 @@ describe('Project Context lifecycle in the rail', () => {
     expect(projectRow).toHaveTextContent(projectName)
     fireEvent.click(projectRow)
     expect(
-      await screen.findByRole('button', { name: sourceName, exact: true }),
+      await screen.findByRole('button', { name: sourceName }),
     ).toHaveTextContent(sourceName)
     expect(document.querySelector('img[src="x"]')).toBeNull()
     expect(document.querySelector('script')).toBeNull()
