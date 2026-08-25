@@ -4,9 +4,9 @@ import {
   documentReopenResponseSchema,
   projectContextErrorResponseSchema,
   projectContextErrorSchema,
+  projectContextListItemSchema,
   projectContextListResponseSchema,
   projectContextResponseSchema,
-  projectContextSummarySchema,
   projectContextWithDocumentsResponseSchema,
 } from '../../shared/projectContext.contract'
 import {
@@ -14,7 +14,7 @@ import {
   type SourceDocumentIngestionResponse,
 } from '../../shared/sourceDocumentIngestion.contract'
 
-export type ProjectContext = z.output<typeof projectContextSummarySchema>
+export type ProjectContext = z.output<typeof projectContextListItemSchema>
 export type ProjectContextDetail = z.output<
   typeof projectContextWithDocumentsResponseSchema
 >

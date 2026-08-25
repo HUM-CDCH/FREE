@@ -1600,23 +1600,37 @@ function SchemaPanel({
             <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
             <div className="flex min-w-0 shrink items-center gap-1.5">
               {showRegenerate && (
-                <>
+                <div className="relative shrink-0">
                   <button
                     className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent"
                     type="button"
                     aria-expanded={instructions.open}
-                    title="Instructions used for regeneration"
+                    title="Start over: regenerate the whole schema from the document and instructions"
+                    disabled={snap.generating}
                     onClick={instructions.toggle}
                   >
-                    Instructions
+                    Regenerate
                     <InstructionCount count={instructions.count} />
                     <span aria-hidden="true" className="text-[9px]">{instructions.open ? '▾' : '▸'}</span>
                   </button>
-                  <button className={genBtnCls} type="button" disabled={snap.generating} onClick={() => onGenerateInstructions?.(instructions.text)}>
-                    Regenerate
-                    <InstructionCount count={instructions.count} />
-                  </button>
-                </>
+                  {instructions.open && (
+                    <div className="scrollbar-subtle absolute right-0 bottom-full z-30 mb-1.5 w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-float">
+                      <SchemaInstructionsDrawer instructions={instructions} />
+                      <div className="flex items-center justify-end gap-2 px-2.5 py-2">
+                        <button
+                          className={genBtnCls}
+                          type="button"
+                          onClick={() => {
+                            instructions.toggle()
+                            onGenerateInstructions?.(instructions.text)
+                          }}
+                        >
+                          Regenerate schema{instructions.countLabel}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
               <div className="relative">
                 <button
@@ -1654,9 +1668,6 @@ function SchemaPanel({
               </div>
             </div>
           </div>
-          {instructions.open && showRegenerate && (
-            <SchemaInstructionsDrawer instructions={instructions} />
-          )}
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
               {chat.map((m, i) => (

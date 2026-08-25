@@ -6,9 +6,9 @@ import {
   PasswordChangeForm,
   ProjectLoadFailure,
   ProjectLoading,
-  SessionControls,
   SessionFailure,
 } from './AuthForms.tsx'
+import { ResearcherSessionContext } from './sessionContext.ts'
 import { getAuthSession } from './authApi.ts'
 import type {
   AuthenticatedSession,
@@ -87,10 +87,9 @@ function AuthenticatedProject({
   }
 
   return (
-    <>
+    <ResearcherSessionContext value={{ session, onLoggedOut }}>
       {project}
-      <SessionControls session={session} onLoggedOut={onLoggedOut} />
-    </>
+    </ResearcherSessionContext>
   )
 }
 

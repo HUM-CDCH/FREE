@@ -365,18 +365,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 )}
               </div>
             </div>
-            {/* {attempt?.complete === false && (
-              <div
-                className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
-                role="status"
-              >
-                <p className="font-semibold">Incomplete Extraction</p>
-                <p>
-                  Successful values remain visible. See the persisted stage
-                  diagnostics for details.
-                </p>
-              </div>
-            )} */}
             {!readOnly && !inspectedAttempt && controller.stale && (
               <div
                 className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"

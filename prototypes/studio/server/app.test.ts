@@ -838,7 +838,9 @@ describe('deny-by-default application boundary', () => {
         return project
       },
       async listProjectContexts(limit: number) {
-        return projects.slice(0, limit)
+        return projects
+          .slice(0, limit)
+          .map((project) => ({ ...project, sourceDocumentCount: 0 }))
       },
       async getProjectContextWithDocuments(projectContextId: string) {
         const projectContext =
@@ -1106,7 +1108,7 @@ describe('deny-by-default application boundary', () => {
     const bindings = (remoteAddress: string) =>
       ({
         incoming: {
-          headers: { 'x-free-client-address': '198.51.100.7' },
+          headers: { 'x-real-ip': '198.51.100.7' },
           socket: { remoteAddress },
         },
       }) as unknown as StudioBindings
