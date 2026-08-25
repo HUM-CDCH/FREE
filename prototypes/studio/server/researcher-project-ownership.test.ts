@@ -356,11 +356,13 @@ function twoAccountStoreFixture(): TwoAccountStores {
             projectContextId: relationship.projectId,
             name: relationship.projectName,
             createdAt: CREATED_AT,
+            sourceDocumentCount: relationship.documentPresent ? 1 : 0,
           }))
         return [
           ...created[accountId].map((project) => ({
             ...project,
             createdAt: CREATED_AT,
+            sourceDocumentCount: 0,
           })),
           ...projects,
         ]

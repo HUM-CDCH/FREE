@@ -36,11 +36,11 @@ The production Compose topology SHALL publish only Caddy to the host. Caddy SHAL
 
 ### Requirement: Caddy supplies a trustworthy client address
 
-Caddy SHALL discard an inbound `X-FREE-Client-Address` header and set it from the direct client socket before proxying. Hosted Studio SHALL derive the login-limiter client address only from that header on the dedicated Caddy–Studio network. Loopback development MAY use the direct socket address and SHALL NOT trust a browser-supplied forwarding header.
+Caddy SHALL discard an inbound `X-Real-IP` header and set it from the direct client socket before proxying. Hosted Studio SHALL derive the login-limiter client address only from that header on the dedicated Caddy–Studio network. Loopback development MAY use the direct socket address and SHALL NOT trust a browser-supplied forwarding header.
 
 #### Scenario: Client spoofs the forwarding header
 
-- **WHEN** a client sends its own `X-FREE-Client-Address` value through Caddy
+- **WHEN** a client sends its own `X-Real-IP` value through Caddy
 - **THEN** Caddy replaces it with the direct client address before Studio applies login throttling
 
 #### Scenario: Hosted request bypasses the proxy contract

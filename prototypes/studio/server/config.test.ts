@@ -24,7 +24,7 @@ function requestBindings(
       headers:
         clientAddress === undefined
           ? {}
-          : { 'x-free-client-address': clientAddress },
+          : { 'x-real-ip': clientAddress },
       socket: { remoteAddress: peer },
     },
   } as unknown as ClientAddressBindings

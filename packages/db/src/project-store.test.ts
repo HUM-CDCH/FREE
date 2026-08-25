@@ -149,13 +149,46 @@ function fakeDatabase(
     let selected = rows
     let orders: Order[] = []
     let limit: number | undefined
+    let groupField: string | undefined
     const query = {
       select: () => query,
-      where(filter: Row) {
+      where(filter: Row | ((fields: Row) => (row: Row) => boolean)) {
+        if (typeof filter === 'function') {
+          const fields = new Proxy(
+            {},
+            {
+              get: (_target, field: string) => ({
+                in: (values: readonly unknown[]) => (row: Row) =>
+                  values.includes(row[field]),
+              }),
+            },
+          ) as Row
+          selected = selected.filter(filter(fields))
+          return query
+        }
         selected = selected.filter((row) =>
           Object.entries(filter).every(([key, value]) => row[key] === value),
         )
         return query
+      },
+      groupBy(field: string) {
+        groupField = field
+        return query
+      },
+      async aggregate(
+        select: (aggregate: { count: () => number }) => Record<string, number>,
+      ) {
+        if (!groupField) throw new Error('aggregate requires groupBy')
+        const [countName] = Object.keys(select({ count: () => 0 }))
+        const counts: Record<string, number> = {}
+        for (const row of selected) {
+          const key = String(row[groupField])
+          counts[key] = (counts[key] ?? 0) + 1
+        }
+        return Object.entries(counts).map(([key, count]) => ({
+          [groupField]: key,
+          [countName]: count,
+        }))
       },
       orderBy(value: ((row: Row) => Order) | Array<(row: Row) => Order>) {
         orders = (Array.isArray(value) ? value : [value]).map((pick) =>
@@ -566,9 +599,15 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
 
     assert.deepEqual(
       (await storeA.listProjectContexts(20)).map(
-        ({ projectContextId }) => projectContextId,
+        ({ projectContextId, sourceDocumentCount }) => ({
+          projectContextId,
+          sourceDocumentCount,
+        }),
       ),
-      [EMPTY_PROJECT, PROJECT],
+      [
+        { projectContextId: EMPTY_PROJECT, sourceDocumentCount: 0 },
+        { projectContextId: PROJECT, sourceDocumentCount: 1 },
+      ],
     )
     assert.equal(
       await storeA.getProjectContextWithDocuments(OTHER_PROJECT),

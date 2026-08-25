@@ -180,10 +180,12 @@ FREE_POSTGRES_PASSWORD=<hex-output>
 - Compose fixes `FREE_STUDIO_PROXY=trusted-proxy` and
   `FREE_STUDIO_PROXY_ADDRESS=172.30.0.1`. That address is the bridge gateway of
   the dedicated `172.30.0.0/24` proxy network: nginx on the host reaches the
-  container through the published `127.0.0.1:5173` port, and every such
-  connection arrives from the gateway. Do not change one value without the
+  container through the published `127.0.0.1:5173` port, and `gw_priority` on
+  the studio service's proxy network makes Docker route that published port
+  through this network, so every such connection arrives from the gateway.
+  Do not change one value without the
   other: hosted Studio rejects every socket peer except the configured proxy
-  before it will trust the overwritten `X-FREE-Client-Address` header.
+  before it will trust the overwritten `X-Real-IP` header.
 
 Before installing a certificate into nginx, inspect the subject alternative
 names and validity period and confirm that the certificate and key produce the
@@ -342,7 +344,7 @@ Only Studio joins the dedicated `172.30.0.0/24` `proxy` network; only Studio,
 PostgreSQL, and the Parsing Service join `app`. Host nginx reaches Studio
 exclusively through the published loopback port, so every such connection
 arrives at Studio from the proxy network's bridge gateway (`172.30.0.1`), the
-peer Compose pins. Nginx discards any inbound `X-FREE-Client-Address`, writes
+peer Compose pins. Nginx discards any inbound `X-Real-IP`, writes
 exactly one value from the direct client socket, and proxies to Studio. Studio
 checks that the socket peer is its configured trusted proxy before consuming
 that value. Browser session cookies are never forwarded to the Parsing Service.
@@ -381,7 +383,7 @@ loopback, that value is `127.0.0.1`. When Studio runs in a container and nginx
 runs on the host — the shipped `compose.yaml` topology — it is the container
 bridge gateway; Compose pins `172.30.0.1` on the dedicated proxy network.
 
-The proxy must replace, not append to, `X-FREE-Client-Address` with the address
+The proxy must replace, not append to, `X-Real-IP` with the address
 of its direct client. Set `STUDIO_BASE_PATH=/free`, preserve that prefix when
 proxying, and use these host nginx locations:
 
@@ -393,7 +395,7 @@ location = /free {
 location ^~ /free/ {
     proxy_pass http://127.0.0.1:5173;
     proxy_set_header Host $http_host;
-    proxy_set_header X-FREE-Client-Address $remote_addr;
+    proxy_set_header X-Real-IP $remote_addr;
     add_header X-Frame-Options "DENY";
     add_header X-Content-Type-Options "nosniff";
     add_header Referrer-Policy "no-referrer";

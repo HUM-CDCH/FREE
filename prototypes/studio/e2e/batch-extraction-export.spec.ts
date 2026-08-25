@@ -266,7 +266,7 @@ function batchFixture(): {
   }
   const store: StudioStore = {
     async listProjectContexts() {
-      return [project]
+      return [{ ...project, sourceDocumentCount: 2 }]
     },
     async getProjectContextWithDocuments(projectContextId) {
       if (projectContextId !== id.project) return null
