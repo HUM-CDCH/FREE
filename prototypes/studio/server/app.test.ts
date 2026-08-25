@@ -685,8 +685,6 @@ describe('deny-by-default application boundary', () => {
       '/shared/studioBasePath.ts',
       '/src/llmInspector/mount.tsx',
       '/src/ui/Button.tsx',
-      '/src/studioUrl.ts',
-      '/shared/studioBasePath.ts',
       '/src/index.css',
       '/node_modules/.vite/deps/react.js',
       '/@fs/D:/workspace/node_modules/react/index.js',
