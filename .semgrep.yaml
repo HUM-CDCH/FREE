@@ -53,14 +53,12 @@ rules:
   - id: free-task-paths-use-validated-helper
     languages: [python]
     severity: ERROR
-    message: Build task paths through task_dir_for/http_task_dir so task IDs are UUID-validated and contained under the task store.
+    message: Build task paths through TaskStorage.task_dir so task IDs are UUID-validated and contained under the task store.
     paths:
       include:
         - /prototypes/parsing_service/app/**
       exclude:
-        - /prototypes/parsing_service/app/storage/paths.py
+        - /prototypes/parsing_service/app/storage.py
     pattern-either:
-      - pattern: DEFAULT_DATA_DIR / $TASK_ID
-      - pattern: Path(DEFAULT_DATA_DIR) / $TASK_ID
-      - pattern: $PATHS.DEFAULT_DATA_DIR / $TASK_ID
-      - pattern: Path($PATHS.DEFAULT_DATA_DIR) / $TASK_ID
+      - pattern: $SELF.root / $TASK_ID
+      - pattern: Path($SELF.root) / $TASK_ID

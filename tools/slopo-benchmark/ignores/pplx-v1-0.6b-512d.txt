@@ -1,0 +1,17 @@
+# Cluster hashes reviewed and dismissed. One hash per line.
+#
+# A hash covers each unit's code body and its path relative to the index root.
+# It changes when the code or that path changes, so the cluster re-surfaces.
+# Re-indexing from a different root shifts every path, changing the hashes.
+
+0ae87dd5ec6c
+0f490b99129e
+1b1b6aa3cf43
+42713b85d2ff
+4903eb607bf0
+592d5fc01290
+94652bf5b50c
+b560befd1d5c
+e11e371f586a
+e60d8bb04388
+ef479cc4e681

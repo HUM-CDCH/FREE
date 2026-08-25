@@ -8,6 +8,7 @@
 .pytest_cache/
 .ruff_cache/
 .run/
+.slopo/
 __pycache__/
 *.py[cod]
 

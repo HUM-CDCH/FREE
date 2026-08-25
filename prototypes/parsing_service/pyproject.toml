@@ -1,17 +1,12 @@
 [project]
-name = "parsing_service"
+name = "parsing-service"
 version = "0.1.0"
-description = "Secure canonical Docling DocTags ingestion service for FREE"
+description = "Small Docling-backed parsing service for FREE"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-  "camelot-py>=1.0.0",
   "docling>=2.111.0",
   "fastapi[standard]>=0.139.0",
-  "filelock>=3.20.3",
-  "opencv-contrib-python==4.12.0.88",
-  "pymupdf>=1.24.0",
-  "pypdfium2>=4.30.0",
 ]
 
 [build-system]
@@ -21,20 +16,3 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "app"
 module-root = ""
-
-[project.optional-dependencies]
-ocr-cpu = ["paddleocr>=3.7.0", "paddlex[ocr]>=3.7.0", "paddlepaddle==3.2.2"]
-ocr-gpu = ["paddleocr>=3.7.0", "paddlex[ocr]>=3.7.0", "paddlepaddle-gpu==3.2.2"]
-
-[tool.uv]
-conflicts = [[{ extra = "ocr-cpu" }, { extra = "ocr-gpu" }]]
-exclude-dependencies = ["opencv-python", "opencv-python-headless"]
-override-dependencies = ["opencv-contrib-python==4.12.0.88"]
-
-[[tool.uv.index]]
-name = "paddlepaddle-cuda"
-url = "https://www.paddlepaddle.org.cn/packages/stable/cu130/"
-explicit = true
-
-[tool.uv.sources]
-paddlepaddle-gpu = { index = "paddlepaddle-cuda" }

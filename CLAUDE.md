@@ -30,7 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 FREE is a document extraction and evaluation tool for **humanities researchers** (not "users"). Researchers annotate source documents, request schema suggestions from those annotations, approve an extraction schema, and validate the results. Every extracted value must be grounded in source evidence.
 
-The workflow has five phases: Document Ingestion → Annotation → Schema Suggestion → Extraction → Validation. `CONTEXT.md` defines the domain language; `docs/architecture/` holds the LikeC4 model of the implemented runtime (`pnpm architecture:dev`); `docs/parsing-service.md` and `docs/parsing-quality.md` define the implemented parsing boundary.
+The workflow has five phases: Document Ingestion → Annotation → Schema Suggestion → Extraction → Validation. `CONTEXT.md` defines the domain language; `docs/architecture/` holds the LikeC4 model of the implemented runtime (`pnpm architecture:dev`); `prototypes/parsing_service/README.md` describes the implemented parsing boundary.
 
 ## Language
 
@@ -55,7 +55,7 @@ Python services opt into the root install with an `install:python` script; the r
 
 VS Code tasks and launches should call pnpm workspace scripts from the repository root. Keep the backend debug launch direct through `debugpy`, but keep dev tasks on `pnpm --filter ...` so package scripts remain the source of truth.
 
-Per-prototype guidance loads with the directory: `prototypes/parsing_service/CLAUDE.md` and `prototypes/studio/CLAUDE.md`.
+Per-prototype guidance loads with the directory: `prototypes/studio/CLAUDE.md`.
 
 ## Persistence boundaries
 

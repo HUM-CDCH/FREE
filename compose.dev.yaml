@@ -10,6 +10,9 @@
 # it on top of these rules — and dependency shape is never copied: manifests and
 # the image definition rebuild instead.
 services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
   studio:
     environment:
       VITE_SHOW_DEVELOPER_UI: "true"
