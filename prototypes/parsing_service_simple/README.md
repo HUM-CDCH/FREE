@@ -24,7 +24,7 @@ conversion finishes in its worker thread, but its result is discarded.
 ```powershell
 cd prototypes/parsing_service_simple
 uv sync
-uv run --no-sync python -X utf8 -m fastapi run main.py --host 127.0.0.1 --port 8000
+uv run --no-sync python -X utf8 -m fastapi run main.py --host 127.0.0.1 --port 8055
 ```
 
 The service stores processor-cache data in `data/` by default. Run exactly one

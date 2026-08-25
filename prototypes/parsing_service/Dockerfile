@@ -30,6 +30,6 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra "${OCR_EXTRA}"
 
-EXPOSE 8000
+EXPOSE 8055
 # Model caches (docling/HF + paddlex) land under HOME=/models — mount it as a volume to persist.
-CMD ["uv", "run", "--no-sync", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-sync", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8055"]

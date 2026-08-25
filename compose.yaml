@@ -27,7 +27,7 @@ services:
     environment:
       DOCLING_DEVICE: cpu
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8055:8055"
     healthcheck:
       # `/status` answers only once the Docling pipeline is initialized, and the
       # first start downloads its models, so the start period is generous.
@@ -35,7 +35,7 @@ services:
         - CMD
         - python
         - -c
-        - "import json, urllib.request; status=json.load(urllib.request.urlopen('http://127.0.0.1:8000/status', timeout=5)); raise SystemExit(0 if status.get('parser_worker_health') == 'healthy' else 1)"
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8055/status', timeout=5)"
       interval: 30s
       timeout: 10s
       retries: 5
@@ -52,15 +52,18 @@ services:
     environment:
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
     ports:
-      - "443:443"
+      - "8443:8443/tcp"
+      - "8443:8443/udp"
     healthcheck:
       test:
         - CMD-SHELL
-        - 'wget -qO /dev/null --no-check-certificate --header="Host: $${STUDIO_ORIGIN#https://}" https://127.0.0.1/api/healthz'
+        - >-
+          wget -qO /dev/null --no-check-certificate
+          "https://$${STUDIO_ORIGIN#https://}/api/healthz"
       interval: 30s
       timeout: 10s
-      retries: 12
       start_period: 60s
+      retries: 12
     depends_on:
       studio:
         condition: service_healthy
@@ -97,7 +100,7 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
-      PARSING_SERVICE_URL: http://parsing_service:8000
+      PARSING_SERVICE_URL: http://parsing_service:8055
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
       FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes}"
       FREE_STUDIO_PROXY: trusted-caddy

@@ -1,6 +1,6 @@
 # Studio
 
-Model endpoints are served from same-origin `/api`. The production Node host reads `PARSING_SERVICE_URL`; Vite development may use `VITE_PARSING_SERVICE_URL` (default `http://127.0.0.1:8000`).
+Model endpoints are served from same-origin `/api`. The production Node host reads `PARSING_SERVICE_URL`; Vite development may use `VITE_PARSING_SERVICE_URL` (default `http://127.0.0.1:8055`).
 
 ## Key architecture points
 
