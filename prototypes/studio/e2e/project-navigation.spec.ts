@@ -359,14 +359,14 @@ test.describe('rail navigation', () => {
     })
     await gotoAuthenticated(page, '/')
 
-    const create = page.getByRole('button', { name: '+ New project' })
+    const create = page.getByRole('button', { name: 'New Project', exact: true })
     await activateWithKeyboard(page, create)
     const name = page.getByRole('textbox', { name: 'Project name' })
     await expect(name).toBeFocused()
     await page.keyboard.type('Recovered project')
     await activateWithKeyboard(page, page.getByRole('button', { name: 'Create' }))
 
-    const dialog = page.getByRole('dialog', { name: 'New Project' })
+    const dialog = page.getByRole('dialog', { name: 'New Project', exact: true })
     await expect(dialog).toBeVisible()
     await expect(name).toHaveValue('Recovered project')
     await expect(dialog.getByRole('alert')).toHaveText(
@@ -377,7 +377,10 @@ test.describe('rail navigation', () => {
     await activateWithKeyboard(page, dialog.getByRole('button', { name: 'Create' }))
 
     await expect(dialog).toBeHidden()
-    await expect(create).toBeFocused()
+    // A successful create routes into the created Project Context.
+    await expect(page).toHaveURL(
+      /\/projects\/00000000-0000-4000-8000-000000000047$/,
+    )
     await expect(
       rail(page).getByText('Recovered project', { exact: true }),
     ).toBeVisible()
@@ -533,7 +536,7 @@ test.describe('rail navigation', () => {
     await stubStudio(page)
     await gotoAuthenticated(page, '/')
 
-    const create = page.getByRole('button', { name: '+ New project' })
+    const create = page.getByRole('button', { name: 'New Project', exact: true })
     await create.click()
     await expect(page.getByRole('textbox', { name: 'Project name' })).toBeFocused()
     await page.keyboard.press('Escape')
