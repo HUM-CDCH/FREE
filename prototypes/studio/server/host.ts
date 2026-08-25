@@ -59,10 +59,11 @@ export async function startStudioServer(
   const clientRoot = dependencies.clientRoot ?? productionClientRoot()
   const app = await createStudioApp({
     studioOrigin: config.studioOrigin,
+    basePath: config.basePath,
     sessionSecret: config.sessionSecret,
     clientAddress: createClientAddressResolver(config),
     requestPeer: createRequestPeerVerifier(config),
-    clientHandler: createStaticClientHandler(clientRoot),
+    clientHandler: createStaticClientHandler(clientRoot, config.basePath),
   })
   const server = serveApplication(
     {

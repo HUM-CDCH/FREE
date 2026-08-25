@@ -11,8 +11,11 @@ beforeEach(async () => {
   container = await mkdtemp(join(tmpdir(), 'free-studio-static-'))
   root = join(container, 'client')
   await mkdir(join(root, 'assets'), { recursive: true })
-  await writeFile(join(root, 'index.html'), '<main>Studio application</main>')
-  await writeFile(join(root, 'favicon.svg'), '<svg />')
+  await writeFile(
+    join(root, 'index.html'),
+    '<base href="/" /><main>Studio application</main>',
+  )
+  await writeFile(join(root, 'favicon.png'), 'png')
   await writeFile(join(root, 'assets', 'index-AbCd1234.js'), 'hashed-client')
   await writeFile(join(root, 'assets', 'runtime.js'), 'unversioned-client')
   await writeFile(join(container, 'secret.txt'), 'must-not-be-served')
@@ -24,7 +27,7 @@ afterEach(async () => {
 
 describe('production static client handler', () => {
   it('serves SPA navigation through no-cache index HTML', async () => {
-    const handle = createStaticClientHandler(root)
+    const handle = createStaticClientHandler(root, '/free')
     for (const pathname of ['/login', '/projects/project-id', '/change-password']) {
       const response = await handle(
         new Request(`https://studio.example${pathname}`),
@@ -34,12 +37,14 @@ describe('production static client handler', () => {
         'text/html; charset=utf-8',
       )
       expect(response.headers.get('cache-control')).toBe('no-cache')
-      expect(await response.text()).toBe('<main>Studio application</main>')
+      expect(await response.text()).toBe(
+        '<base href="/free/" /><main>Studio application</main>',
+      )
     }
   })
 
   it('makes hashed assets immutable and revalidates unversioned files', async () => {
-    const handle = createStaticClientHandler(root)
+    const handle = createStaticClientHandler(root, '/')
     const hashed = await handle(
       new Request('https://studio.example/assets/index-AbCd1234.js'),
     )
@@ -60,16 +65,16 @@ describe('production static client handler', () => {
     expect(await unversioned.text()).toBe('unversioned-client')
 
     const icon = await handle(
-      new Request('https://studio.example/favicon.svg', { method: 'HEAD' }),
+      new Request('https://studio.example/favicon.png', { method: 'HEAD' }),
     )
     expect(icon.status).toBe(200)
     expect(icon.headers.get('cache-control')).toBe('no-cache')
-    expect(icon.headers.get('content-length')).toBe(String('<svg />'.length))
+    expect(icon.headers.get('content-length')).toBe(String('png'.length))
     expect(await icon.text()).toBe('')
   })
 
   it('rejects traversal, malformed paths, missing files, and unsafe methods', async () => {
-    const handle = createStaticClientHandler(root)
+    const handle = createStaticClientHandler(root, '/')
     for (const request of [
       new Request('https://studio.example/assets/%2e%2e%2fsecret.txt'),
       new Request('https://studio.example/assets/%5c..%5csecret.txt'),

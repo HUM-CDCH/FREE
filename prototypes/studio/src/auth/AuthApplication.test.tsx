@@ -74,6 +74,7 @@ async function submitLogin(
 
 afterEach(() => {
   cleanup()
+  document.querySelector('base')?.remove()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   history.replaceState(null, '', '/')
@@ -122,6 +123,31 @@ describe('AuthApplication', () => {
     expect(await screen.findByText('Project application')).toBeInTheDocument()
     expect(`${location.pathname}${location.search}`).toBe(returnTo)
     expect(loadNavigation).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps authentication and return navigation beneath the Studio base path', async () => {
+    const base = document.createElement('base')
+    base.href = '/free/'
+    document.head.prepend(base)
+    const returnTo =
+      '/projects/22222222-2222-4222-8222-222222222222/schemas?revision=latest'
+    history.replaceState(
+      null,
+      '',
+      `/free/login?${new URLSearchParams({ returnTo })}`,
+    )
+    const request = mockFetch((url) => {
+      if (url === '/free/api/auth/session') return jsonResponse(anonymousSession)
+      if (url === '/free/api/auth/login') return jsonResponse(usableSession)
+      throw new Error(`Unexpected request: ${url}`)
+    })
+
+    render(<AuthApplication loadNavigation={projectLoader()} />)
+    await submitLogin()
+
+    expect(await screen.findByText('Project application')).toBeInTheDocument()
+    expect(`${location.pathname}${location.search}`).toBe(`/free${returnTo}`)
     expect(request).toHaveBeenCalledTimes(2)
   })
 

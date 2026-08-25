@@ -1,5 +1,7 @@
-# Private production topology. Caddy is the only host-published service; all
-# application traffic reaches Studio through the dedicated proxy network.
+# Private production topology. The host nginx reverse proxy is the only public
+# entry point: it terminates TLS and forwards the configured base path to
+# Studio through the loopback-published port. Studio accepts requests only from
+# the pinned proxy-network bridge gateway.
 services:
   db:
     image: postgres:17
@@ -26,6 +28,8 @@ services:
     # provide their NVIDIA runtime/device configuration and select CUDA.
     environment:
       DOCLING_DEVICE: cpu
+    # Host loopback publish for the operator's own web app. Port 8000 is
+    # already taken on the deployment machine.
     ports:
       - "127.0.0.1:8055:8055"
     healthcheck:
@@ -46,52 +50,6 @@ services:
     networks:
       - app
 
-  caddy:
-    image: caddy:2.10.2-alpine
-    restart: unless-stopped
-    environment:
-      STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
-    ports:
-      - "8443:8443/tcp"
-      - "8443:8443/udp"
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          wget -qO /dev/null --no-check-certificate
-          "https://$${STUDIO_ORIGIN#https://}/api/healthz"
-      interval: 30s
-      timeout: 10s
-      start_period: 60s
-      retries: 12
-    depends_on:
-      studio:
-        condition: service_healthy
-    networks:
-      proxy:
-        ipv4_address: 172.30.0.2
-    volumes:
-      - type: bind
-        source: ./docker/Caddyfile
-        target: /etc/caddy/Caddyfile
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: "${FREE_TLS_CERTIFICATE_PATH:?FREE_TLS_CERTIFICATE_PATH must point to the supplied PEM certificate}"
-        target: /etc/caddy/tls/studio.crt
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: "${FREE_TLS_PRIVATE_KEY_PATH:?FREE_TLS_PRIVATE_KEY_PATH must point to the supplied PEM private key}"
-        target: /etc/caddy/tls/studio.key
-        read_only: true
-        bind:
-          create_host_path: false
-      - caddy-data:/data
-      - caddy-config:/config
-
   studio:
     build:
       context: .
@@ -102,16 +60,17 @@ services:
       DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
       PARSING_SERVICE_URL: http://parsing_service:8055
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
+      STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:?STUDIO_BASE_PATH must be / or a canonical path such as /free}"
       FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes}"
-      FREE_STUDIO_PROXY: trusted-caddy
-      FREE_STUDIO_PROXY_ADDRESS: 172.30.0.2
+      FREE_STUDIO_PROXY: trusted-proxy
+      FREE_STUDIO_PROXY_ADDRESS: 172.30.0.1
     depends_on:
       db:
         condition: service_healthy
       parsing_service:
         condition: service_started
     healthcheck:
-      # The hosted server rejects direct HTTP peers other than pinned Caddy.
+      # The hosted server rejects direct HTTP peers other than its pinned proxy.
       # A local TCP connection proves the Node host started after migrations.
       test:
         - CMD
@@ -127,6 +86,8 @@ services:
       - studio-data:/root/.local/share
       # `model-config.json` under `env-paths('FREE Studio').config`.
       - studio-config:/root/.config
+    ports:
+      - 127.0.0.1:5173:5173
     networks:
       app:
       proxy:
@@ -138,8 +99,6 @@ volumes:
   parsing-models:
   studio-data:
   studio-config:
-  caddy-data:
-  caddy-config:
 
 networks:
   app:

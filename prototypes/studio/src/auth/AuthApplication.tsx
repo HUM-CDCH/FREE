@@ -16,6 +16,7 @@ import type {
 } from './authApi.ts'
 import { subscribeToAuthenticationRequired } from './authenticatedFetch.ts'
 import { currentReturnPath } from './returnPath.ts'
+import { browserStudioPath } from '../studioUrl.js'
 
 type ProjectNavigationModule = {
   ProjectNavigationProvider: ComponentType<{ children: ReactNode }>
@@ -124,7 +125,7 @@ export default function AuthApplication({
         return
       }
       authenticationTransitioned.current = false
-      history.replaceState(null, '', currentReturnPath())
+      history.replaceState(null, '', browserStudioPath(currentReturnPath()))
       setState({ phase: 'authenticated', session })
     },
     [],
@@ -176,14 +177,14 @@ export default function AuthApplication({
         session={state.session}
         temporaryPassword={state.temporaryPassword}
         onPasswordChanged={() => {
-          history.replaceState(null, '', '/login')
+          history.replaceState(null, '', browserStudioPath('/login'))
           setState({
             phase: 'anonymous',
             notice: 'Password changed. Sign in with your new password.',
           })
         }}
         onLoggedOut={() => {
-          history.replaceState(null, '', '/login')
+          history.replaceState(null, '', browserStudioPath('/login'))
           setState({ phase: 'anonymous', notice: 'You have signed out.' })
         }}
       />

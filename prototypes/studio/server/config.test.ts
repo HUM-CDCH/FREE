@@ -9,8 +9,9 @@ import {
 const SECRET = Buffer.alloc(32, 11).toString('base64')
 const HOSTED = {
   STUDIO_ORIGIN: 'https://studio.example',
+  STUDIO_BASE_PATH: '/free',
   FREE_SESSION_SECRET: SECRET,
-  FREE_STUDIO_PROXY: 'trusted-caddy',
+  FREE_STUDIO_PROXY: 'trusted-proxy',
   FREE_STUDIO_PROXY_ADDRESS: '172.30.0.2',
 } satisfies NodeJS.ProcessEnv
 
@@ -30,11 +31,12 @@ function requestBindings(
 }
 
 describe('production Studio configuration', () => {
-  it('accepts only a complete hosted HTTPS and pinned-Caddy contract', () => {
+  it('accepts only a complete hosted HTTPS and pinned-proxy contract', () => {
     expect(loadStudioServerConfig(HOSTED)).toEqual({
       studioOrigin: 'https://studio.example',
+      basePath: '/free',
       sessionSecret: Buffer.alloc(32, 11),
-      proxyMode: 'trusted-caddy',
+      proxyMode: 'trusted-proxy',
       proxyAddress: '172.30.0.2',
       hostname: '0.0.0.0',
       port: 5173,
@@ -42,6 +44,7 @@ describe('production Studio configuration', () => {
 
     for (const name of [
       'STUDIO_ORIGIN',
+      'STUDIO_BASE_PATH',
       'FREE_SESSION_SECRET',
       'FREE_STUDIO_PROXY',
       'FREE_STUDIO_PROXY_ADDRESS',
@@ -50,6 +53,20 @@ describe('production Studio configuration', () => {
       delete environment[name as keyof typeof environment]
       expect(() => loadStudioServerConfig(environment)).toThrow(name)
     }
+  })
+
+  it('requires one canonical deployment base path', () => {
+    for (const basePath of ['', 'free', '/free/', '//free', '/free?x=1'])
+      expect(() =>
+        loadStudioServerConfig({ ...HOSTED, STUDIO_BASE_PATH: basePath }),
+      ).toThrow(/STUDIO_BASE_PATH/)
+  })
+
+  it('does not couple the hosted mode to a proxy implementation', () => {
+    for (const proxy of ['trusted-caddy', 'trusted-nginx', 'nginx'])
+      expect(() =>
+        loadStudioServerConfig({ ...HOSTED, FREE_STUDIO_PROXY: proxy }),
+      ).toThrow(/FREE_STUDIO_PROXY/)
   })
 
   it('rejects noncanonical or insecure hosted origins', () => {
@@ -105,6 +122,7 @@ describe('production Studio configuration', () => {
   it('allows only an explicit socket-only loopback exception', () => {
     const config = loadStudioServerConfig({
       STUDIO_ORIGIN: 'http://127.0.0.1:5173',
+      STUDIO_BASE_PATH: '/',
       FREE_SESSION_SECRET: SECRET,
       FREE_STUDIO_PROXY: 'loopback',
     })
@@ -116,6 +134,7 @@ describe('production Studio configuration', () => {
     expect(
       loadStudioServerConfig({
         STUDIO_ORIGIN: 'http://127.0.0.1:5174',
+        STUDIO_BASE_PATH: '/',
         FREE_SESSION_SECRET: SECRET,
         FREE_STUDIO_PROXY: 'loopback',
         PORT: '5174',
@@ -128,6 +147,7 @@ describe('production Studio configuration', () => {
       expect(() =>
         loadStudioServerConfig({
           STUDIO_ORIGIN: 'http://127.0.0.1:5173',
+          STUDIO_BASE_PATH: '/',
           FREE_SESSION_SECRET: SECRET,
           FREE_STUDIO_PROXY: 'loopback',
           PORT: port,
@@ -136,6 +156,7 @@ describe('production Studio configuration', () => {
     expect(() =>
       loadStudioServerConfig({
         STUDIO_ORIGIN: 'http://studio.example:5173',
+        STUDIO_BASE_PATH: '/',
         FREE_SESSION_SECRET: SECRET,
         FREE_STUDIO_PROXY: 'loopback',
       }),
@@ -143,6 +164,7 @@ describe('production Studio configuration', () => {
     expect(() =>
       loadStudioServerConfig({
         STUDIO_ORIGIN: 'http://127.0.0.1:5173',
+        STUDIO_BASE_PATH: '/',
         FREE_SESSION_SECRET: SECRET,
         FREE_STUDIO_PROXY: 'loopback',
         FREE_STUDIO_PROXY_ADDRESS: '127.0.0.1',
@@ -156,10 +178,10 @@ describe('trusted request peer and client address', () => {
     const config = loadStudioServerConfig(HOSTED)
     const verifyPeer = createRequestPeerVerifier(config)
     const clientAddress = createClientAddressResolver(config)
-    const caddy = requestBindings('::ffff:172.30.0.2', '198.51.100.7')
+    const proxy = requestBindings('::ffff:172.30.0.2', '198.51.100.7')
 
-    expect(() => verifyPeer(caddy)).not.toThrow()
-    expect(clientAddress(caddy)).toBe('198.51.100.7')
+    expect(() => verifyPeer(proxy)).not.toThrow()
+    expect(clientAddress(proxy)).toBe('198.51.100.7')
 
     const spoofed = requestBindings('172.30.0.9', '198.51.100.7')
     expect(() => verifyPeer(spoofed)).toThrowError(
@@ -170,7 +192,7 @@ describe('trusted request peer and client address', () => {
     )
   })
 
-  it('requires one valid Caddy-overwritten client address', () => {
+  it('requires one valid proxy-overwritten client address', () => {
     const resolver = createClientAddressResolver(loadStudioServerConfig(HOSTED))
     for (const bindings of [
       requestBindings('172.30.0.2'),
@@ -188,6 +210,7 @@ describe('trusted request peer and client address', () => {
   it('uses the loopback socket and ignores a browser-supplied header', () => {
     const config = loadStudioServerConfig({
       STUDIO_ORIGIN: 'http://localhost:5173',
+      STUDIO_BASE_PATH: '/',
       FREE_SESSION_SECRET: SECRET,
       FREE_STUDIO_PROXY: 'loopback',
     })

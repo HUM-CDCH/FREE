@@ -10,6 +10,7 @@ import type { ProjectContextRouteState } from './projectContexts/useProjectConte
 import type { projectContextErrorSchema } from '../shared/projectContext.contract'
 import type { z } from 'zod'
 import { Button, EmptyState } from './ui'
+import { browserStudioPath } from './studioUrl.js'
 
 const collapsedWidth = 46
 const navMin = 150
@@ -315,7 +316,7 @@ export default function AppFrame({
           }`}
         >
           <img
-            src="/free-logo.png"
+            src={browserStudioPath('/free-logo.png')}
             alt=""
             className="size-20 shrink-0 -translate-y-1 object-contain"
           />
