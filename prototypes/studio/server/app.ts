@@ -499,6 +499,7 @@ function internalStudioRequest(
   basePath: string,
 ): Request | null {
   const url = new URL(request.url)
+  if (!url.pathname.startsWith('/') || url.pathname.startsWith('//')) return null
   const pathname = stripStudioBasePath(basePath, url.pathname)
   if (pathname === null) return null
   url.pathname = pathname

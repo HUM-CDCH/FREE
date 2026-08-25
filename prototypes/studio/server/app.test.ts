@@ -592,7 +592,11 @@ describe('deny-by-default application boundary', () => {
   it('mounts every route beneath one configured public base path', async () => {
     const test = await fixture({ basePath: '/free' })
 
-    for (const path of ['/api/healthz', '/free-adjacent/api/healthz'])
+    for (const path of [
+      '/api/healthz',
+      '/free-adjacent/api/healthz',
+      '//anything',
+    ])
       expect(
         (await test.app.request(`${ORIGIN}${path}`, undefined, CLIENT)).status,
       ).toBe(404)
