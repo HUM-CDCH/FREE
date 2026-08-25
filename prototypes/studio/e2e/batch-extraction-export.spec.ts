@@ -2,7 +2,10 @@ import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
 import { strFromU8, unzipSync } from 'fflate'
 import type { BatchExtractionSnapshot, ExtractionModule } from 'extraction'
-import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
+import {
+  emptyProjectContextActivitySummary,
+  type ResearcherProjectStore,
+} from '../../../packages/db/src/project-store.js'
 import { createGetExtractionSchemas } from '../api/extraction_schemas.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
 import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
@@ -266,7 +269,13 @@ function batchFixture(): {
   }
   const store: StudioStore = {
     async listProjectContexts() {
-      return [{ ...project, sourceDocumentCount: 2 }]
+      return [
+        {
+          ...project,
+          sourceDocumentCount: 2,
+          summary: emptyProjectContextActivitySummary(project.createdAt),
+        },
+      ]
     },
     async getProjectContextWithDocuments(projectContextId) {
       if (projectContextId !== id.project) return null

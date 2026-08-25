@@ -590,6 +590,173 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
+  it('summarizes an empty Project Context as ingest with creation as activity', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+
+    const empty = (await store.listProjectContexts(20)).find(
+      (item) => item.projectContextId === EMPTY_PROJECT,
+    )
+
+    assert.deepEqual(empty?.summary, {
+      phase: 'ingest',
+      extractionCount: 0,
+      extractedSourceDocumentCount: 0,
+      reviewedSourceDocumentCount: 0,
+      staleSourceDocumentCount: 0,
+      schemaDraftCount: 0,
+      lastActivityAt: new Date('2026-08-01T11:02:00Z'),
+      runningBatch: null,
+    })
+  })
+
+  it('moves the phase from chat to approve on a ready suggestion, counting drafts', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    // No approved Schema Revision yet: the researcher is still in chat.
+    database.tables.SchemaRevision = []
+
+    const chatting = await store.listProjectContexts(20)
+    const chattingSummary = chatting.find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(chattingSummary?.phase, 'chat')
+    assert.equal(chattingSummary?.schemaDraftCount, 0)
+
+    database.tables.BatchSchemaSuggestion = [
+      {
+        id: '51000000-0000-4000-8005-000000000001',
+        projectContextId: PROJECT,
+        phase: 'READY',
+        confirmedSchemaRevisionId: null,
+        createdAt: new Date('2026-08-02T09:00:00Z'),
+      },
+    ]
+    const ready = await store.listProjectContexts(20)
+    const readySummary = ready.find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(readySummary?.phase, 'approve')
+    assert.equal(readySummary?.schemaDraftCount, 1)
+    assert.deepEqual(readySummary?.lastActivityAt, new Date('2026-08-02T09:00:00Z'))
+
+    // A confirmed suggestion is no longer a draft and no longer gates approve.
+    database.tables.BatchSchemaSuggestion[0].confirmedSchemaRevisionId = REVISION_1
+    const confirmed = await store.listProjectContexts(20)
+    const confirmedSummary = confirmed.find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(confirmedSummary?.phase, 'chat')
+    assert.equal(confirmedSummary?.schemaDraftCount, 0)
+  })
+
+  it('summarizes extraction, review, and staleness from the latest Extraction', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const representations = database.tables.SourceRepresentationRevision
+    // The fixture document's two representations become revisions 1 and 2.
+    representations[0].revisionNumber = 1
+    representations[1].revisionNumber = 2
+    const currentRepresentation = representations[1].id as string
+
+    // An approved Schema Revision with no Extraction yet: extract phase.
+    const before = await store.listProjectContexts(20)
+    assert.equal(
+      before.find((item) => item.projectContextId === PROJECT)?.summary.phase,
+      'extract',
+    )
+
+    database.tables.Extraction = [
+      {
+        id: '51000000-0000-4000-8006-000000000001',
+        sourceDocumentId: DOCUMENT,
+        sourceRepresentationRevisionId: currentRepresentation,
+        createdAt: new Date('2026-08-03T10:00:00Z'),
+        reviewedAt: null,
+      },
+    ]
+    const extracted = await store.listProjectContexts(20)
+    const extractedSummary = extracted.find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(extractedSummary?.phase, 'extract')
+    assert.equal(extractedSummary?.extractionCount, 1)
+    assert.equal(extractedSummary?.extractedSourceDocumentCount, 1)
+    assert.equal(extractedSummary?.reviewedSourceDocumentCount, 0)
+    assert.equal(extractedSummary?.staleSourceDocumentCount, 0)
+    assert.deepEqual(
+      extractedSummary?.lastActivityAt,
+      new Date('2026-08-03T10:00:00Z'),
+    )
+
+    // Review moves the phase to validate and review activity forward.
+    database.tables.Extraction[0].reviewedAt = new Date('2026-08-04T10:00:00Z')
+    const reviewed = await store.listProjectContexts(20)
+    const reviewedSummary = reviewed.find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(reviewedSummary?.phase, 'validate')
+    assert.equal(reviewedSummary?.reviewedSourceDocumentCount, 1)
+    assert.deepEqual(
+      reviewedSummary?.lastActivityAt,
+      new Date('2026-08-04T10:00:00Z'),
+    )
+
+    // A newer current representation than the latest Extraction's pin is
+    // exactly what makes the Source Document stale.
+    representations.push({
+      id: '51000000-0000-4000-8002-000000000009',
+      sourceDocumentId: DOCUMENT,
+      revisionNumber: 3,
+      artifactReference: 'f'.repeat(64),
+      artifactSha256: 'f'.repeat(64),
+    })
+    const stale = await store.listProjectContexts(20)
+    assert.equal(
+      stale.find((item) => item.projectContextId === PROJECT)?.summary
+        .staleSourceDocumentCount,
+      1,
+    )
+  })
+
+  it('reports the open Batch Extraction with persisted member progress', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const batchId = '51000000-0000-4000-8007-000000000001'
+    database.tables.BatchExtraction = [
+      {
+        id: batchId,
+        projectContextId: PROJECT,
+        executionStatus: 'RUNNING',
+        createdAt: new Date('2026-08-05T08:00:00Z'),
+      },
+    ]
+    database.tables.BatchExtractionMember = [
+      { batchExtractionId: batchId, executionStatus: 'COMPLETED' },
+      { batchExtractionId: batchId, executionStatus: 'COMPLETED' },
+      { batchExtractionId: batchId, executionStatus: 'RUNNING' },
+    ]
+
+    const running = await store.listProjectContexts(20)
+    assert.deepEqual(
+      running.find((item) => item.projectContextId === PROJECT)?.summary
+        .runningBatch,
+      { completedMemberCount: 2, memberCount: 3 },
+    )
+
+    // A finished batch stops reporting progress but remains activity.
+    database.tables.BatchExtraction[0].executionStatus = 'COMPLETED'
+    const finished = await store.listProjectContexts(20)
+    const finishedSummary = finished.find(
+      (item) => item.projectContextId === PROJECT,
+    )?.summary
+    assert.equal(finishedSummary?.runningBatch, null)
+    assert.deepEqual(
+      finishedSummary?.lastActivityAt,
+      new Date('2026-08-05T08:00:00Z'),
+    )
+  })
+
   it('scopes project, document, and representation reads to one account', async () => {
     const database = fakeDatabase()
     const storeA = createResearcherProjectStore(RESEARCHER_A, database as never)

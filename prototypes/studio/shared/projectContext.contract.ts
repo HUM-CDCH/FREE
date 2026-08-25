@@ -22,8 +22,45 @@ export const projectContextSummarySchema = z
     createdAt: timestamp,
   })
   .strict()
+/** Where a Project Context currently sits in the five-phase workflow. */
+export const projectContextWorkflowPhaseSchema = z.enum([
+  'ingest',
+  'chat',
+  'approve',
+  'extract',
+  'validate',
+])
+const nonNegativeCount = z.number().int().nonnegative()
+/**
+ * Persisted per-project state computed server-side behind the store boundary,
+ * so home cards never fan out per-project reads. The stale flag is
+ * `staleSourceDocumentCount > 0`: a Source Document counts as stale exactly
+ * when its Current Source Representation Revision differs from the one pinned
+ * by its latest Extraction.
+ */
+export const projectContextActivitySummarySchema = z
+  .object({
+    phase: projectContextWorkflowPhaseSchema,
+    extractionCount: nonNegativeCount,
+    extractedSourceDocumentCount: nonNegativeCount,
+    reviewedSourceDocumentCount: nonNegativeCount,
+    staleSourceDocumentCount: nonNegativeCount,
+    schemaDraftCount: nonNegativeCount,
+    lastActivityAt: timestamp,
+    runningBatch: z
+      .object({
+        completedMemberCount: nonNegativeCount,
+        memberCount: nonNegativeCount,
+      })
+      .strict()
+      .nullable(),
+  })
+  .strict()
 export const projectContextListItemSchema = projectContextSummarySchema
-  .extend({ sourceDocumentCount: z.number().int().nonnegative() })
+  .extend({
+    sourceDocumentCount: z.number().int().nonnegative(),
+    summary: projectContextActivitySummarySchema,
+  })
   .strict()
 export const sourceDocumentSummarySchema = z
   .object({

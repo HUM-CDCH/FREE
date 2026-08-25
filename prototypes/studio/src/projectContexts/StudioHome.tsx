@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { NavigableRoute } from '../projectNavigation'
+import type { ProjectContext } from './transport'
 import { Button, EmptyState } from '../ui'
 import PlusIcon from '../PlusIcon'
 import { CreateProjectModal } from './CreateProjectModal'
@@ -20,6 +21,26 @@ const phases = [
   },
   { number: '05', name: 'Validate', copy: 'Review each value against its Evidence.' },
 ]
+
+/**
+ * The quiet one-line card meta from the persisted summary: the Source Document
+ * count, then the most decision-relevant state — staleness first, then review
+ * progress, then schema drafts still in chat.
+ */
+function metaLine(project: ProjectContext): string {
+  const count = project.sourceDocumentCount
+  const documents = `${count} ${count === 1 ? 'Source Document' : 'Source Documents'}`
+  const summary = project.summary
+  if (summary.staleSourceDocumentCount > 0)
+    return `${documents} · ${summary.staleSourceDocumentCount} changed since extraction`
+  if (summary.extractedSourceDocumentCount > 0)
+    return `${documents} · ${summary.reviewedSourceDocumentCount} of ${summary.extractedSourceDocumentCount} reviewed`
+  if (summary.schemaDraftCount > 0)
+    return `${documents} · ${summary.schemaDraftCount} schema ${
+      summary.schemaDraftCount === 1 ? 'draft' : 'drafts'
+    }`
+  return documents
+}
 
 /** The zero-Project-Context welcome: promise, workflow walkthrough, one action. */
 function FirstRun({ onCreate }: { onCreate: () => void }) {
@@ -145,10 +166,7 @@ export function StudioHome({
                   id={`project-${project.projectContextId}-count`}
                   className="text-xs text-ink-faint"
                 >
-                  {project.sourceDocumentCount}{' '}
-                  {project.sourceDocumentCount === 1
-                    ? 'Source Document'
-                    : 'Source Documents'}
+                  {metaLine(project)}
                 </span>
               </button>
             </li>

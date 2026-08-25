@@ -15,6 +15,29 @@ import {
 } from '../../shared/sourceDocumentIngestion.contract'
 
 export type ProjectContext = z.output<typeof projectContextListItemSchema>
+export type ProjectContextActivitySummary = ProjectContext['summary']
+
+/**
+ * A placeholder summary for a Project Context entered into the list before a
+ * server list read carries its authoritative one — a just-created Project
+ * Context, or a routed one resolved from its branch read. The next list read
+ * replaces it.
+ */
+export function provisionalSummary(
+  createdAt: string,
+  sourceDocumentCount: number,
+): ProjectContextActivitySummary {
+  return {
+    phase: sourceDocumentCount > 0 ? 'chat' : 'ingest',
+    extractionCount: 0,
+    extractedSourceDocumentCount: 0,
+    reviewedSourceDocumentCount: 0,
+    staleSourceDocumentCount: 0,
+    schemaDraftCount: 0,
+    lastActivityAt: createdAt,
+    runningBatch: null,
+  }
+}
 export type ProjectContextDetail = z.output<
   typeof projectContextWithDocumentsResponseSchema
 >

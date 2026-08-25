@@ -1,8 +1,9 @@
-import type {
-  DocumentReopenSnapshot,
-  ResearcherAccountRecord,
-  ResearcherAccountStore,
-  ResearcherProjectStore,
+import {
+  emptyProjectContextActivitySummary,
+  type DocumentReopenSnapshot,
+  type ResearcherAccountRecord,
+  type ResearcherAccountStore,
+  type ResearcherProjectStore,
 } from 'db'
 import { describe, expect, it, vi, type Mock } from 'vitest'
 import { ExtractionError, type ExtractionModule } from 'extraction'
@@ -357,12 +358,14 @@ function twoAccountStoreFixture(): TwoAccountStores {
             name: relationship.projectName,
             createdAt: CREATED_AT,
             sourceDocumentCount: relationship.documentPresent ? 1 : 0,
+            summary: emptyProjectContextActivitySummary(CREATED_AT),
           }))
         return [
           ...created[accountId].map((project) => ({
             ...project,
             createdAt: CREATED_AT,
             sourceDocumentCount: 0,
+            summary: emptyProjectContextActivitySummary(CREATED_AT),
           })),
           ...projects,
         ]
