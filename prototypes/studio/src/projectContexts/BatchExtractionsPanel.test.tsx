@@ -196,6 +196,7 @@ describe('BatchExtractionsPanel', () => {
   })
 
   it('edits and saves a saved schema with the shared schema workbench', async () => {
+    const addEventListener = vi.spyOn(window, 'addEventListener')
     const fetch = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
@@ -277,6 +278,11 @@ describe('BatchExtractionsPanel', () => {
       target: { value: 'location' },
     })
     fireEvent.click(within(schema).getByRole('button', { name: 'Save' }))
+    expect(addEventListener).toHaveBeenCalledWith(
+      'beforeunload',
+      expect.any(Function),
+    )
+    addEventListener.mockRestore()
 
     await waitFor(() =>
       expect(
@@ -1053,7 +1059,18 @@ describe('BatchExtractionsPanel', () => {
         ) &&
         init?.method === 'POST'
       ) {
-        suggestions = [readySuggestion()]
+        const retriedDefinition = {
+          recordDescription: 'One retried record.',
+          schemaNodes: [{ id: 'year', name: 'year', type: 'number' }],
+        }
+        suggestions = [
+          readySuggestion({
+            proposal: retriedDefinition,
+            draft: retriedDefinition,
+            draftVersion: 1,
+            finishedAt: '2026-08-15T10:00:02.000Z',
+          }),
+        ]
         return response({ batchSchemaSuggestion: suggestions[0] })
       }
       throw new Error(`Unexpected request: ${url}`)
@@ -1089,12 +1106,183 @@ describe('BatchExtractionsPanel', () => {
         ),
       ).toHaveLength(1),
     )
+    expect(await within(suggested).findByText('year')).toBeVisible()
+    expect(within(suggested).queryByText('place')).not.toBeInTheDocument()
     expect(
       fetch.mock.calls.filter(
         ([url, init]) =>
           url === '/api/batch-schema-suggestions' && init?.method === 'POST',
       ),
     ).toHaveLength(1)
+  })
+
+  it('serializes overlapping suggestion edits without re-adopting save echoes', async () => {
+    let suggestions: unknown[] = [readySuggestion()]
+    const firstSave = Promise.withResolvers<Response>()
+    const patchBodies: Array<{
+      expectedDraftVersion: number
+      recordDescription: string
+      schemaNodes: Array<{ id: string; name: string; type: string }>
+    }> = []
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return response({ batchExtractions: [] })
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: suggestions })
+      if (url.startsWith('/api/extraction-schemas?'))
+        return response({ extractionSchemas: [] })
+      if (
+        url.includes(
+          `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/draft?`,
+        ) &&
+        init?.method === 'PATCH'
+      ) {
+        const body = JSON.parse(String(init.body)) as (typeof patchBodies)[number]
+        patchBodies.push(body)
+        if (patchBodies.length === 1) return firstSave.promise
+        const saved = readySuggestion({
+          draft: {
+            recordDescription: body.recordDescription,
+            schemaNodes: body.schemaNodes,
+          },
+          draftVersion: 2,
+        })
+        suggestions = [saved]
+        return response({ batchSchemaSuggestion: saved })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+    const suggested = await screen.findByLabelText('Suggested common fields')
+
+    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
+      target: { value: 'location' },
+    })
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(patchBodies).toHaveLength(1), { timeout: 2_000 })
+
+    fireEvent.click(within(suggested).getByTitle('Edit location'))
+    fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
+      target: { value: 'city' },
+    })
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
+
+    const firstSaved = readySuggestion({
+      draft: {
+        recordDescription: patchBodies[0]!.recordDescription,
+        schemaNodes: patchBodies[0]!.schemaNodes,
+      },
+      draftVersion: 1,
+    })
+    suggestions = [firstSaved]
+    firstSave.resolve(response({ batchSchemaSuggestion: firstSaved }))
+
+    await waitFor(() => expect(patchBodies).toHaveLength(2), { timeout: 2_000 })
+    expect(patchBodies.map(({ expectedDraftVersion }) => expectedDraftVersion)).toEqual([
+      0,
+      1,
+    ])
+    expect(await within(suggested).findByText('city')).toBeVisible()
+    expect(within(suggested).queryByText('location')).not.toBeInTheDocument()
+  })
+
+  it('retries a failed suggested-draft save before running', async () => {
+    let suggestions: unknown[] = [readySuggestion()]
+    const calls: string[] = []
+    const patchBodies: Array<{
+      recordDescription: string
+      schemaNodes: Array<{ id: string; name: string; type: string }>
+    }> = []
+    const confirmed = readySuggestion({
+      draftVersion: 1,
+      confirmedSchemaRevisionId: schemaRevisionId,
+      batchExtractionId,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: suggestions })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({ extractionSchemas: [] })
+        if (
+          url.includes(
+            `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/draft?`,
+          ) &&
+          init?.method === 'PATCH'
+        ) {
+          calls.push('patch')
+          const body = JSON.parse(String(init.body)) as (typeof patchBodies)[number]
+          patchBodies.push(body)
+          if (patchBodies.length === 1)
+            return new Response(
+              JSON.stringify({
+                error: {
+                  code: 'persistence_unavailable',
+                  message: 'Try again.',
+                },
+              }),
+              {
+                status: 503,
+                headers: { 'content-type': 'application/json' },
+              },
+            )
+          const saved = readySuggestion({
+            draft: {
+              recordDescription: body.recordDescription,
+              schemaNodes: body.schemaNodes,
+            },
+            draftVersion: 1,
+          })
+          suggestions = [saved]
+          return response({ batchSchemaSuggestion: saved })
+        }
+        if (
+          url.startsWith(
+            `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/run?`,
+          ) &&
+          init?.method === 'POST'
+        ) {
+          calls.push('run')
+          suggestions = [confirmed]
+          return response({ batchSchemaSuggestion: confirmed })
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+    const suggested = await screen.findByLabelText('Suggested common fields')
+    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
+      target: { value: 'location' },
+    })
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(patchBodies).toHaveLength(1), { timeout: 2_000 })
+    expect(await screen.findByText('Try again.')).toBeVisible()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Run 2 Source Documents' }),
+    )
+    await waitFor(() => expect(calls).toEqual(['patch', 'patch', 'run']))
+    expect(patchBodies[1]?.schemaNodes[0]?.name).toBe('location')
   })
 
   it('shows and regenerates a previously confirmed suggestion', async () => {

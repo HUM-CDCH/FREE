@@ -1,5 +1,5 @@
 import { authenticatedFetch } from './auth/authenticatedFetch.ts'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
@@ -10,13 +10,7 @@ import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 // import type { AnnotationSetItem } from './AnnotationSidebar'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
-import type { TemplateState } from './SchemaPanel'
-import {
-  type SchemaNode,
-  schemaDefinitionToTemplate,
-  templateToSchemaDefinition,
-} from 'extraction/schema'
-import { countTemplateFields } from '../shared/template'
+import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { requestSchema } from './api'
 import {
   decodeParsedDocument,
@@ -39,19 +33,7 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 // import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
-import {
-  appendSchemaRevision,
-  getSchemaRevision,
-  initializeSchemaRevision,
-  renameExtractionSchema,
-  listSchemaRevisions,
-} from './schemaRevisions'
-import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
-import {
-  createSchemaSaveCoordinator,
-  type SchemaSaveCoordinator,
-  type SchemaSaveState,
-} from './schemaSaveCoordinator'
+import { renameExtractionSchema } from './schemaRevisions'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -247,11 +229,13 @@ export function DocumentWorkspace({
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
-  const pdfViewerRef = useRef<PDFViewer | null>(null)
-  // const annotationManagerRef = useRef<AnnotationEditorUIManager | null>(null)
-  const templateAbortRef = useRef<AbortController | null>(null)
-  const templatePrevStateRef = useRef<TemplateState>({ status: 'idle' })
   const toastTimerRef = useRef<number | undefined>(undefined)
+  const pdfViewerRef = useRef<PDFViewer | null>(null)
+  const activeSourceRepresentationIdRef = useRef(sourceRepresentationId)
+  useEffect(() => {
+    activeSourceRepresentationIdRef.current = sourceRepresentationId
+  }, [sourceRepresentationId])
+
   // const restoredAnnotations = (annotationSet?.annotations ?? []).map(
   //   ({ annotationId, text, pageNumber }) => ({
   //     id: annotationId,
@@ -264,47 +248,16 @@ export function DocumentWorkspace({
   // )
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [zoomPercent, setZoomPercent] = useState(100)
-  const [templateState, setTemplateState] = useState<TemplateState>(() =>
-    extractionSchema
-      ? {
-          status: 'ready',
-          recordDescription: extractionSchema.recordDescription,
-          nodes: extractionSchema.schemaNodes,
-          inputsKey: '',
-        }
-      : { status: 'idle' },
-  )
-  const [durableSchema, setDurableSchema] = useState(extractionSchema)
+  const schema = useDurableCurrentSchemaRevision({
+    projectContextId,
+    extractionSchema,
+    debounceMs: 1500,
+    sourceRepresentationId,
+    onCommitMessage: (message) => showToast(message),
+  })
+  const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
-  // const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
-  // An accepted result is bound to the Schema Revision it was produced with, so
-  // the pin is dropped as soon as the schema in the browser stops being it.
-  const [pinnedSchemaRevisionId, setPinnedSchemaRevisionId] = useState<
-    string | null
-  >(extractionSchema?.schemaRevisionId ?? null)
-  const [schemaSaveState, setSchemaSaveState] = useState<SchemaSaveState | null>(
-    () =>
-      extractionSchema
-        ? {
-            status: 'saved',
-            acknowledged: {
-              schemaRevisionId: extractionSchema.schemaRevisionId,
-              extractionSchemaId: extractionSchema.extractionSchemaId,
-              revisionNumber: extractionSchema.revisionNumber,
-              recordDescription: extractionSchema.recordDescription,
-              schemaNodes: extractionSchema.schemaNodes,
-            },
-            draft: {
-              recordDescription: extractionSchema.recordDescription,
-              schemaNodes: extractionSchema.schemaNodes,
-            },
-          }
-        : null,
-  )
-  const [schemaHistory, setSchemaHistory] = useState<SchemaRevisionSummary[]>([])
-  const schemaSaveCoordinatorRef = useRef<SchemaSaveCoordinator | null>(null)
-  const [extractAfterSave, setExtractAfterSave] =
-    useState<boolean | null>(null)
+  const [savingForRun, setSavingForRun] = useState(false)
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('schema')
@@ -316,65 +269,6 @@ export function DocumentWorkspace({
     [filename, pdfUrl],
   )
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
-
-  useEffect(() => {
-    if (!projectContextId || !durableSchema) return
-    const acknowledged = {
-      schemaRevisionId: durableSchema.schemaRevisionId,
-      extractionSchemaId: durableSchema.extractionSchemaId,
-      revisionNumber: durableSchema.revisionNumber,
-      recordDescription: durableSchema.recordDescription,
-      schemaNodes: durableSchema.schemaNodes,
-    }
-    const coordinator = createSchemaSaveCoordinator(
-      acknowledged,
-      (expectedRevisionNumber, definition) =>
-        appendSchemaRevision(
-          projectContextId,
-          durableSchema.extractionSchemaId,
-          expectedRevisionNumber,
-          definition,
-        ),
-      1500,
-      (next) => {
-        setSchemaSaveState(next)
-        if (next.status === 'saved')
-          setPinnedSchemaRevisionId(next.acknowledged.schemaRevisionId)
-      },
-    )
-    schemaSaveCoordinatorRef.current = coordinator
-    return () => {
-      coordinator.dispose()
-      schemaSaveCoordinatorRef.current = null
-    }
-  }, [durableSchema, projectContextId])
-
-  useEffect(() => {
-    if (!projectContextId || !durableSchema) {
-      return
-    }
-    const controller = new AbortController()
-    void listSchemaRevisions(
-      projectContextId,
-      durableSchema.extractionSchemaId,
-      20,
-      controller.signal,
-    ).then(setSchemaHistory).catch((error) => {
-      if (!(error instanceof Error && error.name === 'AbortError')) setSchemaHistory([])
-    })
-    return () => controller.abort()
-  }, [
-    durableSchema,
-    projectContextId,
-    schemaSaveState?.acknowledged.schemaRevisionId,
-  ])
-
-  useEffect(() => {
-    if (!schemaSaveState || schemaSaveState.status === 'saved') return
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault()
-    window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
-  }, [schemaSaveState])
 
   // This workspace now stays mounted across Source Document switches within
   // the same Project Context (only the Schema panel above should survive
@@ -701,7 +595,6 @@ export function DocumentWorkspace({
 
   useEffect(
     () => () => {
-      templateAbortRef.current?.abort()
       window.clearTimeout(toastTimerRef.current)
     },
     [],
@@ -713,95 +606,41 @@ export function DocumentWorkspace({
     toastTimerRef.current = window.setTimeout(() => setToast(null), 2600)
   }
 
-  async function generateSchema(instruction: string) {
-    if (indexing) {
-      showToast('Document is still being indexed…')
-      return
-    }
-    templateAbortRef.current?.abort()
-    const abortController = new AbortController()
-    templateAbortRef.current = abortController
-    templatePrevStateRef.current = templateState
-    const inputsKey = instruction
-    setPinnedSchemaRevisionId(null)
-    setTemplateState({ status: 'generating' })
-
-    try {
-      const template = await requestSchema(
-        {
-          projectContextId,
-          sourceRepresentationRevisionId: sourceRepresentationId,
-        },
-        abortController.signal,
-        { instruction },
-      )
-      if (!abortController.signal.aborted) {
-        const definition = templateToSchemaDefinition(template)
-        const { recordDescription, schemaNodes: nodes } = definition
-        const coordinator = schemaSaveCoordinatorRef.current
-        if (coordinator) coordinator.edit(definition)
-        else if (projectContextId) {
-          const revision = await initializeSchemaRevision(
-            projectContextId,
-            definition,
-            abortController.signal,
-          )
-          const initialized = {
-            extractionSchemaId: revision.extractionSchemaId,
-            name: 'Extraction Schema',
-            schemaRevisionId: revision.schemaRevisionId,
-            revisionNumber: revision.revisionNumber,
-            recordDescription: revision.recordDescription,
-            schemaNodes: revision.schemaNodes,
-          }
-          setDurableSchema(initialized)
-          setSchemaName(initialized.name)
-          setSchemaSaveState({
-            status: 'saved',
-            acknowledged: revision,
-            draft: {
-              recordDescription: revision.recordDescription,
-              schemaNodes: revision.schemaNodes,
-            },
-          })
-          setPinnedSchemaRevisionId(revision.schemaRevisionId)
-        }
-        setTemplateState({
-          status: 'ready',
-          recordDescription,
-          nodes,
-          inputsKey,
-        })
-      }
-    } catch (error) {
-      if (abortController.signal.aborted) {
-        return
-      }
-      setTemplateState({
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Schema generation failed.',
-      })
-    }
-  }
-
-  function cancelGenerateSchema() {
-    templateAbortRef.current?.abort()
-    setTemplateState(templatePrevStateRef.current)
-  }
-
   // Front-end reset only: the durable schema remains the save target, while
   // the editor returns to its ungenerated state.
   async function resetSchema() {
     try {
-      await schemaSaveCoordinatorRef.current?.flush()
+      await schema.reset()
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Could not save the Current Schema Revision.')
+      showToast(
+        error instanceof Error
+          ? error.message
+          : 'Could not save the Current Schema Revision.',
+      )
       throw error
     }
-    templateAbortRef.current?.abort()
-    templatePrevStateRef.current = { status: 'idle' }
-    setTemplateState({ status: 'idle' })
-    setPinnedSchemaRevisionId(null)
+  }
+
+  async function handleGenerate(instruction: string) {
+    if (indexing) {
+      showToast('Document is still being indexed…')
+      return
+    }
+    const hadSchema = schemaSnap.extractionSchemaId !== null
+    await schema.generate((signal) =>
+      requestSchema(
+        {
+          projectContextId,
+          sourceRepresentationRevisionId: sourceRepresentationId,
+        },
+        signal,
+        { instruction },
+      ),
+    )
+    // The first successful generation initializes the Extraction Schema;
+    // name it the way initializeSchemaRevision's caller always has.
+    if (!hadSchema && schema.snapshot().extractionSchemaId !== null)
+      setSchemaName((name) => name ?? 'Extraction Schema')
   }
 
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
@@ -824,29 +663,6 @@ export function DocumentWorkspace({
     if (['backspace', 'delete'].includes(key) || (modifier && ['a', 'z', 'y'].includes(key))) {
       event.stopPropagation()
     }
-  }
-
-  function changeNodes(
-    nodes: SchemaNode[],
-    message: string,
-    recordDescription =
-      templateState.status === 'ready'
-        ? templateState.recordDescription
-        : '',
-  ) {
-    if (templateState.status !== 'ready') return
-    setPinnedSchemaRevisionId(null)
-    schemaSaveCoordinatorRef.current?.edit({
-      recordDescription,
-      schemaNodes: nodes,
-    })
-    setTemplateState({
-      ...templateState,
-      recordDescription,
-      nodes,
-      edited: true,
-    })
-    showToast(message)
   }
 
   function startResize(event: React.MouseEvent) {
@@ -872,24 +688,7 @@ export function DocumentWorkspace({
     ready: { dot: 'bg-green' },
     error: { dot: 'bg-danger', text: 'text-danger' },
   }
-
-  const schemaReady = templateState.status === 'ready'
-  const schemaTemplate =
-    templateState.status === 'ready'
-      ? schemaDefinitionToTemplate({
-          recordDescription: templateState.recordDescription,
-          schemaNodes: templateState.nodes,
-        })
-      : null
-
-  const schemaFieldCount =
-    templateState.status === 'ready' ? countTemplateFields(schemaTemplate) : 0
-
-  // The stale-vs-current-instruction indicator was dropped: SchemaPanel's own
-  // pre-generation chat (the instruction source) is only reachable before the
-  // schema is ready, so there's no way for the instruction to change out from
-  // under an already-generated schema. Left in place, commented out, rather
-  // than deleted.
+  const schemaReady = schemaSnap.view === 'editing'
   //
   // const schemaStale =
   //   templateState.status === 'ready' &&
@@ -904,8 +703,11 @@ export function DocumentWorkspace({
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
     reviewTarget:
-      sourceRepresentationId && pinnedSchemaRevisionId
-        ? { sourceRepresentationId, schemaRevisionId: pinnedSchemaRevisionId }
+      sourceRepresentationId && schemaSnap.extractableSchemaRevisionId
+        ? {
+            sourceRepresentationId,
+            schemaRevisionId: schemaSnap.extractableSchemaRevisionId,
+          }
         : null,
     onTerminal: (attempt, isRerun) => {
       setSelectedInspectionId(attempt.extractionId)
@@ -964,8 +766,8 @@ export function DocumentWorkspace({
     )
     const fieldNames = pinnedAttempt
       ? pinnedAttempt.extractionSchema.schemaNodes.map((node) => node.name)
-      : templateState.status === 'ready'
-        ? templateState.nodes.map((node) => node.name)
+      : schemaSnap.draft !== null && schemaSnap.view === 'editing'
+        ? schemaSnap.draft.schemaNodes.map((node) => node.name)
         : []
     const paint = (): EvidenceOccurrence | undefined => {
       let firstOccurrence: EvidenceOccurrence | undefined
@@ -1023,48 +825,45 @@ export function DocumentWorkspace({
     pinnedAttempt,
     railTab,
     resultPath,
-    templateState,
+    schemaSnap,
   ])
 
-  useEffect(() => {
-    if (extractAfterSave !== true) return
-    queueMicrotask(() => {
-      setExtractAfterSave(null)
-      void extraction.runExtraction()
-    })
-  }, [extractAfterSave, extraction])
-
   async function runExtraction() {
-    if (extractAfterSave !== null) return
-    const coordinator = schemaSaveCoordinatorRef.current
-    if (!coordinator) return extraction.runExtraction()
-    setExtractAfterSave(false)
+    if (savingForRun) return
+    setSavingForRun(true)
+    const targetSourceRepresentationId = sourceRepresentationId
     try {
-      await coordinator.flush()
-      setExtractAfterSave(true)
+      const revision = await schema.flush()
+      if (
+        activeSourceRepresentationIdRef.current !==
+        targetSourceRepresentationId
+      )
+        return
+      if (!revision)
+        throw new Error('Save the Current Schema Revision before extraction.')
+      await extraction.runExtraction({
+        sourceRepresentationId: targetSourceRepresentationId,
+        schemaRevisionId: revision.schemaRevisionId,
+      })
     } catch (error) {
-      setExtractAfterSave(null)
       showToast(
         error instanceof Error
           ? error.message
           : 'Save the Current Schema Revision before extraction.',
       )
-    }
-  }
-
-  async function flushSchemaEdits() {
-    const coordinator = schemaSaveCoordinatorRef.current
-    if (!coordinator) throw new Error('No durable schema is open.')
-    const revision = await coordinator.flush()
-    return {
-      projectContextId,
-      sourceRepresentationRevisionId: sourceRepresentationId,
-      extractionSchemaId: revision.extractionSchemaId,
-      schemaRevisionId: revision.schemaRevisionId,
+    } finally {
+      setSavingForRun(false)
     }
   }
 
   const running = extraction.state.status === 'running'
+  const runExtractionUnavailable =
+    savingForRun ||
+    !sourceRepresentationId ||
+    !schemaReady ||
+    indexing ||
+    schemaSnap.save?.status === 'conflict' ||
+    schemaSnap.save?.status === 'error'
   const runLabel = running
     ? 'Cancel extraction'
     : extraction.hasResults
@@ -1159,12 +958,7 @@ export function DocumentWorkspace({
             size="md"
             disabled={
               !running &&
-              (extractAfterSave !== null ||
-                !sourceRepresentationId ||
-                !schemaReady ||
-                indexing ||
-                schemaSaveState?.status === 'conflict' ||
-                schemaSaveState?.status === 'error')
+              runExtractionUnavailable
             }
             title={
               running
@@ -1221,26 +1015,12 @@ export function DocumentWorkspace({
               onToggle={() => setRailOpen((open) => !open)}
               tab={railTab}
               onTabChange={setRailTab}
-              schemaState={templateState}
-              schemaReady={schemaReady}
-              schemaFieldCount={schemaFieldCount}
-              onGenerate={(instruction) => void generateSchema(instruction)}
-              onCancelGenerate={cancelGenerateSchema}
-              onResetSchema={resetSchema}
-              onNodesChange={changeNodes}
-              beforeSchemaEdit={flushSchemaEdits}
-              schemaHistory={schemaHistory}
-              currentSchemaRevisionNumber={schemaSaveState?.acknowledged.revisionNumber}
-              loadSchemaRevision={(schemaRevisionId) => {
-                if (!projectContextId || !durableSchema)
-                  return Promise.reject(new Error('No durable schema is open.'))
-                return getSchemaRevision(
-                  projectContextId,
-                  durableSchema.extractionSchemaId,
-                  schemaRevisionId,
-                )
-              }}
+              schema={schema}
+              onGenerateInstructions={handleGenerate}
+              onClearDraft={resetSchema}
               extraction={extraction}
+              onRunExtraction={runExtraction}
+              runExtractionDisabled={runExtractionUnavailable}
               inspection={{
                 attempt: inspectedAttempt,
                 readOnly: inspectionReadOnly,
@@ -1252,19 +1032,23 @@ export function DocumentWorkspace({
                 // the latest attempt shows against the current one.
                 exportSchema:
                   pinnedAttempt?.extractionSchema ??
-                  (templateState.status === 'ready'
-                    ? { recordDescription: templateState.recordDescription, schemaNodes: templateState.nodes }
+                  (schemaSnap.draft !== null && schemaSnap.view === 'editing'
+                    ? {
+                        recordDescription: schemaSnap.draft.recordDescription,
+                        schemaNodes: schemaSnap.draft.schemaNodes,
+                      }
                     : null),
               }}
               sourceDocumentName={pdfSource.filename}
               schemaName={schemaName}
               onRenameSchema={async (name) => {
-                if (!projectContextId || !durableSchema)
+                const extractionSchemaId = schemaSnap.extractionSchemaId
+                if (!projectContextId || !extractionSchemaId)
                   return 'No durable schema is open.'
                 try {
                   const renamed = await renameExtractionSchema(
                     projectContextId,
-                    durableSchema.extractionSchemaId,
+                    extractionSchemaId,
                     name,
                   )
                   setSchemaName(renamed.name)

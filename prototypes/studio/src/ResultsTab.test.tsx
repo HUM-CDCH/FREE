@@ -46,6 +46,11 @@ function controller(
   }
 }
 
+const defaultRunProps = {
+  onRunExtraction: async () => undefined,
+  runExtractionDisabled: false,
+}
+
 const articleAttempt: ExtractionAttempt = {
   extractionId: '11111111-1111-4111-8111-111111111111',
   sourceDocumentId: '44444444-4444-4444-8444-444444444444',
@@ -102,6 +107,7 @@ describe('ResultsTab grounded values', () => {
   it('shows one server-owned progress state without raw output', () => {
     render(
       <ResultsTab
+        {...defaultRunProps}
         controller={controller({
           status: 'running',
           step: 'extraction',
@@ -119,6 +125,7 @@ describe('ResultsTab grounded values', () => {
     const onSelectEvidence = vi.fn()
     render(
       <ResultsTab
+        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { title: 'Report', ungrounded: 'Visible without Evidence' },
@@ -147,6 +154,7 @@ describe('ResultsTab grounded values', () => {
   it('reports the persisted ungrounded value count', () => {
     render(
       <ResultsTab
+        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { title: 'Report', place: 'Unknown' },
@@ -170,6 +178,7 @@ describe('ResultsTab grounded values', () => {
     const onResultPathChange = vi.fn()
     render(
       <ResultsTab
+        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { records: [{ title: 'Report' }] },
@@ -205,6 +214,7 @@ describe('ResultsTab grounded values', () => {
   it('hides the Article envelope for multiple returned records', () => {
     render(
       <ResultsTab
+        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { records: [{ title: 'First' }, { title: 'Second' }] },
@@ -224,6 +234,7 @@ describe('ResultsTab grounded values', () => {
   it('offers a new run after cancellation', () => {
     render(
       <ResultsTab
+        {...defaultRunProps}
         controller={controller({ status: 'cancelled' })}
         schemaReady
         documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
@@ -238,6 +249,7 @@ describe('ResultsTab grounded values', () => {
     const currentResult = { records: [{ context: { title: 'Current', tags: ['a'] } }] }
     render(
       <ResultsTab
+        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: currentResult,
@@ -273,6 +285,7 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
+        {...defaultRunProps}
         controller={controller({
           status: 'ready',
           result: { records: [{ context: { title: 'Current' } }] },

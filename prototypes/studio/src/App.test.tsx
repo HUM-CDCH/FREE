@@ -476,7 +476,7 @@ describe('reopened Source Document workspace', () => {
     expect(schemaNodes).toHaveLength(1)
   })
 
-  it('loads an older revision before appending the pending draft and restored tree', async () => {
+  it('loads an older revision before appending the pending and historical trees', async () => {
     const currentRevisionId = '51000000-0000-4000-8005-000000000020'
     const historicalRevisionId = '51000000-0000-4000-8005-000000000019'
     const currentNodes: SchemaNode[] = [{ id: 'current-field', name: 'current_field', type: 'string' }]
@@ -680,13 +680,75 @@ describe('reopened Source Document workspace', () => {
     ).toBeInTheDocument()
   })
 
-  it('waits for a dirty schema save before starting an Article run', async () => {
+  it('uses the active Source Document for model edits after a workspace switch', async () => {
+    const nextSourceRepresentationId =
+      '51000000-0000-4000-8002-000000000099'
+    let requestedSourceRepresentationId: FormDataEntryValue | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source'))
+          return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown'))
+          return Promise.resolve(new Response('# Beretning'))
+        if (url.endsWith('/edit_schema')) {
+          const form = init?.body as FormData
+          requestedSourceRepresentationId = form.get(
+            'source_representation_revision_id',
+          )
+          return Promise.resolve(
+            Response.json({ status: 'refused', message: 'No edit.' }),
+          )
+        }
+        if (url.startsWith('/api/schema-revisions?'))
+          return Promise.resolve(Response.json({ revisions: [] }))
+        return Promise.resolve(new Response('pdf'))
+      }),
+    )
+    const { rerender } = render(
+      <DocumentWorkspace {...reopened} persistedExtraction={null} />,
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+
+    rerender(
+      <DocumentWorkspace
+        {...reopened}
+        sourceRepresentationId={nextSourceRepresentationId}
+        pdfUrl={`/sources/${nextSourceRepresentationId}/pdf`}
+        markdownUrl={`/sources/${nextSourceRepresentationId}/markdown`}
+        parsedDocumentUrl={`/sources/${nextSourceRepresentationId}/source`}
+        persistedExtraction={null}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    const input = screen.getByPlaceholderText(
+      'Describe a change to the schema…',
+    )
+    fireEvent.change(input, { target: { value: 'Rename place' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(await screen.findByText('Request refused: No edit.')).toBeVisible()
+    expect(requestedSourceRepresentationId).toBe(
+      nextSourceRepresentationId,
+    )
+  })
+
+  it.each(['toolbar', 'results'] as const)(
+    'waits for a dirty schema save before starting an Article rerun from the %s',
+    async (runSurface) => {
     const savedSchemaRevisionId = '51000000-0000-4000-8005-000000000099'
     let resolveExtraction!: (response: Response) => void
     const extractionResponse = new Promise<Response>((resolve) => {
       resolveExtraction = resolve
     })
     const extractionRequests: Array<{ strategy?: string; schemaRevisionId?: string }> = []
+    const cancellationRequests: string[] = []
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -710,6 +772,10 @@ describe('reopened Source Document workspace', () => {
             },
           }, { status: 201 }))
         }
+        if (url.startsWith('/api/extractions/') && init?.method === 'DELETE') {
+          cancellationRequests.push(url)
+          return Promise.resolve(new Response(null, { status: 204 }))
+        }
         if (url.endsWith('/api/extractions')) {
           extractionRequests.push(JSON.parse(String(init?.body)) as { strategy?: string; schemaRevisionId?: string })
           return extractionResponse
@@ -717,7 +783,7 @@ describe('reopened Source Document workspace', () => {
         return Promise.resolve(new Response('# Beretning'))
       }),
     )
-    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    render(<DocumentWorkspace {...reopened} />)
     await waitFor(() =>
       expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
     )
@@ -725,10 +791,16 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByTitle('Edit place'))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'location' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    const run = screen.getByRole('button', { name: '▶ Run extraction' })
+    if (runSurface === 'results')
+      fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    const run = screen.getByRole('button', {
+      name: runSurface === 'toolbar' ? '↻ Re-run extraction' : 'Rerun',
+    })
     fireEvent.click(run)
-    await waitFor(() => expect(run).toBeDisabled())
-    fireEvent.click(run)
+    if (runSurface === 'toolbar') {
+      fireEvent.click(run)
+      await waitFor(() => expect(run).toBeDisabled())
+    }
 
     await waitFor(() => expect(extractionRequests).toHaveLength(1))
     expect(extractionRequests[0]).toEqual(expect.objectContaining({
@@ -740,7 +812,7 @@ describe('reopened Source Document workspace', () => {
       extractionId: '51000000-0000-4000-8006-000000000011',
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
-      schemaRevisionId: '51000000-0000-4000-8005-000000000010',
+      schemaRevisionId: savedSchemaRevisionId,
       strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
       modelAttribution: { provider: 'ollama', modelId: 'test-model' },
       diagnostics: {
@@ -752,6 +824,98 @@ describe('reopened Source Document workspace', () => {
       evidenceLinks: [], reviewable: true, retryOfId: null, batchExtractionId: null,
       createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
     }))
+    expect(
+      await screen.findByText(
+        '↻ Re-run complete — view the JSON in the Results tab',
+      ),
+    ).toBeVisible()
+    expect(extractionRequests).toHaveLength(1)
+    expect(cancellationRequests).toEqual([])
+    },
+  )
+
+  it('abandons a pending run when the active Source Document changes', async () => {
+    const nextSourceRepresentationId =
+      '51000000-0000-4000-8002-000000000099'
+    const save = Promise.withResolvers<Response>()
+    const extractionRequests: unknown[] = []
+    let savedDefinition:
+      | { recordDescription: string; schemaNodes: SchemaNode[] }
+      | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source'))
+          return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown'))
+          return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?'))
+          return Promise.resolve(Response.json({ revisions: [] }))
+        if (url === '/api/schema-revisions' && init?.method === 'POST') {
+          savedDefinition = JSON.parse(String(init.body)) as {
+            recordDescription: string
+            schemaNodes: SchemaNode[]
+          }
+          return save.promise
+        }
+        if (url.endsWith('/api/extractions')) {
+          extractionRequests.push(JSON.parse(String(init?.body)))
+          return Promise.resolve(new Response(null, { status: 202 }))
+        }
+        return Promise.resolve(new Response('pdf'))
+      }),
+    )
+    const mounted = render(
+      <DocumentWorkspace {...reopened} persistedExtraction={null} />,
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /^Schema/ }))
+    fireEvent.click(screen.getByTitle('Edit place'))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), {
+      target: { value: 'location' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: '▶ Run extraction' }),
+    )
+    await waitFor(() => expect(savedDefinition).not.toBeNull())
+
+    mounted.rerender(
+      <DocumentWorkspace
+        {...reopened}
+        sourceRepresentationId={nextSourceRepresentationId}
+        pdfUrl={`/sources/${nextSourceRepresentationId}/pdf`}
+        markdownUrl={`/sources/${nextSourceRepresentationId}/markdown`}
+        parsedDocumentUrl={`/sources/${nextSourceRepresentationId}/source`}
+        persistedExtraction={null}
+      />,
+    )
+    save.resolve(
+      Response.json(
+        {
+          revision: {
+            schemaRevisionId: '51000000-0000-4000-8005-000000000099',
+            extractionSchemaId:
+              reopened.extractionSchema!.extractionSchemaId,
+            revisionNumber: 2,
+            origin: 'researcher-edit',
+            createdAt: '2026-08-12T00:00:00.000Z',
+            recordDescription: savedDefinition!.recordDescription,
+            schemaNodes: savedDefinition!.schemaNodes,
+          },
+        },
+        { status: 201 },
+      ),
+    )
+
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    await Promise.resolve()
+    expect(extractionRequests).toEqual([])
   })
 
   it('posts the accepted result with its pinned Schema Revision and canonical Review Decisions', async () => {

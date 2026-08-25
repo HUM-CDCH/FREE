@@ -8,7 +8,15 @@ import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevi
 import { nodesToTemplate, type SchemaNode } from 'extraction/schema'
 import SchemaPanel from './SchemaPanel'
 import type { SchemaModelContext } from './api'
-
+import {
+  createSchemaEditorController,
+  type SchemaEditorController,
+  type SchemaEditorPersistence,
+} from './currentSchemaRevision'
+import type {
+  AcknowledgedSchemaRevision,
+  SchemaSaveState,
+} from './schemaSaveCoordinator'
 const { requestSchemaEdit } = vi.hoisted(() => ({ requestSchemaEdit: vi.fn() }))
 vi.mock('./api', async (importOriginal) => ({
   ...await importOriginal<typeof import('./api')>(),
@@ -26,21 +34,6 @@ const modelContext: SchemaModelContext = {
     '51000000-0000-4000-8002-000000000001',
   extractionSchemaId: '51000000-0000-4000-8003-000000000001',
   schemaRevisionId: '51000000-0000-4000-8004-000000000002',
-}
-
-function renderPanel(onNodesChange = vi.fn(), panelNodes = nodes, onResetSchema = vi.fn()) {
-  render(<SchemaPanel
-    state={{ status: 'ready', recordDescription: 'One test record.', nodes: panelNodes, inputsKey: 'test' }}
-    onGenerate={vi.fn()}
-    onCancelGenerate={vi.fn()}
-    onResetSchema={onResetSchema}
-    onNodesChange={onNodesChange}
-    beforeSchemaEdit={vi.fn(async () => modelContext)}
-    history={[]}
-    loadRevision={vi.fn()}
-    sourceDocumentName="test.pdf"
-  />)
-  return onNodesChange
 }
 
 const schemaHistory: SchemaRevisionSummary[] = [
@@ -67,37 +60,90 @@ const historicalNodes: SchemaNode[] = [
   { id: 'stable-year', name: 'historical_year', type: 'number' },
 ]
 
-type HistoryPanelOptions = {
-  onNodesChange?: (nodes: SchemaNode[], message: string) => void
-  beforeSchemaEdit?: () => Promise<SchemaModelContext | null>
-  loadRevision?: (schemaRevisionId: string) => Promise<SchemaRevision>
-  panelNodes?: SchemaNode[]
-  currentRevisionNumber?: number
+type PanelSetup = {
+  schema: SchemaEditorController
+  /** Every committed draft, in order — the module's edit() calls. */
+  edits: Array<{ recordDescription: string; schemaNodes: SchemaNode[] }>
+  /** Ordered gate events: load / flush / edit. */
+  events: string[]
 }
 
-function renderHistoryPanel({
-  onNodesChange = vi.fn(),
-  beforeSchemaEdit = vi.fn(async () => modelContext),
-  loadRevision = vi.fn(async () => ({
-    ...schemaHistory[1],
-    recordDescription: 'One historical record.',
-    schemaNodes: historicalNodes,
-  })),
+function setupController({
   panelNodes = nodes,
+  recordDescription = 'One test record.',
   currentRevisionNumber = 2,
-}: HistoryPanelOptions = {}) {
+  getRevision,
+  flushImpl,
+}: {
+  panelNodes?: SchemaNode[]
+  recordDescription?: string
+  currentRevisionNumber?: number
+  getRevision?: (schemaRevisionId: string) => Promise<SchemaRevision>
+  flushImpl?: (call: number) => Promise<SchemaRevision | null>
+} = {}): PanelSetup {
+  const acknowledged: AcknowledgedSchemaRevision = {
+    schemaRevisionId: '51000000-0000-4000-8004-000000000002',
+    extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+    revisionNumber: currentRevisionNumber,
+    recordDescription,
+    schemaNodes: panelNodes,
+  }
+  const edits: PanelSetup['edits'] = []
+  const events: string[] = []
+  let flushCalls = 0
+  const persistence: SchemaEditorPersistence = {
+    extractionSchemaId: () => acknowledged.extractionSchemaId,
+    initialize: async () => {
+      throw new Error('Generation is not exercised here.')
+    },
+    edit(definition) {
+      edits.push(definition)
+      events.push('edit')
+    },
+    async flush() {
+      events.push('flush')
+      flushCalls += 1
+      if (flushImpl) return flushImpl(flushCalls)
+      return acknowledged
+    },
+    saveState() {
+      return null
+    },
+    modelContext: () => modelContext,
+    listRevisions: async () => schemaHistory,
+    getRevision: async (schemaRevisionId) => {
+      events.push('load')
+      if (getRevision) return getRevision(schemaRevisionId)
+      return {
+        ...schemaHistory[1],
+        recordDescription: 'One historical record.',
+        schemaNodes: historicalNodes,
+      }
+    },
+    onChange: () => () => {},
+    dispose: () => {},
+  }
+  const schema = createSchemaEditorController(persistence, {
+    initialDraft: { recordDescription, schemaNodes: panelNodes },
+    initialRevisionNumber: currentRevisionNumber,
+    initialExtractableRevisionId: acknowledged.schemaRevisionId,
+    initialHistory: schemaHistory,
+  })
+  return { schema, edits, events }
+}
+
+function renderPanel(
+  setupOptions: Parameters<typeof setupController>[0] = {},
+  renderProps: Partial<React.ComponentProps<typeof SchemaPanel>> = {},
+): PanelSetup {
+  const setup = setupController(setupOptions)
   render(<SchemaPanel
-    state={{ status: 'ready', recordDescription: 'One test record.', nodes: panelNodes, inputsKey: 'test' }}
-    onGenerate={vi.fn()}
-    onCancelGenerate={vi.fn()}
-    onResetSchema={vi.fn()}
-    onNodesChange={onNodesChange}
-    beforeSchemaEdit={beforeSchemaEdit}
+    schema={setup.schema}
+    onClearDraft={() => setup.schema.reset()}
     sourceDocumentName="test.pdf"
-    history={schemaHistory}
-    currentRevisionNumber={currentRevisionNumber}
-    loadRevision={loadRevision}
+    {...renderProps}
   />)
+  return setup
 }
 
 async function send(response: SchemaEditResponse) {
@@ -117,21 +163,7 @@ afterEach(() => {
 describe.sequential('SchemaPanel schema proposal review', () => {
   it('renames the durable schema from the schema/chat header', async () => {
     const onRenameSchema = vi.fn(async () => null)
-    render(
-      <SchemaPanel
-        state={{ status: 'ready', recordDescription: 'One test record.', nodes, inputsKey: 'test' }}
-        onGenerate={vi.fn()}
-        onCancelGenerate={vi.fn()}
-        onResetSchema={vi.fn()}
-        onNodesChange={vi.fn()}
-        beforeSchemaEdit={vi.fn()}
-        history={[]}
-        loadRevision={vi.fn()}
-        sourceDocumentName="test.pdf"
-        schemaName="Places"
-        onRenameSchema={onRenameSchema}
-      />,
-    )
+    const setup = renderPanel({}, { schemaName: 'Places', onRenameSchema })
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename schema Places' }))
     fireEvent.change(screen.getByLabelText('Schema name for Places'), {
@@ -142,10 +174,11 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     await waitFor(() =>
       expect(onRenameSchema).toHaveBeenCalledWith('Historic places'),
     )
+    expect(setup.edits).toHaveLength(0)
   })
 
   it('omits unchanged types from a rename-only diff row', async () => {
-    renderPanel()
+    const setup = renderPanel()
     await send({
       status: 'proposed',
       fields: {
@@ -163,37 +196,28 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     const row = screen.getByText('title').parentElement!
     expect(within(row).queryAllByText('string')).toHaveLength(0)
+    expect(setup.edits).toHaveLength(0)
   })
 
   it('loads, flushes, and appends an exact historical tree in order', async () => {
-    const onNodesChange = vi.fn()
-    const order: string[] = []
-    const loadRevision = vi.fn(async () => {
-      order.push('load')
-      return {
-        ...schemaHistory[1],
-        recordDescription: 'One historical record.',
-        schemaNodes: historicalNodes,
-      }
-    })
-    const beforeSchemaEdit = vi.fn(async () => {
-      order.push('flush')
-      return modelContext
-    })
-    onNodesChange.mockImplementation(() => { order.push('edit') })
-    renderHistoryPanel({ onNodesChange, beforeSchemaEdit, loadRevision })
+    const loadRevision = vi.fn(async () => ({
+      ...schemaHistory[1],
+      recordDescription: 'One historical record.',
+      schemaNodes: historicalNodes,
+    }))
+    const setup = renderPanel({ getRevision: loadRevision })
 
     const chatHeader = screen.getByText('Chat').parentElement!
     fireEvent.click(within(chatHeader).getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
-    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
 
-    expect(order).toEqual(['load', 'flush', 'edit', 'flush'])
-    expect(onNodesChange).toHaveBeenCalledWith(
-      historicalNodes,
-      '↺ Restored revision 1',
-      'One historical record.',
-    )
+    expect(setup.events).toEqual(['load', 'flush', 'edit', 'flush'])
+    expect(loadRevision).toHaveBeenCalledWith('51000000-0000-4000-8004-000000000001')
+    expect(setup.edits[0]).toEqual({
+      recordDescription: 'One historical record.',
+      schemaNodes: historicalNodes,
+    })
     expect(screen.getByText('historical_place')).toBeInTheDocument()
     expect(screen.getByText('historical_year')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
@@ -201,67 +225,104 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.queryByRole('button', { name: /Revision 1/ })).not.toBeInTheDocument()
   })
 
+  it('resets stale JSON when an external draft replaces the editor payload', async () => {
+    const setup = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'JSON' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const jsonEditor = screen.getAllByRole('textbox')[0]
+    expect((jsonEditor as HTMLTextAreaElement).value).toContain('"title"')
+
+    act(() => {
+      setup.schema.adoptDraft({
+        recordDescription: 'One replacement record.',
+        schemaNodes: historicalNodes,
+      })
+    })
+
+    await waitFor(() => expect(jsonEditor).not.toBeInTheDocument())
+    expect(screen.getByText('historical_place')).toBeVisible()
+  })
+
+  it('resets an uncommitted description on same-value external replacement', async () => {
+    const setup = renderPanel()
+    const description = screen.getByPlaceholderText(
+      'Describe the record represented by this schema…',
+    )
+    fireEvent.change(description, { target: { value: 'Uncommitted text' } })
+
+    act(() => {
+      setup.schema.adoptDraft({
+        recordDescription: 'One test record.',
+        schemaNodes: historicalNodes,
+      })
+    })
+
+    await waitFor(() =>
+      expect(description).toHaveValue('One test record.'),
+    )
+  })
+
   it('closes history without loading or flushing the current revision', () => {
-    const onNodesChange = vi.fn()
-    const beforeSchemaEdit = vi.fn()
-    const loadRevision = vi.fn()
-    renderHistoryPanel({ onNodesChange, beforeSchemaEdit, loadRevision })
+    const getRevision = vi.fn()
+    const setup = renderPanel({ getRevision })
 
     fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 2/ }))
 
-    expect(loadRevision).not.toHaveBeenCalled()
-    expect(beforeSchemaEdit).not.toHaveBeenCalled()
-    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(getRevision).not.toHaveBeenCalled()
+    expect(setup.events).not.toContain('flush')
+    expect(setup.events).not.toContain('edit')
     expect(screen.queryByRole('button', { name: /Revision 2/ })).not.toBeInTheDocument()
   })
 
-  it('keeps the current schema when loading or pre-restore flushing fails', async () => {
-    const onNodesChange = vi.fn()
+  it('keeps the current schema when loading or pre-creation flushing fails', async () => {
     const loadRevision = vi.fn(async () => { throw new Error('Load failed') })
-    const beforeSchemaEdit = vi.fn(async () => modelContext)
-    renderHistoryPanel({ onNodesChange, beforeSchemaEdit, loadRevision })
+    const setup = renderPanel({ getRevision: loadRevision })
 
     fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Load failed')
-    expect(beforeSchemaEdit).not.toHaveBeenCalled()
-    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(setup.events).toEqual(['load'])
+    expect(setup.edits).toHaveLength(0)
     expect(screen.getByText('title')).toBeInTheDocument()
 
     cleanup()
-    const flushFailure = vi.fn(async () => { throw new Error('Save current failed') })
-    renderHistoryPanel({ onNodesChange, beforeSchemaEdit: flushFailure })
+    const failingSetup = renderPanel({
+      flushImpl: async () => { throw new Error('Save current failed') },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Save current failed')
-    expect(flushFailure).toHaveBeenCalledTimes(1)
-    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(failingSetup.events.filter((event) => event === 'flush')).toHaveLength(1)
+    expect(failingSetup.edits).toHaveLength(0)
     expect(screen.getByText('title')).toBeInTheDocument()
   })
 
-  it('keeps the restored editable tree when its append flush fails', async () => {
-    const onNodesChange = vi.fn()
-    const beforeSchemaEdit = vi.fn()
-      .mockResolvedValueOnce(modelContext)
-      .mockRejectedValueOnce(new Error('Append failed'))
-    renderHistoryPanel({ onNodesChange, beforeSchemaEdit })
+  it('keeps the historical editable tree when its append flush fails', async () => {
+    let flushCalls = 0
+    const setup = renderPanel({
+      flushImpl: async () => {
+        flushCalls += 1
+        if (flushCalls === 1) return null
+        throw new Error('Append failed')
+      },
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
     fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Append failed')
-    expect(onNodesChange).toHaveBeenCalledWith(
-      historicalNodes,
-      '↺ Restored revision 1',
-      'One historical record.',
-    )
+    expect(setup.edits).toHaveLength(1)
+    expect(setup.edits[0]).toEqual({
+      recordDescription: 'One historical record.',
+      schemaNodes: historicalNodes,
+    })
     expect(screen.getByText('historical_place')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ Add field' })).toBeInTheDocument()
   })
 
   it('applies an inline edit at arbitrary nesting depth', () => {
-    const onNodesChange = renderPanel(vi.fn(), [{
+    const setup = renderPanel({ panelNodes: [{
       id: 'root',
       name: 'root',
       type: 'object',
@@ -271,26 +332,26 @@ describe.sequential('SchemaPanel schema proposal review', () => {
         type: 'object',
         children: [{ id: 'leaf', name: 'leaf', type: 'string' }],
       }],
-    }])
+    }] })
 
     fireEvent.click(screen.getByText('group').parentElement!.querySelector('polygon')!.closest('span')!)
     fireEvent.click(screen.getByTitle('Edit leaf'))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'renamed leaf' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(onNodesChange.mock.calls[0][0][0].children[0].children[0].name).toBe('renamed_leaf')
+    expect(setup.edits[0].schemaNodes[0].children![0].children![0].name).toBe('renamed_leaf')
     expect(screen.getByText('renamed_leaf')).toBeInTheDocument()
   })
 
   it('shows field types and lets an editor change them', () => {
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
 
     expect(screen.getAllByTitle('Type: string — click to edit')).toHaveLength(2)
     fireEvent.click(screen.getByTitle('Edit title'))
     fireEvent.change(screen.getByRole('combobox', { name: 'Field type' }), { target: { value: 'number' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(onNodesChange.mock.calls[0][0][0]).toEqual({
+    expect(setup.edits[0].schemaNodes[0]).toEqual({
       id: 'title',
       name: 'title',
       type: 'number',
@@ -300,15 +361,15 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   })
 
   it('lets an editor change an array item type', () => {
-    const onNodesChange = renderPanel(vi.fn(), [
+    const setup = renderPanel({ panelNodes: [
       { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },
-    ])
+    ] })
 
     fireEvent.click(screen.getByTitle('Type: array<date> — click to edit'))
     fireEvent.change(screen.getByRole('combobox', { name: 'Array item type' }), { target: { value: 'integer' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(onNodesChange.mock.calls[0][0][0]).toEqual({
+    expect(setup.edits[0].schemaNodes[0]).toEqual({
       id: 'dates',
       name: 'dates',
       type: 'array',
@@ -318,7 +379,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   })
 
   it('keeps an inline edit open when its name duplicates a sibling field', () => {
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
 
     fireEvent.click(screen.getByTitle('Edit title'))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'gender' } })
@@ -326,14 +387,14 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('A sibling field already uses “gender”.')
     expect(screen.getByDisplayValue('gender')).toBeInTheDocument()
-    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(setup.edits).toHaveLength(0)
   })
 
   it('repairs a persisted duplicate id before renaming the affected field', async () => {
-    const onNodesChange = renderPanel(vi.fn(), [
+    const setup = renderPanel({ panelNodes: [
       { id: 'n1', name: 'grav_id', type: 'integer' },
       { id: 'n1', name: 'nyt_felt', type: 'verbatim-string' },
-    ])
+    ] })
 
     fireEvent.click(screen.getByTitle('Edit nyt_felt'))
     fireEvent.change(screen.getAllByPlaceholderText('field_name').at(-1)!, {
@@ -341,21 +402,21 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     })
     fireEvent.click(screen.getAllByRole('button', { name: 'Save' }).at(-1)!)
 
-    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
-    const updated = onNodesChange.mock.calls[0][0] as SchemaNode[]
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    const updated = setup.edits[0].schemaNodes
     expect(updated.map(({ name }) => name)).toEqual(['grav_id', 'nuum'])
     expect(new Set(updated.map(({ id }) => id))).toHaveLength(2)
     expect(screen.queryByText('A sibling field already uses “nuum”.')).not.toBeInTheDocument()
   })
 
   it('preserves an existing closed set when the field is renamed', () => {
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
 
     fireEvent.click(screen.getByTitle('Edit gender'))
     fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'sex' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(onNodesChange.mock.calls[0][0][1]).toEqual({
+    expect(setup.edits[0].schemaNodes[1]).toEqual({
       id: 'gender',
       name: 'sex',
       type: 'string',
@@ -374,7 +435,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   })
 
   it('adds and removes allowed values from the badge editor', () => {
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
 
     fireEvent.click(screen.getByTitle('Allowed values — click to edit: woman, man'))
     fireEvent.click(screen.getByRole('button', { name: 'Remove woman' }))
@@ -382,7 +443,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(onNodesChange.mock.calls[0][0][1]).toEqual({
+    expect(setup.edits[0].schemaNodes[1]).toEqual({
       id: 'gender',
       name: 'gender',
       type: 'string',
@@ -391,21 +452,21 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   })
 
   it('drops the closed set entirely once fewer than two values remain', () => {
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
 
     fireEvent.click(screen.getByTitle('Allowed values — click to edit: woman, man'))
     fireEvent.click(screen.getByRole('button', { name: 'Remove woman' }))
     fireEvent.click(screen.getByRole('button', { name: 'Remove man' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(onNodesChange.mock.calls[0][0][1]).toEqual({ id: 'gender', name: 'gender', type: 'string' })
+    expect(setup.edits[0].schemaNodes[1]).toEqual({ id: 'gender', name: 'gender', type: 'string' })
   })
 
   it('preserves repetition when a field is dragged into a scalar array', async () => {
-    const onNodesChange = renderPanel(vi.fn(), [
+    const setup = renderPanel({ panelNodes: [
       { id: 'dates', name: 'dates', type: 'array', itemType: 'date' },
       { id: 'title', name: 'title', type: 'string' },
-    ])
+    ] })
     const titleRow = screen.getByText('title').parentElement!
     const datesRow = screen.getByText('dates').parentElement!
 
@@ -413,8 +474,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.mouseEnter(datesRow)
     fireEvent.mouseUp(window)
 
-    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
-    expect(nodesToTemplate(onNodesChange.mock.calls[0][0])).toEqual({
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(nodesToTemplate(setup.edits[0].schemaNodes)).toEqual({
       dates: [{ title: 'string' }],
     })
   })
@@ -430,7 +491,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
         { id: 'new-field', name: 'new_field', type: 'verbatim-string' },
       ] },
     ]
-    const onNodesChange = renderPanel(vi.fn(), original)
+    const setup = renderPanel({ panelNodes: original })
 
     const movedRow = screen.getByText('new_field').parentElement!
     const skeletonRow = screen.getByText('skeleton').parentElement!
@@ -438,8 +499,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.mouseEnter(skeletonRow)
     fireEvent.mouseUp(window)
 
-    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
-    expect(nodesToTemplate(onNodesChange.mock.calls[0][0])).toEqual({
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
+    expect(nodesToTemplate(setup.edits[0].schemaNodes)).toEqual({
       grave: {
         year: 'integer',
         skeleton: [{
@@ -458,7 +519,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       ] },
       { id: 'new-field', name: 'new_field', type: 'verbatim-string' },
     ]
-    const onNodesChange = renderPanel(vi.fn(), original)
+    const setup = renderPanel({ panelNodes: original })
     const graveRow = screen.getByText('grave').parentElement!
     const yearRow = screen.getByText('year').parentElement!
     const nestedSlot = yearRow.parentElement!.firstElementChild!
@@ -468,16 +529,16 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.mouseUp(window)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Cannot move field into its own contents.')
-    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(setup.edits).toHaveLength(0)
     expect(screen.getByText('grave')).toBeInTheDocument()
     expect(screen.getByText('year')).toBeInTheDocument()
     expect(screen.getByText('new_field')).toBeInTheDocument()
   })
 
   it('shows the item shape when reviewing an array type change', async () => {
-    renderPanel(vi.fn(), [
+    renderPanel({ panelNodes: [
       { id: 'entries', name: 'entries', type: 'array', itemType: 'date' },
-    ])
+    ] })
 
     await send({
       status: 'proposed',
@@ -493,10 +554,10 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   })
 
   it('rejects a drag that would duplicate a sibling field', async () => {
-    const onNodesChange = renderPanel(vi.fn(), [
+    const setup = renderPanel({ panelNodes: [
       { id: 'group', name: 'group', type: 'object', children: [{ id: 'nested-title', name: 'title', type: 'string' }] },
       { id: 'root-title', name: 'title', type: 'string' },
-    ])
+    ] })
     const titleRows = screen.getAllByText('title').map((label) => label.parentElement!)
     const groupRow = screen.getByText('group').parentElement!
 
@@ -505,15 +566,15 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.mouseUp(window)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Cannot move field: a sibling field already uses “title”.')
-    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(setup.edits).toHaveLength(0)
   })
 
   it('allows a move when a dotted field name only resembles a nested path', async () => {
-    const onNodesChange = renderPanel(vi.fn(), [
+    const setup = renderPanel({ panelNodes: [
       { id: 'flat', name: 'place.region', type: 'string' },
       { id: 'place', name: 'place', type: 'object', children: [{ id: 'nested', name: 'region', type: 'string' }] },
       { id: 'year', name: 'year', type: 'integer' },
-    ])
+    ] })
     const yearRow = screen.getByText('year').parentElement!
     const placeRow = screen.getByText('place').parentElement!
 
@@ -521,16 +582,15 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     fireEvent.mouseEnter(placeRow)
     fireEvent.mouseUp(window)
 
-    await waitFor(() => expect(onNodesChange).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(setup.edits).toHaveLength(1))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('does not apply a rename that collides with an existing sibling', async () => {
-    const original: SchemaNode[] = [
+    const setup = renderPanel({ panelNodes: [
       { id: 'surname', name: 'surname', type: 'string' },
       { id: 'name', name: 'name', type: 'string' },
-    ]
-    const onNodesChange = renderPanel(vi.fn(), original)
+    ] })
     await send({
       status: 'proposed',
       fields: {
@@ -544,14 +604,14 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('Conflict')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
 
-    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(setup.edits).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'JSON' }))
     expect(screen.getByText(/"surname": "string"/)).toBeInTheDocument()
     expect(screen.getByText(/"name": "string"/)).toBeInTheDocument()
   })
 
   it('shows one row per node, mixed counts, metadata reach, and applies atomically', async () => {
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
     const input = await send({
       status: 'proposed',
       fields: {
@@ -574,11 +634,41 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
 
-    expect(onNodesChange).toHaveBeenCalledTimes(1)
-    expect(onNodesChange.mock.calls[0][0]).toEqual([
+    expect(setup.edits).toHaveLength(1)
+    expect(setup.edits[0].schemaNodes).toEqual([
       nodes[0],
       { id: 'gender', name: 'sex', type: 'string', allowedValues: ['woman', 'man'] },
     ])
+  })
+
+  it('keeps a chat proposal when the mutation gate rejects it', async () => {
+    const setup = renderPanel()
+    await send({
+      status: 'proposed',
+      fields: {
+        title: { name: 'heading', type: 'string', removed: false },
+        gender: { name: 'gender', type: 'string', removed: false },
+      },
+      additions: [],
+      issues: [],
+    })
+    setup.schema.commit = vi.fn(() => ({
+      ok: false as const,
+      reason: 'duplicate-name' as const,
+      duplicateName: 'heading',
+    }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
+
+    expect(
+      screen.getByText(
+        'Cannot apply the proposal: a sibling field already uses “heading”.',
+      ),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Apply changes' }),
+    ).toBeVisible()
+    expect(setup.edits).toHaveLength(0)
   })
 
   it('explains an unresolved change created by selective acceptance', async () => {
@@ -600,7 +690,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   })
 
   it('starts an unmaterialisable change accepted while replay keeps it unresolved', async () => {
-    renderPanel(vi.fn(), [{ id: 'name', name: 'name', type: 'string' }])
+    renderPanel({ panelNodes: [{ id: 'name', name: 'name', type: 'string' }] })
     await send({
       status: 'proposed',
       fields: { name: { name: 'name', type: 'string', removed: false } },
@@ -612,7 +702,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
   })
 
   it('gives an added group and child independent decisions', async () => {
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
     await send({
       status: 'proposed',
       fields: {
@@ -633,14 +723,14 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply changes' }))
 
-    expect(onNodesChange.mock.calls[0][0]).toEqual([
+    expect(setup.edits[0].schemaNodes).toEqual([
       ...nodes,
       expect.objectContaining({ name: 'new_group', children: [] }),
     ])
   })
 
   it('rejects dependent additions with their parent and disables a no-op apply', async () => {
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
     await send({
       status: 'proposed',
       fields: {
@@ -659,11 +749,11 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByRole('checkbox', { name: 'Accept change to new_group' })).not.toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Accept change to new_child' })).not.toBeChecked()
     expect(screen.getByRole('button', { name: 'Apply changes' })).toBeDisabled()
-    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(setup.edits).toHaveLength(0)
   })
 
   it('expands ancestors so a nested before-and-after change is visible', async () => {
-    renderPanel(vi.fn(), [{
+    renderPanel({ panelNodes: [{
       id: 'root',
       name: 'root',
       type: 'object',
@@ -673,7 +763,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
         type: 'object',
         children: [{ id: 'leaf', name: 'leaf', type: 'string' }],
       }],
-    }])
+    }] })
 
     await send({
       status: 'proposed',
@@ -690,8 +780,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(screen.getByText('renamed_leaf')).toBeInTheDocument()
   })
 
-  it('reveals the contents of a removed nested group', async () => {
-    renderPanel(vi.fn(), [{
+  it('reveals the contents and losses of a removed nested group', async () => {
+    renderPanel({ panelNodes: [{
       id: 'root',
       name: 'root',
       type: 'object',
@@ -702,7 +792,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
         description: 'Research rule',
         children: [{ id: 'leaf', name: 'leaf', type: 'string' }],
       }],
-    }])
+    }] })
 
     await send({
       status: 'proposed',
@@ -716,15 +806,16 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     })
 
     expect(screen.getByText('leaf')).toBeInTheDocument()
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Removing this field also removes its description and its nested fields.')
   })
 
-  it('reveals the contents of a container-to-scalar change that will delete nested fields', async () => {
-    renderPanel(vi.fn(), [{
+  it('shows nested fields that a container-to-scalar change will delete', async () => {
+    renderPanel({ panelNodes: [{
       id: 'group',
       name: 'group',
       type: 'object',
       children: [{ id: 'leaf', name: 'leaf', type: 'string' }],
-    }])
+    }] })
 
     await send({
       status: 'proposed',
@@ -737,10 +828,11 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     })
 
     expect(screen.getByText('leaf')).toBeInTheDocument()
+    expect(screen.getByTestId('schema-proposal-summary')).toHaveTextContent('Retyping across the container boundary removed its nested fields.')
   })
 
   it('discards the proposal without changing the schema', async () => {
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
     await send({
       status: 'proposed',
       fields: {
@@ -755,7 +847,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument())
     expect(screen.getByText('title')).toBeInTheDocument()
-    expect(onNodesChange).not.toHaveBeenCalled()
+    expect(setup.edits).toHaveLength(0)
   })
 
   it('discards a chat response when the schema changed while the request was running', async () => {
@@ -763,7 +855,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     requestSchemaEdit.mockReturnValueOnce(new Promise<SchemaEditResponse>((resolve) => {
       resolveResponse = resolve
     }))
-    const onNodesChange = renderPanel()
+    const setup = renderPanel()
     const chatInput = screen.getByPlaceholderText('Describe a change to the schema…')
     fireEvent.change(chatInput, { target: { value: 'Check fields' } })
     fireEvent.keyDown(chatInput, { key: 'Enter' })
@@ -785,9 +877,8 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(await screen.findByText('Schema changed while the request was running. Send the request again.')).toBeInTheDocument()
     expect(screen.getByText('heading')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
-    expect(onNodesChange.mock.calls[0][0]).toEqual([{ ...nodes[0], name: 'heading' }, nodes[1]])
+    expect(setup.edits[0].schemaNodes[0]).toEqual({ ...nodes[0], name: 'heading' })
   })
-
   it.each([
     [{ status: 'refused', message: 'Duplicate field paths: title' } as const, 'Request refused: Duplicate field paths: title'],
     [{ status: 'failed', message: 'Schema edit generation failed.' } as const, 'Request failed: Schema edit generation failed.'],
@@ -801,7 +892,7 @@ describe.sequential('SchemaPanel schema proposal review', () => {
       issues: [],
     } as const, 'Proposal checked every field: 0 changes proposed.'],
   ])('reports non-review outcome without inventing intent', async (response, message) => {
-    renderPanel()
+    const setup = renderPanel()
     requestSchemaEdit.mockResolvedValueOnce(response)
     const input = screen.getByPlaceholderText('Describe a change to the schema…')
     fireEvent.change(input, { target: { value: 'Check fields' } })
@@ -809,45 +900,170 @@ describe.sequential('SchemaPanel schema proposal review', () => {
 
     expect(await screen.findByText(message)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply changes' })).not.toBeInTheDocument()
+    expect(setup.edits).toHaveLength(0)
+  })
+
+})
+
+describe('SchemaPanel conflict recovery', () => {
+  it('lets the researcher reload the winning Current Schema Revision', async () => {
+    const acknowledged: AcknowledgedSchemaRevision = {
+      schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+      extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+      revisionNumber: 1,
+      recordDescription: 'One mine record.',
+      schemaNodes: [{ id: 'mine', name: 'mine', type: 'string' }],
+    }
+    const winning: SchemaRevision = {
+      ...acknowledged,
+      schemaRevisionId: '51000000-0000-4000-8004-000000000002',
+      revisionNumber: 2,
+      origin: 'researcher-edit',
+      createdAt: '2026-08-01T12:01:00.000Z',
+      recordDescription: 'One rival record.',
+      schemaNodes: [{ id: 'rival', name: 'rival', type: 'string' }],
+    }
+    let saveState: SchemaSaveState = {
+      status: 'conflict',
+      acknowledged,
+      draft: {
+        recordDescription: acknowledged.recordDescription,
+        schemaNodes: acknowledged.schemaNodes,
+      },
+      currentRevision: winning,
+    }
+    const listeners = new Set<() => void>()
+    const persistence: SchemaEditorPersistence = {
+      edit: () => undefined,
+      saveState: () => saveState,
+      reloadCurrent: () => {
+        saveState = {
+          status: 'saved',
+          acknowledged: winning,
+          draft: {
+            recordDescription: winning.recordDescription,
+            schemaNodes: winning.schemaNodes,
+          },
+        }
+        for (const listener of listeners) listener()
+        return winning
+      },
+      onChange: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+    }
+    const schema = createSchemaEditorController(persistence, {
+      initialDraft: saveState.draft,
+    })
+    render(
+      <SchemaPanel
+        schema={schema}
+        onClearDraft={() => undefined}
+        sourceDocumentName="test.pdf"
+      />,
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Reload Current Schema Revision',
+      }),
+    )
+
+    await waitFor(() => expect(screen.getByText('rival')).toBeVisible())
+    expect(schema.snapshot().save?.status).toBe('saved')
+    expect(schema.snapshot().extractableSchemaRevisionId).toBe(
+      winning.schemaRevisionId,
+    )
   })
 })
 
 describe('SchemaPanel clear current schema', () => {
   it('requires confirmation before resetting the schema', () => {
-    const onResetSchema = vi.fn()
-    renderPanel(vi.fn(), nodes, onResetSchema)
+    const onClearDraft = vi.fn(async () => {})
+    renderPanel({}, { onClearDraft })
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
     expect(screen.getByText('Clear current schema?')).toBeInTheDocument()
-    expect(onResetSchema).not.toHaveBeenCalled()
+    expect(onClearDraft).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByText('Clear current schema?')).not.toBeInTheDocument()
-    expect(onResetSchema).not.toHaveBeenCalled()
+    expect(onClearDraft).not.toHaveBeenCalled()
+  })
+
+  it('closes an armed clear confirmation when the draft is replaced', async () => {
+    const setup = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
+    expect(screen.getByText('Clear current schema?')).toBeInTheDocument()
+
+    act(() => {
+      setup.schema.adoptDraft({
+        recordDescription: 'One replacement record.',
+        schemaNodes: historicalNodes,
+      })
+    })
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Clear current schema?'),
+      ).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText('historical_place')).toBeVisible()
   })
 
   it('clears local schema state after the workspace accepts the reset', async () => {
-    const onResetSchema = vi.fn()
-    renderPanel(vi.fn(), nodes, onResetSchema)
+    const setup = renderPanel()
+    const onClearDraft = vi.fn(async () => {
+      await setup.schema.reset()
+    })
+    cleanup()
+    render(<SchemaPanel
+      schema={setup.schema}
+      onClearDraft={onClearDraft}
+      sourceDocumentName="test.pdf"
+    />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear schema' }))
 
-    expect(onResetSchema).toHaveBeenCalledTimes(1)
-    await waitFor(() => expect(screen.queryByText('Clear current schema?')).not.toBeInTheDocument())
+    expect(onClearDraft).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(setup.schema.snapshot().draft).toBeNull())
+    await waitFor(() =>
+      expect(screen.queryByText('Clear current schema?')).not.toBeInTheDocument(),
+    )
     expect(screen.queryByText(nodes[0].name)).not.toBeInTheDocument()
+    expect(screen.getByText('No schema yet')).toBeInTheDocument()
+  })
+
+  it('clears a history failure after a successful schema reset', async () => {
+    const setup = renderPanel({
+      getRevision: async () => {
+        throw new Error('Load failed')
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Schema history' }))
+    fireEvent.click(screen.getByRole('button', { name: /Revision 1/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Load failed')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear schema' }))
+
+    await waitFor(() => expect(setup.schema.snapshot().draft).toBeNull())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('No schema yet')).toBeVisible()
   })
 
   it('keeps the editor when the workspace cannot flush the schema', async () => {
-    const onResetSchema = vi.fn(async () => {
+    const onClearDraft = vi.fn(async () => {
       throw new Error('The Current Schema Revision has changed.')
     })
-    renderPanel(vi.fn(), nodes, onResetSchema)
+    renderPanel({}, { onClearDraft })
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear current schema' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear schema' }))
 
-    await waitFor(() => expect(onResetSchema).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onClearDraft).toHaveBeenCalledTimes(1))
     expect(screen.getByText('Clear current schema?')).toBeInTheDocument()
     expect(screen.getByTitle('Edit title')).toBeInTheDocument()
   })
