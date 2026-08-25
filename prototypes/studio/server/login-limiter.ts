@@ -106,6 +106,21 @@ export function createLoginLimiter(
           evictable = key
           break
         }
+      // A bounded cache must not turn saturation into a global login denial.
+      // Prefer dropping a dormant email block; retain address blocks as the
+      // stronger protection against an attacker rotating account names.
+      if (evictable === undefined)
+        for (const [key, entry] of entries)
+          if (entry.inFlight === 0 && entry.kind === 'email') {
+            evictable = key
+            break
+          }
+      if (evictable === undefined)
+        for (const [key, entry] of entries)
+          if (entry.inFlight === 0) {
+            evictable = key
+            break
+          }
       if (evictable === undefined) return false
       entries.delete(evictable)
     }

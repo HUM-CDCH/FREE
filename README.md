@@ -293,6 +293,12 @@ future login while leaving the account's Project Contexts and descendants
 durable. There is no default account, default password, public registration, or
 self-service reset.
 
+The 6-character minimum is an explicit private-deployment policy, not a public
+internet recommendation. Accounts are operator-provisioned, Studio is limited
+to the institution LAN or VPN, and failed logins are throttled independently by
+normalized email and client address. Revisit the policy before broadening that
+exposure boundary.
+
 Open the exact `STUDIO_ORIGIN`, log in with the temporary password, and choose a
 new 6–128-scalar password on the required password-change screen. Research and
 model pages remain unavailable until that succeeds. The change invalidates the
