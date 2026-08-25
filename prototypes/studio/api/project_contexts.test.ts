@@ -49,7 +49,9 @@ describe('Project Context routes', () => {
     expect(list.headers.get('cache-control')).toBe('no-store')
     const listBody = await list.json()
     expect(projectContextListResponseSchema.parse(listBody)).toMatchObject({
-      projectContexts: [{ projectContextId: DEMO_PROJECT_ID }],
+      projectContexts: [
+        { projectContextId: DEMO_PROJECT_ID, sourceDocumentCount: 1 },
+      ],
     })
     const detail = await GET(
       new Request(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`),

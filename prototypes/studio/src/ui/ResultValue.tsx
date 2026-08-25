@@ -366,11 +366,11 @@ function ObjectSection({
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent px-2.5 py-0.5 font-sans text-[10px] font-semibold tracking-wide text-white">
             {entries.length} field{entries.length !== 1 ? 's' : ''}
           </span>
-        ) : (
-          preview
-            ? <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">{preview}</span>
-            : <MissingBadge />
-        )}
+        ) : entries.length === 0 ? (
+          <MissingBadge />
+        ) : preview ? (
+          <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">{preview}</span>
+        ) : null}
       </div>
       {expanded && (
         <div className="ml-3.5 mt-0.5 border-l border-line pl-3">

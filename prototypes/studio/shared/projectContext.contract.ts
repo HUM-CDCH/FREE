@@ -22,6 +22,9 @@ export const projectContextSummarySchema = z
     createdAt: timestamp,
   })
   .strict()
+export const projectContextListItemSchema = projectContextSummarySchema
+  .extend({ sourceDocumentCount: z.number().int().nonnegative() })
+  .strict()
 export const sourceDocumentSummarySchema = z
   .object({
     sourceDocumentId: canonicalUuidSchema,
@@ -50,7 +53,7 @@ export const projectContextResponseSchema = z
   .object({ projectContext: projectContextSummarySchema })
   .strict()
 export const projectContextListResponseSchema = z
-  .object({ projectContexts: z.array(projectContextSummarySchema) })
+  .object({ projectContexts: z.array(projectContextListItemSchema) })
   .strict()
 export const projectContextWithDocumentsResponseSchema = z
   .object({

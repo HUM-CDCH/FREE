@@ -19,9 +19,6 @@ export function ProposalReviewBar({
         data-testid="schema-proposal-summary"
       >
         {proposal.changes.map((change) =>
-          change.note ? <p key={`note-${change.id}`}>{change.note}</p> : null,
-        )}
-        {proposal.changes.map((change) =>
           change.outcome === 'unresolved' && change.reason ? (
             <p key={`reason-${change.id}`}>{change.reason}</p>
           ) : null,

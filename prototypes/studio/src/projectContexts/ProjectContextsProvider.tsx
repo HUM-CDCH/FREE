@@ -21,6 +21,23 @@ import {
 import type { SourceDocumentIngestionResponse } from '../../shared/sourceDocumentIngestion.contract'
 import { sourceDocumentFilenameFailure } from '../../shared/sourceDocumentFilename'
 
+function withSourceDocumentCount(
+  projects: ProjectContext[],
+  projectContextId: string,
+  sourceDocumentCount: number,
+): ProjectContext[] {
+  const project = projects.find(
+    (item) => item.projectContextId === projectContextId,
+  )
+  if (!project || project.sourceDocumentCount === sourceDocumentCount)
+    return projects
+  return projects.map((item) =>
+    item.projectContextId === projectContextId
+      ? { ...item, sourceDocumentCount }
+      : item,
+  )
+}
+
 /**
  * Owns the Project Context list, the id-keyed branch cache, and acknowledged
  * writes. Every applied write bumps a generation; a read that started under an
@@ -75,13 +92,22 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
           [projectContextId]: { status: 'ready', detail },
         }
         setBranches(branchesRef.current)
-        // Preserve a routed Project Context resolved before recents finish.
+        const sourceDocumentCount = detail.sourceDocuments.length
+        // Preserve a routed Project Context resolved before recents finish,
+        // and keep the list summary aligned with any branch read.
         setProjects((current) =>
           current.some(
             (project) => project.projectContextId === projectContextId,
           )
-            ? current
-            : [...current, detail.projectContext],
+            ? withSourceDocumentCount(
+                current,
+                projectContextId,
+                sourceDocumentCount,
+              )
+            : [
+                ...current,
+                { ...detail.projectContext, sourceDocumentCount },
+              ],
         )
       },
       (error: unknown) => {
@@ -160,7 +186,10 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   const createProject = useCallback(
     async (name: string): ReturnType<ProjectContextsValue['createProject']> => {
       try {
-        const created = await createProjectContext(name)
+        const created = {
+          ...(await createProjectContext(name)),
+          sourceDocumentCount: 0,
+        }
         generation.current += 1
         setProjects((current) => [created, ...current])
         return { created }
@@ -178,7 +207,9 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         generation.current += 1
         setProjects((current) =>
           current.map((project) =>
-            project.projectContextId === projectContextId ? renamed : project,
+            project.projectContextId === projectContextId
+              ? { ...project, ...renamed }
+              : project,
           ),
         )
         const branch = branchesRef.current[projectContextId]
@@ -206,7 +237,10 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
       if (branch?.status === 'loading')
         branchGenerations.current[projectContextId] =
           (branchGenerations.current[projectContextId] ?? 0) + 1
-      if (branch?.status !== 'ready') return
+      if (branch?.status !== 'ready') {
+        reloadList.current()
+        return
+      }
       const sourceDocuments = [
         ...branch.detail.sourceDocuments.filter(
           (item) => item.sourceDocumentId !== document.sourceDocumentId,
@@ -221,6 +255,13 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         (left, right) =>
           left.createdAt.localeCompare(right.createdAt) ||
           left.sourceDocumentId.localeCompare(right.sourceDocumentId),
+      )
+      setProjects((current) =>
+        withSourceDocumentCount(
+          current,
+          projectContextId,
+          sourceDocuments.length,
+        ),
       )
       setBranch(projectContextId, {
         status: 'ready',
@@ -299,16 +340,22 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
         if (branch?.status === 'loading')
           branchGenerations.current[projectContextId] =
             (branchGenerations.current[projectContextId] ?? 0) + 1
-        if (branch?.status === 'ready')
+        if (branch?.status === 'ready') {
+          const sourceDocuments = branch.detail.sourceDocuments.filter(
+            (document) => document.sourceDocumentId !== sourceDocumentId,
+          )
           setBranch(projectContextId, {
             status: 'ready',
-            detail: {
-              ...branch.detail,
-              sourceDocuments: branch.detail.sourceDocuments.filter(
-                (document) => document.sourceDocumentId !== sourceDocumentId,
-              ),
-            },
+            detail: { ...branch.detail, sourceDocuments },
           })
+          setProjects((current) =>
+            withSourceDocumentCount(
+              current,
+              projectContextId,
+              sourceDocuments.length,
+            ),
+          )
+        }
         return null
       } catch (error) {
         return failure(error)

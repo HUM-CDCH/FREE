@@ -204,6 +204,19 @@ const failureResponse = (
   status: number,
 ): Response => Response.json({ error: { code, message } }, { status })
 
+function projectListResponse(projects: readonly (typeof project)[]) {
+  const body = {
+    projectContexts: projects.map((item) => ({
+      ...item,
+      sourceDocumentCount:
+        item.projectContextId === projectContextId
+          ? detail.sourceDocuments.length
+          : 0,
+    })),
+  }
+  return Response.json(body)
+}
+
 afterEach(() => {
   cleanup()
   document.querySelector('base')?.remove()
@@ -231,7 +244,7 @@ function studioFetch(
     if (url.startsWith('/api/batch-schema-suggestions?'))
       return Response.json({ batchSchemaSuggestions: [] })
     if (url.endsWith(projectContextId)) return Response.json(branch)
-    return Response.json({ projectContexts: [project] })
+    return projectListResponse([project])
   })
 }
 
@@ -298,7 +311,7 @@ const secondProject = {
  */
 function lifecycleFetch(
   options: {
-    projects?: unknown[]
+    projects?: (typeof project)[]
     list?: () => Response | Promise<Response>
     branch?: () => Response | Promise<Response>
     post?: () => Response | Promise<Response>
@@ -333,10 +346,72 @@ function lifecycleFetch(
       return options.branch?.() ?? Response.json(detail)
     return (
       options.list?.() ??
-      Response.json({ projectContexts: options.projects ?? [project] })
+      projectListResponse(options.projects ?? [project])
     )
   })
 }
+
+/** The home page's own region; project names also appear in the rail. */
+const home = () => within(screen.getByRole('region', { name: 'Projects' }))
+
+describe('Studio home', () => {
+  it('opens a Project Context from its card', async () => {
+    renderRoutes()
+
+    fireEvent.click(await home().findByRole('button', { name: project.name }))
+
+    expect(
+      await screen.findByRole('region', { name: 'Project Context' }),
+    ).toBeInTheDocument()
+    expect(location.pathname).toBe(`/projects/${projectContextId}`)
+    expect(screen.queryByRole('region', { name: 'Projects' })).toBeNull()
+  })
+
+  it('returns to Studio home through the logo', async () => {
+    history.replaceState(null, '', `/projects/${projectContextId}`)
+    renderRoutes()
+    await screen.findByRole('region', { name: 'Project Context' })
+
+    const logo = screen.getByRole('link', { name: 'Studio home' })
+    expect(logo).toHaveAttribute('href', '/projects')
+    fireEvent.click(logo)
+
+    expect(await home().findByRole('heading', { name: 'Projects' })).toBeVisible()
+    expect(location.pathname).toBe('/projects')
+  })
+
+  it('creates a Project Context from the home page and routes into it', async () => {
+    renderRoutes(lifecycleFetch())
+
+    fireEvent.click(
+      await home().findByRole('button', { name: 'New Project' }),
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), {
+      target: { value: secondProject.name },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(
+      await screen.findByText('Empty Project Context.'),
+    ).toBeInTheDocument()
+    expect(location.pathname).toBe(
+      `/projects/${secondProject.projectContextId}`,
+    )
+    expect(
+      screen.getByRole('button', { name: railRow(secondProject.name) }),
+    ).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('shows the Source Document count from the initial list read', async () => {
+    const fetch = renderRoutes()
+
+    expect(
+      await home().findByRole('button', { name: project.name }),
+    ).toHaveTextContent('1 Source Document')
+    // The list contract carries the count; home never fans out branch reads.
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('Project Context lifecycle in the rail', () => {
   it('renders markup-like Project Context and Source Document names as inert text', async () => {
@@ -356,7 +431,7 @@ describe('Project Context lifecycle in the rail', () => {
           projectContext: markedProject,
           sourceDocuments: [{ ...beretning, name: sourceName, pageCount: 6 }],
         })
-      return Response.json({ projectContexts: [markedProject] })
+      return projectListResponse([markedProject])
     })
     renderRoutes(fetcher)
 
@@ -375,7 +450,7 @@ describe('Project Context lifecycle in the rail', () => {
   it('navigates to and expands an acknowledged new Project Context', async () => {
     renderRoutes(lifecycleFetch())
     fireEvent.click(
-      await screen.findByRole('button', { name: '+ New project' }),
+      await screen.findByRole('button', { name: 'New Project Context' }),
     )
 
     const name = screen.getByRole('textbox', {
@@ -415,7 +490,7 @@ describe('Project Context lifecycle in the rail', () => {
     })
     renderRoutes(renderFetch)
 
-    const trigger = await screen.findByRole('button', { name: '+ New project' })
+    const trigger = await screen.findByRole('button', { name: 'New Project Context' })
     trigger.focus()
     fireEvent.click(trigger)
     const dialog = await screen.findByRole('dialog', {
@@ -526,7 +601,7 @@ describe('Project Context lifecycle in the rail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'No project open' }),
+      await screen.findByRole('heading', { name: 'Projects' }),
     ).toBeInTheDocument()
     expect(location.pathname).toBe('/projects')
     expect(
@@ -602,7 +677,7 @@ describe('Project Context lifecycle in the rail', () => {
     await screen.findByRole('button', { name: railRow('Ellekilde II') })
 
     // This list read started before the rename and still carries the old name.
-    list.resolve(Response.json({ projectContexts: [project] }))
+    list.resolve(projectListResponse([project]))
 
     await waitFor(() =>
       expect(
@@ -626,12 +701,12 @@ describe('Project Context lifecycle in the rail', () => {
           reads += 1
           return reads === 1
             ? initial.promise
-            : Response.json({ projectContexts: [secondProject, project] })
+            : projectListResponse([secondProject, project])
         },
       }),
     )
     fireEvent.click(
-      await screen.findByRole('button', { name: '+ New project' }),
+      await screen.findByRole('button', { name: 'New Project Context' }),
     )
     fireEvent.change(
       screen.getByRole('textbox', { name: 'Project name' }),
@@ -640,7 +715,7 @@ describe('Project Context lifecycle in the rail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     await screen.findByRole('button', { name: railRow(secondProject.name) })
 
-    initial.resolve(Response.json({ projectContexts: [project] }))
+    initial.resolve(projectListResponse([project]))
 
     expect(
       await screen.findByRole('button', { name: railRow() }),
@@ -738,7 +813,7 @@ describe('Project Context navigation', () => {
     history.replaceState(null, '', '/free/projects')
     const fetch = renderRoutes()
 
-    await screen.findByRole('heading', { name: 'No project open' })
+    await screen.findByRole('heading', { name: 'Projects' })
     await openProjectPage()
 
     expect(location.pathname).toBe(`/free/projects/${projectContextId}`)
@@ -753,7 +828,7 @@ describe('Project Context navigation', () => {
     const fetch = renderRoutes()
 
     expect(
-      await screen.findByRole('heading', { name: 'No project open' }),
+      await screen.findByRole('heading', { name: 'Projects' }),
     ).toBeInTheDocument()
     const page = await openProjectPage()
 
@@ -775,9 +850,9 @@ describe('Project Context navigation', () => {
       'multiple',
     )
     expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
-    // Exactly five: the row's disclosure, its add-sources and actions
-    // controls, the one action that menu holds, and its one Source Document.
-    expect(rail().getAllByRole('button')).toHaveLength(5)
+    // Exactly six: the row's disclosure, its add-sources and actions
+    // controls, the menu's open/delete actions, and its one Source Document.
+    expect(rail().getAllByRole('button')).toHaveLength(6)
     expect(fetch).toHaveBeenCalledTimes(2)
 
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
@@ -936,7 +1011,7 @@ describe('Project Context navigation', () => {
       if (url.startsWith('/api/schema-revisions/'))
         return Response.json({ revision: null })
       if (url.endsWith(projectContextId)) return Response.json(detail)
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
     history.replaceState(null, '', `/projects/${projectContextId}/extractions`)
     renderRoutes(batchFetch)
@@ -1042,7 +1117,7 @@ describe('Project Context navigation', () => {
           ],
         })
       if (url.endsWith(projectContextId)) return Response.json(detail)
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
     renderRoutes(fetcher)
 
@@ -1174,7 +1249,7 @@ describe('Project Context navigation', () => {
           projectContext: secondProject,
           sourceDocuments: [{ ...secondDocument, pageCount: 2 }],
         })
-      return Response.json({ projectContexts: [project, secondProject] })
+      return projectListResponse([project, secondProject])
     })
     renderRoutes(fetcher)
     const firstPage = await openProjectPage()
@@ -1221,7 +1296,7 @@ describe('Project Context navigation', () => {
 
   it('lets keyboard users resize the Project Context rail', async () => {
     renderRoutes()
-    await screen.findByRole('heading', { name: 'No project open' })
+    await screen.findByRole('heading', { name: 'Projects' })
     const separator = screen.getByRole('separator', {
       name: 'Resize Project Context rail',
     })
@@ -1241,7 +1316,7 @@ describe('Project Context navigation', () => {
               reject(new DOMException('Aborted', 'AbortError')),
             )
             setTimeout(
-              () => resolve(Response.json({ projectContexts: [project] })),
+              () => resolve(projectListResponse([project])),
               0,
             )
           }),
@@ -1297,7 +1372,7 @@ describe('Project Context navigation', () => {
             )
           : Response.json(detail)
       }
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
     renderRoutes(fetch)
     await screen.findByRole('button', { name: railRow() })
@@ -1339,7 +1414,7 @@ describe('Project Context navigation', () => {
             sourceDocuments: [],
           })
         if (url.endsWith(projectContextId)) return Response.json(detail)
-        return Response.json({ projectContexts: [project, secondProject] })
+        return projectListResponse([project, secondProject])
       }),
     )
     await screen.findByRole('button', { name: railRow() })
@@ -1371,7 +1446,7 @@ describe('Project Context navigation', () => {
   it('retries only the failed branch', async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(Response.json({ projectContexts: [project] }))
+      .mockResolvedValueOnce(projectListResponse([project]))
       .mockResolvedValueOnce(
         failureResponse(
           'persistence_unavailable',
@@ -1392,7 +1467,7 @@ describe('Project Context navigation', () => {
     const pending = Promise.withResolvers<Response>()
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(Response.json({ projectContexts: [project] }))
+      .mockResolvedValueOnce(projectListResponse([project]))
       .mockReturnValueOnce(pending.promise)
     renderRoutes(fetch)
 
@@ -1422,7 +1497,7 @@ describe('Project Context navigation', () => {
 
   it('updates from the back/forward listener without pushing another history entry', async () => {
     renderRoutes()
-    await screen.findByRole('heading', { name: 'No project open' })
+    await screen.findByRole('heading', { name: 'Projects' })
 
     history.pushState(null, '', `/projects/${projectContextId}`)
     dispatchEvent(new PopStateEvent('popstate'))
@@ -1524,7 +1599,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
         branchCalls += 1
         return branch(detail.sourceDocuments)
       }
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1634,7 +1709,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       if (init?.method === 'POST') return ingestionResult(uploadedA)
       if (url.includes('/reopen')) return Response.json(snapshot(uploadedA))
       if (url.endsWith(projectContextId)) return branch([])
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1673,7 +1748,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
         return ingestionResult(uploadedA)
       }
       if (url.endsWith(projectContextId)) return branch([])
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1718,7 +1793,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
         branchReads += 1
         return branch([])
       }
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1765,7 +1840,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       }
       if (url.includes('/reopen')) return Response.json(snapshot(beretning))
       if (url.endsWith(projectContextId)) return branch(detail.sourceDocuments)
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1814,7 +1889,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
         return branch(detail.sourceDocuments)
       }
       if (url.includes('/reopen')) throw new Error('stale navigation')
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1830,7 +1905,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Delete permanently' }))
     expect(
-      await screen.findByRole('heading', { name: 'No project open' }),
+      await screen.findByRole('heading', { name: 'Projects' }),
     ).toBeInTheDocument()
     expect(location.pathname).toBe('/projects')
 
@@ -2038,7 +2113,7 @@ describe('routed Source Document reopening', () => {
           sourceDocuments: [{ ...secondDocument, pageCount: 2 }],
         })
       if (url.endsWith(projectContextId)) return Response.json(detail)
-      return Response.json({ projectContexts: [project, secondProject] })
+      return projectListResponse([project, secondProject])
     })
     renderRoutes(fetch)
 
@@ -2113,7 +2188,7 @@ describe('routed Source Document reopening', () => {
             )
           : Response.json(detail)
       }
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
     renderRoutes(fetch)
 
@@ -2196,7 +2271,7 @@ describe('routed Source Document reopening', () => {
           expect(init.credentials).toBe('same-origin')
           const url = String(input)
           if (url === '/api/project-contexts')
-            return Response.json({ projectContexts: [] })
+            return projectListResponse([])
           if (url === `/api/project-contexts/${projectContextId}`)
             return failureResponse(
               'not_found',

@@ -1309,6 +1309,7 @@ describe('BatchExtractionsPanel', () => {
     ).toBeTruthy()
 
     fireEvent.click(within(suggested).getByRole('button', { name: 'Regenerate' }))
+    fireEvent.click(within(suggested).getByRole('button', { name: /Regenerate schema/ }))
     await waitFor(() =>
       expect(
         fetch.mock.calls.filter(
