@@ -157,6 +157,7 @@ openssl rand -hex 32
 
 Create the ignored root `.env` file with the generated single-line values:
 
+```dotenv
 STUDIO_ORIGIN=https://free.example.edu
 STUDIO_BASE_PATH=/free
 FREE_SESSION_SECRET=<canonical-base64-output>
