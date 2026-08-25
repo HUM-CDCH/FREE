@@ -22,7 +22,15 @@ _Avoid_: file, PDF, upload
 
 **Project Context**:
 The research aggregate owned by exactly one Researcher Account. It contains one or more Source Documents, their annotations and Annotation Sets, Schema Suggestions, Extraction Schemas, Extractions, and Extraction Results; every descendant inherits ownership through this aggregate.
-_Avoid_: research context, workspace
+_Avoid_: research context, workspace when referring to one Project Context
+
+**Project**:
+The concise researcher-facing name for a Project Context. It denotes the same research aggregate, not a separate kind of object.
+_Avoid_: research context
+
+**Research Workspace**:
+The authenticated area of FREE in which a Humanities Researcher works across Project Contexts and shared capabilities. It is not itself a Project Context and owns no research state.
+_Avoid_: Project Context when the whole authenticated area is meant
 
 **Annotation**:
 A researcher-created mark on a source document that identifies source text as relevant for possible extraction and may guide direct extraction when present.

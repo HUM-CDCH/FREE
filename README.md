@@ -157,6 +157,7 @@ openssl rand -hex 32
 
 Create the ignored root `.env` file with the generated single-line values:
 
+```dotenv
 STUDIO_ORIGIN=https://free.example.edu
 STUDIO_BASE_PATH=/free
 FREE_SESSION_SECRET=<canonical-base64-output>
@@ -292,6 +293,12 @@ account's existing sessions. Disable also invalidates every session and blocks
 future login while leaving the account's Project Contexts and descendants
 durable. There is no default account, default password, public registration, or
 self-service reset.
+
+The 6-character minimum is an explicit private-deployment policy, not a public
+internet recommendation. Accounts are operator-provisioned, Studio is limited
+to the institution LAN or VPN, and failed logins are throttled independently by
+normalized email and client address. Revisit the policy before broadening that
+exposure boundary.
 
 Open `STUDIO_ORIGIN` followed by `STUDIO_BASE_PATH` (for example,
 `https://free.example.edu/free`), log in with the temporary password, and
