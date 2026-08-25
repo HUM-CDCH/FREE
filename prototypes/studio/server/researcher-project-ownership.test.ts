@@ -347,6 +347,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
           packagePresent = false
         return true
       }),
+      listRecentActivity: vi.fn(async () => []),
       listProjectContexts: vi.fn(async () => {
         const projects = relationships
           .filter(

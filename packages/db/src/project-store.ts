@@ -205,6 +205,22 @@ export type ProjectContextListItem = ProjectContextSummary & {
   summary: ProjectContextActivitySummary
 }
 
+/**
+ * One persisted event across the researcher's Project Contexts, for the home
+ * page's recent-activity read. Derived only from stored rows, never from what
+ * a browser expects.
+ */
+export type ProjectContextActivityEvent = {
+  kind:
+    | 'extraction_appended'
+    | 'review_decisions_stored'
+    | 'schema_revision_appended'
+    | 'batch_extraction_opened'
+  projectContextId: string
+  projectContextName: string
+  occurredAt: Date
+}
+
 /** The summary of a Project Context with no persisted research activity yet. */
 export function emptyProjectContextActivitySummary(
   lastActivityAt: Date,
@@ -522,6 +538,8 @@ export type ResearcherProjectStore = {
     sourceDocumentId: string,
   ): Promise<boolean>
   listProjectContexts(limit: number): Promise<ProjectContextListItem[]>
+  /** Newest-first persisted events across every owned Project Context. */
+  listRecentActivity(limit: number): Promise<ProjectContextActivityEvent[]>
   getProjectContextWithDocuments(projectContextId: string): Promise<{
     projectContext: ProjectContextSummary
     sourceDocuments: SourceDocumentSummary[]
@@ -1099,6 +1117,86 @@ export function createResearcherProjectStore(
           },
         }
       })
+    },
+    async listRecentActivity(limit) {
+      const projects = await database.orm.public.ProjectContext.where({
+        researcherAccountId,
+      })
+        .select('id', 'name')
+        .all()
+      if (projects.length === 0) return []
+      const projectIds = projects.map((row) => row.id)
+      const nameByProject = new Map(projects.map((row) => [row.id, row.name]))
+
+      const documents = await database.orm.public.SourceDocument.where(
+        (document) => document.projectContextId.in(projectIds),
+      )
+        .select('id', 'projectContextId')
+        .all()
+      const projectByDocument = new Map(
+        documents.map((document) => [document.id, document.projectContextId]),
+      )
+      const extractions =
+        documents.length === 0
+          ? []
+          : await database.orm.public.Extraction.where((extraction) =>
+              extraction.sourceDocumentId.in(documents.map((d) => d.id)),
+            )
+              .select('sourceDocumentId', 'createdAt', 'reviewedAt')
+              .all()
+      const schemas = await database.orm.public.ExtractionSchema.where(
+        (schema) => schema.projectContextId.in(projectIds),
+      )
+        .select('id', 'projectContextId')
+        .all()
+      const projectBySchema = new Map(
+        schemas.map((schema) => [schema.id, schema.projectContextId]),
+      )
+      const schemaRevisions =
+        schemas.length === 0
+          ? []
+          : await database.orm.public.SchemaRevision.where((revision) =>
+              revision.extractionSchemaId.in(schemas.map((s) => s.id)),
+            )
+              .select('extractionSchemaId', 'createdAt')
+              .all()
+      const batches = await database.orm.public.BatchExtraction.where((batch) =>
+        batch.projectContextId.in(projectIds),
+      )
+        .select('projectContextId', 'createdAt')
+        .all()
+
+      const events: ProjectContextActivityEvent[] = []
+      const push = (
+        kind: ProjectContextActivityEvent['kind'],
+        projectContextId: string | undefined,
+        occurredAt: Date | null | undefined,
+      ) => {
+        const projectContextName =
+          projectContextId && nameByProject.get(projectContextId)
+        if (!projectContextId || projectContextName == null || !occurredAt)
+          return
+        events.push({ kind, projectContextId, projectContextName, occurredAt })
+      }
+      for (const extraction of extractions) {
+        const projectContextId = projectByDocument.get(
+          extraction.sourceDocumentId,
+        )
+        push('extraction_appended', projectContextId, extraction.createdAt)
+        push('review_decisions_stored', projectContextId, extraction.reviewedAt)
+      }
+      for (const revision of schemaRevisions)
+        push(
+          'schema_revision_appended',
+          projectBySchema.get(revision.extractionSchemaId),
+          revision.createdAt,
+        )
+      for (const batch of batches)
+        push('batch_extraction_opened', batch.projectContextId, batch.createdAt)
+
+      return events
+        .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
+        .slice(0, limit)
     },
     async getProjectContextWithDocuments(projectContextId) {
       const row = await database.orm.public.ProjectContext.select(

@@ -4,6 +4,7 @@ import type { ResearcherProjectStore } from '../../../packages/db/src/project-st
 type ProjectStoreReads = Pick<
   ResearcherProjectStore,
   | 'listProjectContexts'
+  | 'listRecentActivity'
   | 'getProjectContextWithDocuments'
   | 'getDocumentReopenSnapshot'
   | 'getSourceRepresentation'
@@ -44,6 +45,16 @@ export function projectContextFixture(): ProjectStoreReads {
           },
         },
       ]
+    },
+    async listRecentActivity(limit) {
+      return [
+        {
+          kind: 'extraction_appended' as const,
+          projectContextId: DEMO_PROJECT_ID,
+          projectContextName: project.name,
+          occurredAt: new Date('2026-07-31T12:03:00.000Z'),
+        },
+      ].slice(0, limit)
     },
     async getProjectContextWithDocuments(id) {
       return id === DEMO_PROJECT_ID

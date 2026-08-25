@@ -27,9 +27,14 @@ type ProjectContextReadStore = Pick<
   Partial<
     Pick<
       ResearcherProjectStore,
-      'getDocumentReopenSnapshot' | 'getSourceRepresentation'
+      | 'getDocumentReopenSnapshot'
+      | 'getSourceRepresentation'
+      | 'listRecentActivity'
     >
   >
+
+/** The home page shows the latest events; the read stays small and bounded. */
+const RECENT_ACTIVITY_LIMIT = 5
 type ReadArtifact = (
   descriptor: CanonicalPackageDescriptor,
   artifact: 'source',
@@ -111,12 +116,13 @@ export function createGetProjectContexts(
       const url = new URL(request.url)
       const id = projectId(url.pathname)
       if (id === null) {
-        const projectContexts = await store
-          .listProjectContexts(boundedLimit(url))
-          .catch((cause) => {
-            throw persistenceUnavailable(cause)
-          })
-        return json({ projectContexts }, { headers: noStore })
+        const [projectContexts, recentActivity] = await Promise.all([
+          store.listProjectContexts(boundedLimit(url)),
+          store.listRecentActivity?.(RECENT_ACTIVITY_LIMIT) ?? [],
+        ]).catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
+        return json({ projectContexts, recentActivity }, { headers: noStore })
       }
       const projectContext = await store
         .getProjectContextWithDocuments(validProjectId(id))
