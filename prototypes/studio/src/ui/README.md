@@ -13,6 +13,7 @@ state — they import only React and the shared Tailwind tokens (`src/index.css`
 | `EmptyState` | Dashed placeholder card (`neutral`/`danger`) with optional action |
 | `Spinner` | Loading ring, optionally with label + hint |
 | `Overline` | Uppercase, letter-spaced section label |
+| `PhaseProgress` | Five-segment workflow position bar with a small state line |
 | `Panel` | Full-height column with bordered header/footer + scrolling body |
 | `ResultValue` | Recursive renderer for an extraction result tree |
 

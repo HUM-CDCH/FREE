@@ -507,6 +507,68 @@ describe('Studio home', () => {
     ).toHaveTextContent('1 Source Document · 2 of 3 reviewed')
   })
 
+  it('shows the phase bar and state line for each summary state', async () => {
+    const states = [
+      { name: 'Chatting', summary: projectSummary({ phase: 'chat' }) },
+      {
+        name: 'Running',
+        summary: projectSummary({
+          phase: 'extract',
+          runningBatch: { completedMemberCount: 31, memberCount: 42 },
+        }),
+      },
+      {
+        name: 'Reviewed',
+        summary: projectSummary({
+          phase: 'validate',
+          extractionCount: 2,
+          extractedSourceDocumentCount: 2,
+          reviewedSourceDocumentCount: 2,
+        }),
+      },
+      {
+        name: 'Drifted',
+        summary: projectSummary({
+          phase: 'extract',
+          extractionCount: 1,
+          extractedSourceDocumentCount: 1,
+          staleSourceDocumentCount: 1,
+        }),
+      },
+    ]
+    renderRoutes(
+      lifecycleFetch({
+        list: () =>
+          Response.json({
+            projectContexts: states.map((state, index) => ({
+              projectContextId: `51000000-0000-4000-8000-00000000010${index}`,
+              name: state.name,
+              createdAt: project.createdAt,
+              sourceDocumentCount: 2,
+              summary: state.summary,
+            })),
+          }),
+      }),
+    )
+
+    const chatting = within(
+      await home().findByRole('button', { name: 'Chatting' }),
+    )
+    expect(chatting.getByText('Schema Chat')).toBeInTheDocument()
+
+    const running = within(home().getByRole('button', { name: 'Running' }))
+    expect(running.getByText('Extraction running')).toBeInTheDocument()
+    expect(running.getByText('31 / 42')).toBeInTheDocument()
+
+    const reviewed = within(home().getByRole('button', { name: 'Reviewed' }))
+    expect(reviewed.getByText('Validated')).toBeInTheDocument()
+
+    const drifted = within(home().getByRole('button', { name: 'Drifted' }))
+    expect(drifted.getByText('Re-run needed')).toBeInTheDocument()
+    // Every card carries the five-segment bar from the shared primitive.
+    expect(drifted.getAllByTestId('phase-segment')).toHaveLength(5)
+  })
+
   it('surfaces staleness ahead of review progress in the card meta line', async () => {
     renderRoutes(
       lifecycleFetch({

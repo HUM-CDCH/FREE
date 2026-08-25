@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { NavigableRoute } from '../projectNavigation'
 import type { ProjectContext } from './transport'
-import { Button, EmptyState } from '../ui'
+import { Button, EmptyState, PhaseProgress } from '../ui'
+import type { PhaseProgressTone } from '../ui'
 import PlusIcon from '../PlusIcon'
 import { CreateProjectModal } from './CreateProjectModal'
 import { useProjectContexts } from './useProjectContexts'
@@ -40,6 +41,27 @@ function metaLine(project: ProjectContext): string {
       summary.schemaDraftCount === 1 ? 'draft' : 'drafts'
     }`
   return documents
+}
+
+/** The state color of a card's PhaseProgress bar, from the persisted summary. */
+function summaryTone(summary: ProjectContext['summary']): PhaseProgressTone {
+  if (summary.runningBatch) return 'running'
+  if (summary.staleSourceDocumentCount > 0) return 'stale'
+  if (
+    summary.phase === 'validate' &&
+    summary.extractedSourceDocumentCount > 0 &&
+    summary.reviewedSourceDocumentCount === summary.extractedSourceDocumentCount
+  )
+    return 'validated'
+  return 'progress'
+}
+
+/** "12 Aug" — the quiet day-level timestamp the card state line shows. */
+function activityDay(timestamp: string): string {
+  return new Date(timestamp).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  })
 }
 
 /** The zero-Project-Context welcome: promise, workflow walkthrough, one action. */
@@ -168,6 +190,13 @@ export function StudioHome({
                 >
                   {metaLine(project)}
                 </span>
+                <PhaseProgress
+                  className="mt-5 self-stretch"
+                  phase={project.summary.phase}
+                  tone={summaryTone(project.summary)}
+                  running={project.summary.runningBatch ?? undefined}
+                  timestamp={activityDay(project.summary.lastActivityAt)}
+                />
               </button>
             </li>
           ))}
