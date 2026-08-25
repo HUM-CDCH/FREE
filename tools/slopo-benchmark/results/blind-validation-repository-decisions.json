@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "freeze_sha256": "a5fcf8fe859effb262162490f7482e62437e184936deafb7cecec8a7fbd6c0d7",
+  "queue_fingerprint": "3ef79f3925f9dabc2ab73a016062e719b939d818633d2010321d699b2695b04b",
+  "reviews": [
+    {
+      "blind_id": "HV-001",
+      "cluster_id": "5be1387714aac346",
+      "duplicate": true,
+      "note": "Coherent repeated unit-collection implementation across language parsers."
+    },
+    {
+      "blind_id": "HV-002",
+      "cluster_id": "d473df53f0c0d752",
+      "duplicate": true,
+      "note": "Equivalent empty-body node-count tests repeated across language adapters."
+    },
+    {
+      "blind_id": "HV-003",
+      "cluster_id": "246ab09d24e0eff1",
+      "duplicate": true,
+      "note": "Equivalent block-bodied callback fixture implementations in four languages."
+    },
+    {
+      "blind_id": "HV-004",
+      "cluster_id": "b0d5defc1315515a",
+      "duplicate": true,
+      "note": "Exact fixture-loader pattern repeated for C#, Java, and Kotlin lambdas."
+    },
+    {
+      "blind_id": "HV-005",
+      "cluster_id": "a3ea8a8c93ad9448",
+      "duplicate": true,
+      "note": "Exact concise-arrow body-count test duplicated between JavaScript and TypeScript."
+    },
+    {
+      "blind_id": "HV-006",
+      "cluster_id": "b9f40967f547650a",
+      "duplicate": true,
+      "note": "Exact parse-entry implementation repeated across ten language parser modules."
+    },
+    {
+      "blind_id": "HV-007",
+      "cluster_id": "a9f83ffbc07ad8fb",
+      "duplicate": true,
+      "note": "Equivalent one-based line-number test structure repeated across language adapters."
+    },
+    {
+      "blind_id": "HV-008",
+      "cluster_id": "7ba8cab3dc2bbc67",
+      "duplicate": true,
+      "note": "Equivalent recursive named-node counters, with Python adding docstring exclusion."
+    },
+    {
+      "blind_id": "HV-009",
+      "cluster_id": "84abd75448088a24",
+      "duplicate": true,
+      "note": "Equivalent absent-body node-count tests repeated across five language adapters."
+    },
+    {
+      "blind_id": "HV-010",
+      "cluster_id": "0e9c59146d66cf7a",
+      "duplicate": true,
+      "note": "Semantically equivalent fetchUser fixture implementation in JavaScript and TypeScript."
+    },
+    {
+      "blind_id": "HV-011",
+      "cluster_id": "7605a73880a7f9b2",
+      "duplicate": true,
+      "note": "Exact BodySizes fixture-loader pattern repeated across ten test modules."
+    },
+    {
+      "blind_id": "HV-012",
+      "cluster_id": "67bbc308bb3187d4",
+      "duplicate": true,
+      "note": "Equivalent configure callback fixture implementations in Java and Kotlin."
+    },
+    {
+      "blind_id": "HV-013",
+      "cluster_id": "7b686828fd9736b4",
+      "duplicate": true,
+      "note": "Equivalent arrow-function naming test in JavaScript and TypeScript."
+    },
+    {
+      "blind_id": "HV-014",
+      "cluster_id": "92fb3306533a5831",
+      "duplicate": true,
+      "note": "Equivalent recursive comment-span collectors repeated across parser modules."
+    },
+    {
+      "blind_id": "HV-015",
+      "cluster_id": "84fb14f94a42894f",
+      "duplicate": true,
+      "note": "Coherent repeated body-node counting operation across seven language parsers."
+    },
+    {
+      "blind_id": "HV-016",
+      "cluster_id": "250328cf6a25de41",
+      "duplicate": true,
+      "note": "Equivalent bound-callback naming tests repeated across seven language adapters."
+    },
+    {
+      "blind_id": "HV-017",
+      "cluster_id": "6359b4f53c337b5a",
+      "duplicate": true,
+      "note": "Semantically equivalent transform fixture implementations in Java, Kotlin, and C#."
+    },
+    {
+      "blind_id": "HV-018",
+      "cluster_id": "e2cf127fdf61a0b2",
+      "duplicate": true,
+      "note": "Equivalent comment-stripping assertions repeated across eight language adapters."
+    },
+    {
+      "blind_id": "HV-019",
+      "cluster_id": "ad39570212394b95",
+      "duplicate": false,
+      "note": "Mixed add, classification, and greeting body assertions are not one coherent duplicate implementation."
+    },
+    {
+      "blind_id": "HV-020",
+      "cluster_id": "a48120c5800328fb",
+      "duplicate": true,
+      "note": "Exact SimilarPair test helper duplicated across clustering and rerank tests."
+    },
+    {
+      "blind_id": "HV-021",
+      "cluster_id": "d17cf70939e60c30",
+      "duplicate": true,
+      "note": "Equivalent nested-lambda emission test in C# and Java."
+    },
+    {
+      "blind_id": "HV-022",
+      "cluster_id": "7ffc45d87e3f3697",
+      "duplicate": false,
+      "note": "Binding lookup follows materially different grammar structures across languages, despite shared naming."
+    },
+    {
+      "blind_id": "HV-023",
+      "cluster_id": "d14769fa6789b6b1",
+      "duplicate": true,
+      "note": "Exact Closures fixture-loader pattern repeated across four test modules."
+    },
+    {
+      "blind_id": "HV-024",
+      "cluster_id": "b12d4180da338b44",
+      "duplicate": true,
+      "note": "Coherent repeated body-node counting family across all ten language parsers."
+    },
+    {
+      "blind_id": "HV-025",
+      "cluster_id": "06d40f5b2b6e143b",
+      "duplicate": true,
+      "note": "Equivalent anonymous-callback naming tests repeated across seven language adapters."
+    },
+    {
+      "blind_id": "HV-026",
+      "cluster_id": "2020de335dbd45ff",
+      "duplicate": true,
+      "note": "Semantically equivalent comment-stripping fixture bodies across eight languages."
+    },
+    {
+      "blind_id": "HV-027",
+      "cluster_id": "2bdce8d52949aef0",
+      "duplicate": true,
+      "note": "Equivalent comment-removal implementation repeated across ten language parsers."
+    },
+    {
+      "blind_id": "HV-028",
+      "cluster_id": "0fdffe08c08db723",
+      "duplicate": true,
+      "note": "Coherent repeated unit-name resolution family with grammar-specific anonymous-function handling."
+    }
+  ]
+}
