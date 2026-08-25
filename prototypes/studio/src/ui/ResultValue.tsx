@@ -148,13 +148,13 @@ function PrimitiveRow({
 
   if (editing) {
     return (
-      <div className="my-0.5 flex items-center gap-1.5 rounded-lg border border-accent bg-accent-ghost px-2.5 py-2">
+      <div className="my-0.5 flex items-center gap-1.5 rounded-[3px] border border-accent bg-accent-ghost px-2.5 py-2">
         <span className="w-2 shrink-0" />
         <span className="shrink-0 font-mono text-[13.5px] font-medium text-ink">{name}</span>
         {review?.getSchemaNode(path)?.allowedValues ? (
           <select
             aria-label={`Reviewed value for ${name}`}
-            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
             value={draft}
             autoFocus
             onChange={e => setDraft(e.target.value)}
@@ -165,7 +165,7 @@ function PrimitiveRow({
         ) : review?.getSchemaNode(path)?.type === 'boolean' ? (
           <select
             aria-label={`Reviewed value for ${name}`}
-            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
             value={draft}
             autoFocus
             onChange={e => setDraft(e.target.value)}
@@ -177,7 +177,7 @@ function PrimitiveRow({
         ) : (
           <input
             aria-label={`Reviewed value for ${name}`}
-            className="min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
+            className="min-w-0 flex-1 rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[13px] text-ink outline-none focus-visible:border-accent"
             type={review?.getSchemaNode(path)?.type === 'date' ? 'date' : review?.getSchemaNode(path)?.type === 'number' || review?.getSchemaNode(path)?.type === 'integer' ? 'number' : 'text'}
             step={review?.getSchemaNode(path)?.type === 'integer' ? '1' : undefined}
             value={draft}
@@ -187,13 +187,13 @@ function PrimitiveRow({
           />
         )}
         <button
-          className="shrink-0 cursor-pointer rounded-md border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108"
+          className="shrink-0 cursor-pointer rounded-[3px] border border-accent bg-accent px-2.5 py-1 text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108"
           type="button"
           aria-label={`Save reviewed value for ${name}`}
           onClick={save}
         >Save</button>
         <button
-          className="shrink-0 cursor-pointer rounded-md border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
+          className="shrink-0 cursor-pointer rounded-[3px] border border-line-strong bg-surface px-2 py-1 text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
           type="button"
           aria-label={`Cancel editing reviewed value for ${name}`}
           onClick={cancel}
@@ -205,7 +205,7 @@ function PrimitiveRow({
 
   if (expandText && !missing) {
     return (
-      <div className="-mx-2 group rounded-md px-2 pb-2 pt-1.5 transition-colors hover:bg-accent-ghost/30">
+      <div className="-mx-2 group rounded-[3px] px-2 pb-2 pt-1.5 transition-colors hover:bg-accent-ghost/30">
         <div className="flex items-center gap-2">
           <span className="w-2 shrink-0" />
           <span className="shrink-0 font-mono text-[13.5px] font-medium text-ink">{name}</span>
@@ -249,7 +249,7 @@ function PrimitiveRow({
   }
 
   return (
-    <div className="-mx-2 group rounded-md px-2 transition-colors hover:bg-accent-ghost/30">
+    <div className="-mx-2 group rounded-[3px] px-2 transition-colors hover:bg-accent-ghost/30">
       <div className="flex items-center gap-2 py-1.5">
         <span className="w-2 shrink-0" />
         <span className="shrink-0 truncate font-mono text-[13.5px] font-medium text-ink">
@@ -356,7 +356,7 @@ function ObjectSection({
   return (
     <div>
       <div
-        className="-mx-2 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
+        className="-mx-2 flex cursor-pointer items-center gap-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-2 shrink-0" /> : <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>}
@@ -410,7 +410,7 @@ function ArraySection({
   return (
     <div>
       <div
-        className="-mx-2 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
+        className="-mx-2 flex cursor-pointer items-center gap-2 rounded-[3px] px-2 py-1.5 transition-colors hover:bg-accent-ghost/30"
         onClick={() => onNavigateTo ? onNavigateTo(path) : setExpanded(v => !v)}
       >
         {onNavigateTo ? <span className="w-2 shrink-0" /> : <span className="shrink-0 text-ink-faint"><CollapseArrow expanded={expanded} /></span>}

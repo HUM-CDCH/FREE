@@ -23,7 +23,7 @@ function SegmentedControl<T extends string>({
 }: SegmentedControlProps<T>) {
   return (
     <div
-      className={`flex shrink-0 overflow-hidden rounded-md border border-line ${className}`}
+      className={`flex shrink-0 overflow-hidden rounded-[3px] border border-line ${className}`}
       role="group"
       aria-label={rest['aria-label']}
     >
