@@ -469,7 +469,7 @@ export const batchSchemaSuggestionMachine = setup({
           ],
         },
         onError: {
-          target: 'drafting.saveFailed',
+          target: 'drafting.clean',
           actions: [{ type: 'captureRunFailure' }],
         },
       },

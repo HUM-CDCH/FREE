@@ -6,7 +6,7 @@ Resolve every defect recorded by the integrated-browser run, close the coverage 
 
 Source material:
 
-- Test report: `D:/progetti/FREE/artifacts/browser-test-20260824-0138/report.md`
+- Test report: `D:/progetti/FREE/docs/browser-remediation-evidence-2026-08-24/report.md`
 - Test plan: `D:/progetti/FREE/docs/codex-integrated-browser-full-feature-test-plan-2026-08-24.md`
 - Tested Git state: commit `baaffed8b722fee9997d6675e91eb6ea8ec09204`, branch `codex/fix-researcher-auth-review`
 - Repository instructions: `D:/progetti/FREE/AGENTS.md`
@@ -22,6 +22,13 @@ The implementation is complete only when the defect matrix below is closed with 
 5. Use the disposable database and isolated config/data roots from the report for destructive or failure-path verification. Never reset a remote database or a local database other than the named disposable `free_test_*` database.
 6. Keep a live defect ledger in the implementation task. For every defect record: root cause, changed files, regression test, command/browser evidence, and final status.
 7. Commit in coherent workstream-sized changes. Do not leave the repository with a failing intermediate migration or partially switched contract.
+
+Database release precondition: this pre-release branch does not support
+upgrading a database that already contains duplicate Source Documents for the
+same `(projectContextId, contentSha256)`. Such a database must be replaced by a
+freshly initialized local database named `free`. A lossy merge of revision and
+ingestion histories is intentionally excluded by `AGENTS.md`'s
+no-backward-compatibility rule.
 
 ## Execution order
 
@@ -134,6 +141,8 @@ pnpm test
 pnpm --filter studio lint
 pnpm --filter studio build
 pnpm --filter studio test:e2e
+pnpm --filter studio test:e2e:base-path
+pnpm --filter studio test:e2e:developer
 Set-Location prototypes/parsing_service
 uv sync
 uv run --no-sync python -m unittest discover -s tests

@@ -925,7 +925,7 @@ if (!disposableDatabaseUrl) {
       assert.equal(await module.cancelSingle(input.extractionId), 'not-found')
     })
 
-    it('atomically pins Batch members, replays equal selections, and creates explicit repetitions', async (t) => {
+    it('rejects duplicate members, atomically pins valid members, replays equal selections, and creates explicit repetitions', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['b.pdf', 'a.pdf'])
       const foreign = await seedProject()
@@ -935,7 +935,6 @@ if (!disposableDatabaseUrl) {
       const selected = [
         project.documents[1]!.sourceDocumentId,
         project.documents[0]!.sourceDocumentId,
-        project.documents[1]!.sourceDocumentId,
       ]
       const input = {
         projectContextId: project.projectContextId,
@@ -945,6 +944,13 @@ if (!disposableDatabaseUrl) {
         repetition: 'reuse-equal-selection' as const,
       }
 
+      await assert.rejects(
+        module.scheduleBatch({
+          ...input,
+          sourceDocumentIds: [...selected, selected[0]!],
+        }),
+        rejectsWithCode('invalid_extraction_pins'),
+      )
       const created = await module.scheduleBatch(input)
       assert.equal(created.disposition, 'created')
       assert.deepEqual(

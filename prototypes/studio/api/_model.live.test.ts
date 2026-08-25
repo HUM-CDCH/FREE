@@ -2,13 +2,14 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { ApiError } from './_http.js'
-import { extractWithModel } from './_model.js'
+import { extractWithModel, generateSchemaWithModel } from './_model.js'
 import {
   DELETE as clearLlmInspector,
   GET as getLlmInspector,
 } from './llm_inspector.js'
 import {
   providerTable,
+  probeConnection,
   type GeneralExecutionTarget,
   type NuExtractRawExecutionTarget,
 } from './_provider.js'
@@ -16,7 +17,95 @@ import type { LlmTrace } from '../shared/llmInspector.contract.js'
 
 const EXPECTED_GRAVES = [8, 13, 24, 26, 28, 30, 31]
 const LIVE = process.env.FREE_LIVE_MODEL_E2E === '1'
+const CAPTURE_LIVE = LIVE && Boolean(process.env.FREE_LIVE_MODEL_CAPTURE)
 const TIMEOUT_MS = 12 * 60 * 1_000
+const LIVE_OLLAMA_URL = process.env.FREE_LIVE_OLLAMA_URL ?? 'http://127.0.0.1:11434'
+const LIVE_OLLAMA_MODEL = process.env.FREE_LIVE_OLLAMA_MODEL ?? 'qwen3.8:latest'
+
+function liveOllamaTarget(): GeneralExecutionTarget {
+  const ollama = providerTable.ollama
+  return {
+    profile: 'general',
+    model: ollama.createModel(
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'Live local Ollama',
+        provider: 'ollama',
+        baseUrl: LIVE_OLLAMA_URL,
+      },
+      LIVE_OLLAMA_MODEL,
+      null,
+    ),
+    jsonOutput: ollama.jsonOutput,
+    temperatureSupported: ollama.temperatureSupported,
+  }
+}
+
+describe.skipIf(!LIVE)('bounded live Ollama P0 profile', () => {
+  it('discovers the configured model through the real provider boundary', { timeout: TIMEOUT_MS }, async () => {
+    const result = await probeConnection(
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'Live local Ollama',
+        provider: 'ollama',
+        baseUrl: LIVE_OLLAMA_URL,
+      },
+      null,
+    )
+    expect(result.status).toBe('connected')
+    expect(result.catalog).toContainEqual(
+      expect.objectContaining({ id: LIVE_OLLAMA_MODEL }),
+    )
+  })
+
+  it('generates a grounded schema through the real provider boundary', { timeout: TIMEOUT_MS }, async () => {
+    const result = await generateSchemaWithModel(
+      {
+        document: {
+          file: null,
+          markdown:
+            'Excavation register. Grave 8 is oriented east-west and measures 1.72 metres long. Grave 13 is oriented north-south and measures 1.64 metres long.',
+          pages: 1,
+        },
+        instruction:
+          'Create one record per grave with grave number, orientation, and length in metres.',
+        temperature: 0.2,
+      },
+      liveOllamaTarget(),
+    )
+    expect(result.pages).toBe(1)
+    expect(result.template._description).toEqual(expect.any(String))
+    expect(JSON.stringify(result.template)).toMatch(/grave/i)
+    expect(result.raw.length).toBeGreaterThan(20)
+  })
+
+  it('extracts grounded records through the real provider boundary', { timeout: TIMEOUT_MS }, async () => {
+    const result = await extractWithModel(
+      {
+        document: {
+          file: null,
+          markdown:
+            'Excavation register. Grave 8 is oriented east-west and measures 1.72 metres long. Grave 13 is oriented north-south and measures 1.64 metres long.',
+          pages: 1,
+        },
+        template: {
+          records: [{
+            grave_number: 'integer',
+            orientation: 'string',
+            length_metres: 'number',
+          }],
+        },
+        temperature: 0.2,
+      },
+      liveOllamaTarget(),
+    )
+    expect(records(result.result)).toEqual([
+      { grave_number: 8, orientation: 'east-west', length_metres: 1.72 },
+      { grave_number: 13, orientation: 'north-south', length_metres: 1.64 },
+    ])
+    expect(result.pages).toBe(1)
+  })
+})
 
 const extractionSchema = {
   records: [{
@@ -85,7 +174,7 @@ async function latestTrace(): Promise<LlmTrace> {
   return body.traces[0]
 }
 
-describe.skipIf(!LIVE)('live Extraction provider E2E', () => {
+describe.skipIf(!CAPTURE_LIVE)('extended live captured-document Extraction E2E', () => {
   it('extracts the seven graves with native Codex structured output', { timeout: TIMEOUT_MS }, async () => {
     clearLlmInspector()
     const codex = providerTable['codex-cli']

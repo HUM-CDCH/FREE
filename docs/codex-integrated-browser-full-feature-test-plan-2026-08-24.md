@@ -1,8 +1,8 @@
 # FREE full-feature test plan with the Codex integrated browser
 
-Date: 2026-08-24  
-Target: `prototypes/studio` and its same-origin APIs  
-Primary test surface: Codex integrated browser (in-app browser)  
+Date: 2026-08-24<br>
+Target: `prototypes/studio` and its same-origin APIs<br>
+Primary test surface: Codex integrated browser (in-app browser)<br>
 Status: execution-ready plan; no test run is claimed by this document
 
 ## 1. Objective

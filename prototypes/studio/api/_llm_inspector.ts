@@ -22,8 +22,14 @@ function redactString(value: string, secrets: Set<string>): string {
   let redacted = value
     .replace(/\bBearer\s+[^\s"',}]+/gi, 'Bearer [REDACTED]')
     .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, '[REDACTED]')
+    .replace(/\b[a-f0-9]{64}\b/gi, '[REDACTED_HASH]')
+    .replace(/\b[A-Za-z]:\\[^\s"']+/g, '[REDACTED_PATH]')
+    .replace(
+      /(^|[\s"'(])\/(?:home|Users|var|tmp|private|opt|srv)(?:\/[^\s"')}]*)?/g,
+      '$1[REDACTED_PATH]',
+    )
   for (const secret of secrets) redacted = redacted.replaceAll(secret, '[REDACTED]')
-  return redacted.replace(/https?:\/\/[^\s"',}]+/gi, (match) => {
+  return redacted.replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"',}]+/gi, (match) => {
     try {
       const url = new URL(match)
       if (url.username) url.username = '[REDACTED]'

@@ -19,10 +19,7 @@ import {
   type ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
-import {
-  MAX_SOURCE_DOCUMENT_FILENAME_SCALARS,
-  sourceDocumentFilenameFailure,
-} from '../shared/sourceDocumentFilename.js'
+import { sourceDocumentFilenameFailure } from '../shared/sourceDocumentFilename.js'
 
 const CONTRACT_VERSION = 'parsed_document.v2'
 const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8055'
@@ -96,12 +93,6 @@ function sanitizedFilename(raw: string): string {
       400,
       'invalid_request',
       'The uploaded file must be a PDF.',
-    )
-  if (Array.from(filename).length > MAX_SOURCE_DOCUMENT_FILENAME_SCALARS)
-    throw new ApiError(
-      400,
-      'invalid_request',
-      'The sanitized Source Document filename is too long.',
     )
   return filename
 }

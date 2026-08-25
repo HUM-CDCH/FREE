@@ -171,6 +171,38 @@ describe('batchSchemaSuggestionMachine', () => {
     expect(actor.getSnapshot().matches('confirmed')).toBe(true)
   })
 
+  it('allows retrying Run after a transient run failure without editing the acknowledged draft', async () => {
+    const run = vi
+      .fn<BatchSchemaSuggestionOperations['run']>()
+      .mockRejectedValueOnce(new Error('run failed'))
+      .mockResolvedValueOnce({
+        ...ready(firstDefinition, 1),
+        confirmedSchemaRevisionId: '51000000-0000-4000-8005-000000000001',
+        batchExtractionId: '51000000-0000-4000-8007-000000000001',
+      })
+    const onRun = vi.fn()
+    const actor = createActor(batchSchemaSuggestionMachine, {
+      input: operations({ run, onRun }),
+    }).start()
+    actor.send({
+      type: 'selection.changed',
+      sourceDocumentIds: ['51000000-0000-4000-8001-000000000001'],
+      suggestion: ready(),
+    })
+
+    actor.send({ type: 'run.requested' })
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() =>
+      expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true),
+    )
+    expect(actor.getSnapshot().can({ type: 'run.requested' })).toBe(true)
+
+    actor.send({ type: 'run.requested' })
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(onRun).toHaveBeenCalledTimes(1))
+    expect(actor.getSnapshot().matches('confirmed')).toBe(true)
+  })
+
   it('adopts the saved draft after a version conflict', async () => {
     const conflict = new Error('draft version conflict')
     const actor = createActor(batchSchemaSuggestionMachine, {

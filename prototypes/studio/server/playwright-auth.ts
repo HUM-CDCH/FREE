@@ -6,6 +6,10 @@ import { hashPassword } from './password.js'
 
 export const PLAYWRIGHT_RESEARCHER_ID =
   '70000000-0000-4000-8000-000000000001'
+export const PLAYWRIGHT_SECOND_RESEARCHER_ID =
+  '70000000-0000-4000-8000-000000000002'
+export const PLAYWRIGHT_SECOND_RESEARCHER_EMAIL =
+  'browser-second@example.test'
 
 /**
  * A process-local Researcher Account for browser-only Playwright specs.
@@ -17,26 +21,40 @@ export async function createPlaywrightAccountStore(
   password: string,
 ): Promise<ResearcherAccountStore> {
   const now = new Date('2026-08-24T00:00:00.000Z')
-  let account: ResearcherAccountRecord = {
-    id: PLAYWRIGHT_RESEARCHER_ID,
-    email: email.trim().toLowerCase(),
-    passwordHash: await hashPassword(password),
-    mustChangePassword: false,
-    disabledAt: null,
-    sessionVersion: 0,
-    createdAt: now,
-    updatedAt: now,
-  }
+  const passwordHash = await hashPassword(password)
+  const accounts = new Map<string, ResearcherAccountRecord>(
+    [
+      [PLAYWRIGHT_RESEARCHER_ID, email],
+      [PLAYWRIGHT_SECOND_RESEARCHER_ID, PLAYWRIGHT_SECOND_RESEARCHER_EMAIL],
+    ].map(([id, accountEmail]) => [
+      id,
+      {
+        id,
+        email: accountEmail.trim().toLowerCase(),
+        passwordHash,
+        mustChangePassword: false,
+        disabledAt: null,
+        sessionVersion: 0,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]),
+  )
 
   return {
     async create() {
       throw new Error('The Playwright Researcher Account is fixed.')
     },
     async findByEmail(candidate) {
-      return candidate.trim().toLowerCase() === account.email ? account : null
+      const normalizedEmail = candidate.trim().toLowerCase()
+      return (
+        [...accounts.values()].find(
+          (account) => account.email === normalizedEmail,
+        ) ?? null
+      )
     },
     async findById(id) {
-      return id === account.id ? account : null
+      return accounts.get(id) ?? null
     },
     async replacePassword(
       id,
@@ -44,29 +62,33 @@ export async function createPlaywrightAccountStore(
       passwordHash,
       mustChangePassword,
     ) {
+      const account = accounts.get(id)
       if (
-        id !== account.id ||
+        !account ||
         expectedSessionVersion !== account.sessionVersion
       )
         return null
-      account = {
+      const updated = {
         ...account,
         passwordHash,
         mustChangePassword,
         sessionVersion: account.sessionVersion + 1,
         updatedAt: new Date(),
       }
-      return account
+      accounts.set(id, updated)
+      return updated
     },
     async disable(id, disabledAt = new Date()) {
-      if (id !== account.id) return null
-      account = {
+      const account = accounts.get(id)
+      if (!account) return null
+      const updated = {
         ...account,
         disabledAt,
         sessionVersion: account.sessionVersion + 1,
         updatedAt: new Date(),
       }
-      return account
+      accounts.set(id, updated)
+      return updated
     },
   }
 }
