@@ -540,6 +540,27 @@ describe('session invalidation and renewal', () => {
       authenticated: true,
     })
   })
+
+  it('renews authenticated activity when a protected handler fails', async () => {
+    const issuedAt = Date.UTC(2026, 7, 20)
+    let time = issuedAt
+    const test = await fixture({
+      now: () => time,
+      apiDispatcher: async () => {
+        throw new Error('handler failed')
+      },
+    })
+    const original = cookie(await login(test.app))
+
+    time += 60 * 60 * 1_000
+    const failed = await test.app.request(
+      `${ORIGIN}/api/project-contexts`,
+      { headers: { cookie: original } },
+      CLIENT,
+    )
+    expect(failed.status).toBe(500)
+    expect(cookie(failed)).not.toBe(original)
+  })
 })
 
 describe('deny-by-default application boundary', () => {
@@ -592,7 +613,11 @@ describe('deny-by-default application boundary', () => {
   it('mounts every route beneath one configured public base path', async () => {
     const test = await fixture({ basePath: '/free' })
 
-    for (const path of ['/api/healthz', '/free-adjacent/api/healthz'])
+    for (const path of [
+      '/api/healthz',
+      '/free-adjacent/api/healthz',
+      '//anything',
+    ])
       expect(
         (await test.app.request(`${ORIGIN}${path}`, undefined, CLIENT)).status,
       ).toBe(404)

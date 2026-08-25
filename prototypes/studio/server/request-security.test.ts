@@ -205,6 +205,20 @@ describe('bounded login limiter', () => {
     if (sharedGateway.accepted) sharedGateway.complete('abandon')
   })
 
+  it('admits an unrelated login when every retained bucket is blocked', () => {
+    const limiter = createLoginLimiter({
+      emailMaxFailures: 1,
+      addressMaxFailures: 1,
+      maxEntries: 4,
+    })
+    complete(limiter, 'first@example.org', '192.0.2.10', 'failure')
+    complete(limiter, 'second@example.org', '192.0.2.11', 'failure')
+
+    const unrelated = limiter.reserve('valid@example.org', '192.0.2.12')
+    expect(unrelated.accepted).toBe(true)
+    if (unrelated.accepted) unrelated.complete('abandon')
+  })
+
   it('does not evict an active blocked email bucket at capacity', () => {
     const limiter = createLoginLimiter({
       emailMaxFailures: 1,
