@@ -15,6 +15,7 @@ export type Change = {
   dependsOn?: readonly string[]
   outcome: 'applied' | 'unresolved' | 'conflict'
   reason?: string
+  note?: string
 }
 
 export type DerivedProposal = {
@@ -140,12 +141,14 @@ export function deriveSchemaProposal(
       const before = cloneNode(node)
       const edit = response.fields[node.id]
       if (edit?.removed) {
+        const losses = metadataLosses(before)
         changes.push({
           id: node.id,
           kind: 'removed',
           before,
           after: null,
           outcome: 'applied',
+          ...(losses.length && { note: `Removing this field also removes ${losses.join(' and ')}.` }),
         })
         continue
       }
@@ -156,13 +159,16 @@ export function deriveSchemaProposal(
       let after: SchemaNode = node.children === undefined ? cloneNode(node) : { ...node, children: children ?? node.children }
       let outcome: Change['outcome'] = 'applied'
       let reason: string | undefined
+      let note: string | undefined
       if (edit) {
         if (after.allowedValues && edit.type !== 'string') {
           after = { ...after, name: edit.name }
           outcome = 'conflict'
           reason = 'Allowed values pin this field to string; the requested type was not applied.'
         } else {
-          after = changeNodeType(after, edit)
+          const edited = changeNodeType(after, edit)
+          after = edited.node
+          note = edited.losses.length ? `Retyping across the container boundary removed ${edited.losses.join(' and ')}.` : undefined
         }
       }
       out.push(after)
@@ -174,6 +180,7 @@ export function deriveSchemaProposal(
           after: cloneNode(after),
           outcome,
           ...(reason && { reason }),
+          ...(note && { note }),
         })
       }
     }
@@ -437,10 +444,14 @@ function addedSchemaNode(id: string, name: string, addition: SchemaAddition): Sc
   return { id, name, type: addition.type }
 }
 
-function changeNodeType(node: SchemaNode, edit: FieldEdit): SchemaNode {
+function changeNodeType(
+  node: SchemaNode,
+  edit: FieldEdit,
+): { node: SchemaNode; losses: string[] } {
   const existingContainer = node.children !== undefined
   const requestedContainer = edit.type === 'object' || (edit.type === 'array' && edit.itemType === null)
   const crossesContainerBoundary = requestedContainer !== existingContainer
+  const losses = crossesContainerBoundary ? metadataLosses(node) : []
   const base = {
     id: node.id,
     name: edit.name,
@@ -448,22 +459,36 @@ function changeNodeType(node: SchemaNode, edit: FieldEdit): SchemaNode {
   }
 
   if (edit.type === 'object') {
-    return { ...base, type: edit.type, children: existingContainer ? node.children : [] }
+    return { node: { ...base, type: edit.type, children: existingContainer ? node.children : [] }, losses }
   }
   if (edit.type === 'array') {
     if (edit.itemType === null) {
-      return { ...base, type: edit.type, children: existingContainer ? node.children : [] }
+      return { node: { ...base, type: edit.type, children: existingContainer ? node.children : [] }, losses }
     }
-    return { ...base, type: edit.type, itemType: edit.itemType }
+    return { node: { ...base, type: edit.type, itemType: edit.itemType }, losses }
   }
   if (edit.type === 'string') {
     return {
-      ...base,
-      type: edit.type,
-      ...(node.type === 'string' && node.allowedValues && { allowedValues: node.allowedValues }),
+      node: {
+        ...base,
+        type: edit.type,
+        ...(node.type === 'string' && node.allowedValues && { allowedValues: node.allowedValues }),
+      },
+      losses,
     }
   }
-  return { ...base, type: edit.type }
+  return {
+    node: { ...base, type: edit.type },
+    losses,
+  }
+}
+
+function metadataLosses(node: SchemaNode): string[] {
+  return [
+    node.description && 'its description',
+    node.allowedValues && 'its allowed values',
+    node.children?.length && 'its nested fields',
+  ].filter((loss): loss is string => typeof loss === 'string')
 }
 
 function rejectDuplicateRenames(nodes: SchemaNode[], changes: Change[]): void {
