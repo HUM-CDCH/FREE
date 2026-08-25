@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 import type { ServerType } from '@hono/node-server'
 import { serve } from '@hono/node-server'
 import { extractionRuntime } from '../api/_extraction_runtime.js'
+import { providerRuntime as productionProviderRuntime } from '../api/_provider.js'
 import { createStudioApp } from './app.js'
 import {
   createClientAddressResolver,
@@ -27,6 +28,7 @@ export type StudioHostDependencies = {
   serve?: typeof serve
   signals?: StudioSignalTarget
   logger?: Pick<Console, 'error' | 'log'>
+  providerRuntime?: Pick<StudioRuntime, 'close'>
 }
 
 export type RunningStudioHost = {
@@ -56,6 +58,8 @@ export async function startStudioServer(
   const serveApplication = dependencies.serve ?? serve
   const signals = dependencies.signals ?? process
   const logger = dependencies.logger ?? console
+  const providerRuntime =
+    dependencies.providerRuntime ?? productionProviderRuntime
   const clientRoot = dependencies.clientRoot ?? productionClientRoot()
   const app = await createStudioApp({
     studioOrigin: config.studioOrigin,
@@ -104,6 +108,7 @@ export async function startStudioServer(
       await Promise.all([
         closeServer(server),
         runtime.close().then(() => running),
+        providerRuntime.close(),
       ])
     })()
     return stopping

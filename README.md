@@ -350,7 +350,22 @@ Port 5432 is not published on the host; the Parsing Service publishes only its
 loopback port for the operator's own web app (8000 is already taken on the
 deployment machine, hence 8055).
 
-#### Proxy contract
+#### Studio trust modes
+
+The production Node host makes its network boundary explicit with
+`FREE_STUDIO_PROXY`:
+
+| Mode | Intended topology | Binding and client address |
+| --- | --- | --- |
+| `trusted-proxy` | Hosted HTTPS behind one pinned reverse-proxy peer | Binds `0.0.0.0`; accepts `X-Real-IP` only after the socket peer matches `FREE_STUDIO_PROXY_ADDRESS` |
+| `loopback` | Node host run directly on the local machine | Binds `127.0.0.1`; uses the socket peer and ignores client-address headers |
+
+Loopback mode requires a localhost, `127.0.0.1`, or `[::1]` `STUDIO_ORIGIN`
+and requires `FREE_STUDIO_PROXY_ADDRESS` to be absent. Containers use the
+verified `trusted-proxy` contract; there is no mode that binds every interface
+while accepting an arbitrary socket peer.
+
+#### Hosted proxy contract
 
 Studio does not inspect or depend on the proxy implementation. Any reverse
 proxy can use the hosted contract:

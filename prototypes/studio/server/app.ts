@@ -77,6 +77,7 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/src/auth/returnPath.ts': true,
   '/src/studioUrl.ts': true,
   '/shared/studioBasePath.ts': true,
+  '/shared/authSession.contract.ts': true,
   '/src/ui/Button.tsx': true,
 }
 

@@ -1,14 +1,15 @@
 #!/bin/sh
-# Studio owns two pieces of operating-system state that a container starts
-# without: the Secret Service its credential store talks to, and an authored
-# database schema replayed before the production Node host starts.
+# Studio owns operating-system state that a container starts without: the
+# Secret Service its credential store talks to, Codex's persistent home, and an
+# authored database schema replayed before the production Node host starts.
 set -eu
 
 : "${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}"
 : "${DBUS_SESSION_BUS_ADDRESS:?DBUS_SESSION_BUS_ADDRESS must be set}"
+: "${CODEX_HOME:?CODEX_HOME must be set}"
 : "${DATABASE_URL:?DATABASE_URL must be set}"
 
-install -d -m 700 "$XDG_RUNTIME_DIR"
+install -d -m 700 "$XDG_RUNTIME_DIR" "$CODEX_HOME"
 rm -f "$XDG_RUNTIME_DIR/bus"
 dbus-daemon --session --fork --address="$DBUS_SESSION_BUS_ADDRESS"
 
