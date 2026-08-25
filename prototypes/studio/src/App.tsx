@@ -1,3 +1,4 @@
+import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -169,7 +170,7 @@ type DocIndex =
   | { status: 'error'; message: string }
 
 async function readMarkdown(url: string, signal: AbortSignal): Promise<string> {
-  const response = await fetch(url, { signal })
+  const response = await authenticatedFetch(url, { signal })
   if (!response.ok)
     throw new Error(
       `Could not fetch Source Document Markdown (HTTP ${response.status}).`,
@@ -181,7 +182,7 @@ async function readParsedDocument(
   url: string,
   signal: AbortSignal,
 ): Promise<ParsedDocument> {
-  const response = await fetch(url, { signal })
+  const response = await authenticatedFetch(url, { signal })
   if (!response.ok)
     throw new Error(
       `Could not fetch parsed Source Document (HTTP ${response.status}).`,
@@ -487,7 +488,7 @@ export function DocumentWorkspace({
       { signal: abortController.signal },
     )
 
-    const loadingTask = pdfjsLib.getDocument({ url: pdfSource.url })
+    let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null
     pdfViewerRef.current = pdfViewer
     // annotationManagerRef.current = null
     setLoadState({ status: 'loading' })
@@ -553,6 +554,16 @@ export function DocumentWorkspace({
 
     async function loadPdf() {
       try {
+        const response = await authenticatedFetch(pdfSource.url, {
+          signal: abortController.signal,
+        })
+        if (!response.ok)
+          throw new Error(
+            `Could not fetch Source Document PDF (HTTP ${response.status}).`,
+          )
+        const data = await response.arrayBuffer()
+        if (abortController.signal.aborted) return
+        loadingTask = pdfjsLib.getDocument({ data })
         const pdf = await loadingTask.promise
         if (abortController.signal.aborted) {
           return
@@ -599,7 +610,7 @@ export function DocumentWorkspace({
         null,
       )
       abortController.abort()
-      void loadingTask.destroy()
+      if (loadingTask) void loadingTask.destroy()
     }
   }, [onInitialResourceLoadFailure, pdfSource])
 
@@ -716,11 +727,14 @@ export function DocumentWorkspace({
     setTemplateState({ status: 'generating' })
 
     try {
-      const pdfBlob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
-      const template = await requestSchema(pdfBlob, pdfSource.filename, abortController.signal, {
-        instruction,
-        markdown: documentMarkdown,
-      })
+      const template = await requestSchema(
+        {
+          projectContextId,
+          sourceRepresentationRevisionId: sourceRepresentationId,
+        },
+        abortController.signal,
+        { instruction },
+      )
       if (!abortController.signal.aborted) {
         const definition = templateToSchemaDefinition(template)
         const { recordDescription, schemaNodes: nodes } = definition
@@ -1039,7 +1053,15 @@ export function DocumentWorkspace({
   }
 
   async function flushSchemaEdits() {
-    await schemaSaveCoordinatorRef.current?.flush()
+    const coordinator = schemaSaveCoordinatorRef.current
+    if (!coordinator) throw new Error('No durable schema is open.')
+    const revision = await coordinator.flush()
+    return {
+      projectContextId,
+      sourceRepresentationRevisionId: sourceRepresentationId,
+      extractionSchemaId: revision.extractionSchemaId,
+      schemaRevisionId: revision.schemaRevisionId,
+    }
   }
 
   const running = extraction.state.status === 'running'

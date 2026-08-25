@@ -71,6 +71,10 @@ function dependencies(overrides: Record<string, unknown> = {}) {
   const fetcher = vi.fn()
   parser(fetcher)
   const store = {
+    getProjectContextWithDocuments: vi.fn().mockResolvedValue({
+      projectContext: {},
+      sourceDocuments: [],
+    }),
     ingestSourceDocument: vi.fn().mockResolvedValue({
       sourceDocumentId: ids.source,
       name: 'report.pdf',
@@ -82,7 +86,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
         artifactSha256: 'a'.repeat(64),
       },
     }),
-    isPackageReferenced: vi.fn().mockResolvedValue(false),
+    discardCanonicalPackage: vi.fn().mockResolvedValue(undefined),
   }
   const packageStore = {
     save: vi.fn().mockResolvedValue({
@@ -92,15 +96,13 @@ function dependencies(overrides: Record<string, unknown> = {}) {
       published: true,
     }),
     available: vi.fn().mockResolvedValue(true),
-    remove: vi.fn().mockResolvedValue(true),
   }
   return {
     fetcher,
     store,
     packageStore,
-    handler: createSourceDocumentIngestion({
+    handler: createSourceDocumentIngestion(store, {
       fetcher,
-      store,
       packageStore,
       parsingServiceBase: 'http://parser.test',
       sleep: async () => {},
@@ -110,20 +112,9 @@ function dependencies(overrides: Record<string, unknown> = {}) {
 }
 
 describe('Source Document deletion', () => {
-  it('deletes an owned document and only removes an unshared package', async () => {
-    const remove = vi.fn().mockResolvedValue(true)
-    const DELETE = createSourceDocumentDeletion(
-      {
-        deleteSourceDocument: vi.fn().mockResolvedValue([
-          {
-            artifactReference: 'a'.repeat(64),
-            artifactSha256: 'a'.repeat(64),
-          },
-        ]),
-        isPackageReferenced: vi.fn().mockResolvedValue(false),
-      },
-      { remove },
-    )
+  it('delegates authorized reference-safe deletion to the researcher store', async () => {
+    const deleteSourceDocument = vi.fn().mockResolvedValue(true)
+    const DELETE = createSourceDocumentDeletion({ deleteSourceDocument })
 
     const response = await DELETE(
       new Request(
@@ -133,7 +124,25 @@ describe('Source Document deletion', () => {
     )
 
     expect(response.status).toBe(204)
-    expect(remove).toHaveBeenCalledOnce()
+    expect(deleteSourceDocument).toHaveBeenCalledWith(ids.project, ids.source)
+  })
+
+  it('uses the existing not-found shape for a missing or cross-owner document', async () => {
+    const DELETE = createSourceDocumentDeletion({
+      deleteSourceDocument: vi.fn().mockResolvedValue(false),
+    })
+
+    const response = await DELETE(
+      new Request(
+        `http://test/api/project-contexts/${ids.project}/source-documents/${ids.source}`,
+        { method: 'DELETE' },
+      ),
+    )
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'not_found' },
+    })
   })
 })
 
@@ -152,6 +161,12 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     )
     expect(invalid.status).toBe(422)
     expect(fetcher).not.toHaveBeenCalled()
+
+    const inaccessible = dependencies()
+    inaccessible.store.getProjectContextWithDocuments.mockResolvedValueOnce(null)
+    const inaccessibleResponse = await inaccessible.handler(request())
+    expect(inaccessibleResponse.status).toBe(404)
+    expect(inaccessible.fetcher).not.toHaveBeenCalled()
 
     const missingFile = await handler(
       request(ids.project, [['ingestionKey', ids.ingestion]]),
@@ -219,6 +234,24 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     expect((upload.get('file') as File).name.length).toBeLessThanOrEqual(180)
   })
 
+  it('prefers the production runtime Parsing Service address', async () => {
+    const { fetcher, store, packageStore } = dependencies()
+    vi.stubEnv('PARSING_SERVICE_URL', 'http://runtime-parser.test')
+    try {
+      const handler = createSourceDocumentIngestion(store, {
+        fetcher,
+        packageStore,
+        sleep: async () => {},
+      })
+      expect((await handler(request())).status).toBe(201)
+      expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+        'http://runtime-parser.test/tasks',
+      )
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('returns the durable store result when the same request is replayed', async () => {
     const { handler, fetcher, store } = dependencies()
     parser(fetcher)
@@ -265,12 +298,12 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
 
     expect(response.status).toBe(201)
     expect(packageStore.available).toHaveBeenCalledWith(winner)
-    expect(packageStore.remove).toHaveBeenCalledOnce()
+    expect(store.discardCanonicalPackage).toHaveBeenCalledOnce()
     expect(await response.json()).not.toHaveProperty('descriptor')
   })
 
   it('rejects a key reused for different content and cleans its new package', async () => {
-    const { handler, store, packageStore } = dependencies()
+    const { handler, store } = dependencies()
     store.ingestSourceDocument.mockRejectedValueOnce(
       new IngestionKeyConflictError(),
     )
@@ -278,7 +311,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const response = await handler(request())
 
     expect(response.status).toBe(409)
-    expect(packageStore.remove).toHaveBeenCalledOnce()
+    expect(store.discardCanonicalPackage).toHaveBeenCalledOnce()
   })
 
   it('does not publish or persist when parsing fails or times out', async () => {
@@ -357,7 +390,7 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     const mismatchResponse = await mismatched.handler(request())
     expect(mismatchResponse.status).toBe(502)
     expect(mismatched.store.ingestSourceDocument).not.toHaveBeenCalled()
-    expect(mismatched.packageStore.remove).toHaveBeenCalledOnce()
+    expect(mismatched.store.discardCanonicalPackage).toHaveBeenCalledOnce()
 
     const failed = dependencies()
     failed.store.ingestSourceDocument.mockRejectedValueOnce(
@@ -365,10 +398,10 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
     )
     const failedResponse = await failed.handler(request())
     expect(failedResponse.status).toBe(503)
-    expect(failed.packageStore.remove).toHaveBeenCalledOnce()
-    await expect(failed.packageStore.remove.mock.calls[0][1]()).resolves.toBe(
-      false,
-    )
+    expect(failed.store.discardCanonicalPackage).toHaveBeenCalledWith({
+      artifactReference: 'a'.repeat(64),
+      artifactSha256: 'a'.repeat(64),
+    })
 
     const replay = dependencies()
     replay.packageStore.save.mockResolvedValueOnce({
@@ -381,6 +414,6 @@ describe('POST /api/project-contexts/:id/source-documents', () => {
       new Error('db down'),
     )
     await replay.handler(request())
-    expect(replay.packageStore.remove).not.toHaveBeenCalled()
+    expect(replay.store.discardCanonicalPackage).not.toHaveBeenCalled()
   })
 })

@@ -85,6 +85,35 @@ describe('POST /api/model_probe', () => {
     expect(await readFile(join(root, 'model-config.json'))).toEqual(before)
   })
 
+  it('does not send a saved credential to a changed provider endpoint', async () => {
+    const root = await temporaryRoot()
+    await writeModelConfig(
+      {
+        connections: [connection],
+        routes: { extraction: null, interaction: null },
+      },
+      { configRoot: root },
+    )
+    const fetch = vi.fn()
+    const post = createPostModelProbe({
+      configRoot: root,
+      credentialStore: store('saved-secret'),
+      fetch,
+    })
+
+    const response = await post(
+      request({
+        connection: {
+          ...connection,
+          baseUrl: 'https://attacker.example/openai/v1',
+        },
+      }),
+    )
+
+    expect(response.status).toBe(409)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it.each([
     ['transient', 'transient-secret', undefined],
     ['stored', undefined, 'stored-secret'],
@@ -156,6 +185,92 @@ describe('POST /api/model_probe', () => {
     })
   })
 
+
+  it('runs overlapping probes independently against each immutable draft snapshot', async () => {
+    const root = await temporaryRoot()
+    const credentialStore = store()
+    const firstReply = Promise.withResolvers<Response>()
+    const secondReply = Promise.withResolvers<Response>()
+    const bothStarted = Promise.withResolvers<void>()
+    let started = 0
+    const fetch = vi.fn((input: string | URL | Request) => {
+      started += 1
+      if (started === 2) bothStarted.resolve()
+      return String(input).includes('second.example')
+        ? secondReply.promise
+        : firstReply.promise
+    })
+    const post = createPostModelProbe({
+      configRoot: root,
+      credentialStore,
+      fetch,
+    })
+    const secondConnection: ModelConnection = {
+      ...connection,
+      id: '22222222-2222-4222-8222-222222222222',
+      name: 'Second OpenAI-compatible gateway',
+      baseUrl: 'https://second.example/v1',
+    }
+    const completionOrder: string[] = []
+
+    const firstProbe = post(
+      request({ connection, credential: 'first-transient-secret' }),
+    ).then((response) => {
+      completionOrder.push('first')
+      return response
+    })
+    const secondProbe = post(
+      request({
+        connection: secondConnection,
+        credential: 'second-transient-secret',
+      }),
+    ).then((response) => {
+      completionOrder.push('second')
+      return response
+    })
+    await bothStarted.promise
+
+    secondReply.resolve(Response.json({ data: [{ id: 'second-model' }] }))
+    const secondResponse = await secondProbe
+    const secondText = await secondResponse.text()
+    expect(JSON.parse(secondText)).toMatchObject({
+      status: 'connected',
+      catalog: [{ id: 'second-model' }],
+    })
+    expect(secondText).not.toContain('second-transient-secret')
+    expect(completionOrder).toEqual(['second'])
+
+    firstReply.resolve(Response.json({ data: [{ id: 'first-model' }] }))
+    const firstResponse = await firstProbe
+    const firstText = await firstResponse.text()
+    expect(JSON.parse(firstText)).toMatchObject({
+      status: 'connected',
+      catalog: [{ id: 'first-model' }],
+    })
+    expect(firstText).not.toContain('first-transient-secret')
+    expect(completionOrder).toEqual(['second', 'first'])
+    expect(fetch).toHaveBeenCalledWith(
+      'https://gateway.example/openai/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: 'Bearer first-transient-secret',
+        }),
+      }),
+    )
+    expect(fetch).toHaveBeenCalledWith(
+      'https://second.example/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: 'Bearer second-transient-secret',
+        }),
+      }),
+    )
+    expect(credentialStore.set).not.toHaveBeenCalled()
+    expect(credentialStore.delete).not.toHaveBeenCalled()
+    await expect(readFile(join(root, 'model-config.json'))).rejects.toMatchObject(
+      { code: 'ENOENT' },
+    )
+  })
   it('rejects malformed requests before provider traffic', async () => {
     const fetch = vi.fn()
     // configRoot is injected even though validation rejects before any read:

@@ -39,6 +39,19 @@ describe('LLM inspector launcher', () => {
     expect(screen.getByText('Complete model text')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
 
-    await waitFor(() => expect(request).toHaveBeenCalledWith('/api/llm_inspector', { method: 'DELETE' }))
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        '/api/llm_inspector',
+        expect.objectContaining({
+          method: 'DELETE',
+          credentials: 'same-origin',
+        }),
+      ),
+    )
+    expect(
+      request.mock.calls.every(
+        ([, init]) => init?.credentials === 'same-origin',
+      ),
+    ).toBe(true)
   })
 })

@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
 import { StrictMode, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { LlmTrace } from '../../shared/llmInspector.contract'
@@ -32,7 +33,7 @@ function Inspector({ onClose }: { onClose: () => void }) {
     const controller = new AbortController()
     const refresh = async () => {
       try {
-        const response = await fetch('/api/llm_inspector', { signal: controller.signal, cache: 'no-store' })
+        const response = await authenticatedFetch('/api/llm_inspector', { signal: controller.signal, cache: 'no-store' })
         if (!response.ok) throw new Error('Inspector unavailable')
         const body = await response.json() as { traces: LlmTrace[] }
         setTraces(body.traces)
@@ -53,7 +54,7 @@ function Inspector({ onClose }: { onClose: () => void }) {
   const selected = useMemo(() => traces.find(({ id }) => id === selectedId) ?? null, [selectedId, traces])
 
   async function clear() {
-    const response = await fetch('/api/llm_inspector', { method: 'DELETE' })
+    const response = await authenticatedFetch('/api/llm_inspector', { method: 'DELETE' })
     if (!response.ok) return setError('Could not clear the inspector')
     setTraces([])
     setSelectedId(null)

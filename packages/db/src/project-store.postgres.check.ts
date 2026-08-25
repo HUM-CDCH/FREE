@@ -26,17 +26,48 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     )
   process.env.DATABASE_URL = databaseUrl
 
-  const [{ db }, { createProjectStore }] = await Promise.all([
+  const [
+    { db },
+    {
+      createInternalProjectWorkerStore,
+      createResearcherProjectStore,
+    },
+  ] = await Promise.all([
     import('./prisma/db.js'),
     import('./project-store.js'),
   ])
   after(() => db.close())
 
-  const store = createProjectStore(db)
-  const project = await db.orm.public.ProjectContext.create({ name: 'Doomed' })
-  const survivor = await db.orm.public.ProjectContext.create({
-    name: 'Survivor',
+  assert.deepEqual(await db.orm.public.ResearcherAccount.select('id').all(), [])
+  assert.deepEqual(await db.orm.public.ProjectContext.select('id').all(), [])
+  await assert.rejects(
+    db.orm.public.ProjectContext.create({
+      researcherAccountId: '52000000-0000-4000-8000-000000000099',
+      name: 'Invalid owner',
+    }),
+  )
+
+  const accountA = await db.orm.public.ResearcherAccount.create({
+    email: 'cascade-a@example.org',
+    passwordHash: 'test-only-hash',
   })
+  const accountB = await db.orm.public.ResearcherAccount.create({
+    email: 'cascade-b@example.org',
+    passwordHash: 'test-only-hash',
+  })
+  const store = createResearcherProjectStore(accountA.id, db)
+  const survivorStore = createResearcherProjectStore(accountB.id, db)
+  const workerStore = createInternalProjectWorkerStore(db)
+  const project = await store.createProjectContext('Doomed')
+  const survivor = await survivorStore.createProjectContext('Survivor')
+  await assert.rejects(
+    db.orm.public.ResearcherAccount.where({ id: accountA.id }).delete(),
+  )
+  assert.ok(
+    await db.orm.public.ProjectContext.select('id').first({
+      id: project.projectContextId,
+    }),
+  )
   const ingestion = {
     ingestionKey: '51000000-0000-4000-9000-000000000001',
     contentSha256: 'a'.repeat(64),
@@ -51,7 +82,7 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     ensureRetained: async () => {},
   }
   await assert.rejects(
-    store.ingestSourceDocument(survivor.id, {
+    survivorStore.ingestSourceDocument(survivor.projectContextId, {
       ...ingestion,
       ingestionKey: '51000000-0000-4000-9000-000000000099',
       ensureRetained: async () => {
@@ -67,14 +98,14 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     null,
   )
   const [ingested, concurrentReplay] = await Promise.all([
-    store.ingestSourceDocument(project.id, ingestion),
-    store.ingestSourceDocument(project.id, ingestion),
+    store.ingestSourceDocument(project.projectContextId, ingestion),
+    store.ingestSourceDocument(project.projectContextId, ingestion),
   ])
   assert.ok(ingested)
   assert.deepEqual(concurrentReplay, ingested)
   assert.equal(ingested.revisionNumber, 1)
   assert.deepEqual(
-    await store.ingestSourceDocument(project.id, ingestion),
+    await store.ingestSourceDocument(project.projectContextId, ingestion),
     ingested,
   )
   const document = { id: ingested.sourceDocumentId }
@@ -83,23 +114,17 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     artifactReference: ingestion.artifactReference,
     artifactSha256: ingestion.artifactSha256,
   }
-  const survivingDocument = await db.orm.public.SourceDocument.create({
-    projectContextId: survivor.id,
-    ingestionKey: '51000000-0000-4000-9000-000000000002',
-    contentSha256: 'b'.repeat(64),
-    mediaType: 'application/pdf',
-    originalName: 'survivor.pdf',
-  })
-  await db.orm.public.SourceRepresentationRevision.create({
-    sourceDocumentId: survivingDocument.id,
-    revisionNumber: 1,
-    artifactReference: 'c'.repeat(64),
-    artifactSha256: 'c'.repeat(64),
-    contractVersion: 'parsed_document.v2',
-    preprocessId: `sha256:${'d'.repeat(64)}`,
-    parserName: 'test',
-    parserVersion: '1',
-  })
+  const survivingIngestion = await survivorStore.ingestSourceDocument(
+    survivor.projectContextId,
+    {
+      ...ingestion,
+      contentSha256: 'b'.repeat(64),
+      originalName: 'survivor.pdf',
+    },
+  )
+  assert.ok(survivingIngestion)
+  assert.notEqual(survivingIngestion.sourceDocumentId, document.id)
+  const survivingDocument = { id: survivingIngestion.sourceDocumentId }
   const annotation = await db.orm.public.AnnotationSetRevision.create({
     sourceDocumentId: document.id,
     sourceRepresentationRevisionId: representation.id,
@@ -107,7 +132,7 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     snapshot: {},
   })
   const schema = await db.orm.public.ExtractionSchema.create({
-    projectContextId: project.id,
+    projectContextId: project.projectContextId,
     name: 'Schema',
   })
   const prompt = await db.orm.public.PromptRevision.create({
@@ -180,28 +205,18 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
       parserName: 'test',
       parserVersion: '2',
     })
-  const candidates = await store.deleteProjectContext(project.id)
+  assert.equal(await store.deleteProjectContext(project.projectContextId), true)
 
-  assert.deepEqual(candidates, [
-    {
-      artifactReference: representation.artifactReference,
-      artifactSha256: representation.artifactSha256,
-    },
-    {
-      artifactReference: newerRepresentation.artifactReference,
-      artifactSha256: newerRepresentation.artifactSha256,
-    },
-  ])
   assert.deepEqual(
     (await db.orm.public.ProjectContext.select('id').all()).map(({ id }) => id),
-    [survivor.id],
+    [survivor.projectContextId],
   )
   assert.deepEqual(
     (await db.orm.public.SourceDocument.select('id').all()).map(({ id }) => id),
     [survivingDocument.id],
   )
   assert.equal(
-    await store.isPackageReferenced(representation.artifactReference),
+    await workerStore.isPackageReferenced(representation.artifactReference),
     true,
   )
   for (const table of [
@@ -217,5 +232,5 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
   ])
     assert.deepEqual(await table.all(), [])
 
-  await store.deleteProjectContext(survivor.id)
+  await survivorStore.deleteProjectContext(survivor.projectContextId)
 })

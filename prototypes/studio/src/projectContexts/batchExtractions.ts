@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
 import {
   batchExtractionListResponseSchema,
   batchExtractionOpenResponseSchema,
@@ -31,7 +32,7 @@ export class BatchSchemaSuggestionRequestError extends Error {
   }
 }
 async function read(url: string, init?: RequestInit): Promise<unknown> {
-  const response = await fetch(url, init)
+  const response = await authenticatedFetch(url, init)
   const value: unknown = await response.json().catch(() => null)
   if (!response.ok) {
     if (url.startsWith('/api/batch-schema-suggestions')) {

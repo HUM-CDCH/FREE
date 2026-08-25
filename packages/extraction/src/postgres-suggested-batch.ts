@@ -9,6 +9,7 @@ import type {
 /** Owns the atomic Schema Suggestion → Extraction Schema → Batch handoff. */
 export async function persistSuggestedBatch(
   database: Database,
+  researcherAccountId: string | null,
   input: ScheduleSuggestedBatchInput,
   helpers: Readonly<{
     loadBatch: (
@@ -34,6 +35,11 @@ export async function persistSuggestedBatch(
   let status: 'created' | 'replayed' | 'missing' | 'not-ready' | 'invalid'
   try {
     status = await database.transaction(async ({ orm }) => {
+      const project = await orm.public.ProjectContext.select('id').first({
+        id: input.projectContextId,
+        ...(researcherAccountId ? { researcherAccountId } : {}),
+      })
+      if (!project) return 'missing' as const
       const suggestion = await orm.public.BatchSchemaSuggestion.select(
         'executionStatus',
         'phase',
@@ -119,19 +125,27 @@ export async function persistSuggestedBatch(
       'batch_not_ready',
       'The suggested fields are not ready to run.',
     )
-  const suggestion = await database.orm.public.BatchSchemaSuggestion.select(
-    'batchExtractionId',
-  ).first({
-    id: input.batchSchemaSuggestionId,
-    projectContextId: input.projectContextId,
+  const batch = await database.transaction(async ({ orm }) => {
+    const project = await orm.public.ProjectContext.select('id').first({
+      id: input.projectContextId,
+      ...(researcherAccountId ? { researcherAccountId } : {}),
+    })
+    if (!project) return null
+    const suggestion =
+      await orm.public.BatchSchemaSuggestion.select(
+        'batchExtractionId',
+      ).first({
+        id: input.batchSchemaSuggestionId,
+        projectContextId: input.projectContextId,
+      })
+    return suggestion?.batchExtractionId
+      ? loadBatch(
+          orm,
+          input.projectContextId,
+          suggestion.batchExtractionId,
+        )
+      : null
   })
-  const batch = suggestion?.batchExtractionId
-    ? await loadBatch(
-        database.orm,
-        input.projectContextId,
-        suggestion.batchExtractionId,
-      )
-    : null
   if (!batch)
     throw new Error('Confirmed Batch Schema Suggestion could not be read.')
   return { disposition: status, batch: snapshot(batch) }

@@ -5,9 +5,16 @@ import {
   type Database,
 } from 'db'
 import type { ExtractionModuleDependencies } from './dependencies.js'
-import { createExtractionModule } from './module.js'
+import {
+  createExtractionModule,
+  ExtractionOperationRegistry,
+} from './module.js'
 import { BatchExtractionWorker } from './batch-worker.js'
-import { PostgresExtractionPersistence } from './postgres-persistence.js'
+import {
+  createClaimedBatchExtractionPersistence,
+  createInternalBatchExtractionWorkerStore,
+  createResearcherExtractionPersistence,
+} from './postgres-persistence.js'
 import type { ExtractionModule, ExtractionRuntime } from './types.js'
 
 export type CreateExtractionRuntimeDependencies = Readonly<
@@ -31,12 +38,28 @@ export function createExtractionRuntimeWithInfrastructure(
     packages: CanonicalPackageStore
   }>,
 ): ExtractionRuntime {
-  const persistence = new PostgresExtractionPersistence(
+  const operations = new ExtractionOperationRegistry()
+  const workerStore = createInternalBatchExtractionWorkerStore(
     infrastructure.database,
     infrastructure.packages,
   )
-  const module = createExtractionModule({ ...dependencies, persistence })
-  const worker = new BatchExtractionWorker(persistence, module)
+  const worker = new BatchExtractionWorker(workerStore, (batch) =>
+    createExtractionModule(
+      {
+        ...dependencies,
+        persistence: createClaimedBatchExtractionPersistence(
+          batch.batchExtractionId,
+          batch.lease,
+          infrastructure.database,
+          infrastructure.packages,
+        ),
+      },
+      {
+        operations,
+        operationScope: `batch:${batch.batchExtractionId}:${batch.lease.owner}:${batch.lease.version}`,
+      },
+    ),
+  )
 
   const wakeAfter = <T>(operation: () => Promise<T>): Promise<T> =>
     operation().then((result) => {
@@ -44,14 +67,31 @@ export function createExtractionRuntimeWithInfrastructure(
       return result
     })
 
-  const extractions: ExtractionModule = {
-    ...module,
-    scheduleBatch: (input) => wakeAfter(() => module.scheduleBatch(input)),
-    scheduleSuggestedBatch: (input) => wakeAfter(() => module.scheduleSuggestedBatch(input)),
-  }
-
   return {
-    extractions,
+    forResearcher(researcherAccountId) {
+      const module = createExtractionModule(
+        {
+          ...dependencies,
+          persistence: createResearcherExtractionPersistence(
+            researcherAccountId,
+            infrastructure.database,
+            infrastructure.packages,
+          ),
+        },
+        {
+          operations,
+          operationScope: `researcher:${researcherAccountId}`,
+        },
+      )
+      const extractions: ExtractionModule = {
+        ...module,
+        scheduleBatch: (input) =>
+          wakeAfter(() => module.scheduleBatch(input)),
+        scheduleSuggestedBatch: (input) =>
+          wakeAfter(() => module.scheduleSuggestedBatch(input)),
+      }
+      return extractions
+    },
     run: (signal) => worker.run(signal),
     close: () => worker.close(),
   }

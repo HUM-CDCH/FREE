@@ -24,3 +24,5 @@ artifacts/architecture/site/
 # Agent scratch and local e2e output
 .scratch/
 artifacts/
+.certs/
+compose.local.yaml

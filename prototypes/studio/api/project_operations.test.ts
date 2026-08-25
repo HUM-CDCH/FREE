@@ -55,8 +55,8 @@ describe('Project Operations dispatcher', () => {
     const completedSource = vi.fn(async () => true)
     const completedMerge = vi.fn(async () => true)
     let claimed = false
-    const operations = createProjectOperations({
-      store: {
+    const operations = createProjectOperations(
+      {
         claimBatchSchemaSuggestion: vi.fn(async () => {
           if (claimed) return null
           claimed = true
@@ -69,20 +69,35 @@ describe('Project Operations dispatcher', () => {
         completeBatchSchemaSuggestionMerge: completedMerge,
         failBatchSchemaSuggestion: vi.fn(async () => true),
       } as never,
-      readMarkdown: vi.fn(async () => ({
-        bytes: new TextEncoder().encode('# Source'),
-        mediaType: 'text/markdown',
-      })),
-      generate: vi.fn(async () => ({
-        template: { _description: 'One record.', title: 'string' },
-        raw: '',
-        pages: null,
-      })),
-    })
+      {
+        readMarkdown: vi.fn(async () => ({
+          bytes: new TextEncoder().encode('# Source'),
+          mediaType: 'text/markdown',
+        })),
+        generate: vi.fn(async () => ({
+          template: { _description: 'One record.', title: 'string' },
+          raw: '',
+          pages: null,
+        })),
+      },
+    )
 
     operations.kick()
     await vi.waitFor(() => expect(completedMerge).toHaveBeenCalledOnce())
     expect(completedSource).toHaveBeenCalledOnce()
+    expect(completedSource).toHaveBeenCalledWith(
+      SUGGESTION,
+      SOURCE,
+      lease,
+      { definition: expect.any(Object) },
+      expect.any(Date),
+    )
+    expect(completedMerge).toHaveBeenCalledWith(
+      SUGGESTION,
+      lease,
+      expect.any(Object),
+      expect.any(Date),
+    )
   })
 
 })

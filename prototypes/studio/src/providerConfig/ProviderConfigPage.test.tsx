@@ -129,8 +129,11 @@ function configResponse(
 type FetchHandler = (url: string, init: RequestInit) => Promise<Response> | Response
 
 function mockFetch(handler: FetchHandler) {
-  const request = vi.fn((input: string | URL | Request, init: RequestInit = {}) =>
-    Promise.resolve(handler(String(input), init)),
+  const request = vi.fn(
+    (input: string | URL | Request, init: RequestInit = {}) => {
+      expect(init.credentials).toBe('same-origin')
+      return Promise.resolve(handler(String(input), init))
+    },
   )
   vi.stubGlobal('fetch', request)
   return request

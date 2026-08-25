@@ -41,11 +41,29 @@ type InternalRunSingleInput =
 
 
 type ActiveOperation = {
+  scope: string
   input: InternalRunSingleInput
   controller: AbortController
   persisting: boolean
   promise: Promise<RunSingleResult>
 }
+export class ExtractionOperationRegistry {
+  private readonly active = new Map<string, ActiveOperation>()
+
+  get(extractionId: string): ActiveOperation | undefined {
+    return this.active.get(extractionId)
+  }
+
+  set(extractionId: string, operation: ActiveOperation): void {
+    this.active.set(extractionId, operation)
+  }
+
+  delete(extractionId: string, operation: ActiveOperation): void {
+    if (this.active.get(extractionId) === operation)
+      this.active.delete(extractionId)
+  }
+}
+
 
 type ExecutionState = {
   phase: ExtractionDiagnostics['phase']
@@ -58,37 +76,70 @@ type ExecutionState = {
   groundingBatches: ExtractionDiagnostics['groundingBatches']
 }
 
-export function createExtractionModule(dependencies: ExtractionModuleDependencies): ExtractionExecutionModule {
+export function createExtractionModule(
+  dependencies: ExtractionModuleDependencies,
+  options: Readonly<{
+    operations?: ExtractionOperationRegistry
+    operationScope?: string
+  }> = {},
+): ExtractionExecutionModule {
   const now = dependencies.now ?? performance.now.bind(performance)
-  const active = new Map<string, ActiveOperation>()
+  const operations = options.operations ?? new ExtractionOperationRegistry()
+  const operationScope = options.operationScope ?? ''
 
   const runInternal = async (input: InternalRunSingleInput, signal?: AbortSignal): Promise<RunSingleResult> => {
-    const stored = await dependencies.persistence.readExtraction(input.extractionId)
-    if (stored) {
-      if (!sameExtractionIdentity(stored, input)) throw new ExtractionError('extraction_id_conflict', 'That Extraction ID is already bound to different inputs.')
-      return { disposition: 'replayed', extraction: stored }
-    }
-    const concurrent = active.get(input.extractionId)
+    const concurrent = operations.get(input.extractionId)
     if (concurrent) {
-      if (!sameInput(concurrent.input, input)) throw new ExtractionError('extraction_id_conflict', 'That Extraction ID is already bound to different inputs.')
+      if (concurrent.scope !== operationScope)
+        throw new ExtractionError('not_found', 'That Extraction was not found.')
+      if (!sameInput(concurrent.input, input))
+        throw new ExtractionError(
+          'extraction_id_conflict',
+          'That Extraction ID is already bound to different inputs.',
+        )
       return concurrent.promise
     }
+
     const controller = new AbortController()
     const abort = () => controller.abort(signal?.reason)
     if (signal?.aborted) abort()
     else signal?.addEventListener('abort', abort, { once: true })
     const operation: ActiveOperation = {
+      scope: operationScope,
       input,
       controller,
       persisting: false,
       promise: Promise.resolve(null as never),
     }
-    operation.promise = execute(input, controller.signal, () => { operation.persisting = true })
-      .finally(() => {
-        signal?.removeEventListener('abort', abort)
-        if (active.get(input.extractionId) === operation) active.delete(input.extractionId)
+    operations.set(input.extractionId, operation)
+    operation.promise = (async () => {
+      const stored = await dependencies.persistence.readExtraction(
+        input.extractionId,
+      )
+      if (stored) {
+        if (!sameExtractionIdentity(stored, input))
+          throw new ExtractionError(
+            'extraction_id_conflict',
+            'That Extraction ID is already bound to different inputs.',
+          )
+        return { disposition: 'replayed' as const, extraction: stored }
+      }
+      if (
+        !(await dependencies.persistence.isExtractionIdAvailable(
+          input.extractionId,
+        ))
+      )
+        throw new ExtractionError(
+          'not_found',
+          'That Extraction was not found.',
+        )
+      return execute(input, controller.signal, () => {
+        operation.persisting = true
       })
-    active.set(input.extractionId, operation)
+    })().finally(() => {
+      signal?.removeEventListener('abort', abort)
+      operations.delete(input.extractionId, operation)
+    })
     return operation.promise
   }
   const runSingle = (input: RunSingleInput, signal?: AbortSignal) => runInternal(input, signal)
@@ -97,7 +148,8 @@ export function createExtractionModule(dependencies: ExtractionModuleDependencie
 
 
   const cancelSingle = async (extractionId: string): Promise<CancellationResult> => {
-    const operation = active.get(extractionId)
+    const active = operations.get(extractionId)
+    const operation = active?.scope === operationScope ? active : undefined
     if (operation && !operation.persisting) {
       operation.controller.abort()
       return 'cancellation-requested'

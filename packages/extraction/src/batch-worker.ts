@@ -1,14 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { ExtractionError } from './errors.js'
 import type { ExtractionExecutionModule } from './dependencies.js'
-import type { ClaimedBatchExtraction, PostgresExtractionPersistence } from './postgres-persistence.js'
+import type {
+  ClaimedBatchExtraction,
+  InternalBatchExtractionWorkerStore,
+} from './postgres-persistence.js'
 
 const LEASE_MS = 2 * 60 * 1000
 const LEASE_RENEW_MS = 30 * 1000
 const MEMBER_TIMEOUT_MS = 10 * 60 * 1000
 
-type BatchWorkerPersistence = Pick<PostgresExtractionPersistence,
-  'claimBatch' | 'renewBatchLease' | 'startBatchMember' | 'completeBatchMember' | 'failBatch'>
 
 function fingerprintId(value: unknown): string {
   const hash = createHash('sha256').update(JSON.stringify(value)).digest('hex')
@@ -52,17 +53,21 @@ export class BatchExtractionWorker {
   private closed = false
   private wakeVersion = 0
   private waiter: (() => void) | null = null
-  private readonly persistence: BatchWorkerPersistence
-  private readonly extractions: Pick<ExtractionExecutionModule, 'runBatchMember'>
+  private readonly persistence: InternalBatchExtractionWorkerStore
+  private readonly createExtractions: (
+    batch: ClaimedBatchExtraction,
+  ) => Pick<ExtractionExecutionModule, 'runBatchMember'>
   private readonly now: () => Date
 
   constructor(
-    persistence: BatchWorkerPersistence,
-    extractions: Pick<ExtractionExecutionModule, 'runBatchMember'>,
+    persistence: InternalBatchExtractionWorkerStore,
+    createExtractions: (
+      batch: ClaimedBatchExtraction,
+    ) => Pick<ExtractionExecutionModule, 'runBatchMember'>,
     now: () => Date = () => new Date(),
   ) {
     this.persistence = persistence
-    this.extractions = extractions
+    this.createExtractions = createExtractions
     this.now = now
   }
 
@@ -115,6 +120,7 @@ export class BatchExtractionWorker {
       this.now,
       outerSignal,
     )
+    const extractions = this.createExtractions(batch)
     try {
       for (const member of batch.members) {
         if (member.executionStatus === 'COMPLETED') continue
@@ -125,7 +131,7 @@ export class BatchExtractionWorker {
           this.now(),
         )) return
         try {
-          await this.extractions.runBatchMember({
+          await extractions.runBatchMember({
             extractionId: fingerprintId([
               'batch-member-extraction',
               batch.batchExtractionId,

@@ -28,7 +28,11 @@ describe('ingestSourceDocument', () => {
 
     expect(fetcher).toHaveBeenCalledWith(
       '/api/project-contexts/11111111-1111-4111-8111-111111111111/source-documents',
-      expect.objectContaining({ method: 'POST', body: expect.any(FormData) }),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.any(FormData),
+        credentials: 'same-origin',
+      }),
     )
     const form = fetcher.mock.calls[0]?.[1]?.body as FormData
     expect(form.get('file')).toBeInstanceOf(File)

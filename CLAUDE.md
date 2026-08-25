@@ -47,7 +47,12 @@ Use the terminology in `CONTEXT.md` precisely. Key terms:
 | Review Decision | status, vote |
 | Evidence | citation, source, provenance |
 
-## Workspace
+`Project` and `Projects` are concise researcher-facing names for Project
+Contexts. `Research Workspace` names the authenticated area spanning those
+projects and shared capabilities; it never owns domain state. Use `Project
+Context` in data models, APIs, persistence, and architecture.
+
+## Monorepo workspace
 
 The prototypes under `prototypes/` are self-contained but orchestrated with **pnpm workspaces**. Prefer root commands (`pnpm dev`, `pnpm test`, `pnpm build`) for normal work; `pnpm start` is an alias for `pnpm dev`.
 
@@ -91,11 +96,11 @@ behaviour, so it is proven against PostgreSQL:
 test:postgres`, which fails rather than skips when the database is missing.
 Package cleanup quarantines each candidate and rechecks its reference before
 unlinking it, so a concurrent content-addressed publish is restored instead of
-leaving PostgreSQL pointed at a missing package. The current package writer,
-`pnpm db:seed`, also reasserts the already-downloaded package after inserting its
-reference; it never re-runs ingestion for this cleanup handshake.
-Annotations are still passed inline with each `/api/generate_schema` request;
-seeded and accepted research state reopens through `ProjectStore`.
+leaving PostgreSQL pointed at a missing package. Researcher-scoped deletion and
+failed-ingestion cleanup perform that deployment-wide reference check behind the
+store boundary without exposing package metadata to HTTP handlers. Request code
+receives `ResearcherProjectStore`; cross-account claim and lease processing uses
+the separate `InternalProjectWorkerStore`.
 
 ## Agent skills
 

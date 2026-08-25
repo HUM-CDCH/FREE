@@ -1,7 +1,6 @@
-import {
-  createProjectStore,
-  type ProjectStore,
-  type SchemaRevisionRecord,
+import type {
+  ResearcherProjectStore,
+  SchemaRevisionRecord,
 } from '../../../packages/db/src/project-store.js'
 import { schemaRevisionWriteRequestSchema } from '../shared/schemaRevision.contract.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
@@ -46,9 +45,12 @@ function revisionDto(revision: SchemaRevisionRecord) {
 
 export function createSchemaRevisionHandlers(
   store: Pick<
-    ProjectStore,
-    'initializeSchemaRevision' | 'appendSchemaRevision' | 'listSchemaRevisions' | 'getSchemaRevision'
-  > = createProjectStore(),
+    ResearcherProjectStore,
+    | 'initializeSchemaRevision'
+    | 'appendSchemaRevision'
+    | 'listSchemaRevisions'
+    | 'getSchemaRevision'
+  >,
 ) {
   const GET = async (request: Request): Promise<Response> => {
     try {
@@ -74,9 +76,9 @@ export function createSchemaRevisionHandlers(
           })
         if (!revision)
           throw new ApiError(
-            409,
-            'selection_mismatch',
-            'Schema Revision does not belong to the selected Extraction Schema.',
+            404,
+            'not_found',
+            'Schema Revision was not found.',
           )
         return json({ revision: revisionDto(revision) }, { headers: noStore })
       }
@@ -94,9 +96,9 @@ export function createSchemaRevisionHandlers(
         })
       if (!revisions)
         throw new ApiError(
-          409,
-          'selection_mismatch',
-          'Extraction Schema does not belong to the selected Project Context.',
+          404,
+          'not_found',
+          'Extraction Schema was not found.',
         )
       return json(
         {
@@ -155,9 +157,9 @@ export function createSchemaRevisionHandlers(
         })
       if (!result)
         throw new ApiError(
-          409,
-          'selection_mismatch',
-          'Extraction Schema does not belong to the selected Project Context.',
+          404,
+          'not_found',
+          'Project Context or Extraction Schema was not found.',
         )
       if (result.status === 'conflict')
         throw new ApiError(
@@ -178,4 +180,10 @@ export function createSchemaRevisionHandlers(
   return { GET, POST }
 }
 
-export const { GET, POST } = createSchemaRevisionHandlers()
+export function createResearcherApiHandlers(
+  store: ResearcherProjectStore,
+): Readonly<
+  Record<string, (request: Request) => Response | Promise<Response>>
+> {
+  return createSchemaRevisionHandlers(store)
+}

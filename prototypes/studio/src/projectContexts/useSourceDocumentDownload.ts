@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
 import { useEffect, useRef, useState } from 'react'
 import { getDocumentReopenSnapshot } from './transport'
 
@@ -30,10 +31,8 @@ export function useSourceDocumentDownload(projectContextId: string) {
         sourceDocumentId,
         requestController.signal,
       )
-      const response = await fetch(
-        snapshot.sourceRepresentation.resources.sourcePdfUrl,
-        { signal: requestController.signal },
-      )
+      const response = await authenticatedFetch(snapshot.sourceRepresentation.resources.sourcePdfUrl,
+      { signal: requestController.signal },)
       if (!response.ok) throw new Error('Could not download the source PDF.')
       const blob = await response.blob()
       if (

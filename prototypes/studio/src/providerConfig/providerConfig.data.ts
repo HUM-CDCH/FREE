@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
 import {
   apiErrorBodySchema,
   getModelConfigResponseSchema,
@@ -87,7 +88,7 @@ async function checkedJson(response: Response): Promise<unknown> {
 }
 
 export async function getModelConfig(signal?: AbortSignal): Promise<GetModelConfigResponse> {
-  const parsed = getModelConfigResponseSchema.safeParse(await checkedJson(await fetch('/api/model_config', { signal })))
+  const parsed = getModelConfigResponseSchema.safeParse(await checkedJson(await authenticatedFetch('/api/model_config', { signal })))
   if (!parsed.success) throw new ModelConfigApiError(500, 'invalid_response', 'Studio returned invalid model configuration state.')
   return parsed.data
 }
@@ -99,7 +100,7 @@ export async function putModelConfig(
 ): Promise<ModelConfigState> {
   const parsed = modelConfigStateSchema.safeParse(
     await checkedJson(
-      await fetch('/api/model_config', {
+      await authenticatedFetch('/api/model_config', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ config, ...(Object.keys(credentials).length ? { credentials } : {}) }),
@@ -121,7 +122,7 @@ export async function probeModelConnection(
   }
   const parsed = probeResultSchema.safeParse(
     await checkedJson(
-      await fetch('/api/model_probe', {
+      await authenticatedFetch('/api/model_probe', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),

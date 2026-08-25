@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { canonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import {
-  createProjectStore,
+  createInternalProjectWorkerStore,
   type BatchSchemaSuggestionRecord,
+  type InternalProjectWorkerStore,
   type OperationLease,
-  type ProjectStore,
-} from '../../../packages/db/src/project-store.js'
+} from 'db'
 import { parseSchemaDefinition } from 'extraction/schema'
 import {
   modelSuggestedDefinition,
@@ -20,21 +20,10 @@ const MODEL_OPERATION_TIMEOUT_MS = 10 * 60 * 1000
 const SOURCE_SUGGESTION_INSTRUCTION =
   'Suggest reusable extraction fields for this Source Document. Never include canonical Evidence fields: _evidence, snippets, pages, bboxes, occurrence IDs, or fuzzy matches.'
 
-type OperationStore = Pick<
-  ProjectStore,
-  | 'claimBatchSchemaSuggestion'
-  | 'renewBatchSchemaSuggestionLease'
-  | 'startBatchSchemaSuggestionSource'
-  | 'completeBatchSchemaSuggestionSource'
-  | 'startBatchSchemaSuggestionMerge'
-  | 'completeBatchSchemaSuggestionMerge'
-  | 'failBatchSchemaSuggestion'
->
 
 export type ProjectOperations = { kick(): void }
 
 export type ProjectOperationsDependencies = {
-  store?: OperationStore
   readMarkdown?: typeof canonicalPackageStore.read
   generate?: typeof generateSchemaWithModel
   now?: () => Date
@@ -86,9 +75,9 @@ function modelSignal(lease: AbortSignal): AbortSignal {
  * durable leases and checkpoint writes are the correctness boundary.
  */
 export function createProjectOperations(
+  store: InternalProjectWorkerStore,
   dependencies: ProjectOperationsDependencies = {},
 ): ProjectOperations {
-  const store = dependencies.store ?? createProjectStore()
   const readMarkdown = dependencies.readMarkdown ?? canonicalPackageStore.read
   const generate = dependencies.generate ?? generateSchemaWithModel
   const now = dependencies.now ?? (() => new Date())
@@ -272,4 +261,6 @@ export function createProjectOperations(
 }
 
 /** Shared production dispatcher; tests inject isolated dispatchers. */
-export const projectOperations = createProjectOperations()
+export const projectOperations = createProjectOperations(
+  createInternalProjectWorkerStore(),
+)

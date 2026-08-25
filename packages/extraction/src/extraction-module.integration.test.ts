@@ -81,6 +81,7 @@ if (!disposableDatabaseUrl) {
     filename: string
   }
   type SeededProject = {
+    researcherAccountId: string
     projectContextId: string
     extractionSchemaId: string
     schemaRevisionId: string
@@ -93,6 +94,7 @@ if (!disposableDatabaseUrl) {
     calls: ExtractionModelRequest[]
   }
   const projects = new Set<string>()
+  const accounts = new Set<string>()
   const runtimes = new Set<ExtractionRuntime>()
   let packageRoot = ''
   let packages: CanonicalPackageStore
@@ -284,12 +286,26 @@ if (!disposableDatabaseUrl) {
   async function seedProject(
     schemaTree: unknown = ARTICLE_SCHEMA,
     filenames: readonly string[] = ['article.pdf'],
+    ownerId?: string,
   ): Promise<SeededProject> {
+    const researcherAccountId = ownerId ?? randomUUID()
+    if (!accounts.has(researcherAccountId)) {
+      await db.orm.public.ResearcherAccount.create({
+        id: researcherAccountId,
+        email: `${researcherAccountId}@example.test`,
+        passwordHash: 'test-only-password-hash',
+        mustChangePassword: false,
+        disabledAt: null,
+        sessionVersion: 0,
+      })
+      accounts.add(researcherAccountId)
+    }
     const projectContextId = randomUUID()
     projects.add(projectContextId)
     await db.orm.public.ProjectContext.create({
       id: projectContextId,
       name: `Extraction test ${projectContextId}`,
+      researcherAccountId,
     })
     const extractionSchemaId = randomUUID()
     await db.orm.public.ExtractionSchema.create({
@@ -339,6 +355,7 @@ if (!disposableDatabaseUrl) {
       })
     }
     return {
+      researcherAccountId,
       projectContextId,
       extractionSchemaId,
       schemaRevisionId,
@@ -401,6 +418,7 @@ if (!disposableDatabaseUrl) {
   }
 
   function createRuntime(
+    researcherAccountId: string,
     adapters: DeterministicAdapters = deterministicAdapters(),
   ) {
     const runtime = createExtractionRuntimeWithInfrastructure(
@@ -419,7 +437,11 @@ if (!disposableDatabaseUrl) {
       { database: db as Database, packages },
     )
     runtimes.add(runtime)
-    return { runtime, module: runtime.extractions, adapters }
+    return {
+      runtime,
+      module: runtime.forResearcher(researcherAccountId),
+      adapters,
+    }
   }
 
   const freshInput = (
@@ -466,6 +488,7 @@ if (!disposableDatabaseUrl) {
 
   async function runWorkerUntil(
     runtime: ExtractionRuntime,
+    module: ExtractionModule,
     projectContextId: string,
     batchExtractionId: string,
     predicate: (batch: BatchExtractionSnapshot) => boolean,
@@ -474,7 +497,7 @@ if (!disposableDatabaseUrl) {
     const running = runtime.run(controller.signal)
     try {
       return await waitForBatch(
-        runtime.extractions,
+        module,
         projectContextId,
         batchExtractionId,
         predicate,
@@ -491,17 +514,36 @@ if (!disposableDatabaseUrl) {
     for (const projectContextId of projects)
       await db.orm.public.ProjectContext.where({ id: projectContextId }).delete()
     projects.clear()
+    for (const researcherAccountId of accounts)
+      await db.orm.public.ResearcherAccount.where({
+        id: researcherAccountId,
+      }).delete()
+    accounts.clear()
   }
 
   packageRoot = await mkdtemp(join(tmpdir(), 'free-extraction-contract-'))
   packages = createCanonicalPackageStore(packageRoot)
 
   describe('ExtractionModule on disposable PostgreSQL', () => {
-    it('creates, replays, rejects conflicting IDs, and rejects cross-project pins', async (t) => {
+    it('scopes run, read, review, and cancellation to one researcher', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
       const foreign = await seedProject()
-      const { module, adapters } = createRuntime()
+      const contested = createRuntime(project.researcherAccountId)
+      const contestedInput = freshInput(project)
+      const accepted = contested.module.runSingle(contestedInput)
+      await assert.rejects(
+        contested.runtime
+          .forResearcher(foreign.researcherAccountId)
+          .runSingle({
+            ...freshInput(foreign),
+            extractionId: contestedInput.extractionId,
+          }),
+        rejectsWithCode('not_found'),
+      )
+      await accepted
+      assert.equal(contested.adapters.calls.length, 1)
+      const { module, adapters } = createRuntime(project.researcherAccountId)
       const input = freshInput(project)
 
       const created = await module.runSingle(input)
@@ -523,14 +565,61 @@ if (!disposableDatabaseUrl) {
           ...freshInput(project),
           schemaRevisionId: foreign.schemaRevisionId,
         }),
-        rejectsWithCode('invalid_extraction_pins'),
+        rejectsWithCode('not_found'),
       )
+      await assert.rejects(
+        module.runSingle(freshInput(foreign)),
+        rejectsWithCode('not_found'),
+      )
+      assert.equal(adapters.calls.length, 1)
+
+      const foreignModule = createRuntime(
+        foreign.researcherAccountId,
+      ).module
+      const foreignExtraction = await foreignModule.runSingle(
+        freshInput(foreign),
+      )
+      const foreignExtractionId =
+        foreignExtraction.extraction.extractionId
+      await assert.rejects(
+        module.runSingle({
+          ...freshInput(project),
+          extractionId: foreignExtractionId,
+        }),
+        rejectsWithCode('not_found'),
+      )
+      assert.equal(adapters.calls.length, 1)
+      await assert.rejects(
+        module.prepareReview(foreignExtractionId),
+        rejectsWithCode('not_found'),
+      )
+      await assert.rejects(
+        module.finalizeReview(foreignExtractionId, []),
+        rejectsWithCode('not_found'),
+      )
+      assert.equal(
+        await module.cancelSingle(foreignExtractionId),
+        'not-found',
+      )
+      assert.equal(
+        await module.readDocumentExtractions({
+          sourceDocumentId: foreign.documents[0]!.sourceDocumentId,
+          extractionId: foreignExtractionId,
+        }),
+        null,
+      )
+      const unchanged =
+        await db.orm.public.Extraction.select('reviewedAt').first({
+          id: foreignExtractionId,
+        })
+      assert.equal(unchanged?.reviewedAt, null)
     })
 
     it('persists Article failures as terminal snapshots', async (t) => {
       t.after(cleanup)
       const article = await seedProject()
       const failing = createRuntime(
+        article.researcherAccountId,
         deterministicAdapters({ failArticle: true }),
       ).module
       const failed = await failing.runSingle(freshInput(article))
@@ -572,28 +661,29 @@ if (!disposableDatabaseUrl) {
         { database: db, packages },
       )
       runtimes.add(runtime)
+      const module = runtime.forResearcher(project.researcherAccountId)
       const input = freshInput(project)
-      const running = runtime.extractions.runSingle(input)
+      const running = module.runSingle(input)
       await modelStarted.promise
 
       assert.equal(
-        await runtime.extractions.cancelSingle(input.extractionId),
+        await module.cancelSingle(input.extractionId),
         'cancellation-requested',
       )
       const terminal = await running
       assert.equal(terminal.extraction.outcome, 'CANCELLED')
       assert.equal(terminal.extraction.failure?.code, 'cancelled')
       assert.equal(
-        await runtime.extractions.cancelSingle(input.extractionId),
+        await module.cancelSingle(input.extractionId),
         'already-terminal',
       )
-      assert.equal(await runtime.extractions.cancelSingle(randomUUID()), 'not-found')
+      assert.equal(await module.cancelSingle(randomUUID()), 'not-found')
     })
 
     it('uses the canonical package as review authority and enforces replay and conflict', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
-      const { module } = createRuntime()
+      const { module } = createRuntime(project.researcherAccountId)
       const completed = await module.runSingle(freshInput(project))
       const extractionId = completed.extraction.extractionId
 
@@ -680,7 +770,7 @@ if (!disposableDatabaseUrl) {
           }
         },
       }
-      const { module } = createRuntime(adapters)
+      const { module } = createRuntime(project.researcherAccountId, adapters)
       const completed = await module.runSingle(freshInput(project))
       assert.equal(completed.extraction.outcome, 'SUCCEEDED')
       assert.equal(completed.extraction.complete, false)
@@ -704,7 +794,7 @@ if (!disposableDatabaseUrl) {
       t.after(cleanup)
       const project = await seedProject()
       const document = project.documents[0]!
-      const { module } = createRuntime()
+      const { module } = createRuntime(project.researcherAccountId)
       const reviewedAttempt = await module.runSingle(freshInput(project))
       const prepared = await module.prepareReview(
         reviewedAttempt.extraction.extractionId,
@@ -744,7 +834,7 @@ if (!disposableDatabaseUrl) {
       t.after(cleanup)
       const project = await seedProject()
       const document = project.documents[0]!
-      const { module } = createRuntime()
+      const { module } = createRuntime(project.researcherAccountId)
       await packages.remove(document.storedPackage, async () => false)
       const input = freshInput(project)
 
@@ -756,7 +846,9 @@ if (!disposableDatabaseUrl) {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['b.pdf', 'a.pdf'])
       const foreign = await seedProject()
-      const { module } = createRuntime()
+      const { runtime, module } = createRuntime(
+        project.researcherAccountId,
+      )
       const selected = [
         project.documents[1]!.sourceDocumentId,
         project.documents[0]!.sourceDocumentId,
@@ -820,18 +912,65 @@ if (!disposableDatabaseUrl) {
           ],
           repetition: 'create-new',
         }),
-        rejectsWithCode('invalid_extraction_pins'),
+        rejectsWithCode('not_found'),
       )
       const after = await module.listBatches({
         projectContextId: project.projectContextId,
       })
       assert.equal(after.length, before.length)
+      const foreignModule = runtime.forResearcher(
+        foreign.researcherAccountId,
+      )
+      const foreignBatch = await foreignModule.scheduleBatch({
+        projectContextId: foreign.projectContextId,
+        schemaRevisionId: foreign.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: [
+          foreign.documents[0]!.sourceDocumentId,
+        ],
+        repetition: 'create-new',
+      })
+      await assert.rejects(
+        module.listBatches({
+          projectContextId: foreign.projectContextId,
+        }),
+        rejectsWithCode('not_found'),
+      )
+      for (const projectContextId of [
+        project.projectContextId,
+        foreign.projectContextId,
+      ]) {
+        await assert.rejects(
+          module.readBatch({
+            projectContextId,
+            batchExtractionId:
+              foreignBatch.batch.batchExtractionId,
+          }),
+          rejectsWithCode('not_found'),
+        )
+        await assert.rejects(
+          module.readBatchResults({
+            projectContextId,
+            batchExtractionId:
+              foreignBatch.batch.batchExtractionId,
+          }),
+          rejectsWithCode('not_found'),
+        )
+      }
+      const completedForeign = await runWorkerUntil(
+        runtime,
+        foreignModule,
+        foreign.projectContextId,
+        foreignBatch.batch.batchExtractionId,
+        (batch) => batch.executionStatus === 'COMPLETED',
+      )
+      assert.equal(completedForeign.executionStatus, 'COMPLETED')
     })
 
     it('atomically hands a ready Schema Suggestion to one replayable Batch', async (t) => {
       t.after(cleanup)
       const project = await seedProject(ARTICLE_SCHEMA, ['one.pdf', 'two.pdf'])
-      const { module } = createRuntime()
+      const { module } = createRuntime(project.researcherAccountId)
       const batchSchemaSuggestionId = randomUUID()
       await db.orm.public.BatchSchemaSuggestion.create({
         id: batchSchemaSuggestionId,

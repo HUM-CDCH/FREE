@@ -500,6 +500,35 @@ describe('PUT /api/model_config', () => {
     await expect(readModelConfig({ configRoot: root })).resolves.toEqual(configured())
   })
 
+  it('requires a new credential before a managed endpoint can change', async () => {
+    const root = await temporaryRoot()
+    await writeModelConfig(configured(), { configRoot: root })
+    const fake = fakeCredentialStore({ [OPENAI_ID]: 'sk-existing' })
+    const changed = configured()
+    changed.connections[1] = {
+      ...changed.connections[1],
+      baseUrl: 'https://other-gateway.example/openai/v1',
+    }
+
+    const response = await createPutModelConfig({
+      configRoot: root,
+      credentialStore: fake.store,
+    })(putRequest({ config: changed }))
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        details: {
+          issues: [{ path: `credentials.${OPENAI_ID}` }],
+        },
+      },
+    })
+    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(
+      configured(),
+    )
+    expect(fake.values.get(OPENAI_ID)).toBe('sk-existing')
+  })
+
   it.each([
     [
       'a route left dangling by a removed connection',
@@ -554,17 +583,19 @@ describe('PUT /api/model_config', () => {
     const root = await temporaryRoot()
     const put = createPutModelConfig({ configRoot: root, credentialStore: unavailableStore })
 
-    for (const body of [{ config: configured() }, { config: configured(), credentials: { [OPENAI_ID]: 'sk' } }]) {
-      const response = await put(putRequest(body))
-
-      expect(response.status).toBe(503)
-      await expect(response.json()).resolves.toEqual({
-        error: {
-          code: 'keyring_unavailable',
-          message: 'The operating system credential store is unavailable.',
-        },
-      })
-    }
+    const response = await put(
+      putRequest({
+        config: configured(),
+        credentials: { [OPENAI_ID]: 'sk' },
+      }),
+    )
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'keyring_unavailable',
+        message: 'The operating system credential store is unavailable.',
+      },
+    })
     // No plaintext, environment, or file fallback: nothing was written.
     await expect(readFile(modelConfigPath(root))).rejects.toMatchObject({ code: 'ENOENT' })
   })
@@ -607,5 +638,124 @@ describe('PUT /api/model_config', () => {
       credentialStates: { [OLLAMA_ID]: 'absent' },
     })
     expect(fake.values.get(OPENAI_ID)).toBe('sk-orphan')
+
+    const reintroduced = await createPutModelConfig({
+      configRoot: root,
+      credentialStore: store,
+    })(putRequest({ config: configured() }))
+    expect(reintroduced.status).toBe(409)
+    await expect(reintroduced.json()).resolves.toMatchObject({
+      error: {
+        details: {
+          issues: [{ path: `credentials.${OPENAI_ID}` }],
+        },
+      },
+    })
+    expect(fake.values.get(OPENAI_ID)).toBe('sk-orphan')
+  })
+
+  it('serializes overlapping complete writes so the later completed document is authoritative', async () => {
+    const root = await temporaryRoot()
+    const fake = fakeCredentialStore()
+    const firstAtRename = Promise.withResolvers<void>()
+    const releaseFirstRename = Promise.withResolvers<void>()
+    let renameCount = 0
+    let committed = false
+    const fileSystem = {
+      ...nodeFileSystem,
+      async readFile(path: string) {
+        if (!committed)
+          throw Object.assign(new Error('model config not found'), {
+            code: 'ENOENT',
+          })
+        return nodeFileSystem.readFile(path)
+      },
+      async rename(from: string, to: string) {
+        renameCount += 1
+        if (renameCount === 1) {
+          firstAtRename.resolve()
+          await releaseFirstRename.promise
+        }
+        await nodeFileSystem.rename(from, to)
+        committed = true
+      },
+    }
+    const firstConfig = configured()
+    firstConfig.connections[0].name = 'First researcher local'
+    firstConfig.connections[1].name = 'First researcher remote'
+    firstConfig.routes.extraction = {
+      connectionId: OLLAMA_ID,
+      modelId: 'first-extraction',
+      nuextractRaw: true,
+    }
+    firstConfig.routes.interaction = {
+      connectionId: OPENAI_ID,
+      modelId: 'first-interaction',
+    }
+    const secondConfig = configured()
+    secondConfig.connections[0].name = 'Second researcher local'
+    secondConfig.connections[1].name = 'Second researcher remote'
+    secondConfig.routes.extraction = {
+      connectionId: OLLAMA_ID,
+      modelId: 'second-extraction',
+      nuextractRaw: true,
+    }
+    secondConfig.routes.interaction = {
+      connectionId: OPENAI_ID,
+      modelId: 'second-interaction',
+    }
+    const firstPut = createPutModelConfig({
+      configRoot: root,
+      credentialStore: fake.store,
+      fileSystem,
+    })
+    const secondPut = createPutModelConfig({
+      configRoot: root,
+      credentialStore: fake.store,
+      fileSystem,
+    })
+    const completionOrder: string[] = []
+
+    const firstResponse = firstPut(
+      putRequest({
+        config: firstConfig,
+        credentials: { [OPENAI_ID]: 'first-secret' },
+      }),
+    ).then((response) => {
+      completionOrder.push('first')
+      return response
+    })
+    await firstAtRename.promise
+    const secondRequest = putRequest({
+      config: secondConfig,
+      credentials: { [OPENAI_ID]: 'second-secret' },
+    })
+    const secondJson = vi.spyOn(secondRequest, 'json')
+    const secondResponse = secondPut(secondRequest).then((response) => {
+      completionOrder.push('second')
+      return response
+    })
+
+    // Queue acquisition is synchronous: while the first commit is held, the
+    // later complete request has not even crossed its body/keyring/storage path.
+    expect(secondJson).not.toHaveBeenCalled()
+    expect(fake.calls.filter((call) => call.startsWith('set:'))).toEqual([
+      `set:${OPENAI_ID}`,
+    ])
+
+    releaseFirstRename.resolve()
+    const [first, second] = await Promise.all([firstResponse, secondResponse])
+    expect(secondJson).toHaveBeenCalledTimes(1)
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    await expect(first.json()).resolves.toMatchObject({ config: firstConfig })
+    await expect(second.json()).resolves.toMatchObject({ config: secondConfig })
+    expect(completionOrder).toEqual(['first', 'second'])
+    expect(renameCount).toBe(2)
+    await expect(readModelConfig({ configRoot: root })).resolves.toEqual(
+      secondConfig,
+    )
+    expect(fake.values.get(OPENAI_ID)).toBe('second-secret')
   })
 })

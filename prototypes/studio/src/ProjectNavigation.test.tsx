@@ -90,17 +90,17 @@ const detail = {
 const documentPath = (documentId = sourceDocumentId) =>
   `/projects/${projectContextId}/documents/${documentId}`
 
-function snapshot(sourceDocument = beretning) {
+function snapshot(sourceDocument = beretning, projectContext = project) {
   return {
-    projectContext: project,
+    projectContext,
     sourceDocument,
     sourceRepresentation: {
       sourceRepresentationId: representationId,
       revisionNumber: 2,
       resources: {
-        sourcePdfUrl: `/api/source-representations/${representationId}/pdf`,
-        markdownUrl: `/api/source-representations/${representationId}/markdown`,
-        parsedDocumentUrl: `/api/source-representations/${representationId}/source`,
+        sourcePdfUrl: `/api/project-contexts/${projectContext.projectContextId}/source-representations/${representationId}/pdf`,
+        markdownUrl: `/api/project-contexts/${projectContext.projectContextId}/source-representations/${representationId}/markdown`,
+        parsedDocumentUrl: `/api/project-contexts/${projectContext.projectContextId}/source-representations/${representationId}/source`,
       },
     },
     annotationSet: null,
@@ -111,10 +111,7 @@ function snapshot(sourceDocument = beretning) {
 }
 
 function secondSnapshot() {
-  return {
-    ...snapshot(secondDocument),
-    projectContext: secondProject,
-  }
+  return snapshot(secondDocument, secondProject)
 }
 
 function hydratedSnapshot() {
@@ -170,9 +167,9 @@ function hydratedSnapshot() {
       sourceRepresentation: {
         revisionNumber: 2,
         resources: {
-          sourcePdfUrl: '/api/source-representations/rep/pdf',
-          markdownUrl: '/api/source-representations/rep/markdown',
-          parsedDocumentUrl: '/api/source-representations/rep/source',
+          sourcePdfUrl: `/api/project-contexts/${projectContextId}/source-representations/${representationId}/pdf`,
+          markdownUrl: `/api/project-contexts/${projectContextId}/source-representations/${representationId}/markdown`,
+          parsedDocumentUrl: `/api/project-contexts/${projectContextId}/source-representations/${representationId}/source`,
         },
       },
       extractionSchema: {
@@ -1784,9 +1781,9 @@ describe('routed Source Document reopening', () => {
       sourceRepresentation: {
         revisionNumber: 1,
         resources: {
-          sourcePdfUrl: `/api/source-representations/${historicalRepresentationId}/pdf`,
-          markdownUrl: `/api/source-representations/${historicalRepresentationId}/markdown`,
-          parsedDocumentUrl: `/api/source-representations/${historicalRepresentationId}/source`,
+          sourcePdfUrl: `/api/project-contexts/${projectContextId}/source-representations/${historicalRepresentationId}/pdf`,
+          markdownUrl: `/api/project-contexts/${projectContextId}/source-representations/${historicalRepresentationId}/markdown`,
+          parsedDocumentUrl: `/api/project-contexts/${projectContextId}/source-representations/${historicalRepresentationId}/source`,
         },
       },
       extractionSchema: {
@@ -2032,6 +2029,55 @@ describe('routed Source Document reopening', () => {
 
     expect(await screen.findByText(/Opened Beretning.pdf/)).toBeInTheDocument()
   })
+
+  it.each([
+    ['Project Context', `/projects/${projectContextId}`, 2],
+    ['Source Document', documentPath(), 2],
+    [
+      'Batch Extraction',
+      `/projects/${projectContextId}/extractions/51000000-0000-4000-8007-000000000099`,
+      4,
+    ],
+  ] as const)(
+    'renders a scoped not-found state for a stale cross-account %s route',
+    async (_kind, path, expectedCalls) => {
+      history.replaceState(null, '', path)
+      const fetch = vi.fn(
+        async (
+          input: RequestInfo | URL,
+          init: RequestInit = {},
+        ): Promise<Response> => {
+          expect(init.credentials).toBe('same-origin')
+          const url = String(input)
+          if (url === '/api/project-contexts')
+            return Response.json({ projectContexts: [] })
+          if (url === `/api/project-contexts/${projectContextId}`)
+            return failureResponse(
+              'not_found',
+              'That Project Context is unavailable.',
+              404,
+            )
+          if (url.startsWith('/api/batch-extractions?'))
+            return Response.json({ batchExtractions: [] })
+          if (url.startsWith('/api/batch-schema-suggestions?'))
+            return Response.json({ batchSchemaSuggestions: [] })
+          throw new Error(`A stale scoped route must not read ${url}.`)
+        },
+      )
+      renderRoutes(fetch)
+
+      expect(
+        await screen.findByRole('heading', {
+          name: 'That Project Context no longer exists',
+        }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('That Project Context is unavailable.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
+      expect(fetch).toHaveBeenCalledTimes(expectedCalls)
+    },
+  )
 
   it('never reads a malformed Source Document reference', async () => {
     history.replaceState(null, '', documentPath('NOT-A-UUID'))

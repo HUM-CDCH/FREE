@@ -73,6 +73,7 @@ describe('useSourceDocumentDownload', () => {
       expect.any(AbortSignal),
     )
     expect(fetcher).toHaveBeenCalledWith('/source.pdf', {
+      credentials: 'same-origin',
       signal: expect.any(AbortSignal),
     })
     expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob))

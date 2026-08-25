@@ -63,11 +63,14 @@ const reopened: DocumentWorkspaceProps = {
   // DocumentWorkspace without its AppFrame shell.
   tabBarSlot: document.body,
   projectContextId: '51000000-0000-4000-8000-000000000001',
-  pdfUrl: '/api/source-representations/rep/pdf',
+  pdfUrl:
+    '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/pdf',
   filename: 'Beretning.pdf',
   sourceRepresentationId: '51000000-0000-4000-8002-000000000001',
-  markdownUrl: '/api/source-representations/rep/markdown',
-  parsedDocumentUrl: '/api/source-representations/rep/source',
+  markdownUrl:
+    '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/markdown',
+  parsedDocumentUrl:
+    '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/source',
   // DocumentWorkspace no longer reads annotationSet — the Annotation tab was
   // retired in favor of SchemaPanel's own doc chat. Left in place, commented
   // out, rather than deleted.
@@ -113,9 +116,12 @@ const reopened: DocumentWorkspaceProps = {
     sourceRepresentation: {
       revisionNumber: 1,
       resources: {
-        sourcePdfUrl: '/api/source-representations/rep/pdf',
-        markdownUrl: '/api/source-representations/rep/markdown',
-        parsedDocumentUrl: '/api/source-representations/rep/source',
+        sourcePdfUrl:
+          '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/pdf',
+        markdownUrl:
+          '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/markdown',
+        parsedDocumentUrl:
+          '/api/project-contexts/51000000-0000-4000-8000-000000000001/source-representations/51000000-0000-4000-8002-000000000001/source',
       },
     },
     extractionSchema: {
@@ -158,6 +164,22 @@ describe('reopened Source Document workspace', () => {
 
     try {
       await renderReopened()
+      await waitFor(() =>
+        expect(getDocument).toHaveBeenCalledWith({
+          data: expect.any(ArrayBuffer),
+        }),
+      )
+      expect(fetch).toHaveBeenCalledWith(
+        reopened.pdfUrl,
+        expect.objectContaining({ credentials: 'same-origin' }),
+      )
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.every(
+            ([, init]) => init?.credentials === 'same-origin',
+          ),
+      ).toBe(true)
 
       expect(consoleError).not.toHaveBeenCalledWith(
         'scrollPageIntoView: "1" is not a valid pageNumber parameter.',
