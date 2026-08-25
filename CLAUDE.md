@@ -47,7 +47,12 @@ Use the terminology in `CONTEXT.md` precisely. Key terms:
 | Review Decision | status, vote |
 | Evidence | citation, source, provenance |
 
-## Workspace
+`Project` and `Projects` are concise researcher-facing names for Project
+Contexts. `Research Workspace` names the authenticated area spanning those
+projects and shared capabilities; it never owns domain state. Use `Project
+Context` in data models, APIs, persistence, and architecture.
+
+## Monorepo workspace
 
 The prototypes under `prototypes/` are self-contained but orchestrated with **pnpm workspaces**. Prefer root commands (`pnpm dev`, `pnpm test`, `pnpm build`) for normal work; `pnpm start` is an alias for `pnpm dev`.
 
