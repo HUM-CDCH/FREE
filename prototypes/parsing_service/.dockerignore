@@ -1,11 +1,10 @@
 .venv
 data
-comparison_output
 __pycache__
 **/__pycache__
 *.pyc
+.ruff_cache
 .git
 .gitignore
 Dockerfile
-compose.yaml
 .dockerignore

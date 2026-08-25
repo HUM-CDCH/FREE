@@ -32,4 +32,3 @@ packages/db/src/generated
 prototypes/studio/test-results
 prototypes/studio/.certs
 prototypes/parsing_service/data
-prototypes/parsing_service_simple/data

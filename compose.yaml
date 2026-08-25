@@ -22,7 +22,7 @@ services:
 
   parsing_service:
     build:
-      context: prototypes/parsing_service_simple
+      context: prototypes/parsing_service
     restart: unless-stopped
     # Keep the default local stack portable. GPU deployments must explicitly
     # provide their NVIDIA runtime/device configuration and select CUDA.

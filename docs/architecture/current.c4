@@ -39,8 +39,8 @@ model {
 
   parsing_service = system 'Parsing Service' 'FastAPI PDF ingestion service; it owns no model operation.' {
     http_api = container 'FastAPI HTTP API' '`POST /tasks`, task polling, ParsedDocument, Markdown, PDF, and package routes.' 'FastAPI'
-    parser = component 'Canonical parsing pipeline' 'Validates the PDF and publishes `parsed_document.v2`, canonical Markdown, and the package.' 'Python, Docling, PaddleOCR, Camelot, PyMuPDF'
-    task_cache = datastore 'Task directory' 'Processor cache: source bytes, task metadata, immutable generations, and the generation manifest. Never a durable dependency.'
+    parser = component 'Canonical parsing pipeline' 'Validates the PDF and publishes `parsed_document.v2`, canonical Markdown, and the package.' 'Python, Docling'
+    task_cache = datastore 'Task directory' 'Processor cache: source bytes, task metadata, and the published package. Never a durable dependency.'
   }
 
   project_db = datastore 'Project Store' 'Researcher Accounts plus account-owned Project Contexts, Source Documents, Source Representations, Annotation Sets, Schema Revisions, reviewed Extractions, and Review Decisions.' 'PostgreSQL 17, Prisma Next'
@@ -74,8 +74,8 @@ model {
   studio.extraction_module -> studio.provider_registry 'Opens one pinned Extraction model session per attempt'
   studio.provider_registry -> model_config 'Reads routes, connections, and credentials'
   studio.provider_registry -> model_connections 'Calls the resolved Model Connection'
-  parsing_service.http_api -> parsing_service.parser 'Runs parsing and OCR work'
-  parsing_service.parser -> parsing_service.task_cache 'Publishes an immutable generation'
+  parsing_service.http_api -> parsing_service.parser 'Runs parsing work through the bounded FIFO queue'
+  parsing_service.parser -> parsing_service.task_cache 'Publishes the canonical package'
   parsing_service.http_api -> parsing_service.task_cache 'Reads task state and canonical outputs'
 }
 
@@ -191,7 +191,7 @@ views {
     studio.browser_http -> studio.handlers 'POST /api/project-contexts/:id/source-documents'
     studio.handlers -> parsing_service.http_api 'POST /tasks'
     parsing_service.http_api -> parsing_service.parser 'Validate and parse the PDF'
-    parsing_service.parser -> parsing_service.task_cache 'Publish the generation'
+    parsing_service.parser -> parsing_service.task_cache 'Publish the canonical package'
     loop 'until parsing completes' {
       studio.handlers -> parsing_service.http_api 'GET /tasks/:taskId'
     }

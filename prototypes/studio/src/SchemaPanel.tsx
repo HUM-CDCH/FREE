@@ -15,7 +15,6 @@ import {
   type ScalarFieldType,
 } from 'extraction/allowed-values'
 import {
-  enumerateFieldPaths,
   type SchemaNode,
   mkId,
   nodesToTemplate,
@@ -26,12 +25,24 @@ import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
 import SchemaNameEditor from './SchemaNameEditor'
 import {
   deriveSchemaProposal,
-  replaySchemaChanges,
-  toggleAcceptedSchemaChange,
   type Change,
-  type DerivedProposal,
   type ReplayOutcome,
 } from './schemaChanges'
+import {
+  InstructionCount,
+  SchemaInstructionsChat,
+  SchemaInstructionsDrawer,
+} from './SchemaInstructions'
+import { useSchemaInstructions } from './useSchemaInstructions'
+import { ProposalReviewBar } from './SchemaProposalReview'
+import { useSchemaProposalReview } from './useSchemaProposalReview'
+import {
+  moveSchemaNodes,
+  removeSchemaNode,
+  schemaAncestorIds,
+  schemaDragMode,
+  updateSchemaNode,
+} from './schemaEditorTree'
 
 const EMPTY_NODES: SchemaNode[] = []
 
@@ -186,111 +197,7 @@ function AcceptanceControl({ id, name, accepted, onChange }: {
 
 type ChatMsg = { role: 'user' | 'assistant'; text: string }
 
-type DocInstruction = { id: string; text: string }
 
-// Rotated by index so consecutive instructions don't echo the same
-// acknowledgment — each phrasing carries the same meaning, worded differently.
-const DOC_INSTRUCTION_ACKS: React.ReactNode[] = [
-  <>Got it — recorded for schema generation.</>,
-  <>Noted. That's added to the instructions guiding schema generation.</>,
-  <>Recorded — this'll factor into the generated schema.</>,
-  <>Good, saved. Keep adding instructions, or generate the schema whenever you're ready.</>,
-]
-
-function docInstructionAck(index: number): React.ReactNode {
-  return DOC_INSTRUCTION_ACKS[index % DOC_INSTRUCTION_ACKS.length]
-}
-
-function CountBadge({ count }: { count: number }) {
-  if (count === 0) return null
-  return (
-    <span className="inline-grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-ink/10 px-1 font-mono text-[9.5px] leading-none tabular-nums text-ink-muted">
-      {count}
-    </span>
-  )
-}
-
-// Shared by the pre-generation panel and the post-generation "Instructions"
-// drawer — both let a researcher review, add to, and remove the instructions
-// that "Generate schema"/"Regenerate" will send.
-function DocInstructionsBody({
-  instructions,
-  onRemove,
-  draft,
-  onDraftChange,
-  onSend,
-  listRef,
-  msgCls,
-}: {
-  instructions: DocInstruction[]
-  onRemove: (id: string) => void
-  draft: string
-  onDraftChange: (value: string) => void
-  onSend: () => void
-  listRef: React.RefObject<HTMLDivElement | null>
-  msgCls: (role: 'user' | 'assistant') => string
-}) {
-  return (
-    <>
-      <div ref={listRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
-        <div className="flex flex-col gap-2">
-          {instructions.length === 0 && (
-            <p className="flex items-center gap-1.5 text-[11.5px] leading-relaxed text-ink-faint">
-              Add instructions for schema generation.
-              <span className="shrink-0 rounded bg-canvas px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-ink-faint">
-                Optional
-              </span>
-            </p>
-          )}
-          {instructions.map((instruction, i) => (
-            <div key={instruction.id} className="flex flex-col gap-1">
-              <div className={msgCls('user')}>{instruction.text}</div>
-              <div className="flex items-center gap-1.5 self-start pl-1 text-[10.5px] text-ink-faint">
-                <span>Message {i + 1} of {instructions.length}</span>
-                <button
-                  type="button"
-                  className="cursor-pointer font-semibold outline-none hover:text-danger"
-                  title="Remove this instruction"
-                  onClick={() => onRemove(instruction.id)}
-                >
-                  ✗
-                </button>
-              </div>
-              <div className={msgCls('assistant')}>{docInstructionAck(i)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="shrink-0 px-3.5 pb-3 pt-1.5">
-        <div className="flex items-end gap-2 rounded-[10px] border border-line-strong bg-surface px-2.5 py-1.5">
-          <textarea
-            className="min-w-0 flex-1 resize-none bg-transparent font-sans text-xs text-ink outline-none placeholder:text-ink-faint disabled:opacity-50"
-            rows={2}
-            placeholder='Add a generation instruction (e.g. "Focus on names, dates, and locations")…'
-            value={draft}
-            onChange={e => onDraftChange(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                onSend()
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="grid size-6 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-xs text-white outline-none hover:brightness-108 disabled:opacity-40"
-            disabled={!draft.trim()}
-            onClick={onSend}
-          >
-            ↑
-          </button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-type PendingChange = DerivedProposal & { original: SchemaNode[] }
 
 function fieldTypeLabel(node: SchemaNode): string {
   if (node.type !== 'array') return node.type
@@ -360,110 +267,6 @@ function FieldChangeLabel({ node, change, impliedRemoved }: { node: SchemaNode; 
 // Node tree helpers (tasks 2.5, 3.4)
 // ────────────────────────────────────────────────────────────────────────────
 
-function deepClone(nodes: SchemaNode[]): SchemaNode[] {
-  return nodes.map(n => n.children ? { ...n, children: deepClone(n.children) } : { ...n })
-}
-
-
-function extractNode(nodes: SchemaNode[], id: string): [SchemaNode | null, SchemaNode[]] {
-  const root = deepClone(nodes)
-  function remove(arr: SchemaNode[]): SchemaNode | null {
-    for (let i = 0; i < arr.length; i++) {
-      if (arr[i].id === id) return arr.splice(i, 1)[0]
-      if (arr[i].children) { const found = remove(arr[i].children!); if (found) return found }
-    }
-    return null
-  }
-  return [remove(root), root]
-}
-
-function insertIntoNode(nodes: SchemaNode[], targetId: string, moved: SchemaNode): SchemaNode[] {
-  return nodes.map(n => {
-    if (n.id === targetId) return nodeWithChildren(n, [...(n.children ?? []), moved])
-    if (n.children) return { ...n, children: insertIntoNode(n.children, targetId, moved) }
-    return n
-  })
-}
-
-function insertAtSlot(nodes: SchemaNode[], parentId: string | null, index: number, moved: SchemaNode): SchemaNode[] {
-  if (parentId === null) {
-    const out = [...nodes]; out.splice(Math.max(0, Math.min(index, out.length)), 0, moved); return out
-  }
-  return nodes.map(n => {
-    if (n.id === parentId) {
-      const ch = [...(n.children ?? [])]
-      ch.splice(Math.max(0, Math.min(index, ch.length)), 0, moved)
-      return nodeWithChildren(n, ch)
-    }
-    if (n.children) return { ...n, children: insertAtSlot(n.children, parentId, index, moved) }
-    return n
-  })
-}
-
-function nodeWithChildren(node: SchemaNode, children: SchemaNode[]): SchemaNode {
-  return {
-    id: node.id,
-    name: node.name,
-    type: node.type === 'array' ? 'array' : node.children === undefined ? 'object' : node.type,
-    children,
-    ...(node.description && { description: node.description }),
-  }
-}
-
-function updateNodeById(
-  nodes: readonly SchemaNode[],
-  id: string,
-  update: (node: SchemaNode) => SchemaNode,
-): SchemaNode[] {
-  return nodes.map((node) => {
-    if (node.id === id) return update(node)
-    return node.children === undefined
-      ? node
-      : { ...node, children: updateNodeById(node.children, id, update) }
-  })
-}
-
-function srcIndex(nodes: SchemaNode[], drag: DragState): number {
-  if (drag.parentId === null) return nodes.findIndex(n => n.id === drag.id)
-  function search(arr: SchemaNode[]): number {
-    for (const n of arr) {
-      if (n.id === drag.parentId) return (n.children ?? []).findIndex(c => c.id === drag.id)
-      if (n.children) { const r = search(n.children); if (r !== -1) return r }
-    }
-    return -1
-  }
-  return search(nodes)
-}
-
-const INDENT_THRESHOLD = 48
-const VERTICAL_TOLERANCE = 20
-
-// Returns the children array of the node with the given id (or root nodes if id is null).
-function siblingsOf(nodes: SchemaNode[], parentId: string | null): SchemaNode[] {
-  if (parentId === null) return nodes
-  const search = (arr: SchemaNode[]): SchemaNode[] | null => {
-    for (const n of arr) {
-      if (n.id === parentId) return n.children ?? []
-      if (n.children) { const r = search(n.children); if (r) return r }
-    }
-    return null
-  }
-  return search(nodes) ?? nodes
-}
-
-// Returns the id of the parent that directly contains childId, or null if at root.
-function parentIdOf(nodes: SchemaNode[], childId: string): string | null {
-  const search = (arr: SchemaNode[]): string | null | undefined => {
-    for (const n of arr) {
-      if (!n.children) continue
-      if (n.children.some(c => c.id === childId)) return n.id
-      const r = search(n.children)
-      if (r !== undefined) return r
-    }
-    return undefined
-  }
-  return search(nodes) ?? null
-}
 
 function subtreeIdsOf(node: SchemaNode): string[] {
   const ids = [node.id]
@@ -471,28 +274,6 @@ function subtreeIdsOf(node: SchemaNode): string[] {
   return ids
 }
 
-function sameNodeIds(left: readonly SchemaNode[], right: readonly SchemaNode[]): boolean {
-  const ids = (nodes: readonly SchemaNode[]) =>
-    enumerateFieldPaths(nodes).map(({ id }) => id).sort()
-  const leftIds = ids(left)
-  const rightIds = ids(right)
-  return leftIds.length === rightIds.length && leftIds.every((id, index) => id === rightIds[index])
-}
-
-function ancestorIdsOf(nodes: readonly SchemaNode[], targetIds: ReadonlySet<string>): Set<string> {
-  const ancestors = new Set<string>()
-  const visit = (level: readonly SchemaNode[], path: readonly string[]) => {
-    for (const node of level) {
-      if (targetIds.has(node.id)) {
-        path.forEach((id) => ancestors.add(id))
-        if (node.children !== undefined) ancestors.add(node.id)
-      }
-      if (node.children) visit(node.children, [...path, node.id])
-    }
-  }
-  visit(nodes, [])
-  return ancestors
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Shared UI sub-components
@@ -689,6 +470,7 @@ function SchemaPanel({
 }: SchemaPanelProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const nodes = snap.draft?.schemaNodes ?? EMPTY_NODES
+  const instructions = useSchemaInstructions()
   // ── render state ──
   const [dragging, setDragging] = useState<DragState | null>(null)
   const [dragX, setDragX] = useState(0)
@@ -700,8 +482,20 @@ function SchemaPanel({
   const [chat, setChat] = useState<ChatMsg[]>([
     { role: 'assistant', text: CHAT_GREETING },
   ])
-  const [pending, setPending] = useState<PendingChange | null>(null)
-  const [acceptedChangeIds, setAcceptedChangeIds] = useState<Set<string>>(new Set())
+  const appendChatMessage = useCallback(
+    (message: string) =>
+      setChat((current) => [...current, { role: 'assistant', text: message }]),
+    [],
+  )
+  const proposalReview = useSchemaProposalReview(schema, appendChatMessage)
+  const {
+    pending,
+    acceptedChangeIds,
+    replay,
+    canApply,
+    reset: resetProposal,
+  } = proposalReview
+  const resetInstructions = instructions.reset
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const chatAbortRef = useRef<AbortController | null>(null)
@@ -715,15 +509,9 @@ function SchemaPanel({
   const [jsonEditError, setJsonEditError] = useState<string | null>(null)
   const [historyError, setHistoryError] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [instructionsOpen, setInstructionsOpen] = useState(false)
   const [creatingFromHistory, setCreatingFromHistory] = useState(false)
   const [confirmingDeleteSchema, setConfirmingDeleteSchema] = useState(false)
 
-  // Pre-generation instructions: recorded locally, sent as the instruction
-  // for "Generate schema"/"Regenerate" — not a live conversation with the model.
-  const [docInstructions, setDocInstructions] = useState<DocInstruction[]>([])
-  const [docChatDraft, setDocChatDraft] = useState('')
-  const docChatRef = useRef<HTMLDivElement>(null)
 
   // ── refs for event handlers (avoid stale closures) ──
   const draggingRef = useRef<DragState | null>(null)
@@ -744,8 +532,7 @@ function SchemaPanel({
   const displayedFieldCount = ready ? countTemplateFields(nodesToTemplate(nodes)) : 0
   const dx = dragging ? dragX - dragStartXRef.current : 0
   const dy = dragging ? dragY - dragStartYRef.current : 0
-  const horizontalIntent = Math.abs(dx) > INDENT_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE
-  const dragMode = horizontalIntent ? (dx > 0 ? 'indent' : 'outdent') : 'normal'
+  const dragMode = schemaDragMode(dx, dy)
 
   // Keep local keystrokes while editing normally. Wholesale external
   // replacements reset every draft-dependent editor surface together.
@@ -763,8 +550,7 @@ function SchemaPanel({
       setEditing(null)
       setEditingError(null)
       setMutationError(null)
-      setPending(null)
-      setAcceptedChangeIds(new Set())
+      resetProposal()
       setSelectedIds(new Set())
       setOpenDescId(null)
       setJsonEditMode(false)
@@ -781,12 +567,11 @@ function SchemaPanel({
       )
       if (clearConversation) {
         setHistoryOpen(false)
-        setDocInstructions([])
-        setDocChatDraft('')
+        resetInstructions()
         setChat([{ role: 'assistant', text: CHAT_GREETING }])
       }
     },
-    [schema],
+    [resetInstructions, resetProposal, schema],
   )
   const observedReplacementVersion = useRef(snap.replacementVersion)
   useEffect(() => {
@@ -801,11 +586,6 @@ function SchemaPanel({
     if (el) el.scrollTop = el.scrollHeight
   }, [chat.length, pending])
 
-  // Keep the newest recorded instruction visible.
-  useEffect(() => {
-    const el = docChatRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [docInstructions.length])
 
   // ── Auto-scroll helpers ──
   function stopScroll() {
@@ -828,15 +608,8 @@ function SchemaPanel({
     rafRef.current = requestAnimationFrame(tick)
   }
 
-  // The drag gesture itself must preserve every node; the module's gate then
-  // rejects duplicate sibling names.
-  function applyMove(nextNodes: SchemaNode[], message: string) {
-    const current = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
-    if (!sameNodeIds(current, nextNodes)) {
-      setMutationError('Cannot move field into its own contents.')
-      return
-    }
-    const result = schema.commit(() => nextNodes, message)
+  function applyMove(nextNodes: SchemaNode[]) {
+    const result = schema.commit(() => nextNodes, '⠿ Schema reordered')
     if (result.ok) setMutationError(null)
     else if (result.reason === 'duplicate-name')
       setMutationError(
@@ -882,75 +655,20 @@ function SchemaPanel({
 
   function commitDrop() {
     const drag = draggingRef.current
-    const target = overTargetRef.current
     if (!drag) return
-    const cur = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
-    const dx = dragXRef.current - dragStartXRef.current
-    const dy = dragYRef.current - dragStartYRef.current
-    const horizontalIntent = Math.abs(dx) > INDENT_THRESHOLD && Math.abs(dy) < VERTICAL_TOLERANCE
-
-    const apply = (nodes: SchemaNode[]) => applyMove(nodes, '⠿ Schema reordered')
-
-    if (horizontalIntent && dx > 0) {
-      const siblings = siblingsOf(cur, drag.parentId)
-      const idx = siblings.findIndex(n => n.id === drag.id)
-      if (idx > 0) {
-        // Normal indent: move into previous sibling, insert near drop point
-        const prevSibling = siblings[idx - 1]
-        const [moved, without] = extractNode(cur, drag.id)
-        if (!moved) return
-        const insertIdx = (target?.type === 'slot' && target.parentId === prevSibling.id)
-          ? target.index
-          : (prevSibling.children ?? []).length
-        apply(insertAtSlot(without, prevSibling.id, insertIdx, moved))
-      } else if (drag.parentId === null && idx === 0) {
-        // Ungroup: node stays at front as leaf, children follow
-        const node = cur[0]
-        if (!node.children?.length) return
-        const leaf: SchemaNode = { id: node.id, name: node.name, type: 'verbatim-string' }
-        apply([leaf, ...node.children, ...cur.slice(1)])
-      }
+    const current = schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES
+    const moved = moveSchemaNodes(
+      current,
+      drag,
+      overTargetRef.current,
+      dragXRef.current - dragStartXRef.current,
+      dragYRef.current - dragStartYRef.current,
+    )
+    if (!moved) {
+      setMutationError('Cannot move field into its own contents.')
       return
     }
-
-    if (horizontalIntent && dx < 0 && drag.parentId !== null) {
-      // Outdent: move one level up, use overTarget slot for precise placement
-      const [moved, without] = extractNode(cur, drag.id)
-      if (!moved) return
-      const grandparentId = without.some(n => n.id === drag.parentId)
-        ? null
-        : parentIdOf(without, drag.parentId)
-      let finalNodes: SchemaNode[]
-      if (target?.type === 'slot' && target.parentId === grandparentId) {
-        finalNodes = insertAtSlot(without, grandparentId, target.index, moved)
-      } else {
-        // Fallback: insert after parent in grandparent's list
-        const gpSiblings = siblingsOf(without, grandparentId)
-        const parentIdx = gpSiblings.findIndex(n => n.id === drag.parentId)
-        finalNodes = insertAtSlot(without, grandparentId, Math.max(0, parentIdx + 1), moved)
-      }
-      apply(finalNodes)
-      return
-    }
-
-    if (!target) return
-
-    if (target.type === 'group') {
-      if (drag.isGroup) return
-      const [moved, root] = extractNode(cur, drag.id)
-      if (!moved) return
-      const finalNodes = insertIntoNode(root, target.id, moved)
-      applyMove(finalNodes, '⠿ Schema reordered')
-    } else {
-      const { parentId, index } = target
-      const si = srcIndex(cur, drag)
-      const [moved, root] = extractNode(cur, drag.id)
-      if (!moved) return
-      let ii = index
-      if (drag.parentId === (parentId ?? null) && si < ii) ii--
-      const finalNodes = insertAtSlot(root, parentId ?? null, ii, moved)
-      applyMove(finalNodes, '⠿ Schema reordered')
-    }
+    applyMove(moved)
   }
 
   // Global mouse listeners are installed once.
@@ -1034,7 +752,7 @@ function SchemaPanel({
     }
     const name = editing.name.trim().toLowerCase().replace(/\s+/g, '_') || 'field'
     const result = schema.commit(
-      (current) => updateNodeById(current, editing.id, (node) => editedField(node, name, editing)),
+      (current) => updateSchemaNode(current, editing.id, (node) => editedField(node, name, editing)),
       '✎ Schema updated',
     )
     if (!result.ok) {
@@ -1055,7 +773,7 @@ function SchemaPanel({
     schema.commit((current) => {
       let next = current
       for (const id of selectedIds) {
-        const [, after] = extractNode(next, id)
+        const [, after] = removeSchemaNode(next, id)
         next = after
       }
       return next
@@ -1079,7 +797,7 @@ function SchemaPanel({
 
   function updateNodeDescription(id: string, description: string | undefined) {
     schema.commit(
-      (current) => updateNodeById(current, id, (node) => ({ ...node, description })),
+      (current) => updateSchemaNode(current, id, (node) => ({ ...node, description })),
       '✎ Description updated',
     )
   }
@@ -1144,9 +862,8 @@ function SchemaPanel({
         if (proposal.changes.length === 0 && proposal.issues.length === 0) {
           setChat(c => [...c, { role: 'assistant', text: 'Proposal checked every field: 0 changes proposed.' }])
         } else {
-          setAcceptedChangeIds(new Set(proposal.changes.map(({ id }) => id)))
-          setPending({ ...proposal, original })
-          const ancestors = ancestorIdsOf(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
+          proposalReview.start(proposal, original)
+          const ancestors = schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id)))
           setExpandedIds((current) => new Set([...current, ...ancestors]))
         }
       }
@@ -1167,66 +884,6 @@ function SchemaPanel({
     chatAbortRef.current?.abort()
   }
 
-  // ── Pre-generation instructions (recorded locally; sent as the instruction
-  // for "Generate schema"/"Regenerate") ──
-  const docInstruction = docInstructions.map((instruction) => instruction.text).join('\n\n')
-  const instructionCountLabel = docInstructions.length > 0
-    ? ` (${docInstructions.length} message${docInstructions.length === 1 ? '' : 's'})`
-    : ''
-
-  function sendDocChatMessage() {
-    const text = docChatDraft.trim()
-    if (!text) return
-    setDocChatDraft('')
-    setDocInstructions((current) => [...current, { id: mkId(), text }])
-  }
-
-  function removeDocInstruction(id: string) {
-    setDocInstructions((current) => current.filter((instruction) => instruction.id !== id))
-  }
-
-  // Apply pending proposal.
-  function applyPending() {
-    if (!pending) return
-    if ((schema.snapshot().draft?.schemaNodes ?? EMPTY_NODES) !== pending.original) {
-      setChat(c => [...c, { role: 'assistant', text: 'Schema changed during review. The proposal was discarded.' }])
-      setPending(null)
-      setAcceptedChangeIds(new Set())
-      return
-    }
-    const replayed = replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds)
-    if (!replayed.hasChanges) return
-    const result = schema.commit(
-      () => replayed.nodes,
-      '✦ Schema updated via chat',
-    )
-    if (!result.ok) {
-      const message =
-        result.reason === 'duplicate-name'
-          ? `Cannot apply the proposal: a sibling field already uses “${result.duplicateName}”.`
-          : 'Cannot apply the proposal because no schema draft is open.'
-      setChat((current) => [
-        ...current,
-        { role: 'assistant', text: message },
-      ])
-      return
-    }
-    setChat(c => [...c, { role: 'assistant', text: `✓ ${replayed.appliedCount} schema change${replayed.appliedCount === 1 ? '' : 's'} applied.` }])
-    setPending(null)
-    setAcceptedChangeIds(new Set())
-  }
-
-  // Discard pending proposal.
-  function discardPending() {
-    setChat(c => [...c, { role: 'assistant', text: 'Okay — discarded, no changes made.' }])
-    setPending(null)
-    setAcceptedChangeIds(new Set())
-  }
-
-  function toggleChangeAccepted(id: string) {
-    if (!pending) return
-    setAcceptedChangeIds((current) => toggleAcceptedSchemaChange(pending.changes, current, id))
-  }
 
   // ── style helpers ──
   function slotCls(parentId: string | null, index: number) {
@@ -1256,13 +913,10 @@ function SchemaPanel({
   const editDisabled = readOnly || !!dragging
 
   const chatBlocked = !!pending || chatLoading
-  const replay = pending ? replaySchemaChanges(pending.original, pending.changes, acceptedChangeIds) : null
-  const canApply = pending && replay!.hasChanges
 
   const tabCls = (active: boolean) =>
     `cursor-pointer px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40 ${active ? 'bg-ink text-canvas' : 'bg-surface text-ink-muted hover:text-ink'}`
 
-  // ────────────────────────────────────────────────────────────────────────
   // Render helpers for field rows
   // ────────────────────────────────────────────────────────────────────────
 
@@ -1323,7 +977,7 @@ function SchemaPanel({
               </span>
             )}
             <span className="min-w-0 flex-1" />
-            {change && <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptedChangeIds.has(change.id)} onChange={toggleChangeAccepted} />}
+            {change && <AcceptanceControl id={change.id} name={change.after?.name ?? node.name} accepted={acceptedChangeIds.has(change.id)} onChange={proposalReview.toggle} />}
             {!isDiff && !readOnly && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${node.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
@@ -1463,7 +1117,7 @@ function SchemaPanel({
               </span>
             )}
             <span className="min-w-0 flex-1" />
-            {change && <AcceptanceControl id={change.id} name={change.after?.name ?? child.name} accepted={acceptedChangeIds.has(change.id)} onChange={toggleChangeAccepted} />}
+            {change && <AcceptanceControl id={change.id} name={change.after?.name ?? child.name} accepted={acceptedChangeIds.has(change.id)} onChange={proposalReview.toggle} />}
             {!isDiff && !readOnly && isGroup && (
               <button
                 className={`shrink-0 cursor-pointer px-1 leading-none outline-none transition-colors focus-visible:text-accent ${child.description ? 'text-accent' : 'text-ink-muted hover:text-accent'}`}
@@ -1629,7 +1283,7 @@ function SchemaPanel({
           <div className="rounded-xl border border-dashed border-danger/40 px-4 py-6 text-center">
             <p className="text-[13px] leading-snug text-danger">{snap.generationError}</p>
             {onGenerateInstructions && (
-              <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerateInstructions(docInstruction)}>Retry</button>
+              <button className={`${genBtnCls} mt-3`} type="button" onClick={() => onGenerateInstructions(instructions.text)}>Retry</button>
             )}
           </div>
         )}
@@ -1786,19 +1440,14 @@ function SchemaPanel({
           <div className="flex shrink-0 items-center justify-between border-b border-line px-3.5 py-1.5">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-faint">Chat</span>
             {snap.view === 'empty' && onGenerateInstructions && (
-              <button className={genBtnCls} type="button" onClick={() => onGenerateInstructions(docInstruction)}>
-                Generate schema{instructionCountLabel}
+              <button className={genBtnCls} type="button" onClick={() => onGenerateInstructions(instructions.text)}>
+                Generate schema{instructions.countLabel}
               </button>
             )}
           </div>
-          <DocInstructionsBody
-            instructions={docInstructions}
-            onRemove={removeDocInstruction}
-            draft={docChatDraft}
-            onDraftChange={setDocChatDraft}
-            onSend={sendDocChatMessage}
-            listRef={docChatRef}
-            msgCls={msgCls}
+          <SchemaInstructionsChat
+            instructions={instructions}
+            messageClass={msgCls}
           />
         </div>
       )}
@@ -1817,17 +1466,17 @@ function SchemaPanel({
                   <button
                     className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-line bg-surface px-2 py-1 text-[11px] font-semibold text-ink-muted outline-none transition-colors hover:border-accent/50 hover:text-accent"
                     type="button"
-                    aria-expanded={instructionsOpen}
+                    aria-expanded={instructions.open}
                     title="Instructions used for regeneration"
-                    onClick={() => setInstructionsOpen((open) => !open)}
+                    onClick={instructions.toggle}
                   >
                     Instructions
-                    <CountBadge count={docInstructions.length} />
-                    <span aria-hidden="true" className="text-[9px]">{instructionsOpen ? '▾' : '▸'}</span>
+                    <InstructionCount count={instructions.count} />
+                    <span aria-hidden="true" className="text-[9px]">{instructions.open ? '▾' : '▸'}</span>
                   </button>
-                  <button className={genBtnCls} type="button" onClick={() => onGenerateInstructions?.(docInstruction)}>
+                  <button className={genBtnCls} type="button" onClick={() => onGenerateInstructions?.(instructions.text)}>
                     Regenerate
-                    <CountBadge count={docInstructions.length} />
+                    <InstructionCount count={instructions.count} />
                   </button>
                 </>
               )}
@@ -1867,6 +1516,9 @@ function SchemaPanel({
               </div>
             </div>
           </div>
+          {instructions.open && showRegenerate && (
+            <SchemaInstructionsDrawer instructions={instructions} />
+          )}
           <div ref={chatRef} className="scrollbar-subtle min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
             <div className="flex flex-col gap-2">
               {chat.map((m, i) => (
@@ -1886,31 +1538,12 @@ function SchemaPanel({
 
           {/* Apply / Discard action bar — sticky, outside scroll area */}
           {pending && (
-            <div className="shrink-0 border-t border-line px-3.5 py-2.5">
-              <div className="mb-2 text-[10px] leading-relaxed text-ink-muted" data-testid="schema-proposal-summary">
-                {pending.changes.map((change) => change.note ? <p key={`note-${change.id}`}>{change.note}</p> : null)}
-                {pending.changes.map((change) => change.outcome === 'unresolved' && change.reason
-                  ? <p key={`reason-${change.id}`}>{change.reason}</p>
-                  : null)}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="cursor-pointer rounded-md border border-accent bg-accent px-3.5 py-1.5 font-sans text-[11.5px] font-bold text-white outline-none transition-[filter] hover:brightness-108 disabled:cursor-default disabled:opacity-40"
-                  type="button"
-                  onClick={applyPending}
-                  disabled={!canApply}
-                >
-                  Apply changes
-                </button>
-                <button
-                  className="cursor-pointer rounded-md border border-line-strong bg-surface px-3 py-1.5 font-sans text-[11.5px] font-semibold text-ink-muted outline-none hover:text-accent"
-                  type="button"
-                  onClick={discardPending}
-                >
-                  Discard
-                </button>
-              </div>
-            </div>
+            <ProposalReviewBar
+              proposal={pending}
+              canApply={canApply}
+              onApply={proposalReview.apply}
+              onDiscard={proposalReview.discard}
+            />
           )}
 
           <div className="shrink-0 px-3.5 pb-3 pt-1.5">
