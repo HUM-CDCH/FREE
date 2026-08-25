@@ -11,7 +11,10 @@
   end to end, and add each new capability on top of a product that already
   works. Never trade a working product for unfinished complexity.
 
-- Keep components modular and concerns clearly separated.
+- Keep components modular and concerns clearly separated. Judge boundaries by
+  responsibility and dependency direction, not file size: composition roots
+  and transport adapters may collect related wiring while domain, persistence,
+  and process concerns remain in focused modules.
 
 - Prefer established, well-maintained libraries when they reduce overall
   complexity or improve reliability. Do not reimplement common
