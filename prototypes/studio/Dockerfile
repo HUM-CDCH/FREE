@@ -22,7 +22,6 @@ COPY packages/extraction/package.json packages/extraction/
 COPY packages/extraction-result-export/package.json packages/extraction-result-export/
 COPY prototypes/studio/package.json prototypes/studio/
 COPY prototypes/parsing_service/package.json prototypes/parsing_service/
-COPY prototypes/parsing_service_simple/package.json prototypes/parsing_service_simple/
 
 # The root `postinstall` runs `uv sync` for the Python services, which this
 # JavaScript-only image neither contains nor needs, so install skips scripts.
