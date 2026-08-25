@@ -204,7 +204,36 @@ const failureResponse = (
   status: number,
 ): Response => Response.json({ error: { code, message } }, { status })
 
-function projectListResponse(projects: readonly (typeof project)[]) {
+/** The persisted per-project summary as the list contract ships it. */
+function projectSummary(
+  overrides: Partial<{
+    phase: 'ingest' | 'chat' | 'approve' | 'extract' | 'validate'
+    extractionCount: number
+    extractedSourceDocumentCount: number
+    reviewedSourceDocumentCount: number
+    staleSourceDocumentCount: number
+    schemaDraftCount: number
+    lastActivityAt: string
+    runningBatch: { completedMemberCount: number; memberCount: number } | null
+  }> = {},
+) {
+  return {
+    phase: 'chat' as const,
+    extractionCount: 0,
+    extractedSourceDocumentCount: 0,
+    reviewedSourceDocumentCount: 0,
+    staleSourceDocumentCount: 0,
+    schemaDraftCount: 0,
+    lastActivityAt: project.createdAt,
+    runningBatch: null,
+    ...overrides,
+  }
+}
+
+function projectListResponse(
+  projects: readonly (typeof project)[],
+  summary: ReturnType<typeof projectSummary> = projectSummary(),
+) {
   const body = {
     projectContexts: projects.map((item) => ({
       ...item,
@@ -212,6 +241,7 @@ function projectListResponse(projects: readonly (typeof project)[]) {
         item.projectContextId === projectContextId
           ? detail.sourceDocuments.length
           : 0,
+      summary,
     })),
   }
   return Response.json(body)
@@ -454,6 +484,48 @@ describe('Studio home', () => {
     ).toHaveTextContent('1 Source Document')
     // The list contract carries the count; home never fans out branch reads.
     expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the card meta line from the persisted summary', async () => {
+    renderRoutes(
+      lifecycleFetch({
+        list: () =>
+          projectListResponse(
+            [project],
+            projectSummary({
+              phase: 'validate',
+              extractionCount: 3,
+              extractedSourceDocumentCount: 3,
+              reviewedSourceDocumentCount: 2,
+            }),
+          ),
+      }),
+    )
+
+    expect(
+      await home().findByRole('button', { name: project.name }),
+    ).toHaveTextContent('1 Source Document · 2 of 3 reviewed')
+  })
+
+  it('surfaces staleness ahead of review progress in the card meta line', async () => {
+    renderRoutes(
+      lifecycleFetch({
+        list: () =>
+          projectListResponse(
+            [project],
+            projectSummary({
+              phase: 'validate',
+              extractedSourceDocumentCount: 3,
+              reviewedSourceDocumentCount: 3,
+              staleSourceDocumentCount: 2,
+            }),
+          ),
+      }),
+    )
+
+    expect(
+      await home().findByRole('button', { name: project.name }),
+    ).toHaveTextContent('1 Source Document · 2 changed since extraction')
   })
 })
 

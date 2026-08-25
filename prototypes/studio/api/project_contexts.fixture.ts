@@ -28,7 +28,22 @@ export function projectContextFixture(): ProjectStoreReads {
   }
   return {
     async listProjectContexts() {
-      return [{ ...project, sourceDocumentCount: 1 }]
+      return [
+        {
+          ...project,
+          sourceDocumentCount: 1,
+          summary: {
+            phase: 'chat' as const,
+            extractionCount: 0,
+            extractedSourceDocumentCount: 0,
+            reviewedSourceDocumentCount: 0,
+            staleSourceDocumentCount: 0,
+            schemaDraftCount: 0,
+            lastActivityAt: sourceDocument.createdAt,
+            runningBatch: null,
+          },
+        },
+      ]
     },
     async getProjectContextWithDocuments(id) {
       return id === DEMO_PROJECT_ID

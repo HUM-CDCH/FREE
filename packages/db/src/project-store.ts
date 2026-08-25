@@ -176,8 +176,49 @@ export type ProjectContextSummary = {
   name: string
   createdAt: Date
 }
+export type ProjectContextWorkflowPhase =
+  | 'ingest'
+  | 'chat'
+  | 'approve'
+  | 'extract'
+  | 'validate'
+
+/**
+ * Persisted per-project workflow state, computed inside the store so listing
+ * never fans out per-project reads. A Source Document is stale exactly when
+ * its current Source Representation Revision differs from the one pinned by
+ * its latest Extraction.
+ */
+export type ProjectContextActivitySummary = {
+  phase: ProjectContextWorkflowPhase
+  extractionCount: number
+  extractedSourceDocumentCount: number
+  reviewedSourceDocumentCount: number
+  staleSourceDocumentCount: number
+  schemaDraftCount: number
+  lastActivityAt: Date
+  runningBatch: { completedMemberCount: number; memberCount: number } | null
+}
+
 export type ProjectContextListItem = ProjectContextSummary & {
   sourceDocumentCount: number
+  summary: ProjectContextActivitySummary
+}
+
+/** The summary of a Project Context with no persisted research activity yet. */
+export function emptyProjectContextActivitySummary(
+  lastActivityAt: Date,
+): ProjectContextActivitySummary {
+  return {
+    phase: 'ingest',
+    extractionCount: 0,
+    extractedSourceDocumentCount: 0,
+    reviewedSourceDocumentCount: 0,
+    staleSourceDocumentCount: 0,
+    schemaDraftCount: 0,
+    lastActivityAt,
+    runningBatch: null,
+  }
 }
 
 export type SourceDocumentSummary = {
@@ -833,29 +874,231 @@ export function createResearcherProjectStore(
         ])
         .take(limit)
         .all()
-      // Count only the owned, limited result set in one grouped query.
-      const counts =
-        rows.length === 0
+      if (rows.length === 0) return []
+      const projectIds = rows.map((row) => row.id)
+
+      // Everything the summary needs, read as one bounded set of grouped
+      // queries over the owned, limited result set — never per project.
+      const documents = await database.orm.public.SourceDocument.where(
+        (document) => document.projectContextId.in(projectIds),
+      )
+        .select('id', 'projectContextId', 'createdAt')
+        .all()
+      const documentIds = documents.map((document) => document.id)
+      const projectByDocument = new Map(
+        documents.map((document) => [document.id, document.projectContextId]),
+      )
+      const representations =
+        documentIds.length === 0
           ? []
-          : await database.orm.public.SourceDocument.where((document) =>
-              document.projectContextId.in(rows.map((row) => row.id)),
+          : await database.orm.public.SourceRepresentationRevision.where(
+              (revision) => revision.sourceDocumentId.in(documentIds),
             )
-              .groupBy('projectContextId')
-              .aggregate((aggregate) => ({
-                sourceDocumentCount: aggregate.count(),
-              }))
-      const countsByProject: Record<string, number> = Object.fromEntries(
-        counts.map(({ projectContextId, sourceDocumentCount }) => [
-          projectContextId,
-          sourceDocumentCount,
+              .select('id', 'sourceDocumentId', 'revisionNumber')
+              .all()
+      const extractions =
+        documentIds.length === 0
+          ? []
+          : await database.orm.public.Extraction.where((extraction) =>
+              extraction.sourceDocumentId.in(documentIds),
+            )
+              .select(
+                'sourceDocumentId',
+                'sourceRepresentationRevisionId',
+                'createdAt',
+                'reviewedAt',
+              )
+              .all()
+      const schemas = await database.orm.public.ExtractionSchema.where(
+        (schema) => schema.projectContextId.in(projectIds),
+      )
+        .select('id', 'projectContextId')
+        .all()
+      const projectBySchema = new Map(
+        schemas.map((schema) => [schema.id, schema.projectContextId]),
+      )
+      const schemaRevisions =
+        schemas.length === 0
+          ? []
+          : await database.orm.public.SchemaRevision.where((revision) =>
+              revision.extractionSchemaId.in(schemas.map((schema) => schema.id)),
+            )
+              .select('extractionSchemaId', 'createdAt')
+              .all()
+      const suggestions = await database.orm.public.BatchSchemaSuggestion.where(
+        (suggestion) => suggestion.projectContextId.in(projectIds),
+      )
+        .select('projectContextId', 'phase', 'confirmedSchemaRevisionId', 'createdAt')
+        .all()
+      const batches = await database.orm.public.BatchExtraction.where((batch) =>
+        batch.projectContextId.in(projectIds),
+      )
+        .select('id', 'projectContextId', 'executionStatus', 'createdAt')
+        .all()
+      const openBatches = batches.filter(
+        (batch) =>
+          batch.executionStatus === 'QUEUED' ||
+          batch.executionStatus === 'RUNNING',
+      )
+      const members =
+        openBatches.length === 0
+          ? []
+          : await database.orm.public.BatchExtractionMember.where((member) =>
+              member.batchExtractionId.in(openBatches.map((batch) => batch.id)),
+            )
+              .select('batchExtractionId', 'executionStatus')
+              .all()
+
+      // The current representation of each Source Document is its highest
+      // revision; its latest Extraction is the most recently created one.
+      const currentRepresentation = new Map<
+        string,
+        { id: string; revisionNumber: number }
+      >()
+      for (const revision of representations) {
+        const current = currentRepresentation.get(revision.sourceDocumentId)
+        if (!current || revision.revisionNumber > current.revisionNumber)
+          currentRepresentation.set(revision.sourceDocumentId, revision)
+      }
+      const latestExtraction = new Map<
+        string,
+        { sourceRepresentationRevisionId: string; createdAt: Date }
+      >()
+      const project = new Map(
+        rows.map((row) => [
+          row.id,
+          {
+            sourceDocumentCount: 0,
+            extractionCount: 0,
+            extractedDocuments: new Set<string>(),
+            reviewedDocuments: new Set<string>(),
+            staleSourceDocumentCount: 0,
+            schemaDraftCount: 0,
+            hasSchemaRevision: false,
+            hasReadySuggestion: false,
+            lastActivityAt: row.createdAt,
+            runningBatch: null as {
+              id: string
+              createdAt: Date
+              completedMemberCount: number
+              memberCount: number
+            } | null,
+          },
         ]),
       )
-      return rows.map(({ id, name, createdAt }) => ({
-        projectContextId: id,
-        name,
-        createdAt,
-        sourceDocumentCount: countsByProject[id] ?? 0,
-      }))
+      const bump = (projectContextId: string, at: Date | null | undefined) => {
+        const state = project.get(projectContextId)
+        if (state && at && at > state.lastActivityAt) state.lastActivityAt = at
+      }
+      for (const document of documents) {
+        const state = project.get(document.projectContextId)
+        if (!state) continue
+        state.sourceDocumentCount += 1
+        bump(document.projectContextId, document.createdAt)
+      }
+      for (const extraction of extractions) {
+        const projectContextId = projectByDocument.get(
+          extraction.sourceDocumentId,
+        )
+        const state = projectContextId && project.get(projectContextId)
+        if (!projectContextId || !state) continue
+        state.extractionCount += 1
+        state.extractedDocuments.add(extraction.sourceDocumentId)
+        if (extraction.reviewedAt)
+          state.reviewedDocuments.add(extraction.sourceDocumentId)
+        bump(projectContextId, extraction.createdAt)
+        bump(projectContextId, extraction.reviewedAt)
+        const latest = latestExtraction.get(extraction.sourceDocumentId)
+        if (!latest || extraction.createdAt >= latest.createdAt)
+          latestExtraction.set(extraction.sourceDocumentId, extraction)
+      }
+      for (const [sourceDocumentId, latest] of latestExtraction) {
+        const projectContextId = projectByDocument.get(sourceDocumentId)
+        const state = projectContextId && project.get(projectContextId)
+        if (!state) continue
+        const current = currentRepresentation.get(sourceDocumentId)
+        if (current && current.id !== latest.sourceRepresentationRevisionId)
+          state.staleSourceDocumentCount += 1
+      }
+      for (const revision of schemaRevisions) {
+        const projectContextId = projectBySchema.get(revision.extractionSchemaId)
+        const state = projectContextId && project.get(projectContextId)
+        if (!projectContextId || !state) continue
+        state.hasSchemaRevision = true
+        bump(projectContextId, revision.createdAt)
+      }
+      for (const suggestion of suggestions) {
+        const state = project.get(suggestion.projectContextId)
+        if (!state) continue
+        if (suggestion.confirmedSchemaRevisionId == null) {
+          state.schemaDraftCount += 1
+          if (suggestion.phase === 'READY') state.hasReadySuggestion = true
+        }
+        bump(suggestion.projectContextId, suggestion.createdAt)
+      }
+      const completedMembers = new Map<string, number>()
+      const totalMembers = new Map<string, number>()
+      for (const member of members) {
+        totalMembers.set(
+          member.batchExtractionId,
+          (totalMembers.get(member.batchExtractionId) ?? 0) + 1,
+        )
+        if (member.executionStatus === 'COMPLETED')
+          completedMembers.set(
+            member.batchExtractionId,
+            (completedMembers.get(member.batchExtractionId) ?? 0) + 1,
+          )
+      }
+      for (const batch of batches) {
+        const state = project.get(batch.projectContextId)
+        if (!state) continue
+        bump(batch.projectContextId, batch.createdAt)
+        if (
+          batch.executionStatus !== 'QUEUED' &&
+          batch.executionStatus !== 'RUNNING'
+        )
+          continue
+        if (!state.runningBatch || batch.createdAt > state.runningBatch.createdAt)
+          state.runningBatch = {
+            id: batch.id,
+            createdAt: batch.createdAt,
+            completedMemberCount: completedMembers.get(batch.id) ?? 0,
+            memberCount: totalMembers.get(batch.id) ?? 0,
+          }
+      }
+
+      return rows.map(({ id, name, createdAt }) => {
+        const state = project.get(id)!
+        const phase: ProjectContextWorkflowPhase =
+          state.sourceDocumentCount === 0
+            ? 'ingest'
+            : state.hasSchemaRevision
+              ? state.reviewedDocuments.size > 0
+                ? 'validate'
+                : 'extract'
+              : state.hasReadySuggestion
+                ? 'approve'
+                : 'chat'
+        return {
+          projectContextId: id,
+          name,
+          createdAt,
+          sourceDocumentCount: state.sourceDocumentCount,
+          summary: {
+            phase,
+            extractionCount: state.extractionCount,
+            extractedSourceDocumentCount: state.extractedDocuments.size,
+            reviewedSourceDocumentCount: state.reviewedDocuments.size,
+            staleSourceDocumentCount: state.staleSourceDocumentCount,
+            schemaDraftCount: state.schemaDraftCount,
+            lastActivityAt: state.lastActivityAt,
+            runningBatch: state.runningBatch && {
+              completedMemberCount: state.runningBatch.completedMemberCount,
+              memberCount: state.runningBatch.memberCount,
+            },
+          },
+        }
+      })
     },
     async getProjectContextWithDocuments(projectContextId) {
       const row = await database.orm.public.ProjectContext.select(

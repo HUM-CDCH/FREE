@@ -9,6 +9,7 @@ import {
   ingestSourceDocument,
   listProjectContexts,
   renameProjectContext,
+  provisionalSummary,
   toProjectContextFailure as failure,
   type ProjectContext,
 } from './transport'
@@ -106,7 +107,14 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
               )
             : [
                 ...current,
-                { ...detail.projectContext, sourceDocumentCount },
+                {
+                  ...detail.projectContext,
+                  sourceDocumentCount,
+                  summary: provisionalSummary(
+                    detail.projectContext.createdAt,
+                    sourceDocumentCount,
+                  ),
+                },
               ],
         )
       },
@@ -186,9 +194,11 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   const createProject = useCallback(
     async (name: string): ReturnType<ProjectContextsValue['createProject']> => {
       try {
+        const acknowledged = await createProjectContext(name)
         const created = {
-          ...(await createProjectContext(name)),
+          ...acknowledged,
           sourceDocumentCount: 0,
+          summary: provisionalSummary(acknowledged.createdAt, 0),
         }
         generation.current += 1
         setProjects((current) => [created, ...current])

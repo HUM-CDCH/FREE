@@ -2,7 +2,10 @@ import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { ExtractionModule } from 'extraction'
-import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
+import {
+  emptyProjectContextActivitySummary,
+  type ResearcherProjectStore,
+} from '../../../packages/db/src/project-store.js'
 import { createGetDocumentReopen } from '../api/document_reopen.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
 import {
@@ -119,6 +122,7 @@ const base: NavigationStore = {
     return SEED.slice(0, limit).map((seed) => ({
       ...summary(seed),
       sourceDocumentCount: seed.sourceDocuments.length,
+      summary: emptyProjectContextActivitySummary(summary(seed).createdAt),
     }))
   },
   async getProjectContextWithDocuments(projectContextId) {

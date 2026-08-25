@@ -50,7 +50,21 @@ describe('Project Context routes', () => {
     const listBody = await list.json()
     expect(projectContextListResponseSchema.parse(listBody)).toMatchObject({
       projectContexts: [
-        { projectContextId: DEMO_PROJECT_ID, sourceDocumentCount: 1 },
+        {
+          projectContextId: DEMO_PROJECT_ID,
+          sourceDocumentCount: 1,
+          // The per-project summary is part of the shipped list contract.
+          summary: {
+            phase: 'chat',
+            extractionCount: 0,
+            extractedSourceDocumentCount: 0,
+            reviewedSourceDocumentCount: 0,
+            staleSourceDocumentCount: 0,
+            schemaDraftCount: 0,
+            lastActivityAt: '2026-07-31T12:01:00.000Z',
+            runningBatch: null,
+          },
+        },
       ],
     })
     const detail = await GET(
