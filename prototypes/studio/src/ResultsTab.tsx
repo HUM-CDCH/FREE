@@ -356,12 +356,12 @@ function ResultsTab({ controller, schemaReady, documentMarkdown, sourceDocumentN
                 {controller.review.error}
               </p>
             )}
-            {/* {state.ungroundedCount > 0 && (
+            {state.ungroundedCount > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
                 {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. You can still save the review; {state.ungroundedCount === 1 ? 'it' : 'they'} will remain recorded without Evidence.
               </p>
-            )} */}
-            {attempt && <AttemptDetails controller={controller} attempt={attempt} readOnly={readOnly} />}
+            )}
+            {attempt && <AttemptDetails attempt={attempt} />}
           </div>
 
           {view === 'review' && (
