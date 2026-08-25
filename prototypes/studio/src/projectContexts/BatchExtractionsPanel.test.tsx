@@ -222,7 +222,6 @@ describe('BatchExtractionsPanel', () => {
           return response({
             batchExtraction: { ...batch, members: [] },
             disposition: 'created',
-            memberFailures: [],
           })
         if (url.startsWith('/api/extraction-schemas?'))
           return response({
@@ -444,7 +443,6 @@ describe('BatchExtractionsPanel', () => {
       response({
         batchExtraction: { ...batch, members: [] },
         disposition: 'created',
-        memberFailures: [],
       }),
     )
     const body = JSON.parse(
@@ -488,7 +486,6 @@ describe('BatchExtractionsPanel', () => {
           return response({
             batchExtraction: openedBatch,
             disposition: 'created',
-            memberFailures: [],
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -567,7 +564,6 @@ describe('BatchExtractionsPanel', () => {
           return response({
             batchExtraction: completedBatch,
             disposition: 'created',
-            memberFailures: [],
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -623,8 +619,7 @@ describe('BatchExtractionsPanel', () => {
         if (url === '/api/batch-extractions' && init?.method === 'POST')
           return response({
             batchExtraction: { ...batch, members: [] },
-            disposition: 'running',
-            memberFailures: [],
+            disposition: 'replayed',
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -703,8 +698,7 @@ describe('BatchExtractionsPanel', () => {
         if (url === '/api/batch-extractions' && init?.method === 'POST')
           return response({
             batchExtraction: retried,
-            disposition: 'complete',
-            memberFailures: [],
+            disposition: 'created',
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -778,6 +772,7 @@ describe('BatchExtractionsPanel', () => {
         if (url === '/api/batch-extractions' && init?.method === 'POST')
           return response({
             batchExtraction: openedBatch,
+            disposition: 'created',
           })
         throw new Error(`Unexpected request: ${url}`)
       },

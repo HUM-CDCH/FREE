@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { SchemaNode } from "../../../prototypes/studio/shared/schemaNode.js";
+import type { SchemaNode } from "extraction/schema";
 import {
   buildExportTable,
   createExtractionResultExportControl,

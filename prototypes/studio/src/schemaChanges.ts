@@ -4,7 +4,7 @@ import {
   mkId,
   type SchemaDefinition,
   type SchemaNode,
-} from '../shared/schemaNode'
+} from 'extraction/schema'
 
 export type Change = {
   id: string

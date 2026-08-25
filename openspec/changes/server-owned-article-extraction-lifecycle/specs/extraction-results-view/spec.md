@@ -2,7 +2,7 @@
 
 ### Requirement: Read-only pretty-printed JSON result
 
-When a server-owned Article attempt has a result, the Results tab SHALL display that result as pretty-printed JSON (2-space indentation) in a scrollable, read-only region. The result SHALL NOT be editable or exportable. A review action SHALL be present only for a completed, server-computed reviewable attempt whose pinned Schema Revision is still selected; it SHALL post review decisions for the stored Extraction ID rather than reposting result material.
+When a server-owned Article attempt has a result, the Results tab SHALL display that result as pretty-printed JSON (2-space indentation) in a scrollable, read-only region. The result SHALL NOT be editable or exportable. A review action SHALL be present for a succeeded, server-computed reviewable attempt whose pinned Schema Revision is still selected, including an incomplete attempt with missing Evidence; it SHALL post review decisions for the stored Extraction ID rather than reposting result material.
 
 #### Scenario: Reviewable completed extraction renders as JSON
 
@@ -10,11 +10,23 @@ When a server-owned Article attempt has a result, the Results tab SHALL display 
 - **THEN** the Results tab shows the server result serialized with `JSON.stringify(result, null, 2)`
 - **AND** it offers review finalization for that Extraction ID without sending result, Evidence, attribution, diagnostics, or pins
 
-#### Scenario: Attempt is not reviewable
+#### Scenario: Completed extraction renders as JSON
+
+- **WHEN** a server-owned extraction completes successfully and produces a result
+- **THEN** the Results tab shows that result serialized with `JSON.stringify(result, null, 2)` in a scrollable region
+- **AND** the result remains read-only while review finalization is a separate action
+
+#### Scenario: Attempt has missing Evidence
 
 - **WHEN** a completed attempt has an ungrounded populated content path
 - **THEN** its result remains visible
-- **AND** no review-finalization action is offered
+- **AND** review finalization remains available for the Evidence that exists
+- **AND** the Results tab identifies the values that will remain recorded as ungrounded
+
+#### Scenario: Attempt is not reviewable
+
+- **WHEN** an attempt failed or was cancelled and therefore has no Extraction Result
+- **THEN** no review-finalization action is offered
 
 ### Requirement: Live output while running
 
@@ -25,6 +37,12 @@ While a server-owned Article operation is pending, the Results tab SHALL display
 - **WHEN** the Article POST remains pending
 - **THEN** the Results experience reports that the server-owned extraction is running
 - **AND** it does not display streamed raw model output
+
+#### Scenario: Streaming during a run
+
+- **WHEN** a server-owned extraction is running
+- **THEN** the Results tab shows its current client-known phase instead of accumulated raw model text
+- **AND** the terminal response replaces progress with the persisted result, failure, or cancellation state
 
 ### Requirement: Error state with retry
 
@@ -52,3 +70,9 @@ When an attempt is displayed and the schema is ready, the researcher SHALL be ab
 - **WHEN** a fresh browser reopens a Source Document whose latest attempt is unreviewed and whose latest reviewed Extraction is older
 - **THEN** the Results experience restores the latest attempt for inspection
 - **AND** retains the independently pinned latest reviewed Extraction for reviewed-state resolution
+
+#### Scenario: Navigator resets when extraction restarts
+
+- **WHEN** the researcher was navigated inside a result node and triggers a new extraction
+- **THEN** the result navigator path and history are cleared
+- **AND** the root view is shown when the terminal attempt arrives

@@ -1,0 +1,172 @@
+import {
+  createExtractionRuntime,
+  ExtractionError,
+  type ExtractionModel,
+  type ExtractionModelSessions,
+  type GroundingModel,
+  type ModelAttribution,
+} from 'extraction'
+import { ApiError } from './_http.js'
+import { extractWithModel } from './_model.js'
+import { readModelConfig } from './_model_config.js'
+import {
+  resolveCapabilityRoute,
+  type ExecutionTarget,
+} from './_provider.js'
+
+const ABSTAIN = 'NONE'
+
+
+function modelError(error: unknown): never {
+  if (error instanceof DOMException && error.name === 'AbortError') throw error
+  if (error instanceof ExtractionError) throw error
+  throw new ExtractionError(
+    'model_unavailable',
+    error instanceof ApiError ? error.message : 'The Extraction model is unavailable.',
+    { cause: error },
+  )
+}
+
+async function extractionTarget(): Promise<
+  ExecutionTarget & { attribution: ModelAttribution }
+> {
+  const target = await resolveCapabilityRoute(
+    'extraction',
+    {},
+    { readConfig: readModelConfig },
+  )
+  if (!target.attribution)
+    throw new ExtractionError(
+      'model_unavailable',
+      'The Extraction Route has no durable attribution.',
+    )
+  return target as ExecutionTarget & { attribution: ModelAttribution }
+}
+
+function modelFor(target: ExecutionTarget): ExtractionModel {
+  return {
+    async extract(request) {
+    try {
+      const generated = await extractWithModel(
+        {
+          document: {
+            file: null,
+            markdown: request.document.markdown,
+            pages: request.document.pages,
+          },
+          template: request.template,
+          instruction: request.instruction,
+          signal: request.signal,
+        },
+        target,
+      )
+      return {
+        result: generated.result,
+        metadata: generated.metadata,
+      }
+    } catch (error) {
+      modelError(error)
+    }
+    },
+  }
+}
+
+function groundingInstruction(
+  claims: Readonly<Record<string, string | number | boolean>>,
+): string {
+  return [
+    'Ground every claim listed after "### Claims". Return exactly the keys shown under "links". Each value must be one exact E label from "### Canonical Evidence", without brackets, or NONE when no candidate directly supports the claim. A translated or normalized claim may cite a passage expressing the same meaning. A claim value or source passage is never a link: do not copy either into the links map. Never cite a C label. Add no snippets, pages, coordinates, explanations, or extra keys.',
+    '',
+    '### Claims',
+    ...Object.entries(claims).map(
+      ([label, value]) => `[${label}] ${JSON.stringify(value)}`,
+    ),
+  ].join('\n')
+}
+
+function groundingSelections(
+  result: Readonly<Record<string, unknown>>,
+): { claimLabel: string; anchorLabel: string | null }[] {
+  if (
+    Object.keys(result).length !== 1 ||
+    !Object.hasOwn(result, 'links') ||
+    result.links === null ||
+    typeof result.links !== 'object' ||
+    Array.isArray(result.links)
+  )
+    throw new ExtractionError(
+      'grounding_failed',
+      'The grounding model returned an invalid response.',
+    )
+  const selections: { claimLabel: string; anchorLabel: string | null }[] = []
+  for (const [claimLabel, anchorLabel] of Object.entries(result.links)) {
+    if (typeof anchorLabel !== 'string' || anchorLabel.length === 0)
+      throw new ExtractionError(
+        'grounding_failed',
+        'The grounding model returned an invalid response.',
+      )
+    selections.push({
+      claimLabel,
+      anchorLabel: anchorLabel === ABSTAIN ? null : anchorLabel,
+    })
+  }
+  return selections
+}
+
+function groundingModelFor(target: ExecutionTarget): GroundingModel {
+  return {
+    async ground(request) {
+    try {
+      const generated = await extractWithModel(
+        {
+          document: {
+            file: null,
+            markdown: [
+              '### Canonical Evidence',
+              ...Object.entries(request.anchors).map(
+                ([label, text]) => `[${label}] ${text}`,
+              ),
+            ].join('\n'),
+            pages: null,
+          },
+          template: {
+            links: Object.fromEntries(
+              Object.keys(request.claims).map((label) => [
+                label,
+                'verbatim-string',
+              ]),
+            ),
+          },
+          instruction: groundingInstruction(request.claims),
+          signal: request.signal,
+        },
+        target,
+      )
+      return {
+        selections: groundingSelections(generated.result),
+        metadata: generated.metadata,
+      }
+    } catch (error) {
+      if (error instanceof ExtractionError && error.code === 'grounding_failed')
+        throw error
+      modelError(error)
+    }
+    },
+  }
+}
+
+const models: ExtractionModelSessions = {
+  async open() {
+    const target = await extractionTarget()
+    return {
+      attribution: target.attribution,
+      model: modelFor(target),
+      groundingModel: groundingModelFor(target),
+    }
+  },
+}
+
+export const extractionRuntime = createExtractionRuntime({
+  models,
+})
+export const extractions = extractionRuntime.extractions

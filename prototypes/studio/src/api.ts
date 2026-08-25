@@ -1,5 +1,5 @@
 import { isRecord } from '../shared/template'
-import type { SchemaNode } from '../shared/schemaNode'
+import type { SchemaNode } from 'extraction/schema'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 import {
   extractionRequestSchema,
@@ -105,24 +105,8 @@ export async function requestExtraction(
   signal?: AbortSignal,
 ): Promise<ExtractionAttempt> {
   const request = extractionRequestSchema.parse(input)
-  const body =
-    request.retryOfId === null
-      ? {
-          id: request.id,
-          sourceRepresentationRevisionId: request.sourceRepresentationRevisionId,
-          schemaRevisionId: request.schemaRevisionId,
-          strategy: request.strategy,
-          batchExtractionId: request.batchExtractionId,
-        }
-      : {
-          id: request.id,
-          retryOfId: request.retryOfId,
-          retryDocument: request.retryDocument,
-          rediscover: request.rediscover,
-          retryRecordStartBlockIds: request.retryRecordStartBlockIds,
-        }
   return extractionAttemptSchema.parse(
-    await extractionJson('/extractions', 'POST', body, signal),
+    await extractionJson('/extractions', 'POST', request, signal),
   )
 }
 

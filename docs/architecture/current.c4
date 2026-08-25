@@ -26,9 +26,10 @@ model {
   studio = system 'Studio Application' 'React UI plus same-origin TypeScript handlers on one Vite origin.' {
     ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence, and Model Connections.' 'React'
     browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts.ts`, and `src/schemaRevisions.ts` send parsing and same-origin requests.' 'TypeScript'
-    handlers = container 'Same-origin handlers' '`api/*.ts` owns model operations, durable reads, Schema Revision writes, and the review write.' 'TypeScript Request/Response handlers'
+    handlers = container 'Same-origin handlers' '`api/*.ts` adapts HTTP requests to Studio services and owns non-extraction model operations.' 'TypeScript Request/Response handlers'
     provider_registry = component 'Provider registry' '`api/_provider.ts` resolves a Capability Route and adapts the configured provider.' 'AI SDK v7 provider adapters'
-    project_store = component 'ProjectStore' '`packages/db` owns every Project Store read and write; handlers hold no SQL.' 'TypeScript, Prisma Next'
+    extraction_module = component 'Extraction module' '`packages/extraction` owns Extraction execution, grounding, review, batch scheduling, and their PostgreSQL persistence.' 'TypeScript, Prisma Next'
+    project_store = component 'ProjectStore' '`packages/db` owns the remaining Project Store reads and writes; handlers hold no SQL.' 'TypeScript, Prisma Next'
   }
 
   parsing_service = system 'Parsing Service' 'FastAPI PDF ingestion service; it owns no model operation.' {
@@ -59,9 +60,13 @@ model {
   studio.browser_http -> studio.handlers 'Calls /api/*'
   studio.handlers -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /tasks/:id/download'
   studio.handlers -> studio.provider_registry 'Resolves a Capability Route'
-  studio.handlers -> studio.project_store 'Reads a snapshot; creates, renames, and deletes a Project Context; appends a Schema Revision; stores a reviewed Extraction'
+  studio.handlers -> studio.extraction_module 'Runs and reopens Extractions; records reviews; schedules and reads batches'
+  studio.handlers -> studio.project_store 'Reads a snapshot; creates, renames, and deletes a Project Context; appends a Schema Revision'
   studio.handlers -> package_store 'Reads the pdf, markdown, and source entries; removes the packages a deleted Project Context left unreferenced'
   studio.project_store -> project_db 'Reads and writes through Prisma Next'
+  studio.extraction_module -> project_db 'Reads and writes Extraction, Evidence, Review Decision, and batch state through Prisma Next'
+  studio.extraction_module -> package_store 'Reads the pinned canonical representation package'
+  studio.extraction_module -> studio.provider_registry 'Opens one pinned Extraction model session per attempt'
   studio.provider_registry -> model_config 'Reads routes, connections, and credentials'
   studio.provider_registry -> model_connections 'Calls the resolved Model Connection'
   parsing_service.http_api -> parsing_service.parser 'Runs parsing and OCR work'
@@ -197,8 +202,8 @@ views {
     description '''
       The Extraction Route serves Schema Suggestion, Extraction, and Evidence
       grounding. The Interaction Route serves chat and conversational schema
-      edits. Grounding is a second `/api/extract` call with its own
-      instruction.
+      edits. The Extraction module resolves one model session for an attempt,
+      then uses that pinned route for values and every grounding batch.
 
       `POST /api/schema-revisions` initializes the first Schema Revision, or
       appends the next one against `expectedRevisionNumber`. A stale number
@@ -220,18 +225,17 @@ views {
     studio.project_store -> project_db 'Append the immutable Schema Revision'
     studio.handlers -> studio.ui 'Return the new Current Schema Revision'
     researcher -> studio.ui 'Run extraction'
-    studio.ui -> studio.handlers 'POST /api/extract with the schema and Markdown'
-    studio.handlers -> studio.provider_registry 'Resolve the Extraction Route'
-    studio.provider_registry -> model_connections 'Execute the schema-guided Extraction'
-    model_connections -> studio.handlers 'Return the extracted values'
-    studio.ui -> studio.handlers 'POST /api/extract with the grounding instruction'
-    studio.handlers -> model_connections 'Ground each claim against canonical anchors'
-    studio.handlers -> studio.ui 'Show Results, Raw JSON, and source-linked Evidence'
+    studio.ui -> studio.handlers 'POST /api/extractions with the pinned Source Representation and Schema Revision'
+    studio.handlers -> studio.extraction_module 'Execute the Extraction attempt'
+    studio.extraction_module -> studio.provider_registry 'Open one pinned Extraction model session'
+    studio.provider_registry -> model_connections 'Extract values, then ground bounded claim batches'
+    studio.extraction_module -> package_store 'Read the pinned parsed_document.v2 and canonical anchors'
+    studio.extraction_module -> project_db 'Persist the attempt, Evidence, issues, and grounding diagnostics'
+    studio.handlers -> studio.ui 'Show Results, diagnostics, and source-linked Evidence'
     researcher -> studio.ui 'Accept the Extraction Result'
-    studio.ui -> studio.handlers 'POST /api/source-representations/:id/extraction-reviews'
-    studio.handlers -> package_store 'Re-read the pinned parsed_document.v2 to check every anchor'
-    studio.handlers -> studio.project_store 'persistReviewedExtraction'
-    studio.project_store -> project_db 'Store the Extraction and its Review Decisions in one transaction'
+    studio.ui -> studio.handlers 'POST /api/extractions/:id/reviews'
+    studio.handlers -> studio.extraction_module 'Validate Evidence and record the review'
+    studio.extraction_module -> project_db 'Store Review Decisions in one transaction'
     studio.handlers -> studio.ui 'Return the reviewed Extraction identity'
   }
 

@@ -2,440 +2,178 @@ import { describe, expect, it, vi } from 'vitest'
 import bundled from '../src/assets/parsed_document.v2.json'
 import {
   groundExtraction,
-  type GroundingModelInvoker,
-} from './extractionGrounding.js'
-import { decodeParsedDocument, type ParsedDocument } from './parsedDocument.js'
+  populatedContentPaths,
+  type GroundingModel,
+} from 'extraction/grounding'
+import { decodeParsedDocument } from 'extraction/parsed-document'
 
 const document = decodeParsedDocument(bundled)
-const firstAnchorId = document.evidence_index.anchors[0].anchor_id
-
-function documentWithRetrievalTable(): ParsedDocument {
-  const tableId = 'retrieval-table'
-  const rows = [
-    ['Field', 'Value'],
-    ['Grave', '24'],
-    ['Nearby', '124'],
-  ]
-  const cells = rows.flatMap((values, row) =>
-    values.map((text, column) => ({
-      cell_id: `retrieval-cell-${row}-${column}`,
-      row,
-      column,
-      text,
-      role: null,
-      rowspan: 1,
-      colspan: 1,
-      bbox: null,
-      evidence_anchor_id: `retrieval-anchor-${row}-${column}`,
-    })),
-  )
-  return {
-    ...document,
-    pages: document.pages.map((page) =>
-      page.page_number === 1
-        ? { ...page, unplaced_content: [...page.unplaced_content, tableId] }
-        : page,
-    ),
-    tables: [
-      ...document.tables,
-      {
-        table_id: tableId,
-        rows: rows.length,
-        cols: 2,
-        cells,
-        spans: [
-          {
-            page_number: 1,
-            producer_table_ref: tableId,
-            page_local_row_start: 0,
-            page_local_row_end: rows.length - 1,
-            page_local_col_count: 2,
-          },
-        ],
-        parser_attribution: {
-          content_parser: { parser: 'fixture', version: null },
-          structure_parser: { parser: 'fixture', version: null },
-          geometry_parser: { parser: 'fixture', version: null },
-        },
-        continuation: 'page_local',
-      },
-    ],
-    evidence_index: {
-      anchors: [
-        ...document.evidence_index.anchors,
-        ...cells.map((cell) => ({
-          kind: 'table_cell' as const,
-          anchor_id: cell.evidence_anchor_id,
-          content_sha256: document.document.content_sha256,
-          preprocess_id: document.preprocessing.preprocess_id,
-          logical_table_id: tableId,
-          cell_id: cell.cell_id,
-          canonical_row: cell.row,
-          canonical_column: cell.column,
-          producer_observations: [
-            {
-              occurrence_id: `retrieval-occurrence-${cell.row}-${cell.column}`,
-              page_number: 1,
-              producer_ref: tableId,
-              row_offset: cell.row,
-              column_offset: cell.column,
-              row_span: 1,
-              column_span: 1,
-              bbox: { x0: 1, y0: 1, x1: 10, y1: 10 },
-            },
-          ],
-        })),
-      ],
-    },
-  }
+const firstAnchorId = document.evidence_index.anchors[0]!.anchor_id
+const metadata = {
+  finishReason: 'stop',
+  inputTokens: 2,
+  outputTokens: 1,
+  durationMs: 3,
 }
 
-describe('groundExtraction', () => {
-  it('grounds top-level records in deterministic batches over the same source', async () => {
-    const requests: Parameters<GroundingModelInvoker>[0][] = []
-    const invokeModel: GroundingModelInvoker = vi.fn(async (input) => {
-      requests.push(input)
-      const firstBatch = requests.length === 1
-      return {
-        result: {
-          links: firstBatch
-            ? { C1: 'E1', C2: 'NONE', C999: 'E1' }
-            : { C3: 'E1', C4: 'E999' },
-        },
-        modelAttribution: { provider: 'fixture', batch: requests.length },
-      }
-    })
-    const result = {
-      records: [
-        {
-          grave_number: '24',
-          count: 2,
-          blank: ' ',
-          absent: null,
-        },
-        {
-          grave_number: '25',
-          checked: false,
-          note: 'second record',
-        },
-      ],
-    }
+function model(
+  ground: GroundingModel['ground'],
+): GroundingModel {
+  return { ground }
+}
 
-    const grounded = await groundExtraction({
-      document,
-      result,
-      invokeModel,
-    })
-
-    expect(requests).toHaveLength(2)
-    expect(requests[0].template).toEqual({
-      links: {
-        C1: 'verbatim-string',
-        C2: 'verbatim-string',
-      },
-    })
-    expect(requests[1].template).toEqual({
-      links: {
-        C3: 'verbatim-string',
-        C4: 'verbatim-string',
-        C5: 'verbatim-string',
-      },
-    })
-    expect(requests[0].instruction).toContain(
-      '[C1] grave_number = "24"',
-    )
-    expect(requests[0].instruction).toContain('## records[0]')
-    expect(requests[1].instruction).toContain('## records[1]')
-    expect(requests[1].instruction).toContain('[C4] checked = false')
-    expect(requests[0].instruction).toContain(
-      'the only valid output is {"links":{"C1":"E1","C2":"NONE"}}',
-    )
-    expect(requests[0].instruction).not.toContain('blank')
-    expect(requests[0].instruction).not.toContain('absent')
-    expect(requests[0].documentMarkdown).toBe(requests[1].documentMarkdown)
-    expect(requests[0].documentMarkdown).toContain('### Canonical Evidence')
-    expect(requests[0].documentMarkdown).toContain('[E1]')
-    expect(requests[0].documentMarkdown).not.toMatch(/bbox|occurrence_id/)
-    expect(grounded.evidenceLinks).toEqual([
-      {
-        resultPath: ['records', 0, 'grave_number'],
-        evidenceAnchorId: firstAnchorId,
-      },
-      {
-        resultPath: ['records', 1, 'grave_number'],
-        evidenceAnchorId: firstAnchorId,
-      },
-    ])
-    expect(grounded.ungroundedPaths).toEqual([
-      ['records', 0, 'count'],
-      ['records', 1, 'checked'],
-      ['records', 1, 'note'],
-    ])
-    expect(grounded.issues).toEqual(
-      expect.arrayContaining([
-        { code: 'unknown_claim_label', claimLabel: 'C999' },
-        {
-          code: 'unknown_anchor_label',
-          claimLabel: 'C4',
-          resultPath: ['records', 1, 'checked'],
-          anchorLabel: 'E999',
-        },
-        {
-          code: 'missing_claim',
-          claimLabel: 'C5',
-          resultPath: ['records', 1, 'note'],
-        },
-      ]),
-    )
-    expect(grounded.modelAttribution).toEqual({
-      strategy: 'retrieval_batched',
-      batches: [
-        {
-          resultPath: ['records', 0],
-          candidateCount: 1,
-          fallback: true,
-          modelAttribution: { provider: 'fixture', batch: 1 },
-        },
-        {
-          resultPath: ['records', 1],
-          candidateCount: 1,
-          fallback: true,
-          modelAttribution: { provider: 'fixture', batch: 2 },
-        },
-      ],
-    })
-  })
-
-  it('uses one batch when the result has no top-level records array', async () => {
-    const invokeModel: GroundingModelInvoker = vi.fn(async () => ({
-      result: { links: { C1: 'E1', C2: 'NONE' } },
-      modelAttribution: { provider: 'fixture', batch: 1 },
-    }))
-
-    const grounded = await groundExtraction({
-      document,
-      result: { title: 'Ellekilde', count: 2 },
-      invokeModel,
-    })
-
-    expect(invokeModel).toHaveBeenCalledOnce()
-    expect(grounded.modelAttribution).toEqual({
-      strategy: 'retrieval_batched',
-      batches: [
-        {
-          resultPath: null,
-          candidateCount: 1,
-          fallback: true,
-          modelAttribution: { provider: 'fixture', batch: 1 },
-        },
-      ],
-    })
-  })
-
-  it('offers the complete canonical inventory without text-based pruning', async () => {
-    const requests: Parameters<GroundingModelInvoker>[0][] = []
-    const grounded = await groundExtraction({
-      document: documentWithRetrievalTable(),
-      result: { records: [{ grave_number: 24 }] },
-      invokeModel: async (request) => {
-        requests.push(request)
-        return {
-          result: { links: { C1: 'E5' } },
-          modelAttribution: { provider: 'fixture' },
-        }
-      },
-    })
-
-    expect(requests).toHaveLength(1)
-    expect(requests[0].documentMarkdown).toContain('[E4] Grave | [E5] 24')
-    expect(requests[0].documentMarkdown).toContain('Nearby')
-    expect(requests[0].documentMarkdown).toContain('124')
-    expect(grounded.evidenceLinks).toEqual([
-      {
-        resultPath: ['records', 0, 'grave_number'],
-        evidenceAnchorId: 'retrieval-anchor-1-1',
-      },
-    ])
-    expect(grounded.modelAttribution).toEqual({
-      strategy: 'retrieval_batched',
-      batches: [
-        {
-          resultPath: ['records', 0],
-          candidateCount: 7,
-          fallback: true,
-          modelAttribution: { provider: 'fixture' },
-        },
-      ],
-    })
-  })
-
-  it('falls back to the full canonical inventory when retrieval has no seeds', async () => {
-    let request: Parameters<GroundingModelInvoker>[0] | undefined
-    const grounded = await groundExtraction({
-      document: documentWithRetrievalTable(),
-      result: { title: 'not present anywhere' },
-      invokeModel: async (input) => {
-        request = input
-        return {
-          result: { links: { C1: 'NONE' } },
-          modelAttribution: null,
-        }
-      },
-    })
-
-    expect(request?.documentMarkdown).toContain('[E1] Grav 8')
-    expect(request?.documentMarkdown).toContain('[E7] 124')
-    expect(grounded.evidenceLinks).toEqual([])
-    expect(grounded.modelAttribution).toEqual({
-      strategy: 'retrieval_batched',
-      batches: [
-        {
-          resultPath: null,
-          candidateCount: 7,
-          fallback: true,
-          modelAttribution: null,
-        },
-      ],
-    })
-  })
-
-  it('accepts a model-selected canonical anchor without text-match vetoes', async () => {
-    const grounded = await groundExtraction({
-      document: documentWithRetrievalTable(),
-      result: { records: [{ grave_number: 24 }] },
-      invokeModel: async () => ({
-        result: { links: { C1: 'E1' } },
-        modelAttribution: null,
+describe('canonical Extraction grounding', () => {
+  it('enumerates populated scalar paths without empty values', () => {
+    expect(
+      populatedContentPaths({
+        records: [{ title: 'Alpha', empty: '', year: 1901 }],
       }),
-    })
-
-    expect(grounded.evidenceLinks).toEqual([
-      {
-        resultPath: ['records', 0, 'grave_number'],
-        evidenceAnchorId: firstAnchorId,
-      },
+    ).toEqual([
+      ['records', 0, 'title'],
+      ['records', 0, 'year'],
     ])
-    expect(grounded.ungroundedPaths).toEqual([])
-    expect(grounded.issues).toEqual([])
   })
 
-  it('continues after a failed grounding batch and leaves its claims ungrounded', async () => {
-    const invokeModel: GroundingModelInvoker = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('grounder unavailable'))
-      .mockResolvedValueOnce({
-        result: { links: { C2: 'E1' } },
-        modelAttribution: { provider: 'fixture', batch: 2 },
-      })
-
-    const grounded = await groundExtraction({
+  it('grounds records in deterministic batches and retains diagnostics', async () => {
+    const requests: Array<{ claims: readonly string[] }> = []
+    const grounded = await groundExtraction(
       document,
-      result: {
-        records: [{ title: 'first' }, { title: 'Ellekilde' }],
-      },
-      invokeModel,
-    })
-
-    expect(invokeModel).toHaveBeenCalledTimes(2)
-    expect(grounded.evidenceLinks).toEqual([
       {
-        resultPath: ['records', 1, 'title'],
-        evidenceAnchorId: firstAnchorId,
+        records: [
+          { title: 'Alpha', count: 2 },
+          { title: 'Beta', checked: false },
+        ],
       },
+      model(async (request) => {
+        const claimLabels = Object.keys(request.claims)
+        requests.push({ claims: claimLabels })
+        return {
+          selections: claimLabels.map((claimLabel) => ({
+            claimLabel,
+            anchorLabel: claimLabel === 'C2' ? null : 'E1',
+          })),
+          metadata,
+        }
+      }),
+      new AbortController().signal,
+      { now: () => 10 },
+    )
+
+    expect(requests).toEqual([
+      { claims: ['C1', 'C2'] },
+      { claims: ['C3', 'C4'] },
     ])
-    expect(grounded.ungroundedPaths).toEqual([['records', 0, 'title']])
-    expect(grounded.issues).toEqual([
-      { code: 'grounding_failed', resultPath: ['records', 0] },
+    expect(grounded.evidence).toEqual([
+      { resultPath: ['records', 0, 'title'], evidenceAnchorId: firstAnchorId },
+      { resultPath: ['records', 1, 'title'], evidenceAnchorId: firstAnchorId },
+      { resultPath: ['records', 1, 'checked'], evidenceAnchorId: firstAnchorId },
     ])
-    expect(grounded.modelAttribution?.batches).toEqual([
+    expect(grounded.ungroundedPaths).toEqual([['records', 0, 'count']])
+    expect(grounded.batches).toEqual([
       expect.objectContaining({
         resultPath: ['records', 0],
-        modelAttribution: null,
+        candidateCount: 1,
+        outcome: 'succeeded',
+        inputTokens: 2,
       }),
       expect.objectContaining({
         resultPath: ['records', 1],
-        modelAttribution: { provider: 'fixture', batch: 2 },
+        candidateCount: 1,
+        outcome: 'succeeded',
+        outputTokens: 1,
       }),
     ])
   })
 
-  it('does not dispatch another batch after the signal is aborted', async () => {
+  it('continues after a failed batch and records it once', async () => {
+    const ground = vi
+      .fn<GroundingModel['ground']>()
+      .mockRejectedValueOnce(new Error('unavailable'))
+      .mockResolvedValueOnce({
+        selections: [{ claimLabel: 'C2', anchorLabel: 'E1' }],
+        metadata,
+      })
+    const grounded = await groundExtraction(
+      document,
+      { records: [{ title: 'first' }, { title: 'second' }] },
+      model(ground),
+      new AbortController().signal,
+    )
+
+    expect(ground).toHaveBeenCalledTimes(2)
+    expect(grounded.issues).toEqual([
+      { code: 'grounding_failed', resultPath: ['records', 0] },
+    ])
+    expect(grounded.ungroundedPaths).toEqual([['records', 0, 'title']])
+    expect(grounded.batches[0]).toMatchObject({
+      outcome: 'failed',
+      fallback: true,
+    })
+  })
+
+  it('does not dispatch another batch after cancellation', async () => {
     const controller = new AbortController()
-    const invokeModel: GroundingModelInvoker = vi.fn(async () => {
+    const ground = vi.fn<GroundingModel['ground']>(async (request) => {
       controller.abort()
       return {
-        result: { links: { C1: 'E1' } },
-        modelAttribution: { provider: 'fixture' },
+        selections: Object.keys(request.claims).map((claimLabel) => ({
+          claimLabel,
+          anchorLabel: 'E1',
+        })),
+        metadata,
       }
     })
 
     await expect(
-      groundExtraction({
+      groundExtraction(
         document,
-        result: {
-          records: [{ title: 'first' }, { title: 'second' }],
-        },
-        signal: controller.signal,
-        invokeModel,
-      }),
+        { records: [{ title: 'first' }, { title: 'second' }] },
+        model(ground),
+        controller.signal,
+      ),
     ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(invokeModel).toHaveBeenCalledOnce()
+    expect(ground).toHaveBeenCalledOnce()
   })
 
-  it('treats malformed selections as ungrounded without retargeting', async () => {
-    const grounded = await groundExtraction({
+  it('rejects foreign anchors without retargeting Evidence', async () => {
+    const grounded = await groundExtraction(
       document,
-      result: { title: 'Ellekilde' },
-      invokeModel: async () => ({
-        result: { links: { C1: null } },
-        modelAttribution: null,
-      }),
-    })
+      { title: 'Alpha' },
+      model(async () => ({
+        selections: [{ claimLabel: 'C1', anchorLabel: 'E999' }],
+        metadata,
+      })),
+      new AbortController().signal,
+    )
 
-    expect(grounded.evidenceLinks).toEqual([])
+    expect(grounded.evidence).toEqual([])
     expect(grounded.ungroundedPaths).toEqual([['title']])
     expect(grounded.issues).toEqual([
       {
-        code: 'malformed_selection',
+        code: 'unknown_anchor_label',
         claimLabel: 'C1',
+        anchorLabel: 'E999',
         resultPath: ['title'],
       },
     ])
   })
 
-  it.each([
-    null,
-    { links: [] },
-    { links: {}, commentary: 'extra' },
-  ])('leaves claims ungrounded for a malformed response root %#', async (modelResult) => {
+  it('skips the model when there are no populated claims', async () => {
+    const ground = vi.fn<GroundingModel['ground']>()
     await expect(
-      groundExtraction({
+      groundExtraction(
         document,
-        result: { title: 'Ellekilde' },
-        invokeModel: async () => ({ result: modelResult, modelAttribution: null }),
-      }),
-    ).resolves.toMatchObject({
-      evidenceLinks: [],
-      ungroundedPaths: [['title']],
-      issues: [{ code: 'grounding_failed', resultPath: null }],
-    })
-  })
-
-  it('skips the model call when there are no populated claims', async () => {
-    const invokeModel = vi.fn<GroundingModelInvoker>()
-
-    await expect(
-      groundExtraction({
-        document,
-        result: { title: '', records: [] },
-        invokeModel,
-      }),
+        { records: [], title: '' },
+        model(ground),
+        new AbortController().signal,
+      ),
     ).resolves.toEqual({
-      evidenceLinks: [],
+      evidence: [],
       ungroundedPaths: [],
       issues: [],
-      modelAttribution: null,
+      metadata: [],
+      batches: [],
     })
-    expect(invokeModel).not.toHaveBeenCalled()
+    expect(ground).not.toHaveBeenCalled()
   })
 })

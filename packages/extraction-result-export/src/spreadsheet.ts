@@ -7,7 +7,7 @@ import {
   type Table,
 } from "./table.js";
 import { createXlsxBlob } from "./xlsx.js";
-import type { SchemaNode } from "../../../prototypes/studio/shared/schemaNode.js";
+import type { SchemaNode } from "extraction/schema";
 
 /** Rejects a format before any result is read, so no work is wasted. */
 export function assertExportFormat(format: ExportFormat): void {

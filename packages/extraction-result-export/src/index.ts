@@ -6,7 +6,7 @@ import {
   resolveExportChoices,
 } from "./spreadsheet.js";
 import { buildExportTable, ROOT_ROWS, type ExportChoices } from "./table.js";
-import type { SchemaNode } from "../../../prototypes/studio/shared/schemaNode.js";
+import type { SchemaNode } from "extraction/schema";
 
 export type { ExportFormat } from "./filename.js";
 export {
