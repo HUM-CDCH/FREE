@@ -3,7 +3,7 @@
 - [x] 1.1 Replace the Extraction and ReviewDecision database contract with append-only terminal-attempt fields, pin-safe retry identity, review timestamp, and PostgreSQL outcome/JSON constraints
 - [x] 1.2 Generate the direct destructive prototype migration without applying it to the research database
 - [x] 1.3 Add strict shared Article attempt, review, diagnostics, attribution, and reopen DTO decoders
-- [x] 1.4 Move anchored-document and grounding logic to the shared Extraction package and keep canonical-anchor validation exact
+- [x] 1.4 Move anchored-document and grounding logic to shared modules and keep canonical-anchor validation exact
 - [x] 1.5 Keep SchemaNode values document-derived without changing the visible one-record schema shape
 
 ## 2. ProjectStore lifecycle
@@ -45,4 +45,3 @@
 
 - [x] 6.1 Remove out-of-slice Catalog execution, parser changes, diagnostics, and UI controls
 - [x] 6.2 Hide the runtime `records` envelope for single- and multi-record Article output while preserving Evidence paths
-- [x] 6.3 Keep succeeded partially grounded attempts reviewable and validate review coverage as Evidence-or-ungrounded

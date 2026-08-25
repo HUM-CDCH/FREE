@@ -1,4 +1,4 @@
-import type { SchemaNode } from "extraction/schema";
+import type { SchemaNode } from "../../../prototypes/studio/shared/schemaNode.js";
 
 export type CellValue = string | number | boolean | null;
 

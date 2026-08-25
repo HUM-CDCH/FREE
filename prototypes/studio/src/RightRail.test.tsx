@@ -20,6 +20,7 @@ const defaultController: ExtractionController = {
   hasResults: false,
   stale: false,
   runExtraction: async () => {},
+  retryExtraction: vi.fn(async () => {}),
   requestCancellation: async () => {},
   cancellationRequested: false,
   cancellationError: null,

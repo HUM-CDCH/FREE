@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
-import type { SchemaDefinition } from 'extraction/schema'
+import type { SchemaDefinition } from '../shared/schemaNode'
 
 const schema: SchemaDefinition = {
   recordDescription: 'Report',

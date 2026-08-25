@@ -44,6 +44,7 @@ describe('Vite API request admission', () => {
       ['/api/extractions/extraction/review', 'extractions'],
       ['/api/batch-extractions', 'batch_extractions'],
       ['/api/batch-extractions/batch', 'batch_extractions'],
+      ['/api/batch-extractions/batch/retry', 'batch_extractions'],
       ['/api/batch-extractions/batch/results', 'batch_extractions'],
       ['/api/batch-schema-suggestions', 'batch_schema_suggestions'],
       ['/api/batch-schema-suggestions/suggestion/draft', 'batch_schema_suggestions'],

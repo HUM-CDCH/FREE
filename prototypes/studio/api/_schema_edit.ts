@@ -11,12 +11,12 @@ import {
   duplicateFieldKeys,
   enumerateFieldPaths,
   type SchemaNode,
-} from 'extraction/schema'
+} from '../shared/schemaNode.js'
 import {
   FIELD_TYPES,
   SCALAR_FIELD_TYPES,
   type ScalarFieldType,
-} from 'extraction/allowed-values'
+} from '../shared/allowedValues.js'
 import { parseUnknownJson } from './_model_output.js'
 import { generateSchemaEditJson } from './_model.js'
 import type { ExecutionTarget } from './_provider.js'
@@ -27,7 +27,7 @@ const modelEnvelopeSchema = z.object({
   additions: z.unknown(),
 }).passthrough()
 
-export { parseSchemaNodes } from 'extraction/schema'
+export { parseSchemaNodes } from '../shared/schemaNode.js'
 
 type Generate = (
   prompt: string,

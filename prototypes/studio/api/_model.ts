@@ -17,7 +17,7 @@ import {
   asModelOperationError,
   boundedUpstreamDetail,
 } from './_http.js'
-import { applyAllowedValues } from 'extraction/allowed-values'
+import { applyAllowedValues } from '../shared/allowedValues.js'
 import { parseExtractionResult, parseTemplate } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
 import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'

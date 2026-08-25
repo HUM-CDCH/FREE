@@ -8,12 +8,12 @@ import PanelToggleIcon from './PanelToggleIcon'
 // import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
 import type { TemplateState } from './SchemaPanel'
-import type { SchemaDefinition, SchemaNode } from 'extraction/schema'
+import type { SchemaDefinition, SchemaNode } from '../shared/schemaNode'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import EvidenceTab from './EvidenceTab'
-import type { ParsedDocument, ParsedEvidenceAnchor } from 'extraction/parsed-document'
+import type { ParsedDocument, ParsedEvidenceAnchor } from '../shared/parsedDocument'
 import type {
   SchemaRevision,
   SchemaRevisionSummary,

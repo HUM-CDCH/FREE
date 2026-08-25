@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import type { SchemaRevision, SchemaRevisionSummary } from '../shared/schemaRevision.contract'
-import { nodesToTemplate, type SchemaNode } from 'extraction/schema'
+import { nodesToTemplate, type SchemaNode } from '../shared/schemaNode'
 import SchemaPanel from './SchemaPanel'
 
 const { requestSchemaEdit } = vi.hoisted(() => ({ requestSchemaEdit: vi.fn() }))

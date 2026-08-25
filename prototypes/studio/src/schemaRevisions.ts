@@ -1,4 +1,4 @@
-import type { SchemaDefinition } from 'extraction/schema'
+import type { SchemaDefinition } from '../shared/schemaNode'
 import {
   extractionSchemaListResponseSchema,
   extractionSchemaResponseSchema,

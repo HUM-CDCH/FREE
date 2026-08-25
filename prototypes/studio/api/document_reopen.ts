@@ -1,4 +1,10 @@
-import type { ExtractionModule, ExtractionSnapshot } from 'extraction'
+import {
+  ApiError,
+  noStoreError,
+  json,
+  noStore,
+  persistenceUnavailable,
+} from './_http.js'
 import {
   createProjectStore,
   type DocumentReopenSnapshot,
@@ -9,17 +15,12 @@ import {
   canonicalUuidSchema,
   documentReopenResponseSchema,
 } from '../shared/projectContext.contract.js'
-import { schemaDefinitionSchema } from 'extraction/schema'
-import { z } from 'zod'
-import { extractions } from './_extraction_runtime.js'
 import {
-  ApiError,
-  json,
-  noStore,
-  noStoreError,
-  persistenceUnavailable,
-} from './_http.js'
-import { extractionAttemptDto } from './extractions.js'
+  evidenceLinksHaveUniqueScalarPaths,
+} from '../shared/groundedExtraction.js'
+import { extractionAttemptSchema } from '../shared/extraction.contract.js'
+import { schemaDefinitionSchema } from '../shared/schemaNode.js'
+import { z } from 'zod'
 
 const ROUTE =
   /^\/api\/project-contexts\/([^/]+)\/source-documents\/([^/]+)\/reopen$/
@@ -39,6 +40,83 @@ function durable<T>(schema: z.ZodType<T>, value: unknown): T {
   return parsed.data
 }
 
+function extractionDto(
+  extraction: DocumentReopenSnapshot['latestAttempt'],
+  resourceVersion: string,
+) {
+  if (!extraction) return null
+  const attempt = durable(extractionAttemptSchema, {
+    extractionId: extraction.extractionId,
+    sourceDocumentId: extraction.sourceDocumentId,
+    sourceRepresentationRevisionId:
+      extraction.sourceRepresentationRevisionId,
+    schemaRevisionId: extraction.schemaRevisionId,
+    strategy: extraction.strategy,
+    outcome: extraction.outcome,
+    complete: extraction.complete,
+    modelAttribution: extraction.modelAttribution,
+    diagnostics: extraction.diagnostics,
+    failure: extraction.failure,
+    resultPayload: extraction.resultPayload,
+    evidenceLinks: extraction.evidenceLinks,
+    reviewable: extraction.reviewable,
+    retryOfId: extraction.retryOfId,
+    batchExtractionId: extraction.batchExtractionId,
+    createdAt: extraction.createdAt.toISOString(),
+    reviewedAt: extraction.reviewedAt?.toISOString() ?? null,
+    reviewDecisions: extraction.reviewDecisions.map((decision) => ({
+      reviewDecisionId: decision.reviewDecisionId,
+      evidenceAnchorId: decision.evidenceAnchorId,
+      reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+    })),
+  })
+  if (
+    attempt.resultPayload &&
+    attempt.evidenceLinks &&
+    !evidenceLinksHaveUniqueScalarPaths(
+      attempt.resultPayload,
+      attempt.evidenceLinks,
+    )
+  )
+    throw persistenceUnavailable(
+      new Error('The stored Extraction has invalid Evidence link paths.'),
+      'Stored research state could not be read.',
+    )
+  const linkedAnchors = new Set(
+    attempt.evidenceLinks?.map((link) => link.evidenceAnchorId) ?? [],
+  )
+  const reviewedAnchors = new Set(
+    attempt.reviewDecisions.map((decision) => decision.evidenceAnchorId),
+  )
+  if (
+    reviewedAnchors.size !== attempt.reviewDecisions.length ||
+    (attempt.reviewedAt === null && reviewedAnchors.size > 0) ||
+    (attempt.reviewedAt !== null &&
+      (linkedAnchors.size !== reviewedAnchors.size ||
+        [...linkedAnchors].some((anchorId) => !reviewedAnchors.has(anchorId))))
+  )
+    throw persistenceUnavailable(
+      new Error('The stored Extraction has incomplete Review Decisions.'),
+      'Stored research state could not be read.',
+    )
+  const schema = durable(schemaDefinitionSchema, extraction.schemaTree)
+  return {
+    ...attempt,
+    sourceRepresentation: {
+      revisionNumber: extraction.sourceRepresentationRevisionNumber,
+      resources: representationResources(
+        extraction.sourceRepresentationRevisionId,
+        resourceVersion,
+      ),
+    },
+    extractionSchema: {
+      extractionSchemaId: extraction.extractionSchemaId,
+      revisionNumber: extraction.schemaRevisionNumber,
+      ...schema,
+    },
+  }
+}
+
 function representationResources(
   sourceRepresentationId: string,
   version: string,
@@ -52,61 +130,18 @@ function representationResources(
   }
 }
 
-function extractionDto(
-  extraction: ExtractionSnapshot | null,
-  resourceVersion: string,
-  schema: DocumentReopenSnapshot['extractionSchema'],
-) {
-  if (!extraction) return null
-  if (
-    !schema ||
-    schema.schemaRevisionId !== extraction.schemaRevisionId ||
-    schema.extractionSchemaId !== extraction.extractionSchemaId
-  )
-    throw persistenceUnavailable(
-      new Error('The stored Extraction Schema Revision could not be read.'),
-      'Stored research state could not be read.',
-    )
-  const definition = durable(schemaDefinitionSchema, schema.schemaTree)
-  return {
-    ...extractionAttemptDto(extraction),
-    sourceRepresentation: {
-      revisionNumber: extraction.sourceRepresentationRevisionNumber,
-      resources: representationResources(
-        extraction.sourceRepresentationRevisionId,
-        resourceVersion,
-      ),
-    },
-    extractionSchema: {
-      extractionSchemaId: extraction.extractionSchemaId,
-      revisionNumber: extraction.schemaRevisionNumber,
-      ...definition,
-    },
-  }
-}
-
-async function reopenResponse(
-  snapshot: DocumentReopenSnapshot,
-  documentExtractions: {
-    latestAttempt: ExtractionSnapshot | null
-    latestReviewed: ExtractionSnapshot | null
-  },
-  schemaFor: (
-    extraction: ExtractionSnapshot | null,
-  ) => Promise<DocumentReopenSnapshot['extractionSchema']>,
-) {
+/**
+ * The browser contract: public identities, RFC 3339 timestamps, and same-origin
+ * resources. Artifact references, hashes, and Parsing Service identities stay
+ * server-side.
+ */
+function reopenResponse(snapshot: DocumentReopenSnapshot) {
   const { sourceRepresentation: representation } = snapshot
   // A local reset can recreate a seeded representation ID with new artifacts.
-  const resourceVersion = encodeURIComponent(
-    representation.createdAt.toISOString(),
-  )
+  const resourceVersion = encodeURIComponent(representation.createdAt.toISOString())
   const currentSchema = snapshot.extractionSchema
     ? durable(schemaDefinitionSchema, snapshot.extractionSchema.schemaTree)
     : null
-  const [attemptSchema, reviewedSchema] = await Promise.all([
-    schemaFor(documentExtractions.latestAttempt),
-    schemaFor(documentExtractions.latestReviewed),
-  ])
   return documentReopenResponseSchema.parse({
     projectContext: {
       ...snapshot.projectContext,
@@ -124,46 +159,40 @@ async function reopenResponse(
         resourceVersion,
       ),
     },
-    annotationSet: snapshot.annotationSet && {
-      annotationSetId: snapshot.annotationSet.annotationSetId,
-      revisionNumber: snapshot.annotationSet.revisionNumber,
-      annotations: durable(
-        storedAnnotationsSchema,
-        snapshot.annotationSet.snapshot,
-      ),
-    },
-    extractionSchema: snapshot.extractionSchema && {
-      extractionSchemaId: snapshot.extractionSchema.extractionSchemaId,
-      name: snapshot.extractionSchema.name,
-      schemaRevisionId: snapshot.extractionSchema.schemaRevisionId,
-      revisionNumber: snapshot.extractionSchema.revisionNumber,
-      ...currentSchema!,
-    },
-    latestAttempt: extractionDto(
-      documentExtractions.latestAttempt,
-      resourceVersion,
-      attemptSchema,
-    ),
-    latestReviewed: extractionDto(
-      documentExtractions.latestReviewed,
-      resourceVersion,
-      reviewedSchema,
-    ),
+    annotationSet:
+      snapshot.annotationSet &&
+      {
+        annotationSetId: snapshot.annotationSet.annotationSetId,
+        revisionNumber: snapshot.annotationSet.revisionNumber,
+        annotations: durable(
+          storedAnnotationsSchema,
+          snapshot.annotationSet.snapshot,
+        ),
+      },
+    extractionSchema:
+      snapshot.extractionSchema &&
+      {
+        extractionSchemaId: snapshot.extractionSchema.extractionSchemaId,
+        name: snapshot.extractionSchema.name,
+        schemaRevisionId: snapshot.extractionSchema.schemaRevisionId,
+        revisionNumber: snapshot.extractionSchema.revisionNumber,
+        ...currentSchema!,
+      },
+    latestAttempt: extractionDto(snapshot.latestAttempt, resourceVersion),
+    latestReviewed: extractionDto(snapshot.latestReviewed, resourceVersion),
   })
 }
 
 export function createGetDocumentReopen(
   store: Pick<ProjectStore, 'getDocumentReopenSnapshot'> = createProjectStore(),
-  module: Pick<ExtractionModule, 'readDocumentExtractions'> = extractions,
 ) {
   return async function getDocumentReopen(request: Request): Promise<Response> {
     try {
-      const url = new URL(request.url)
-      const match = ROUTE.exec(url.pathname)
+      const match = ROUTE.exec(new URL(request.url).pathname)
       if (!match)
         throw new ApiError(404, 'not_found', 'API route not found.')
       const [, projectContextId, sourceDocumentId] = match
-      const extractionId = url.searchParams.get('extractionId')
+      const extractionId = new URL(request.url).searchParams.get('extractionId')
       if (
         !canonicalUuidSchema.safeParse(projectContextId).success ||
         !canonicalUuidSchema.safeParse(sourceDocumentId).success ||
@@ -176,97 +205,24 @@ export function createGetDocumentReopen(
           'Identities must be canonical lowercase UUIDs.',
         )
 
-      const readExtractions = () =>
-        module
-          .readDocumentExtractions({
-            sourceDocumentId,
-            ...(extractionId ? { extractionId } : {}),
-          })
-          .catch((cause) => {
-            throw persistenceUnavailable(cause)
-          })
-      const readSnapshot = (
-        pins?: Parameters<ProjectStore['getDocumentReopenSnapshot']>[2],
-      ) =>
-        store
-          .getDocumentReopenSnapshot(
-            projectContextId,
-            sourceDocumentId,
-            pins,
-          )
-          .catch((cause) => {
-            throw persistenceUnavailable(cause)
-          })
-
-      const selected = extractionId ? await readExtractions() : null
-      if (extractionId && !selected?.latestAttempt)
-        throw new ApiError(
-          404,
-          'not_found',
-          'That Source Document has no durable snapshot in this Project Context.',
+      const snapshot = await store
+        .getDocumentReopenSnapshot(
+          projectContextId,
+          sourceDocumentId,
+          extractionId ?? undefined,
         )
-      const selectedAttempt = selected?.latestAttempt ?? null
-      const snapshot = await readSnapshot(
-        selectedAttempt
-          ? {
-              sourceRepresentationRevisionId:
-                selectedAttempt.sourceRepresentationRevisionId,
-              schemaRevisionId: selectedAttempt.schemaRevisionId,
-            }
-          : undefined,
-      )
+        .catch((cause) => {
+          throw persistenceUnavailable(cause)
+        })
       if (!snapshot)
         throw new ApiError(
           404,
           'not_found',
           'That Source Document has no durable snapshot in this Project Context.',
         )
-      const documentExtractions =
-        selected ??
-        (await readExtractions()) ?? {
-          sourceRepresentationRevisionId:
-            snapshot.sourceRepresentation.sourceRepresentationId,
-          latestAttempt: null,
-          latestReviewed: null,
-        }
-      if (
-        documentExtractions.sourceRepresentationRevisionId !==
-        snapshot.sourceRepresentation.sourceRepresentationId
-      )
-        throw persistenceUnavailable(
-          new Error('The reopened Extraction pins changed during the read.'),
-          'Stored research state could not be read.',
-        )
-
-      const schemas = new Map<
-        string,
-        Promise<DocumentReopenSnapshot['extractionSchema']>
-      >()
-      const schemaFor = (extraction: ExtractionSnapshot | null) => {
-        if (!extraction) return Promise.resolve(null)
-        if (
-          snapshot.sourceRepresentation.sourceRepresentationId ===
-            extraction.sourceRepresentationRevisionId &&
-          snapshot.extractionSchema?.schemaRevisionId ===
-            extraction.schemaRevisionId
-        )
-          return Promise.resolve(snapshot.extractionSchema)
-        const existing = schemas.get(extraction.schemaRevisionId)
-        if (existing) return existing
-        const pending = readSnapshot({
-          sourceRepresentationRevisionId:
-            extraction.sourceRepresentationRevisionId,
-          schemaRevisionId: extraction.schemaRevisionId,
-        }).then((pinned) => pinned?.extractionSchema ?? null)
-        schemas.set(extraction.schemaRevisionId, pending)
-        return pending
-      }
-
-      return json(
-        await reopenResponse(snapshot, documentExtractions, schemaFor),
-        { headers: noStore },
-      )
+      return json(reopenResponse(snapshot), { headers: noStore })
     } catch (error) {
+      console.error('DEBUG document_reopen error', error)
       return noStoreError(error)
     }
   }

@@ -1,7 +1,7 @@
 import { cascadeRepairText } from 'ai-sdk-ollama'
 import { z } from 'zod'
 import { ApiError } from './_http.js'
-import { isAllowedValues } from 'extraction/allowed-values'
+import { isAllowedValues } from '../shared/allowedValues.js'
 
 const templateEnvelopeSchema = z.object({
   template: z.record(z.string(), z.unknown()),

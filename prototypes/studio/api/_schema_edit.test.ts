@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SchemaNode } from 'extraction/schema'
+import type { SchemaNode } from '../shared/schemaNode'
 import { ApiError } from './_http'
 import { parseSchemaNodes, proposeSchemaEdit } from './_schema_edit'
 

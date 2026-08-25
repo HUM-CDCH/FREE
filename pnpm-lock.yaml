@@ -46,33 +46,8 @@ importers:
         specifier: ~6.0.3
         version: 6.0.3
 
-  packages/extraction:
-    dependencies:
-      db:
-        specifier: workspace:*
-        version: link:../db
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@types/node':
-        specifier: ^24.13.2
-        version: 24.13.3
-      fflate:
-        specifier: ^0.8.3
-        version: 0.8.3
-      tsx:
-        specifier: ^4.23.4
-        version: 4.23.4
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
-
   packages/extraction-result-export:
     dependencies:
-      extraction:
-        specifier: workspace:*
-        version: link:../extraction
       write-excel-file:
         specifier: ^4.1.1
         version: 4.1.1
@@ -132,9 +107,6 @@ importers:
       env-paths:
         specifier: ^4.0.0
         version: 4.0.0
-      extraction:
-        specifier: workspace:*
-        version: link:../../packages/extraction
       extraction-result-export:
         specifier: workspace:*
         version: link:../../packages/extraction-result-export

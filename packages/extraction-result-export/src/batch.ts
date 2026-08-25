@@ -5,7 +5,7 @@ import {
   resolveExportChoices,
 } from "./spreadsheet.js";
 import { buildExportTable, type ExportChoices, type Table } from "./table.js";
-import type { SchemaNode } from "extraction/schema";
+import type { SchemaNode } from "../../../prototypes/studio/shared/schemaNode.js";
 
 /** One Batch Extraction member's Extraction Result and its stable Source Document identity. */
 export interface BatchExportMember {

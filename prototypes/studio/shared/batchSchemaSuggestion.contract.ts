@@ -4,7 +4,7 @@ import {
   projectOperationStatusSchema,
 } from './batchExtraction.contract.js'
 import { canonicalUuidSchema } from './projectContext.contract.js'
-import { schemaDefinitionSchema } from 'extraction/schema'
+import { schemaDefinitionSchema } from './schemaNode.js'
 
 const sourceDocumentIdsSchema = z
   .array(canonicalUuidSchema)
@@ -29,7 +29,7 @@ export const batchSchemaSuggestionDraftRequestSchema = z
   .strict()
 
 export const batchSchemaSuggestionRunRequestSchema = z
-  .object({ strategy: z.literal('ARTICLE') })
+  .object({ strategy: z.enum(['ARTICLE', 'CATALOG']) })
   .strict()
 
 const coverageSchema = z

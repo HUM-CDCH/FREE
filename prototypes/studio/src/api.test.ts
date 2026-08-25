@@ -5,7 +5,6 @@ import type { ExtractionController } from './useExtraction'
 import {
   decodeSchemaDone,
   finalizeExtractionReview,
-  readExtraction,
   requestExtraction,
   requestSchema,
 } from './api'
@@ -31,6 +30,7 @@ function readyController(): ExtractionController {
     hasResults: true,
     stale: false,
     runExtraction: async () => {},
+    retryExtraction: async () => {},
     requestCancellation: async () => {},
     cancellationRequested: false,
     cancellationError: null,
@@ -61,7 +61,7 @@ describe('Article extraction lifecycle client', () => {
       outcome: 'SUCCEEDED',
       complete: true,
       modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null },
       failure: null,
       resultPayload: { records: [] },
       evidenceLinks: [],
@@ -92,7 +92,7 @@ describe('Article extraction lifecycle client', () => {
     expect(submitted).toEqual([
       {
         url: '/api/extractions',
-        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE' },
+        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE', batchExtractionId: null },
       },
       {
         url: `/api/extractions/${extractionId}/review`,
@@ -101,26 +101,48 @@ describe('Article extraction lifecycle client', () => {
     ])
   })
 
-  it('reads server-derived pending review decisions', async () => {
-    const extractionId = '11111111-1111-4111-8111-111111111111'
-    const response = {
-      extraction: {
-        extractionId,
-        sourceDocumentId: '44444444-4444-4444-8444-444444444444',
-        sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
-        schemaRevisionId: '33333333-3333-4333-8333-333333333333',
-        strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
-        modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-        diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
-        failure: null, resultPayload: { records: [] }, evidenceLinks: [],
-        reviewable: true, retryOfId: null, batchExtractionId: null,
-        createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+  it('posts a strict targeted Catalog retry without caller pins or strategy', async () => {
+    const parentId = '11111111-1111-4111-8111-111111111111'
+    const childId = '55555555-5555-4555-8555-555555555555'
+    const submitted: unknown[] = []
+    const attempt = {
+      extractionId: childId,
+      sourceDocumentId: '44444444-4444-4444-8444-444444444444',
+      sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
+      schemaRevisionId: '33333333-3333-4333-8333-333333333333',
+      strategy: 'CATALOG',
+      outcome: 'SUCCEEDED',
+      complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+      diagnostics: {
+        phase: 'grounding', durationMs: 1, modelCalls: 0,
+        finishReason: null, inputTokens: null, outputTokens: null,
+        values: null, grounding: null, catalog: { stages: [], records: [] },
       },
-      pendingReviewDecisions: [],
+      failure: null, resultPayload: { records: [] }, evidenceLinks: [],
+      reviewable: true, retryOfId: parentId, batchExtractionId: null,
+      createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
     }
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(response)))
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      submitted.push(JSON.parse(String(init.body)))
+      return Promise.resolve(jsonResponse(attempt))
+    }))
 
-    await expect(readExtraction(extractionId)).resolves.toEqual(response)
+    await requestExtraction({
+      id: childId,
+      retryOfId: parentId,
+      retryDocument: true,
+      rediscover: false,
+      retryRecordStartBlockIds: ['heading-2'],
+    })
+
+    expect(submitted).toEqual([{
+      id: childId,
+      retryOfId: parentId,
+      retryDocument: true,
+      rediscover: false,
+      retryRecordStartBlockIds: ['heading-2'],
+    }])
   })
 })
 

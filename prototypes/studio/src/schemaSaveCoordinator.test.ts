@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SchemaRevision } from '../shared/schemaRevision.contract'
-import type { SchemaDefinition } from 'extraction/schema'
+import type { SchemaDefinition } from '../shared/schemaNode'
 import { SchemaRevisionConflictError } from './schemaRevisions'
 import { createSchemaSaveCoordinator } from './schemaSaveCoordinator'
 

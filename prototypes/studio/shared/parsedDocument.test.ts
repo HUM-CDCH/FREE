@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeParsedDocument } from 'extraction/parsed-document'
+import { decodeParsedDocument } from './parsedDocument.js'
 
 const sha = 'a'.repeat(64)
 const fixture = {

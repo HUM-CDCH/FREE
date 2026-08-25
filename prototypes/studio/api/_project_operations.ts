@@ -1,12 +1,17 @@
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHash } from 'node:crypto'
 import { canonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import {
   createProjectStore,
+  type BatchExtractionRecord,
   type BatchSchemaSuggestionRecord,
   type OperationLease,
   type ProjectStore,
 } from '../../../packages/db/src/project-store.js'
-import { parseSchemaDefinition } from 'extraction/schema'
+import { parseSchemaDefinition } from '../shared/schemaNode.js'
+import {
+  createExtractionExecutor,
+  type ExtractionExecutor,
+} from './extractions.js'
 import {
   modelSuggestedDefinition,
   sourceSuggestionFailure,
@@ -22,6 +27,11 @@ const SOURCE_SUGGESTION_INSTRUCTION =
 
 type OperationStore = Pick<
   ProjectStore,
+  | 'claimBatchExtraction'
+  | 'renewBatchExtractionLease'
+  | 'startBatchExtractionMember'
+  | 'completeBatchExtractionMember'
+  | 'failBatchExtraction'
   | 'claimBatchSchemaSuggestion'
   | 'renewBatchSchemaSuggestionLease'
   | 'startBatchSchemaSuggestionSource'
@@ -37,9 +47,25 @@ export type ProjectOperationsDependencies = {
   store?: OperationStore
   readMarkdown?: typeof canonicalPackageStore.read
   generate?: typeof generateSchemaWithModel
+  executeExtraction?: ExtractionExecutor
   now?: () => Date
 }
 
+function fingerprintId(value: unknown): string {
+  const hash = createHash('sha256').update(JSON.stringify(value)).digest('hex')
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-${(['8', '9', 'a', 'b'] as const)[parseInt(hash[16], 16) & 3]}${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+}
+
+function memberExtractionId(
+  batch: BatchExtractionRecord,
+  member: BatchExtractionRecord['members'][number],
+): string {
+  return fingerprintId([
+    'batch-member-extraction',
+    batch.batchExtractionId,
+    member.sourceRepresentationRevisionId,
+  ])
+}
 
 function durableFailure(error: unknown): { code: string; message: string } {
   const code = sourceSuggestionFailure(error).code
@@ -91,6 +117,8 @@ export function createProjectOperations(
   const store = dependencies.store ?? createProjectStore()
   const readMarkdown = dependencies.readMarkdown ?? canonicalPackageStore.read
   const generate = dependencies.generate ?? generateSchemaWithModel
+  const executeExtraction =
+    dependencies.executeExtraction ?? createExtractionExecutor()
   const now = dependencies.now ?? (() => new Date())
   const owner = randomUUID()
   let pumping = false
@@ -235,6 +263,78 @@ export function createProjectOperations(
     }
   }
 
+  async function runBatch(
+    batch: BatchExtractionRecord & { lease: OperationLease },
+  ) {
+    const guard = leaseSignal(
+      (expiresAt) =>
+        store.renewBatchExtractionLease(
+          batch.batchExtractionId,
+          batch.lease,
+          expiresAt,
+        ),
+      now,
+    )
+    try {
+      for (const member of batch.members) {
+        if (member.executionStatus === 'COMPLETED') continue
+        if (
+          !(await store.startBatchExtractionMember(
+            batch.batchExtractionId,
+            member.sourceDocumentId,
+            batch.lease,
+            now(),
+          ))
+        )
+          return
+        try {
+          await executeExtraction(
+            {
+              id: memberExtractionId(batch, member),
+              sourceRepresentationRevisionId:
+                member.sourceRepresentationRevisionId,
+              schemaRevisionId: batch.schemaRevisionId,
+              strategy: batch.strategy,
+              batchExtractionId: batch.batchExtractionId,
+            },
+            modelSignal(guard.signal),
+          )
+          if (
+            !(await store.completeBatchExtractionMember(
+              batch.batchExtractionId,
+              member.sourceDocumentId,
+              batch.lease,
+              { completed: true },
+              now(),
+            ))
+          )
+            return
+        } catch (error) {
+          if (guard.signal.aborted) return
+          if (
+            !(await store.completeBatchExtractionMember(
+              batch.batchExtractionId,
+              member.sourceDocumentId,
+              batch.lease,
+              { failure: durableFailure(error) },
+              now(),
+            ))
+          )
+            return
+        }
+      }
+    } catch (error) {
+      if (!guard.lost() && !guard.signal.aborted)
+        await store.failBatchExtraction(
+          batch.batchExtractionId,
+          batch.lease,
+          durableFailure(error),
+          now(),
+        )
+    } finally {
+      guard.stop()
+    }
+  }
 
   async function pump() {
     if (pumping) return
@@ -252,6 +352,15 @@ export function createProjectOperations(
           )
           if (suggestion) {
             await runSuggestion(suggestion)
+            continue
+          }
+          const batch = await store.claimBatchExtraction(
+            owner,
+            startedAt,
+            expiresAt,
+          )
+          if (batch) {
+            await runBatch(batch)
             continue
           }
           break

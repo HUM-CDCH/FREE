@@ -12,7 +12,7 @@ import {
   templateToSchemaDefinition,
   templateToNodes,
   type SchemaNode,
-} from 'extraction/schema'
+} from './schemaNode'
 
 // @ts-expect-error Closed-set values are valid only on string fields.
 const invalidClosedSetNode: SchemaNode = { id: 'count', name: 'count', type: 'number', allowedValues: ['one', 'two'] }
@@ -21,10 +21,10 @@ void invalidClosedSetNode
 describe('SchemaNode conversion', () => {
   it('does not reuse generated node ids after a module reload', async () => {
     vi.resetModules()
-    const firstModule = await import('extraction/schema')
+    const firstModule = await import('./schemaNode')
     const firstId = firstModule.mkId()
     vi.resetModules()
-    const secondModule = await import('extraction/schema')
+    const secondModule = await import('./schemaNode')
 
     expect(secondModule.mkId()).not.toBe(firstId)
   })

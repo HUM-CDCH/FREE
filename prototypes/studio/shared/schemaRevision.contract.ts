@@ -4,7 +4,7 @@ import {
   recordDescriptionSchema,
   schemaDefinitionSchema,
   schemaNodesSchema,
-} from 'extraction/schema'
+} from './schemaNode.js'
 
 const timestamp = z.iso.datetime({ offset: true }).refine((value) => value.endsWith('Z'))
 

@@ -3,7 +3,7 @@ import { extractionAttemptSchema } from './extraction.contract'
 import {
   recordDescriptionSchema,
   schemaNodesSchema,
-} from 'extraction/schema'
+} from './schemaNode'
 
 export const canonicalUuidSchema = z
   .string()

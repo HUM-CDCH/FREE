@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ProposedSchemaEdit } from '../shared/schemaEdit.contract'
-import { nodesToTemplate, templateToNodes, type SchemaNode } from 'extraction/schema'
+import { nodesToTemplate, templateToNodes, type SchemaNode } from '../shared/schemaNode'
 import {
   deriveSchemaProposal,
   replaySchemaChanges,

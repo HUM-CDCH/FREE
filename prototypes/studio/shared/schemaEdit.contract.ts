@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SCALAR_FIELD_TYPES } from 'extraction/allowed-values'
+import { SCALAR_FIELD_TYPES } from './allowedValues.js'
 
 const NON_ARRAY_FIELD_TYPES = [...SCALAR_FIELD_TYPES, 'object'] as const
 

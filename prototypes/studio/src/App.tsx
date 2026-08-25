@@ -14,14 +14,14 @@ import {
   type SchemaNode,
   schemaDefinitionToTemplate,
   templateToSchemaDefinition,
-} from 'extraction/schema'
+} from '../shared/schemaNode'
 import { countTemplateFields } from '../shared/template'
 import { requestSchema } from './api'
 import {
   decodeParsedDocument,
   type ParsedDocument,
   type ParsedEvidenceAnchor,
-} from 'extraction/parsed-document'
+} from '../shared/parsedDocument'
 import {
   anchorOccurrences,
   reviewedAnchorOccurrences,
@@ -37,7 +37,10 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 // import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 // import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
 import type { DocumentSnapshot } from './projectContexts/transport'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type {
+  ExtractionAttempt,
+  ExtractionStrategy,
+} from '../shared/extraction.contract'
 import {
   appendSchemaRevision,
   getSchemaRevision,
@@ -303,7 +306,9 @@ export function DocumentWorkspace({
   const [schemaHistory, setSchemaHistory] = useState<SchemaRevisionSummary[]>([])
   const schemaSaveCoordinatorRef = useRef<SchemaSaveCoordinator | null>(null)
   const [extractAfterSave, setExtractAfterSave] =
-    useState<boolean | null>(null)
+    useState<{ strategy: ExtractionStrategy; saved: boolean } | null>(null)
+  const [nextExtractionStrategy, setNextExtractionStrategy] =
+    useState<ExtractionStrategy>('ARTICLE')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('schema')
@@ -386,6 +391,7 @@ export function DocumentWorkspace({
     previousSourceRepresentationIdRef.current = sourceRepresentationId
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     setResultPath(null)
+    setNextExtractionStrategy('ARTICLE')
     setToast(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceRepresentationId])
@@ -889,11 +895,13 @@ export function DocumentWorkspace({
     indexing,
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
+    parsedDocument,
     reviewTarget:
       sourceRepresentationId && pinnedSchemaRevisionId
         ? { sourceRepresentationId, schemaRevisionId: pinnedSchemaRevisionId }
         : null,
     onTerminal: (attempt, isRerun) => {
+      setNextExtractionStrategy('ARTICLE')
       setSelectedInspectionId(attempt.extractionId)
       setRailTab('results')
       if (attempt.outcome === 'FAILED')
@@ -908,6 +916,7 @@ export function DocumentWorkspace({
         )
     },
     onError: () => {
+      setNextExtractionStrategy('ARTICLE')
       setRailTab('results')
       showToast('Extraction failed — see details in Results')
     },
@@ -1013,21 +1022,24 @@ export function DocumentWorkspace({
   ])
 
   useEffect(() => {
-    if (extractAfterSave !== true) return
+    if (!extractAfterSave?.saved) return
     queueMicrotask(() => {
+      const { strategy } = extractAfterSave
       setExtractAfterSave(null)
-      void extraction.runExtraction()
+      void extraction.runExtraction(strategy)
     })
   }, [extractAfterSave, extraction])
 
   async function runExtraction() {
     if (extractAfterSave !== null) return
+    const strategy = nextExtractionStrategy
+    setNextExtractionStrategy('ARTICLE')
     const coordinator = schemaSaveCoordinatorRef.current
-    if (!coordinator) return extraction.runExtraction()
-    setExtractAfterSave(false)
+    if (!coordinator) return extraction.runExtraction(strategy)
+    setExtractAfterSave({ strategy, saved: false })
     try {
       await coordinator.flush()
-      setExtractAfterSave(true)
+      setExtractAfterSave({ strategy, saved: true })
     } catch (error) {
       setExtractAfterSave(null)
       showToast(
@@ -1132,6 +1144,21 @@ export function DocumentWorkspace({
               </button>
             </div>
           )}
+          <label className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-ink-muted">
+            <span>Strategy</span>
+            <select
+              aria-label="Extraction strategy"
+              value={nextExtractionStrategy}
+              disabled={running || extractAfterSave !== null}
+              onChange={(event) =>
+                setNextExtractionStrategy(event.target.value as ExtractionStrategy)
+              }
+              className="rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium text-ink outline-none focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="ARTICLE">Article</option>
+              <option value="CATALOG">Catalog</option>
+            </select>
+          </label>
           <Button
             variant="primary"
             size="md"

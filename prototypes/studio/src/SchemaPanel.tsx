@@ -6,7 +6,7 @@ import {
   SCALAR_FIELD_TYPES,
   type FieldType,
   type ScalarFieldType,
-} from 'extraction/allowed-values'
+} from '../shared/allowedValues'
 import {
   duplicateFieldKeys,
   enumerateFieldPaths,
@@ -15,7 +15,7 @@ import {
   nodesToTemplate,
   schemaDefinitionToTemplate,
   templateToSchemaDefinition,
-} from 'extraction/schema'
+} from '../shared/schemaNode'
 import type {
   SchemaRevision,
   SchemaRevisionSummary,

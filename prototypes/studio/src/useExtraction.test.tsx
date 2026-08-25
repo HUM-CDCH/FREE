@@ -8,7 +8,6 @@ import type { ExtractionAttempt } from '../shared/extraction.contract'
 
 vi.mock('./api', () => ({
   requestExtraction: vi.fn(),
-  readExtraction: vi.fn(),
   cancelExtraction: vi.fn(),
   finalizeExtractionReview: vi.fn(),
 }))
@@ -35,7 +34,9 @@ function attempt(
       finishReason: null,
       inputTokens: null,
       outputTokens: null,
+      values: null,
       grounding: null,
+      catalog: null,
     },
     failure: null,
     resultPayload: { records: [{}] },
@@ -66,7 +67,6 @@ function options(initialAttempt: ExtractionAttempt | null = null) {
 
 beforeEach(() => {
   vi.mocked(api.requestExtraction).mockReset()
-  vi.mocked(api.readExtraction).mockReset()
   vi.mocked(api.cancelExtraction).mockReset()
   vi.mocked(api.finalizeExtractionReview).mockReset()
 })
@@ -92,6 +92,63 @@ describe('useExtraction server-owned lifecycle', () => {
       status: 'ready',
       result: { records: [{}] },
     })
+  })
+
+  it('submits a fresh targeted Catalog retry and supports grounding-only selection', async () => {
+    const parent = attempt({
+      strategy: 'CATALOG',
+      diagnostics: {
+        phase: 'grounding', durationMs: 1, modelCalls: 1,
+        finishReason: null, inputTokens: 1, outputTokens: 1,
+        values: null, grounding: null,
+        catalog: {
+          stages: [],
+          records: [],
+        },
+      },
+    })
+    const child = attempt({
+      extractionId: '66666666-6666-4666-8666-666666666666',
+      strategy: 'CATALOG', retryOfId: parent.extractionId,
+      diagnostics: parent.diagnostics,
+    })
+    vi.mocked(api.requestExtraction).mockResolvedValue(child)
+    const { result } = renderHook(() => useExtraction(options(parent)))
+
+    await act(() => result.current.retryExtraction({
+      retryDocument: false,
+      rediscover: false,
+      retryRecordStartBlockIds: [],
+    }))
+
+    expect(api.requestExtraction).toHaveBeenCalledWith(
+      {
+        id: expect.any(String),
+        retryOfId: parent.extractionId,
+        retryDocument: false,
+        rediscover: false,
+        retryRecordStartBlockIds: [],
+      },
+      expect.any(AbortSignal),
+    )
+    expect(result.current.attempt?.extractionId).toBe(child.extractionId)
+  })
+
+  it('blocks a second targeted retry while the first request is active', () => {
+    vi.mocked(api.requestExtraction).mockImplementation(() => new Promise(() => {}))
+    const parent = attempt({ strategy: 'CATALOG', diagnostics: {
+      phase: 'grounding', durationMs: 1, modelCalls: 1,
+      finishReason: null, inputTokens: 1, outputTokens: 1,
+      values: null, grounding: null, catalog: { stages: [], records: [] },
+    } })
+    const { result } = renderHook(() => useExtraction(options(parent)))
+    const selection = { retryDocument: false, rediscover: false, retryRecordStartBlockIds: [] }
+
+    act(() => void result.current.retryExtraction(selection))
+    act(() => void result.current.retryExtraction(selection))
+
+    expect(api.requestExtraction).toHaveBeenCalledOnce()
+    expect(result.current.state.status).toBe('running')
   })
 
   it('returns to idle when changed pins cancel a running extraction', () => {
@@ -146,10 +203,6 @@ describe('useExtraction server-owned lifecycle', () => {
 
   it('finalizes a result without populated values using an empty decision set', async () => {
     const reviewed = attempt({ reviewedAt: '2026-08-10T00:01:00.000Z' })
-    vi.mocked(api.readExtraction).mockResolvedValue({
-      extraction: attempt(),
-      pendingReviewDecisions: [],
-    })
     vi.mocked(api.finalizeExtractionReview).mockResolvedValue(reviewed)
     const { result } = renderHook(() => useExtraction(options(attempt())))
 
@@ -165,45 +218,12 @@ describe('useExtraction server-owned lifecycle', () => {
     )
   })
 
-  it('offers review for a succeeded attempt with missing Evidence', () => {
+  it('does not offer review for an ungrounded attempt', () => {
     const { result } = renderHook(() =>
-      useExtraction(options(attempt({
-        complete: false,
-        diagnostics: {
-          ...attempt().diagnostics,
-          grounding: {
-            groundedPaths: [],
-            ungroundedPaths: [['records', 0, 'title']],
-            issueCodes: ['missing_claim'],
-            batches: [],
-          },
-        },
-      }))),
+      useExtraction(options(attempt({ reviewable: false }))),
     )
-    expect(result.current.review.available).toBe(true)
-    expect(result.current.review.canAccept).toBe(true)
-  })
-
-  it('uses server-derived pending decisions when finalizing review', async () => {
-    const decisions = [{
-      evidenceAnchorId: 'anchor-1',
-      reviewedOccurrenceIds: ['occurrence-1'],
-    }]
-    const reviewed = attempt({ reviewedAt: '2026-08-10T00:01:00.000Z' })
-    vi.mocked(api.readExtraction).mockResolvedValue({
-      extraction: attempt(),
-      pendingReviewDecisions: decisions,
-    })
-    vi.mocked(api.finalizeExtractionReview).mockResolvedValue(reviewed)
-    const { result } = renderHook(() => useExtraction(options(attempt())))
-
-    await act(() => result.current.review.accept())
-
-    expect(api.readExtraction).toHaveBeenCalledWith(attempt().extractionId)
-    expect(api.finalizeExtractionReview).toHaveBeenCalledWith(
-      attempt().extractionId,
-      decisions,
-    )
+    expect(result.current.review.available).toBe(false)
+    expect(result.current.review.canAccept).toBe(false)
   })
 
   it('blocks review of a historical attempt and reruns with current pins', async () => {

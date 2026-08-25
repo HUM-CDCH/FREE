@@ -82,30 +82,24 @@ PostgreSQL SHALL store only `SUCCEEDED`, `FAILED`, or `CANCELLED` Extraction out
 
 ### Requirement: Article grounding uses canonical anchors
 
-Every populated scalar path SHALL be classified either as grounded by one Evidence link to an exact published `parsed_document.v2` Evidence Anchor or as explicitly ungrounded in bounded diagnostics. A succeeded attempt SHALL remain reviewable when some or all populated paths are ungrounded; grounding coverage SHALL determine completeness, not whether a researcher may review the result. The server MUST NOT create Evidence through PDF text matching or accept a foreign Evidence Anchor label.
+Every populated scalar path SHALL be reviewable only when it has an Evidence link to an exact published `parsed_document.v2` Evidence Anchor. The server MUST NOT create Evidence through PDF text matching or accept a foreign Evidence Anchor label.
 
 #### Scenario: Grounding returns a foreign anchor
 
 - **WHEN** a model-selected Evidence Anchor label does not exactly identify an anchor in the pinned canonical package
 - **THEN** the populated content-derived path remains ungrounded
-- **AND** the succeeded attempt remains reviewable and incomplete
+- **AND** the attempt is not reviewable
 
 #### Scenario: All populated content paths are grounded
 
 - **WHEN** every populated scalar path has a canonical Evidence link
-- **THEN** the server marks the completed attempt reviewable and grounding-complete
-
-#### Scenario: Grounding covers only part of the result
-
-- **WHEN** a succeeded attempt has both canonical Evidence links and explicitly ungrounded populated paths
-- **THEN** the researcher can finalize review decisions for the Evidence links that exist
-- **AND** the reviewed Extraction retains its ungrounded paths and `complete: false`
+- **THEN** the server marks the completed attempt reviewable
 
 ### Requirement: Review finalization trusts only stored attempt material
 
-Review finalization SHALL accept an Extraction ID and one normalized decision per Evidence Anchor referenced by that stored attempt. It SHALL validate exact anchor coverage and every reviewed occurrence against the pinned canonical package, set `reviewedAt`, and insert all decisions in one transaction. It MUST reject a non-succeeded attempt, missing or extra anchor decisions, unknown or foreign occurrences, and different decisions after finalization.
+Review finalization SHALL accept an Extraction ID and one normalized decision per Evidence Anchor referenced by that stored attempt. It SHALL validate exact anchor coverage and every reviewed occurrence against the pinned canonical package, set `reviewedAt`, and insert all decisions in one transaction. It MUST reject an unreviewable or non-completed attempt, missing or extra anchor decisions, unknown or foreign occurrences, and different decisions after finalization.
 
-Before finalization, the server SHALL validate the immutable stored result against the pinned Schema Revision, re-derive every populated scalar path, and require an exact non-overlapping partition between paths with one unique stored Evidence Link and paths recorded as ungrounded. Review finalization MUST NOT manufacture a Review Decision for an ungrounded path.
+Before finalization, the server SHALL validate the immutable stored result against the pinned Schema Revision, re-derive every populated scalar path, and require one unique stored Evidence Link for each path.
 
 #### Scenario: Review is finalized
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import Panel from './ui/Panel'
-import type { ParsedDocument, ParsedEvidenceAnchor, TableCellEvidenceAnchor, TextEvidenceAnchor } from 'extraction/parsed-document'
-import { blockForAnchor, tableForAnchor } from 'extraction/parsed-document'
+import type { ParsedDocument, ParsedEvidenceAnchor, TableCellEvidenceAnchor, TextEvidenceAnchor } from '../shared/parsedDocument'
+import { blockForAnchor, tableForAnchor } from '../shared/parsedDocument'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 
 function groupByPage(anchors: ParsedEvidenceAnchor[]) {

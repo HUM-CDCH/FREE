@@ -9,7 +9,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "extraction": "workspace:*",
     "write-excel-file": "^4.1.1"
   },
   "devDependencies": {

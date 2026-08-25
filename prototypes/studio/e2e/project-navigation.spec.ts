@@ -1,7 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import type { ExtractionModule, ExtractionSnapshot } from 'extraction'
 import type {
   DocumentReopenSnapshot,
   ProjectStore,
@@ -95,44 +94,48 @@ const DURABLE = {
       schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
     },
   },
+  latestAttempt: {
+    extractionId: '00000000-0000-4000-8000-0000000000f1',
+    sourceDocumentId: BERETNING,
+    sourceRepresentationRevisionId: DEMO_REPRESENTATION_ID,
+    sourceRepresentationRevisionNumber: 2,
+    schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
+    extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
+    schemaRevisionNumber: 4,
+    schemaTree: {
+      recordDescription: 'One place record.',
+      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+    },
+    strategy: 'ARTICLE',
+    outcome: 'SUCCEEDED',
+    complete: true,
+    modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+    diagnostics: {
+      phase: 'grounding',
+      durationMs: 1,
+      modelCalls: 0,
+      finishReason: null,
+      inputTokens: null,
+      outputTokens: null,
+      values: null,
+      grounding: null,
+      catalog: null,
+    },
+    failure: null,
+    resultPayload: { place: 'Ellekilde' },
+    evidenceLinks: [],
+    reviewable: true,
+    retryOfId: null,
+    batchExtractionId: null,
+    createdAt: new Date('2026-08-02T10:00:00.000Z'),
+    reviewedAt: null,
+    reviewDecisions: [],
+  },
+  latestReviewed: null,
 } satisfies Pick<
   DocumentReopenSnapshot,
-  'annotationSet' | 'extractionSchema'
+  'annotationSet' | 'extractionSchema' | 'latestAttempt' | 'latestReviewed'
 >
-
-const LATEST_ATTEMPT = {
-  extractionId: '00000000-0000-4000-8000-0000000000f1',
-  sourceDocumentId: BERETNING,
-  sourceRepresentationRevisionId: DEMO_REPRESENTATION_ID,
-  sourceRepresentationRevisionNumber: 2,
-  schemaRevisionId: '00000000-0000-4000-8000-0000000000e2',
-  extractionSchemaId: '00000000-0000-4000-8000-0000000000e1',
-  schemaRevisionNumber: 4,
-  strategy: 'ARTICLE',
-  outcome: 'SUCCEEDED',
-  complete: true,
-  modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-  diagnostics: {
-    phase: 'grounding',
-    durationMs: 1,
-    modelCalls: 0,
-    finishReason: null,
-    inputTokens: null,
-    outputTokens: null,
-    ungroundedPaths: [],
-    groundingIssues: [],
-    groundingBatches: [],
-  },
-  failure: null,
-  result: { place: 'Ellekilde' },
-  evidence: [],
-  reviewable: true,
-  retryOfId: null,
-  batchExtractionId: null,
-  createdAt: new Date('2026-08-02T10:00:00.000Z'),
-  reviewedAt: null,
-  reviewDecisions: [],
-} satisfies ExtractionSnapshot
 
 const seedOf = (projectContextId: string) =>
   SEED.find((seed) => seed.projectContextId === projectContextId)
@@ -153,24 +156,6 @@ type NavigationStore = Pick<
   | 'getProjectContextWithDocuments'
   | 'getDocumentReopenSnapshot'
 >
-
-type ReopenExtractions = Pick<
-  ExtractionModule,
-  'readDocumentExtractions'
->
-
-const emptyExtractions: ReopenExtractions = {
-  async readDocumentExtractions({ sourceDocumentId }) {
-    const sourceRepresentationRevisionId = REPRESENTATIONS[sourceDocumentId]
-    return sourceRepresentationRevisionId
-      ? {
-          sourceRepresentationRevisionId,
-          latestAttempt: null,
-          latestReviewed: null,
-        }
-      : null
-  },
-}
 
 const base: NavigationStore = {
   async listProjectContexts(limit) {
@@ -200,6 +185,8 @@ const base: NavigationStore = {
       },
       annotationSet: null,
       extractionSchema: null,
+      latestAttempt: null,
+      latestReviewed: null,
     }
   },
 }
@@ -230,18 +217,11 @@ type Studio = {
  */
 async function stubStudio(
   page: Page,
-  options: {
-    store?: NavigationStore
-    extractions?: ReopenExtractions
-    artifacts?: 'unavailable'
-  } = {},
+  options: { store?: NavigationStore; artifacts?: 'unavailable' } = {},
 ): Promise<Studio> {
   const store = options.store ?? railStore()
   const projectContexts = createGetProjectContexts(store)
-  const reopen = createGetDocumentReopen(
-    store,
-    options.extractions ?? emptyExtractions,
-  )
+  const reopen = createGetDocumentReopen(store)
   const requests: string[] = []
   const cancelled: string[] = []
   const snapshots: Studio['snapshots'] = []
@@ -771,17 +751,6 @@ test.describe('reopening a routed Source Document', () => {
             : snapshot
         },
       }),
-      extractions: {
-        async readDocumentExtractions({ sourceDocumentId }) {
-          return sourceDocumentId === BERETNING
-            ? {
-                sourceRepresentationRevisionId: DEMO_REPRESENTATION_ID,
-                latestAttempt: LATEST_ATTEMPT,
-                latestReviewed: null,
-              }
-            : null
-        },
-      },
     })
 
     await page.goto(`/projects/${ELLEKILDE}/documents/${BERETNING}`)
