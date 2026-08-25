@@ -78,6 +78,59 @@ describe('schema save coordinator', () => {
     })
   })
 
+  it('treats structurally identical definitions as equal regardless of key order', async () => {
+    const initial = revision(1, 'site')
+    const save = vi.fn(async () => revision(2, 'site'))
+    const coordinator = createSchemaSaveCoordinator(initial, save, 60_000)
+    const reordered: SchemaDefinition = {
+      schemaNodes: [{ type: 'string', name: 'site', id: 'node-site' }],
+      recordDescription: 'One site record.',
+    }
+
+    coordinator.edit(reordered)
+    await coordinator.flush()
+
+    expect(save).not.toHaveBeenCalled()
+    expect(coordinator.state.status).toBe('saved')
+  })
+
+  it('cancels the pending debounce when an in-flight save chains the latest draft', async () => {
+    vi.useFakeTimers()
+    const first = Promise.withResolvers<SchemaRevision>()
+    const second = Promise.withResolvers<SchemaRevision>()
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise)
+    const onChange = vi.fn()
+    const coordinator = createSchemaSaveCoordinator(
+      revision(1, 'site'),
+      save,
+      100,
+      onChange,
+    )
+
+    coordinator.edit(definition('first'))
+    await vi.advanceTimersByTimeAsync(100)
+    coordinator.edit(definition('latest'))
+
+    first.resolve(revision(2, 'first'))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(save).toHaveBeenCalledTimes(2)
+
+    second.resolve(revision(3, 'latest'))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(coordinator.state.status).toBe('saved')
+    const notificationsAfterSave = onChange.mock.calls.length
+
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(onChange).toHaveBeenCalledTimes(notificationsAfterSave)
+    vi.useRealTimers()
+  })
+
   it('flushes immediately and reloads the winning revision after a conflict', async () => {
     const winning = revision(2, 'rival')
     const save = vi.fn(async () => {

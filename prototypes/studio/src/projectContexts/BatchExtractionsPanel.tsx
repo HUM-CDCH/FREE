@@ -21,8 +21,8 @@ import SchemaPanel from '../SchemaPanel'
 import {
   createSchemaEditorController,
   localSchemaPersistence,
-  sameSchemaDefinition,
 } from '../currentSchemaRevision'
+import { sameSchemaDefinition } from '../schemaDefinitionEquality'
 import {
   useDurableCurrentSchemaRevision,
   useSchemaEditorController,
