@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./allowed-values": "./src/allowed-values.ts",
+    "./batch": "./src/batch.ts",
     "./grounding": "./src/grounding.ts",
     "./parsed-document": "./src/parsed-document.ts",
     "./schema": "./src/schema.ts",

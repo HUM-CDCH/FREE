@@ -1007,7 +1007,25 @@ export function createResearcherProjectStore(
       })
       if (!project) return null
 
-      const existing = async (): Promise<PersistedSourceDocument | null> => {
+      const persistedDocument = async (
+        document: StoredIngestedSourceDocument | null,
+      ): Promise<PersistedSourceDocument | null> => {
+        if (!document) return null
+        const representation =
+          await database.orm.public.SourceRepresentationRevision.select(
+            'id',
+            'revisionNumber',
+            'artifactReference',
+            'artifactSha256',
+          ).first({ sourceDocumentId: document.id, revisionNumber: 1 })
+        return representation
+          ? ingestedSourceDocument(
+              document,
+              representation as StoredSourceRepresentation,
+            )
+          : null
+      }
+      const existingByIngestionKey = async (): Promise<PersistedSourceDocument | null> => {
         const document = await database.orm.public.SourceDocument.select(
           'id',
           'originalName',
@@ -1018,26 +1036,24 @@ export function createResearcherProjectStore(
           projectContextId,
         })
         if (!document) return null
-        const representation =
-          await database.orm.public.SourceRepresentationRevision.select(
-            'id',
-            'revisionNumber',
-            'artifactReference',
-            'artifactSha256',
-          ).first({ sourceDocumentId: document.id, revisionNumber: 1 })
         // Parser-run metadata may change package identity; uploaded content is
         // the stable identity for a retry using the same ingestion key.
-        if (representation && document.contentSha256 !== input.contentSha256)
+        if (document.contentSha256 !== input.contentSha256)
           throw new IngestionKeyConflictError()
-        return representation
-          ? ingestedSourceDocument(
-              document as StoredIngestedSourceDocument,
-              representation as StoredSourceRepresentation,
-            )
-          : null
+        return persistedDocument(document as StoredIngestedSourceDocument)
+      }
+      const existingByContent = async (): Promise<PersistedSourceDocument | null> => {
+        const document = await database.orm.public.SourceDocument.select(
+          'id',
+          'originalName',
+          'contentSha256',
+          'createdAt',
+        ).first({ projectContextId, contentSha256: input.contentSha256 })
+        return persistedDocument(document as StoredIngestedSourceDocument | null)
       }
 
-      const persisted = await existing()
+      const persisted =
+        (await existingByIngestionKey()) ?? (await existingByContent())
       if (persisted) {
         await input.ensureRetained(persisted.descriptor)
         return persisted
@@ -1089,7 +1105,8 @@ export function createResearcherProjectStore(
         return result
       } catch (error) {
         if (!uniqueConstraint(error)) throw error
-        const winner = await existing()
+        const winner =
+          (await existingByIngestionKey()) ?? (await existingByContent())
         if (winner) await input.ensureRetained(winner.descriptor)
         if (!winner) throw new IngestionKeyConflictError()
         return winner

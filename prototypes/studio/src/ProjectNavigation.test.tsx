@@ -742,14 +742,31 @@ describe('Project Context navigation', () => {
       'multiple',
     )
     expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
-    // Exactly five: the row's disclosure, its add-sources and actions
-    // controls, the one action that menu holds, and its one Source Document.
-    expect(rail().getAllByRole('button')).toHaveLength(5)
+    // Exactly six: the row's disclosure, add-sources and actions controls,
+    // the menu's open/delete actions, and its one Source Document.
+    expect(rail().getAllByRole('button')).toHaveLength(6)
     expect(fetch).toHaveBeenCalledTimes(2)
 
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
     expect(await screen.findByText(/Opened Beretning.pdf/)).toBeInTheDocument()
     expect(location.pathname).toBe(documentPath())
+  })
+
+  it('opens the rail Source Document picker once for each add action', async () => {
+    renderRoutes()
+    await openProjectPage()
+    const openPicker = vi
+      .spyOn(HTMLInputElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+
+    fireEvent.click(
+      rail().getByRole('button', {
+        name: `Add Source Documents to ${project.name}`,
+      }),
+    )
+
+    expect(openPicker).toHaveBeenCalledTimes(1)
+    openPicker.mockRestore()
   })
 
   it('filters, sorts, and switches the Project Context resource tabs', async () => {
@@ -1621,6 +1638,48 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       expect(screen.queryByText('A retry.pdf')).not.toBeInTheDocument(),
     )
     expect(rail().getAllByRole('button', { name: 'A.pdf' })).toHaveLength(1)
+  })
+
+  it('queues a 180-scalar filename and holds a 181-scalar filename as an item error', async () => {
+    vi.stubGlobal('crypto', {
+      randomUUID: vi
+        .fn()
+        .mockReturnValueOnce(ingestionKeys.A)
+        .mockReturnValueOnce(ingestionKeys.B),
+    })
+    const acceptedName = `${'😀'.repeat(176)}.pdf`
+    const rejectedName = `${'😀'.repeat(177)}.pdf`
+    const writes: string[] = []
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        writes.push(((init.body as FormData).get('file') as File).name)
+        return ingestionResult(uploadedA)
+      }
+      if (url.endsWith(projectContextId)) return branch([])
+      return Response.json({ projectContexts: [project] })
+    })
+
+    renderRoutes(fetcher)
+    await openProjectPage()
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
+      target: {
+        files: [
+          new File(['a'], acceptedName, { type: 'application/pdf' }),
+          new File(['b'], rejectedName, { type: 'application/pdf' }),
+        ],
+      },
+    })
+
+    expect(
+      await screen.findByText(
+        'The Source Document filename must contain at most 180 Unicode characters.',
+      ),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(writes).toEqual([acceptedName]))
+    expect(screen.queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument()
+    expect(Array.from(acceptedName)).toHaveLength(180)
+    expect(Array.from(rejectedName)).toHaveLength(181)
   })
 
   it('stays on the Project Context route when every selected PDF fails', async () => {

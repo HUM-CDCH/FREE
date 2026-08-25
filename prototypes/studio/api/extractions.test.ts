@@ -86,8 +86,11 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
       extraction: snapshot,
       reviewDecisions: [
         {
+          resultPath: ['records', 0, 'title'],
           evidenceAnchorId: 'anchor-alpha',
           reviewedOccurrenceIds: ['occurrence-alpha'],
+          action: 'APPROVED',
+          reviewedValue: null,
         },
       ],
     })),
@@ -98,8 +101,12 @@ function extractionModule(overrides: Partial<ExtractionModule> = {}) {
         reviewedAt: new Date('2026-08-20T10:01:00.000Z'),
         reviewDecisions: [
           {
+            resultPath: ['records', 0, 'title'],
             evidenceAnchorId: 'anchor-alpha',
             reviewedOccurrenceIds: ['occurrence-alpha'],
+            action: 'APPROVED',
+            reviewedValue: null,
+            createdAt: new Date('2026-08-20T10:01:00.000Z'),
           },
         ],
       },
@@ -208,16 +215,22 @@ describe('/api/extractions transport', () => {
     expect(await read.json()).toMatchObject({
       pendingReviewDecisions: [
         {
+          resultPath: ['records', 0, 'title'],
           evidenceAnchorId: 'anchor-alpha',
           reviewedOccurrenceIds: ['occurrence-alpha'],
+          action: 'APPROVED',
+          reviewedValue: null,
         },
       ],
     })
 
     const decisions = [
       {
+        resultPath: ['records', 0, 'title'],
         evidenceAnchorId: 'anchor-alpha',
         reviewedOccurrenceIds: ['occurrence-alpha'],
+        action: 'APPROVED',
+        reviewedValue: null,
       },
     ]
     const reviewed = await handle(

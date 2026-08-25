@@ -1,5 +1,8 @@
 import { z } from 'zod'
+import { BATCH_EXTRACTION_SELECTION_LIMIT } from 'extraction/batch'
 import { canonicalUuidSchema } from './projectContext.contract.js'
+
+export { BATCH_EXTRACTION_SELECTION_LIMIT }
 
 /** A durable operation's execution lifecycle, distinct from research review. */
 export const projectOperationStatusSchema = z.enum([
@@ -14,8 +17,6 @@ export const projectOperationStatusSchema = z.enum([
  * a chosen set of Source Documents. Its members are stored when it opens, so a
  * reader can tell a member that has not run yet from one that produced nothing.
  */
-export const BATCH_EXTRACTION_SELECTION_LIMIT = 50
-
 export const batchExtractionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,

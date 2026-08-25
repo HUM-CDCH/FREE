@@ -40,8 +40,12 @@ function readyController(): ExtractionController {
       available: false,
       canAccept: false,
       saving: false,
+      loading: false,
+      decisions: [],
+      reviewedCount: 0,
       reviewedExtractionId: null,
       error: null,
+      setDecision: () => {},
       accept: async () => {},
     },
   }

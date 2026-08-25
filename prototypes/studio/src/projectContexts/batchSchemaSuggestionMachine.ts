@@ -21,7 +21,6 @@ type Context = BatchSchemaSuggestionOperations & {
   suggestion: BatchSchemaSuggestion | null
   draft: SchemaDefinition | null
   error: string | null
-  runAfterSave: boolean
 }
 
 type Event =
@@ -126,7 +125,6 @@ export const batchSchemaSuggestionMachine = setup({
       suggestion: () => null,
       draft: () => null,
       error: () => null,
-      runAfterSave: () => false,
     }),
     adoptSelection: assign({
       sourceDocumentIds: ({ event }) =>
@@ -136,7 +134,6 @@ export const batchSchemaSuggestionMachine = setup({
       draft: ({ event }) =>
         event.type === 'selection.changed' ? event.suggestion?.draft ?? null : null,
       error: () => null,
-      runAfterSave: () => false,
     }),
     adoptUpdatedSuggestion: assign({
       suggestion: ({ event }) =>
@@ -144,13 +141,11 @@ export const batchSchemaSuggestionMachine = setup({
       draft: ({ event }) =>
         event.type === 'suggestion.updated' ? event.suggestion.draft : null,
       error: () => null,
-      runAfterSave: () => false,
     }),
     adoptActorSuggestion: assign({
       suggestion: ({ event }) => suggestionOutput(event),
       draft: ({ event }) => suggestionOutput(event)?.draft ?? null,
       error: () => null,
-      runAfterSave: () => false,
     }),
     editProposal: assign({
       draft: ({ context, event }) =>
@@ -161,7 +156,6 @@ export const batchSchemaSuggestionMachine = setup({
           : context.suggestion,
       error: () => null,
     }),
-    requestRun: assign({ runAfterSave: () => true, error: () => null }),
     acceptSave: assign({
       suggestion: ({ context, event }) => {
         const output = saveOutput(event)
@@ -179,7 +173,6 @@ export const batchSchemaSuggestionMachine = setup({
       },
       error: () => null,
     }),
-    clearRunRequest: assign({ runAfterSave: () => false }),
     captureCreateFailure: assign({
       error: ({ context, event }) =>
         'error' in event
@@ -215,7 +208,6 @@ export const batchSchemaSuggestionMachine = setup({
               'The suggested Batch Extraction could not start.',
             )
           : null,
-      runAfterSave: () => false,
     }),
     notifySuggestion: ({ context }) => {
       if (context.suggestion) context.onSuggestion(context.suggestion)
@@ -242,7 +234,6 @@ export const batchSchemaSuggestionMachine = setup({
       const output = saveOutput(event)
       return output !== null && context.draft !== output.definition
     },
-    runWasRequested: ({ context }) => context.runAfterSave,
     saveConflict: ({ context, event }) =>
       'error' in event && context.isConflict(event.error),
   },
@@ -254,7 +245,6 @@ export const batchSchemaSuggestionMachine = setup({
     suggestion: null,
     draft: null,
     error: null,
-    runAfterSave: false,
   }),
   initial: 'idle',
   on: {
@@ -392,10 +382,6 @@ export const batchSchemaSuggestionMachine = setup({
               ],
             },
             'draft.flush': { target: 'saving' },
-            'run.requested': {
-              target: 'saving',
-              actions: [{ type: 'requestRun' }],
-            },
           },
         },
         saving: {
@@ -406,7 +392,6 @@ export const batchSchemaSuggestionMachine = setup({
                 { type: 'notifySuggestion' },
               ],
             },
-            'run.requested': { actions: [{ type: 'requestRun' }] },
           },
           invoke: {
             src: 'saveDraft',
@@ -423,15 +408,6 @@ export const batchSchemaSuggestionMachine = setup({
                 actions: [
                   { type: 'acceptSave' },
                   { type: 'notifySuggestion' },
-                ],
-              },
-              {
-                guard: 'runWasRequested',
-                target: '#batchSchemaSuggestion.running',
-                actions: [
-                  { type: 'acceptSave' },
-                  { type: 'notifySuggestion' },
-                  { type: 'clearRunRequest' },
                 ],
               },
               {
@@ -465,10 +441,6 @@ export const batchSchemaSuggestionMachine = setup({
               ],
             },
             'draft.flush': { target: 'saving' },
-            'run.requested': {
-              target: 'saving',
-              actions: [{ type: 'requestRun' }],
-            },
           },
         },
       },

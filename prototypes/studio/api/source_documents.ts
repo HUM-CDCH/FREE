@@ -19,12 +19,15 @@ import {
   type ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
+import {
+  MAX_SOURCE_DOCUMENT_FILENAME_SCALARS,
+  sourceDocumentFilenameFailure,
+} from '../shared/sourceDocumentFilename.js'
 
 const CONTRACT_VERSION = 'parsed_document.v2'
 const DEFAULT_PARSING_SERVICE = 'http://127.0.0.1:8055'
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 1000
-const MAX_FILENAME_LENGTH = 180
 const MAX_PDF_BYTES = 50 * 1024 * 1024
 
 type CanonicalPackage = {
@@ -77,6 +80,9 @@ function projectContextId(pathname: string): string {
 }
 
 function sanitizedFilename(raw: string): string {
+  const filenameFailure = sourceDocumentFilenameFailure(raw)
+  if (filenameFailure)
+    throw new ApiError(400, 'invalid_request', filenameFailure)
   let filename = raw
     .replace(/^.*[\\/]/, '')
     .replaceAll('\0', '')
@@ -91,9 +97,13 @@ function sanitizedFilename(raw: string): string {
       'invalid_request',
       'The uploaded file must be a PDF.',
     )
-  if (filename.length <= MAX_FILENAME_LENGTH) return filename
-  const extension = filename.slice(filename.lastIndexOf('.')).slice(0, 20)
-  return `${filename.slice(0, MAX_FILENAME_LENGTH - extension.length)}${extension}`
+  if (Array.from(filename).length > MAX_SOURCE_DOCUMENT_FILENAME_SCALARS)
+    throw new ApiError(
+      400,
+      'invalid_request',
+      'The sanitized Source Document filename is too long.',
+    )
+  return filename
 }
 
 function required(value: unknown, what: string): string {
@@ -194,6 +204,7 @@ async function parsingRequest<T>(
   fetcher: typeof fetch,
   base: string,
   path: string,
+  rejectedMessage: string,
   consume: (response: Response) => Promise<T>,
   init?: RequestInit,
 ): Promise<T> {
@@ -203,7 +214,7 @@ async function parsingRequest<T>(
       throw new ApiError(
         502,
         'source_ingestion_failed',
-        `The Parsing Service rejected ${path}.`,
+        rejectedMessage,
       )
     return await consume(response)
   } catch (error) {
@@ -250,6 +261,7 @@ async function completedTask(
       fetcher,
       base,
       `/tasks/${taskId}`,
+      'Source Document parsing status is unavailable.',
       (response) => readJson(response, 'task status'),
       { signal },
     )
@@ -258,9 +270,7 @@ async function completedTask(
       throw new ApiError(
         422,
         'source_ingestion_failed',
-        typeof status.error === 'string'
-          ? Array.from(status.error).slice(0, 512).join('')
-          : 'The Source Document could not be parsed.',
+        'The Source Document could not be parsed.',
       )
     if (status.status !== 'pending' && status.status !== 'running')
       throw new ApiError(
@@ -288,12 +298,8 @@ async function discardPublishedPackage(
     artifactReference: saved.artifactReference,
     artifactSha256: saved.artifactSha256,
   }
-  await store.discardCanonicalPackage(descriptor).catch((cause: unknown) => {
-    console.warn(
-      `Could not discard the unused ingestion package ${descriptor.artifactReference}: ${
-        cause instanceof Error ? cause.message : String(cause)
-      }`,
-    )
+  await store.discardCanonicalPackage(descriptor).catch(() => {
+    console.warn('Could not discard an unused Source Document ingestion package.')
   })
 }
 
@@ -394,6 +400,7 @@ export function createSourceDocumentIngestion(
         fetcher(dependencies),
         base,
         '/tasks',
+        'Source Document parsing could not be started.',
         (response) => readJson(response, 'task creation response'),
         {
           method: 'POST',
@@ -427,6 +434,7 @@ export function createSourceDocumentIngestion(
           fetcher(dependencies),
           base,
           `/tasks/${taskId}/download`,
+          'The parsed Source Document could not be retrieved.',
           (response) => response.arrayBuffer(),
           { signal: parsingDeadline },
         ),

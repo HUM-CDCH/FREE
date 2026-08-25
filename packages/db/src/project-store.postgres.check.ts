@@ -99,15 +99,48 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
   )
   const [ingested, concurrentReplay] = await Promise.all([
     store.ingestSourceDocument(project.projectContextId, ingestion),
-    store.ingestSourceDocument(project.projectContextId, ingestion),
+    store.ingestSourceDocument(project.projectContextId, {
+      ...ingestion,
+      ingestionKey: '51000000-0000-4000-9000-000000000002',
+      originalName: 'same-bytes-renamed.pdf',
+    }),
   ])
   assert.ok(ingested)
   assert.deepEqual(concurrentReplay, ingested)
   assert.equal(ingested.revisionNumber, 1)
+  assert.equal(
+    (
+      await db.orm.public.SourceDocument.where({
+        projectContextId: project.projectContextId,
+      }).all()
+    ).length,
+    1,
+  )
+  assert.equal(
+    (
+      await db.orm.public.SourceRepresentationRevision.where({
+        sourceDocumentId: ingested.sourceDocumentId,
+      }).all()
+    ).length,
+    1,
+  )
   assert.deepEqual(
     await store.ingestSourceDocument(project.projectContextId, ingestion),
     ingested,
   )
+  const sameNameDifferentContent = await store.ingestSourceDocument(
+    project.projectContextId,
+    {
+      ...ingestion,
+      ingestionKey: '51000000-0000-4000-9000-000000000003',
+      contentSha256: 'b'.repeat(64),
+      artifactReference: 'f'.repeat(64),
+      artifactSha256: 'f'.repeat(64),
+      originalName: ingested.name,
+    },
+  )
+  assert.ok(sameNameDifferentContent)
+  assert.notEqual(sameNameDifferentContent.sourceDocumentId, ingested.sourceDocumentId)
   const document = { id: ingested.sourceDocumentId }
   const representation = {
     id: ingested.sourceRepresentationId,
@@ -118,12 +151,19 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     survivor.projectContextId,
     {
       ...ingestion,
-      contentSha256: 'b'.repeat(64),
+      ingestionKey: '51000000-0000-4000-9000-000000000004',
       originalName: 'survivor.pdf',
     },
   )
   assert.ok(survivingIngestion)
   assert.notEqual(survivingIngestion.sourceDocumentId, document.id)
+  assert.deepEqual(
+    await store.getSourceRepresentation(
+      project.projectContextId,
+      survivingIngestion.sourceRepresentationId,
+    ),
+    null,
+  )
   const survivingDocument = { id: survivingIngestion.sourceDocumentId }
   const annotation = await db.orm.public.AnnotationSetRevision.create({
     sourceDocumentId: document.id,

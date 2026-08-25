@@ -134,7 +134,7 @@ describe('batchSchemaSuggestionMachine', () => {
     expect(actor.getSnapshot().context.draft).toEqual(secondDefinition)
   })
 
-  it('retries a failed save before running and reports the terminal suggestion', async () => {
+  it('rejects Run after a failed save until a later edit is acknowledged', async () => {
     const save = vi
       .fn<BatchSchemaSuggestionOperations['save']>()
       .mockRejectedValueOnce(new Error('save failed'))
@@ -153,6 +153,18 @@ describe('batchSchemaSuggestionMachine', () => {
     await vi.waitFor(() =>
       expect(actor.getSnapshot().matches({ drafting: 'saveFailed' })).toBe(true),
     )
+    expect(actor.getSnapshot().can({ type: 'run.requested' })).toBe(false)
+    actor.send({ type: 'run.requested' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(onRun).not.toHaveBeenCalled()
+    expect(save).toHaveBeenCalledTimes(1)
+
+    actor.send({ type: 'proposal.changed', definition: secondDefinition })
+    actor.send({ type: 'draft.flush' })
+    await vi.waitFor(() =>
+      expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true),
+    )
+    expect(actor.getSnapshot().can({ type: 'run.requested' })).toBe(true)
     actor.send({ type: 'run.requested' })
     await vi.waitFor(() => expect(onRun).toHaveBeenCalledTimes(1))
     expect(save).toHaveBeenCalledTimes(2)

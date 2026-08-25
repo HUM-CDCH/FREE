@@ -53,6 +53,7 @@ function fakeDatabase(
   options: {
     raceOnCreate?: boolean
     raceOnIngestion?: boolean
+    raceOnContent?: boolean
     failRepresentationCreate?: boolean
   } = {},
 ) {
@@ -210,7 +211,8 @@ function fakeDatabase(
           rows.some(
             (row) =>
               row.projectContextId === input.projectContextId &&
-              row.ingestionKey === input.ingestionKey,
+              (row.ingestionKey === input.ingestionKey ||
+                row.contentSha256 === input.contentSha256),
           )
         )
           throw Object.assign(new Error('unique constraint'), {
@@ -218,7 +220,7 @@ function fakeDatabase(
           })
         if (
           table === 'SourceDocument' &&
-          options.raceOnIngestion &&
+          (options.raceOnIngestion || options.raceOnContent) &&
           !ingestionRaced
         ) {
           ingestionRaced = true
@@ -440,6 +442,9 @@ function fakeDatabase(
           const sourceDocumentId = '51000000-0000-4000-8001-000000000099'
           tables.SourceDocument.push({
             ...racedInput,
+            ...(options.raceOnContent
+              ? { ingestionKey: '51000000-0000-4000-9000-000000000099' }
+              : {}),
             id: sourceDocumentId,
             createdAt: new Date('2026-08-01T12:05:00Z'),
           })
@@ -813,18 +818,52 @@ describe('ResearcherProjectStore Source Document ingestion', () => {
     assert.equal(racedDatabase.tables.SourceRepresentationRevision.length, 4)
   })
 
-  it('makes distinct Source Documents for distinct keys, even with the same bytes', async () => {
+  it('returns the first durable identity and name for equal bytes under distinct keys and names', async () => {
     const database = fakeDatabase()
     const store = createResearcherProjectStore(RESEARCHER_A, database as never)
     const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
     const second = await store.ingestSourceDocument(
       EMPTY_PROJECT,
-      ingestion({ ingestionKey: '51000000-0000-4000-9000-000000000002' }),
+      ingestion({
+        ingestionKey: '51000000-0000-4000-9000-000000000002',
+        originalName: 'renamed.pdf',
+      }),
     )
 
-    assert.notEqual(first?.sourceDocumentId, second?.sourceDocumentId)
+    assert.deepEqual(second, first)
+    assert.equal(second?.name, 'Ellekilde.pdf')
+    assert.equal(database.tables.SourceDocument.length, 3)
+    assert.equal(database.tables.SourceRepresentationRevision.length, 4)
+  })
+
+  it('returns a concurrent same-content winner created under a different key', async () => {
+    const database = fakeDatabase({ raceOnContent: true })
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const winner = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+
+    assert.equal(
+      winner?.sourceDocumentId,
+      '51000000-0000-4000-8001-000000000099',
+    )
+    assert.equal(database.tables.SourceDocument.length, 3)
+    assert.equal(database.tables.SourceRepresentationRevision.length, 4)
+  })
+
+  it('creates distinct documents for the same filename with different bytes', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    const first = await store.ingestSourceDocument(EMPTY_PROJECT, ingestion())
+    const second = await store.ingestSourceDocument(
+      EMPTY_PROJECT,
+      ingestion({
+        ingestionKey: '51000000-0000-4000-9000-000000000002',
+        contentSha256: 'f'.repeat(64),
+      }),
+    )
+
+    assert.notEqual(second?.sourceDocumentId, first?.sourceDocumentId)
+    assert.equal(second?.name, first?.name)
     assert.equal(database.tables.SourceDocument.length, 4)
-    assert.equal(database.tables.SourceRepresentationRevision.length, 5)
   })
 
   it('scopes identical ingestion keys to each account-owned Project Context', async () => {

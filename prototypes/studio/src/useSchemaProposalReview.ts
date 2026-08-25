@@ -9,6 +9,8 @@ import {
 
 export type PendingSchemaProposal = DerivedProposal & {
   original: SchemaNode[]
+  originalDraftVersion: number
+  originalSchemaRevisionId: string | null
 }
 
 export type SchemaProposalReview = {
@@ -16,7 +18,12 @@ export type SchemaProposalReview = {
   readonly acceptedChangeIds: ReadonlySet<string>
   readonly replay: ReturnType<typeof replaySchemaChanges> | null
   readonly canApply: boolean
-  start(proposal: DerivedProposal, original: SchemaNode[]): void
+  start(
+    proposal: DerivedProposal,
+    original: SchemaNode[],
+    originalDraftVersion: number,
+    originalSchemaRevisionId: string | null,
+  ): void
   toggle(changeId: string): void
   apply(): void
   discard(): void
@@ -50,9 +57,19 @@ export function useSchemaProposalReview(
   }, [])
 
   const start = useCallback(
-    (proposal: DerivedProposal, original: SchemaNode[]) => {
+    (
+      proposal: DerivedProposal,
+      original: SchemaNode[],
+      originalDraftVersion: number,
+      originalSchemaRevisionId: string | null,
+    ) => {
       setAcceptedChangeIds(new Set(proposal.changes.map(({ id }) => id)))
-      setPending({ ...proposal, original })
+      setPending({
+        ...proposal,
+        original,
+        originalDraftVersion,
+        originalSchemaRevisionId,
+      })
     },
     [],
   )
@@ -66,7 +83,11 @@ export function useSchemaProposalReview(
 
   const apply = useCallback(() => {
     if (!pending || !replay?.hasChanges) return
-    if (schema.snapshot().draft?.schemaNodes !== pending.original) {
+    const current = schema.snapshot()
+    if (
+      current.draftVersion !== pending.originalDraftVersion ||
+      current.extractableSchemaRevisionId !== pending.originalSchemaRevisionId
+    ) {
       appendMessage('Schema changed during review. The proposal was discarded.')
       reset()
       return

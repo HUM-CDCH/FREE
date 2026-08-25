@@ -190,6 +190,39 @@ test('Single model saves, reloads, and checks without probing on open or Apply',
   expect(state.probes()).toBe(1)
 })
 
+test('model-list Escape preserves the provider draft before dialog dismissal', async ({
+  page,
+}) => {
+  await mockConfiguration(page)
+  await gotoAuthenticated(page, '/')
+
+  const opener = page.getByRole('button', { name: 'Configure providers' })
+  await opener.click()
+  const dialog = page.getByRole('dialog', {
+    name: 'Provider configuration',
+  })
+  await expect(
+    dialog.getByRole('button', { name: 'Close Model Connections' }),
+  ).toBeFocused()
+
+  await dialog.getByRole('button', { name: '+ New connection' }).click()
+  await dialog
+    .getByLabel('Single model connection')
+    .selectOption({ label: 'Ollama' })
+  const model = dialog.getByRole('combobox', { name: 'Single model ID' })
+  await model.focus()
+  await expect(model).toHaveAttribute('aria-expanded', 'true')
+
+  await model.press('Escape')
+  await expect(model).toHaveAttribute('aria-expanded', 'false')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByLabel('Provider base URL')).toBeVisible()
+
+  await model.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect(opener).toBeFocused()
+})
+
 test('probe scheduling supersedes stale connection edits', async ({
   page,
 }) => {

@@ -42,6 +42,8 @@ export type {
   ReadDocumentExtractionsInput,
   ResultPath,
   ReviewDecision,
+  ReviewDecisionAction,
+  ReviewDecisionInput,
   ReviewPreparation,
   RunSingleInput,
   RunSingleResult,

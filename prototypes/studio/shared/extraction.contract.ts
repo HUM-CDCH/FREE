@@ -21,14 +21,60 @@ export const extractionRequestSchema = z
 export type ExtractionRequest = z.infer<typeof extractionRequestSchema>
 export type ExtractionRequestInput = z.input<typeof extractionRequestSchema>
 
+export const reviewDecisionActionSchema = z.enum([
+  'APPROVED',
+  'EDITED',
+  'REJECTED',
+])
+export type ReviewDecisionAction = z.infer<
+  typeof reviewDecisionActionSchema
+>
+
+const reviewDecisionShape = {
+  resultPath: resultPathSchema,
+  evidenceAnchorId: z.string().min(1),
+  reviewedOccurrenceIds: z.array(z.string().min(1)),
+  action: reviewDecisionActionSchema,
+  reviewedValue: z.json().nullable(),
+}
+
+function validateReviewDecision(
+  decision: {
+    action: ReviewDecisionAction
+    reviewedValue: unknown
+  },
+  context: z.RefinementCtx,
+) {
+  if (decision.action === 'EDITED' && decision.reviewedValue === null)
+    context.addIssue({
+      code: 'custom',
+      path: ['reviewedValue'],
+      message: 'An edited Review Decision requires a reviewed value.',
+    })
+  if (decision.action !== 'EDITED' && decision.reviewedValue !== null)
+    context.addIssue({
+      code: 'custom',
+      path: ['reviewedValue'],
+      message: 'Only an edited Review Decision can carry a reviewed value.',
+    })
+}
+
 export const reviewDecisionInputSchema = z
-  .object({
-    evidenceAnchorId: z.string().min(1),
-    reviewedOccurrenceIds: z.array(z.string().min(1)),
-  })
+  .object(reviewDecisionShape)
   .strict()
+  .superRefine(validateReviewDecision)
 
 export type ReviewDecisionInput = z.infer<typeof reviewDecisionInputSchema>
+
+export const reviewDecisionSchema = z
+  .object({
+    ...reviewDecisionShape,
+    createdAt: z.iso.datetime(),
+  })
+  .strict()
+  .superRefine(validateReviewDecision)
+
+export type ReviewDecision = z.infer<typeof reviewDecisionSchema>
 
 export const finalizeExtractionReviewSchema = z
   .object({ reviewDecisions: z.array(reviewDecisionInputSchema) })
@@ -121,7 +167,7 @@ export const extractionAttemptSchema = z
     batchExtractionId: z.uuid().nullable(),
     createdAt: z.iso.datetime(),
     reviewedAt: z.iso.datetime().nullable(),
-    reviewDecisions: z.array(reviewDecisionInputSchema),
+    reviewDecisions: z.array(reviewDecisionSchema),
   })
   .strict()
   .superRefine((attempt, context) => {
@@ -160,19 +206,25 @@ export const extractionAttemptSchema = z
         message: 'Evidence Links must identify unique populated scalar paths.',
       })
 
-    const cited = new Set(
-      attempt.evidenceLinks?.map((link) => link.evidenceAnchorId) ?? [],
+    const evidence = attempt.evidenceLinks ?? []
+    const cited = new Map(
+      evidence.map((link) => [JSON.stringify(link.resultPath), link.evidenceAnchorId]),
     )
-    const reviewed = new Set(
-      attempt.reviewDecisions.map((decision) => decision.evidenceAnchorId),
+    const reviewed = new Map(
+      attempt.reviewDecisions.map((decision) => [
+        JSON.stringify(decision.resultPath),
+        decision.evidenceAnchorId,
+      ]),
     )
     if (
+      cited.size !== evidence.length ||
+      reviewed.size !== attempt.reviewDecisions.length ||
       (attempt.reviewedAt === null && reviewed.size > 0) ||
       (attempt.reviewedAt !== null &&
         (attempt.outcome !== 'SUCCEEDED' ||
           !attempt.reviewable ||
           cited.size !== reviewed.size ||
-          [...cited].some((anchorId) => !reviewed.has(anchorId))))
+          [...cited].some(([path, anchorId]) => reviewed.get(path) !== anchorId)))
     )
       context.addIssue({
         code: 'custom',

@@ -69,6 +69,37 @@ describe('Article lifecycle contracts', () => {
     ).toBe(false)
   })
 
+  it('keys Review Decisions by result path when values share one Evidence anchor', () => {
+    const evidenceLinks = [
+      { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' },
+      { resultPath: ['records', 0, 'note'], evidenceAnchorId: 'anchor-1' },
+    ]
+    const reviewDecisions = evidenceLinks.map((link) => ({
+      ...link,
+      reviewedOccurrenceIds: ['occurrence-1'],
+      action: 'APPROVED',
+      reviewedValue: null,
+      createdAt: '2026-08-10T00:01:00.000Z',
+    }))
+    expect(extractionAttemptSchema.safeParse({
+      ...completed,
+      resultPayload: { records: [{ title: 'Title', note: 'Note' }] },
+      evidenceLinks,
+      reviewedAt: '2026-08-10T00:01:00.000Z',
+      reviewDecisions,
+    }).success).toBe(true)
+    expect(extractionAttemptSchema.safeParse({
+      ...completed,
+      resultPayload: { records: [{ title: 'Title', note: 'Note' }] },
+      evidenceLinks,
+      reviewedAt: '2026-08-10T00:01:00.000Z',
+      reviewDecisions: reviewDecisions.map((decision) => ({
+        ...decision,
+        resultPath: ['records', 0, 'title'],
+      })),
+    }).success).toBe(false)
+  })
+
   it('rejects Catalog and targeted-retry request shapes', () => {
     expect(
       extractionRequestSchema.safeParse({

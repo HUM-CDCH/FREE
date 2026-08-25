@@ -83,6 +83,7 @@ export function apiFunctions(configuredBasePath: string): Plugin {
           studioOrigin: string
           basePath: string
           sessionSecret: Uint8Array
+          accountStore?: unknown
           clientHandler: () => Response
           viteDevelopmentAssets: boolean
         }): Promise<unknown>
@@ -109,10 +110,37 @@ export function apiFunctions(configuredBasePath: string): Plugin {
       const sessionSecret = encodedSecret
         ? Buffer.from(encodedSecret, 'base64')
         : generatedSessionSecret
+      const playwrightEmail = process.env.FREE_PLAYWRIGHT_RESEARCHER_EMAIL
+      const playwrightPassword =
+        process.env.FREE_PLAYWRIGHT_RESEARCHER_PASSWORD
+      if (
+        (playwrightEmail === undefined) !== (playwrightPassword === undefined)
+      )
+        throw new Error(
+          'The Playwright Researcher Account email and password must be configured together.',
+        )
+      if (
+        playwrightEmail !== undefined &&
+        !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(studioOrigin)
+      )
+        throw new Error(
+          'The Playwright Researcher Account is restricted to a loopback Studio origin.',
+        )
+      const accountStore =
+        playwrightEmail === undefined
+          ? undefined
+          : await import('./server/playwright-auth.ts').then(
+              ({ createPlaywrightAccountStore }) =>
+                createPlaywrightAccountStore(
+                  playwrightEmail,
+                  playwrightPassword!,
+                ),
+            )
       const app = await studioModule.createStudioApp({
         studioOrigin,
         basePath,
         sessionSecret,
+        accountStore,
         clientHandler: studioModule.viteClientFallback,
         viteDevelopmentAssets: true,
       })

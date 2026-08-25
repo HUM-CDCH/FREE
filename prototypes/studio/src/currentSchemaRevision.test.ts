@@ -342,6 +342,38 @@ describe('generation lifecycle', () => {
     )
   })
 
+  it('keeps the acknowledged schema mounted and extractable until regeneration is saved', async () => {
+    const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    let resolveRequest!: (value: unknown) => void
+    const request = new Promise<unknown>((resolve) => {
+      resolveRequest = resolve
+    })
+
+    const generation = setup.controller.generate(() => request)
+
+    expect(setup.controller.snapshot()).toMatchObject({
+      view: 'editing',
+      generating: true,
+      extractableSchemaRevisionId: 'rev-4',
+    })
+    expect(setup.controller.snapshot().draft).toEqual(definition('site'))
+
+    resolveRequest({
+      _description: 'One regenerated record.',
+      place: 'string',
+    })
+    await generation
+
+    expect(setup.controller.snapshot()).toMatchObject({
+      view: 'editing',
+      generating: false,
+      extractableSchemaRevisionId: 'rev-5',
+    })
+    expect(setup.controller.snapshot().draft?.recordDescription).toBe(
+      'One regenerated record.',
+    )
+  })
+
   it('reports failures without discarding the previous schema', async () => {
     const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
 
@@ -349,7 +381,8 @@ describe('generation lifecycle', () => {
       throw new Error('The model refused.')
     })
 
-    expect(setup.controller.snapshot().view).toBe('failed')
+    expect(setup.controller.snapshot().view).toBe('editing')
+    expect(setup.controller.snapshot().generating).toBe(false)
     expect(setup.controller.snapshot().generationError).toBe('The model refused.')
     expect(setup.controller.snapshot().draft!.recordDescription).toBe(
       'One site record.',
@@ -369,6 +402,30 @@ describe('generation lifecycle', () => {
       'One site record.',
     )
     expect(setup.controller.snapshot().extractableSchemaRevisionId).toBe('rev-4')
+  })
+
+  it('ignores a late model response after stopping regeneration', async () => {
+    const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
+    let resolveRequest!: (value: unknown) => void
+    const request = new Promise<unknown>((resolve) => {
+      resolveRequest = resolve
+    })
+    const generation = setup.controller.generate(() => request)
+
+    setup.controller.cancelGeneration()
+    resolveRequest({
+      _description: 'One late record.',
+      late: 'string',
+    })
+    await generation
+
+    expect(setup.edits).toHaveLength(0)
+    expect(setup.controller.snapshot()).toMatchObject({
+      view: 'editing',
+      generating: false,
+      extractableSchemaRevisionId: 'rev-4',
+      draft: definition('site'),
+    })
   })
 
   it('keeps durable identity when cancelled initialization still acknowledges', async () => {
@@ -436,6 +493,25 @@ describe('generation lifecycle', () => {
 })
 
 describe('create Current Schema Revision from history', () => {
+  it('previews a historical revision without editing or flushing', async () => {
+    const setup = setupDurable({
+      initial: revision(2, 'current'),
+      debounceMs: 0,
+    })
+
+    const preview = await setup.controller.previewHistoricalRevision('rev-1')
+
+    expect(preview.recordDescription).toBe('One historical record.')
+    expect(setup.events).toEqual([])
+    expect(setup.edits).toEqual([])
+    expect(setup.controller.snapshot().draft).toEqual(definition('current'))
+    expect(setup.controller.snapshot().historicalPreview).toEqual(preview)
+
+    setup.controller.closeHistoricalPreview()
+    expect(setup.controller.snapshot().historicalPreview).toBeNull()
+    expect(setup.controller.snapshot().draft).toEqual(definition('current'))
+  })
+
   it('loads, flushes before and after, then adopts the historical tree', async () => {
     const setup = setupDurable({
       initial: revision(2, 'current'),
@@ -489,6 +565,9 @@ describe('local persistence adapter', () => {
     const { controller } = setupLocal()
 
     await expect(controller.requestModelEdit()).resolves.toBeNull()
+    await expect(
+      controller.previewHistoricalRevision('rev-1'),
+    ).rejects.toThrow('Revision history is unavailable for this draft.')
     await expect(
       controller.createCurrentRevisionFromHistory('rev-1'),
     ).rejects.toThrow('Revision history is unavailable for this draft.')

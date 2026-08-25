@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportExtractionResult } from 'extraction-result-export'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { ExtractionAttempt, ReviewDecisionInput } from '../shared/extraction.contract'
 import type { SchemaDefinition } from 'extraction/schema'
 
 vi.mock('extraction-result-export', async (importOriginal) => ({
@@ -24,6 +25,7 @@ beforeEach(() => {
 function controller(
   state: ExtractionController['state'],
   attempt: ExtractionAttempt | null = null,
+  reviewOverrides: Partial<ExtractionController['review']> = {},
 ): ExtractionController {
   return {
     state,
@@ -39,9 +41,14 @@ function controller(
       available: false,
       canAccept: false,
       saving: false,
+      loading: false,
+      decisions: [],
+      reviewedCount: 0,
       reviewedExtractionId: null,
       error: null,
+      setDecision: () => {},
       accept: async () => {},
+      ...reviewOverrides,
     },
   }
 }
@@ -168,9 +175,11 @@ describe('ResultsTab grounded values', () => {
 
     expect(
       screen.getByText(
-        '2 values could not be grounded. You can still save the review; they will remain recorded without Evidence.',
+        '2 values could not be grounded. No Review Decisions can be saved; they will remain recorded without Evidence.',
       ),
     ).toBeInTheDocument()
+    expect(screen.getByText('No reviewable result')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save Review' })).not.toBeInTheDocument()
   })
 
   it('hides the Article records envelope while preserving Evidence paths', () => {
@@ -314,5 +323,231 @@ describe('ResultsTab grounded values', () => {
         choices: { rowsRepresent: 'findings', otherRepeatedFields: 'preserve' },
       },
     )
+  })
+
+  it('supports type-aware edit, reject, and reverse decisions on nested grounded values', () => {
+    const setDecision = vi.fn()
+    const attempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ person: { age: 5 } }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'person', 'age'],
+        evidenceAnchorId: 'anchor-age',
+      }],
+    }
+    const schema: SchemaDefinition = {
+      recordDescription: 'One person.',
+      schemaNodes: [{
+        id: 'person', name: 'person', type: 'object', children: [
+          { id: 'age', name: 'age', type: 'integer' },
+        ],
+      }],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          {
+            status: 'ready', result: attempt.resultPayload!,
+            evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0,
+          },
+          attempt,
+          {
+            available: true,
+            canAccept: true,
+            decisions: [{
+              resultPath: ['records', 0, 'person', 'age'],
+              evidenceAnchorId: 'anchor-age',
+              reviewedOccurrenceIds: ['occurrence-age'],
+              action: 'APPROVED',
+              reviewedValue: null,
+            }],
+            reviewedCount: 1,
+            setDecision,
+          },
+        )}
+        schemaReady
+        pinnedSchema={schema}
+        exportSchema={schema}
+        documentMarkdown="# Source"
+        sourceDocumentName="nested.pdf"
+      />,
+    )
+
+    fireEvent.click(screen.getByText('person', { exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reject age' }))
+    expect(setDecision).toHaveBeenLastCalledWith(
+      ['records', 0, 'person', 'age'], 'REJECTED', null,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit age' }))
+    const input = screen.getByLabelText('Reviewed value for age')
+    fireEvent.change(input, { target: { value: '1.5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save reviewed value for age' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a whole number.')
+    fireEvent.change(input, { target: { value: '7' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save reviewed value for age' }))
+    expect(setDecision).toHaveBeenLastCalledWith(
+      ['records', 0, 'person', 'age'], 'EDITED', 7,
+    )
+  })
+
+  it('reverses a rejected value back to its original approved value', () => {
+    const attempt: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ place: 'Original' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place',
+      }],
+    }
+    const initialDecision = {
+      resultPath: ['records', 0, 'place'] as (string | number)[],
+      evidenceAnchorId: 'anchor-place',
+      reviewedOccurrenceIds: ['occurrence-place'],
+      action: 'APPROVED' as const,
+      reviewedValue: null,
+    }
+    function Fixture() {
+      const [decisions, setDecisions] = useState<ReviewDecisionInput[]>([initialDecision])
+      return (
+        <ResultsTab
+          {...defaultRunProps}
+          controller={controller(
+            {
+              status: 'ready', result: attempt.resultPayload!,
+              evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0,
+            },
+            attempt,
+            {
+              available: true,
+              canAccept: true,
+              decisions,
+              reviewedCount: 1,
+              setDecision: (path, action, reviewedValue = null) =>
+                setDecisions((current) => current.map((decision) => ({
+                  ...decision,
+                  ...(JSON.stringify(decision.resultPath) === JSON.stringify(path)
+                    ? { action, reviewedValue }
+                    : {}),
+                }))),
+            },
+          )}
+          schemaReady
+          pinnedSchema={{
+            recordDescription: 'One place.',
+            schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+          }}
+          documentMarkdown="# Source"
+          sourceDocumentName="reverse.pdf"
+        />
+      )
+    }
+    render(<Fixture />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject place' }))
+    expect(screen.getByText('Rejected')).toBeInTheDocument()
+    expect(screen.getByText('Missing')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Reverse decision for place' }))
+    expect(screen.getByText('Approved')).toBeInTheDocument()
+    expect(screen.getByText('Original')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reverse decision for place' })).not.toBeInTheDocument()
+  })
+
+  it('renders saved Review Decisions read-only with their timestamp', () => {
+    const historicalAttempt: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      reviewedAt: '2026-08-10T01:00:00.000Z',
+      resultPayload: { records: [{ place: 'Revised place' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'place'],
+        evidenceAnchorId: 'anchor-place',
+      }],
+      reviewDecisions: [{
+        resultPath: ['records', 0, 'place'],
+        evidenceAnchorId: 'anchor-place',
+        reviewedOccurrenceIds: ['occurrence-place'],
+        action: 'EDITED',
+        reviewedValue: 'Revised place',
+        createdAt: '2026-08-10T01:00:00.000Z',
+      }],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({ status: 'idle' })}
+        inspectedAttempt={historicalAttempt}
+        readOnly
+        schemaReady
+        pinnedSchema={{
+          recordDescription: 'One place.',
+          schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+        }}
+        documentMarkdown="# Source"
+        sourceDocumentName="historical.pdf"
+      />,
+    )
+
+    expect(screen.getByText(/Edited ·/)).toHaveAttribute('title', expect.stringContaining('Saved'))
+    expect(screen.queryByRole('button', { name: /^Edit / })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Reject / })).not.toBeInTheDocument()
+  })
+
+  it('exports reviewed edits and shows the exact pinned Schema Revision read-only', () => {
+    const setDecision = vi.fn()
+    const schema: SchemaDefinition = {
+      recordDescription: 'Pinned result.',
+      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+    }
+    const attempt: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ place: 'Original' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place',
+      }],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          {
+            status: 'ready', result: attempt.resultPayload!,
+            evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0,
+          },
+          attempt,
+          {
+            available: true,
+            canAccept: true,
+            decisions: [{
+              resultPath: ['records', 0, 'place'],
+              evidenceAnchorId: 'anchor-place',
+              reviewedOccurrenceIds: ['occurrence-place'],
+              action: 'EDITED',
+              reviewedValue: 'Reviewed',
+            }],
+            reviewedCount: 1,
+            setDecision,
+          },
+        )}
+        schemaReady
+        pinnedSchema={schema}
+        exportSchema={schema}
+        documentMarkdown="# Source"
+        sourceDocumentName="reviewed.pdf"
+      />,
+    )
+
+    expect(screen.getByText('Reviewed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }))
+    expect(exportExtractionResult).toHaveBeenCalledWith(
+      { place: 'Reviewed' },
+      expect.objectContaining({ format: 'csv', schemaNodes: schema.schemaNodes }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Pinned schema' }))
+    expect(screen.getByText(new RegExp(articleAttempt.schemaRevisionId)).closest('p')).toHaveTextContent('read-only')
+    expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
   })
 })

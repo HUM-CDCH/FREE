@@ -219,6 +219,7 @@ export default function ProjectContextPage({
       : null
   const renameTrigger = useRef<HTMLButtonElement>(null)
   const deleteTrigger = useRef<HTMLButtonElement>(null)
+  const deleteSourceReturnFocus = useRef<HTMLElement>(null)
   const restoreRenameFocus = useRef(false)
   const sourceListRef = useRef<HTMLUListElement>(null)
   const { downloadSource, downloadFailure } =
@@ -328,7 +329,7 @@ export default function ProjectContextPage({
 
   return (
     <div className="scrollbar-subtle h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 pt-6 pb-28 sm:p-8 sm:pb-28">
         <header>
           {renaming && project ? (
             <RenameForm
@@ -693,14 +694,15 @@ export default function ProjectContextPage({
                         </span>
                       )}
                     </span>
-                    {source.status === 'failed' && (
+                    {source.status === 'failed' &&
+                      source.validationFailure === undefined && (
                       <Button
                         onClick={() => retrySource(source.ingestionKey)}
                         aria-label={`Retry ${source.file.name}`}
                       >
                         Retry
                       </Button>
-                    )}
+                      )}
                   </li>
                 ))}
                 {sourceDocuments.map((document) => (
@@ -769,9 +771,11 @@ export default function ProjectContextPage({
                           type="button"
                           aria-label={`Delete Source Document ${document.name}`}
                           onClick={(event) => {
-                            event.currentTarget
-                              .closest('details')
-                              ?.removeAttribute('open')
+                            const details =
+                              event.currentTarget.closest('details')
+                            deleteSourceReturnFocus.current =
+                              details?.querySelector('summary') ?? null
+                            details?.removeAttribute('open')
                             setDeletingSource({
                               sourceDocumentId: document.sourceDocumentId,
                               name: document.name,
@@ -846,6 +850,7 @@ export default function ProjectContextPage({
             )
           }
           onCancel={() => setDeletingSource(null)}
+          returnFocusRef={deleteSourceReturnFocus}
         />
       )}
     </div>

@@ -309,6 +309,55 @@ const documentRow = (page: Page, name: string) =>
   rail(page).getByRole('button', { name, exact: true })
 
 test.describe('rail navigation', () => {
+  test('enforces the Unicode filename boundary as an item-scoped browser error', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    let uploads = 0
+    await page.route('**/api/project-contexts/*/source-documents', async (route) => {
+      uploads += 1
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sourceDocumentId: '51000000-0000-4000-8001-000000000199',
+          name: 'accepted.pdf',
+          createdAt: '2026-08-24T09:00:00.000Z',
+          sourceRepresentationId: '51000000-0000-4000-8002-000000000199',
+          revisionNumber: 1,
+          pageCount: 1,
+        }),
+      })
+    })
+    await gotoAuthenticated(page, '/')
+    await openProject(page, 'Hørsholm, TAK 1402')
+    const acceptedName = `${'😀'.repeat(176)}.pdf`
+    const rejectedName = `${'😀'.repeat(177)}.pdf`
+
+    await page.getByLabel('Drop PDFs here or browse').setInputFiles([
+      {
+        name: acceptedName,
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.7\n'),
+      },
+      {
+        name: rejectedName,
+        mimeType: 'application/pdf',
+        buffer: Buffer.from('%PDF-1.7\n'),
+      },
+    ])
+
+    await expect(
+      projectPage(page).getByText(
+        'The Source Document filename must contain at most 180 Unicode characters.',
+        { exact: true },
+      ),
+    ).toBeVisible()
+    await expect(documentRow(page, 'accepted.pdf')).toBeVisible()
+    expect(uploads).toBe(1)
+    await expect(projectPage(page).getByRole('button', { name: /Retry/ })).toHaveCount(0)
+  })
+
   test('returns focus to the delete control when cancellation closes the dialog', async ({
     page,
   }) => {
@@ -343,6 +392,38 @@ test.describe('rail navigation', () => {
       .getByRole('textbox', { name: 'Project Context name' })
       .press('Escape')
     await expect(rename).toBeFocused()
+  })
+
+  test('Escape and source-delete cancellation restore each exact opener', async ({
+    page,
+  }) => {
+    await stubStudio(page)
+    await gotoAuthenticated(page, '/')
+
+    const create = page.getByRole('button', { name: '+ New project' })
+    await create.click()
+    await expect(page.getByRole('textbox', { name: 'Project name' })).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(create).toBeFocused()
+
+    await openProject(page, 'Hørsholm, TAK 1402')
+    const pageActions = projectPage(page).getByLabel(
+      'Actions for Oversigt_Hoersholm.pdf',
+    )
+    await pageActions.click()
+    await projectPage(page)
+      .getByRole('button', {
+        name: 'Delete Source Document Oversigt_Hoersholm.pdf',
+      })
+      .click()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(pageActions).toBeFocused()
+
+    const railDocument = documentRow(page, 'Oversigt_Hoersholm.pdf')
+    await railDocument.click({ button: 'right' })
+    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(railDocument).toBeFocused()
   })
 
   test('moves focus deliberately after successful create and rename writes', async ({
