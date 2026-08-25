@@ -16,6 +16,9 @@ import {
 
 export type ProjectContext = z.output<typeof projectContextListItemSchema>
 export type ProjectContextActivitySummary = ProjectContext['summary']
+export type ProjectContextActivityEvent = z.output<
+  typeof projectContextListResponseSchema
+>['recentActivity'][number]
 
 /**
  * A placeholder summary for a Project Context entered into the list before a
@@ -109,14 +112,13 @@ export function toProjectContextFailure(error: unknown): ProjectContextFailure {
   }
 }
 
+/** The list plus the researcher's latest persisted activity in one read. */
 export async function listProjectContexts(signal: AbortSignal) {
-  return (
-    await request(
-      '/api/project-contexts',
-      projectContextListResponseSchema,
-      signal,
-    )
-  ).projectContexts
+  return request(
+    '/api/project-contexts',
+    projectContextListResponseSchema,
+    signal,
+  )
 }
 
 // No signal: branch reads fill an id-keyed cache and intentionally outlive

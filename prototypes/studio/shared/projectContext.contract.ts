@@ -89,8 +89,30 @@ export const projectContextWriteRequestSchema = z
 export const projectContextResponseSchema = z
   .object({ projectContext: projectContextSummarySchema })
   .strict()
+/**
+ * One persisted event across the researcher's Project Contexts: an Extraction
+ * appended, Review Decisions stored, a Schema Revision appended, or a Batch
+ * Extraction opened.
+ */
+export const projectContextActivityEventSchema = z
+  .object({
+    kind: z.enum([
+      'extraction_appended',
+      'review_decisions_stored',
+      'schema_revision_appended',
+      'batch_extraction_opened',
+    ]),
+    projectContextId: canonicalUuidSchema,
+    projectContextName: z.string(),
+    occurredAt: timestamp,
+  })
+  .strict()
 export const projectContextListResponseSchema = z
-  .object({ projectContexts: z.array(projectContextListItemSchema) })
+  .object({
+    projectContexts: z.array(projectContextListItemSchema),
+    // Defaulted so a reader of an older response shape still parses.
+    recentActivity: z.array(projectContextActivityEventSchema).default([]),
+  })
   .strict()
 export const projectContextWithDocumentsResponseSchema = z
   .object({

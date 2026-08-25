@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { NavigableRoute } from '../projectNavigation'
 import type { ProjectContext } from './transport'
-import { Button, EmptyState, PhaseProgress } from '../ui'
+import { Button, EmptyState, Overline, PhaseProgress } from '../ui'
 import type { PhaseProgressTone } from '../ui'
+import type { ProjectContextActivityEvent } from './transport'
 import PlusIcon from '../PlusIcon'
 import { CreateProjectModal } from './CreateProjectModal'
 import { useProjectContexts } from './useProjectContexts'
@@ -41,6 +42,14 @@ function metaLine(project: ProjectContext): string {
       summary.schemaDraftCount === 1 ? 'draft' : 'drafts'
     }`
   return documents
+}
+
+/** What happened, in the domain's own words. */
+const eventLabels: Record<ProjectContextActivityEvent['kind'], string> = {
+  extraction_appended: 'Extraction appended',
+  review_decisions_stored: 'Review Decisions stored',
+  schema_revision_appended: 'Schema Revision appended',
+  batch_extraction_opened: 'Batch Extraction opened',
 }
 
 /** The state color of a card's PhaseProgress bar, from the persisted summary. */
@@ -112,7 +121,8 @@ export function StudioHome({
 }: {
   onNavigate: (route: NavigableRoute) => void
 }) {
-  const { projects, listState, retryList, createProject } = useProjectContexts()
+  const { projects, recentActivity, listState, retryList, createProject } =
+    useProjectContexts()
   const [creating, setCreating] = useState(false)
 
   const open = (projectContextId: string) =>
@@ -168,39 +178,65 @@ export function StudioHome({
           Loading Project Contexts…
         </p>
       ) : (
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-7">
-          {projects.map((project) => (
-            <li key={project.projectContextId}>
-              <button
-                type="button"
-                aria-labelledby={`project-${project.projectContextId}-name`}
-                aria-describedby={`project-${project.projectContextId}-count`}
-                className="flex w-full cursor-pointer flex-col items-start gap-1 rounded-[3px] bg-surface px-8 py-8 text-left outline-none transition-shadow hover:shadow-float focus-visible:ring-2 focus-visible:ring-accent/40"
-                onClick={() => open(project.projectContextId)}
-              >
-                <h2
-                  id={`project-${project.projectContextId}-name`}
-                  className="font-serif text-[18px] font-normal text-ink"
+        <div className="flex items-start gap-16">
+          <ul className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-7">
+            {projects.map((project) => (
+              <li key={project.projectContextId}>
+                <button
+                  type="button"
+                  aria-labelledby={`project-${project.projectContextId}-name`}
+                  aria-describedby={`project-${project.projectContextId}-count`}
+                  className="flex w-full cursor-pointer flex-col items-start gap-1 rounded-[3px] bg-surface px-8 py-8 text-left outline-none transition-shadow hover:shadow-float focus-visible:ring-2 focus-visible:ring-accent/40"
+                  onClick={() => open(project.projectContextId)}
                 >
-                  {project.name}
-                </h2>
-                <span
-                  id={`project-${project.projectContextId}-count`}
-                  className="text-xs text-ink-faint"
-                >
-                  {metaLine(project)}
-                </span>
-                <PhaseProgress
-                  className="mt-5 self-stretch"
-                  phase={project.summary.phase}
-                  tone={summaryTone(project.summary)}
-                  running={project.summary.runningBatch ?? undefined}
-                  timestamp={activityDay(project.summary.lastActivityAt)}
-                />
-              </button>
-            </li>
-          ))}
-        </ul>
+                  <h2
+                    id={`project-${project.projectContextId}-name`}
+                    className="font-serif text-[18px] font-normal text-ink"
+                  >
+                    {project.name}
+                  </h2>
+                  <span
+                    id={`project-${project.projectContextId}-count`}
+                    className="text-xs text-ink-faint"
+                  >
+                    {metaLine(project)}
+                  </span>
+                  <PhaseProgress
+                    className="mt-5 self-stretch"
+                    phase={project.summary.phase}
+                    tone={summaryTone(project.summary)}
+                    running={project.summary.runningBatch ?? undefined}
+                    timestamp={activityDay(project.summary.lastActivityAt)}
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {/* No panel chrome and nothing at all when there is no activity. */}
+          {recentActivity.length > 0 && (
+            <aside
+              aria-label="Recent activity"
+              className="hidden w-[280px] shrink-0 flex-col gap-7 pt-3 lg:flex"
+            >
+              <Overline>Recent</Overline>
+              <ul className="flex flex-col gap-5">
+                {recentActivity.map((event, index) => (
+                  <li
+                    key={`${event.kind}-${event.projectContextId}-${event.occurredAt}-${index}`}
+                    className="flex flex-col gap-0.5"
+                  >
+                    <span className="text-[12.5px] text-ink">
+                      {eventLabels[event.kind]}
+                    </span>
+                    <span className="text-[11.5px] leading-relaxed text-ink-faint">
+                      {event.projectContextName} · {activityDay(event.occurredAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          )}
+        </div>
       )}
 
       {createModal}

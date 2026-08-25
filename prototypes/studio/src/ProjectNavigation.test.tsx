@@ -569,6 +569,65 @@ describe('Studio home', () => {
     expect(drifted.getAllByTestId('phase-segment')).toHaveLength(5)
   })
 
+  it('lists persisted recent activity beside the cards, and nothing when empty', async () => {
+    const recentActivity = [
+      {
+        kind: 'batch_extraction_opened',
+        projectContextId,
+        projectContextName: project.name,
+        occurredAt: '2026-08-12T10:00:00.000Z',
+      },
+      {
+        kind: 'review_decisions_stored',
+        projectContextId,
+        projectContextName: project.name,
+        occurredAt: '2026-08-11T10:00:00.000Z',
+      },
+      {
+        kind: 'schema_revision_appended',
+        projectContextId,
+        projectContextName: project.name,
+        occurredAt: '2026-08-10T10:00:00.000Z',
+      },
+      {
+        kind: 'extraction_appended',
+        projectContextId,
+        projectContextName: project.name,
+        occurredAt: '2026-08-09T10:00:00.000Z',
+      },
+    ]
+    renderRoutes(
+      lifecycleFetch({
+        list: async () => {
+          const body = await projectListResponse([project]).json()
+          return Response.json({ ...body, recentActivity })
+        },
+      }),
+    )
+
+    const aside = within(
+      await screen.findByRole('complementary', { name: 'Recent activity' }),
+    )
+    const entries = aside.getAllByRole('listitem')
+    // Newest first, each entry two lines: what happened, then project and date.
+    expect(entries.map((entry) => entry.textContent)).toEqual([
+      `Batch Extraction opened${project.name} · 12 Aug`,
+      `Review Decisions stored${project.name} · 11 Aug`,
+      `Schema Revision appended${project.name} · 10 Aug`,
+      `Extraction appended${project.name} · 9 Aug`,
+    ])
+  })
+
+  it('renders no activity column at all when there is no persisted activity', async () => {
+    renderRoutes()
+
+    await home().findByRole('button', { name: project.name })
+    expect(
+      screen.queryByRole('complementary', { name: 'Recent activity' }),
+    ).toBeNull()
+    expect(screen.queryByText('Recent')).toBeNull()
+  })
+
   it('surfaces staleness ahead of review progress in the card meta line', async () => {
     renderRoutes(
       lifecycleFetch({

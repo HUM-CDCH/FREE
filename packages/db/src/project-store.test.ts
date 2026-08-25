@@ -757,6 +757,67 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
+  it('lists persisted activity newest first, bounded, across owned projects only', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    database.tables.Extraction = [
+      {
+        id: '51000000-0000-4000-8006-000000000001',
+        sourceDocumentId: DOCUMENT,
+        createdAt: new Date('2026-08-03T10:00:00Z'),
+        reviewedAt: new Date('2026-08-05T10:00:00Z'),
+      },
+      // A foreign researcher's Extraction never surfaces.
+      {
+        id: '51000000-0000-4000-8006-000000000002',
+        sourceDocumentId: OTHER_DOCUMENT,
+        createdAt: new Date('2026-08-06T10:00:00Z'),
+        reviewedAt: null,
+      },
+    ]
+    database.tables.BatchExtraction = [
+      {
+        id: '51000000-0000-4000-8007-000000000001',
+        projectContextId: PROJECT,
+        executionStatus: 'COMPLETED',
+        createdAt: new Date('2026-08-04T10:00:00Z'),
+      },
+    ]
+
+    const events = await store.listRecentActivity(3)
+
+    // SchemaRevision fixture (2026-08-01T12:00) is oldest and bounded away.
+    assert.deepEqual(
+      events.map(({ kind, occurredAt }) => ({ kind, occurredAt })),
+      [
+        {
+          kind: 'review_decisions_stored',
+          occurredAt: new Date('2026-08-05T10:00:00Z'),
+        },
+        {
+          kind: 'batch_extraction_opened',
+          occurredAt: new Date('2026-08-04T10:00:00Z'),
+        },
+        {
+          kind: 'extraction_appended',
+          occurredAt: new Date('2026-08-03T10:00:00Z'),
+        },
+      ],
+    )
+    assert.ok(
+      events.every(
+        (event) =>
+          event.projectContextId === PROJECT &&
+          event.projectContextName === 'Ellekilde, TAK 1355',
+      ),
+    )
+    // The Schema Revision event surfaces once the bound allows it.
+    assert.equal(
+      (await store.listRecentActivity(10)).at(-1)?.kind,
+      'schema_revision_appended',
+    )
+  })
+
   it('scopes project, document, and representation reads to one account', async () => {
     const database = fakeDatabase()
     const storeA = createResearcherProjectStore(RESEARCHER_A, database as never)

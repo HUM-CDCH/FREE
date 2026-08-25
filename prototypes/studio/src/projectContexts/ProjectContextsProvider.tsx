@@ -12,6 +12,7 @@ import {
   provisionalSummary,
   toProjectContextFailure as failure,
   type ProjectContext,
+  type ProjectContextActivityEvent,
 } from './transport'
 import {
   ProjectContextsContext,
@@ -49,6 +50,9 @@ function withSourceDocumentCount(
  */
 export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectContext[]>([])
+  const [recentActivity, setRecentActivity] = useState<
+    ProjectContextActivityEvent[]
+  >([])
   const [listState, setListState] = useState<ProjectContextsValue['listState']>(
     { status: 'loading' },
   )
@@ -138,7 +142,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
   const readProjects = useCallback((controller: AbortController) => {
     const startedAt = generation.current
     void listProjectContexts(controller.signal).then(
-      (recent) => {
+      ({ projectContexts: recent, recentActivity: activity }) => {
         if (controller.signal.aborted) return
         // Re-read after an acknowledged write: merging this older snapshot
         // would either revert a name or resurrect a deleted Project Context.
@@ -153,6 +157,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
               ),
           ),
         ])
+        setRecentActivity(activity)
         setListState({ status: 'ready' })
       },
       (error: unknown) => {
@@ -378,6 +383,7 @@ export function ProjectContextsProvider({ children }: { children: ReactNode }) {
     <ProjectContextsContext
       value={{
         projects,
+        recentActivity,
         listState,
         branches,
         loadBranch,

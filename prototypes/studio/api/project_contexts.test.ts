@@ -66,6 +66,14 @@ describe('Project Context routes', () => {
           },
         },
       ],
+      // Latest persisted events ride the same list read for the home page.
+      recentActivity: [
+        {
+          kind: 'extraction_appended',
+          projectContextId: DEMO_PROJECT_ID,
+          occurredAt: '2026-07-31T12:03:00.000Z',
+        },
+      ],
     })
     const detail = await GET(
       new Request(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`),

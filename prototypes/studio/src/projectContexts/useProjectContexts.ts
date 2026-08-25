@@ -4,6 +4,7 @@ import type { SourceIngestionItem } from '../sourceIngestionMachine'
 import type { SourceDocumentIngestionResponse } from '../../shared/sourceDocumentIngestion.contract'
 import type {
   ProjectContext,
+  ProjectContextActivityEvent,
   ProjectContextDetail,
   ProjectContextFailure,
 } from './transport'
@@ -30,6 +31,8 @@ export type WriteResult = Promise<ProjectContextFailure | null>
 
 export type ProjectContextsValue = {
   projects: ProjectContext[]
+  /** Latest persisted events across the researcher's Project Contexts. */
+  recentActivity: ProjectContextActivityEvent[]
   listState:
     | { status: 'loading' | 'ready' }
     | { status: 'error'; failure: ProjectContextFailure }
