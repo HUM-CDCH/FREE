@@ -611,10 +611,10 @@ describe('Studio home', () => {
     const entries = aside.getAllByRole('listitem')
     // Newest first, each entry two lines: what happened, then project and date.
     expect(entries.map((entry) => entry.textContent)).toEqual([
-      `Batch Extraction opened${project.name} · 12 Aug`,
-      `Review Decisions stored${project.name} · 11 Aug`,
-      `Schema Revision appended${project.name} · 10 Aug`,
-      `Extraction appended${project.name} · 9 Aug`,
+      `Batch Extraction opened${project.name} · 12 Aug 2026`,
+      `Review Decisions stored${project.name} · 11 Aug 2026`,
+      `Schema Revision appended${project.name} · 10 Aug 2026`,
+      `Extraction appended${project.name} · 9 Aug 2026`,
     ])
   })
 

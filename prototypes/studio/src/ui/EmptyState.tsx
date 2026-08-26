@@ -15,7 +15,7 @@ function EmptyState({ icon, title, description, tone = 'neutral', children, clas
   const border = tone === 'danger' ? 'border-danger/40' : 'border-line'
   return (
     <div
-      className={`rounded-[3px] border border-dashed ${border} px-4 py-7 text-center ${className}`}
+      className={`rounded-card border border-dashed ${border} px-4 py-7 text-center ${className}`}
     >
       {icon && (
         <p aria-hidden="true" className="text-lg leading-none text-ink-muted">

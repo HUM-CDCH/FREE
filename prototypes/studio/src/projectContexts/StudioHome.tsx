@@ -65,11 +65,12 @@ function summaryTone(summary: ProjectContext['summary']): PhaseProgressTone {
   return 'progress'
 }
 
-/** "12 Aug" — the quiet day-level timestamp the card state line shows. */
+/** "12 Aug 2026" — the quiet day-level timestamp the card state line shows. */
 function activityDay(timestamp: string): string {
   return new Date(timestamp).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
+    year: 'numeric',
   })
 }
 
@@ -152,94 +153,136 @@ export function StudioHome({
 
   return (
     <div className="scrollbar-subtle h-full overflow-y-auto p-12">
-      <div className="mb-10 flex items-end justify-between">
-        <h1 className="font-serif text-[32px] leading-none font-normal tracking-[-0.01em] text-ink">
-          Projects
-        </h1>
-        <Button variant="primary" size="md" onClick={() => setCreating(true)}>
-          <PlusIcon />
-          New Project
-        </Button>
-      </div>
-
-      {listState.status === 'error' ? (
-        <EmptyState
-          className="max-w-sm bg-surface"
-          title="Could not load your Project Contexts"
-          description={listState.failure.message}
-          tone="danger"
-        >
-          <Button variant="secondary" size="md" onClick={retryList}>
-            Try again
+      <div className="mx-auto w-full max-w-[1120px]">
+        <div className="mb-10 flex items-end justify-between">
+          <div className="flex flex-col gap-2">
+            <h1 className="font-serif text-[32px] leading-none font-normal tracking-[-0.01em] text-ink">
+              Projects
+            </h1>
+            {listState.status === 'ready' && (
+              <p className="text-xs text-ink-faint">
+                {projects.length} {projects.length === 1 ? 'project' : 'projects'}
+              </p>
+            )}
+          </div>
+          <Button variant="primary" size="md" onClick={() => setCreating(true)}>
+            <PlusIcon />
+            New Project
           </Button>
-        </EmptyState>
-      ) : projects.length === 0 ? (
-        <p className="text-sm text-ink-muted" aria-busy="true">
-          Loading Project Contexts…
-        </p>
-      ) : (
-        <div className="flex items-start gap-16">
-          <ul className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-7">
-            {projects.map((project) => (
-              <li key={project.projectContextId}>
-                <button
-                  type="button"
-                  aria-labelledby={`project-${project.projectContextId}-name`}
-                  aria-describedby={`project-${project.projectContextId}-count`}
-                  className="flex w-full cursor-pointer flex-col items-start gap-1 rounded-[3px] bg-surface px-8 py-8 text-left outline-none transition-shadow hover:shadow-float focus-visible:ring-2 focus-visible:ring-accent/40"
-                  onClick={() => open(project.projectContextId)}
-                >
-                  <h2
-                    id={`project-${project.projectContextId}-name`}
-                    className="font-serif text-[18px] font-normal text-ink"
-                  >
-                    {project.name}
-                  </h2>
-                  <span
-                    id={`project-${project.projectContextId}-count`}
-                    className="text-xs text-ink-faint"
-                  >
-                    {metaLine(project)}
-                  </span>
-                  <PhaseProgress
-                    className="mt-5 self-stretch"
-                    phase={project.summary.phase}
-                    tone={summaryTone(project.summary)}
-                    running={project.summary.runningBatch ?? undefined}
-                    timestamp={activityDay(project.summary.lastActivityAt)}
-                  />
-                </button>
-              </li>
-            ))}
-          </ul>
-          {/* No panel chrome and nothing at all when there is no activity. */}
-          {recentActivity.length > 0 && (
-            <aside
-              aria-label="Recent activity"
-              className="hidden w-[280px] shrink-0 flex-col gap-7 pt-3 lg:flex"
-            >
-              <Overline>Recent</Overline>
-              <ul className="flex flex-col gap-5">
-                {recentActivity.map((event, index) => (
-                  <li
-                    key={`${event.kind}-${event.projectContextId}-${event.occurredAt}-${index}`}
-                    className="flex flex-col gap-0.5"
-                  >
-                    <span className="text-[12.5px] text-ink">
-                      {eventLabels[event.kind]}
-                    </span>
-                    <span className="text-[11.5px] leading-relaxed text-ink-faint">
-                      {event.projectContextName} · {activityDay(event.occurredAt)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </aside>
-          )}
         </div>
-      )}
 
-      {createModal}
+        {listState.status === 'error' ? (
+          <EmptyState
+            className="max-w-sm bg-surface"
+            title="Could not load your Project Contexts"
+            description={listState.failure.message}
+            tone="danger"
+          >
+            <Button variant="secondary" size="md" onClick={retryList}>
+              Try again
+            </Button>
+          </EmptyState>
+        ) : projects.length === 0 ? (
+          <div aria-busy="true">
+            <p className="sr-only">Loading Project Contexts…</p>
+            {/* Ghost cards in the real grid, so loaded cards land without a jump. */}
+            <ul
+              aria-hidden="true"
+              className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-7"
+            >
+              {[0, 1, 2].map((slot) => (
+                <li
+                  key={slot}
+                  className="flex animate-pulse flex-col items-start gap-2.5 rounded-card border border-line bg-surface px-8 py-8"
+                >
+                  <span className="h-4 w-2/5 rounded-xs bg-surface-muted" />
+                  <span className="h-3 w-3/5 rounded-xs bg-surface-muted" />
+                  <span className="mt-9 h-0.5 self-stretch bg-surface-muted" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="flex items-start gap-16">
+            <ul className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-7">
+              {projects.map((project) => (
+                <li key={project.projectContextId}>
+                  <button
+                    type="button"
+                    aria-labelledby={`project-${project.projectContextId}-name`}
+                    aria-describedby={`project-${project.projectContextId}-count`}
+                    className="flex h-full w-full cursor-pointer flex-col items-start gap-1 rounded-card border border-line bg-surface px-8 py-8 text-left outline-none transition-[border-color,box-shadow] duration-150 hover:border-line-strong hover:shadow-lift focus-visible:ring-2 focus-visible:ring-accent/40 active:border-line active:shadow-none"
+                    onClick={() => open(project.projectContextId)}
+                  >
+                    <h2
+                      id={`project-${project.projectContextId}-name`}
+                      className="line-clamp-2 font-serif text-[18px] font-normal text-ink"
+                    >
+                      {project.name}
+                    </h2>
+                    <span
+                      id={`project-${project.projectContextId}-count`}
+                      className="text-xs text-ink-faint"
+                    >
+                      {metaLine(project)}
+                    </span>
+                    {/* mt-auto keeps every card's bar on one baseline however the
+                        name wraps. */}
+                    <PhaseProgress
+                      className="mt-auto self-stretch pt-5"
+                      phase={project.summary.phase}
+                      tone={summaryTone(project.summary)}
+                      running={project.summary.runningBatch ?? undefined}
+                      timestamp={
+                        <time dateTime={project.summary.lastActivityAt}>
+                          {activityDay(project.summary.lastActivityAt)}
+                        </time>
+                      }
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {/* No panel chrome and nothing at all when there is no activity. */}
+            {recentActivity.length > 0 && (
+              <aside
+                aria-label="Recent activity"
+                className="hidden w-[280px] shrink-0 flex-col gap-7 pt-3 lg:flex"
+              >
+                <Overline>Recent</Overline>
+                <ul className="flex flex-col gap-5">
+                  {recentActivity.map((event, index) => (
+                    <li
+                      key={`${event.kind}-${event.projectContextId}-${event.occurredAt}-${index}`}
+                    >
+                      <button
+                        type="button"
+                        className="group flex w-full cursor-pointer flex-col gap-0.5 rounded-xs text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                        onClick={() => open(event.projectContextId)}
+                      >
+                        <span className="text-[12.5px] text-ink">
+                          {eventLabels[event.kind]}
+                        </span>
+                        <span className="text-[11.5px] leading-relaxed text-ink-faint">
+                          <span className="group-hover:underline">
+                            {event.projectContextName}
+                          </span>
+                          {' · '}
+                          <time dateTime={event.occurredAt}>
+                            {activityDay(event.occurredAt)}
+                          </time>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            )}
+          </div>
+        )}
+
+        {createModal}
+      </div>
     </div>
   )
 }

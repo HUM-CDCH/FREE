@@ -28,7 +28,7 @@ export function CreateProjectModal({
 
   return (
     <ModalDialog
-      className="m-auto w-full max-w-sm rounded-lg border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
+      className="m-auto w-full max-w-sm rounded-card border border-line bg-surface p-5 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
       labelledBy="create-project-context-title"
       describedBy="create-project-context-description"
       initialFocusRef={initialFocus}

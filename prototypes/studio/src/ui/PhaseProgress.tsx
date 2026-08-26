@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 export type WorkflowPhase =
   | 'ingest'
   | 'chat'
@@ -13,8 +15,8 @@ export type PhaseProgressProps = {
   tone?: PhaseProgressTone
   /** Persisted member progress of an open Batch Extraction (`running` tone). */
   running?: { completedMemberCount: number; memberCount: number }
-  /** Pre-formatted small right-hand text, e.g. "12 Aug". Running shows its count instead. */
-  timestamp?: string
+  /** Small right-hand text, e.g. a `<time>` reading "12 Aug 2026". Running shows its count instead. */
+  timestamp?: ReactNode
   className?: string
 }
 
