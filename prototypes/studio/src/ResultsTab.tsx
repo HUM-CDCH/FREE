@@ -291,11 +291,11 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
         <>
           <div className="shrink-0 border-b border-line bg-surface px-3 py-2">
             <div className="flex flex-wrap gap-1.5">
-              {summaryItem(
+              {/* {summaryItem(
                 'Status',
                 attempt?.complete === false ? 'incomplete' : 'ready',
-              )}
-              {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())}
+              )} */}
+              {/* {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())} */}
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
@@ -307,20 +307,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     ? 'loading'
                     : `${visibleReviewDecisions.length} pending`,
               )}
-              {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)}
+              {/* {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)} */}
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <SegmentedControl
-                aria-label="Result view"
-                value={view}
-                onChange={setView}
-                options={[
-                  { value: 'review', label: 'Review' },
-                  { value: 'json', label: 'Raw JSON' },
-                  { value: 'markdown', label: 'Markdown' },
-                  ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
-                ]}
-              />
               <div className="flex gap-1.5">
                 <ExtractionResultExportControl
                   schema={exportSchema}
@@ -335,6 +324,17 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                     })
                   }}
                 />
+                {!readOnly && controller.review.available && !controller.review.reviewedExtractionId && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={controller.review.loading || controller.review.saving || controller.review.untouchedCount === 0}
+                    title="Mark every untouched field Approved, without changing fields you've already acted on"
+                    onClick={() => controller.review.approveAll()}
+                  >
+                    {controller.review.untouchedCount > 0 ? `Approve all (${controller.review.untouchedCount})` : 'Approve all'}
+                  </Button>
+                )}
                 {!readOnly && controller.review.available && (
                   <Button
                     variant="primary"
@@ -364,6 +364,17 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                   </Button>
                 )}
               </div>
+                          <SegmentedControl
+                aria-label="Result view"
+                value={view}
+                onChange={setView}
+                options={[
+                  { value: 'review', label: 'Review' },
+                  { value: 'json', label: 'Raw JSON' },
+                  { value: 'markdown', label: 'Markdown' },
+                  // ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
+                ]}
+              />
             </div>
             {!readOnly && !inspectedAttempt && controller.stale && (
               <div
@@ -483,6 +494,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                       getSchemaNode: (path) => pinnedSchema
                         ? schemaNodeAtResultPath(pinnedSchema.schemaNodes, absoluteReviewPath(path))
                         : null,
+                      isTouched: (path) => controller.review.isTouched(absoluteReviewPath(path)),
                       onDecision: readOnly || inspectedAttempt
                         ? undefined
                         : (path, action, reviewedValue) => controller.review.setDecision(

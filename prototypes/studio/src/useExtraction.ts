@@ -11,6 +11,7 @@ import type {
   ReviewDecisionAction,
   ReviewDecisionInput,
 } from '../shared/extraction.contract'
+import { resultPathKey } from '../shared/groundedExtraction'
 
 export type ReviewTarget = {
   sourceRepresentationId: string
@@ -96,6 +97,11 @@ export function useExtraction({
   const [saving, setSaving] = useState(false)
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewDecisions, setReviewDecisions] = useState<ReviewDecisionInput[]>([])
+  // Fields the researcher has explicitly acted on, keyed like reviewDecisions
+  // (resultPathKey). A field with no entry here is showing its unreviewed
+  // default (every field is seeded 'APPROVED' by prepareReview) rather than a
+  // decision the researcher actually made.
+  const [touchedPaths, setTouchedPaths] = useState<ReadonlySet<string>>(new Set())
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [cancellationRequested, setCancellationRequested] = useState(false)
   const [cancellationError, setCancellationError] = useState<string | null>(null)
@@ -123,6 +129,7 @@ export function useExtraction({
       current.status === 'running' ? { status: 'idle' } : current,
     )
     setReviewDecisions([])
+    setTouchedPaths(new Set())
     setReviewError(null)
   }, [runInputsKey])
   // The active Source Document changed under an unmounted hook — reseed the
@@ -135,6 +142,7 @@ export function useExtraction({
     setAttempt(initialAttempt)
     setState(extractionStateFromAttempt(initialAttempt))
     setReviewDecisions([])
+    setTouchedPaths(new Set())
     setReviewError(null)
     setCancellationRequested(false)
     setCancellationError(null)
@@ -169,22 +177,33 @@ export function useExtraction({
       setReviewError(null)
       if (!reviewAvailable || !attempt) {
         setReviewLoading(false)
-        setReviewDecisions(
-          attempt?.reviewedAt ? attempt.reviewDecisions.map(pendingDecision) : [],
-        )
+        if (attempt?.reviewedAt) {
+          const decisions = attempt.reviewDecisions.map(pendingDecision)
+          setReviewDecisions(decisions)
+          setTouchedPaths(new Set(decisions.map((decision) => resultPathKey(decision.resultPath))))
+        } else {
+          setReviewDecisions([])
+          setTouchedPaths(new Set())
+        }
         return
       }
       if (attempt.reviewedAt) {
         setReviewLoading(false)
-        setReviewDecisions(attempt.reviewDecisions.map(pendingDecision))
+        const decisions = attempt.reviewDecisions.map(pendingDecision)
+        setReviewDecisions(decisions)
+        // Already-saved decisions were all explicitly made, not defaulted —
+        // this is a read of a finalized review, so every field is "touched".
+        setTouchedPaths(new Set(decisions.map((decision) => resultPathKey(decision.resultPath))))
         return
       }
       setReviewLoading(true)
       setReviewDecisions([])
+      setTouchedPaths(new Set())
       try {
         const prepared = await readExtraction(attempt.extractionId)
         if (reviewLoadRef.current !== load) return
         setReviewDecisions([...prepared.pendingReviewDecisions])
+        setTouchedPaths(new Set())
       } catch (error) {
         if (reviewLoadRef.current !== load) return
         setReviewError(
@@ -239,6 +258,7 @@ export function useExtraction({
       setAttempt(terminal)
       setState(extractionStateFromAttempt(terminal))
       setReviewDecisions([])
+      setTouchedPaths(new Set())
       onTerminal(terminal, isRerun)
       return terminal
     } catch (error) {
@@ -284,9 +304,9 @@ export function useExtraction({
     action: ReviewDecisionAction,
     reviewedValue: ReviewDecisionInput['reviewedValue'] = null,
   ) {
-    const key = JSON.stringify(resultPath)
+    const key = resultPathKey(resultPath)
     setReviewDecisions((current) => current.map((decision) =>
-      JSON.stringify(decision.resultPath) === key
+      resultPathKey(decision.resultPath) === key
         ? {
             ...decision,
             action,
@@ -294,6 +314,16 @@ export function useExtraction({
           }
         : decision,
     ))
+    setTouchedPaths((current) => new Set(current).add(key))
+  }
+
+  // Marks every field the researcher hasn't explicitly acted on as touched,
+  // without changing its recorded action — every field already defaults to
+  // 'APPROVED', so this only affects what the review UI displays.
+  function approveAllRemaining() {
+    setTouchedPaths(
+      (current) => new Set([...current, ...reviewDecisions.map((decision) => resultPathKey(decision.resultPath))]),
+    )
   }
 
   return {
@@ -313,11 +343,17 @@ export function useExtraction({
       loading: reviewLoading,
       decisions: reviewDecisions,
       reviewedCount: reviewDecisions.length,
+      untouchedCount: reviewDecisions.filter(
+        (decision) => !touchedPaths.has(resultPathKey(decision.resultPath)),
+      ).length,
+      isTouched: (resultPath: ReviewDecisionInput['resultPath']) =>
+        touchedPaths.has(resultPathKey(resultPath)),
       reviewedExtractionId: attempt?.reviewedAt
         ? attempt.extractionId
         : null,
       error: reviewError,
       setDecision: setReviewDecision,
+      approveAll: approveAllRemaining,
       accept: acceptResult,
     },
   }

@@ -44,9 +44,12 @@ function controller(
       loading: false,
       decisions: [],
       reviewedCount: 0,
+      untouchedCount: 0,
+      isTouched: () => true,
       reviewedExtractionId: null,
       error: null,
       setDecision: () => {},
+      approveAll: () => {},
       accept: async () => {},
       ...reviewOverrides,
     },
@@ -499,6 +502,103 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByText('Approved')).toBeInTheDocument()
     expect(screen.getByText('Original')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reverse decision for place' })).not.toBeInTheDocument()
+  })
+
+  it('hides the review badge and pressed state for an untouched, server-defaulted decision', () => {
+    const attempt: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ place: 'Original' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place',
+      }],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          {
+            status: 'ready', result: attempt.resultPayload!,
+            evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0,
+          },
+          attempt,
+          {
+            available: true,
+            canAccept: true,
+            decisions: [{
+              resultPath: ['records', 0, 'place'],
+              evidenceAnchorId: 'anchor-place',
+              reviewedOccurrenceIds: ['occurrence-place'],
+              action: 'APPROVED',
+              reviewedValue: null,
+            }],
+            reviewedCount: 1,
+            untouchedCount: 1,
+            isTouched: () => false,
+          },
+        )}
+        schemaReady
+        pinnedSchema={{
+          recordDescription: 'One place.',
+          schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+        }}
+        documentMarkdown="# Source"
+        sourceDocumentName="untouched.pdf"
+      />,
+    )
+
+    expect(screen.queryByText('Approved')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve place' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('button', { name: 'Reverse decision for place' })).not.toBeInTheDocument()
+  })
+
+  it('lets the researcher bulk-approve every untouched field without disturbing explicit decisions', () => {
+    const approveAll = vi.fn()
+    const attempt: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      resultPayload: { records: [{ place: 'Original' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place',
+      }],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          {
+            status: 'ready', result: attempt.resultPayload!,
+            evidenceLinks: attempt.evidenceLinks!, ungroundedCount: 0,
+          },
+          attempt,
+          {
+            available: true,
+            canAccept: true,
+            decisions: [{
+              resultPath: ['records', 0, 'place'],
+              evidenceAnchorId: 'anchor-place',
+              reviewedOccurrenceIds: ['occurrence-place'],
+              action: 'APPROVED',
+              reviewedValue: null,
+            }],
+            reviewedCount: 1,
+            untouchedCount: 1,
+            isTouched: () => false,
+            approveAll,
+          },
+        )}
+        schemaReady
+        pinnedSchema={{
+          recordDescription: 'One place.',
+          schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+        }}
+        documentMarkdown="# Source"
+        sourceDocumentName="approve-all.pdf"
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve all (1)' }))
+    expect(approveAll).toHaveBeenCalledTimes(1)
   })
 
   it('renders saved Review Decisions read-only with their timestamp', () => {

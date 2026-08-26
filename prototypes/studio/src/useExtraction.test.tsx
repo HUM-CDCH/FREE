@@ -288,6 +288,75 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.review.reviewedExtractionId).toBe(unreviewed.extractionId)
   })
 
+  it('treats every server-defaulted decision as untouched until acted on', async () => {
+    const unreviewed = attempt({
+      resultPayload: { records: [{ title: 'Grounded', author: 'A. Researcher' }] },
+      evidenceLinks: [
+        { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' },
+        { resultPath: ['records', 0, 'author'], evidenceAnchorId: 'anchor-2' },
+      ],
+    })
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: unreviewed,
+      pendingReviewDecisions: [
+        {
+          resultPath: ['records', 0, 'title'],
+          evidenceAnchorId: 'anchor-1',
+          reviewedOccurrenceIds: ['occurrence-1'],
+          action: 'APPROVED',
+          reviewedValue: null,
+        },
+        {
+          resultPath: ['records', 0, 'author'],
+          evidenceAnchorId: 'anchor-2',
+          reviewedOccurrenceIds: ['occurrence-2'],
+          action: 'APPROVED',
+          reviewedValue: null,
+        },
+      ],
+    })
+    const { result } = renderHook(() => useExtraction(options(unreviewed)))
+    await waitFor(() => expect(result.current.review.canAccept).toBe(true))
+
+    expect(result.current.review.untouchedCount).toBe(2)
+    expect(result.current.review.isTouched(['records', 0, 'title'])).toBe(false)
+    expect(result.current.review.isTouched(['records', 0, 'author'])).toBe(false)
+
+    act(() => result.current.review.setDecision(['records', 0, 'title'], 'REJECTED', null))
+    expect(result.current.review.untouchedCount).toBe(1)
+    expect(result.current.review.isTouched(['records', 0, 'title'])).toBe(true)
+    expect(result.current.review.isTouched(['records', 0, 'author'])).toBe(false)
+
+    act(() => result.current.review.approveAll())
+    expect(result.current.review.untouchedCount).toBe(0)
+    expect(result.current.review.isTouched(['records', 0, 'author'])).toBe(true)
+    // Approve All only fills in the untouched field — the explicit Reject stands.
+    expect(result.current.review.decisions.find(
+      (decision) => decision.resultPath.join('.') === 'records.0.title',
+    )?.action).toBe('REJECTED')
+  })
+
+  it('reads an already-saved review as fully touched', async () => {
+    const reviewed = attempt({
+      resultPayload: { records: [{ title: 'Grounded' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' }],
+      reviewedAt: '2026-08-10T00:01:00.000Z',
+      reviewDecisions: [{
+        resultPath: ['records', 0, 'title'],
+        evidenceAnchorId: 'anchor-1',
+        reviewedOccurrenceIds: ['occurrence-1'],
+        action: 'APPROVED',
+        reviewedValue: null,
+        createdAt: '2026-08-10T00:01:00.000Z',
+      }],
+    })
+    const { result } = renderHook(() => useExtraction(options(reviewed)))
+
+    await waitFor(() => expect(result.current.review.decisions).toHaveLength(1))
+    expect(result.current.review.untouchedCount).toBe(0)
+    expect(result.current.review.isTouched(['records', 0, 'title'])).toBe(true)
+  })
+
   it('blocks review of a historical attempt and reruns with current pins', async () => {
     const historical = attempt({
       sourceRepresentationRevisionId:

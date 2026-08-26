@@ -7,6 +7,7 @@ import type {
   ReviewDecisionInput,
 } from '../../shared/extraction.contract'
 import { parseReviewedValue } from '../reviewDecisions'
+import Pill from './Pill'
 
 // Local copy so the UI lib imports zero app code (mirrors template.ts#isRecord).
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -30,6 +31,11 @@ type VisibleReviewDecision = ReviewDecision | ReviewDecisionInput
 export type ResultReview = {
   getDecision: (path: ResultPath) => VisibleReviewDecision | undefined
   getSchemaNode: (path: ResultPath) => SchemaNode | null
+  /** Every field defaults to an unreviewed 'APPROVED' decision, so a decision
+   *  alone doesn't mean the researcher looked at it — isTouched distinguishes
+   *  that default from an explicit choice. Missing isTouched treats every
+   *  decision as touched (existing callers keep today's behavior). */
+  isTouched?: (path: ResultPath) => boolean
   onDecision?: (
     path: ResultPath,
     action: ReviewDecisionAction,
@@ -96,6 +102,32 @@ function PencilIcon() {
   )
 }
 
+function CheckIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="4,10.5 8,15 16,5" />
+    </svg>
+  )
+}
+
+function XIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+      <line x1="5" y1="5" x2="15" y2="15" />
+      <line x1="15" y1="5" x2="5" y2="15" />
+    </svg>
+  )
+}
+
+function UndoIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.5 8.5a6 6 0 1 1 1.3 6.2" />
+      <polyline points="4.5,4.5 4.5,8.5 8.5,8.5" />
+    </svg>
+  )
+}
+
 // Returns the first non-empty string value in a record — used as a collapsed preview label.
 function firstStringValue(obj: Record<string, unknown>): string | null {
   for (const val of Object.values(obj)) {
@@ -117,6 +149,7 @@ function PrimitiveRow({
   const [reviewError, setReviewError] = useState<string | null>(null)
   const long = !expandText && text.length > 80
   const decision = review?.getDecision(path)
+  const touched = Boolean(decision) && (review?.isTouched?.(path) ?? true)
   const reviewEditable = Boolean(decision && review?.onDecision && !review.readOnly)
   const decisionLabel = decision
     ? decision.action === 'APPROVED'
@@ -125,6 +158,7 @@ function PrimitiveRow({
         ? 'Edited'
         : 'Rejected'
     : null
+  const decisionTone = decision?.action === 'APPROVED' ? 'success' : decision?.action === 'EDITED' ? 'stale' : 'danger'
 
   function startEdit() {
     setReviewError(null)
@@ -229,7 +263,7 @@ function PrimitiveRow({
               Evidence
             </button>
           )}
-          {decisionLabel && decision && <ReviewBadge label={decisionLabel} decision={decision} />}
+          {touched && decisionLabel && decision && <ReviewBadge label={decisionLabel} decision={decision} tone={decisionTone} />}
         </div>
         <div className="pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
           {text}
@@ -238,6 +272,7 @@ function PrimitiveRow({
           <ReviewActions
             name={name}
             action={decision?.action ?? 'APPROVED'}
+            touched={touched}
             onApprove={() => review?.onDecision?.(path, 'APPROVED', null)}
             onEdit={startEdit}
             onReject={() => review?.onDecision?.(path, 'REJECTED', null)}
@@ -259,7 +294,7 @@ function PrimitiveRow({
           <MissingBadge />
         ) : (
           <span className="min-w-0 flex-1 truncate text-[13px] text-ink-muted">
-            {text}
+            {!long && text}
           </span>
         )}
         {long && !missing && (
@@ -281,7 +316,7 @@ function PrimitiveRow({
             Evidence
           </button>
         )}
-        {decisionLabel && decision && <ReviewBadge label={decisionLabel} decision={decision} />}
+        {touched && decisionLabel && decision && <ReviewBadge label={decisionLabel} decision={decision} tone={decisionTone} />}
         {(onChange || reviewEditable) && !reviewEditable && (
           <button
             className="shrink-0 cursor-pointer px-0.5 text-ink-faint opacity-0 outline-none transition-all group-hover:opacity-100 hover:text-accent"
@@ -302,6 +337,7 @@ function PrimitiveRow({
         <ReviewActions
           name={name}
           action={decision?.action ?? 'APPROVED'}
+          touched={touched}
           onApprove={() => review?.onDecision?.(path, 'APPROVED', null)}
           onEdit={startEdit}
           onReject={() => review?.onDecision?.(path, 'REJECTED', null)}
@@ -312,34 +348,68 @@ function PrimitiveRow({
   )
 }
 
-function ReviewBadge({ label, decision }: { label: string; decision: VisibleReviewDecision }) {
+function ReviewBadge({ label, decision, tone }: { label: string; decision: VisibleReviewDecision; tone: 'success' | 'stale' | 'danger' }) {
   const timestamp = 'createdAt' in decision
     ? new Date(decision.createdAt).toLocaleString()
     : null
   return (
-    <span
-      className="shrink-0 rounded-full border border-line-strong bg-surface-muted px-2 py-0.5 text-[10.5px] font-bold text-ink-muted"
-      title={timestamp ? `Saved ${timestamp}` : 'Pending Review Decision'}
+    <Pill
+      tone={tone}
+      outline
+      className="shrink-0"
+      title={timestamp ? `Saved ${timestamp}` : undefined}
     >
       {label}{timestamp ? ` · ${timestamp}` : ''}
-    </span>
+    </Pill>
   )
 }
 
-function ReviewActions({ name, action, onApprove, onEdit, onReject, onReverse }: {
+function ReviewActions({ name, action, touched, onApprove, onEdit, onReject, onReverse }: {
   name: string
   action: ReviewDecisionAction
+  /** Whether the researcher has explicitly acted on this field — an
+   *  untouched field is showing its unreviewed 'APPROVED' default, so none
+   *  of the three buttons should read as pressed. */
+  touched: boolean
   onApprove: () => void
   onEdit: () => void
   onReject: () => void
   onReverse: () => void
 }) {
   return (
-    <div className="mb-1 ml-4 flex flex-wrap gap-1" role="group" aria-label={`Review ${name}`}>
-      <button type="button" aria-label={`Approve ${name}`} aria-pressed={action === 'APPROVED'} className="rounded border border-line px-2 py-0.5 text-[10.5px] font-semibold text-ink-muted aria-pressed:border-accent aria-pressed:text-accent" onClick={onApprove}>Approve</button>
-      <button type="button" aria-label={`Edit ${name}`} aria-pressed={action === 'EDITED'} className="rounded border border-line px-2 py-0.5 text-[10.5px] font-semibold text-ink-muted aria-pressed:border-accent aria-pressed:text-accent" onClick={onEdit}>Edit</button>
-      <button type="button" aria-label={`Reject ${name}`} aria-pressed={action === 'REJECTED'} className="rounded border border-line px-2 py-0.5 text-[10.5px] font-semibold text-ink-muted aria-pressed:border-accent aria-pressed:text-accent" onClick={onReject}>Reject</button>
-      {action !== 'APPROVED' && <button type="button" aria-label={`Reverse decision for ${name}`} className="rounded px-2 py-0.5 text-[10.5px] font-semibold text-ink-muted underline" onClick={onReverse}>Reverse</button>}
+    <div className="mb-1 ml-4 flex items-center gap-1" role="group" aria-label={`Review ${name}`}>
+      <div className="inline-flex overflow-hidden rounded-md border border-line">
+        <button
+          type="button"
+          aria-label={`Approve ${name}`}
+          aria-pressed={touched && action === 'APPROVED'}
+          className="flex h-6 w-7 items-center justify-center border-r border-line text-ink-muted outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 aria-pressed:border-green aria-pressed:bg-green aria-pressed:text-white aria-pressed:hover:bg-green"
+          onClick={onApprove}
+        ><CheckIcon /></button>
+        <button
+          type="button"
+          aria-label={`Edit ${name}`}
+          aria-pressed={touched && action === 'EDITED'}
+          className="flex h-6 w-7 items-center justify-center border-r border-line text-ink-muted outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 aria-pressed:border-stale aria-pressed:bg-stale aria-pressed:text-white aria-pressed:hover:bg-stale"
+          onClick={onEdit}
+        ><PencilIcon /></button>
+        <button
+          type="button"
+          aria-label={`Reject ${name}`}
+          aria-pressed={touched && action === 'REJECTED'}
+          className="flex h-6 w-7 items-center justify-center text-ink-muted outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 aria-pressed:border-danger aria-pressed:bg-danger aria-pressed:text-white aria-pressed:hover:bg-danger"
+          onClick={onReject}
+        ><XIcon /></button>
+      </div>
+      {action !== 'APPROVED' && (
+        <button
+          type="button"
+          aria-label={`Reverse decision for ${name}`}
+          title="Reverse to Approved"
+          className="flex h-6 w-6 items-center justify-center rounded-md text-ink-muted outline-none transition-colors hover:bg-surface-muted hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
+          onClick={onReverse}
+        ><UndoIcon /></button>
+      )}
     </div>
   )
 }
