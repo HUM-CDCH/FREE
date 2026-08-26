@@ -11,7 +11,7 @@ import type { TemplateState } from './SchemaPanel'
 import type { SchemaDefinition, SchemaNode } from '../shared/schemaNode'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
-import type { ExtractionAttempt } from '../shared/extraction.contract'
+import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
 import EvidenceTab from './EvidenceTab'
 import type { ParsedDocument, ParsedEvidenceAnchor } from '../shared/parsedDocument'
 import type {
@@ -53,6 +53,7 @@ type RightRailProps = {
   currentSchemaRevisionNumber?: number
   loadSchemaRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
   extraction: ExtractionController
+  extractionStrategy: ExtractionStrategy
   inspection: ExtractionInspection
   sourceDocumentName: string
   schemaName?: string | null
@@ -91,6 +92,7 @@ function RightRail({
   currentSchemaRevisionNumber,
   loadSchemaRevision,
   extraction,
+  extractionStrategy,
   inspection,
   sourceDocumentName,
   schemaName,
@@ -226,6 +228,7 @@ function RightRail({
         <ResultsTab
           key={inspection.attempt?.extractionId ?? 'none'}
           controller={extraction}
+          strategy={extractionStrategy}
           inspectedAttempt={inspection.readOnly ? inspection.attempt ?? undefined : undefined}
           readOnly={inspection.readOnly}
           schemaReady={schemaReady}

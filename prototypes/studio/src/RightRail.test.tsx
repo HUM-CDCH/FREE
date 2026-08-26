@@ -71,6 +71,7 @@ function renderRail({
       schemaHistory={[]}
       loadSchemaRevision={vi.fn(async () => ({} as never))}
       extraction={defaultController}
+      extractionStrategy="ARTICLE"
       inspection={defaultInspection}
       sourceDocumentName="test.pdf"
       onSelectEvidence={vi.fn()}

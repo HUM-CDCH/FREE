@@ -120,6 +120,7 @@ describe('ResultsTab grounded values', () => {
   it('shows one server-owned progress state without raw output', () => {
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({
           status: 'running',
           step: 'extraction',
@@ -137,6 +138,7 @@ describe('ResultsTab grounded values', () => {
     const onSelectEvidence = vi.fn()
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({
           status: 'ready',
           result: { title: 'Report', ungrounded: 'Visible without Evidence' },
@@ -165,6 +167,7 @@ describe('ResultsTab grounded values', () => {
   it('reports the persisted ungrounded value count', () => {
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({
           status: 'ready',
           result: { title: 'Report', place: 'Unknown' },
@@ -188,6 +191,7 @@ describe('ResultsTab grounded values', () => {
     const onResultPathChange = vi.fn()
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({
           status: 'ready',
           result: { records: [{ title: 'Report' }] },
@@ -223,6 +227,7 @@ describe('ResultsTab grounded values', () => {
   it('hides the Article envelope for multiple returned records', () => {
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({
           status: 'ready',
           result: { records: [{ title: 'First' }, { title: 'Second' }] },
@@ -242,6 +247,7 @@ describe('ResultsTab grounded values', () => {
   it('shows successful partial Catalog records and persisted diagnostics without placeholders', () => {
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({
           status: 'ready',
           result: catalogAttempt.resultPayload!,
@@ -295,6 +301,7 @@ describe('ResultsTab grounded values', () => {
 
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({
           status: 'ready',
           result: catalogAttempt.resultPayload!,
@@ -346,7 +353,7 @@ describe('ResultsTab grounded values', () => {
       ungroundedCount: 0,
     }, retryAttempt)
     extraction.retryExtraction = retry
-    render(<ResultsTab controller={extraction} schemaReady documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf" />)
+    render(<ResultsTab controller={extraction} strategy="ARTICLE" schemaReady documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf" />)
 
     expect(screen.getByRole('checkbox', { name: 'Retry failed or truncated document metadata' })).not.toBeVisible()
     fireEvent.click(screen.getByText('Run details'))
@@ -378,7 +385,7 @@ describe('ResultsTab grounded values', () => {
 
   it('does not offer targeted retry controls for Article attempts', () => {
     const article = { ...catalogAttempt, strategy: 'ARTICLE' as const, diagnostics: { ...catalogAttempt.diagnostics, catalog: null } }
-    render(<ResultsTab controller={controller({ status: 'ready', result: article.resultPayload!, evidenceLinks: [], ungroundedCount: 0 }, article)} schemaReady documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf" />)
+    render(<ResultsTab controller={controller({ status: 'ready', result: article.resultPayload!, evidenceLinks: [], ungroundedCount: 0 }, article)} strategy="ARTICLE" schemaReady documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf" />)
     fireEvent.click(screen.getByText('Run details'))
     expect(screen.queryByRole('region', { name: 'Targeted Catalog retry' })).not.toBeInTheDocument()
   })
@@ -386,6 +393,7 @@ describe('ResultsTab grounded values', () => {
   it('offers a new run after cancellation', () => {
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({ status: 'cancelled' })}
         schemaReady
         documentMarkdown="# Source" sourceDocumentName="Ravenna letters.pdf"
@@ -400,6 +408,7 @@ describe('ResultsTab grounded values', () => {
     const currentResult = { records: [{ context: { title: 'Current', tags: ['a'] } }] }
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({
           status: 'ready',
           result: currentResult,
@@ -435,6 +444,7 @@ describe('ResultsTab grounded values', () => {
     }
     render(
       <ResultsTab
+        strategy="ARTICLE"
         controller={controller({
           status: 'ready',
           result: { records: [{ context: { title: 'Current' } }] },

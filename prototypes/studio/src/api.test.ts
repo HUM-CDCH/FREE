@@ -184,6 +184,7 @@ describe('ResultsTab markdown', () => {
     const html = renderToStaticMarkup(
       createElement(ResultsTab, {
         controller: readyController(),
+        strategy: 'ARTICLE',
         schemaReady: true,
         documentMarkdown: '# Parsed source',
         sourceDocumentName: 'source.pdf',

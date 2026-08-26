@@ -1246,6 +1246,7 @@ export function DocumentWorkspace({
                 )
               }}
               extraction={extraction}
+              extractionStrategy={nextExtractionStrategy}
               inspection={{
                 attempt: inspectedAttempt,
                 readOnly: inspectionReadOnly,
