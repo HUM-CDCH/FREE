@@ -22,7 +22,10 @@ async function savedCredential(
   const entry = providerTable[connection.provider]
   if (entry.authentication === 'external') return null
   const saved = (await readModelConfig(dependencies)).connections.find(
-    ({ id, provider }) => id === connection.id && provider === connection.provider,
+    ({ id, provider, baseUrl }) =>
+      id === connection.id &&
+      provider === connection.provider &&
+      baseUrl === connection.baseUrl,
   )
   if (!saved) {
     if (entry.authentication === 'optional') return null

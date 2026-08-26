@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { gotoAuthenticated } from './auth.js'
 
 const providers = [
   ['ollama', 'Ollama', 'http', 'http://127.0.0.1:11434', 'optional', true],
@@ -67,7 +68,7 @@ async function mockConfiguration(page: Page) {
   let putDelay = 0
   let probeStatus: 'connected' | 'unreachable' = 'connected'
   let probeDelay = 0
-  await page.route('http://127.0.0.1:8000/**', (route) => route.abort())
+  await page.route('http://127.0.0.1:8055/**', (route) => route.abort())
   await page.route('**/api/**', async (route) => {
     const request = route.request()
     const path = new URL(request.url()).pathname
@@ -155,7 +156,7 @@ test('Single model saves, reloads, and checks without probing on open or Apply',
   page,
 }) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await expect(page.getByText('No Model Connections yet.')).toBeVisible()
   expect(state.probes()).toBe(0)
@@ -189,11 +190,44 @@ test('Single model saves, reloads, and checks without probing on open or Apply',
   expect(state.probes()).toBe(1)
 })
 
+test('model-list Escape preserves the provider draft before dialog dismissal', async ({
+  page,
+}) => {
+  await mockConfiguration(page)
+  await gotoAuthenticated(page, '/')
+
+  const opener = page.getByRole('button', { name: 'Configure providers' })
+  await opener.click()
+  const dialog = page.getByRole('dialog', {
+    name: 'Provider configuration',
+  })
+  await expect(
+    dialog.getByRole('button', { name: 'Close Model Connections' }),
+  ).toBeFocused()
+
+  await dialog.getByRole('button', { name: '+ New connection' }).click()
+  await dialog
+    .getByLabel('Single model connection')
+    .selectOption({ label: 'Ollama' })
+  const model = dialog.getByRole('combobox', { name: 'Single model ID' })
+  await model.focus()
+  await expect(model).toHaveAttribute('aria-expanded', 'true')
+
+  await model.press('Escape')
+  await expect(model).toHaveAttribute('aria-expanded', 'false')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByLabel('Provider base URL')).toBeVisible()
+
+  await model.press('Escape')
+  await expect(dialog).not.toBeVisible()
+  await expect(opener).toBeFocused()
+})
+
 test('probe scheduling supersedes stale connection edits', async ({
   page,
 }) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await page
@@ -220,7 +254,7 @@ test('removing a connection disposes its pending and late probe state', async ({
   })
   const state = await mockConfiguration(page)
   state.setProbeDelay(150)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await page.getByRole('button', { name: 'Delete Ollama' }).click()
@@ -242,7 +276,7 @@ test('Capability Routes save mixed exact targets and Ollama-only raw mode', asyn
   page,
 }) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await page.getByLabel('New connection provider').selectOption('openai')
@@ -302,7 +336,7 @@ test('a draft provider change probes again, drops raw NuExtract, and locks once 
   page,
 }) => {
   const state = await mockConfiguration(page)
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   await expect.poll(state.probes).toBe(1)
@@ -339,7 +373,7 @@ test('probe failures do not gate retryable offline Apply and pending state', asy
 }) => {
   const state = await mockConfiguration(page)
   state.setProbeStatus('unreachable')
-  await page.goto('/')
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await page.getByRole('button', { name: '+ New connection' }).click()
   // A connection FREE manages no credential for yet is not a broken keyring.
@@ -374,7 +408,7 @@ test('probe failures do not gate retryable offline Apply and pending state', asy
 test('corrupt saved configuration renders the stable backend error', async ({
   page,
 }) => {
-  await page.route('http://127.0.0.1:8000/**', (route) => route.abort())
+  await page.route('http://127.0.0.1:8055/**', (route) => route.abort())
   await page.route('**/api/model_config', (route) =>
     route.fulfill({
       status: 409,
@@ -386,7 +420,10 @@ test('corrupt saved configuration renders the stable backend error', async ({
       },
     }),
   )
-  await page.goto('/')
+  await page.route('**/api/project-contexts**', (route) =>
+    route.fulfill({ json: { projectContexts: [] } }),
+  )
+  await gotoAuthenticated(page, '/')
   await page.getByRole('button', { name: 'Configure providers' }).click()
   await expect(page.getByRole('alert')).toContainText(
     'invalid_model_config: Saved model configuration is invalid.',

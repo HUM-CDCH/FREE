@@ -5,6 +5,7 @@ type AddedSource = {
   projectContextId: string
   file: File
   ingestionKey: string
+  validationFailure?: string
 }
 
 export type SourceIngestionItem = AddedSource & {
@@ -52,7 +53,12 @@ export const sourceIngestionMachine = setup({
               ...context.items,
               ...event.items.map((item) => ({
                 ...item,
-                status: 'queued' as const,
+                status: item.validationFailure
+                  ? ('failed' as const)
+                  : ('queued' as const),
+                ...(item.validationFailure
+                  ? { failure: item.validationFailure }
+                  : {}),
               })),
             ]
           : context.items,
@@ -95,7 +101,9 @@ export const sourceIngestionMachine = setup({
       event.type === 'source.retry' &&
       context.items.some(
         (item) =>
-          item.ingestionKey === event.ingestionKey && item.status === 'failed',
+          item.ingestionKey === event.ingestionKey &&
+          item.status === 'failed' &&
+          item.validationFailure === undefined,
       ),
   },
 }).createMachine({

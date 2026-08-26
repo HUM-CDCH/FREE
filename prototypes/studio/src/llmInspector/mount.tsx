@@ -1,7 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
-import { StrictMode, useEffect, useMemo, useState } from 'react'
+import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
+import {
+  StrictMode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react'
 import { createRoot } from 'react-dom/client'
 import type { LlmTrace } from '../../shared/llmInspector.contract'
+import { ModalDialog } from '../ui'
 
 function elapsed(trace: LlmTrace): string {
   const end = trace.completedAt ? Date.parse(trace.completedAt) : Date.now()
@@ -23,7 +32,13 @@ function Payload({ label, direction, value }: { label: string; direction: string
   )
 }
 
-function Inspector({ onClose }: { onClose: () => void }) {
+function Inspector({
+  onClose,
+  closeRef,
+}: {
+  onClose: () => void
+  closeRef: RefObject<HTMLButtonElement | null>
+}) {
   const [traces, setTraces] = useState<LlmTrace[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +47,7 @@ function Inspector({ onClose }: { onClose: () => void }) {
     const controller = new AbortController()
     const refresh = async () => {
       try {
-        const response = await fetch('/api/llm_inspector', { signal: controller.signal, cache: 'no-store' })
+        const response = await authenticatedFetch('/api/llm_inspector', { signal: controller.signal, cache: 'no-store' })
         if (!response.ok) throw new Error('Inspector unavailable')
         const body = await response.json() as { traces: LlmTrace[] }
         setTraces(body.traces)
@@ -53,7 +68,7 @@ function Inspector({ onClose }: { onClose: () => void }) {
   const selected = useMemo(() => traces.find(({ id }) => id === selectedId) ?? null, [selectedId, traces])
 
   async function clear() {
-    const response = await fetch('/api/llm_inspector', { method: 'DELETE' })
+    const response = await authenticatedFetch('/api/llm_inspector', { method: 'DELETE' })
     if (!response.ok) return setError('Could not clear the inspector')
     setTraces([])
     setSelectedId(null)
@@ -70,7 +85,7 @@ function Inspector({ onClose }: { onClose: () => void }) {
         <div className="ml-auto flex items-center gap-2">
           <span className="flex items-center gap-2 rounded-full border border-[#3d4633] bg-[#1d2419] px-2.5 py-1 font-mono text-[10px] uppercase text-[#a9c964]"><span className="size-1.5 animate-pulse rounded-full bg-[#d9ff65]" /> Live</span>
           <button type="button" onClick={() => void clear()} className="rounded border border-[#454944] px-3 py-1.5 font-mono text-[10px] uppercase text-[#aeb3ab] hover:border-[#bd6950] hover:text-[#e38b70]">Clear</button>
-          <button type="button" onClick={onClose} aria-label="Close LLM inspector" className="flex size-8 items-center justify-center rounded border border-[#454944] text-lg text-[#aeb3ab] hover:border-[#d9ff65] hover:text-[#d9ff65]">×</button>
+          <button ref={closeRef} type="button" onClick={onClose} aria-label="Close LLM inspector" className="flex size-8 items-center justify-center rounded border border-[#454944] text-lg text-[#aeb3ab] hover:border-[#d9ff65] hover:text-[#d9ff65]">×</button>
         </div>
       </header>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -99,16 +114,22 @@ function Inspector({ onClose }: { onClose: () => void }) {
 
 function Launcher() {
   const [open, setOpen] = useState(false)
-  useEffect(() => {
-    if (!open) return
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false) }
-    window.addEventListener('keydown', close)
-    return () => window.removeEventListener('keydown', close)
-  }, [open])
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="Inspect LLM messages" title="Inspect LLM messages" className="fixed bottom-4 right-4 z-40 flex size-10 items-center justify-center rounded-full border border-[#4d524b] bg-[#111312] font-mono text-lg text-[#d9ff65] shadow-lg hover:border-[#d9ff65]">λ</button>
-      {open && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-4 backdrop-blur-[3px]" role="dialog" aria-modal="true" aria-label="LLM message inspector" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}><Inspector onClose={() => setOpen(false)} /></div>}
+      <button ref={triggerRef} type="button" onClick={() => setOpen(true)} aria-label="Inspect LLM messages" title="Inspect LLM messages" className="fixed bottom-4 right-4 z-40 flex size-10 items-center justify-center rounded-full border border-[#4d524b] bg-[#111312] font-mono text-lg text-[#d9ff65] shadow-lg hover:border-[#d9ff65]">λ</button>
+      {open && (
+        <ModalDialog
+          ariaLabel="LLM message inspector"
+          className="m-auto max-h-dvh max-w-full border-0 bg-transparent p-4 text-white backdrop:bg-ink/70 backdrop:backdrop-blur-[3px]"
+          initialFocusRef={closeRef}
+          returnFocusRef={triggerRef}
+          onDismiss={() => setOpen(false)}
+        >
+          <Inspector onClose={() => setOpen(false)} closeRef={closeRef} />
+        </ModalDialog>
+      )}
     </>
   )
 }

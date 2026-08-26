@@ -7,10 +7,7 @@ import {
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
-import {
-  createProjectStore,
-  type ProjectStore,
-} from '../../../packages/db/src/project-store.js'
+import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 import {
   canonicalPackageStore,
   type CanonicalArtifactRead,
@@ -21,14 +18,17 @@ import {
   projectContextNameLimit,
   projectContextWriteRequestSchema,
 } from '../shared/projectContext.contract.js'
-import { decodeParsedDocument } from '../shared/parsedDocument.js'
+import { decodeParsedDocument } from 'extraction/parsed-document'
 
 type ProjectContextReadStore = Pick<
-  ProjectStore,
+  ResearcherProjectStore,
   'listProjectContexts' | 'getProjectContextWithDocuments'
 > &
   Partial<
-    Pick<ProjectStore, 'getDocumentReopenSnapshot' | 'getSourceRepresentation'>
+    Pick<
+      ResearcherProjectStore,
+      'getDocumentReopenSnapshot' | 'getSourceRepresentation'
+    >
   >
 type ReadArtifact = (
   descriptor: CanonicalPackageDescriptor,
@@ -50,6 +50,7 @@ async function sourceDocumentPageCount(
     )
     if (!snapshot) return null
     const descriptor = await store.getSourceRepresentation(
+      projectContextId,
       snapshot.sourceRepresentation.sourceRepresentationId,
     )
     if (!descriptor) return null
@@ -61,12 +62,6 @@ async function sourceDocumentPageCount(
     return null
   }
 }
-
-/** Best-effort removal of one package the deletion left unreferenced. */
-export type RemovePackage = (
-  descriptor: CanonicalPackageDescriptor,
-  isReferenced: () => Promise<boolean>,
-) => Promise<void>
 
 function projectId(pathname: string): string | null {
   const match = /^\/api\/project-contexts\/([^/]+)$/.exec(pathname)
@@ -105,47 +100,8 @@ async function requestedName(request: Request): Promise<string> {
   return parsed.data.name
 }
 
-const removePackage: RemovePackage = async (descriptor, isReferenced) => {
-  // Relational deletion already succeeded, so a stranded canonical package is
-  // a warning, never a failed deletion.
-  await canonicalPackageStore
-    .remove(descriptor, isReferenced)
-    .catch((cause: unknown) => {
-      console.warn(
-        `Could not remove the unreferenced canonical package ${descriptor.artifactReference}: ${
-          cause instanceof Error ? cause.message : String(cause)
-        }`,
-      )
-    })
-}
-
-/** Shared packages are removed only when no surviving revision references them. */
-async function removeUnreferenced(
-  store: Pick<ProjectStore, 'isPackageReferenced'>,
-  candidates: readonly CanonicalPackageDescriptor[],
-  remove: RemovePackage,
-): Promise<void> {
-  const asked = new Set<string>()
-  for (const descriptor of candidates) {
-    if (asked.has(descriptor.artifactReference)) continue
-    asked.add(descriptor.artifactReference)
-    const isReferenced = () =>
-      store
-        .isPackageReferenced(descriptor.artifactReference)
-        .catch((cause: unknown) => {
-          console.warn(
-            `Could not check whether the canonical package ${descriptor.artifactReference} is still referenced, so it is retained: ${
-              cause instanceof Error ? cause.message : String(cause)
-            }`,
-          )
-          return true
-        })
-    if (!(await isReferenced())) await remove(descriptor, isReferenced)
-  }
-}
-
 export function createGetProjectContexts(
-  store: ProjectContextReadStore = createProjectStore(),
+  store: ProjectContextReadStore,
   readArtifact: ReadArtifact = canonicalPackageStore.read,
 ) {
   return async function getProjectContexts(
@@ -192,13 +148,9 @@ export function createGetProjectContexts(
 
 export function createProjectContextWrites(
   store: Pick<
-    ProjectStore,
-    | 'createProjectContext'
-    | 'renameProjectContext'
-    | 'deleteProjectContext'
-    | 'isPackageReferenced'
-  > = createProjectStore(),
-  remove: RemovePackage = removePackage,
+    ResearcherProjectStore,
+    'createProjectContext' | 'renameProjectContext' | 'deleteProjectContext'
+  >,
 ) {
   const POST = async (request: Request): Promise<Response> => {
     try {
@@ -240,12 +192,11 @@ export function createProjectContextWrites(
   const DELETE = async (request: Request): Promise<Response> => {
     try {
       const id = selectedProjectId(new URL(request.url))
-      const candidates = await store.deleteProjectContext(id).catch((cause) => {
+      const deleted = await store.deleteProjectContext(id).catch((cause) => {
         throw persistenceUnavailable(cause)
       })
-      if (!candidates)
+      if (!deleted)
         throw new ApiError(404, 'not_found', 'Project Context was not found.')
-      await removeUnreferenced(store, candidates, remove)
       return new Response(null, { status: 204, headers: noStore })
     } catch (error) {
       return noStoreError(error)
@@ -255,5 +206,13 @@ export function createProjectContextWrites(
   return { POST, PATCH, DELETE }
 }
 
-export const GET = createGetProjectContexts()
-export const { POST, PATCH, DELETE } = createProjectContextWrites()
+export function createResearcherApiHandlers(
+  store: ResearcherProjectStore,
+): Readonly<
+  Record<string, (request: Request) => Response | Promise<Response>>
+> {
+  return {
+    GET: createGetProjectContexts(store),
+    ...createProjectContextWrites(store),
+  }
+}

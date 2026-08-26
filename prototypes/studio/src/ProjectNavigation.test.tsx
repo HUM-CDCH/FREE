@@ -90,17 +90,17 @@ const detail = {
 const documentPath = (documentId = sourceDocumentId) =>
   `/projects/${projectContextId}/documents/${documentId}`
 
-function snapshot(sourceDocument = beretning) {
+function snapshot(sourceDocument = beretning, projectContext = project) {
   return {
-    projectContext: project,
+    projectContext,
     sourceDocument,
     sourceRepresentation: {
       sourceRepresentationId: representationId,
       revisionNumber: 2,
       resources: {
-        sourcePdfUrl: `/api/source-representations/${representationId}/pdf`,
-        markdownUrl: `/api/source-representations/${representationId}/markdown`,
-        parsedDocumentUrl: `/api/source-representations/${representationId}/source`,
+        sourcePdfUrl: `/api/project-contexts/${projectContext.projectContextId}/source-representations/${representationId}/pdf`,
+        markdownUrl: `/api/project-contexts/${projectContext.projectContextId}/source-representations/${representationId}/markdown`,
+        parsedDocumentUrl: `/api/project-contexts/${projectContext.projectContextId}/source-representations/${representationId}/source`,
       },
     },
     annotationSet: null,
@@ -111,10 +111,7 @@ function snapshot(sourceDocument = beretning) {
 }
 
 function secondSnapshot() {
-  return {
-    ...snapshot(secondDocument),
-    projectContext: secondProject,
-  }
+  return snapshot(secondDocument, secondProject)
 }
 
 function hydratedSnapshot() {
@@ -157,7 +154,6 @@ function hydratedSnapshot() {
         finishReason: null,
         inputTokens: null,
         outputTokens: null,
-        values: null,
         grounding: null,
       },
       failure: null,
@@ -171,9 +167,9 @@ function hydratedSnapshot() {
       sourceRepresentation: {
         revisionNumber: 2,
         resources: {
-          sourcePdfUrl: '/api/source-representations/rep/pdf',
-          markdownUrl: '/api/source-representations/rep/markdown',
-          parsedDocumentUrl: '/api/source-representations/rep/source',
+          sourcePdfUrl: `/api/project-contexts/${projectContextId}/source-representations/${representationId}/pdf`,
+          markdownUrl: `/api/project-contexts/${projectContextId}/source-representations/${representationId}/markdown`,
+          parsedDocumentUrl: `/api/project-contexts/${projectContextId}/source-representations/${representationId}/source`,
         },
       },
       extractionSchema: {
@@ -208,8 +204,22 @@ const failureResponse = (
   status: number,
 ): Response => Response.json({ error: { code, message } }, { status })
 
+function projectListResponse(projects: readonly (typeof project)[]) {
+  const body = {
+    projectContexts: projects.map((item) => ({
+      ...item,
+      sourceDocumentCount:
+        item.projectContextId === projectContextId
+          ? detail.sourceDocuments.length
+          : 0,
+    })),
+  }
+  return Response.json(body)
+}
+
 afterEach(() => {
   cleanup()
+  document.querySelector('base')?.remove()
   vi.unstubAllGlobals()
   history.replaceState(null, '', '/')
 })
@@ -234,7 +244,7 @@ function studioFetch(
     if (url.startsWith('/api/batch-schema-suggestions?'))
       return Response.json({ batchSchemaSuggestions: [] })
     if (url.endsWith(projectContextId)) return Response.json(branch)
-    return Response.json({ projectContexts: [project] })
+    return projectListResponse([project])
   })
 }
 
@@ -301,7 +311,7 @@ const secondProject = {
  */
 function lifecycleFetch(
   options: {
-    projects?: unknown[]
+    projects?: (typeof project)[]
     list?: () => Response | Promise<Response>
     branch?: () => Response | Promise<Response>
     post?: () => Response | Promise<Response>
@@ -336,16 +346,111 @@ function lifecycleFetch(
       return options.branch?.() ?? Response.json(detail)
     return (
       options.list?.() ??
-      Response.json({ projectContexts: options.projects ?? [project] })
+      projectListResponse(options.projects ?? [project])
     )
   })
 }
 
+/** The home page's own region; project names also appear in the rail. */
+const home = () => within(screen.getByRole('region', { name: 'Projects' }))
+
+describe('Studio home', () => {
+  it('opens a Project Context from its card', async () => {
+    renderRoutes()
+
+    fireEvent.click(await home().findByRole('button', { name: project.name }))
+
+    expect(
+      await screen.findByRole('region', { name: 'Project Context' }),
+    ).toBeInTheDocument()
+    expect(location.pathname).toBe(`/projects/${projectContextId}`)
+    expect(screen.queryByRole('region', { name: 'Projects' })).toBeNull()
+  })
+
+  it('returns to Studio home through the logo', async () => {
+    history.replaceState(null, '', `/projects/${projectContextId}`)
+    renderRoutes()
+    await screen.findByRole('region', { name: 'Project Context' })
+
+    const logo = screen.getByRole('link', { name: 'Studio home' })
+    expect(logo).toHaveAttribute('href', '/projects')
+    fireEvent.click(logo)
+
+    expect(await home().findByRole('heading', { name: 'Projects' })).toBeVisible()
+    expect(location.pathname).toBe('/projects')
+  })
+
+  it('creates a Project Context from the home page and routes into it', async () => {
+    renderRoutes(lifecycleFetch())
+
+    fireEvent.click(
+      await home().findByRole('button', { name: 'New Project' }),
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), {
+      target: { value: secondProject.name },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(
+      await screen.findByText('Empty Project Context.'),
+    ).toBeInTheDocument()
+    expect(location.pathname).toBe(
+      `/projects/${secondProject.projectContextId}`,
+    )
+    expect(
+      screen.getByRole('button', { name: railRow(secondProject.name) }),
+    ).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('shows the Source Document count from the initial list read', async () => {
+    const fetch = renderRoutes()
+
+    expect(
+      await home().findByRole('button', { name: project.name }),
+    ).toHaveTextContent('1 Source Document')
+    // The list contract carries the count; home never fans out branch reads.
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('Project Context lifecycle in the rail', () => {
+  it('renders markup-like Project Context and Source Document names as inert text', async () => {
+    const projectName = '<img src=x onerror="project-secret"> Project'
+    const sourceName = '<script>source-secret</script>.pdf'
+    const markedProject = { ...project, name: projectName }
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/extraction-schemas?'))
+        return Response.json({ extractionSchemas: [] })
+      if (url.startsWith('/api/batch-extractions?'))
+        return Response.json({ batchExtractions: [] })
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return Response.json({ batchSchemaSuggestions: [] })
+      if (url.endsWith(projectContextId))
+        return Response.json({
+          projectContext: markedProject,
+          sourceDocuments: [{ ...beretning, name: sourceName, pageCount: 6 }],
+        })
+      return projectListResponse([markedProject])
+    })
+    renderRoutes(fetcher)
+
+    const projectRow = await screen.findByRole('button', {
+      name: `Expand Source Documents in ${projectName}`,
+    })
+    expect(projectRow).toHaveTextContent(projectName)
+    fireEvent.click(projectRow)
+    expect(
+      await screen.findByRole('button', { name: sourceName }),
+    ).toHaveTextContent(sourceName)
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+    expect(document.querySelector('script')).toBeNull()
+  })
+
   it('navigates to and expands an acknowledged new Project Context', async () => {
     renderRoutes(lifecycleFetch())
     fireEvent.click(
-      await screen.findByRole('button', { name: '+ New project' }),
+      await screen.findByRole('button', { name: 'New Project Context' }),
     )
 
     const name = screen.getByRole('textbox', {
@@ -385,7 +490,7 @@ describe('Project Context lifecycle in the rail', () => {
     })
     renderRoutes(renderFetch)
 
-    const trigger = await screen.findByRole('button', { name: '+ New project' })
+    const trigger = await screen.findByRole('button', { name: 'New Project Context' })
     trigger.focus()
     fireEvent.click(trigger)
     const dialog = await screen.findByRole('dialog', {
@@ -496,7 +601,7 @@ describe('Project Context lifecycle in the rail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'No project open' }),
+      await screen.findByRole('heading', { name: 'Projects' }),
     ).toBeInTheDocument()
     expect(location.pathname).toBe('/projects')
     expect(
@@ -572,7 +677,7 @@ describe('Project Context lifecycle in the rail', () => {
     await screen.findByRole('button', { name: railRow('Ellekilde II') })
 
     // This list read started before the rename and still carries the old name.
-    list.resolve(Response.json({ projectContexts: [project] }))
+    list.resolve(projectListResponse([project]))
 
     await waitFor(() =>
       expect(
@@ -596,12 +701,12 @@ describe('Project Context lifecycle in the rail', () => {
           reads += 1
           return reads === 1
             ? initial.promise
-            : Response.json({ projectContexts: [secondProject, project] })
+            : projectListResponse([secondProject, project])
         },
       }),
     )
     fireEvent.click(
-      await screen.findByRole('button', { name: '+ New project' }),
+      await screen.findByRole('button', { name: 'New Project Context' }),
     )
     fireEvent.change(
       screen.getByRole('textbox', { name: 'Project name' }),
@@ -610,7 +715,7 @@ describe('Project Context lifecycle in the rail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     await screen.findByRole('button', { name: railRow(secondProject.name) })
 
-    initial.resolve(Response.json({ projectContexts: [project] }))
+    initial.resolve(projectListResponse([project]))
 
     expect(
       await screen.findByRole('button', { name: railRow() }),
@@ -701,11 +806,29 @@ describe('Project Context lifecycle in the rail', () => {
 })
 
 describe('Project Context navigation', () => {
+  it('keeps routing and reads beneath the configured Studio base path', async () => {
+    const base = document.createElement('base')
+    base.href = '/free/'
+    document.head.prepend(base)
+    history.replaceState(null, '', '/free/projects')
+    const fetch = renderRoutes()
+
+    await screen.findByRole('heading', { name: 'Projects' })
+    await openProjectPage()
+
+    expect(location.pathname).toBe(`/free/projects/${projectContextId}`)
+    expect(
+      fetch.mock.calls.every(([input]) =>
+        String(input).startsWith('/free/api/'),
+      ),
+    ).toBe(true)
+  })
+
   it('keeps the persistent rail while navigating to a lazily loaded Project Context', async () => {
     const fetch = renderRoutes()
 
     expect(
-      await screen.findByRole('heading', { name: 'No project open' }),
+      await screen.findByRole('heading', { name: 'Projects' }),
     ).toBeInTheDocument()
     const page = await openProjectPage()
 
@@ -727,14 +850,31 @@ describe('Project Context navigation', () => {
       'multiple',
     )
     expect(screen.queryByLabelText('Open a PDF (dev)')).not.toBeInTheDocument()
-    // Exactly five: the row's disclosure, its add-sources and actions
-    // controls, the one action that menu holds, and its one Source Document.
-    expect(rail().getAllByRole('button')).toHaveLength(5)
+    // Exactly six: the row's disclosure, add-sources and actions controls,
+    // the menu's open/delete actions, and its one Source Document.
+    expect(rail().getAllByRole('button')).toHaveLength(6)
     expect(fetch).toHaveBeenCalledTimes(2)
 
     fireEvent.click(rail().getByRole('button', { name: 'Beretning.pdf' }))
     expect(await screen.findByText(/Opened Beretning.pdf/)).toBeInTheDocument()
     expect(location.pathname).toBe(documentPath())
+  })
+
+  it('opens the rail Source Document picker once for each add action', async () => {
+    renderRoutes()
+    await openProjectPage()
+    const openPicker = vi
+      .spyOn(HTMLInputElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+
+    fireEvent.click(
+      rail().getByRole('button', {
+        name: `Add Source Documents to ${project.name}`,
+      }),
+    )
+
+    expect(openPicker).toHaveBeenCalledTimes(1)
+    openPicker.mockRestore()
   })
 
   it('filters, sorts, and switches the Project Context resource tabs', async () => {
@@ -888,7 +1028,7 @@ describe('Project Context navigation', () => {
       if (url.startsWith('/api/schema-revisions/'))
         return Response.json({ revision: null })
       if (url.endsWith(projectContextId)) return Response.json(detail)
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
     history.replaceState(null, '', `/projects/${projectContextId}/extractions`)
     renderRoutes(batchFetch)
@@ -994,7 +1134,7 @@ describe('Project Context navigation', () => {
           ],
         })
       if (url.endsWith(projectContextId)) return Response.json(detail)
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
     renderRoutes(fetcher)
 
@@ -1126,7 +1266,7 @@ describe('Project Context navigation', () => {
           projectContext: secondProject,
           sourceDocuments: [{ ...secondDocument, pageCount: 2 }],
         })
-      return Response.json({ projectContexts: [project, secondProject] })
+      return projectListResponse([project, secondProject])
     })
     renderRoutes(fetcher)
     const firstPage = await openProjectPage()
@@ -1173,7 +1313,7 @@ describe('Project Context navigation', () => {
 
   it('lets keyboard users resize the Project Context rail', async () => {
     renderRoutes()
-    await screen.findByRole('heading', { name: 'No project open' })
+    await screen.findByRole('heading', { name: 'Projects' })
     const separator = screen.getByRole('separator', {
       name: 'Resize Project Context rail',
     })
@@ -1193,7 +1333,7 @@ describe('Project Context navigation', () => {
               reject(new DOMException('Aborted', 'AbortError')),
             )
             setTimeout(
-              () => resolve(Response.json({ projectContexts: [project] })),
+              () => resolve(projectListResponse([project])),
               0,
             )
           }),
@@ -1249,7 +1389,7 @@ describe('Project Context navigation', () => {
             )
           : Response.json(detail)
       }
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
     renderRoutes(fetch)
     await screen.findByRole('button', { name: railRow() })
@@ -1291,7 +1431,7 @@ describe('Project Context navigation', () => {
             sourceDocuments: [],
           })
         if (url.endsWith(projectContextId)) return Response.json(detail)
-        return Response.json({ projectContexts: [project, secondProject] })
+        return projectListResponse([project, secondProject])
       }),
     )
     await screen.findByRole('button', { name: railRow() })
@@ -1323,7 +1463,7 @@ describe('Project Context navigation', () => {
   it('retries only the failed branch', async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(Response.json({ projectContexts: [project] }))
+      .mockResolvedValueOnce(projectListResponse([project]))
       .mockResolvedValueOnce(
         failureResponse(
           'persistence_unavailable',
@@ -1344,7 +1484,7 @@ describe('Project Context navigation', () => {
     const pending = Promise.withResolvers<Response>()
     const fetch = vi
       .fn()
-      .mockResolvedValueOnce(Response.json({ projectContexts: [project] }))
+      .mockResolvedValueOnce(projectListResponse([project]))
       .mockReturnValueOnce(pending.promise)
     renderRoutes(fetch)
 
@@ -1374,7 +1514,7 @@ describe('Project Context navigation', () => {
 
   it('updates from the back/forward listener without pushing another history entry', async () => {
     renderRoutes()
-    await screen.findByRole('heading', { name: 'No project open' })
+    await screen.findByRole('heading', { name: 'Projects' })
 
     history.pushState(null, '', `/projects/${projectContextId}`)
     dispatchEvent(new PopStateEvent('popstate'))
@@ -1476,7 +1616,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
         branchCalls += 1
         return branch(detail.sourceDocuments)
       }
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1586,7 +1726,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       if (init?.method === 'POST') return ingestionResult(uploadedA)
       if (url.includes('/reopen')) return Response.json(snapshot(uploadedA))
       if (url.endsWith(projectContextId)) return branch([])
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1606,6 +1746,48 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       expect(screen.queryByText('A retry.pdf')).not.toBeInTheDocument(),
     )
     expect(rail().getAllByRole('button', { name: 'A.pdf' })).toHaveLength(1)
+  })
+
+  it('queues a 180-scalar filename and holds a 181-scalar filename as an item error', async () => {
+    vi.stubGlobal('crypto', {
+      randomUUID: vi
+        .fn()
+        .mockReturnValueOnce(ingestionKeys.A)
+        .mockReturnValueOnce(ingestionKeys.B),
+    })
+    const acceptedName = `${'😀'.repeat(176)}.pdf`
+    const rejectedName = `${'😀'.repeat(177)}.pdf`
+    const writes: string[] = []
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === 'POST') {
+        writes.push(((init.body as FormData).get('file') as File).name)
+        return ingestionResult(uploadedA)
+      }
+      if (url.endsWith(projectContextId)) return branch([])
+      return projectListResponse([project])
+    })
+
+    renderRoutes(fetcher)
+    await openProjectPage()
+    fireEvent.change(screen.getByLabelText('Drop PDFs here or browse'), {
+      target: {
+        files: [
+          new File(['a'], acceptedName, { type: 'application/pdf' }),
+          new File(['b'], rejectedName, { type: 'application/pdf' }),
+        ],
+      },
+    })
+
+    expect(
+      await screen.findByText(
+        'The Source Document filename must contain at most 180 Unicode characters.',
+      ),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(writes).toEqual([acceptedName]))
+    expect(screen.queryByRole('button', { name: /Retry/ })).not.toBeInTheDocument()
+    expect(Array.from(acceptedName)).toHaveLength(180)
+    expect(Array.from(rejectedName)).toHaveLength(181)
   })
 
   it('stays on the Project Context route when every selected PDF fails', async () => {
@@ -1628,7 +1810,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
         branchReads += 1
         return branch([])
       }
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1675,7 +1857,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
       }
       if (url.includes('/reopen')) return Response.json(snapshot(beretning))
       if (url.endsWith(projectContextId)) return branch(detail.sourceDocuments)
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1724,7 +1906,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
         return branch(detail.sourceDocuments)
       }
       if (url.includes('/reopen')) throw new Error('stale navigation')
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
 
     renderRoutes(fetcher)
@@ -1740,7 +1922,7 @@ describe('multi-PDF ingestion on the Project Context page', () => {
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Delete permanently' }))
     expect(
-      await screen.findByRole('heading', { name: 'No project open' }),
+      await screen.findByRole('heading', { name: 'Projects' }),
     ).toBeInTheDocument()
     expect(location.pathname).toBe('/projects')
 
@@ -1785,9 +1967,9 @@ describe('routed Source Document reopening', () => {
       sourceRepresentation: {
         revisionNumber: 1,
         resources: {
-          sourcePdfUrl: `/api/source-representations/${historicalRepresentationId}/pdf`,
-          markdownUrl: `/api/source-representations/${historicalRepresentationId}/markdown`,
-          parsedDocumentUrl: `/api/source-representations/${historicalRepresentationId}/source`,
+          sourcePdfUrl: `/api/project-contexts/${projectContextId}/source-representations/${historicalRepresentationId}/pdf`,
+          markdownUrl: `/api/project-contexts/${projectContextId}/source-representations/${historicalRepresentationId}/markdown`,
+          parsedDocumentUrl: `/api/project-contexts/${projectContextId}/source-representations/${historicalRepresentationId}/source`,
         },
       },
       extractionSchema: {
@@ -1879,6 +2061,58 @@ describe('routed Source Document reopening', () => {
     expect(reads).toBe(2)
   })
 
+  it('closes inactive, active, and final Source Document tabs without losing route intent', async () => {
+    history.replaceState(null, '', documentPath())
+    renderRoutes(
+      studioFetch(
+        (documentId) =>
+          Response.json(
+            snapshot(
+              documentId === sourceDocumentId ? beretning : historical,
+            ),
+          ),
+        {
+          projectContext: project,
+          sourceDocuments: [
+            { ...beretning, pageCount: 6 },
+            { ...historical, pageCount: 4 },
+          ],
+        },
+      ),
+    )
+    await screen.findByText(/Opened Beretning.pdf/)
+
+    fireEvent.click(screen.getByRole('button', { name: historical.name }))
+    await screen.findByText(/Opened Historical.pdf/)
+    expect(location.pathname).toBe(documentPath(otherSourceDocumentId))
+    expect(
+      screen.getByRole('tab', { name: new RegExp(`^${historical.name}`) }),
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(
+      screen.getByRole('tab', { name: new RegExp(`^${beretning.name}`) }),
+    ).toHaveAttribute('aria-selected', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: `Close ${beretning.name}` }))
+    expect(location.pathname).toBe(documentPath(otherSourceDocumentId))
+    expect(screen.getByText(/Opened Historical.pdf/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: beretning.name }))
+    await screen.findByText(/Opened Beretning.pdf/)
+    fireEvent.click(screen.getByRole('button', { name: `Close ${beretning.name}` }))
+    await waitFor(() =>
+      expect(location.pathname).toBe(documentPath(otherSourceDocumentId)),
+    )
+    expect(await screen.findByText(/Opened Historical.pdf/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: `Close ${historical.name}` }))
+    await waitFor(() =>
+      expect(location.pathname).toBe(`/projects/${projectContextId}`),
+    )
+    expect(
+      await screen.findByRole('region', { name: 'Project Context' }),
+    ).toBeInTheDocument()
+  })
+
   it('keeps the open selection paired to its Project Context during a cross-context opening', async () => {
     history.replaceState(null, '', '/projects')
     const pending = Promise.withResolvers<Response>()
@@ -1896,7 +2130,7 @@ describe('routed Source Document reopening', () => {
           sourceDocuments: [{ ...secondDocument, pageCount: 2 }],
         })
       if (url.endsWith(projectContextId)) return Response.json(detail)
-      return Response.json({ projectContexts: [project, secondProject] })
+      return projectListResponse([project, secondProject])
     })
     renderRoutes(fetch)
 
@@ -1971,7 +2205,7 @@ describe('routed Source Document reopening', () => {
             )
           : Response.json(detail)
       }
-      return Response.json({ projectContexts: [project] })
+      return projectListResponse([project])
     })
     renderRoutes(fetch)
 
@@ -2033,6 +2267,55 @@ describe('routed Source Document reopening', () => {
 
     expect(await screen.findByText(/Opened Beretning.pdf/)).toBeInTheDocument()
   })
+
+  it.each([
+    ['Project Context', `/projects/${projectContextId}`, 2],
+    ['Source Document', documentPath(), 2],
+    [
+      'Batch Extraction',
+      `/projects/${projectContextId}/extractions/51000000-0000-4000-8007-000000000099`,
+      4,
+    ],
+  ] as const)(
+    'renders a scoped not-found state for a stale cross-account %s route',
+    async (_kind, path, expectedCalls) => {
+      history.replaceState(null, '', path)
+      const fetch = vi.fn(
+        async (
+          input: RequestInfo | URL,
+          init: RequestInit = {},
+        ): Promise<Response> => {
+          expect(init.credentials).toBe('same-origin')
+          const url = String(input)
+          if (url === '/api/project-contexts')
+            return projectListResponse([])
+          if (url === `/api/project-contexts/${projectContextId}`)
+            return failureResponse(
+              'not_found',
+              'That Project Context is unavailable.',
+              404,
+            )
+          if (url.startsWith('/api/batch-extractions?'))
+            return Response.json({ batchExtractions: [] })
+          if (url.startsWith('/api/batch-schema-suggestions?'))
+            return Response.json({ batchSchemaSuggestions: [] })
+          throw new Error(`A stale scoped route must not read ${url}.`)
+        },
+      )
+      renderRoutes(fetch)
+
+      expect(
+        await screen.findByRole('heading', {
+          name: 'That Project Context no longer exists',
+        }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText('That Project Context is unavailable.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/Opened /)).not.toBeInTheDocument()
+      expect(fetch).toHaveBeenCalledTimes(expectedCalls)
+    },
+  )
 
   it('never reads a malformed Source Document reference', async () => {
     history.replaceState(null, '', documentPath('NOT-A-UUID'))

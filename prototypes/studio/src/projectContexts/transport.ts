@@ -1,11 +1,12 @@
+import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
 import type { z } from 'zod'
 import {
   documentReopenResponseSchema,
   projectContextErrorResponseSchema,
   projectContextErrorSchema,
+  projectContextListItemSchema,
   projectContextListResponseSchema,
   projectContextResponseSchema,
-  projectContextSummarySchema,
   projectContextWithDocumentsResponseSchema,
 } from '../../shared/projectContext.contract'
 import {
@@ -13,7 +14,7 @@ import {
   type SourceDocumentIngestionResponse,
 } from '../../shared/sourceDocumentIngestion.contract'
 
-export type ProjectContext = z.output<typeof projectContextSummarySchema>
+export type ProjectContext = z.output<typeof projectContextListItemSchema>
 export type ProjectContextDetail = z.output<
   typeof projectContextWithDocumentsResponseSchema
 >
@@ -22,7 +23,7 @@ export type ProjectContextFailure = z.output<typeof projectContextErrorSchema>
 export type DocumentSnapshot = z.output<typeof documentReopenResponseSchema>
 
 async function read(url: string, init?: RequestInit): Promise<unknown> {
-  const response = await fetch(url, init)
+  const response = await authenticatedFetch(url, init)
   const body: unknown =
     response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {

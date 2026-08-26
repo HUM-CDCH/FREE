@@ -4,13 +4,16 @@ types {
   Timestamptz6 = DateTime @db.Timestamptz(6)
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  username  String?
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt temporal.updatedAt()
+model ResearcherAccount {
+  id                 Uuid         @id @default(uuid())
+  email              String       @unique
+  passwordHash       String
+  mustChangePassword Boolean      @default(true)
+  disabledAt         Timestamptz6?
+  sessionVersion     Int          @default(0)
+  createdAt          Timestamptz6 @default(now())
+  updatedAt          temporal.updatedAt()
+  projectContexts    ProjectContext[]
 }
 
 enum AttemptOutcome {
@@ -51,19 +54,23 @@ enum BatchSchemaSuggestionPhase {
 }
 
 model ProjectContext {
+  researcherAccountId Uuid
   id                Uuid               @id @default(uuid())
   name              String
   createdAt         Timestamptz6       @default(now())
+  researcherAccount ResearcherAccount @relation(fields: [researcherAccountId], references: [id], onDelete: Restrict)
   sourceDocuments   SourceDocument[]
   extractionSchemas ExtractionSchema[]
   batchExtractions  BatchExtraction[]
   batchSchemaSuggestions BatchSchemaSuggestion[]
+
+  @@index([researcherAccountId])
 }
 
 model SourceDocument {
   id                     Uuid                           @id @default(uuid())
   projectContextId       Uuid
-  ingestionKey           Uuid                           @unique
+  ingestionKey           Uuid
   contentSha256          String
   mediaType              String
   originalName           String?
@@ -72,8 +79,8 @@ model SourceDocument {
   representations        SourceRepresentationRevision[]
   annotationSetRevisions AnnotationSetRevision[]
 
-  @@index([projectContextId])
-  @@index([contentSha256])
+  @@unique([projectContextId, ingestionKey])
+  @@unique([projectContextId, contentSha256])
 }
 
 model SourceRepresentationRevision {
@@ -361,10 +368,14 @@ model ExtractionReview {
 model ReviewDecision {
   id                    Uuid       @id @default(uuid())
   extractionId          Uuid
+  resultPath            Json
+  resultPathKey         String
   evidenceAnchorId      String
   reviewedOccurrenceIds Json
+  action                String
+  reviewedValue         Json?
   createdAt             Timestamptz6 @default(now())
   extraction            Extraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
 
-  @@unique([extractionId, evidenceAnchorId])
+  @@unique([extractionId, resultPathKey])
 }

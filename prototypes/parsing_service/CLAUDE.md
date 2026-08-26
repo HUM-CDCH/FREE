@@ -1,19 +1,25 @@
-# Parsing service
+# Parsing Service agent guidance
 
-Package manager: **uv**. See `pyproject.toml` for the dependency set and `package.json` for the scripts.
+Read the repository `AGENTS.md` first. This file records the Parsing Service
+boundaries that are easy to violate while changing its small implementation.
 
-## Running it
+- The service owns PDF validation and parsing only. It publishes
+  `parsed_document.v2`, canonical Markdown, and one deterministic canonical
+  ingestion package; model extraction belongs to Studio.
+- Run exactly one FastAPI/Uvicorn process. The bounded FIFO queue and reusable
+  Docling converter are intentionally in-process.
+- Treat `data/` and the container's parsing volumes as processor caches. Studio
+  retains the canonical package before publishing durable Project Store state.
+- Keep task identifiers UUID-validated and resolve task files only through
+  `TaskStorage.task_dir`.
+- Cancellation is cooperative around Docling's blocking conversion. A cancelled
+  conversion may finish in its worker thread, but its result must not publish.
+- Preserve the parser injection seam used by contract tests; tests must not
+  download Docling models.
+
+Run backend work from this directory with the selected `uv` environment:
 
 ```bash
-uv sync --extra ocr-cpu  # use ocr-gpu instead on CUDA hosts
+uv sync
+uv run --no-sync python -m unittest discover -s tests
 ```
-
-`pnpm --filter parsing-service dev` is the preferred dev entry point. Runtime scripts use `uv run --no-sync`, which preserves whichever **mutually exclusive** CPU/GPU OCR profile was explicitly installed — a bare `uv run` would resolve the other one back in. The dev script uses Python UTF-8 mode for Windows and binds to `http://127.0.0.1:8000`, which is what the studio frontend expects.
-
-## Contracts that are not visible from the route signatures
-
-- Task source PDFs are stored internally as `source.pdf`, copied into a SHA-256 content-addressed source store, and exposed with only a sanitized display filename in metadata.
-- Task route IDs must be UUIDs.
-- `GET /tasks/{task_id}/document` and `GET /tasks/{task_id}/source` both return the versioned `ParsedDocument` JSON, carrying parser provenance, page markers, and the exact offsets extraction depends on.
-- The parsing service does **not** own model extraction endpoints. Studio serves model routes from same-origin `/api`.
-- `GET /` serves a small local prototype control page for nontechnical testing. It is not the researcher-facing FREE interface; Studio remains the product UI for humanities researchers.

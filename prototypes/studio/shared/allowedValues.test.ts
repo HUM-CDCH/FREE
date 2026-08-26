@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyAllowedValues, coerceAllowedValue, isAllowedValues } from './allowedValues'
+import { applyAllowedValues, coerceAllowedValue, isAllowedValues } from 'extraction/allowed-values'
 
 const SEX = ['mand', 'kvinde', 'ukendt']
 

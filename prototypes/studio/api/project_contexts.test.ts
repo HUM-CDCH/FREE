@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import parsedDocument from '../src/assets/parsed_document.v2.json'
 import {
-  createProjectStore,
+  createResearcherProjectStore,
   PROJECT_CONTEXT_NAME_LIMIT,
 } from '../../../packages/db/src/project-store.js'
 import {
@@ -20,6 +20,8 @@ import {
   createProjectContextWrites,
 } from './project_contexts.js'
 
+const RESEARCHER_ACCOUNT_ID = '00000000-0000-4000-8000-000000000043'
+
 /** Every Project Context write sends the same JSON name body. */
 function write(url: string, method: 'POST' | 'PATCH', name: string): Request {
   return new Request(url, {
@@ -36,17 +38,20 @@ describe('Project Context routes', () => {
 
   it('returns no-store list and detail DTOs, and bounds invalid input', async () => {
     const store = projectContextFixture()
-    const GET = createGetProjectContexts(store, async () => ({
+    const readArtifact = vi.fn(async () => ({
       bytes: new TextEncoder().encode(JSON.stringify(parsedDocument)),
       mediaType: 'application/json',
     }))
+    const GET = createGetProjectContexts(store, readArtifact)
     const list = await GET(
       new Request('http://test/api/project-contexts?limit=1'),
     )
     expect(list.headers.get('cache-control')).toBe('no-store')
     const listBody = await list.json()
     expect(projectContextListResponseSchema.parse(listBody)).toMatchObject({
-      projectContexts: [{ projectContextId: DEMO_PROJECT_ID }],
+      projectContexts: [
+        { projectContextId: DEMO_PROJECT_ID, sourceDocumentCount: 1 },
+      ],
     })
     const detail = await GET(
       new Request(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`),
@@ -84,6 +89,7 @@ describe('Project Context routes', () => {
       ),
     )
     expect(missing.status).toBe(404)
+    expect(readArtifact).toHaveBeenCalledOnce()
   })
 
   it('bounds persistence failures without exposing their details', async () => {
@@ -133,41 +139,20 @@ describe('Project Context routes', () => {
       name: 'Ellekilde, TAK 1356',
       createdAt: new Date('2026-08-11T09:00:00.000Z'),
     }
-    const removed: string[] = []
-    const { POST, PATCH, DELETE } = createProjectContextWrites(
-      {
-        async createProjectContext(name) {
-          return { ...created, name }
-        },
-        async renameProjectContext(projectContextId, name) {
-          return projectContextId === DEMO_PROJECT_ID
-            ? { ...created, projectContextId, name }
-            : null
-        },
-        async deleteProjectContext(projectContextId) {
-          return projectContextId === DEMO_PROJECT_ID
-            ? [
-                {
-                  artifactReference: 'c'.repeat(64),
-                  artifactSha256: 'c'.repeat(64),
-                },
-                // Still pinned elsewhere, so it must survive the deletion.
-                {
-                  artifactReference: 'd'.repeat(64),
-                  artifactSha256: 'd'.repeat(64),
-                },
-              ]
-            : null
-        },
-        async isPackageReferenced(artifactReference) {
-          return artifactReference === 'd'.repeat(64)
-        },
-      },
-      async (descriptor, isReferenced) => {
-        expect(await isReferenced()).toBe(false)
-        removed.push(descriptor.artifactReference)
-      },
+    const deleteProjectContext = vi.fn(
+      async (projectContextId: string) => projectContextId === DEMO_PROJECT_ID,
     )
+    const { POST, PATCH, DELETE } = createProjectContextWrites({
+      async createProjectContext(name) {
+        return { ...created, name }
+      },
+      async renameProjectContext(projectContextId, name) {
+        return projectContextId === DEMO_PROJECT_ID
+          ? { ...created, projectContextId, name }
+          : null
+      },
+      deleteProjectContext,
+    })
 
     const create = await POST(
       write('http://test/api/project-contexts', 'POST', '  Trimmed  '),
@@ -197,29 +182,21 @@ describe('Project Context routes', () => {
     )
     expect(remove.status).toBe(204)
     expect(remove.headers.get('cache-control')).toBe('no-store')
-    // Removal happens after the relational deletion, and only for the address
-    // nothing pins any more.
-    expect(removed).toEqual(['c'.repeat(64)])
+    expect(deleteProjectContext).toHaveBeenCalledWith(DEMO_PROJECT_ID)
   })
 
   it('bounds invalid writes, unknown owners, and persistence failures', async () => {
-    const { POST, PATCH, DELETE } = createProjectContextWrites(
-      {
-        async createProjectContext() {
-          throw new Error('postgresql://secret')
-        },
-        async renameProjectContext() {
-          return null
-        },
-        async deleteProjectContext() {
-          return null
-        },
-        async isPackageReferenced() {
-          return false
-        },
+    const { POST, PATCH, DELETE } = createProjectContextWrites({
+      async createProjectContext() {
+        throw new Error('postgresql://secret')
       },
-      async () => {},
-    )
+      async renameProjectContext() {
+        return null
+      },
+      async deleteProjectContext() {
+        return false
+      },
+    })
 
     for (const name of ['', '   ', 'x'.repeat(projectContextNameLimit + 1)]) {
       const invalid = await POST(
@@ -284,17 +261,11 @@ describe('Project Context routes', () => {
     const persistenceFailure = async () => {
       throw new Error('postgresql://secret')
     }
-    const writes = createProjectContextWrites(
-      {
-        createProjectContext: persistenceFailure,
-        renameProjectContext: persistenceFailure,
-        deleteProjectContext: persistenceFailure,
-        async isPackageReferenced() {
-          return false
-        },
-      },
-      async () => {},
-    )
+    const writes = createProjectContextWrites({
+      createProjectContext: persistenceFailure,
+      renameProjectContext: persistenceFailure,
+      deleteProjectContext: persistenceFailure,
+    })
     for (const response of [
       await writes.PATCH(
         write(
@@ -319,34 +290,6 @@ describe('Project Context routes', () => {
     }
   })
 
-  it('keeps a stranded retained artifact from failing an applied deletion', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    // The shipped remover runs: an unusable reference must only be logged.
-    const { DELETE } = createProjectContextWrites({
-      async createProjectContext() {
-        throw new Error('unused')
-      },
-      async renameProjectContext() {
-        return null
-      },
-      async deleteProjectContext() {
-        return [{ artifactReference: 'not-a-reference', artifactSha256: 'x' }]
-      },
-      async isPackageReferenced() {
-        return false
-      },
-    })
-
-    const response = await DELETE(
-      new Request(`http://test/api/project-contexts/${DEMO_PROJECT_ID}`, {
-        method: 'DELETE',
-      }),
-    )
-
-    expect(response.status).toBe(204)
-    expect(warn).toHaveBeenCalledOnce()
-    warn.mockRestore()
-  })
 
   it('orders database reads by created time and document identity', async () => {
     const createdAt = { asc: vi.fn(), desc: vi.fn() }
@@ -375,7 +318,7 @@ describe('Project Context routes', () => {
     collection.select.mockReturnValue(collection)
     collection.where.mockReturnValue(collection)
     collection.take.mockReturnValue(collection)
-    const store = createProjectStore({
+    const store = createResearcherProjectStore(RESEARCHER_ACCOUNT_ID, {
       orm: {
         public: { ProjectContext: collection, SourceDocument: collection },
       },
@@ -388,6 +331,9 @@ describe('Project Context routes', () => {
     expect(id.desc).toHaveBeenCalledOnce()
     expect(id.asc).toHaveBeenCalledOnce()
     expect(collection.take).toHaveBeenCalledWith(20)
-    expect(collection.first).toHaveBeenCalledWith({ id: DEMO_PROJECT_ID })
+    expect(collection.first).toHaveBeenCalledWith({
+      id: DEMO_PROJECT_ID,
+      researcherAccountId: RESEARCHER_ACCOUNT_ID,
+    })
   })
 })

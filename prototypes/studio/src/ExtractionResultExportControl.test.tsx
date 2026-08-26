@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
-import type { SchemaDefinition } from '../shared/schemaNode'
+import type { SchemaDefinition } from 'extraction/schema'
 
 const schema: SchemaDefinition = {
   recordDescription: 'Report',
@@ -87,13 +87,19 @@ describe('ExtractionResultExportControl', () => {
     })
   })
 
-  it('shows export failures inline', async () => {
-    onExport.mockRejectedValue(new Error('Spreadsheet creation failed.'))
+  it('shows export failures inline and allows an explicit retry', async () => {
+    onExport
+      .mockRejectedValueOnce(new Error('Spreadsheet creation failed.'))
+      .mockResolvedValueOnce(undefined)
     render(<ExtractionResultExportControl schema={schema} onExport={onExport} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Export' }))
     fireEvent.click(screen.getByRole('button', { name: 'CSV' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Spreadsheet creation failed.')
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }))
+    expect(onExport).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

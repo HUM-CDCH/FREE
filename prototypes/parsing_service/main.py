@@ -1,7 +1,4 @@
-"""Entry point shim so `fastapi dev main.py` / `uvicorn main:app` keep working.
-
-All application code lives in the `app` package.
-"""
+"""Entry point for ``fastapi run main.py`` and ``uvicorn main:app``."""
 
 from app.main import app
 

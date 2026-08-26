@@ -310,6 +310,20 @@ function updateIssues(
         message: 'An existing connection cannot change provider kind. Delete it and create a new UUID.',
       })
     }
+    const managed =
+      providerTable[connection.provider].authentication === 'managed'
+    const credentialBoundaryChanged =
+      !before || before.baseUrl !== connection.baseUrl
+    if (
+      managed &&
+      credentialBoundaryChanged &&
+      !Object.hasOwn(credentials, connection.id)
+    )
+      issues.push({
+        path: `credentials.${connection.id}`,
+        message:
+          'A new or re-addressed managed connection requires an explicit credential.',
+      })
   })
 
   for (const [id, action] of Object.entries(credentials)) {
@@ -351,6 +365,26 @@ async function requireManagedCredentials(
   if (issues.length > 0) throw invalidSubmitted(issues)
 }
 
+async function clearImplicitOptionalCredentials(
+  previous: ModelConfig,
+  config: ModelConfig,
+  credentials: CredentialActions,
+  store: CredentialStore,
+): Promise<void> {
+  const previousById = new Map(
+    previous.connections.map((connection) => [connection.id, connection]),
+  )
+  for (const connection of config.connections) {
+    const before = previousById.get(connection.id)
+    if (
+      providerTable[connection.provider].authentication === 'optional' &&
+      !Object.hasOwn(credentials, connection.id) &&
+      (!before || before.baseUrl !== connection.baseUrl)
+    )
+      await requireKeyring(() => store.delete(connection.id))
+  }
+}
+
 /**
  * Credentials move before the JSON commit so a committed route can never name a
  * credential that was never stored. The two stores cannot commit together: a
@@ -368,6 +402,12 @@ export async function updateModelConfig(
   const issues = updateIssues(previous, config, credentials)
   if (issues.length > 0) throw invalidSubmitted(issues)
   await requireManagedCredentials(config, credentials, store)
+  await clearImplicitOptionalCredentials(
+    previous,
+    config,
+    credentials,
+    store,
+  )
 
   for (const [id, action] of Object.entries(credentials)) {
     await requireKeyring(() => (action === null ? store.delete(id) : store.set(id, action)))
@@ -375,8 +415,9 @@ export async function updateModelConfig(
 
   const committed = await writeModelConfig(config, options)
 
-  // Past the commit the JSON is authoritative, so a credential the removed UUID
-  // left behind is inert: no saved connection can reach it. Cleanup may fail.
+  // Past the commit the JSON is authoritative. Reusing a removed UUID cannot
+  // reactivate a leftover credential: managed/new endpoints require an explicit
+  // credential, while optional/new endpoints delete any leftover before commit.
   const submitted = new Set(config.connections.map(({ id }) => id))
   for (const { id, provider } of previous.connections) {
     if (submitted.has(id) || providerTable[provider].authentication === 'external') continue

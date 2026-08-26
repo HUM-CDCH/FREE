@@ -2,15 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import {
   cancelExtraction,
   finalizeExtractionReview,
+  readExtraction,
   requestExtraction,
 } from './api'
 import type { ExtractionState } from './extraction'
-import { anchorOccurrences } from './evidenceNavigation'
-import type { ParsedDocument } from '../shared/parsedDocument'
 import type {
   ExtractionAttempt,
-  ExtractionRetrySelection,
-  ExtractionStrategy,
+  ReviewDecisionAction,
   ReviewDecisionInput,
 } from '../shared/extraction.contract'
 
@@ -25,7 +23,6 @@ type UseExtractionOptions = {
   onTerminal: (attempt: ExtractionAttempt, isRerun: boolean) => void
   onError: (message: string) => void
   initialAttempt?: ExtractionAttempt | null
-  parsedDocument?: ParsedDocument | null
   reviewTarget?: ReviewTarget | null
   /**
    * Identifies which Source Document `initialAttempt` belongs to. The caller
@@ -38,46 +35,6 @@ type UseExtractionOptions = {
 }
 
 export type ExtractionController = ReturnType<typeof useExtraction>
-
-type ExtractionRetryInput = Omit<ExtractionRetrySelection, 'retryOfId'>
-type ExtractionRunInput =
-  | {
-      sourceRepresentationRevisionId: string
-      schemaRevisionId: string
-      strategy: ExtractionStrategy
-    }
-  | {
-      retryOfId: string
-      retryDocument?: boolean
-      rediscover?: boolean
-      retryRecordStartBlockIds?: string[]
-    }
-
-function reviewDecisions(
-  document: ParsedDocument,
-  attempt: ExtractionAttempt,
-): ReviewDecisionInput[] {
-  const anchors = new Map(
-    document.evidence_index.anchors.map((anchor) => [anchor.anchor_id, anchor]),
-  )
-  return [
-    ...new Set(
-      (attempt.evidenceLinks ?? []).map((link) => link.evidenceAnchorId),
-    ),
-  ].flatMap((evidenceAnchorId) => {
-    const anchor = anchors.get(evidenceAnchorId)
-    return anchor
-      ? [
-          {
-            evidenceAnchorId,
-            reviewedOccurrenceIds: anchorOccurrences(anchor).map(
-              (occurrence) => occurrence.occurrence_id,
-            ),
-          },
-        ]
-      : []
-  })
-}
 
 export function extractionStateFromAttempt(attempt: ExtractionAttempt | null): ExtractionState {
   if (!attempt) return { status: 'idle' }
@@ -98,6 +55,18 @@ export function extractionStateFromAttempt(attempt: ExtractionAttempt | null): E
   }
 }
 
+function pendingDecision(
+  decision: ExtractionAttempt['reviewDecisions'][number],
+): ReviewDecisionInput {
+  return {
+    resultPath: decision.resultPath,
+    evidenceAnchorId: decision.evidenceAnchorId,
+    reviewedOccurrenceIds: decision.reviewedOccurrenceIds,
+    action: decision.action,
+    reviewedValue: decision.reviewedValue,
+  }
+}
+
 function sameTarget(
   attempt: ExtractionAttempt | null,
   target: ReviewTarget | null,
@@ -115,7 +84,6 @@ export function useExtraction({
   onTerminal,
   onError,
   initialAttempt = null,
-  parsedDocument = null,
   reviewTarget = null,
   documentKey = '',
 }: UseExtractionOptions) {
@@ -126,6 +94,8 @@ export function useExtraction({
     extractionStateFromAttempt(initialAttempt),
   )
   const [saving, setSaving] = useState(false)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewDecisions, setReviewDecisions] = useState<ReviewDecisionInput[]>([])
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [cancellationRequested, setCancellationRequested] = useState(false)
   const [cancellationError, setCancellationError] = useState<string | null>(null)
@@ -134,6 +104,7 @@ export function useExtraction({
   const runInputsKey = `${reviewTarget?.sourceRepresentationId ?? ''}\n${reviewTarget?.schemaRevisionId ?? ''}`
   const previousInputsRef = useRef(runInputsKey)
   const previousDocumentKeyRef = useRef(documentKey)
+  const reviewLoadRef = useRef(0)
 
   function abandonRunning() {
     const id = activeIdRef.current
@@ -151,6 +122,7 @@ export function useExtraction({
     setState((current) =>
       current.status === 'running' ? { status: 'idle' } : current,
     )
+    setReviewDecisions([])
     setReviewError(null)
   }, [runInputsKey])
   // The active Source Document changed under an unmounted hook — reseed the
@@ -162,6 +134,7 @@ export function useExtraction({
     abandonRunning()
     setAttempt(initialAttempt)
     setState(extractionStateFromAttempt(initialAttempt))
+    setReviewDecisions([])
     setReviewError(null)
     setCancellationRequested(false)
     setCancellationError(null)
@@ -175,20 +148,53 @@ export function useExtraction({
     schemaReady &&
     state.status !== 'running' &&
     !indexing
-  const pendingDecisions =
-    attempt?.outcome === 'SUCCEEDED' && parsedDocument
-      ? reviewDecisions(parsedDocument, attempt)
-      : []
   const reviewAvailable = Boolean(
     attempt?.outcome === 'SUCCEEDED' &&
     attempt.reviewable &&
+    (attempt.evidenceLinks?.length ?? 0) > 0 &&
     sameTarget(attempt, reviewTarget),
   )
   const canAccept = Boolean(
     !saving &&
+    !reviewLoading &&
     reviewAvailable &&
-    attempt?.reviewedAt === null
+    attempt?.reviewedAt === null &&
+    reviewDecisions.length > 0
   )
+
+  useEffect(() => {
+    const load = ++reviewLoadRef.current
+    void Promise.resolve().then(async () => {
+      if (reviewLoadRef.current !== load) return
+      setReviewError(null)
+      if (!reviewAvailable || !attempt) {
+        setReviewLoading(false)
+        setReviewDecisions(
+          attempt?.reviewedAt ? attempt.reviewDecisions.map(pendingDecision) : [],
+        )
+        return
+      }
+      if (attempt.reviewedAt) {
+        setReviewLoading(false)
+        setReviewDecisions(attempt.reviewDecisions.map(pendingDecision))
+        return
+      }
+      setReviewLoading(true)
+      setReviewDecisions([])
+      try {
+        const prepared = await readExtraction(attempt.extractionId)
+        if (reviewLoadRef.current !== load) return
+        setReviewDecisions([...prepared.pendingReviewDecisions])
+      } catch (error) {
+        if (reviewLoadRef.current !== load) return
+        setReviewError(
+          error instanceof Error ? error.message : 'Loading the review failed.',
+        )
+      } finally {
+        if (reviewLoadRef.current === load) setReviewLoading(false)
+      }
+    })
+  }, [attempt, reviewAvailable])
 
   async function requestCancellation() {
     const id = activeIdRef.current
@@ -203,17 +209,13 @@ export function useExtraction({
     }
   }
 
-  async function runRequest(
-    request: ExtractionRunInput,
-    isRerun: boolean,
-  ) {
-    const targetedRetry = 'retryOfId' in request
+  async function runRequest(isRerun: boolean, target: ReviewTarget) {
     if (
-      targetedRetry
-        ? !schemaReady || indexing || state.status === 'running'
-        : !canRun || !reviewTarget
+      !schemaReady ||
+      state.status === 'running' ||
+      indexing
     )
-      return
+      return null
     abandonRunning()
     const controller = new AbortController()
     const extractionId = crypto.randomUUID()
@@ -225,47 +227,36 @@ export function useExtraction({
     setState({ status: 'running', step: 'extraction' })
     try {
       const terminal = await requestExtraction(
-        { ...request, id: extractionId },
+        {
+          id: extractionId,
+          sourceRepresentationRevisionId: target.sourceRepresentationId,
+          schemaRevisionId: target.schemaRevisionId,
+          strategy: 'ARTICLE',
+        },
         controller.signal,
       )
       if (controller.signal.aborted) return
       setAttempt(terminal)
       setState(extractionStateFromAttempt(terminal))
+      setReviewDecisions([])
       onTerminal(terminal, isRerun)
+      return terminal
     } catch (error) {
       if (controller.signal.aborted) return
       const message =
         error instanceof Error ? error.message : 'Extraction failed.'
       setState({ status: 'error', message })
       onError(message)
+      return null
     } finally {
       if (activeIdRef.current === extractionId) activeIdRef.current = null
       if (abortRef.current === controller) abortRef.current = null
     }
   }
 
-  async function runExtraction(strategy: ExtractionStrategy = 'ARTICLE') {
-    if (!reviewTarget) return
-    await runRequest(
-      {
-        sourceRepresentationRevisionId: reviewTarget.sourceRepresentationId,
-        schemaRevisionId: reviewTarget.schemaRevisionId,
-        strategy,
-      },
-      attempt !== null,
-    )
-  }
-
-  async function retryExtraction(selection: ExtractionRetryInput) {
-    const parent = attempt
-    if (!parent || parent.strategy !== 'CATALOG') return
-    await runRequest(
-      {
-        retryOfId: parent.extractionId,
-        ...selection,
-      },
-      true,
-    )
+  async function runExtraction(target: ReviewTarget | null = reviewTarget) {
+    if (!target) return null
+    return runRequest(attempt !== null, target)
   }
 
   async function acceptResult() {
@@ -274,7 +265,10 @@ export function useExtraction({
     setReviewError(null)
     try {
       setAttempt(
-        await finalizeExtractionReview(attempt.extractionId, pendingDecisions),
+        await finalizeExtractionReview(
+          attempt.extractionId,
+          reviewDecisions,
+        ),
       )
     } catch (error) {
       setReviewError(
@@ -285,6 +279,23 @@ export function useExtraction({
     }
   }
 
+  function setReviewDecision(
+    resultPath: ReviewDecisionInput['resultPath'],
+    action: ReviewDecisionAction,
+    reviewedValue: ReviewDecisionInput['reviewedValue'] = null,
+  ) {
+    const key = JSON.stringify(resultPath)
+    setReviewDecisions((current) => current.map((decision) =>
+      JSON.stringify(decision.resultPath) === key
+        ? {
+            ...decision,
+            action,
+            reviewedValue: action === 'EDITED' ? reviewedValue : null,
+          }
+        : decision,
+    ))
+  }
+
   return {
     state,
     attempt,
@@ -292,7 +303,6 @@ export function useExtraction({
     hasResults,
     stale,
     runExtraction,
-    retryExtraction,
     requestCancellation,
     cancellationRequested,
     cancellationError,
@@ -300,10 +310,14 @@ export function useExtraction({
       available: reviewAvailable,
       canAccept,
       saving,
+      loading: reviewLoading,
+      decisions: reviewDecisions,
+      reviewedCount: reviewDecisions.length,
       reviewedExtractionId: attempt?.reviewedAt
         ? attempt.extractionId
         : null,
       error: reviewError,
+      setDecision: setReviewDecision,
       accept: acceptResult,
     },
   }

@@ -1,8 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
+import { hashPassword } from '../server/password.js'
+import { E2E_PASSWORD, loginResearcher } from './auth.js'
 
 const id = {
+  account: '73000000-0000-4000-8000-000000000000',
   project: '73000000-0000-4000-8000-000000000001',
   document: '73000000-0000-4000-8001-000000000001',
   representation: '73000000-0000-4000-8002-000000000001',
@@ -40,24 +43,41 @@ async function installArtifactRoutes(page: Page) {
     readFile(parsedDocumentPath, 'utf8'),
   ])
   await page.route(
-    `**/api/source-representations/${id.representation}/pdf`,
+    `**/api/project-contexts/${id.project}/source-representations/${id.representation}/pdf**`,
     (route) => route.fulfill({ body: pdf, contentType: 'application/pdf' }),
   )
   await page.route(
-    `**/api/source-representations/${id.representation}/markdown`,
-    (route) => route.fulfill({ body: '# Ordered schema', contentType: 'text/markdown' }),
+    `**/api/project-contexts/${id.project}/source-representations/${id.representation}/markdown**`,
+    (route) =>
+      route.fulfill({
+        body: '# Ordered schema',
+        contentType: 'text/markdown',
+      }),
   )
   await page.route(
-    `**/api/source-representations/${id.representation}/source`,
-    (route) => route.fulfill({ body: parsedDocument, contentType: 'application/json' }),
+    `**/api/project-contexts/${id.project}/source-representations/${id.representation}/source**`,
+    (route) =>
+      route.fulfill({
+        body: parsedDocument,
+        contentType: 'application/json',
+      }),
   )
 }
 
 test.beforeAll(async () => {
   if (!process.env.SCHEMA_ORDER_E2E) return
   const { db } = await import('../../../packages/db/src/prisma/db.js')
+  await db.orm.public.ResearcherAccount.create({
+    id: id.account,
+    email: 'schema-order@example.test',
+    passwordHash: await hashPassword(E2E_PASSWORD),
+    mustChangePassword: false,
+    disabledAt: null,
+    sessionVersion: 0,
+  })
   await db.orm.public.ProjectContext.create({
     id: id.project,
+    researcherAccountId: id.account,
     name: 'Ordered schema E2E',
   })
   await db.orm.public.SourceDocument.create({
@@ -112,6 +132,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
 }) => {
   test.setTimeout(60_000)
   test.skip(!process.env.SCHEMA_ORDER_E2E, 'Requires the disposable PostgreSQL stack.')
+  await loginResearcher(page, 'schema-order@example.test')
 
   const reopened = await page.request.get(
     `/api/project-contexts/${id.project}/source-documents/${id.document}/reopen`,
@@ -131,6 +152,19 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await expect(history).toBeEnabled({ timeout: 15_000 })
   await history.click()
   await page.getByRole('button', { name: /^Revision 1:/ }).click()
+
+  await expect(page.getByText('Viewing historical Schema Revision 1. This preview is read-only.')).toBeVisible()
+  await expect(page.getByRole('button', { name: '+ Add field' })).toHaveCount(0)
+
+  const previewTimeline = await page.request.get(
+    `/api/schema-revisions?projectContextId=${id.project}&extractionSchemaId=${id.schema}&limit=20`,
+  )
+  const previewBody = (await previewTimeline.json()) as {
+    revisions: Array<{ revisionNumber: number }>
+  }
+  expect(previewBody.revisions[0]?.revisionNumber).toBe(2)
+
+  await page.getByRole('button', { name: 'Create Current Schema Revision' }).click()
 
   await expect.poll(async () => {
     const response = await page.request.get(
@@ -155,6 +189,7 @@ test('restored JSONB schema order survives a fresh browser @database', async ({
   await page.close()
   const freshContext = await browser.newContext()
   const freshPage = await freshContext.newPage()
+  await loginResearcher(freshPage, 'schema-order@example.test')
   await installArtifactRoutes(freshPage)
   await freshPage.goto(`/projects/${id.project}/documents/${id.document}`)
   await freshPage.getByRole('tab', { name: /^Schema / }).click()

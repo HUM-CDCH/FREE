@@ -12,13 +12,25 @@ _Avoid_: app, system
 A person using FREE to study source documents and decide which information should be extracted from them.
 _Avoid_: user, analyst
 
+**Researcher Account**:
+The authenticated identity of one Humanities Researcher and the required owner of each of that researcher's Project Contexts.
+_Avoid_: user, member
+
 **Source Document**:
 A document that contains the original material a researcher works from, including PDFs and other document formats.
 _Avoid_: file, PDF, upload
 
 **Project Context**:
-The broader context that contains one or more source documents, their annotations and annotation sets, schema suggestions, extraction schemas, extractions, and extraction results.
-_Avoid_: research context, workspace
+The research aggregate owned by exactly one Researcher Account. It contains one or more Source Documents, their annotations and Annotation Sets, Schema Suggestions, Extraction Schemas, Extractions, and Extraction Results; every descendant inherits ownership through this aggregate.
+_Avoid_: research context, workspace when referring to one Project Context
+
+**Project**:
+The concise researcher-facing name for a Project Context. It denotes the same research aggregate, not a separate kind of object.
+_Avoid_: research context
+
+**Research Workspace**:
+The authenticated area of FREE in which a Humanities Researcher works across Project Contexts and shared capabilities. It is not itself a Project Context and owns no research state.
+_Avoid_: Project Context when the whole authenticated area is meant
 
 **Annotation**:
 A researcher-created mark on a source document that identifies source text as relevant for possible extraction and may guide direct extraction when present.
@@ -118,14 +130,11 @@ source text or a table cell without requiring visual geometry.
 _Avoid_: citation anchor, model reference, highlight
 
 **Model Connection**:
-A machine-wide description of how FREE can reach a model provider for one
-humanities researcher. It may represent a local service, a remote service, or
-an authenticated local model harness.
+A deployment-wide shared description of how FREE can reach a model provider. It may represent a local service, a remote service, or an authenticated local model harness.
 _Avoid_: provider configuration, endpoint, account
 
 **Capability Route**:
-A machine-wide choice of Model Connection and model for a related family of
-FREE model work. Project Contexts do not own or override Capability Routes.
+A deployment-wide shared choice of Model Connection and model for a related family of FREE model work. Researcher Accounts and Project Contexts do not own or override Capability Routes.
 _Avoid_: task route, model setting, project model
 
 **Extraction Route**:

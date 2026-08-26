@@ -21,51 +21,61 @@ specification {
 }
 
 model {
+  operator = person 'FREE Operator' 'Deploys FREE and provisions or disables Researcher Accounts through the container CLI.'
   researcher = person 'Humanities Researcher' 'Opens a Source Document, shapes an Extraction Schema, runs Extraction, and reviews Evidence.'
 
-  studio = system 'Studio Application' 'React UI plus same-origin TypeScript handlers on one Vite origin.' {
+  gateway = container 'HTTPS Gateway' 'The host nginx reverse proxy on the university machine. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Nginx'
+
+  studio = system 'Studio Application' 'React UI plus a production Hono Node host on one authenticated same-origin boundary.' {
     ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence, and Model Connections.' 'React'
     browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts.ts`, and `src/schemaRevisions.ts` send parsing and same-origin requests.' 'TypeScript'
-    handlers = container 'Same-origin handlers' '`api/*.ts` owns model operations, durable reads, Schema Revision writes, and the review write.' 'TypeScript Request/Response handlers'
+    handlers = container 'Hono Node host' '`server/*.ts` authenticates and scopes browser requests, serves the built client, and dispatches `api/*.ts` same-origin handlers.' 'Hono, Node.js'
+    authentication = component 'Authentication boundary' 'Password sessions, mandatory temporary-password replacement, login throttling, canonical-origin enforcement, and the trusted-proxy peer contract.' 'TypeScript'
+    account_cli = component 'Researcher Account CLI' '`pnpm account` explicitly creates, resets, or disables an account; no migration or seed creates one.' 'TypeScript, tsx'
     provider_registry = component 'Provider registry' '`api/_provider.ts` resolves a Capability Route and adapts the configured provider.' 'AI SDK v7 provider adapters'
-    project_store = component 'ProjectStore' '`packages/db` owns every Project Store read and write; handlers hold no SQL.' 'TypeScript, Prisma Next'
+    extraction_module = component 'Extraction module' '`packages/extraction` owns Extraction execution, grounding, review, batch scheduling, and their PostgreSQL persistence.' 'TypeScript, Prisma Next'
+    project_store = component 'ProjectStore' '`packages/db` owns the remaining Project Store reads and writes; handlers hold no SQL.' 'TypeScript, Prisma Next'
   }
 
   parsing_service = system 'Parsing Service' 'FastAPI PDF ingestion service; it owns no model operation.' {
     http_api = container 'FastAPI HTTP API' '`POST /tasks`, task polling, ParsedDocument, Markdown, PDF, and package routes.' 'FastAPI'
-    parser = component 'Canonical parsing pipeline' 'Validates the PDF and publishes `parsed_document.v2`, canonical Markdown, and the package.' 'Python, Docling, PaddleOCR, Camelot, PyMuPDF'
-    task_cache = datastore 'Task directory' 'Processor cache: source bytes, task metadata, immutable generations, and the generation manifest. Never a durable dependency.'
+    parser = component 'Canonical parsing pipeline' 'Validates the PDF and publishes `parsed_document.v2`, canonical Markdown, and the package.' 'Python, Docling'
+    task_cache = datastore 'Task directory' 'Processor cache: source bytes, task metadata, and the published package. Never a durable dependency.'
   }
 
-  seed = container 'Seed CLI' '`pnpm db:seed` ingests each example PDF, then writes the durable package and its Project Context.' 'TypeScript, tsx'
-
-  project_db = datastore 'Project Store' 'Project Contexts, Source Documents, Source Representations, Annotation Sets, Schema Revisions, reviewed Extractions, and Review Decisions.' 'PostgreSQL 17, Prisma Next'
+  project_db = datastore 'Project Store' 'Researcher Accounts plus account-owned Project Contexts, Source Documents, Source Representations, Annotation Sets, Schema Revisions, reviewed Extractions, and Review Decisions.' 'PostgreSQL 17, Prisma Next'
   package_store = datastore 'Canonical ingestion packages' 'Content-addressed portable packages in the `FREE Studio` data directory. The Project Store keeps only the package reference.' 'Operating system data directory'
   model_config = datastore 'Model configuration and credential store' '`model-config.json` in the `FREE Studio` config directory; FREE-managed credentials stay in the operating system credential store.' 'JSON, OS keyring'
   model_connections = external 'Model Connections' 'Configured external HTTP or local CLI model providers.'
 
-  researcher -> studio 'Uses in a browser'
+  operator -> studio.account_cli 'Creates, resets, or disables Researcher Accounts'
+  researcher -> gateway 'Uses the canonical private HTTPS origin'
+  gateway -> studio 'Forwards requests from the pinned proxy address'
   studio -> parsing_service 'Parses selected PDFs through same-origin ingestion'
   studio -> project_db 'Reads research state and appends durable writes'
   studio -> package_store 'Reads the pinned canonical package'
   studio -> model_config 'Reads and updates machine-wide model configuration'
   studio -> model_connections 'Executes configured model operations'
-  seed -> parsing_service 'Ingests each example PDF'
-  seed -> package_store 'Writes the durable package'
-  seed -> project_db 'Writes the example Project Contexts and Source Documents'
-
   researcher -> studio.ui 'Uses'
+  gateway -> studio.handlers 'Forwards HTTPS requests with one overwritten client-address header'
   studio.ui -> studio.browser_http 'Starts product flows'
   studio.browser_http -> studio.handlers 'Calls /api/*'
+  studio.handlers -> studio.authentication 'Authenticates the session and resolves its Researcher Account'
+  studio.authentication -> project_db 'Reads accounts and replaces passwords or session versions'
+  studio.account_cli -> project_db 'Creates accounts or updates password and disabled state'
   studio.handlers -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /tasks/:id/download'
   studio.handlers -> studio.provider_registry 'Resolves a Capability Route'
-  studio.handlers -> studio.project_store 'Reads a snapshot; creates, renames, and deletes a Project Context; appends a Schema Revision; stores a reviewed Extraction'
+  studio.handlers -> studio.extraction_module 'Runs and reopens Extractions; records reviews; schedules and reads batches'
+  studio.handlers -> studio.project_store 'Reads a snapshot; creates, renames, and deletes a Project Context; appends a Schema Revision'
   studio.handlers -> package_store 'Reads the pdf, markdown, and source entries; removes the packages a deleted Project Context left unreferenced'
   studio.project_store -> project_db 'Reads and writes through Prisma Next'
+  studio.extraction_module -> project_db 'Reads and writes Extraction, Evidence, Review Decision, and batch state through Prisma Next'
+  studio.extraction_module -> package_store 'Reads the pinned canonical representation package'
+  studio.extraction_module -> studio.provider_registry 'Opens one pinned Extraction model session per attempt'
   studio.provider_registry -> model_config 'Reads routes, connections, and credentials'
   studio.provider_registry -> model_connections 'Calls the resolved Model Connection'
-  parsing_service.http_api -> parsing_service.parser 'Runs parsing and OCR work'
-  parsing_service.parser -> parsing_service.task_cache 'Publishes an immutable generation'
+  parsing_service.http_api -> parsing_service.parser 'Runs parsing work through the bounded FIFO queue'
+  parsing_service.parser -> parsing_service.task_cache 'Publishes the canonical package'
   parsing_service.http_api -> parsing_service.task_cache 'Reads task state and canonical outputs'
 }
 
@@ -73,10 +83,11 @@ views {
   view current_context {
     title 'FREE — current runtime context'
     description '''
-      Implemented runtime boundaries only. The prototype assumes one trusted
-      machine and one researcher: every browser session reaches the same
-      handlers, the same Project Store, and the same machine-wide credential
-      store.
+      Implemented runtime boundaries only. The production topology publishes
+      only the host nginx reverse proxy on private HTTPS. The Hono Node host
+      authenticates each browser
+      session and scopes research state to its Researcher Account. Model
+      configuration and credentials remain deployment-wide shared state.
 
       The Project Store is consumed. Studio reads its research state from
       PostgreSQL and creates, renames, and deletes Project Contexts, appends
@@ -84,34 +95,32 @@ views {
       The Parsing Service task directory stays a processor cache; the durable
       artifact is the canonical package.
     '''
-    include researcher, studio, parsing_service, seed, project_db, package_store, model_config, model_connections
+    include operator, researcher, gateway, studio, parsing_service, project_db, package_store, model_config, model_connections
   }
 
   view current_modules {
     title 'FREE — current runtime modules'
     description 'Maintained module seams; this is not an import graph.'
-    include researcher, studio.*, parsing_service.*, seed, project_db, package_store, model_config, model_connections
+    include operator, researcher, gateway, studio.*, parsing_service.*, project_db, package_store, model_config, model_connections
   }
 
-  dynamic view document_seeding {
-    title 'Example Source Document seeding — current'
+  dynamic view current_account_session {
+    title 'Researcher Account and authenticated session — current'
     description '''
-      `pnpm db:seed` is the only writer of canonical packages today. It needs
-      the Parsing Service. Without it the seed still writes the Project
-      Contexts and reports which Source Documents cannot be reopened. After it
-      inserts a package reference, it re-publishes the already-downloaded bytes
-      only if concurrent Project Context cleanup removed them.
+      No migration, seed, registration route, or default credential creates an
+      account. An operator explicitly creates the account with a temporary
+      password. The first browser session can only replace that password; the
+      replacement invalidates the temporary session before normal login.
     '''
-    seed -> parsing_service.http_api 'POST /tasks with the example PDF'
-    parsing_service.http_api -> parsing_service.parser 'Validate and parse the PDF'
-    parsing_service.parser -> parsing_service.task_cache 'Publish the generation'
-    loop 'until the task completes' {
-      seed -> parsing_service.http_api 'GET /tasks/:taskId'
-    }
-    seed -> parsing_service.http_api 'GET /tasks/:taskId/download'
-    parsing_service.http_api -> seed 'Return the canonical package'
-    seed -> package_store 'Save the package under its content address'
-    seed -> project_db 'Write the Project Context, Source Document, and Source Representation'
+    operator -> studio.account_cli 'Create an account and enter a temporary password'
+    studio.account_cli -> project_db 'Store the password hash with mandatory change set'
+    researcher -> gateway 'POST /api/auth/login over HTTPS'
+    gateway -> studio.handlers 'Forward from the pinned proxy address'
+    studio.handlers -> studio.authentication 'Verify credentials and issue a temporary session'
+    studio.authentication -> project_db 'Read the Researcher Account'
+    researcher -> gateway 'POST /api/auth/password'
+    studio.authentication -> project_db 'Replace the hash, clear mandatory change, and advance session version'
+    studio.handlers -> researcher 'Clear the temporary session; require normal login'
   }
 
   dynamic view project_context_lifecycle {
@@ -119,7 +128,8 @@ views {
     description '''
       The Project Context page owns rename and permanent delete; the rail owns
       create. Each write applies to the researcher's view only after the
-      handler acknowledges it. Deletion removes the
+      handler acknowledges it. The Project Store includes the authenticated
+      Researcher Account in every ownership condition. Deletion removes the
       whole owned relational graph through the database cascade, then removes
       the canonical packages no remaining Source Representation references —
       best effort, because the durable deletion has already succeeded.
@@ -150,7 +160,7 @@ views {
 
   dynamic view source_document_reopen {
     title 'Reopen a durable Source Document — current'
-    description 'The durable path. The browser never reaches the Parsing Service here; the pinned package answers every artifact read.'
+    description 'The durable, account-scoped path. The browser never reaches the Parsing Service here; the owned database query and pinned package answer every artifact read.'
     researcher -> studio.ui 'Select a Project Context'
     studio.ui -> studio.handlers 'GET /api/project-contexts'
     studio.handlers -> studio.project_store 'listProjectContexts'
@@ -173,14 +183,15 @@ views {
       in-flight PDF shows as the card it will become, and the acknowledged
       Source Document replaces that card. The same-origin handler retains each
       canonical package before publishing its durable Source Document and
-      revision 1 Source Representation.
+      revision 1 Source Representation under the authenticated account's owned
+      Project Context.
     '''
     researcher -> studio.ui 'Add one or more PDFs'
     studio.ui -> studio.browser_http 'POST one PDF and its stable ingestion key'
     studio.browser_http -> studio.handlers 'POST /api/project-contexts/:id/source-documents'
     studio.handlers -> parsing_service.http_api 'POST /tasks'
     parsing_service.http_api -> parsing_service.parser 'Validate and parse the PDF'
-    parsing_service.parser -> parsing_service.task_cache 'Publish the generation'
+    parsing_service.parser -> parsing_service.task_cache 'Publish the canonical package'
     loop 'until parsing completes' {
       studio.handlers -> parsing_service.http_api 'GET /tasks/:taskId'
     }
@@ -197,8 +208,8 @@ views {
     description '''
       The Extraction Route serves Schema Suggestion, Extraction, and Evidence
       grounding. The Interaction Route serves chat and conversational schema
-      edits. Grounding is a second `/api/extract` call with its own
-      instruction.
+      edits. The Extraction module resolves one model session for an attempt,
+      then uses that pinned route for values and every grounding batch.
 
       `POST /api/schema-revisions` initializes the first Schema Revision, or
       appends the next one against `expectedRevisionNumber`. A stale number
@@ -220,18 +231,17 @@ views {
     studio.project_store -> project_db 'Append the immutable Schema Revision'
     studio.handlers -> studio.ui 'Return the new Current Schema Revision'
     researcher -> studio.ui 'Run extraction'
-    studio.ui -> studio.handlers 'POST /api/extract with the schema and Markdown'
-    studio.handlers -> studio.provider_registry 'Resolve the Extraction Route'
-    studio.provider_registry -> model_connections 'Execute the schema-guided Extraction'
-    model_connections -> studio.handlers 'Return the extracted values'
-    studio.ui -> studio.handlers 'POST /api/extract with the grounding instruction'
-    studio.handlers -> model_connections 'Ground each claim against canonical anchors'
-    studio.handlers -> studio.ui 'Show Results, Raw JSON, and source-linked Evidence'
+    studio.ui -> studio.handlers 'POST /api/extractions with the pinned Source Representation and Schema Revision'
+    studio.handlers -> studio.extraction_module 'Execute the Extraction attempt'
+    studio.extraction_module -> studio.provider_registry 'Open one pinned Extraction model session'
+    studio.provider_registry -> model_connections 'Extract values, then ground bounded claim batches'
+    studio.extraction_module -> package_store 'Read the pinned parsed_document.v2 and canonical anchors'
+    studio.extraction_module -> project_db 'Persist the attempt, Evidence, issues, and grounding diagnostics'
+    studio.handlers -> studio.ui 'Show Results, diagnostics, and source-linked Evidence'
     researcher -> studio.ui 'Accept the Extraction Result'
-    studio.ui -> studio.handlers 'POST /api/source-representations/:id/extraction-reviews'
-    studio.handlers -> package_store 'Re-read the pinned parsed_document.v2 to check every anchor'
-    studio.handlers -> studio.project_store 'persistReviewedExtraction'
-    studio.project_store -> project_db 'Store the Extraction and its Review Decisions in one transaction'
+    studio.ui -> studio.handlers 'POST /api/extractions/:id/reviews'
+    studio.handlers -> studio.extraction_module 'Validate Evidence and record the review'
+    studio.extraction_module -> project_db 'Store Review Decisions in one transaction'
     studio.handlers -> studio.ui 'Return the reviewed Extraction identity'
   }
 

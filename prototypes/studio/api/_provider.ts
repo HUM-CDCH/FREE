@@ -1,5 +1,5 @@
 import { execFile as execFileCallback, type ExecFileException } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -12,7 +12,6 @@ import { createOllama } from 'ai-sdk-ollama'
 import { claudeCode } from 'ai-sdk-provider-claude-code'
 import { createCodexAppServer, type CodexAppServerProvider } from 'ai-sdk-provider-codex-cli'
 import type {
-  ImmediateUpstreamDetail,
   ModelConfig,
   ModelConnection,
   ModelDescriptor,
@@ -54,7 +53,6 @@ type ProviderEntry = ProviderDescriptor & {
 export type ProviderTable = { [K in ProviderKind]: ProviderEntry & { kind: K } }
 
 const MAX_DISCOVERY_BYTES = 1024 * 1024
-const MAX_UPSTREAM_BYTES = 8192
 const MAX_MODELS = 10_000
 const MAX_MODEL_TEXT = 512
 const MAX_MESSAGE_TEXT = 512
@@ -74,14 +72,20 @@ function isolatedCodexWorkingDirectory(): string {
   }
 }
 
-// The app server owns a process and intentionally survives requests. Models are not cached.
-let codexAppServer: CodexAppServerProvider | null = null
-function codexProvider(): CodexAppServerProvider {
-  codexAppServer ??= createCodexAppServer({
+export function createRestrictedCodexProvider(
+  cwd: string,
+  factory: typeof createCodexAppServer = createCodexAppServer,
+): CodexAppServerProvider {
+  return factory({
     defaultSettings: {
       approvalPolicy: 'never',
-      codexPath: 'codex',
-      cwd: isolatedCodexWorkingDirectory(),
+      codexPath: join(
+        process.cwd(),
+        'node_modules',
+        '.bin',
+        process.platform === 'win32' ? 'codex.CMD' : 'codex',
+      ),
+      cwd,
       effort: 'none',
       sandboxPolicy: 'read-only',
       connectionTimeoutMs: PROBE_TIMEOUT_MS,
@@ -105,8 +109,42 @@ function codexProvider(): CodexAppServerProvider {
       },
     },
   })
+}
+
+// The app server owns a process and intentionally survives requests. Models are not cached.
+let codexAppServer: CodexAppServerProvider | null = null
+let codexSandboxDirectory: string | null = null
+function codexProvider(): CodexAppServerProvider {
+  if (codexAppServer) return codexAppServer
+  const workingDirectory = isolatedCodexWorkingDirectory()
+  try {
+    codexAppServer = createRestrictedCodexProvider(workingDirectory)
+    codexSandboxDirectory = workingDirectory
+  } catch (cause) {
+    try {
+      rmSync(workingDirectory, { recursive: true, force: true })
+    } catch {
+      // Preserve the provider initialization failure.
+    }
+    throw cause
+  }
   return codexAppServer
 }
+
+export async function closeProviderRuntime(): Promise<void> {
+  const provider = codexAppServer
+  const workingDirectory = codexSandboxDirectory
+  codexAppServer = null
+  codexSandboxDirectory = null
+  try {
+    await provider?.close()
+  } finally {
+    if (workingDirectory)
+      rmSync(workingDirectory, { recursive: true, force: true })
+  }
+}
+
+export const providerRuntime = { close: closeProviderRuntime }
 
 async function productionCodexListModels(): Promise<readonly CodexModel[]> {
   return (await codexProvider().listModels()).models
@@ -140,21 +178,20 @@ function httpDiscovery(
     }
 
     const body = await readBoundedBody(response)
-    const upstream = credential === null ? upstreamDetail(response.status, body.bytes) : undefined
     if (body.exceeded) {
-      return observation('invalid_response', 'The provider response exceeded the 1 MiB limit.', upstream)
+      return observation('invalid_response', 'The provider response exceeded the 1 MiB limit.')
     }
     if (!response.ok) {
       return response.status === 401 || response.status === 403
-        ? observation('authentication_failed', 'The provider rejected authentication.', upstream)
-        : observation('discovery_failed', 'The provider could not list models.', upstream)
+        ? observation('authentication_failed', 'The provider rejected authentication.')
+        : observation('discovery_failed', 'The provider could not list models.')
     }
 
     let value: unknown
     try {
       value = JSON.parse(new TextDecoder().decode(body.bytes))
     } catch {
-      return observation('invalid_response', 'The provider returned invalid JSON.', upstream)
+      return observation('invalid_response', 'The provider returned invalid JSON.')
     }
     try {
       const catalog = boundedCatalog(parse(value))
@@ -164,7 +201,7 @@ function httpDiscovery(
         catalog,
       }
     } catch {
-      return observation('invalid_response', 'The provider returned an invalid model catalog.', upstream)
+      return observation('invalid_response', 'The provider returned an invalid model catalog.')
     }
   }
 }
@@ -203,25 +240,14 @@ async function readBoundedBody(response: Response): Promise<{ bytes: Uint8Array;
   return { bytes, exceeded }
 }
 
-function upstreamDetail(status: number | null, bytes: Uint8Array): ImmediateUpstreamDetail {
-  const truncated = bytes.byteLength > MAX_UPSTREAM_BYTES
-  return {
-    status,
-    body: new TextDecoder().decode(truncated ? bytes.subarray(0, MAX_UPSTREAM_BYTES) : bytes),
-    truncated,
-  }
-}
-
 function observation(
   status: Exclude<ProbeStatus, 'connected' | 'timed_out'>,
   message: string,
-  upstream?: ImmediateUpstreamDetail,
 ): DiscoveryObservation {
   return {
     status,
     message: boundText(message, MAX_MESSAGE_TEXT),
     catalog: [],
-    ...(upstream ? { upstream } : {}),
   }
 }
 

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   createExtractionResultExportControl,
   deriveRowsRepresentOptions,
@@ -7,8 +7,8 @@ import {
   type ExportFormat,
   type OtherRepeatedFields,
 } from 'extraction-result-export'
-import type { SchemaDefinition } from '../shared/schemaNode'
-import { Button } from './ui'
+import type { SchemaDefinition } from 'extraction/schema'
+import { Button, ModalDialog } from './ui'
 
 type ExtractionResultExportControlProps = {
   /** The schema the export projects through: pinned, or the current one. */
@@ -37,6 +37,9 @@ function ExtractionResultExportControl({
   const [rowsRepresent, setRowsRepresent] = useState(ROOT_ROWS)
   const [otherRepeatedFields, setOtherRepeatedFields] = useState<OtherRepeatedFields>('preserve')
   const inFlight = useRef(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const initialFocusRef = useRef<HTMLSelectElement>(null)
+  const restoreFocusAfterExport = useRef(false)
   const unavailable = disabled || schema === null
   const rowOptions = schema ? deriveRowsRepresentOptions(schema.schemaNodes) : []
   const effectiveRows = rowOptions.some((option) => option.value === rowsRepresent)
@@ -49,9 +52,16 @@ function ExtractionResultExportControl({
       })
     : null
 
+  useEffect(() => {
+    if (pending || !restoreFocusAfterExport.current) return
+    restoreFocusAfterExport.current = false
+    triggerRef.current?.focus()
+  }, [pending])
+
   async function exportResult(format: ExportFormat): Promise<void> {
     if (unavailable || inFlight.current) return
     inFlight.current = true
+    restoreFocusAfterExport.current = true
     setOpen(false)
     setPending(true)
     setError(null)
@@ -69,12 +79,9 @@ function ExtractionResultExportControl({
   }
 
   return (
-    <div className="relative flex flex-col items-end gap-1" onBlur={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
-    }} onKeyDown={(event) => {
-      if (event.key === 'Escape') setOpen(false)
-    }}>
+    <div className="relative flex flex-col items-end gap-1">
       <Button
+        ref={triggerRef}
         aria-busy={pending}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -89,14 +96,17 @@ function ExtractionResultExportControl({
         </p>
       )}
       {open && control && !pending && (
-        <div
-          role="dialog"
-          aria-label="Export options"
-          className="absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-line bg-surface p-2 shadow-float"
+        <ModalDialog
+          ariaLabel="Export options"
+          className="m-auto w-64 rounded-md border border-line bg-surface p-2 text-ink shadow-float backdrop:bg-ink/35"
+          initialFocusRef={initialFocusRef}
+          returnFocusRef={triggerRef}
+          onDismiss={() => setOpen(false)}
         >
           <label className="mb-2 block text-[11px] font-semibold text-ink-muted">
             Rows represent
             <select
+              ref={initialFocusRef}
               className="mt-1 block w-full rounded border border-line bg-canvas px-2 py-1 text-ink"
               value={control.rowsRepresent.value}
               onChange={(event) => setRowsRepresent(event.target.value)}
@@ -133,7 +143,7 @@ function ExtractionResultExportControl({
               </button>
             ))}
           </div>
-        </div>
+        </ModalDialog>
       )}
       {error && <p role="alert" className="text-[11.5px] leading-snug text-danger">{error}</p>}
     </div>

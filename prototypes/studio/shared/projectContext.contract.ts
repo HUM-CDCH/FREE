@@ -3,7 +3,7 @@ import { extractionAttemptSchema } from './extraction.contract'
 import {
   recordDescriptionSchema,
   schemaNodesSchema,
-} from './schemaNode'
+} from 'extraction/schema'
 
 export const canonicalUuidSchema = z
   .string()
@@ -22,6 +22,9 @@ export const projectContextSummarySchema = z
     createdAt: timestamp,
   })
   .strict()
+export const projectContextListItemSchema = projectContextSummarySchema
+  .extend({ sourceDocumentCount: z.number().int().nonnegative() })
+  .strict()
 export const sourceDocumentSummarySchema = z
   .object({
     sourceDocumentId: canonicalUuidSchema,
@@ -34,8 +37,8 @@ const projectContextSourceDocumentSchema = sourceDocumentSummarySchema
   .strict()
 /**
  * One name contract for creating and renaming a Project Context. The durable
- * limit lives in `ProjectStore`; `api/project_contexts.test.ts` fails if the two
- * ever disagree.
+ * limit lives in `ResearcherProjectStore`;
+ * `api/project_contexts.test.ts` fails if the two ever disagree.
  */
 export const projectContextNameLimit = 512
 export const projectContextNameSchema = z
@@ -50,7 +53,7 @@ export const projectContextResponseSchema = z
   .object({ projectContext: projectContextSummarySchema })
   .strict()
 export const projectContextListResponseSchema = z
-  .object({ projectContexts: z.array(projectContextSummarySchema) })
+  .object({ projectContexts: z.array(projectContextListItemSchema) })
   .strict()
 export const projectContextWithDocumentsResponseSchema = z
   .object({

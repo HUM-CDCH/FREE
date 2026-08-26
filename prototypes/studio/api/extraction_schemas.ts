@@ -1,7 +1,6 @@
 import {
-  createProjectStore,
   EXTRACTION_SCHEMA_NAME_LIMIT,
-  type ProjectStore,
+  type ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import { canonicalUuidSchema } from '../shared/projectContext.contract.js'
 import {
@@ -22,7 +21,7 @@ import {
 const ITEM_ROUTE = /^\/api\/extraction-schemas\/([^/]+)$/
 
 export function createGetExtractionSchemas(
-  store: Pick<ProjectStore, 'listExtractionSchemas'> = createProjectStore(),
+  store: Pick<ResearcherProjectStore, 'listExtractionSchemas'>,
 ) {
   return async function GET(request: Request): Promise<Response> {
     try {
@@ -66,10 +65,8 @@ export function createGetExtractionSchemas(
   }
 }
 
-export const GET = createGetExtractionSchemas()
-
 export function createPatchExtractionSchema(
-  store: Pick<ProjectStore, 'renameExtractionSchema'> = createProjectStore(),
+  store: Pick<ResearcherProjectStore, 'renameExtractionSchema'>,
 ) {
   return async function PATCH(request: Request): Promise<Response> {
     try {
@@ -117,4 +114,13 @@ export function createPatchExtractionSchema(
 if (extractionSchemaNameLimit !== EXTRACTION_SCHEMA_NAME_LIMIT)
   throw new Error('Extraction Schema name limits must match.')
 
-export const PATCH = createPatchExtractionSchema()
+export function createResearcherApiHandlers(
+  store: ResearcherProjectStore,
+): Readonly<
+  Record<string, (request: Request) => Response | Promise<Response>>
+> {
+  return {
+    GET: createGetExtractionSchemas(store),
+    PATCH: createPatchExtractionSchema(store),
+  }
+}

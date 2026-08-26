@@ -1,8 +1,8 @@
-import type { ProjectStore } from '../../../packages/db/src/project-store.js'
+import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
 
-/** The read half of `ProjectStore`; the fixture answers no write. */
+/** The read half of `ResearcherProjectStore`; the fixture answers no write. */
 type ProjectStoreReads = Pick<
-  ProjectStore,
+  ResearcherProjectStore,
   | 'listProjectContexts'
   | 'getProjectContextWithDocuments'
   | 'getDocumentReopenSnapshot'
@@ -28,7 +28,7 @@ export function projectContextFixture(): ProjectStoreReads {
   }
   return {
     async listProjectContexts() {
-      return [project]
+      return [{ ...project, sourceDocumentCount: 1 }]
     },
     async getProjectContextWithDocuments(id) {
       return id === DEMO_PROJECT_ID
@@ -55,8 +55,9 @@ export function projectContextFixture(): ProjectStoreReads {
         latestReviewed: null,
       }
     },
-    async getSourceRepresentation(sourceRepresentationId) {
-      return sourceRepresentationId === DEMO_REPRESENTATION_ID
+    async getSourceRepresentation(projectContextId, sourceRepresentationId) {
+      return projectContextId === DEMO_PROJECT_ID &&
+        sourceRepresentationId === DEMO_REPRESENTATION_ID
         ? {
             artifactReference: DEMO_ARTIFACT_REFERENCE,
             artifactSha256: 'c'.repeat(64),

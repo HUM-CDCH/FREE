@@ -1,49 +1,10 @@
 import {
+  parseBatchSuggestionDefinition,
   type SchemaDefinition,
   type SchemaNode,
   templateToSchemaDefinition,
-} from '../shared/schemaNode.js'
+} from 'extraction/schema'
 import { ApiError } from './_http.js'
-
-const reservedEvidenceNames = new Set([
-  'evidence',
-  'snippet',
-  'snippets',
-  'page',
-  'pages',
-  'bbox',
-  'bboxes',
-  'occurrenceid',
-  'occurrenceids',
-  'fuzzymatch',
-  'fuzzymatches',
-])
-
-function normalizedFieldName(name: string): string {
-  return name.replace(/[^a-z0-9]/gi, '').toLowerCase()
-}
-
-function rejectReservedEvidenceNames(nodes: readonly SchemaNode[]): void {
-  for (const node of nodes) {
-    if (reservedEvidenceNames.has(normalizedFieldName(node.name)))
-      throw new Error(
-        `Schema suggestions cannot define reserved Evidence field ${node.name}.`,
-      )
-    if (node.children) rejectReservedEvidenceNames(node.children)
-  }
-}
-
-function rejectDuplicateNames(nodes: readonly SchemaNode[]): void {
-  const names = new Set<string>()
-  for (const node of nodes) {
-    if (names.has(node.name))
-      throw new Error(
-        `Schema suggestions cannot repeat field name ${node.name}.`,
-      )
-    names.add(node.name)
-    if (node.children) rejectDuplicateNames(node.children)
-  }
-}
 
 function invalidModelOutput(error: unknown): never {
   throw new ApiError(
@@ -75,10 +36,7 @@ export function sourceSuggestionFailure(error: unknown): {
 /** Reject, never strip, fields that are owned by canonical parser Evidence. */
 export function modelSuggestedDefinition(template: unknown): SchemaDefinition {
   try {
-    const definition = templateToSchemaDefinition(template)
-    rejectReservedEvidenceNames(definition.schemaNodes)
-    rejectDuplicateNames(definition.schemaNodes)
-    return definition
+    return parseBatchSuggestionDefinition(templateToSchemaDefinition(template))
   } catch (error) {
     return invalidModelOutput(error)
   }
@@ -89,9 +47,7 @@ export function validateEditableSuggestion(
   definition: SchemaDefinition,
 ): SchemaDefinition {
   try {
-    rejectReservedEvidenceNames(definition.schemaNodes)
-    rejectDuplicateNames(definition.schemaNodes)
-    return definition
+    return parseBatchSuggestionDefinition(definition)
   } catch (error) {
     throw new ApiError(
       422,

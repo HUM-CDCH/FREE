@@ -1,169 +1,157 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import type {
-  BatchExtractionRecord,
   BatchSchemaSuggestionRecord,
-} from '../../../packages/db/src/project-store.js'
-import { createBatchExtractionsApi } from './batch_extractions.js'
-import { createBatchSchemaSuggestionsApi } from './batch_schema_suggestions.js'
+  ResearcherProjectStore,
+} from 'db'
+import type { ExtractionModule } from 'extraction'
+import { createResearcherApiHandlers } from './batch_schema_suggestions.js'
 
+const runtime = vi.hoisted(() => ({
+  createResearcherExtractions: vi.fn(),
+}))
+const operations = vi.hoisted(() => ({ kick: vi.fn() }))
+
+vi.mock('./_extraction_runtime.js', () => ({
+  createResearcherExtractions: runtime.createResearcherExtractions,
+}))
+vi.mock('./_project_operations.js', () => ({
+  projectOperations: operations,
+}))
+
+const researcherAccountId = '51000000-0000-4000-8009-000000000001'
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const sourceDocumentId = '51000000-0000-4000-8001-000000000001'
 const representationRevisionId = '51000000-0000-4000-8002-000000000001'
-const schemaRevisionId = '51000000-0000-4000-8004-000000000001'
-const batchExtractionId = '51000000-0000-4000-8007-000000000001'
 const suggestionId = '51000000-0000-4000-8008-000000000001'
-
 const now = new Date('2026-08-15T10:00:00.000Z')
 
-const batch = {
-  batchExtractionId,
-  projectContextId,
-  schemaRevisionId,
-  extractionSchemaId: '51000000-0000-4000-8003-000000000001',
-  extractionSchemaName: 'Places',
-  schemaRevisionNumber: 1,
-  strategy: 'ARTICLE',
-  executionStatus: 'QUEUED',
-  executionFailure: null,
-  startedAt: null,
-  finishedAt: null,
-  createdAt: now,
-  members: [
-    {
-      sourceDocumentId,
-      sourceRepresentationRevisionId: representationRevisionId,
-      executionStatus: 'QUEUED',
-      executionFailure: null,
-      startedAt: null,
-      finishedAt: null,
-      latestExtraction: null,
-    },
-  ],
-} as unknown as BatchExtractionRecord
-
-const suggestion = {
+const suggestion: BatchSchemaSuggestionRecord = {
   batchSchemaSuggestionId: suggestionId,
   projectContextId,
   selectionKey: 'a'.repeat(64),
-  executionStatus: 'QUEUED',
-  phase: 'SOURCES',
-  proposal: null,
-  coverage: null,
-  draft: null,
-  draftVersion: 0,
+  executionStatus: 'COMPLETED',
+  phase: 'READY',
+  proposal: {
+    recordDescription: 'One place.',
+    schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+  },
+  coverage: [{ nodeId: 'place', present: 1, total: 1 }],
+  draft: {
+    recordDescription: 'One place.',
+    schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+  },
+  draftVersion: 1,
   failure: null,
   confirmedSchemaRevisionId: null,
   batchExtractionId: null,
-  startedAt: null,
-  finishedAt: null,
+  startedAt: now,
+  finishedAt: now,
+  leaseOwner: null,
+  leaseVersion: 0,
+  leaseExpiresAt: null,
   createdAt: now,
   sources: [
     {
       sourceDocumentId,
       sourceRepresentationRevisionId: representationRevisionId,
-      executionStatus: 'QUEUED',
-      definition: null,
+      descriptor: {
+        artifactReference: 'b'.repeat(64),
+        artifactSha256: 'b'.repeat(64),
+      },
+      executionStatus: 'COMPLETED',
+      definition: {
+        recordDescription: 'One place.',
+        schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+      },
       failure: null,
-      startedAt: null,
-      finishedAt: null,
+      startedAt: now,
+      finishedAt: now,
     },
   ],
-} as unknown as BatchSchemaSuggestionRecord
+}
+
+function moduleForSuggestedBatch() {
+  const module: ExtractionModule = {
+    runSingle: vi.fn<ExtractionModule['runSingle']>(),
+    cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(),
+    prepareReview: vi.fn<ExtractionModule['prepareReview']>(),
+    finalizeReview: vi.fn<ExtractionModule['finalizeReview']>(),
+    readDocumentExtractions:
+      vi.fn<ExtractionModule['readDocumentExtractions']>(),
+    scheduleBatch: vi.fn<ExtractionModule['scheduleBatch']>(),
+    scheduleSuggestedBatch:
+      vi.fn<ExtractionModule['scheduleSuggestedBatch']>(async () => ({
+        disposition: 'created',
+        batch: {} as never,
+      })),
+    listBatches: vi.fn<ExtractionModule['listBatches']>(),
+    readBatch: vi.fn<ExtractionModule['readBatch']>(),
+    readBatchResults: vi.fn<ExtractionModule['readBatchResults']>(),
+  }
+  return module
+}
+function handlerFor(
+  store: Partial<ResearcherProjectStore>,
+  module: ExtractionModule,
+) {
+  runtime.createResearcherExtractions.mockReturnValue(module)
+  operations.kick.mockReset()
+  return createResearcherApiHandlers({
+    researcherAccountId,
+    ...store,
+  } as ResearcherProjectStore).POST
+}
+
+const runRequest = () =>
+  new Request(
+    `http://test/api/batch-schema-suggestions/${suggestionId}/run?projectContextId=${projectContextId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ strategy: 'ARTICLE' }),
+    },
+  )
 
 describe('durable operation APIs', () => {
-  it('persists and schedules a Batch Extraction before returning its snapshot', async () => {
-    const createBatchExtraction = vi.fn(async () => ({
-      status: 'created' as const,
-      batch,
-    }))
-    const kick = vi.fn()
-    const handler = createBatchExtractionsApi(
-      { createBatchExtraction } as never,
-      { kick },
+  it('keeps system claim, lease, and reference methods out of request stores', () => {
+    expectTypeOf<ResearcherProjectStore>().not.toHaveProperty(
+      'claimBatchSchemaSuggestion',
     )
+    expectTypeOf<ResearcherProjectStore>().not.toHaveProperty(
+      'renewBatchSchemaSuggestionLease',
+    )
+    expectTypeOf<ResearcherProjectStore>().not.toHaveProperty(
+      'isPackageReferenced',
+    )
+  })
 
+  it('rejects the removed Catalog strategy before scheduling a suggested batch', async () => {
+    const module = moduleForSuggestedBatch()
+    const handler = handlerFor({}, module)
+    const request = runRequest()
     const response = await handler(
-      new Request('http://studio.test/api/batch-extractions', {
+      new Request(request.url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          projectContextId,
-          schemaRevisionId,
-          strategy: 'ARTICLE',
-          sourceDocumentIds: [sourceDocumentId],
-        }),
+        body: JSON.stringify({ strategy: 'CATALOG' }),
       }),
     )
 
-    expect(response.status).toBe(202)
-    expect(createBatchExtraction).toHaveBeenCalledOnce()
-    expect(kick).toHaveBeenCalledOnce()
-    await expect(response.json()).resolves.toMatchObject({
-      batchExtraction: {
-        batchExtractionId,
-        executionStatus: 'QUEUED',
-        members: [{ executionStatus: 'QUEUED' }],
-      },
-    })
+    expect(response.status).toBe(422)
+    expect(module.scheduleSuggestedBatch).not.toHaveBeenCalled()
   })
 
-  it('replays an unforced selection and opens a fresh Batch Extraction when the researcher forces it', async () => {
-    const openedIds: string[] = []
-    const createBatchExtraction = vi.fn(
-      async (_: string, input: { batchExtractionId: string }) => {
-        openedIds.push(input.batchExtractionId)
-        return openedIds.length === 1
-          ? { status: 'replayed' as const, batch }
-          : { status: 'created' as const, batch }
-      },
-    )
-    const handler = createBatchExtractionsApi(
-      { createBatchExtraction } as never,
-      { kick: vi.fn() },
-    )
-    const open = (force?: boolean) =>
-      handler(
-        new Request('http://studio.test/api/batch-extractions', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            projectContextId,
-            schemaRevisionId,
-            strategy: 'ARTICLE',
-            sourceDocumentIds: [sourceDocumentId],
-            ...(force === undefined ? {} : { force }),
-          }),
-        }),
-      )
-
-    const replayed = await open()
-    const forced = await open(true)
-
-    await expect(replayed.json()).resolves.toMatchObject({
-      disposition: 'replayed',
-    })
-    await expect(forced.json()).resolves.toMatchObject({
-      disposition: 'created',
-    })
-    expect(openedIds[1]).not.toBe(openedIds[0])
-    // The fingerprint identity is stable, so only the forced open may differ.
-    expect((await open()).status).toBe(202)
-    expect(openedIds[2]).toBe(openedIds[0])
-  })
-
-  it('persists and schedules a schema suggestion without waiting for its model work', async () => {
+  it('persists a Schema Suggestion before waking its durable worker', async () => {
     const createBatchSchemaSuggestion = vi.fn(async () => ({
       status: 'created' as const,
-      suggestion,
+      suggestion: { ...suggestion, executionStatus: 'QUEUED' as const, phase: 'SOURCES' as const },
     }))
-    const kick = vi.fn()
-    const handler = createBatchSchemaSuggestionsApi(
-      { createBatchSchemaSuggestion } as never,
-      { kick },
+    const handler = handlerFor(
+      { createBatchSchemaSuggestion },
+      moduleForSuggestedBatch(),
     )
-
     const response = await handler(
-      new Request('http://studio.test/api/batch-schema-suggestions', {
+      new Request('http://test/api/batch-schema-suggestions', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ projectContextId, sourceDocumentIds: [sourceDocumentId] }),
@@ -171,71 +159,61 @@ describe('durable operation APIs', () => {
     )
 
     expect(response.status).toBe(202)
-    expect(createBatchSchemaSuggestion).toHaveBeenCalledWith(projectContextId, [
-      sourceDocumentId,
-    ])
-    expect(kick).toHaveBeenCalledOnce()
-    await expect(response.json()).resolves.toMatchObject({
-      batchSchemaSuggestion: {
+    expect(createBatchSchemaSuggestion).toHaveBeenCalledWith(projectContextId, [sourceDocumentId])
+    expect(operations.kick).toHaveBeenCalledOnce()
+  })
+
+  it('hands a ready suggestion atomically to ExtractionModule before rereading it', async () => {
+    const order: string[] = []
+    const module = moduleForSuggestedBatch()
+    vi.mocked(module.scheduleSuggestedBatch).mockImplementationOnce(async (input) => {
+      order.push('schedule')
+      expect(input).toEqual({
+        projectContextId,
         batchSchemaSuggestionId: suggestionId,
-        executionStatus: 'QUEUED',
-        phase: 'SOURCES',
+        strategy: 'ARTICLE',
+      })
+      return { disposition: 'created', batch: {} as never }
+    })
+    const getBatchSchemaSuggestion = vi.fn(async () => {
+      order.push('read')
+      return {
+        ...suggestion,
+        confirmedSchemaRevisionId: '51000000-0000-4000-8004-000000000001',
+        batchExtractionId: '51000000-0000-4000-8007-000000000001',
+      }
+    })
+    const handler = handlerFor({ getBatchSchemaSuggestion }, module)
+
+    const response = await handler(runRequest())
+    expect(response.status).toBe(202)
+    expect(order).toEqual(['schedule', 'read'])
+    expect(await response.json()).toMatchObject({
+      batchSchemaSuggestion: {
+        confirmedSchemaRevisionId: '51000000-0000-4000-8004-000000000001',
+        batchExtractionId: '51000000-0000-4000-8007-000000000001',
       },
     })
   })
-
-  it('rejects the removed request-scoped merge protocol', async () => {
-    const createBatchSchemaSuggestion = vi.fn()
-    const handler = createBatchSchemaSuggestionsApi(
-      { createBatchSchemaSuggestion } as never,
-      { kick: vi.fn() },
+  it('returns not found without retrying or waking for an inaccessible suggestion', async () => {
+    const retryBatchSchemaSuggestion = vi.fn(async () => null)
+    const handler = handlerFor(
+      { retryBatchSchemaSuggestion },
+      moduleForSuggestedBatch(),
     )
-
-    const response = await handler(
-      new Request('http://studio.test/api/batch-schema-suggestions', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          action: 'merge',
-          projectContextId,
-          sourceDocumentIds: [sourceDocumentId],
-        }),
-      }),
-    )
-
-    expect(response.status).toBe(422)
-    expect(createBatchSchemaSuggestion).not.toHaveBeenCalled()
-  })
-
-  it('retries a previously confirmed schema suggestion', async () => {
-    const retryBatchSchemaSuggestion = vi.fn(async () => ({
-      status: 'retried' as const,
-      suggestion,
-    }))
-    const kick = vi.fn()
-    const handler = createBatchSchemaSuggestionsApi(
-      { retryBatchSchemaSuggestion } as never,
-      { kick },
-    )
-
     const response = await handler(
       new Request(
-        `http://studio.test/api/batch-schema-suggestions/${suggestionId}/retry?projectContextId=${projectContextId}`,
+        `http://test/api/batch-schema-suggestions/${suggestionId}/retry?projectContextId=${projectContextId}`,
         { method: 'POST' },
       ),
     )
 
-    expect(response.status).toBe(202)
-    await expect(response.json()).resolves.toMatchObject({
-      batchSchemaSuggestion: {
-        batchSchemaSuggestionId: suggestionId,
-        executionStatus: 'QUEUED',
-      },
-    })
-    expect(kick).toHaveBeenCalledOnce()
+    expect(response.status).toBe(404)
     expect(retryBatchSchemaSuggestion).toHaveBeenCalledWith(
       projectContextId,
       suggestionId,
     )
+    expect(operations.kick).not.toHaveBeenCalled()
   })
+
 })

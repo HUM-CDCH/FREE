@@ -23,7 +23,6 @@ const completed = {
     finishReason: null,
     inputTokens: null,
     outputTokens: null,
-    values: null,
     grounding: null,
   },
   failure: null,
@@ -70,93 +69,44 @@ describe('Article lifecycle contracts', () => {
     ).toBe(false)
   })
 
-  it('accepts Catalog strategy only with ordered stage and boundary diagnostics', () => {
-    const diagnostics = {
-      ...completed.diagnostics,
-      catalog: {
-        stages: [{
-          stage: 'discovery',
-          outcome: 'succeeded',
-          finishReason: 'stop',
-          calls: 1,
-          inputTokens: 10,
-          outputTokens: 4,
-          durationMs: 1,
-          failureCode: null,
-        }],
-        records: [{
-          ordinal: 0,
-          boundary: {
-            startBlockId: 'heading-1',
-            startContentIndex: 2,
-            endContentIndex: 5,
-            headingText: 'Heading',
-            headingLevel: 1,
-          },
-          outcome: 'succeeded',
-          finishReason: 'stop',
-          calls: 1,
-          inputTokens: 10,
-          outputTokens: 4,
-          durationMs: 1,
-          failureCode: null,
-        }],
-      },
-    }
+  it('keys Review Decisions by result path when values share one Evidence anchor', () => {
+    const evidenceLinks = [
+      { resultPath: ['records', 0, 'title'], evidenceAnchorId: 'anchor-1' },
+      { resultPath: ['records', 0, 'note'], evidenceAnchorId: 'anchor-1' },
+    ]
+    const reviewDecisions = evidenceLinks.map((link) => ({
+      ...link,
+      reviewedOccurrenceIds: ['occurrence-1'],
+      action: 'APPROVED',
+      reviewedValue: null,
+      createdAt: '2026-08-10T00:01:00.000Z',
+    }))
     expect(extractionAttemptSchema.safeParse({
       ...completed,
-      strategy: 'CATALOG',
-      diagnostics,
+      resultPayload: { records: [{ title: 'Title', note: 'Note' }] },
+      evidenceLinks,
+      reviewedAt: '2026-08-10T00:01:00.000Z',
+      reviewDecisions,
     }).success).toBe(true)
     expect(extractionAttemptSchema.safeParse({
       ...completed,
-      strategy: 'CATALOG',
+      resultPayload: { records: [{ title: 'Title', note: 'Note' }] },
+      evidenceLinks,
+      reviewedAt: '2026-08-10T00:01:00.000Z',
+      reviewDecisions: reviewDecisions.map((decision) => ({
+        ...decision,
+        resultPath: ['records', 0, 'title'],
+      })),
     }).success).toBe(false)
   })
 
-  it('separates fresh requests from strict targeted retry selections', () => {
-    const request = extractionRequestSchema.safeParse({
-      id: id('1'),
-      retryOfId: id('5'),
-      retryDocument: false,
-      rediscover: false,
-      retryRecordStartBlockIds: ['heading-1'],
-    })
-    expect(request.success).toBe(true)
-    if (request.success) {
-      expect(request.data.retryOfId).toBe(id('5'))
-      expect(request.data.sourceRepresentationRevisionId).toBeUndefined()
-      expect(request.data.schemaRevisionId).toBeUndefined()
-      expect(request.data.strategy).toBeUndefined()
-    }
+  it('rejects Catalog and targeted-retry request shapes', () => {
     expect(
       extractionRequestSchema.safeParse({
         id: id('1'),
         sourceRepresentationRevisionId: id('3'),
         schemaRevisionId: id('4'),
         strategy: 'CATALOG',
-        retryOfId: id('5'),
-        retryRecordStartBlockIds: ['heading-1'],
-      }).success,
-    ).toBe(false)
-    expect(
-      extractionRequestSchema.safeParse({
-        id: id('1'),
-        sourceRepresentationRevisionId: id('3'),
-        schemaRevisionId: id('4'),
-        strategy: 'CATALOG',
-        retryOfId: id('5'),
-        retryRecordStartBlockIds: ['heading-1', 'heading-1'],
-      }).success,
-    ).toBe(false)
-    expect(
-      extractionRequestSchema.safeParse({
-        id: id('1'),
-        retryOfId: id('5'),
-        retryRecordStartBlockIds: Array.from(
-          { length: 101 },
-          (_, index) => `heading-${index}`,
-        ),
       }).success,
     ).toBe(false)
 
@@ -166,7 +116,7 @@ describe('Article lifecycle contracts', () => {
         sourceRepresentationRevisionId: id('3'),
         schemaRevisionId: id('4'),
         strategy: 'ARTICLE',
-        retryDocument: false,
+        retryOfId: id('5'),
       }).success,
     ).toBe(false)
   })

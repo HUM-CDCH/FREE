@@ -1,9 +1,8 @@
-# CUDA 13 runtime comes from pip (nvidia-* wheels in uv.lock); the host driver
-# provides libcuda.so.1 via nvidia-container-toolkit. So a slim uv base is enough —
-# no heavy nvidia/cuda base image needed.
+# Docling pulls its layout/table models at first conversion, so the image stays
+# slim and the models live in the mounted HOME cache instead of an image layer.
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
-# System libs paddleocr/opencv/docling load at runtime
+# System libs Docling's torch/opencv stack loads at runtime.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
@@ -11,25 +10,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
-    HOME=/models \
-    NVIDIA_VISIBLE_DEVICES=all \
-    NVIDIA_DRIVER_CAPABILITIES=all
+    HOME=/models
 
 WORKDIR /app
 
-# OCR profile: ocr-gpu (default, matches compose GPU reservation) or ocr-cpu.
-ARG OCR_EXTRA=ocr-gpu
-
-# Deps first so they cache unless the lock changes
+# Dependencies first so the layer survives every source edit.
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project --extra "${OCR_EXTRA}"
+    uv sync --frozen --no-dev --no-install-project
 
 COPY . .
-# Install the project itself so importlib.metadata reports service version provenance
+# Install the project itself so importlib.metadata reports the service version.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra "${OCR_EXTRA}"
+    uv sync --frozen --no-dev
 
-EXPOSE 8000
-# Model caches (docling/HF + paddlex) land under HOME=/models — mount it as a volume to persist.
-CMD ["uv", "run", "--no-sync", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8055
+# One process only: the FIFO queue and the reusable DocumentConverter are
+# in-process state, so a second worker would split the queue.
+CMD ["uv", "run", "--no-sync", "python", "-X", "utf8", "-m", "fastapi", "run", "main.py", "--host", "0.0.0.0", "--port", "8055"]

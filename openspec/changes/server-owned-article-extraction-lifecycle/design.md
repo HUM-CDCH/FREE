@@ -26,7 +26,7 @@ The active prototype is a Vite-served React application with TypeScript API modu
 
 `POST /api/extractions` resolves an Article operation from `{ id, sourceRepresentationRevisionId, schemaRevisionId, strategy: "ARTICLE" }`. One server module loads the pinned schema and canonical package, resolves the saved capability route once, performs the whole-source value call, grounds populated paths, and persists `COMPLETED`, `FAILED`, or `CANCELLED` before returning.
 
-The existing model gateway, schema helpers, canonical grounding algorithm, and `ProjectStore` are reused. Grounding and anchored-document construction move to `shared/` so the server is not coupled to browser modules. No general extraction-strategy framework is introduced.
+The existing model gateway, schema helpers, canonical grounding algorithm, and `ProjectStore` are reused. Grounding and anchored-document construction live in the shared `packages/extraction` package so the server is not coupled to browser modules. No general extraction-strategy framework is introduced.
 
 ### Operation UUID is the idempotency key
 
@@ -38,11 +38,11 @@ A process-local map holds `{ identity, AbortController, promise }` for active op
 
 The Extraction row stores strategy, outcome, completeness, failure, result, Evidence links, route attribution, bounded diagnostics, pins, retry parent, timestamps, and nullable `reviewedAt`; raw model output is removed. `SUCCEEDED` requires result, Evidence links, attribution, and completeness. `FAILED` and `CANCELLED` forbid result and Evidence links. PostgreSQL checks enforce these shapes and JSON container types. A composite self-reference keeps a retry on the same Source Representation Revision, Schema Revision, and strategy, and a check forbids self-parenting.
 
-Review finalization accepts only decisions for the stored Extraction ID. It re-derives populated content paths from the immutable stored result and pinned schema, requires exact Evidence-path and referenced-anchor coverage, validates occurrence ownership against the pinned canonical package, then claims one append-only review gate in the transaction before inserting decisions and setting `reviewedAt`. A concurrent loser compares the stored normalized decision digest: the same decisions replay successfully and different decisions return `409`.
+Review finalization accepts only decisions for the stored Extraction ID. It re-derives populated content paths from the immutable stored result and pinned schema, requires those paths to be partitioned exactly between unique Evidence links and explicit ungrounded diagnostics, validates referenced-anchor coverage and occurrence ownership against the pinned canonical package, then claims one append-only review gate in the transaction before inserting decisions and setting `reviewedAt`. Ungrounded paths create no Review Decision and remain durable audit state. A concurrent loser compares the stored normalized decision digest: the same decisions replay successfully and different decisions return `409`.
 
 ### Grounding completeness derives from the result
 
-Every populated scalar path is document-derived and requires a canonical Evidence link. Reviewability is computed by the server from exact path coverage; the browser cannot claim it. Grounding uses only published `parsed_document.v2` anchors and exact Evidence Anchor labels, never text matching.
+Every populated scalar path is document-derived and is classified as grounded by a canonical Evidence link or explicitly ungrounded. Completeness is computed by the server from grounding coverage; every succeeded result remains reviewable so the researcher can adjudicate imperfect grounding, and the browser cannot claim either state. Grounding uses only published `parsed_document.v2` anchors and exact Evidence Anchor labels, never text matching.
 
 ### Truncation is durable, incomplete output
 
@@ -57,7 +57,7 @@ Source Document reopen returns `latestAttempt` ordered by `createdAt DESC, id DE
 - [Process-local cancellation does not cross server processes] → The prototype runs one Vite API process; PostgreSQL remains the durable idempotency backstop after restart.
 - [Provider abort can race terminal persistence] → Check the signal between phases, then stop honoring cancellation when the terminal transaction starts.
 - [Prototype schema replacement is destructive] → Generate the direct replacement migration and exercise it only against disposable databases; do not reset the research database.
-- [A tolerant truncated result can be incomplete] → Persist `complete: false`, show it for inspection, and make reviewability depend on actual canonical grounding coverage.
+- [A tolerant or partially grounded result can be incomplete] → Persist `complete: false`, retain explicit ungrounded paths, and allow the researcher to review without manufacturing Evidence.
 
 ## Migration Plan
 

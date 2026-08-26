@@ -1,36 +1,14 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-- Do not preserve backward compatibility. Remove obsolete paths instead of
-  adding compatibility layers, fallbacks, or migrations.
-
-- Choose the simplest implementation that fully meets the current
-  requirements. Avoid speculative abstractions, configuration, and
-  indirection.
-
-- Grow the system in layers. Start from the smallest version that works
-  end to end, and add each new capability on top of a product that already
-  works. Never trade a working product for unfinished complexity.
-
-- Keep components modular and concerns clearly separated.
-
-- Prefer established, well-maintained libraries when they reduce overall
-  complexity or improve reliability. Do not reimplement common
-  functionality without a clear reason.
-
-- Lean on the dependencies already in the project before writing your own
-  implementation or adding packages. Do not assume a library lacks a
-  capability without checking its documentation and types.
-
-- Make architectural decisions for the long term. Do not accept a stopgap
-  that only works for now and is meant to be replaced later.
+Repository-wide engineering guidance lives in `AGENTS.md`. Read and follow it
+before changing code; this file adds repository architecture and operational
+details.
 
 ## What FREE is
 
 FREE is a document extraction and evaluation tool for **humanities researchers** (not "users"). Researchers annotate source documents, request schema suggestions from those annotations, approve an extraction schema, and validate the results. Every extracted value must be grounded in source evidence.
 
-The workflow has five phases: Document Ingestion → Annotation → Schema Suggestion → Extraction → Validation. `CONTEXT.md` defines the domain language; `docs/architecture/` holds the LikeC4 model of the implemented runtime (`pnpm architecture:dev`); `docs/parsing-service.md` and `docs/parsing-quality.md` define the implemented parsing boundary.
+The workflow has five phases: Document Ingestion → Annotation → Schema Suggestion → Extraction → Validation. `CONTEXT.md` defines the domain language; `docs/architecture/` holds the LikeC4 model of the implemented runtime (`pnpm architecture:dev`); `prototypes/parsing_service/README.md` describes the implemented parsing boundary.
 
 ## Language
 
@@ -47,7 +25,12 @@ Use the terminology in `CONTEXT.md` precisely. Key terms:
 | Review Decision | status, vote |
 | Evidence | citation, source, provenance |
 
-## Workspace
+`Project` and `Projects` are concise researcher-facing names for Project
+Contexts. `Research Workspace` names the authenticated area spanning those
+projects and shared capabilities; it never owns domain state. Use `Project
+Context` in data models, APIs, persistence, and architecture.
+
+## Monorepo workspace
 
 The prototypes under `prototypes/` are self-contained but orchestrated with **pnpm workspaces**. Prefer root commands (`pnpm dev`, `pnpm test`, `pnpm build`) for normal work; `pnpm start` is an alias for `pnpm dev`.
 
@@ -55,7 +38,8 @@ Python services opt into the root install with an `install:python` script; the r
 
 VS Code tasks and launches should call pnpm workspace scripts from the repository root. Keep the backend debug launch direct through `debugpy`, but keep dev tasks on `pnpm --filter ...` so package scripts remain the source of truth.
 
-Per-prototype guidance loads with the directory: `prototypes/parsing_service/CLAUDE.md` and `prototypes/studio/CLAUDE.md`.
+Per-prototype guidance loads with the directory:
+`prototypes/parsing_service/CLAUDE.md` and `prototypes/studio/CLAUDE.md`.
 
 ## Persistence boundaries
 
@@ -91,11 +75,11 @@ behaviour, so it is proven against PostgreSQL:
 test:postgres`, which fails rather than skips when the database is missing.
 Package cleanup quarantines each candidate and rechecks its reference before
 unlinking it, so a concurrent content-addressed publish is restored instead of
-leaving PostgreSQL pointed at a missing package. The current package writer,
-`pnpm db:seed`, also reasserts the already-downloaded package after inserting its
-reference; it never re-runs ingestion for this cleanup handshake.
-Annotations are still passed inline with each `/api/generate_schema` request;
-seeded and accepted research state reopens through `ProjectStore`.
+leaving PostgreSQL pointed at a missing package. Researcher-scoped deletion and
+failed-ingestion cleanup perform that deployment-wide reference check behind the
+store boundary without exposing package metadata to HTTP handlers. Request code
+receives `ResearcherProjectStore`; cross-account claim and lease processing uses
+the separate `InternalProjectWorkerStore`.
 
 ## Agent skills
 

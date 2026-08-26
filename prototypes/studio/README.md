@@ -1,6 +1,8 @@
-# FREE Vite Prototype
+# FREE Studio
 
-FREE Studio is a local Vite/React source prototype with TypeScript API handlers under `api/`.
+FREE Studio is a React client with same-origin TypeScript API handlers under
+`api/`. Vite serves it during development; the built production client and API
+run from the Node host in `server/`.
 
 ## Commands
 
@@ -11,7 +13,11 @@ pnpm install
 pnpm start
 ```
 
-Studio uses Vite's implicit localhost binding at `http://localhost:5173`; the parsing service defaults to `http://127.0.0.1:8000`. Non-loopback exposure and hosted deployment are unsupported. Supporting either requires a separate authenticated-host design.
+Local development uses Vite's implicit localhost binding at
+`http://localhost:5173`; the Parsing Service defaults to
+`http://127.0.0.1:8055`. The root `compose.yaml` supplies the supported private
+HTTPS deployment. See [the root deployment guide](../../README.md#network-exposure-and-proxy-trust)
+for its port boundary and the production Node host's explicit trust modes.
 
 From this folder:
 
@@ -49,3 +55,14 @@ A fresh Studio starts without Model Connections or Capability Routes. Open **Mod
 - Connection checks run after edited provider inputs settle and through **Refresh models**. Their status and model catalog are advisory session state: checks never generate content, change configuration, or gate manual model IDs or Apply.
 
 Ollama, OpenAI, Anthropic, Google, Codex CLI, Claude Code, and generic OpenAI-compatible connections are supported. Enter provider base URLs exactly as their adapters expect. Ollama uses the server base, such as `http://127.0.0.1:11434`, and FREE reaches its native resources beneath `/api`. Other HTTP providers may require a version prefix such as `/v1` or `/v1beta`; generic OpenAI-compatible bases provide `/models` and `/chat/completions` beneath the entered base.
+
+The Studio container includes the Codex CLI. Authenticate it once inside the
+running container before using a Codex CLI Model Connection:
+
+```bash
+docker compose exec studio codex login --device-auth
+docker compose exec studio codex login status
+```
+
+Codex home and the container keyring use the existing persistent Studio
+volumes, so rebuilding the image does not discard the login.

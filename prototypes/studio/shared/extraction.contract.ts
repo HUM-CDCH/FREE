@@ -6,93 +6,75 @@ import {
 } from './groundedExtraction.js'
 import { providerKindSchema } from './modelConfig.contract.js'
 
-export const extractionStrategySchema = z.enum(['ARTICLE', 'CATALOG'])
+export const extractionStrategySchema = z.literal('ARTICLE')
 export type ExtractionStrategy = z.infer<typeof extractionStrategySchema>
 
-export const extractionRetrySelectionSchema = z
-  .object({
-    retryOfId: z.uuid(),
-    retryDocument: z.boolean(),
-    rediscover: z.boolean(),
-    retryRecordStartBlockIds: z.array(z.string().min(1)),
-  })
-  .strict()
-
-export type ExtractionRetrySelection = z.infer<
-  typeof extractionRetrySelectionSchema
->
-
-const retryFields = {
-  retryDocument: z.boolean().default(false),
-  rediscover: z.boolean().default(false),
-  retryRecordStartBlockIds: z
-    .array(z.string().min(1))
-    .max(100)
-    .default([]),
-} as const
-
-const extractionFreshRequestSchema = z
+export const extractionRequestSchema = z
   .object({
     id: z.uuid(),
     sourceRepresentationRevisionId: z.uuid(),
     schemaRevisionId: z.uuid(),
     strategy: extractionStrategySchema,
-    /** Set when this Extraction is one member of a Batch Extraction. */
-    batchExtractionId: z.uuid().nullable().default(null),
-    retryOfId: z.never().optional(),
-    retryDocument: z.never().optional(),
-    rediscover: z.never().optional(),
-    retryRecordStartBlockIds: z.never().optional(),
   })
   .strict()
-  .transform((request) => ({
-    ...request,
-    retryOfId: null,
-    retryDocument: false,
-    rediscover: false,
-    retryRecordStartBlockIds: [],
-  }))
-
-const extractionRetryRequestSchema = z
-  .object({
-    id: z.uuid(),
-    retryOfId: z.uuid(),
-    ...retryFields,
-    // A retry inherits its parent's Batch Extraction, so it is never sent.
-    batchExtractionId: z.never().optional(),
-    sourceRepresentationRevisionId: z.never().optional(),
-    schemaRevisionId: z.never().optional(),
-    strategy: z.never().optional(),
-  })
-  .strict()
-  .superRefine((request, context) => {
-    if (
-      new Set(request.retryRecordStartBlockIds).size !==
-      request.retryRecordStartBlockIds.length
-    )
-      context.addIssue({
-        code: 'custom',
-        path: ['retryRecordStartBlockIds'],
-        message: 'Retry record identities must be unique.',
-      })
-  })
-
-export const extractionRequestSchema = z.union([
-  extractionFreshRequestSchema,
-  extractionRetryRequestSchema,
-])
 
 export type ExtractionRequest = z.infer<typeof extractionRequestSchema>
 export type ExtractionRequestInput = z.input<typeof extractionRequestSchema>
 
+export const reviewDecisionActionSchema = z.enum([
+  'APPROVED',
+  'EDITED',
+  'REJECTED',
+])
+export type ReviewDecisionAction = z.infer<
+  typeof reviewDecisionActionSchema
+>
+
+const reviewDecisionShape = {
+  resultPath: resultPathSchema,
+  evidenceAnchorId: z.string().min(1),
+  reviewedOccurrenceIds: z.array(z.string().min(1)),
+  action: reviewDecisionActionSchema,
+  reviewedValue: z.json().nullable(),
+}
+
+function validateReviewDecision(
+  decision: {
+    action: ReviewDecisionAction
+    reviewedValue: unknown
+  },
+  context: z.RefinementCtx,
+) {
+  if (decision.action === 'EDITED' && decision.reviewedValue === null)
+    context.addIssue({
+      code: 'custom',
+      path: ['reviewedValue'],
+      message: 'An edited Review Decision requires a reviewed value.',
+    })
+  if (decision.action !== 'EDITED' && decision.reviewedValue !== null)
+    context.addIssue({
+      code: 'custom',
+      path: ['reviewedValue'],
+      message: 'Only an edited Review Decision can carry a reviewed value.',
+    })
+}
+
 export const reviewDecisionInputSchema = z
-  .object({
-    evidenceAnchorId: z.string().min(1),
-    reviewedOccurrenceIds: z.array(z.string().min(1)),
-  })
+  .object(reviewDecisionShape)
   .strict()
+  .superRefine(validateReviewDecision)
 
 export type ReviewDecisionInput = z.infer<typeof reviewDecisionInputSchema>
+
+export const reviewDecisionSchema = z
+  .object({
+    ...reviewDecisionShape,
+    createdAt: z.iso.datetime(),
+  })
+  .strict()
+  .superRefine(validateReviewDecision)
+
+export type ReviewDecision = z.infer<typeof reviewDecisionSchema>
 
 export const finalizeExtractionReviewSchema = z
   .object({ reviewDecisions: z.array(reviewDecisionInputSchema) })
@@ -137,63 +119,20 @@ const groundingDiagnosticsSchema = z
   })
   .strict()
 
-const catalogCallDiagnosticsSchema = z
-  .object({
-    provenance: z.enum(['executed', 'reused']).default('executed'),
-    outcome: z.enum(['succeeded', 'failed', 'not_attempted']),
-    finishReason: z.string().max(64).nullable(),
-    calls: z.number().int().nonnegative(),
-    inputTokens: z.number().int().nonnegative().nullable(),
-    outputTokens: z.number().int().nonnegative().nullable(),
-    durationMs: z.number().int().nonnegative(),
-    failureCode: z.string().min(1).nullable(),
-  })
-  .strict()
-
-const catalogBoundarySchema = z
-  .object({
-    startBlockId: z.string().min(1),
-    startContentIndex: z.number().int().nonnegative(),
-    endContentIndex: z.number().int().nonnegative(),
-    headingText: z.string(),
-    headingLevel: z.number().int().positive(),
-  })
-  .strict()
-
-const catalogStageDiagnosticsSchema = catalogCallDiagnosticsSchema.extend({
-  stage: z.enum(['document-values', 'discovery', 'record-values', 'grounding']),
-}).strict()
-
-const catalogRecordDiagnosticsSchema = catalogCallDiagnosticsSchema.extend({
-  ordinal: z.number().int().nonnegative(),
-  boundary: catalogBoundarySchema,
-}).strict()
-
-export const catalogDiagnosticsSchema = z
-  .object({
-    stages: z.array(catalogStageDiagnosticsSchema),
-    records: z.array(catalogRecordDiagnosticsSchema),
-  })
-  .strict()
-
-export type CatalogDiagnostics = z.infer<typeof catalogDiagnosticsSchema>
-
 export const extractionDiagnosticsSchema = z
   .object({
     phase: z.enum([
       'loading',
       'extracting',
       'grounding',
+      'persisting',
     ]),
     durationMs: z.number().int().nonnegative(),
     modelCalls: z.number().int().nonnegative(),
     finishReason: z.string().max(64).nullable(),
     inputTokens: z.number().int().nonnegative().nullable(),
     outputTokens: z.number().int().nonnegative().nullable(),
-    values: modelCallDiagnosticsSchema.nullable(),
     grounding: groundingDiagnosticsSchema.nullable(),
-    catalog: catalogDiagnosticsSchema.nullable().default(null),
-    retry: extractionRetrySelectionSchema.nullable().optional(),
   })
   .strict()
 
@@ -228,9 +167,7 @@ export const extractionAttemptSchema = z
     batchExtractionId: z.uuid().nullable(),
     createdAt: z.iso.datetime(),
     reviewedAt: z.iso.datetime().nullable(),
-    reviewDecisions: z.array(
-      reviewDecisionInputSchema.extend({ reviewDecisionId: z.uuid() }).strict(),
-    ),
+    reviewDecisions: z.array(reviewDecisionSchema),
   })
   .strict()
   .superRefine((attempt, context) => {
@@ -257,15 +194,6 @@ export const extractionAttemptSchema = z
       })
 
     if (
-      (attempt.strategy === 'ARTICLE' && attempt.diagnostics.catalog !== null) ||
-      (attempt.strategy === 'CATALOG' && attempt.diagnostics.catalog === null)
-    )
-      context.addIssue({
-        code: 'custom',
-        message: 'Catalog diagnostics must match the Extraction strategy.',
-      })
-
-    if (
       attempt.resultPayload &&
       attempt.evidenceLinks &&
       !evidenceLinksHaveUniqueScalarPaths(
@@ -278,19 +206,25 @@ export const extractionAttemptSchema = z
         message: 'Evidence Links must identify unique populated scalar paths.',
       })
 
-    const cited = new Set(
-      attempt.evidenceLinks?.map((link) => link.evidenceAnchorId) ?? [],
+    const evidence = attempt.evidenceLinks ?? []
+    const cited = new Map(
+      evidence.map((link) => [JSON.stringify(link.resultPath), link.evidenceAnchorId]),
     )
-    const reviewed = new Set(
-      attempt.reviewDecisions.map((decision) => decision.evidenceAnchorId),
+    const reviewed = new Map(
+      attempt.reviewDecisions.map((decision) => [
+        JSON.stringify(decision.resultPath),
+        decision.evidenceAnchorId,
+      ]),
     )
     if (
+      cited.size !== evidence.length ||
+      reviewed.size !== attempt.reviewDecisions.length ||
       (attempt.reviewedAt === null && reviewed.size > 0) ||
       (attempt.reviewedAt !== null &&
         (attempt.outcome !== 'SUCCEEDED' ||
           !attempt.reviewable ||
           cited.size !== reviewed.size ||
-          [...cited].some((anchorId) => !reviewed.has(anchorId))))
+          [...cited].some(([path, anchorId]) => reviewed.get(path) !== anchorId)))
     )
       context.addIssue({
         code: 'custom',
@@ -311,28 +245,3 @@ export const extractionReadResponseSchema = z
     pendingReviewDecisions: z.array(reviewDecisionInputSchema),
   })
   .strict()
-
-type ExtractionIdentity = {
-  sourceRepresentationRevisionId?: string
-  schemaRevisionId?: string
-  strategy?: ExtractionStrategy
-  retryOfId?: string | null
-  batchExtractionId?: string | null
-}
-
-export function sameExtractionIdentity(
-  attempt: ExtractionIdentity,
-  request: ExtractionIdentity,
-): boolean {
-  return (
-    (request.sourceRepresentationRevisionId === undefined ||
-      attempt.sourceRepresentationRevisionId ===
-        request.sourceRepresentationRevisionId) &&
-    (request.schemaRevisionId === undefined ||
-      attempt.schemaRevisionId === request.schemaRevisionId) &&
-    (request.strategy === undefined || attempt.strategy === request.strategy) &&
-    (request.batchExtractionId === undefined ||
-      attempt.batchExtractionId === request.batchExtractionId) &&
-    attempt.retryOfId === request.retryOfId
-  )
-}

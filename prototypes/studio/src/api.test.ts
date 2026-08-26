@@ -5,8 +5,10 @@ import type { ExtractionController } from './useExtraction'
 import {
   decodeSchemaDone,
   finalizeExtractionReview,
+  readExtraction,
   requestExtraction,
   requestSchema,
+  requestSchemaEdit,
 } from './api'
 
 function jsonResponse(body: unknown): Response {
@@ -30,7 +32,6 @@ function readyController(): ExtractionController {
     hasResults: true,
     stale: false,
     runExtraction: async () => {},
-    retryExtraction: async () => {},
     requestCancellation: async () => {},
     cancellationRequested: false,
     cancellationError: null,
@@ -39,8 +40,12 @@ function readyController(): ExtractionController {
       available: false,
       canAccept: false,
       saving: false,
+      loading: false,
+      decisions: [],
+      reviewedCount: 0,
       reviewedExtractionId: null,
       error: null,
+      setDecision: () => {},
       accept: async () => {},
     },
   }
@@ -61,7 +66,7 @@ describe('Article extraction lifecycle client', () => {
       outcome: 'SUCCEEDED',
       complete: true,
       modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, values: null, grounding: null },
+      diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
       failure: null,
       resultPayload: { records: [] },
       evidenceLinks: [],
@@ -76,6 +81,7 @@ describe('Article extraction lifecycle client', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string, init: RequestInit) => {
+        expect(init.credentials).toBe('same-origin')
         submitted.push({ url, body: init.body ? JSON.parse(String(init.body)) : null })
         return Promise.resolve(jsonResponse(attempt))
       }),
@@ -92,7 +98,7 @@ describe('Article extraction lifecycle client', () => {
     expect(submitted).toEqual([
       {
         url: '/api/extractions',
-        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE', batchExtractionId: null },
+        body: { id: extractionId, sourceRepresentationRevisionId: representationId, schemaRevisionId, strategy: 'ARTICLE' },
       },
       {
         url: `/api/extractions/${extractionId}/review`,
@@ -101,65 +107,103 @@ describe('Article extraction lifecycle client', () => {
     ])
   })
 
-  it('posts a strict targeted Catalog retry without caller pins or strategy', async () => {
-    const parentId = '11111111-1111-4111-8111-111111111111'
-    const childId = '55555555-5555-4555-8555-555555555555'
-    const submitted: unknown[] = []
-    const attempt = {
-      extractionId: childId,
-      sourceDocumentId: '44444444-4444-4444-8444-444444444444',
-      sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
-      schemaRevisionId: '33333333-3333-4333-8333-333333333333',
-      strategy: 'CATALOG',
-      outcome: 'SUCCEEDED',
-      complete: true,
-      modelAttribution: { provider: 'ollama', modelId: 'fixture' },
-      diagnostics: {
-        phase: 'grounding', durationMs: 1, modelCalls: 0,
-        finishReason: null, inputTokens: null, outputTokens: null,
-        values: null, grounding: null, catalog: { stages: [], records: [] },
+  it('reads server-derived pending review decisions', async () => {
+    const extractionId = '11111111-1111-4111-8111-111111111111'
+    const response = {
+      extraction: {
+        extractionId,
+        sourceDocumentId: '44444444-4444-4444-8444-444444444444',
+        sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
+        schemaRevisionId: '33333333-3333-4333-8333-333333333333',
+        strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
+        modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+        diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+        failure: null, resultPayload: { records: [] }, evidenceLinks: [],
+        reviewable: true, retryOfId: null, batchExtractionId: null,
+        createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
       },
-      failure: null, resultPayload: { records: [] }, evidenceLinks: [],
-      reviewable: true, retryOfId: parentId, batchExtractionId: null,
-      createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+      pendingReviewDecisions: [],
     }
-    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, init: RequestInit) => {
-      submitted.push(JSON.parse(String(init.body)))
-      return Promise.resolve(jsonResponse(attempt))
-    }))
+    const fetch = vi.fn().mockResolvedValue(jsonResponse(response))
+    vi.stubGlobal('fetch', fetch)
 
-    await requestExtraction({
-      id: childId,
-      retryOfId: parentId,
-      retryDocument: true,
-      rediscover: false,
-      retryRecordStartBlockIds: ['heading-2'],
-    })
-
-    expect(submitted).toEqual([{
-      id: childId,
-      retryOfId: parentId,
-      retryDocument: true,
-      rediscover: false,
-      retryRecordStartBlockIds: ['heading-2'],
-    }])
+    await expect(readExtraction(extractionId)).resolves.toEqual(response)
+    expect(fetch).toHaveBeenCalledWith(
+      `/api/extractions/${extractionId}`,
+      expect.objectContaining({ credentials: 'same-origin' }),
+    )
   })
 })
 
 describe('requestSchema', () => {
-  it('calls the schema generation endpoint', async () => {
+  it('submits only the owner-scoped source identity', async () => {
     let submittedUrl = ''
+    let submittedBody: FormData | null = null
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation((url: string) => {
+      vi.fn().mockImplementation((url: string, init: RequestInit) => {
+        expect(init.credentials).toBe('same-origin')
         submittedUrl = url
-        return Promise.resolve(jsonResponse({ template: {}, raw: '', pages: null }))
+        submittedBody = init.body as FormData
+        return Promise.resolve(
+          jsonResponse({ template: {}, raw: '', pages: null }),
+        )
       }),
     )
 
-    await requestSchema(new Blob(['pdf']), 'report.pdf')
+    await requestSchema({
+      projectContextId: '51000000-0000-4000-8000-000000000001',
+      sourceRepresentationRevisionId:
+        '51000000-0000-4000-8002-000000000001',
+    })
 
     expect(submittedUrl).toBe('/api/generate_schema')
+    expect(Object.fromEntries(submittedBody!)).toEqual({
+      project_context_id: '51000000-0000-4000-8000-000000000001',
+      source_representation_revision_id:
+        '51000000-0000-4000-8002-000000000001',
+    })
+  })
+})
+
+describe('requestSchemaEdit', () => {
+  it('submits durable schema pins without browser-authored schema or source data', async () => {
+    let submittedBody: FormData | null = null
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        expect(init.credentials).toBe('same-origin')
+        submittedBody = init.body as FormData
+        return Promise.resolve(
+          jsonResponse({
+            status: 'proposed',
+            fields: {},
+            additions: [],
+            issues: [],
+          }),
+        )
+      }),
+    )
+
+    await requestSchemaEdit(
+      {
+        projectContextId: '51000000-0000-4000-8000-000000000001',
+        sourceRepresentationRevisionId:
+          '51000000-0000-4000-8002-000000000001',
+        extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+        schemaRevisionId: '51000000-0000-4000-8004-000000000001',
+      },
+      'Add title',
+    )
+
+    expect(Object.fromEntries(submittedBody!)).toEqual({
+      project_context_id: '51000000-0000-4000-8000-000000000001',
+      source_representation_revision_id:
+        '51000000-0000-4000-8002-000000000001',
+      extraction_schema_id: '51000000-0000-4000-8003-000000000001',
+      schema_revision_id: '51000000-0000-4000-8004-000000000001',
+      instruction: 'Add title',
+    })
   })
 })
 
@@ -184,7 +228,8 @@ describe('ResultsTab markdown', () => {
     const html = renderToStaticMarkup(
       createElement(ResultsTab, {
         controller: readyController(),
-        strategy: 'ARTICLE',
+        onRunExtraction: async () => undefined,
+        runExtractionDisabled: false,
         schemaReady: true,
         documentMarkdown: '# Parsed source',
         sourceDocumentName: 'source.pdf',

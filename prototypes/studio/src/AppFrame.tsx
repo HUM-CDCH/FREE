@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { ProjectContextRail } from './projectContexts/ProjectContextRail'
+import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
@@ -9,7 +10,8 @@ import type { DocumentSnapshot } from './projectContexts/transport'
 import type { ProjectContextRouteState } from './projectContexts/useProjectContexts'
 import type { projectContextErrorSchema } from '../shared/projectContext.contract'
 import type { z } from 'zod'
-import { Button, EmptyState } from './ui'
+import { Button, EmptyState, ModalDialog } from './ui'
+import { browserStudioPath } from './studioUrl.js'
 
 const collapsedWidth = 46
 const navMin = 150
@@ -48,18 +50,15 @@ function EmptyWorkspace({
   failure: Failure | null
   onRetry: () => void
 }) {
-  let title = 'No project open'
-  let description = 'Choose one from the rail.'
-  let tone: 'neutral' | 'danger' = 'neutral'
+  let title = 'That Project Context reference is invalid'
+  let description = 'Choose a valid Project Context from the rail.'
+  let tone: 'neutral' | 'danger' = 'danger'
   let retry = false
 
-  if (route.kind === 'badReference') {
-    title = 'That Project Context reference is invalid'
-    description = 'Choose a valid Project Context from the rail.'
-    tone = 'danger'
-    // A `project` route renders ProjectContextPage, which owns its own loading
-    // and failure copy; only a `document` route falls through to here.
-  } else if (route.kind === 'document') {
+  // A `project` route renders ProjectContextPage and a `root` route renders
+  // StudioHome, each owning its own loading and failure copy; only a
+  // `document` route joins `badReference` here.
+  if (route.kind === 'document') {
     if (branch?.status === 'loading') {
       return (
         <div
@@ -103,7 +102,7 @@ function EmptyWorkspace({
     <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
       <EmptyState
         className="max-w-sm bg-surface"
-        icon={route.kind === 'root' ? undefined : '▢'}
+        icon="▢"
         title={title}
         description={description}
         tone={tone}
@@ -128,29 +127,26 @@ export default function AppFrame({
   onInitialResourceLoadFailure,
 }: AppFrameProps) {
   const [navOpen, setNavOpen] = useState(true)
+  const [narrowNavOpen, setNarrowNavOpen] = useState(false)
   const [navWidth, setNavWidth] = useState(212)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
   const [providersOpen, setProvidersOpen] = useState(false)
+  const providerTrigger = useRef<HTMLButtonElement>(null)
+  const providerInitialFocus = useRef<HTMLButtonElement>(null)
   const [tabBarSlot, setTabBarSlot] = useState<HTMLDivElement | null>(null)
   const tabs = useOpenDocumentTabs()
   const { projects } = useProjectContexts()
 
   useEffect(() => {
-    const onResize = () => setViewportWidth(window.innerWidth)
+    const onResize = () => {
+      setViewportWidth(window.innerWidth)
+      if (window.innerWidth < 860) setNarrowNavOpen(false)
+    }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  useEffect(() => {
-    if (!providersOpen) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setProvidersOpen(false)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [providersOpen])
-
-  const effectiveNavOpen = navOpen && viewportWidth >= 860
+  const effectiveNavOpen = viewportWidth >= 860 ? navOpen : narrowNavOpen
   const effectiveNavWidth = effectiveNavOpen ? navWidth : collapsedWidth
   const { branch: routedBranch, documentContained: routedDocumentContained } =
     routedProjectContext
@@ -314,11 +310,29 @@ export default function AppFrame({
             effectiveNavOpen ? 'justify-start px-4' : 'justify-center px-2'
           }`}
         >
-          <img
-            src="/free-logo.png"
-            alt=""
-            className="size-20 shrink-0 -translate-y-1 object-contain"
-          />
+          <a
+            href={browserStudioPath('/projects')}
+            aria-label="Studio home"
+            className="outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            onClick={(event) => {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return
+              event.preventDefault()
+              if (route.kind !== 'root') onNavigate({ kind: 'root' })
+            }}
+          >
+            <img
+              src={browserStudioPath('/free-logo.png')}
+              alt=""
+              className="size-20 shrink-0 -translate-y-1 object-contain"
+            />
+          </a>
           {/* {effectiveNavOpen && (
             <h1 className="text-[17px] font-extrabold tracking-[0.06em]">
               FREE
@@ -330,10 +344,16 @@ export default function AppFrame({
             open={effectiveNavOpen}
             selection={selection}
             routedProjectContextId={routedProjectContextId}
-            onToggle={() => setNavOpen((open) => !open)}
+            onToggle={() => {
+              if (viewportWidth >= 860) setNavOpen((open) => !open)
+              else setNarrowNavOpen((open) => !open)
+            }}
             onNavigate={onNavigate}
             onOpenSourceDocument={openSourceDocument}
-            onConfigure={() => setProvidersOpen(true)}
+            onConfigure={(opener) => {
+              providerTrigger.current = opener
+              setProvidersOpen(true)
+            }}
           />
         </aside>
       </div>
@@ -380,7 +400,11 @@ export default function AppFrame({
         <section
           className="relative min-h-0 min-w-0 flex-1"
           aria-label={
-            route.kind === 'project' ? 'Project Context' : 'Source Document'
+            route.kind === 'root'
+              ? 'Projects'
+              : route.kind === 'project'
+                ? 'Project Context'
+                : 'Source Document'
           }
         >
           {workspace ? (
@@ -411,6 +435,8 @@ export default function AppFrame({
                 onOpenSourceDocument={openSourceDocument}
               />
             </Suspense>
+          ) : route.kind === 'root' ? (
+            <StudioHome onNavigate={onNavigate} />
           ) : (
             <EmptyWorkspace
               route={route}
@@ -436,17 +462,18 @@ export default function AppFrame({
         </section>
       </div>
       {providersOpen && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-ink/55 px-4 py-10 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Provider configuration"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setProvidersOpen(false)
-          }}
+        <ModalDialog
+          className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto border-0 bg-transparent p-0 text-ink backdrop:bg-ink/55 backdrop:backdrop-blur-[2px]"
+          ariaLabel="Provider configuration"
+          initialFocusRef={providerInitialFocus}
+          returnFocusRef={providerTrigger}
+          onDismiss={() => setProvidersOpen(false)}
         >
-          <ProviderConfigPage onClose={() => setProvidersOpen(false)} />
-        </div>
+          <ProviderConfigPage
+            initialFocusRef={providerInitialFocus}
+            onClose={() => setProvidersOpen(false)}
+          />
+        </ModalDialog>
       )}
     </main>
   )

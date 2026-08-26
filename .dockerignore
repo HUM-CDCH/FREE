@@ -31,5 +31,5 @@ artifacts
 packages/db/src/generated
 prototypes/studio/test-results
 prototypes/studio/.certs
+tools/slopo-benchmark/work
 prototypes/parsing_service/data
-prototypes/parsing_service_simple/data

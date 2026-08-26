@@ -1,8 +1,8 @@
-import {
-  createProjectStore,
-  type BatchSchemaSuggestionRecord,
-  type ProjectStore,
-} from '../../../packages/db/src/project-store.js'
+import type {
+  BatchSchemaSuggestionRecord,
+  ResearcherProjectStore,
+} from 'db'
+import { ExtractionError } from 'extraction'
 import {
   batchSchemaSuggestionCreateRequestSchema,
   batchSchemaSuggestionDraftRequestSchema,
@@ -10,7 +10,7 @@ import {
   batchSchemaSuggestionResponseSchema,
   batchSchemaSuggestionRunRequestSchema,
 } from '../shared/batchSchemaSuggestion.contract.js'
-import { parseSchemaDefinition } from '../shared/schemaNode.js'
+import { parseSchemaDefinition } from 'extraction/schema'
 import {
   ApiError,
   json,
@@ -20,10 +20,8 @@ import {
   persistenceUnavailable,
 } from './_http.js'
 import { validateEditableSuggestion } from './_batch_schema_suggestions.js'
-import {
-  projectOperations,
-  type ProjectOperations,
-} from './_project_operations.js'
+import { projectOperations } from './_project_operations.js'
+import { createResearcherExtractions } from './_extraction_runtime.js'
 
 const ROUTE = '/api/batch-schema-suggestions'
 const ITEM_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)$/
@@ -31,15 +29,6 @@ const DRAFT_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/draft$/
 const RUN_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/run$/
 const RETRY_ROUTE = /^\/api\/batch-schema-suggestions\/([0-9a-f-]+)\/retry$/
 
-type DurableSuggestionStore = Pick<
-  ProjectStore,
-  | 'createBatchSchemaSuggestion'
-  | 'getBatchSchemaSuggestion'
-  | 'listBatchSchemaSuggestions'
-  | 'updateBatchSchemaSuggestionDraft'
-  | 'retryBatchSchemaSuggestion'
-  | 'runBatchSchemaSuggestion'
->
 
 function failureDto(value: unknown) {
   if (
@@ -94,14 +83,15 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
 }
 
 /** Durable schema-suggestion HTTP lifecycle: all model work runs after 202. */
-export function createBatchSchemaSuggestionsApi(
-  store?: DurableSuggestionStore,
-  operations?: ProjectOperations,
-) : (request: Request) => Promise<Response>
-export function createBatchSchemaSuggestionsApi(
-  store: DurableSuggestionStore = createProjectStore(),
-  operations: ProjectOperations = projectOperations,
-) {
+export function createResearcherApiHandlers(
+  store: ResearcherProjectStore,
+): Readonly<
+  Record<string, (request: Request) => Response | Promise<Response>>
+> {
+  const operations = projectOperations
+  const extractionModule = createResearcherExtractions(
+    store.researcherAccountId,
+  )
   const projectId = (url: URL) => {
     const value = url.searchParams.get('projectContextId')
     if (!value)
@@ -216,22 +206,47 @@ export function createBatchSchemaSuggestionsApi(
       await parseJsonRequest(request),
     )
     if (!parsed.success)
-      throw new ApiError(422, 'invalid_request', 'The Batch Extraction strategy is invalid.')
-    const result = await store
-      .runBatchSchemaSuggestion(projectId(url), id, parsed.data.strategy)
+      throw new ApiError(
+        422,
+        'invalid_request',
+        'The Batch Extraction strategy is invalid.',
+      )
+    const projectContextId = projectId(url)
+    try {
+      await extractionModule.scheduleSuggestedBatch({
+        projectContextId,
+        batchSchemaSuggestionId: id,
+        strategy: parsed.data.strategy,
+      })
+    } catch (error) {
+      if (error instanceof ExtractionError && error.code === 'not_found')
+        throw new ApiError(
+          404,
+          'not_found',
+          'Batch Schema Suggestion was not found.',
+          { cause: error },
+        )
+      if (error instanceof ExtractionError && error.code === 'batch_not_ready')
+        throw new ApiError(
+          409,
+          'operation_not_ready',
+          'The suggested fields are not ready to run.',
+          { cause: error },
+        )
+      throw persistenceUnavailable(error)
+    }
+    const suggestion = await store
+      .getBatchSchemaSuggestion(projectContextId, id)
       .catch((cause) => {
         throw persistenceUnavailable(cause)
       })
-    if (!result)
-      throw new ApiError(404, 'not_found', 'Batch Schema Suggestion was not found.')
-    if (!('suggestion' in result))
+    if (!suggestion)
       throw new ApiError(
-        409,
-        'operation_not_ready',
-        'The suggested fields are not ready to run.',
+        404,
+        'not_found',
+        'Batch Schema Suggestion was not found.',
       )
-    operations.kick()
-    return json(suggestionDto(result.suggestion), { status: 202, headers: noStore })
+    return json(suggestionDto(suggestion), { status: 202, headers: noStore })
   }
 
   const retry = async (url: URL, id: string) => {
@@ -246,9 +261,7 @@ export function createBatchSchemaSuggestionsApi(
     return json(suggestionDto(result.suggestion), { status: 202, headers: noStore })
   }
 
-  return async function batchSchemaSuggestionsApi(
-    request: Request,
-  ): Promise<Response> {
+  const handle = async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url)
       if (request.method === 'POST' && url.pathname === ROUTE)
@@ -271,9 +284,6 @@ export function createBatchSchemaSuggestionsApi(
       return noStoreError(error)
     }
   }
-}
 
-const handle = createBatchSchemaSuggestionsApi()
-export const GET = handle
-export const POST = handle
-export const PATCH = handle
+  return { GET: handle, POST: handle, PATCH: handle }
+}

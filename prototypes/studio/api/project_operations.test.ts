@@ -1,16 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import type {
-  BatchExtractionRecord,
-  BatchSchemaSuggestionRecord,
-} from '../../../packages/db/src/project-store'
+import type { BatchSchemaSuggestionRecord } from '../../../packages/db/src/project-store'
 import { createProjectOperations } from './_project_operations'
 
 const PROJECT = '51000000-0000-4000-8000-000000000001'
 const SUGGESTION = '51000000-0000-4000-8000-000000000002'
-const BATCH = '51000000-0000-4000-8000-000000000003'
 const SOURCE = '51000000-0000-4000-8000-000000000004'
 const REPRESENTATION = '51000000-0000-4000-8000-000000000005'
-const SCHEMA = '51000000-0000-4000-8000-000000000006'
+const RETRIED_SOURCE = '51000000-0000-4000-8000-000000000006'
+const RETRIED_REPRESENTATION = '51000000-0000-4000-8000-000000000007'
 const lease = {
   owner: 'worker',
   version: 1,
@@ -53,37 +50,6 @@ function suggestion(): BatchSchemaSuggestionRecord & { lease: typeof lease } {
   }
 }
 
-function batch(): BatchExtractionRecord & { lease: typeof lease } {
-  return {
-    batchExtractionId: BATCH,
-    projectContextId: PROJECT,
-    schemaRevisionId: SCHEMA,
-    extractionSchemaId: '51000000-0000-4000-8000-000000000007',
-    extractionSchemaName: 'Fields',
-    schemaRevisionNumber: 1,
-    strategy: 'ARTICLE',
-    executionStatus: 'RUNNING',
-    executionFailure: null,
-    startedAt: new Date('2026-08-19T10:00:00.000Z'),
-    finishedAt: null,
-    leaseOwner: lease.owner,
-    leaseVersion: lease.version,
-    leaseExpiresAt: lease.expiresAt,
-    createdAt: new Date('2026-08-19T10:00:00.000Z'),
-    members: [
-      {
-        sourceDocumentId: SOURCE,
-        sourceRepresentationRevisionId: REPRESENTATION,
-        executionStatus: 'QUEUED',
-        executionFailure: null,
-        startedAt: null,
-        finishedAt: null,
-        latestExtraction: null,
-      },
-    ],
-    lease,
-  }
-}
 
 describe('Project Operations dispatcher', () => {
   it('checkpoints each suggested source and then its merged draft without a request signal', async () => {
@@ -91,8 +57,8 @@ describe('Project Operations dispatcher', () => {
     const completedSource = vi.fn(async () => true)
     const completedMerge = vi.fn(async () => true)
     let claimed = false
-    const operations = createProjectOperations({
-      store: {
+    const operations = createProjectOperations(
+      {
         claimBatchSchemaSuggestion: vi.fn(async () => {
           if (claimed) return null
           claimed = true
@@ -104,65 +70,108 @@ describe('Project Operations dispatcher', () => {
         startBatchSchemaSuggestionMerge: vi.fn(async () => true),
         completeBatchSchemaSuggestionMerge: completedMerge,
         failBatchSchemaSuggestion: vi.fn(async () => true),
-        claimBatchExtraction: vi.fn(async () => null),
-        renewBatchExtractionLease: vi.fn(async () => true),
-        startBatchExtractionMember: vi.fn(async () => true),
-        completeBatchExtractionMember: vi.fn(async () => true),
-        failBatchExtraction: vi.fn(async () => true),
       } as never,
-      readMarkdown: vi.fn(async () => ({
-        bytes: new TextEncoder().encode('# Source'),
-        mediaType: 'text/markdown',
-      })),
-      generate: vi.fn(async () => ({
-        template: { _description: 'One record.', title: 'string' },
-        raw: '',
-        pages: null,
-      })),
-      executeExtraction: vi.fn(),
-    })
+      {
+        readMarkdown: vi.fn(async () => ({
+          bytes: new TextEncoder().encode('# Source'),
+          mediaType: 'text/markdown',
+        })),
+        generate: vi.fn(async () => ({
+          template: { _description: 'One record.', title: 'string' },
+          raw: '',
+          pages: null,
+        })),
+      },
+    )
 
     operations.kick()
     await vi.waitFor(() => expect(completedMerge).toHaveBeenCalledOnce())
     expect(completedSource).toHaveBeenCalledOnce()
+    expect(completedSource).toHaveBeenCalledWith(
+      SUGGESTION,
+      SOURCE,
+      lease,
+      { definition: expect.any(Object) },
+      expect.any(Date),
+    )
+    expect(completedMerge).toHaveBeenCalledWith(
+      SUGGESTION,
+      lease,
+      expect.any(Object),
+      expect.any(Date),
+    )
   })
 
-  it('runs a queued Batch member through the direct Extraction executor', async () => {
-    const queued = batch()
-    const complete = vi.fn(async () => true)
+  it('skips a successful source checkpoint when processing a retried suggestion', async () => {
+    const original = suggestion()
+    const source = {
+      ...original,
+      sources: [
+      {
+        ...original.sources[0]!,
+        executionStatus: 'COMPLETED',
+        definition: {
+          recordDescription: 'One retained record.',
+          schemaNodes: [{ id: 'retained', name: 'retained', type: 'string' }],
+        },
+        startedAt: new Date('2026-08-19T10:00:00.000Z'),
+        finishedAt: new Date('2026-08-19T10:00:01.000Z'),
+      },
+      {
+        ...original.sources[0]!,
+        sourceDocumentId: RETRIED_SOURCE,
+        sourceRepresentationRevisionId: RETRIED_REPRESENTATION,
+      },
+      ],
+    }
+    const checkpoint = async (...arguments_: unknown[]) => {
+      void arguments_
+      return true
+    }
+    const startSource = vi.fn(checkpoint)
+    const completeSource = vi.fn(checkpoint)
+    const completeMerge = vi.fn(checkpoint)
+    const readMarkdown = vi.fn(async () => ({
+      bytes: new TextEncoder().encode('# Retried source'),
+      mediaType: 'text/markdown',
+    }))
     let claimed = false
-    const executeExtraction = vi.fn(async () => ({ extractionId: 'unused' }))
-    const operations = createProjectOperations({
-      store: {
-        claimBatchSchemaSuggestion: vi.fn(async () => null),
-        renewBatchSchemaSuggestionLease: vi.fn(async () => true),
-        startBatchSchemaSuggestionSource: vi.fn(async () => true),
-        completeBatchSchemaSuggestionSource: vi.fn(async () => true),
-        startBatchSchemaSuggestionMerge: vi.fn(async () => true),
-        completeBatchSchemaSuggestionMerge: vi.fn(async () => true),
-        failBatchSchemaSuggestion: vi.fn(async () => true),
-        claimBatchExtraction: vi.fn(async () => {
+    const operations = createProjectOperations(
+      {
+        claimBatchSchemaSuggestion: vi.fn(async () => {
           if (claimed) return null
           claimed = true
-          return queued
+          return source
         }),
-        renewBatchExtractionLease: vi.fn(async () => true),
-        startBatchExtractionMember: vi.fn(async () => true),
-        completeBatchExtractionMember: complete,
-        failBatchExtraction: vi.fn(async () => true),
+        renewBatchSchemaSuggestionLease: vi.fn(async () => true),
+        startBatchSchemaSuggestionSource: startSource,
+        completeBatchSchemaSuggestionSource: completeSource,
+        startBatchSchemaSuggestionMerge: vi.fn(async () => true),
+        completeBatchSchemaSuggestionMerge: completeMerge,
+        failBatchSchemaSuggestion: vi.fn(async () => true),
       } as never,
-      executeExtraction: executeExtraction as never,
-    })
+      {
+        readMarkdown,
+        generate: vi.fn(async () => ({
+          template: { _description: 'One record.', retained: 'string' },
+          raw: '',
+          pages: null,
+        })),
+      },
+    )
 
     operations.kick()
-    await vi.waitFor(() => expect(complete).toHaveBeenCalledOnce())
-    expect(executeExtraction).toHaveBeenCalledOnce()
-    expect((executeExtraction.mock.calls as unknown[][])[0][0]).toEqual({
-      id: expect.any(String),
-      sourceRepresentationRevisionId: REPRESENTATION,
-      schemaRevisionId: SCHEMA,
-      strategy: 'ARTICLE',
-      batchExtractionId: BATCH,
-    })
+    await vi.waitFor(() => expect(completeMerge).toHaveBeenCalledOnce())
+    expect(readMarkdown).toHaveBeenCalledOnce()
+    expect(startSource).toHaveBeenCalledOnce()
+    expect(startSource).toHaveBeenCalledWith(
+      SUGGESTION,
+      RETRIED_SOURCE,
+      lease,
+      expect.any(Date),
+    )
+    expect(completeSource).toHaveBeenCalledOnce()
+    expect(completeSource.mock.calls[0]?.[1]).toBe(RETRIED_SOURCE)
   })
+
 })

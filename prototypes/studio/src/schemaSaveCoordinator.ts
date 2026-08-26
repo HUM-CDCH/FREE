@@ -1,5 +1,6 @@
-import type { SchemaDefinition } from '../shared/schemaNode'
+import type { SchemaDefinition } from 'extraction/schema'
 import type { SchemaRevision } from '../shared/schemaRevision.contract'
+import { sameSchemaDefinition } from './schemaDefinitionEquality'
 import { SchemaRevisionConflictError } from './schemaRevisions'
 
 export type AcknowledgedSchemaRevision = Pick<
@@ -31,9 +32,6 @@ const definitionOf = (
   schemaNodes: revision.schemaNodes,
 })
 
-const sameDefinition = (left: SchemaDefinition, right: SchemaDefinition) =>
-  JSON.stringify(left) === JSON.stringify(right)
-
 export function createSchemaSaveCoordinator(
   initial: AcknowledgedSchemaRevision,
   save: Save,
@@ -63,10 +61,15 @@ export function createSchemaSaveCoordinator(
       if (error) waiter.reject(error)
       else waiter.resolve(state.acknowledged)
   }
+  const clearScheduled = () => {
+    if (timer !== undefined) clearTimeout(timer)
+    timer = undefined
+  }
   const start = async (): Promise<void> => {
+    clearScheduled()
     if (
       inFlight ||
-      sameDefinition(state.draft, definitionOf(state.acknowledged))
+      sameSchemaDefinition(state.draft, definitionOf(state.acknowledged))
     ) {
       if (!inFlight) {
         publish({ ...state, status: 'saved' })
@@ -81,7 +84,7 @@ export function createSchemaSaveCoordinator(
     try {
       const acknowledged = await save(expected, submitted)
       inFlight = false
-      if (sameDefinition(state.draft, submitted)) {
+      if (sameSchemaDefinition(state.draft, submitted)) {
         publish({
           status: 'saved',
           acknowledged,
@@ -110,7 +113,7 @@ export function createSchemaSaveCoordinator(
     }
   }
   const schedule = () => {
-    if (timer) clearTimeout(timer)
+    clearScheduled()
     if (debounceMs === 0) void start()
     else timer = setTimeout(() => void start(), debounceMs)
   }
@@ -139,13 +142,12 @@ export function createSchemaSaveCoordinator(
       if (state.status === 'error') return Promise.reject(state.error)
       if (
         !inFlight &&
-        sameDefinition(state.draft, definitionOf(state.acknowledged))
+        sameSchemaDefinition(state.draft, definitionOf(state.acknowledged))
       ) {
         publish({ ...state, status: 'saved' })
         return Promise.resolve(state.acknowledged)
       }
-      if (timer) clearTimeout(timer)
-      timer = undefined
+      clearScheduled()
       const promise = new Promise<AcknowledgedSchemaRevision>(
         (resolve, reject) => {
           waiters.push({ resolve, reject })
@@ -155,9 +157,10 @@ export function createSchemaSaveCoordinator(
       return promise
     },
     reloadCurrent(): AcknowledgedSchemaRevision {
-      if (state.status !== 'conflict' || !state.currentRevision)
-        return state.acknowledged
-      const acknowledged = state.currentRevision
+      const acknowledged =
+        state.status === 'conflict' && state.currentRevision
+          ? state.currentRevision
+          : state.acknowledged
       publish({
         status: 'saved',
         acknowledged,
@@ -166,7 +169,7 @@ export function createSchemaSaveCoordinator(
       return acknowledged
     },
     dispose() {
-      if (timer) clearTimeout(timer)
+      clearScheduled()
     },
   }
 }

@@ -1,5 +1,5 @@
+import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import { isRecord } from '../shared/template'
-import type { SchemaNode } from '../shared/schemaNode'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 import {
   extractionRequestSchema,
@@ -19,7 +19,18 @@ export type TemplateAnnotation = { text: string; pageNumber: number }
 
 type TemplateOptions = {
   instruction?: string
-  markdown?: string | null
+}
+
+export type SourceModelContext = {
+  projectContextId: string
+  sourceRepresentationRevisionId: string
+}
+
+export type SchemaModelContext = {
+  projectContextId: string
+  extractionSchemaId: string
+  schemaRevisionId: string
+  sourceRepresentationRevisionId?: string
 }
 
 export type SchemaDone = { template: unknown; raw: string; pages: number | null }
@@ -46,7 +57,7 @@ async function postForm<T>(
   decode: (data: unknown) => T,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  const response = await authenticatedFetch(`${API_BASE}${endpoint}`, {
     method: 'POST',
     body: form,
     headers: { accept: 'application/json' },
@@ -62,20 +73,18 @@ async function postForm<T>(
 // ---------- request wrappers ----------
 
 export async function requestSchema(
-  file: Blob,
-  fileName: string,
+  context: SourceModelContext,
   signal?: AbortSignal,
   options?: TemplateOptions,
 ): Promise<unknown> {
   const form = new FormData()
-  if (options?.markdown) {
-    form.append('document_markdown', options.markdown)
-  } else {
-    form.append('file', file, fileName)
-  }
-  if (options?.instruction?.trim()) {
+  form.append('project_context_id', context.projectContextId)
+  form.append(
+    'source_representation_revision_id',
+    context.sourceRepresentationRevisionId,
+  )
+  if (options?.instruction?.trim())
     form.append('instruction', options.instruction.trim())
-  }
 
   const done = await postForm('/generate_schema', form, decodeSchemaDone, signal)
   return done.template
@@ -87,7 +96,7 @@ async function extractionJson(
   body: unknown,
   signal?: AbortSignal,
 ): Promise<unknown> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await authenticatedFetch(`${API_BASE}${path}`, {
     method,
     headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: method === 'POST' ? JSON.stringify(body) : undefined,
@@ -105,24 +114,8 @@ export async function requestExtraction(
   signal?: AbortSignal,
 ): Promise<ExtractionAttempt> {
   const request = extractionRequestSchema.parse(input)
-  const body =
-    request.retryOfId === null
-      ? {
-          id: request.id,
-          sourceRepresentationRevisionId: request.sourceRepresentationRevisionId,
-          schemaRevisionId: request.schemaRevisionId,
-          strategy: request.strategy,
-          batchExtractionId: request.batchExtractionId,
-        }
-      : {
-          id: request.id,
-          retryOfId: request.retryOfId,
-          retryDocument: request.retryDocument,
-          rediscover: request.rediscover,
-          retryRecordStartBlockIds: request.retryRecordStartBlockIds,
-        }
   return extractionAttemptSchema.parse(
-    await extractionJson('/extractions', 'POST', body, signal),
+    await extractionJson('/extractions', 'POST', request, signal),
   )
 }
 
@@ -180,14 +173,19 @@ function decodeSchemaEdit(data: unknown): SchemaEditResponse {
 }
 
 export async function requestSchemaEdit(
-  nodes: SchemaNode[],
+  context: SchemaModelContext,
   instruction: string,
-  documentMarkdown: string | null,
   signal?: AbortSignal,
 ): Promise<SchemaEditResponse> {
   const form = new FormData()
-  form.append('current_nodes', JSON.stringify(nodes))
+  form.append('project_context_id', context.projectContextId)
+  form.append('extraction_schema_id', context.extractionSchemaId)
+  form.append('schema_revision_id', context.schemaRevisionId)
+  if (context.sourceRepresentationRevisionId)
+    form.append(
+      'source_representation_revision_id',
+      context.sourceRepresentationRevisionId,
+    )
   form.append('instruction', instruction)
-  if (documentMarkdown !== null) form.append('document_markdown', documentMarkdown)
   return postForm('/edit_schema', form, decodeSchemaEdit, signal)
 }

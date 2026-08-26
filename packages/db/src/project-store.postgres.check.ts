@@ -26,17 +26,48 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     )
   process.env.DATABASE_URL = databaseUrl
 
-  const [{ db }, { createProjectStore }] = await Promise.all([
+  const [
+    { db },
+    {
+      createInternalProjectWorkerStore,
+      createResearcherProjectStore,
+    },
+  ] = await Promise.all([
     import('./prisma/db.js'),
     import('./project-store.js'),
   ])
   after(() => db.close())
 
-  const store = createProjectStore(db)
-  const project = await db.orm.public.ProjectContext.create({ name: 'Doomed' })
-  const survivor = await db.orm.public.ProjectContext.create({
-    name: 'Survivor',
+  assert.deepEqual(await db.orm.public.ResearcherAccount.select('id').all(), [])
+  assert.deepEqual(await db.orm.public.ProjectContext.select('id').all(), [])
+  await assert.rejects(
+    db.orm.public.ProjectContext.create({
+      researcherAccountId: '52000000-0000-4000-8000-000000000099',
+      name: 'Invalid owner',
+    }),
+  )
+
+  const accountA = await db.orm.public.ResearcherAccount.create({
+    email: 'cascade-a@example.org',
+    passwordHash: 'test-only-hash',
   })
+  const accountB = await db.orm.public.ResearcherAccount.create({
+    email: 'cascade-b@example.org',
+    passwordHash: 'test-only-hash',
+  })
+  const store = createResearcherProjectStore(accountA.id, db)
+  const survivorStore = createResearcherProjectStore(accountB.id, db)
+  const workerStore = createInternalProjectWorkerStore(db)
+  const project = await store.createProjectContext('Doomed')
+  const survivor = await survivorStore.createProjectContext('Survivor')
+  await assert.rejects(
+    db.orm.public.ResearcherAccount.where({ id: accountA.id }).delete(),
+  )
+  assert.ok(
+    await db.orm.public.ProjectContext.select('id').first({
+      id: project.projectContextId,
+    }),
+  )
   const ingestion = {
     ingestionKey: '51000000-0000-4000-9000-000000000001',
     contentSha256: 'a'.repeat(64),
@@ -51,7 +82,7 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     ensureRetained: async () => {},
   }
   await assert.rejects(
-    store.ingestSourceDocument(survivor.id, {
+    survivorStore.ingestSourceDocument(survivor.projectContextId, {
       ...ingestion,
       ingestionKey: '51000000-0000-4000-9000-000000000099',
       ensureRetained: async () => {
@@ -67,39 +98,73 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     null,
   )
   const [ingested, concurrentReplay] = await Promise.all([
-    store.ingestSourceDocument(project.id, ingestion),
-    store.ingestSourceDocument(project.id, ingestion),
+    store.ingestSourceDocument(project.projectContextId, ingestion),
+    store.ingestSourceDocument(project.projectContextId, {
+      ...ingestion,
+      ingestionKey: '51000000-0000-4000-9000-000000000002',
+      originalName: 'same-bytes-renamed.pdf',
+    }),
   ])
   assert.ok(ingested)
   assert.deepEqual(concurrentReplay, ingested)
   assert.equal(ingested.revisionNumber, 1)
+  assert.equal(
+    (
+      await db.orm.public.SourceDocument.where({
+        projectContextId: project.projectContextId,
+      }).all()
+    ).length,
+    1,
+  )
+  assert.equal(
+    (
+      await db.orm.public.SourceRepresentationRevision.where({
+        sourceDocumentId: ingested.sourceDocumentId,
+      }).all()
+    ).length,
+    1,
+  )
   assert.deepEqual(
-    await store.ingestSourceDocument(project.id, ingestion),
+    await store.ingestSourceDocument(project.projectContextId, ingestion),
     ingested,
   )
+  const sameNameDifferentContent = await store.ingestSourceDocument(
+    project.projectContextId,
+    {
+      ...ingestion,
+      ingestionKey: '51000000-0000-4000-9000-000000000003',
+      contentSha256: 'b'.repeat(64),
+      artifactReference: 'f'.repeat(64),
+      artifactSha256: 'f'.repeat(64),
+      originalName: ingested.name,
+    },
+  )
+  assert.ok(sameNameDifferentContent)
+  assert.notEqual(sameNameDifferentContent.sourceDocumentId, ingested.sourceDocumentId)
   const document = { id: ingested.sourceDocumentId }
   const representation = {
     id: ingested.sourceRepresentationId,
     artifactReference: ingestion.artifactReference,
     artifactSha256: ingestion.artifactSha256,
   }
-  const survivingDocument = await db.orm.public.SourceDocument.create({
-    projectContextId: survivor.id,
-    ingestionKey: '51000000-0000-4000-9000-000000000002',
-    contentSha256: 'b'.repeat(64),
-    mediaType: 'application/pdf',
-    originalName: 'survivor.pdf',
-  })
-  await db.orm.public.SourceRepresentationRevision.create({
-    sourceDocumentId: survivingDocument.id,
-    revisionNumber: 1,
-    artifactReference: 'c'.repeat(64),
-    artifactSha256: 'c'.repeat(64),
-    contractVersion: 'parsed_document.v2',
-    preprocessId: `sha256:${'d'.repeat(64)}`,
-    parserName: 'test',
-    parserVersion: '1',
-  })
+  const survivingIngestion = await survivorStore.ingestSourceDocument(
+    survivor.projectContextId,
+    {
+      ...ingestion,
+      ingestionKey: '51000000-0000-4000-9000-000000000004',
+      originalName: 'survivor.pdf',
+    },
+  )
+  assert.ok(survivingIngestion)
+  assert.notEqual(survivingIngestion.sourceDocumentId, document.id)
+  assert.deepEqual(
+    await store.getSourceRepresentation(
+      project.projectContextId,
+      survivingIngestion.sourceRepresentationId,
+    ),
+    null,
+  )
+  const survivingDocument = { id: survivingIngestion.sourceDocumentId }
   const annotation = await db.orm.public.AnnotationSetRevision.create({
     sourceDocumentId: document.id,
     sourceRepresentationRevisionId: representation.id,
@@ -107,7 +172,7 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     snapshot: {},
   })
   const schema = await db.orm.public.ExtractionSchema.create({
-    projectContextId: project.id,
+    projectContextId: project.projectContextId,
     name: 'Schema',
   })
   const prompt = await db.orm.public.PromptRevision.create({
@@ -164,84 +229,18 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     resultPayload: {},
     reviewable: true,
   })
+  await db.orm.public.ExtractionReview.create({
+    extractionId: extraction.id,
+    decisionDigest: 'cascade-check',
+  })
   await db.orm.public.ReviewDecision.create({
     extractionId: extraction.id,
+    resultPath: ['title'],
+    resultPathKey: '["title"]',
     evidenceAnchorId: 'anchor-1',
     reviewedOccurrenceIds: [],
+    action: 'approve',
   })
-  // Historical owned revisions cannot open a new batch: batches always pin
-  // the Current Schema Revision.
-  assert.deepEqual(
-    await store.createBatchExtraction(project.id, {
-      batchExtractionId: '51000000-0000-4000-9000-000000000100',
-      schemaRevisionId: baseRevision.id,
-      strategy: 'CATALOG',
-      sourceDocumentIds: [document.id],
-    }),
-    { status: 'invalid' },
-  )
-  const opened = await store.createBatchExtraction(project.id, {
-    batchExtractionId: '51000000-0000-4000-9000-000000000101',
-    schemaRevisionId: appliedRevision.id,
-    strategy: 'CATALOG',
-    sourceDocumentIds: [document.id],
-  })
-  assert.equal(opened?.status, 'created')
-  assert.deepEqual(opened?.status === 'created' ? opened.batch.members : null, [
-    {
-      sourceDocumentId: document.id,
-      sourceRepresentationRevisionId: representation.id,
-      latestExtraction: null,
-    },
-  ])
-  // A Source Document outside the Project Context can never join its batch.
-  assert.deepEqual(
-    await store.createBatchExtraction(project.id, {
-      batchExtractionId: '51000000-0000-4000-9000-000000000102',
-      schemaRevisionId: appliedRevision.id,
-      strategy: 'CATALOG',
-      sourceDocumentIds: [survivingDocument.id],
-    }),
-    { status: 'invalid' },
-  )
-  assert.deepEqual(
-    await store.createBatchExtraction(project.id, {
-      batchExtractionId: '51000000-0000-4000-9000-000000000101',
-      schemaRevisionId: appliedRevision.id,
-      strategy: 'ARTICLE',
-      sourceDocumentIds: [document.id],
-    }),
-    { status: 'conflict' },
-  )
-  await db.orm.public.Extraction.create({
-    sourceDocumentId: document.id,
-    schemaRevisionId: appliedRevision.id,
-    sourceRepresentationRevisionId: representation.id,
-    batchExtractionId: '51000000-0000-4000-9000-000000000101',
-    strategy: 'CATALOG',
-    outcome: 'FAILED',
-    diagnostics: {},
-    failure: { code: 'extraction_failed', message: 'Extraction failed.' },
-    reviewable: false,
-  })
-  // The composite pin refuses an Extraction whose Schema Revision or
-  // Extraction Strategy disagrees with the Batch Extraction it claims.
-  await assert.rejects(
-    db.orm.public.Extraction.create({
-      sourceDocumentId: document.id,
-      schemaRevisionId: baseRevision.id,
-      sourceRepresentationRevisionId: representation.id,
-      batchExtractionId: '51000000-0000-4000-9000-000000000101',
-      strategy: 'CATALOG',
-      outcome: 'SUCCEEDED',
-      complete: true,
-      diagnostics: {},
-      modelAttribution: {},
-      resultPayload: {},
-      reviewable: true,
-    }),
-    /extraction_batch_pin_fkey/,
-  )
   const newerRepresentation =
     await db.orm.public.SourceRepresentationRevision.create({
       sourceDocumentId: document.id,
@@ -253,171 +252,18 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
       parserName: 'test',
       parserVersion: '2',
     })
-  // Matching the Batch's schema and strategy is not enough: the persisted
-  // attempt must also be for its selected Source Document revision.
-  await assert.rejects(
-    db.orm.public.Extraction.create({
-      sourceDocumentId: document.id,
-      schemaRevisionId: appliedRevision.id,
-      sourceRepresentationRevisionId: newerRepresentation.id,
-      batchExtractionId: '51000000-0000-4000-9000-000000000101',
-      strategy: 'CATALOG',
-      outcome: 'SUCCEEDED',
-      complete: true,
-      diagnostics: {},
-      modelAttribution: {},
-      resultPayload: {},
-      reviewable: true,
-    }),
-    /extraction_batch_member_fkey/,
-  )
-  const listed = await store.listBatchExtractions(project.id, 20)
-  assert.equal(listed?.length, 1)
-  assert.equal(listed?.[0].extractionSchemaName, 'Schema')
-  assert.equal(listed?.[0].schemaRevisionNumber, 2)
-  assert.equal(listed?.[0].members[0].latestExtraction?.outcome, 'FAILED')
+  assert.equal(await store.deleteProjectContext(project.projectContextId), true)
 
-  // Export reads are one set-based statement: each member contributes only
-  // its latest attempt, while metadata and counts come from the same snapshot.
-  const duplicateDocument = await db.orm.public.SourceDocument.create({
-    projectContextId: project.id,
-    ingestionKey: '51000000-0000-4000-9000-000000000104',
-    contentSha256: 'f'.repeat(64),
-    mediaType: 'application/pdf',
-    originalName: 'doomed.pdf',
-  })
-  const duplicateRepresentation =
-    await db.orm.public.SourceRepresentationRevision.create({
-      sourceDocumentId: duplicateDocument.id,
-      revisionNumber: 1,
-      artifactReference: 'f'.repeat(64),
-      artifactSha256: 'f'.repeat(64),
-      contractVersion: 'parsed_document.v2',
-      preprocessId: `sha256:${'f'.repeat(64)}`,
-      parserName: 'test',
-      parserVersion: '1',
-    })
-  const exportBatchId = '51000000-0000-4000-9000-000000000105'
-  const exportBatch = await store.createBatchExtraction(project.id, {
-    batchExtractionId: exportBatchId,
-    schemaRevisionId: appliedRevision.id,
-    strategy: 'CATALOG',
-    sourceDocumentIds: [document.id, duplicateDocument.id],
-  })
-  assert.equal(exportBatch?.status, 'created')
-  const supersededSuccessId = '51000000-0000-4000-9000-000000000106'
-  await db.orm.public.Extraction.create({
-    id: supersededSuccessId,
-    sourceDocumentId: document.id,
-    schemaRevisionId: appliedRevision.id,
-    sourceRepresentationRevisionId: newerRepresentation.id,
-    batchExtractionId: exportBatchId,
-    strategy: 'CATALOG',
-    outcome: 'SUCCEEDED',
-    complete: true,
-    diagnostics: {},
-    modelAttribution: {},
-    resultPayload: { stale: true },
-    reviewable: true,
-    createdAt: new Date('2026-08-19T10:00:00.000Z'),
-  })
-  await db.orm.public.Extraction.create({
-    id: '51000000-0000-4000-9000-000000000107',
-    sourceDocumentId: document.id,
-    schemaRevisionId: appliedRevision.id,
-    sourceRepresentationRevisionId: newerRepresentation.id,
-    batchExtractionId: exportBatchId,
-    strategy: 'CATALOG',
-    outcome: 'FAILED',
-    diagnostics: {},
-    failure: { code: 'extraction_failed', message: 'Latest attempt failed.' },
-    reviewable: false,
-    retryOfId: supersededSuccessId,
-    createdAt: new Date('2026-08-19T10:01:00.000Z'),
-  })
-  const retainedSuccessId = '51000000-0000-4000-9000-000000000108'
-  await db.orm.public.Extraction.create({
-    id: retainedSuccessId,
-    sourceDocumentId: duplicateDocument.id,
-    schemaRevisionId: appliedRevision.id,
-    sourceRepresentationRevisionId: duplicateRepresentation.id,
-    batchExtractionId: exportBatchId,
-    strategy: 'CATALOG',
-    outcome: 'SUCCEEDED',
-    complete: true,
-    diagnostics: {},
-    modelAttribution: {},
-    resultPayload: { retained: true },
-    reviewable: true,
-    createdAt: new Date('2026-08-19T10:00:00.000Z'),
-  })
-
-  assert.deepEqual(await store.getBatchExtractionResults(project.id, exportBatchId), {
-    batchExtractionId: exportBatchId,
-    executionStatus: 'QUEUED',
-    totalMembers: 2,
-    successfulResults: 1,
-    pending: 0,
-    failed: 1,
-    cancelled: 0,
-    results: [
-      {
-        sourceDocumentId: duplicateDocument.id,
-        extractionId: retainedSuccessId,
-        resultPayload: { retained: true },
-      },
-    ],
-  })
-  assert.equal(
-    await store.getBatchExtractionResults(survivor.id, exportBatchId),
-    null,
-  )
-  await db.orm.public.BatchExtraction.where({ id: exportBatchId }).delete()
-  assert.deepEqual(
-    await store.deleteSourceDocument(project.id, duplicateDocument.id),
-    [
-      {
-        artifactReference: duplicateRepresentation.artifactReference,
-        artifactSha256: duplicateRepresentation.artifactSha256,
-      },
-    ],
-  )
-
-  const suggestedBatch = await store.createBatchExtraction(project.id, {
-    batchExtractionId: '51000000-0000-4000-9000-000000000103',
-    schemaRevisionId: appliedRevision.id,
-    strategy: 'CATALOG',
-    sourceDocumentIds: [document.id],
-  })
-  assert.equal(suggestedBatch?.status, 'created')
-  assert.equal(
-    suggestedBatch?.status === 'created'
-      ? suggestedBatch.batch.members[0]?.sourceRepresentationRevisionId
-      : null,
-    newerRepresentation.id,
-  )
-  const candidates = await store.deleteProjectContext(project.id)
-
-  assert.deepEqual(candidates, [
-    {
-      artifactReference: representation.artifactReference,
-      artifactSha256: representation.artifactSha256,
-    },
-    {
-      artifactReference: newerRepresentation.artifactReference,
-      artifactSha256: newerRepresentation.artifactSha256,
-    },
-  ])
   assert.deepEqual(
     (await db.orm.public.ProjectContext.select('id').all()).map(({ id }) => id),
-    [survivor.id],
+    [survivor.projectContextId],
   )
   assert.deepEqual(
     (await db.orm.public.SourceDocument.select('id').all()).map(({ id }) => id),
     [survivingDocument.id],
   )
   assert.equal(
-    await store.isPackageReferenced(representation.artifactReference),
+    await workerStore.isPackageReferenced(representation.artifactReference),
     true,
   )
   for (const table of [
@@ -429,11 +275,10 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     db.orm.public.SchemaRevision,
     db.orm.public.ConversationalSchemaEdit,
     db.orm.public.Extraction,
+    db.orm.public.ExtractionReview,
     db.orm.public.ReviewDecision,
-    db.orm.public.BatchExtraction,
-    db.orm.public.BatchExtractionMember,
   ])
     assert.deepEqual(await table.all(), [])
 
-  await store.deleteProjectContext(survivor.id)
+  await survivorStore.deleteProjectContext(survivor.projectContextId)
 })

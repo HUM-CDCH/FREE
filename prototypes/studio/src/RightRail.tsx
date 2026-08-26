@@ -5,20 +5,17 @@ import PanelToggleIcon from './PanelToggleIcon'
 // pre-generation chat. Left in place, commented out, rather than deleted.
 // import AnnotationSetTab from './AnnotationSidebar'
 // import type { AnnotationSetItem } from './AnnotationSidebar'
-// import ChatTab from './ChatTab'
 import SchemaPanel from './SchemaPanel'
-import type { TemplateState } from './SchemaPanel'
-import type { SchemaDefinition, SchemaNode } from '../shared/schemaNode'
+import { useSyncExternalStore } from 'react'
+import type { SchemaEditorController } from './currentSchemaRevision'
+import { nodesToTemplate } from 'extraction/schema'
+import { countTemplateFields } from '../shared/template'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
-import type { ExtractionAttempt, ExtractionStrategy } from '../shared/extraction.contract'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
 import EvidenceTab from './EvidenceTab'
-import type { ParsedDocument, ParsedEvidenceAnchor } from '../shared/parsedDocument'
-import type {
-  SchemaRevision,
-  SchemaRevisionSummary,
-} from '../shared/schemaRevision.contract'
-
+import type { SchemaDefinition } from 'extraction/schema'
+import type { ParsedDocument, ParsedEvidenceAnchor } from 'extraction/parsed-document'
 export type RailTab = 'evidence' | 'schema' | 'results'
 
 export type ExtractionInspection = {
@@ -27,7 +24,10 @@ export type ExtractionInspection = {
   documentMarkdown: string | null
   parsedDocument: ParsedDocument | null
   reviewDecisions: ExtractionAttempt['reviewDecisions']
-  pinnedSchema: SchemaDefinition | null
+  pinnedSchema: (SchemaDefinition & {
+    revisionNumber?: number
+    schemaRevisionId?: string
+  }) | null
   /** Extraction Schema of the inspected Extraction Result, current or historical. */
   exportSchema: SchemaDefinition | null
 }
@@ -37,23 +37,12 @@ type RightRailProps = {
   onToggle: () => void
   tab: RailTab
   onTabChange: (tab: RailTab) => void
-  schemaState: TemplateState
-  schemaReady: boolean
-  schemaFieldCount: number
-  onGenerate: (instruction: string) => void
-  onCancelGenerate: () => void
-  onResetSchema: () => void
-  onNodesChange: (
-    nodes: SchemaNode[],
-    message: string,
-    recordDescription?: string,
-  ) => void
-  beforeSchemaEdit: () => Promise<void>
-  schemaHistory: SchemaRevisionSummary[]
-  currentSchemaRevisionNumber?: number
-  loadSchemaRevision: (schemaRevisionId: string) => Promise<SchemaRevision>
+  schema: SchemaEditorController
+  onGenerateInstructions?: (instruction: string) => void
+  onClearDraft: () => void | Promise<void>
   extraction: ExtractionController
-  extractionStrategy: ExtractionStrategy
+  onRunExtraction: () => void | Promise<void>
+  runExtractionDisabled: boolean
   inspection: ExtractionInspection
   sourceDocumentName: string
   schemaName?: string | null
@@ -80,19 +69,12 @@ function RightRail({
   onToggle,
   tab,
   onTabChange,
-  schemaState,
-  schemaReady,
-  schemaFieldCount,
-  onGenerate,
-  onCancelGenerate,
-  onResetSchema,
-  onNodesChange,
-  beforeSchemaEdit,
-  schemaHistory,
-  currentSchemaRevisionNumber,
-  loadSchemaRevision,
+  schema,
+  onGenerateInstructions,
+  onClearDraft,
   extraction,
-  extractionStrategy,
+  onRunExtraction,
+  runExtractionDisabled,
   inspection,
   sourceDocumentName,
   schemaName,
@@ -104,8 +86,12 @@ function RightRail({
   const showDeveloperUi = isDeveloperUiEnabled()
   const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
 
+  const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
+  const schemaReady = schemaSnap.view === 'editing'
+  const schemaFieldCount = schemaReady
+    ? countTemplateFields(nodesToTemplate(schemaSnap.draft!.schemaNodes))
+    : 0
   const resultsBadge = extraction.hasResults ? { label: '✓', done: true } : null
-
   const tabs: {
     key: RailTab
     label: string
@@ -202,23 +188,11 @@ function RightRail({
           <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />
         </div>
       )}
-      {/*
-      <div id="rail-panel-chat" aria-labelledby="rail-tab-chat" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={tab !== 'chat'}>
-        <ChatTab documentMarkdown={documentMarkdown} />
-      </div>
-      */}
       <div id="rail-panel-schema" aria-labelledby="rail-tab-schema" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'schema'}>
         <SchemaPanel
-          state={schemaState}
-          onGenerate={onGenerate}
-          onCancelGenerate={onCancelGenerate}
-          onResetSchema={onResetSchema}
-          onNodesChange={onNodesChange}
-          beforeSchemaEdit={beforeSchemaEdit}
-          history={schemaHistory}
-          currentRevisionNumber={currentSchemaRevisionNumber}
-          loadRevision={loadSchemaRevision}
-          documentMarkdown={documentMarkdown}
+          schema={schema}
+          onGenerateInstructions={onGenerateInstructions}
+          onClearDraft={onClearDraft}
           sourceDocumentName={sourceDocumentName}
           schemaName={schemaName}
           onRenameSchema={onRenameSchema}
@@ -228,7 +202,8 @@ function RightRail({
         <ResultsTab
           key={inspection.attempt?.extractionId ?? 'none'}
           controller={extraction}
-          strategy={extractionStrategy}
+          onRunExtraction={onRunExtraction}
+          runExtractionDisabled={runExtractionDisabled}
           inspectedAttempt={inspection.readOnly ? inspection.attempt ?? undefined : undefined}
           readOnly={inspection.readOnly}
           schemaReady={schemaReady}

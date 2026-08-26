@@ -4,24 +4,29 @@ import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ResultValue, { singularItemLabel } from './ui/ResultValue'
 import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from '../shared/template'
-import { schemaDefinitionToTemplate, type SchemaDefinition } from '../shared/schemaNode'
+import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
 import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
-import type {
-  ExtractionAttempt,
-  ExtractionRetrySelection,
-  ExtractionStrategy,
-} from '../shared/extraction.contract'
+import type { ExtractionAttempt } from '../shared/extraction.contract'
+import {
+  applyReviewDecisions,
+  resultPathKey,
+  schemaNodeAtResultPath,
+} from './reviewDecisions'
 
 type ResultsTabProps = {
   controller: ExtractionController
-  strategy: ExtractionStrategy
+  onRunExtraction: () => void | Promise<void>
+  runExtractionDisabled: boolean
   schemaReady: boolean
   documentMarkdown: string | null
   sourceDocumentName: string
   onSelectEvidence?: (anchorId: string) => void
   onResultPathChange?: (path: string[] | null) => void
-  pinnedSchema?: SchemaDefinition | null
+  pinnedSchema?: (SchemaDefinition & {
+    revisionNumber?: number
+    schemaRevisionId?: string
+  }) | null
   /** Extraction Schema of the displayed Extraction Result; leads the export columns. */
   exportSchema?: SchemaDefinition | null
   inspectedAttempt?: ExtractionAttempt
@@ -49,10 +54,6 @@ type DiagnosticCall = {
   outputTokens: number | null
   durationMs: number
   failureCode?: string | null
-}
-
-function outcomeLabel(outcome: string) {
-  return outcome.replaceAll('_', ' ')
 }
 
 function DiagnosticDetails({
@@ -119,7 +120,6 @@ function GroundingDiagnostics({
 
 function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
   const diagnostics = attempt.diagnostics
-  const catalog = diagnostics.catalog
   return (
     <section aria-label="Extraction diagnostics">
       <div className="mt-2 space-y-2">
@@ -138,195 +138,13 @@ function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
             }}
             identity={[["Phase", diagnostics.phase]]}
           />
-          {diagnostics.values && (
-            <div>
-              <p className="text-[11.5px] font-semibold text-ink">Values call</p>
-              <DiagnosticDetails diagnostic={diagnostics.values} />
-            </div>
-          )}
-          {catalog && (
-            <div className="space-y-2" aria-label="Catalog diagnostics">
-              <p className="text-[11.5px] font-semibold text-ink">Catalog stages</p>
-              {catalog.stages.map((stage) => (
-                <div key={stage.stage} className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5">
-                  <p className="text-[11.5px] text-ink">
-                    {stage.stage} · {outcomeLabel(stage.outcome)}
-                  </p>
-                  <DiagnosticDetails diagnostic={stage} />
-                </div>
-              ))}
-              <p className="text-[11.5px] font-semibold text-ink">Catalog records</p>
-              <div
-                data-testid="catalog-record-diagnostics"
-                className="max-h-48 space-y-1.5 overflow-y-auto pr-1"
-              >
-                {catalog.records.map((record) => (
-                  <div key={record.ordinal} className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5">
-                    <p className="text-[11.5px] text-ink">
-                      Record {record.ordinal + 1} · {outcomeLabel(record.outcome)} · {record.boundary.headingText}
-                    </p>
-                    <p className="text-[11px] text-ink-muted">
-                      Canonical {record.boundary.startContentIndex}–{record.boundary.endContentIndex} · heading level {record.boundary.headingLevel}
-                    </p>
-                    <DiagnosticDetails
-                      diagnostic={record}
-                      identity={[
-                        ['Record identity', record.boundary.startBlockId],
-                        ['Heading', record.boundary.headingText],
-                        ['Canonical start', record.boundary.startContentIndex],
-                        ['Canonical end', record.boundary.endContentIndex],
-                        ['Heading level', record.boundary.headingLevel],
-                      ]}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           {diagnostics.grounding && <GroundingDiagnostics diagnostics={diagnostics.grounding} />}
       </div>
     </section>
   )
 }
 
-type RetrySelection = Omit<ExtractionRetrySelection, 'retryOfId'>
-
-const emptyRetrySelection: RetrySelection = {
-  retryDocument: false,
-  rediscover: false,
-  retryRecordStartBlockIds: [],
-}
-
-function CatalogRetryControls({
-  controller,
-  attempt,
-}: {
-  controller: ExtractionController
-  attempt: ExtractionAttempt
-}) {
-  const catalog = attempt.strategy === 'CATALOG' ? attempt.diagnostics.catalog : null
-  const [selection, setSelection] = useState<RetrySelection>(emptyRetrySelection)
-
-  if (!catalog || attempt.outcome === 'CANCELLED') return null
-  const documentStage = catalog.stages.find((stage) => stage.stage === 'document-values')
-  const discoveryStage = catalog.stages.find((stage) => stage.stage === 'discovery')
-  // The server accepts document retries only for a failed document-values stage.
-  const retryDocument = documentStage?.outcome === 'failed'
-  const rediscover =
-    discoveryStage?.outcome === 'failed' ||
-    discoveryStage?.finishReason === 'length'
-  const records = catalog.records.filter(
-    (record) => record.outcome === 'failed' || record.outcome === 'not_attempted',
-  )
-  const canGroundOnly = attempt.outcome === 'SUCCEEDED' && attempt.resultPayload !== null
-  if (!retryDocument && !rediscover && records.length === 0 && !canGroundOnly) return null
-
-  const active = controller.state.status === 'running'
-  const selectedCount = selection.retryRecordStartBlockIds.length
-  const canRetrySelected = selection.retryDocument || selection.rediscover || selectedCount > 0
-  const submit = (next: RetrySelection) => {
-    void controller.retryExtraction(next)
-  }
-
-  return (
-    <section
-      aria-label="Targeted Catalog retry"
-      className="mt-3 border-t border-line pt-2.5"
-    >
-        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-          Retry failed Catalog components
-        </p>
-        <p className="mt-1.5 text-[11.5px] leading-snug text-ink-muted">
-          Select failed or truncated work to execute again. Leave every box clear for grounding only; successful components are reused.
-        </p>
-        <div className="mt-2 space-y-1.5 text-[11.5px] text-ink">
-          {retryDocument && (
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                aria-label="Retry failed or truncated document metadata"
-                checked={selection.retryDocument}
-                disabled={active}
-                onChange={(event) =>
-                  setSelection((current) => ({ ...current, retryDocument: event.target.checked }))
-                }
-              />
-              <span>Document metadata (failed or truncated)</span>
-            </label>
-          )}
-          {rediscover && (
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                aria-label="Rediscover Catalog record boundaries"
-                checked={selection.rediscover}
-                disabled={active}
-                onChange={(event) =>
-                  setSelection((current) => ({ ...current, rediscover: event.target.checked }))
-                }
-              />
-              <span>Rediscover record boundaries (and rerun dependent records)</span>
-            </label>
-          )}
-          {records.map((record) => {
-            const id = record.boundary.startBlockId
-            const checked = selection.retryRecordStartBlockIds.includes(id)
-            return (
-              <label key={id} className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  aria-label={`Retry record ${record.ordinal + 1}: ${record.boundary.headingText}`}
-                  checked={checked}
-                  disabled={active}
-                  onChange={(event) =>
-                    setSelection((current) => ({
-                      ...current,
-                      retryRecordStartBlockIds: event.target.checked
-                        ? [...current.retryRecordStartBlockIds, id]
-                        : current.retryRecordStartBlockIds.filter((candidate) => candidate !== id),
-                    }))
-                  }
-                />
-                <span>
-                  Record {record.ordinal + 1}: {record.boundary.headingText} ({outcomeLabel(record.outcome)})
-                </span>
-              </label>
-            )
-          })}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={active || !canRetrySelected}
-            onClick={() => submit(selection)}
-          >
-            Retry selected components
-          </Button>
-          {canGroundOnly && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={active}
-              onClick={() => submit(emptyRetrySelection)}
-            >
-              Grounding only
-            </Button>
-          )}
-        </div>
-    </section>
-  )
-}
-
-function AttemptDetails({
-  controller,
-  attempt,
-  readOnly,
-}: {
-  controller: ExtractionController
-  attempt: ExtractionAttempt
-  readOnly: boolean
-}) {
+function AttemptDetails({ attempt }: { attempt: ExtractionAttempt }) {
   return (
     <details className="mt-3 border-t border-line pt-2.5">
       <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
@@ -334,9 +152,6 @@ function AttemptDetails({
       </summary>
       <div className="scrollbar-subtle max-h-64 overflow-y-auto pr-1">
         <ExtractionDiagnostics attempt={attempt} />
-        {!readOnly && attempt.strategy === 'CATALOG' && (
-          <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
-        )}
       </div>
     </details>
   )
@@ -352,17 +167,25 @@ function getAtPath(obj: unknown, path: string[]): unknown {
   )
 }
 
-function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
+function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
   const state = inspectedAttempt
     ? extractionStateFromAttempt(inspectedAttempt)
     : controller.state
+  const visibleReviewDecisions = inspectedAttempt?.reviewDecisions ??
+    (attempt?.reviewedAt ? attempt.reviewDecisions : controller.review.decisions)
+  const reviewedResult = useMemo(
+    () => state.status === 'ready'
+      ? applyReviewDecisions(state.result, visibleReviewDecisions)
+      : null,
+    [state, visibleReviewDecisions],
+  )
   const [view, setView] = useState<View>('review')
   const articleRecords =
     state.status === 'ready' &&
-    isRecord(state.result) &&
-    Array.isArray(state.result.records)
-      ? state.result.records
+    isRecord(reviewedResult) &&
+    Array.isArray(reviewedResult.records)
+      ? reviewedResult.records
       : null
   const articlePathPrefix = useMemo(
     () =>
@@ -373,10 +196,18 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
         : [],
     [articleRecords],
   )
+  const absoluteReviewPath = (path: readonly string[]) => [
+    ...(articleRecords
+      ? articleRecords.length === 1
+        ? ['records', 0]
+        : ['records']
+      : []),
+    ...path.map((segment) => /^\d+$/.test(segment) ? Number(segment) : segment),
+  ]
   const displayResult =
     articleRecords?.length === 1
       ? articleRecords[0]
-      : articleRecords ?? (state.status === 'ready' ? state.result : null)
+      : articleRecords ?? reviewedResult
   const stats = useMemo(
     () => (displayResult !== null ? resultStats(displayResult) : null),
     [displayResult],
@@ -406,6 +237,14 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
       ),
     [articlePathPrefix.length, state],
   )
+  const reviewDecisionByPath = useMemo(
+    () => new Map(visibleReviewDecisions.map((decision) => [
+      resultPathKey(decision.resultPath),
+      decision,
+    ])),
+    [visibleReviewDecisions],
+  )
+  const noReviewableResult = state.status === 'ready' && state.evidenceLinks.length === 0
 
   function navTo(newPath: string[]) {
     setBackStack(prev => [...prev, navPath])
@@ -460,6 +299,14 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
+              {state.evidenceLinks.length > 0 && summaryItem(
+                'Decisions',
+                attempt?.reviewedAt
+                  ? `${visibleReviewDecisions.length} saved`
+                  : controller.review.loading
+                    ? 'loading'
+                    : `${visibleReviewDecisions.length} pending`,
+              )}
               {stats.arrayItems > 0 && summaryItem('Array items', stats.arrayItems)}
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -496,36 +343,28 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
                     title={
                       controller.review.reviewedExtractionId
                         ? 'This result is already saved with its Review Decisions'
-                        : 'Save this result and its reviewed Evidence to the Source Representation'
+                        : state.ungroundedCount > 0
+                          ? 'Save this review; values without Evidence remain explicitly ungrounded'
+                          : 'Save this result and its reviewed Evidence to the Source Representation'
                     }
                     onClick={() => void controller.review.accept()}
                   >
                     {controller.review.reviewedExtractionId
                       ? 'Review saved'
+                      : controller.review.loading
+                        ? 'Loading review…'
                       : controller.review.saving
                         ? 'Saving…'
-                        : 'Accept and Save'}
+                        : 'Save Review'}
                   </Button>
                 )}
-                {!readOnly && attempt?.strategy !== 'CATALOG' && (
-                  <Button variant="secondary" size="sm" onClick={() => void controller.runExtraction(strategy)}>
+                {!readOnly && (
+                  <Button variant="secondary" size="sm" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
                     Rerun
                   </Button>
                 )}
               </div>
             </div>
-            {/* {attempt?.complete === false && (
-              <div
-                className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
-                role="status"
-              >
-                <p className="font-semibold">Incomplete Extraction</p>
-                <p>
-                  Successful values remain visible. See the persisted stage
-                  diagnostics for details.
-                </p>
-              </div>
-            )} */}
             {!readOnly && !inspectedAttempt && controller.stale && (
               <div
                 className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
@@ -537,8 +376,8 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
                   variant="secondary"
                   size="sm"
                   className="mt-1.5"
-                  disabled={!controller.canRun}
-                  onClick={() => void controller.runExtraction(strategy)}
+                  disabled={runExtractionDisabled}
+                  onClick={() => void onRunExtraction()}
                 >
                   Re-run extraction
                 </Button>
@@ -549,12 +388,18 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
                 {controller.review.error}
               </p>
             )}
-            {/* {state.ungroundedCount > 0 && (
+            {noReviewableResult && (
+              <div className="mt-2 rounded-md border border-line-strong bg-surface-muted px-2.5 py-2 text-[11.5px] leading-snug text-ink" role="status">
+                <p className="font-semibold">No reviewable result</p>
+                <p className="text-ink-muted">No populated value has Evidence. Raw JSON and diagnostics remain available.</p>
+              </div>
+            )}
+            {state.ungroundedCount > 0 && (
               <p className="mt-2 text-[11.5px] leading-snug text-ink-muted">
-                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded and will not create Evidence highlights.
+                {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. {noReviewableResult ? 'No Review Decisions can be saved; ' : 'You can still save the grounded Review Decisions; '}{state.ungroundedCount === 1 ? 'it' : 'they'} will remain recorded without Evidence.
               </p>
-            )} */}
-            {attempt && <AttemptDetails controller={controller} attempt={attempt} readOnly={readOnly} />}
+            )}
+            {attempt && <AttemptDetails attempt={attempt} />}
           </div>
 
           {view === 'review' && (
@@ -617,6 +462,9 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
               </nav>
               {/* Content */}
               <div className="scrollbar-subtle min-h-0 flex-1 overflow-auto bg-canvas px-3 py-2">
+                {controller.review.loading && !readOnly && (
+                  <p role="status" className="py-2 text-[11.5px] text-ink-muted">Loading Review Decisions…</p>
+                )}
                 {currentEntries.map(({ pathKey, displayName, value: val }) => (
                   <ResultValue
                     key={pathKey}
@@ -630,6 +478,20 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
                       evidenceAnchorIdByPath.get(JSON.stringify(path))
                     }
                     onSelectEvidence={onSelectEvidence}
+                    review={noReviewableResult ? undefined : {
+                      getDecision: (path) => reviewDecisionByPath.get(resultPathKey(absoluteReviewPath(path))),
+                      getSchemaNode: (path) => pinnedSchema
+                        ? schemaNodeAtResultPath(pinnedSchema.schemaNodes, absoluteReviewPath(path))
+                        : null,
+                      onDecision: readOnly || inspectedAttempt
+                        ? undefined
+                        : (path, action, reviewedValue) => controller.review.setDecision(
+                            absoluteReviewPath(path),
+                            action,
+                            reviewedValue,
+                          ),
+                      readOnly: readOnly || Boolean(inspectedAttempt),
+                    }}
                   />
                 ))}
               </div>
@@ -639,7 +501,12 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
           {view === 'json' && <pre className={preClasses}>{JSON.stringify(displayResult, null, 2)}</pre>}
 
           {view === 'schema' && pinnedSchema && (
-            <pre className={preClasses}>{JSON.stringify(schemaDefinitionToTemplate({ recordDescription: pinnedSchema.recordDescription, schemaNodes: pinnedSchema.schemaNodes }), null, 2)}</pre>
+            <div className="flex min-h-0 flex-1 flex-col">
+              <p className="shrink-0 border-b border-line bg-surface-muted px-4 py-2 text-[11.5px] text-ink-muted">
+                Schema Revision{pinnedSchema.revisionNumber ? ` ${pinnedSchema.revisionNumber}` : ''} · <span className="font-mono text-ink">{pinnedSchema.schemaRevisionId ?? attempt?.schemaRevisionId ?? 'unknown'}</span> · read-only
+              </p>
+              <pre className={preClasses}>{JSON.stringify(schemaDefinitionToTemplate({ recordDescription: pinnedSchema.recordDescription, schemaNodes: pinnedSchema.schemaNodes }), null, 2)}</pre>
+            </div>
           )}
 
           {view === 'markdown' && (
@@ -672,12 +539,12 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
           <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
-          {!readOnly && attempt?.strategy !== 'CATALOG' && (
-            <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction(strategy)}>
+          {!readOnly && (
+            <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
               Retry extraction
             </Button>
           )}
-          {attempt && <AttemptDetails controller={controller} attempt={attempt} readOnly={readOnly} />}
+          {attempt && <AttemptDetails attempt={attempt} />}
         </div>
       )}
 
@@ -694,8 +561,8 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
               variant="primary"
               size="md"
               className="mt-4"
-              disabled={!controller.canRun}
-              onClick={() => void controller.runExtraction(strategy)}
+              disabled={runExtractionDisabled}
+              onClick={() => void onRunExtraction()}
             >
               {schemaReady ? 'Run extraction' : 'Generate a schema first'}
             </Button>
@@ -706,10 +573,10 @@ function ResultsTab({ controller, strategy, schemaReady, documentMarkdown, sourc
       {state.status === 'cancelled' && (
         <div className="m-3.25 rounded-xl border border-line bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-ink">Extraction cancelled</p>
-          {!readOnly && <Button variant="primary" size="md" className="mt-2.5" onClick={() => void controller.runExtraction(strategy)}>
+          {!readOnly && <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
             Run a new extraction
           </Button>}
-          {attempt && <AttemptDetails controller={controller} attempt={attempt} readOnly={readOnly} />}
+          {attempt && <AttemptDetails attempt={attempt} />}
         </div>
       )}
     </div>

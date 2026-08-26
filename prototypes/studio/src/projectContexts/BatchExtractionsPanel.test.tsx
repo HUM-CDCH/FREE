@@ -123,15 +123,17 @@ function response(body: unknown) {
 function RoutedPanel({
   batchExtractionId = null,
   onNavigate,
+  sourceDocuments = documents,
 }: {
   batchExtractionId?: string | null
   onNavigate: (route: NavigableRoute) => void
+  sourceDocuments?: typeof documents
 }) {
   const [open, setOpen] = useState<string | null>(batchExtractionId)
   return (
     <BatchExtractionsPanel
       projectContextId={projectContextId}
-      sourceDocuments={documents}
+      sourceDocuments={sourceDocuments}
       openBatchExtractionId={open}
       onNavigate={(route) => {
         if (route.kind === 'project' && route.tab === 'extractions')
@@ -142,11 +144,16 @@ function RoutedPanel({
   )
 }
 
-function renderPanel(onNavigate = vi.fn(), batchExtractionId?: string | null) {
+function renderPanel(
+  onNavigate = vi.fn(),
+  batchExtractionId?: string | null,
+  sourceDocuments: typeof documents = documents,
+) {
   render(
     <RoutedPanel
       batchExtractionId={batchExtractionId}
       onNavigate={onNavigate}
+      sourceDocuments={sourceDocuments}
     />,
   )
   return onNavigate
@@ -158,6 +165,139 @@ afterEach(() => {
 })
 
 describe('BatchExtractionsPanel', () => {
+  it('renders markup-like batch schema and member names as inert text', async () => {
+    const schemaName = '<img src=x onerror="batch-secret">'
+    const sourceName = '<script>member-secret</script>.pdf'
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return response({
+          batchExtractions: [{ ...batch, extractionSchemaName: schemaName }],
+        })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+        return response({
+          revision: {
+            schemaRevisionId,
+            extractionSchemaId: batch.extractionSchemaId,
+            revisionNumber: 1,
+            origin: 'researcher-edit',
+            createdAt: '2026-08-14T10:00:00.000Z',
+            recordDescription: 'One record.',
+            schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+          },
+        })
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: [] })
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel(vi.fn(), null, [
+      { ...documents[0], name: sourceName },
+      documents[1],
+    ])
+
+    fireEvent.click(await screen.findByText(`${schemaName} · Schema Revision 1`))
+    expect(await screen.findByText(sourceName, { exact: true })).toBeVisible()
+    expect(document.querySelector('img[src="x"]')).toBeNull()
+    expect(document.querySelector('script')).toBeNull()
+  })
+
+  it('bounds a Batch Extraction list outage and retries the same screen', async () => {
+    let listReads = 0
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?')) {
+        listReads += 1
+        return listReads === 1
+          ? Response.json(
+              {
+                error: {
+                  code: 'persistence_unavailable',
+                  message: 'Batch Extraction storage is unavailable.',
+                },
+              },
+              { status: 503 },
+            )
+          : response({ batchExtractions: [batch] })
+      }
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: [] })
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not load Batch Extractions. Batch Extraction storage is unavailable.',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByText('Places · Schema Revision 1')).toBeVisible()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(listReads).toBe(2)
+  })
+
+  it('allows exactly 50 selected sources and gates 51 in existing and suggested modes', async () => {
+    const manyDocuments = Array.from({ length: 51 }, (_, index) => ({
+      sourceDocumentId: `51000000-0000-4000-8001-${String(index + 1).padStart(12, '0')}`,
+      name: `Source ${String(index + 1).padStart(2, '0')}.pdf`,
+      pageCount: 1,
+    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel(vi.fn(), null, manyDocuments)
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    const checkboxes = await screen.findAllByRole('checkbox')
+    expect(checkboxes).toHaveLength(51)
+    expect(screen.getByText(/takes at most 50/)).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Run 51 Source Documents' }),
+    ).toBeDisabled()
+
+    fireEvent.click(checkboxes[0]!)
+    expect(screen.queryByText(/takes at most 50/)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Run 50 Source Documents' }),
+    ).toBeEnabled()
+
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+    expect(
+      screen.getByRole('button', { name: 'Suggest common fields' }),
+    ).toBeEnabled()
+    fireEvent.click(checkboxes[0]!)
+    expect(
+      screen.getByRole('button', { name: 'Suggest common fields' }),
+    ).toBeDisabled()
+  })
+
   it('selects every source document by default and toggles the full selection', async () => {
     vi.stubGlobal(
       'fetch',
@@ -196,6 +336,7 @@ describe('BatchExtractionsPanel', () => {
   })
 
   it('edits and saves a saved schema with the shared schema workbench', async () => {
+    const addEventListener = vi.spyOn(window, 'addEventListener')
     const fetch = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
@@ -222,7 +363,6 @@ describe('BatchExtractionsPanel', () => {
           return response({
             batchExtraction: { ...batch, members: [] },
             disposition: 'created',
-            memberFailures: [],
           })
         if (url.startsWith('/api/extraction-schemas?'))
           return response({
@@ -278,6 +418,11 @@ describe('BatchExtractionsPanel', () => {
       target: { value: 'location' },
     })
     fireEvent.click(within(schema).getByRole('button', { name: 'Save' }))
+    expect(addEventListener).toHaveBeenCalledWith(
+      'beforeunload',
+      expect.any(Function),
+    )
+    addEventListener.mockRestore()
 
     await waitFor(() =>
       expect(
@@ -444,7 +589,6 @@ describe('BatchExtractionsPanel', () => {
       response({
         batchExtraction: { ...batch, members: [] },
         disposition: 'created',
-        memberFailures: [],
       }),
     )
     const body = JSON.parse(
@@ -488,7 +632,6 @@ describe('BatchExtractionsPanel', () => {
           return response({
             batchExtraction: openedBatch,
             disposition: 'created',
-            memberFailures: [],
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -567,7 +710,6 @@ describe('BatchExtractionsPanel', () => {
           return response({
             batchExtraction: completedBatch,
             disposition: 'created',
-            memberFailures: [],
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -623,8 +765,7 @@ describe('BatchExtractionsPanel', () => {
         if (url === '/api/batch-extractions' && init?.method === 'POST')
           return response({
             batchExtraction: { ...batch, members: [] },
-            disposition: 'running',
-            memberFailures: [],
+            disposition: 'replayed',
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -703,8 +844,7 @@ describe('BatchExtractionsPanel', () => {
         if (url === '/api/batch-extractions' && init?.method === 'POST')
           return response({
             batchExtraction: retried,
-            disposition: 'complete',
-            memberFailures: [],
+            disposition: 'created',
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -778,6 +918,7 @@ describe('BatchExtractionsPanel', () => {
         if (url === '/api/batch-extractions' && init?.method === 'POST')
           return response({
             batchExtraction: openedBatch,
+            disposition: 'created',
           })
         throw new Error(`Unexpected request: ${url}`)
       },
@@ -884,6 +1025,79 @@ describe('BatchExtractionsPanel', () => {
     )
   })
 
+  it('reopens an older replay without changing durable newest-first history order', async () => {
+    const newer = {
+      ...batch,
+      batchExtractionId: '51000000-0000-4000-8007-000000000009',
+      createdAt: '2026-08-14T11:42:00.000Z',
+    }
+    const fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [newer, batch] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        if (url === '/api/batch-extractions' && init?.method === 'POST')
+          return response({ batchExtraction: batch, disposition: 'replayed' })
+        if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+          return response({ revision: null })
+        throw new Error(`Unexpected request: ${url}`)
+      },
+    )
+    vi.stubGlobal('fetch', fetch)
+    const onNavigate = renderPanel()
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'New Batch Extraction' }),
+    )
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Run 2 Source Documents' }),
+    )
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /already been run/,
+    )
+    expect(onNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({ batchExtractionId }),
+    )
+    expect(
+      await screen.findByRole('list', { name: 'Batch Extraction members' }),
+    ).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: /Back to history/ }))
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll('time')).map((time) =>
+          time.getAttribute('datetime'),
+        ),
+      ).toEqual([newer.createdAt, batch.createdAt]),
+    )
+    expect(
+      fetch.mock.calls.filter(
+        ([url, init]) =>
+          url === '/api/batch-extractions' && init?.method === 'POST',
+      ),
+    ).toHaveLength(1)
+  })
+
   it('runs the open Batch Extraction selection again as its own Batch Extraction', async () => {
     const reran = {
       ...batch,
@@ -943,7 +1157,7 @@ describe('BatchExtractionsPanel', () => {
     })
   })
 
-  it('reports a routed Batch Extraction as missing only once the list is read', async () => {
+  it('shows a stale cross-account Batch Extraction as missing only after the scoped list is read', async () => {
     const listed = Promise.withResolvers<Response>()
     vi.stubGlobal(
       'fetch',
@@ -972,7 +1186,7 @@ describe('BatchExtractionsPanel', () => {
     ).toBeInTheDocument()
   })
 
-  it('identifies the Source Document and safe reason when field suggestion fails', async () => {
+  it('identifies each Source Document with terminal status and a sanitized failure category', async () => {
     const failedSuggestion = readySuggestion({
       executionStatus: 'FAILED',
       phase: 'SOURCES',
@@ -992,7 +1206,7 @@ describe('BatchExtractionsPanel', () => {
           definition: null,
           failure: {
             code: 'invalid_model_output',
-            message: 'The model returned an invalid Schema Suggestion.',
+            message: 'provider secret must never reach the researcher',
           },
           startedAt: '2026-08-15T10:00:00.000Z',
           finishedAt: '2026-08-15T10:00:01.000Z',
@@ -1031,11 +1245,11 @@ describe('BatchExtractionsPanel', () => {
       screen.getByRole('button', { name: 'Suggest common fields' }),
     )
 
-    expect(
-      await screen.findByText(
-        'Failed.pdf: The model returned an invalid Schema Suggestion.',
-      ),
-    ).toBeVisible()
+    const progress = await screen.findByLabelText('Source suggestion progress')
+    expect(within(progress).getByText('0 of 1 complete · 1 failed')).toBeVisible()
+    expect(within(progress).getByText('Failed.pdf')).toBeVisible()
+    expect(within(progress).getByText('Failed — Invalid model output')).toBeVisible()
+    expect(screen.queryByText(/provider secret/)).not.toBeInTheDocument()
   })
 
   it('shows suggested fields in the schema slot and regenerates them', async () => {
@@ -1058,7 +1272,18 @@ describe('BatchExtractionsPanel', () => {
         ) &&
         init?.method === 'POST'
       ) {
-        suggestions = [readySuggestion()]
+        const retriedDefinition = {
+          recordDescription: 'One retried record.',
+          schemaNodes: [{ id: 'year', name: 'year', type: 'number' }],
+        }
+        suggestions = [
+          readySuggestion({
+            proposal: retriedDefinition,
+            draft: retriedDefinition,
+            draftVersion: 1,
+            finishedAt: '2026-08-15T10:00:02.000Z',
+          }),
+        ]
         return response({ batchSchemaSuggestion: suggestions[0] })
       }
       throw new Error(`Unexpected request: ${url}`)
@@ -1084,6 +1309,7 @@ describe('BatchExtractionsPanel', () => {
     ).toBeTruthy()
 
     fireEvent.click(within(suggested).getByRole('button', { name: 'Regenerate' }))
+    fireEvent.click(within(suggested).getByRole('button', { name: /Regenerate schema/ }))
     await waitFor(() =>
       expect(
         fetch.mock.calls.filter(
@@ -1094,12 +1320,236 @@ describe('BatchExtractionsPanel', () => {
         ),
       ).toHaveLength(1),
     )
+    expect(await within(suggested).findByText('year')).toBeVisible()
+    expect(within(suggested).queryByText('place')).not.toBeInTheDocument()
     expect(
       fetch.mock.calls.filter(
         ([url, init]) =>
           url === '/api/batch-schema-suggestions' && init?.method === 'POST',
       ),
     ).toHaveLength(1)
+  })
+
+  it('serializes overlapping suggestion edits without re-adopting save echoes', async () => {
+    let suggestions: unknown[] = [readySuggestion()]
+    const firstSave = Promise.withResolvers<Response>()
+    const patchBodies: Array<{
+      expectedDraftVersion: number
+      recordDescription: string
+      schemaNodes: Array<{ id: string; name: string; type: string }>
+    }> = []
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return response({ batchExtractions: [] })
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: suggestions })
+      if (url.startsWith('/api/extraction-schemas?'))
+        return response({ extractionSchemas: [] })
+      if (
+        url.includes(
+          `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/draft?`,
+        ) &&
+        init?.method === 'PATCH'
+      ) {
+        const body = JSON.parse(String(init.body)) as (typeof patchBodies)[number]
+        patchBodies.push(body)
+        if (patchBodies.length === 1) return firstSave.promise
+        const saved = readySuggestion({
+          draft: {
+            recordDescription: body.recordDescription,
+            schemaNodes: body.schemaNodes,
+          },
+          draftVersion: 2,
+        })
+        suggestions = [saved]
+        return response({ batchSchemaSuggestion: saved })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+    const suggested = await screen.findByLabelText('Suggested common fields')
+
+    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
+      target: { value: 'location' },
+    })
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(patchBodies).toHaveLength(1), { timeout: 2_000 })
+
+    fireEvent.click(within(suggested).getByTitle('Edit location'))
+    fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
+      target: { value: 'city' },
+    })
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
+
+    const firstSaved = readySuggestion({
+      draft: {
+        recordDescription: patchBodies[0]!.recordDescription,
+        schemaNodes: patchBodies[0]!.schemaNodes,
+      },
+      draftVersion: 1,
+    })
+    suggestions = [firstSaved]
+    firstSave.resolve(response({ batchSchemaSuggestion: firstSaved }))
+
+    await waitFor(() => expect(patchBodies).toHaveLength(2), { timeout: 2_000 })
+    expect(patchBodies.map(({ expectedDraftVersion }) => expectedDraftVersion)).toEqual([
+      0,
+      1,
+    ])
+    expect(await within(suggested).findByText('city')).toBeVisible()
+    expect(within(suggested).queryByText('location')).not.toBeInTheDocument()
+  })
+
+  it('gates Run after a failed suggested-draft save until a new edit saves', async () => {
+    let suggestions: unknown[] = [readySuggestion()]
+    const calls: string[] = []
+    const patchBodies: Array<{
+      recordDescription: string
+      schemaNodes: Array<{ id: string; name: string; type: string }>
+    }> = []
+    const confirmed = readySuggestion({
+      draftVersion: 1,
+      confirmedSchemaRevisionId: schemaRevisionId,
+      batchExtractionId,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: suggestions })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({ extractionSchemas: [] })
+        if (
+          url.includes(
+            `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/draft?`,
+          ) &&
+          init?.method === 'PATCH'
+        ) {
+          calls.push('patch')
+          const body = JSON.parse(String(init.body)) as (typeof patchBodies)[number]
+          patchBodies.push(body)
+          if (patchBodies.length === 1)
+            return new Response(
+              JSON.stringify({
+                error: {
+                  code: 'persistence_unavailable',
+                  message: 'Try again.',
+                },
+              }),
+              {
+                status: 503,
+                headers: { 'content-type': 'application/json' },
+              },
+            )
+          const saved = readySuggestion({
+            draft: {
+              recordDescription: body.recordDescription,
+              schemaNodes: body.schemaNodes,
+            },
+            draftVersion: 1,
+          })
+          suggestions = [saved]
+          return response({ batchSchemaSuggestion: saved })
+        }
+        if (
+          url.startsWith(
+            `/api/batch-schema-suggestions/${batchSchemaSuggestionId}/run?`,
+          ) &&
+          init?.method === 'POST'
+        ) {
+          calls.push('run')
+          suggestions = [confirmed]
+          return response({ batchSchemaSuggestion: confirmed })
+        }
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+    const suggested = await screen.findByLabelText('Suggested common fields')
+    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
+      target: { value: 'location' },
+    })
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(patchBodies).toHaveLength(1), { timeout: 2_000 })
+    expect(await screen.findByText('Try again.')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Run 2 Source Documents' }),
+    ).toBeDisabled()
+
+    fireEvent.click(within(suggested).getByTitle('Edit location'))
+    fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
+      target: { value: 'location_name' },
+    })
+    fireEvent.click(within(suggested).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(patchBodies).toHaveLength(2), { timeout: 2_000 })
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Run 2 Source Documents' }),
+      ).toBeEnabled(),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Run 2 Source Documents' }),
+    )
+    await waitFor(() => expect(calls).toEqual(['patch', 'patch', 'run']))
+    expect(patchBodies[1]?.schemaNodes[0]?.name).toBe('location_name')
+  })
+
+  it('gates Run while a field editor contains an unacknowledged invalid value', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return response({ batchSchemaSuggestions: [readySuggestion()] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({ extractionSchemas: [] })
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New Batch Extraction' }))
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+      target: { value: '__suggest_common_fields__' },
+    })
+    const suggested = await screen.findByLabelText('Suggested common fields')
+    const run = screen.getByRole('button', {
+      name: 'Run 2 Source Documents',
+    })
+    await waitFor(() => expect(run).toBeEnabled())
+
+    fireEvent.click(within(suggested).getByTitle('Edit place'))
+    fireEvent.change(within(suggested).getByPlaceholderText('field_name'), {
+      target: { value: '' },
+    })
+    expect(run).toBeDisabled()
+
+    fireEvent.click(
+      within(suggested).getByRole('button', { name: 'Cancel field edit' }),
+    )
+    await waitFor(() => expect(run).toBeEnabled())
   })
 
   it('shows and regenerates a previously confirmed suggestion', async () => {
@@ -1461,5 +1911,98 @@ describe('BatchExtractionsPanel', () => {
     expect(
       screen.queryByRole('button', { name: 'Retry Schema Revision' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('preserves export choices while a Batch result read fails and retries', async () => {
+    vi.mocked(exportBatchExtractionResults).mockClear()
+    const succeededMember = {
+      ...batch.members[0],
+      latestExtraction: {
+        ...batch.members[0].latestExtraction,
+        outcome: 'SUCCEEDED' as const,
+        complete: true,
+        reviewable: true,
+        failureMessage: null,
+      },
+    }
+    let resultReads = 0
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return response({
+          batchExtractions: [
+            { ...batch, executionStatus: 'COMPLETED', members: [succeededMember] },
+          ],
+        })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+        return response({
+          revision: {
+            schemaRevisionId,
+            extractionSchemaId: batch.extractionSchemaId,
+            revisionNumber: 1,
+            origin: 'researcher-edit',
+            createdAt: '2026-08-14T10:00:00.000Z',
+            recordDescription: 'One place record.',
+            schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+          },
+        })
+      if (url.includes(`/batch-extractions/${batchExtractionId}/results?`)) {
+        resultReads += 1
+        return resultReads === 1
+          ? Response.json(
+              {
+                error: {
+                  code: 'persistence_unavailable',
+                  message: 'Batch Extraction results are unavailable.',
+                },
+              },
+              { status: 503 },
+            )
+          : response({
+              batchExtractionId,
+              executionStatus: 'COMPLETED',
+              totalMembers: 1,
+              successfulResults: 1,
+              pending: 0,
+              failed: 0,
+              cancelled: 0,
+              results: [
+                {
+                  sourceDocumentId: failedDocumentId,
+                  extractionId,
+                  result: { records: [{ place: 'Rome' }] },
+                },
+              ],
+            })
+      }
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: [] })
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(await screen.findByText('Places · Schema Revision 1'))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    fireEvent.change(screen.getByLabelText('Other repeated fields'), {
+      target: { value: 'omit' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Batch Extraction results are unavailable.',
+    )
+    expect(exportBatchExtractionResults).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    expect(screen.getByLabelText('Other repeated fields')).toHaveValue('omit')
+    fireEvent.click(screen.getByRole('button', { name: 'Excel' }))
+
+    await waitFor(() => expect(exportBatchExtractionResults).toHaveBeenCalledOnce())
+    expect(resultReads).toBe(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

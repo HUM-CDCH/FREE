@@ -1,13 +1,12 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { Readable } from 'node:stream'
-import type { IncomingMessage } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import studioConfig, {
-  apiHandlerName,
+  apiFunctions,
+  developmentStudioOrigin,
   localHttps,
-  readBody,
 } from './vite.config.js'
 
 const temporaryDirectories: string[] = []
@@ -19,91 +18,78 @@ function temporaryDirectory(): string {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   for (const directory of temporaryDirectories.splice(0))
     rmSync(directory, { recursive: true, force: true })
 })
 
-function request(chunks: Buffer[], contentLength?: number): IncomingMessage {
-  const stream = Readable.from(chunks) as IncomingMessage
-  stream.headers = contentLength
-    ? { 'content-length': String(contentLength) }
-    : {}
-  return stream
-}
+describe('Vite Hono integration', () => {
+  it('loads one shared application root and delegates every request to it', async () => {
+    const app = {}
+    const clientFallback = vi.fn(() => new Response(null))
+    const createStudioApp = vi.fn(async () => app)
+    const handleStudioNodeRequest = vi.fn(async () => true)
+    const runtime = {
+      run: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+    }
+    const ssrLoadModule = vi.fn(async (path: string) =>
+      path === '/server/app.ts'
+        ? {
+            createStudioApp,
+            viteClientFallback: clientFallback,
+            handleStudioNodeRequest,
+          }
+        : { extractionRuntime: runtime },
+    )
+    const use = vi.fn()
+    const server = {
+      config: {
+        mode: 'development',
+        root: temporaryDirectory(),
+        server: { https: false },
+        logger: { error: vi.fn() },
+      },
+      httpServer: { once: vi.fn() },
+      middlewares: { use },
+      ssrLoadModule,
+    }
+    const plugin = apiFunctions('/free')
+    if (typeof plugin.configureServer !== 'function')
+      throw new Error('Expected a Vite configureServer hook.')
 
-describe('Vite API request admission', () => {
-  it('routes only admitted API paths to their handler modules', () => {
-    for (const [pathname, handler] of [
-      ['/api/healthz', 'healthz'],
-      ['/api/generate_schema', 'generate_schema'],
-      ['/api/llm_inspector', 'llm_inspector'],
-      ['/api/project-contexts', 'project_contexts'],
-      ['/api/project-contexts/project', 'project_contexts'],
-      ['/api/schema-revisions/revision', 'schema_revisions'],
-      ['/api/extraction-schemas/schema', 'extraction_schemas'],
-      ['/api/extractions/extraction/review', 'extractions'],
-      ['/api/batch-extractions', 'batch_extractions'],
-      ['/api/batch-extractions/batch', 'batch_extractions'],
-      ['/api/batch-extractions/batch/retry', 'batch_extractions'],
-      ['/api/batch-extractions/batch/results', 'batch_extractions'],
-      ['/api/batch-schema-suggestions', 'batch_schema_suggestions'],
-      ['/api/batch-schema-suggestions/suggestion/draft', 'batch_schema_suggestions'],
-      ['/api/source-representations/representation/pdf', 'source_representations'],
-    ] as const)
-      expect(apiHandlerName(pathname, process.cwd())).toBe(handler)
-  })
-
-  it('rejects unknown suffixes beneath an admitted resource', () => {
-    for (const pathname of [
-      '/api/healthz/anything',
-      '/api/batch-extractions/batch/anything-added-later',
-      '/api/batch-extractions/batch/results/anything',
-      '/api/source-representations/representation/pdf/anything',
-    ])
-      expect(apiHandlerName(pathname, process.cwd())).toBeNull()
-  })
-
-  it('routes the Source Documents nested under a Project Context by their own table', () => {
-    expect(
-      apiHandlerName(
-        '/api/project-contexts/project/source-documents',
-        process.cwd(),
-      ),
-    ).toBe('source_documents')
-    expect(
-      apiHandlerName(
-        '/api/project-contexts/project/source-documents/document',
-        process.cwd(),
-      ),
-    ).toBe('source_documents')
-    expect(
-      apiHandlerName(
-        '/api/project-contexts/project/source-documents/document/reopen',
-        process.cwd(),
-      ),
-    ).toBe('document_reopen')
-  })
-
-  it('answers no handler for a private module, an unknown resource, or a traversal', () => {
-    for (const pathname of [
-      '/api/_model_config',
-      '/api/_provider',
-      '/api/nope',
-      '/api/Extractions',
-      '/api/',
-      '/api/../package.json',
-      '/api/source-documents',
-    ])
-      expect(apiHandlerName(pathname, process.cwd())).toBeNull()
-  })
-
-  it('rejects declared and streamed bodies before buffering past the limit', async () => {
-    await expect(readBody(request([], 11), 10)).rejects.toMatchObject({
-      status: 413,
+    await plugin.configureServer(server as never)
+    expect(ssrLoadModule).toHaveBeenCalledWith('/api/_extraction_runtime.ts')
+    expect(ssrLoadModule).toHaveBeenCalledWith('/server/app.ts')
+    expect(createStudioApp).toHaveBeenCalledWith({
+      studioOrigin: 'http://127.0.0.1:5173',
+      basePath: '/free',
+      sessionSecret: expect.any(Uint8Array),
+      clientHandler: clientFallback,
+      viteDevelopmentAssets: true,
     })
-    await expect(
-      readBody(request([Buffer.alloc(6), Buffer.alloc(5)]), 10),
-    ).rejects.toMatchObject({ status: 413 })
+    expect(use).toHaveBeenCalledTimes(1)
+
+    const middleware = use.mock.calls[0][0] as (
+      request: IncomingMessage,
+      response: ServerResponse,
+      next: (error?: Error) => void,
+    ) => Promise<void>
+    const request = {} as IncomingMessage
+    const response = {} as ServerResponse
+    const next = vi.fn()
+    await middleware(request, response, next)
+    expect(handleStudioNodeRequest).toHaveBeenCalledWith(
+      app,
+      'http://127.0.0.1:5173',
+      request,
+      response,
+    )
+    expect(next).not.toHaveBeenCalled()
+
+    handleStudioNodeRequest.mockResolvedValueOnce(false)
+    await middleware(request, response, next)
+    expect(next).toHaveBeenCalledOnce()
   })
 })
 
@@ -137,6 +123,23 @@ describe('Vite HTTPS mode', () => {
     })
   })
 
+  it('derives the exact configured port and localhost HTTPS origin', () => {
+    expect(
+      developmentStudioOrigin({
+        https: false,
+        host: '127.0.0.1',
+        port: 41739,
+      }),
+    ).toBe('http://127.0.0.1:41739')
+    expect(
+      developmentStudioOrigin({
+        https: true,
+        host: '0.0.0.0',
+        port: 5173,
+      }),
+    ).toBe('https://localhost:5173')
+  })
+
   it('leaves ordinary development mode on HTTP', async () => {
     const config = await studioConfig({
       command: 'serve',
@@ -146,5 +149,24 @@ describe('Vite HTTPS mode', () => {
     })
 
     expect(config.server).toEqual({ host: '127.0.0.1' })
+  })
+
+  it('serves a configured path prefix and keeps production assets relocatable', async () => {
+    vi.stubEnv('STUDIO_BASE_PATH', '/free')
+    const development = await studioConfig({
+      command: 'serve',
+      mode: 'development',
+      isSsrBuild: false,
+      isPreview: false,
+    })
+    const production = await studioConfig({
+      command: 'build',
+      mode: 'production',
+      isSsrBuild: false,
+      isPreview: false,
+    })
+
+    expect(development.base).toBe('/free/')
+    expect(production.base).toBe('./')
   })
 })

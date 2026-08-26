@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { authenticatedFetch } from './auth/authenticatedFetch.ts'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
@@ -9,25 +10,13 @@ import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
 // import type { AnnotationSetItem } from './AnnotationSidebar'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
-import type { TemplateState } from './SchemaPanel'
-import {
-  type SchemaNode,
-  schemaDefinitionToTemplate,
-  templateToSchemaDefinition,
-} from '../shared/schemaNode'
-import { countTemplateFields } from '../shared/template'
+import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
 import { requestSchema } from './api'
 import {
   decodeParsedDocument,
   type ParsedDocument,
-  type ParsedEvidenceAnchor,
-} from '../shared/parsedDocument'
-import {
-  anchorOccurrences,
-  reviewedAnchorOccurrences,
-  type EvidenceOccurrence,
-  verifiedEvidenceBbox,
-} from './evidenceNavigation'
+} from 'extraction/parsed-document'
+import { useEvidenceOverlays } from './useEvidenceOverlays'
 // import type { AnnotationsMode } from './api' — retired with the Annotation tab
 import { useExtraction } from './useExtraction'
 import { Button } from './ui'
@@ -37,23 +26,8 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 // import type { AnnotationEditorUIManager } from 'pdfjs-dist'
 // import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
 import type { DocumentSnapshot } from './projectContexts/transport'
-import type {
-  ExtractionAttempt,
-  ExtractionStrategy,
-} from '../shared/extraction.contract'
-import {
-  appendSchemaRevision,
-  getSchemaRevision,
-  initializeSchemaRevision,
-  renameExtractionSchema,
-  listSchemaRevisions,
-} from './schemaRevisions'
-import type { SchemaRevisionSummary } from '../shared/schemaRevision.contract'
-import {
-  createSchemaSaveCoordinator,
-  type SchemaSaveCoordinator,
-  type SchemaSaveState,
-} from './schemaSaveCoordinator'
+import { renameExtractionSchema } from './schemaRevisions'
+import type { SchemaDefinition } from 'extraction/schema'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -61,67 +35,6 @@ const COLLAPSED_WIDTH = 46
 const RAIL_MIN = 264
 const RAIL_MAX = 560
 const ANNOTATION_HIGHLIGHT_COLORS = 'annotation=#FFF066'
-const EVIDENCE_HIGHLIGHT_COLORS = [
-  'rgba(148, 203, 236, 0.28)',
-  'rgba(220, 205, 125, 0.28)',
-  'rgba(194, 106, 119, 0.24)',
-  'rgba(93, 168, 153, 0.24)',
-]
-
-function reviewedOccurrenceIds(
-  attempt: Pick<ExtractionAttempt, 'reviewDecisions'> | null,
-  evidenceAnchorId: string,
-) {
-  return attempt?.reviewDecisions.find(
-    (decision) => decision.evidenceAnchorId === evidenceAnchorId,
-  )?.reviewedOccurrenceIds
-}
-
-function appendEvidenceOverlay(
-  container: HTMLElement,
-  document: ParsedDocument,
-  occurrence: EvidenceOccurrence,
-  options: {
-    className: string
-    background: string
-    border?: string
-    evidenceAnchorId?: string
-    resultPath?: readonly (string | number)[]
-  },
-): HTMLElement | null {
-  const page = container.querySelector(
-    `.page[data-page-number="${occurrence.page_number}"]`,
-  )
-  if (!(page instanceof HTMLElement)) return null
-  const bbox = verifiedEvidenceBbox(document, occurrence)
-  const pageMeta = document.pages.find(
-    (candidate) => candidate.page_number === occurrence.page_number,
-  )
-  if (!bbox || !pageMeta) return null
-  const overlay = window.document.createElement('div')
-  overlay.className = options.className
-  overlay.ariaHidden = 'true'
-  overlay.dataset.occurrenceId = occurrence.occurrence_id
-  if (options.evidenceAnchorId)
-    overlay.dataset.evidenceAnchorId = options.evidenceAnchorId
-  if (options.resultPath)
-    overlay.dataset.resultPath = JSON.stringify(options.resultPath)
-  Object.assign(overlay.style, {
-    position: 'absolute',
-    left: `${bbox.x0 / pageMeta.width_pt * 100}%`,
-    top: `${bbox.y0 / pageMeta.height_pt * 100}%`,
-    width: `${(bbox.x1 - bbox.x0) / pageMeta.width_pt * 100}%`,
-    height: `${(bbox.y1 - bbox.y0) / pageMeta.height_pt * 100}%`,
-    border: options.border ?? '0',
-    borderRadius: '2px',
-    background: options.background,
-    pointerEvents: 'none',
-    zIndex: options.border ? '5' : '4',
-  })
-  if (getComputedStyle(page).position === 'static') page.style.position = 'relative'
-  page.append(overlay)
-  return overlay
-}
 
 // Highlight-on-selection is temporarily disabled: pdf.js's HIGHLIGHT editor
 // mode calls `selection.empty()` on mouseup to turn a text selection into a
@@ -172,7 +85,7 @@ type DocIndex =
   | { status: 'error'; message: string }
 
 async function readMarkdown(url: string, signal: AbortSignal): Promise<string> {
-  const response = await fetch(url, { signal })
+  const response = await authenticatedFetch(url, { signal })
   if (!response.ok)
     throw new Error(
       `Could not fetch Source Document Markdown (HTTP ${response.status}).`,
@@ -184,7 +97,7 @@ async function readParsedDocument(
   url: string,
   signal: AbortSignal,
 ): Promise<ParsedDocument> {
-  const response = await fetch(url, { signal })
+  const response = await authenticatedFetch(url, { signal })
   if (!response.ok)
     throw new Error(
       `Could not fetch parsed Source Document (HTTP ${response.status}).`,
@@ -234,6 +147,11 @@ export type DocumentWorkspaceProps = {
   tabBarSlot?: HTMLElement | null
 }
 
+type PinnedAttemptSchema = SchemaDefinition & {
+  schemaRevisionId: string
+  revisionNumber: number
+}
+
 export function DocumentWorkspace({
   pdfUrl,
   filename,
@@ -249,11 +167,13 @@ export function DocumentWorkspace({
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const viewerRef = useRef<HTMLDivElement | null>(null)
-  const pdfViewerRef = useRef<PDFViewer | null>(null)
-  // const annotationManagerRef = useRef<AnnotationEditorUIManager | null>(null)
-  const templateAbortRef = useRef<AbortController | null>(null)
-  const templatePrevStateRef = useRef<TemplateState>({ status: 'idle' })
   const toastTimerRef = useRef<number | undefined>(undefined)
+  const pdfViewerRef = useRef<PDFViewer | null>(null)
+  const activeSourceRepresentationIdRef = useRef(sourceRepresentationId)
+  useEffect(() => {
+    activeSourceRepresentationIdRef.current = sourceRepresentationId
+  }, [sourceRepresentationId])
+
   // const restoredAnnotations = (annotationSet?.annotations ?? []).map(
   //   ({ annotationId, text, pageNumber }) => ({
   //     id: annotationId,
@@ -266,119 +186,37 @@ export function DocumentWorkspace({
   // )
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [zoomPercent, setZoomPercent] = useState(100)
-  const [templateState, setTemplateState] = useState<TemplateState>(() =>
-    extractionSchema
-      ? {
-          status: 'ready',
-          recordDescription: extractionSchema.recordDescription,
-          nodes: extractionSchema.schemaNodes,
-          inputsKey: '',
-        }
-      : { status: 'idle' },
-  )
-  const [durableSchema, setDurableSchema] = useState(extractionSchema)
+  const schema = useDurableCurrentSchemaRevision({
+    projectContextId,
+    extractionSchema,
+    debounceMs: 1500,
+    sourceRepresentationId,
+    onCommitMessage: (message) => showToast(message),
+  })
+  const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
-  // const [annotationsMode, setAnnotationsMode] = useState<AnnotationsMode>('hints')
-  // An accepted result is bound to the Schema Revision it was produced with, so
-  // the pin is dropped as soon as the schema in the browser stops being it.
-  const [pinnedSchemaRevisionId, setPinnedSchemaRevisionId] = useState<
-    string | null
-  >(extractionSchema?.schemaRevisionId ?? null)
-  const [schemaSaveState, setSchemaSaveState] = useState<SchemaSaveState | null>(
-    () =>
-      extractionSchema
-        ? {
-            status: 'saved',
-            acknowledged: {
-              schemaRevisionId: extractionSchema.schemaRevisionId,
-              extractionSchemaId: extractionSchema.extractionSchemaId,
-              revisionNumber: extractionSchema.revisionNumber,
-              recordDescription: extractionSchema.recordDescription,
-              schemaNodes: extractionSchema.schemaNodes,
-            },
-            draft: {
-              recordDescription: extractionSchema.recordDescription,
-              schemaNodes: extractionSchema.schemaNodes,
-            },
-          }
-        : null,
-  )
-  const [schemaHistory, setSchemaHistory] = useState<SchemaRevisionSummary[]>([])
-  const schemaSaveCoordinatorRef = useRef<SchemaSaveCoordinator | null>(null)
-  const [extractAfterSave, setExtractAfterSave] =
-    useState<{ strategy: ExtractionStrategy; saved: boolean } | null>(null)
-  const [nextExtractionStrategy, setNextExtractionStrategy] =
-    useState<ExtractionStrategy>('ARTICLE')
+  const [savingForRun, setSavingForRun] = useState(false)
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('schema')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
+  const [latestAttemptSchema, setLatestAttemptSchema] = useState<PinnedAttemptSchema | null>(
+    persistedExtraction
+      ? {
+          schemaRevisionId: persistedExtraction.schemaRevisionId,
+          revisionNumber: persistedExtraction.extractionSchema.revisionNumber,
+          recordDescription: persistedExtraction.extractionSchema.recordDescription,
+          schemaNodes: persistedExtraction.extractionSchema.schemaNodes,
+        }
+      : null,
+  )
   const pdfSource = useMemo(
     () => ({ url: pdfUrl, filename }),
     [filename, pdfUrl],
   )
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
-
-  useEffect(() => {
-    if (!projectContextId || !durableSchema) return
-    const acknowledged = {
-      schemaRevisionId: durableSchema.schemaRevisionId,
-      extractionSchemaId: durableSchema.extractionSchemaId,
-      revisionNumber: durableSchema.revisionNumber,
-      recordDescription: durableSchema.recordDescription,
-      schemaNodes: durableSchema.schemaNodes,
-    }
-    const coordinator = createSchemaSaveCoordinator(
-      acknowledged,
-      (expectedRevisionNumber, definition) =>
-        appendSchemaRevision(
-          projectContextId,
-          durableSchema.extractionSchemaId,
-          expectedRevisionNumber,
-          definition,
-        ),
-      1500,
-      (next) => {
-        setSchemaSaveState(next)
-        if (next.status === 'saved')
-          setPinnedSchemaRevisionId(next.acknowledged.schemaRevisionId)
-      },
-    )
-    schemaSaveCoordinatorRef.current = coordinator
-    return () => {
-      coordinator.dispose()
-      schemaSaveCoordinatorRef.current = null
-    }
-  }, [durableSchema, projectContextId])
-
-  useEffect(() => {
-    if (!projectContextId || !durableSchema) {
-      return
-    }
-    const controller = new AbortController()
-    void listSchemaRevisions(
-      projectContextId,
-      durableSchema.extractionSchemaId,
-      20,
-      controller.signal,
-    ).then(setSchemaHistory).catch((error) => {
-      if (!(error instanceof Error && error.name === 'AbortError')) setSchemaHistory([])
-    })
-    return () => controller.abort()
-  }, [
-    durableSchema,
-    projectContextId,
-    schemaSaveState?.acknowledged.schemaRevisionId,
-  ])
-
-  useEffect(() => {
-    if (!schemaSaveState || schemaSaveState.status === 'saved') return
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault()
-    window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
-  }, [schemaSaveState])
 
   // This workspace now stays mounted across Source Document switches within
   // the same Project Context (only the Schema panel above should survive
@@ -390,8 +228,17 @@ export function DocumentWorkspace({
       return
     previousSourceRepresentationIdRef.current = sourceRepresentationId
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
+    setLatestAttemptSchema(
+      persistedExtraction
+        ? {
+            schemaRevisionId: persistedExtraction.schemaRevisionId,
+            revisionNumber: persistedExtraction.extractionSchema.revisionNumber,
+            recordDescription: persistedExtraction.extractionSchema.recordDescription,
+            schemaNodes: persistedExtraction.extractionSchema.schemaNodes,
+          }
+        : null,
+    )
     setResultPath(null)
-    setNextExtractionStrategy('ARTICLE')
     setToast(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceRepresentationId])
@@ -493,7 +340,7 @@ export function DocumentWorkspace({
       { signal: abortController.signal },
     )
 
-    const loadingTask = pdfjsLib.getDocument({ url: pdfSource.url })
+    let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null
     pdfViewerRef.current = pdfViewer
     // annotationManagerRef.current = null
     setLoadState({ status: 'loading' })
@@ -559,6 +406,16 @@ export function DocumentWorkspace({
 
     async function loadPdf() {
       try {
+        const response = await authenticatedFetch(pdfSource.url, {
+          signal: abortController.signal,
+        })
+        if (!response.ok)
+          throw new Error(
+            `Could not fetch Source Document PDF (HTTP ${response.status}).`,
+          )
+        const data = await response.arrayBuffer()
+        if (abortController.signal.aborted) return
+        loadingTask = pdfjsLib.getDocument({ data })
         const pdf = await loadingTask.promise
         if (abortController.signal.aborted) {
           return
@@ -605,7 +462,7 @@ export function DocumentWorkspace({
         null,
       )
       abortController.abort()
-      void loadingTask.destroy()
+      if (loadingTask) void loadingTask.destroy()
     }
   }, [onInitialResourceLoadFailure, pdfSource])
 
@@ -637,33 +494,6 @@ export function DocumentWorkspace({
     return () => abortController.abort()
   }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl, pdfSource])
 
-  function selectEvidenceAnchor(anchor: ParsedEvidenceAnchor) {
-    const viewer = pdfViewerRef.current
-    const container = containerRef.current
-    container
-      ?.querySelectorAll('.parsed-evidence-focus')
-      .forEach((focus) => focus.remove())
-    if (!viewer || !container || !parsedDocument) return
-    const occurrences = reviewedAnchorOccurrences(
-      anchor,
-      reviewedOccurrenceIds(inspectedAttempt, anchor.anchor_id),
-    )
-    const firstOccurrence = occurrences[0]
-    if (!firstOccurrence) return
-    viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
-    let firstFocus: HTMLElement | null = null
-    for (const occurrence of occurrences) {
-      const focus = appendEvidenceOverlay(container, parsedDocument, occurrence, {
-        className: 'parsed-evidence-focus',
-        border: '2px solid #d97706',
-        background: 'rgb(251 191 36 / 0.22)',
-      })
-      if (focus) firstFocus ??= focus
-    }
-    if (firstFocus) {
-      firstFocus.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-    }
-  }
 
   // Retired along with the Annotation tab. Left in place, commented out,
   // rather than deleted.
@@ -696,7 +526,6 @@ export function DocumentWorkspace({
 
   useEffect(
     () => () => {
-      templateAbortRef.current?.abort()
       window.clearTimeout(toastTimerRef.current)
     },
     [],
@@ -708,92 +537,41 @@ export function DocumentWorkspace({
     toastTimerRef.current = window.setTimeout(() => setToast(null), 2600)
   }
 
-  async function generateSchema(instruction: string) {
-    if (indexing) {
-      showToast('Document is still being indexed…')
-      return
-    }
-    templateAbortRef.current?.abort()
-    const abortController = new AbortController()
-    templateAbortRef.current = abortController
-    templatePrevStateRef.current = templateState
-    const inputsKey = instruction
-    setPinnedSchemaRevisionId(null)
-    setTemplateState({ status: 'generating' })
-
-    try {
-      const pdfBlob = await (await fetch(pdfSource.url, { signal: abortController.signal })).blob()
-      const template = await requestSchema(pdfBlob, pdfSource.filename, abortController.signal, {
-        instruction,
-        markdown: documentMarkdown,
-      })
-      if (!abortController.signal.aborted) {
-        const definition = templateToSchemaDefinition(template)
-        const { recordDescription, schemaNodes: nodes } = definition
-        const coordinator = schemaSaveCoordinatorRef.current
-        if (coordinator) coordinator.edit(definition)
-        else if (projectContextId) {
-          const revision = await initializeSchemaRevision(
-            projectContextId,
-            definition,
-            abortController.signal,
-          )
-          const initialized = {
-            extractionSchemaId: revision.extractionSchemaId,
-            name: 'Extraction Schema',
-            schemaRevisionId: revision.schemaRevisionId,
-            revisionNumber: revision.revisionNumber,
-            recordDescription: revision.recordDescription,
-            schemaNodes: revision.schemaNodes,
-          }
-          setDurableSchema(initialized)
-          setSchemaName(initialized.name)
-          setSchemaSaveState({
-            status: 'saved',
-            acknowledged: revision,
-            draft: {
-              recordDescription: revision.recordDescription,
-              schemaNodes: revision.schemaNodes,
-            },
-          })
-          setPinnedSchemaRevisionId(revision.schemaRevisionId)
-        }
-        setTemplateState({
-          status: 'ready',
-          recordDescription,
-          nodes,
-          inputsKey,
-        })
-      }
-    } catch (error) {
-      if (abortController.signal.aborted) {
-        return
-      }
-      setTemplateState({
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Schema generation failed.',
-      })
-    }
-  }
-
-  function cancelGenerateSchema() {
-    templateAbortRef.current?.abort()
-    setTemplateState(templatePrevStateRef.current)
-  }
-
   // Front-end reset only: the durable schema remains the save target, while
   // the editor returns to its ungenerated state.
   async function resetSchema() {
     try {
-      await schemaSaveCoordinatorRef.current?.flush()
+      await schema.reset()
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Could not save the Current Schema Revision.')
+      showToast(
+        error instanceof Error
+          ? error.message
+          : 'Could not save the Current Schema Revision.',
+      )
       throw error
     }
-    templateAbortRef.current?.abort()
-    templatePrevStateRef.current = { status: 'idle' }
-    setTemplateState({ status: 'idle' })
-    setPinnedSchemaRevisionId(null)
+  }
+
+  async function handleGenerate(instruction: string) {
+    if (indexing) {
+      showToast('Document is still being indexed…')
+      return
+    }
+    const hadSchema = schemaSnap.extractionSchemaId !== null
+    await schema.generate((signal) =>
+      requestSchema(
+        {
+          projectContextId,
+          sourceRepresentationRevisionId: sourceRepresentationId,
+        },
+        signal,
+        { instruction },
+      ),
+    )
+    // The first successful generation initializes the Extraction Schema;
+    // name it the way initializeSchemaRevision's caller always has.
+    if (!hadSchema && schema.snapshot().extractionSchemaId !== null)
+      setSchemaName((name) => name ?? 'Extraction Schema')
   }
 
   function handleClipboard(event: React.ClipboardEvent<HTMLElement>) {
@@ -816,29 +594,6 @@ export function DocumentWorkspace({
     if (['backspace', 'delete'].includes(key) || (modifier && ['a', 'z', 'y'].includes(key))) {
       event.stopPropagation()
     }
-  }
-
-  function changeNodes(
-    nodes: SchemaNode[],
-    message: string,
-    recordDescription =
-      templateState.status === 'ready'
-        ? templateState.recordDescription
-        : '',
-  ) {
-    if (templateState.status !== 'ready') return
-    setPinnedSchemaRevisionId(null)
-    schemaSaveCoordinatorRef.current?.edit({
-      recordDescription,
-      schemaNodes: nodes,
-    })
-    setTemplateState({
-      ...templateState,
-      recordDescription,
-      nodes,
-      edited: true,
-    })
-    showToast(message)
   }
 
   function startResize(event: React.MouseEvent) {
@@ -864,24 +619,7 @@ export function DocumentWorkspace({
     ready: { dot: 'bg-green' },
     error: { dot: 'bg-danger', text: 'text-danger' },
   }
-
-  const schemaReady = templateState.status === 'ready'
-  const schemaTemplate =
-    templateState.status === 'ready'
-      ? schemaDefinitionToTemplate({
-          recordDescription: templateState.recordDescription,
-          schemaNodes: templateState.nodes,
-        })
-      : null
-
-  const schemaFieldCount =
-    templateState.status === 'ready' ? countTemplateFields(schemaTemplate) : 0
-
-  // The stale-vs-current-instruction indicator was dropped: SchemaPanel's own
-  // pre-generation chat (the instruction source) is only reachable before the
-  // schema is ready, so there's no way for the instruction to change out from
-  // under an already-generated schema. Left in place, commented out, rather
-  // than deleted.
+  const schemaReady = schemaSnap.view === 'editing'
   //
   // const schemaStale =
   //   templateState.status === 'ready' &&
@@ -895,13 +633,14 @@ export function DocumentWorkspace({
     indexing,
     initialAttempt: persistedExtraction,
     documentKey: sourceRepresentationId,
-    parsedDocument,
     reviewTarget:
-      sourceRepresentationId && pinnedSchemaRevisionId
-        ? { sourceRepresentationId, schemaRevisionId: pinnedSchemaRevisionId }
+      sourceRepresentationId && schemaSnap.extractableSchemaRevisionId
+        ? {
+            sourceRepresentationId,
+            schemaRevisionId: schemaSnap.extractableSchemaRevisionId,
+          }
         : null,
     onTerminal: (attempt, isRerun) => {
-      setNextExtractionStrategy('ARTICLE')
       setSelectedInspectionId(attempt.extractionId)
       setRailTab('results')
       if (attempt.outcome === 'FAILED')
@@ -916,7 +655,6 @@ export function DocumentWorkspace({
         )
     },
     onError: () => {
-      setNextExtractionStrategy('ARTICLE')
       setRailTab('results')
       showToast('Extraction failed — see details in Results')
     },
@@ -934,127 +672,76 @@ export function DocumentWorkspace({
     : null
   const inspectedAttempt = pinnedAttempt ?? latestAttempt
   const inspectionReadOnly = Boolean(inspectedAttempt && latestAttempt && inspectedAttempt.extractionId !== latestAttempt.extractionId)
+  const inspectedAttemptSchema = useMemo(() => pinnedAttempt
+    ? {
+        schemaRevisionId: pinnedAttempt.schemaRevisionId,
+        revisionNumber: pinnedAttempt.extractionSchema.revisionNumber,
+        recordDescription: pinnedAttempt.extractionSchema.recordDescription,
+        schemaNodes: pinnedAttempt.extractionSchema.schemaNodes,
+      }
+    : latestAttemptSchema?.schemaRevisionId === latestAttempt?.schemaRevisionId
+      ? latestAttemptSchema
+      : null,
+  [latestAttempt?.schemaRevisionId, latestAttemptSchema, pinnedAttempt])
 
-  useEffect(() => {
-    const container = containerRef.current
-    const viewer = pdfViewerRef.current
-    if (
-      !container ||
-      !parsedDocument ||
-      inspectedAttempt?.outcome !== 'SUCCEEDED' ||
-      !effectiveRailOpen ||
-      railTab !== 'results' ||
-      !resultPath
-    )
-      return
-    const evidenceLinks = inspectedAttempt.evidenceLinks ?? []
-    const reviewedOccurrenceIdsByAnchor = new Map(
-      (inspectedAttempt?.reviewDecisions ?? []).map((decision) => [
-        decision.evidenceAnchorId,
-        decision.reviewedOccurrenceIds,
-      ]),
-    )
-    const anchors = new Map(
-      parsedDocument.evidence_index.anchors.map((anchor) => [anchor.anchor_id, anchor]),
-    )
-    const fieldNames = pinnedAttempt
-      ? pinnedAttempt.extractionSchema.schemaNodes.map((node) => node.name)
-      : templateState.status === 'ready'
-        ? templateState.nodes.map((node) => node.name)
-        : []
-    const paint = (): EvidenceOccurrence | undefined => {
-      let firstOccurrence: EvidenceOccurrence | undefined
-      const paintedOccurrenceIds = new Set<string>()
-      container
-        .querySelectorAll('.parsed-evidence-highlight')
-        .forEach((highlight) => highlight.remove())
-      evidenceLinks.forEach((link, linkIndex) => {
-        if (
-          !resultPath.every(
-            (segment, index) => segment === String(link.resultPath[index]),
-          )
-        )
-          return
-        const anchor = anchors.get(link.evidenceAnchorId)
-        if (!anchor) return
-        const fieldName = link.resultPath.find(
-          (segment): segment is string =>
-            typeof segment === 'string' && fieldNames.includes(segment),
-        )
-        const fieldIndex = fieldName ? fieldNames.indexOf(fieldName) : linkIndex
-        const color = EVIDENCE_HIGHLIGHT_COLORS[
-          fieldIndex % EVIDENCE_HIGHLIGHT_COLORS.length
-        ]!
-        const reviewed = reviewedOccurrenceIdsByAnchor.get(anchor.anchor_id)
-        for (const occurrence of anchorOccurrences(anchor)) {
-          if (reviewed && !reviewed.includes(occurrence.occurrence_id)) continue
-          if (paintedOccurrenceIds.has(occurrence.occurrence_id)) continue
-          paintedOccurrenceIds.add(occurrence.occurrence_id)
-          firstOccurrence ??= occurrence
-          appendEvidenceOverlay(container, parsedDocument, occurrence, {
-            className: 'parsed-evidence-highlight',
-            background: color,
-            evidenceAnchorId: anchor.anchor_id,
-            resultPath: link.resultPath,
-          })
-        }
-      })
-      return firstOccurrence
-    }
-    viewer?.eventBus?.on('pagerendered', paint)
-    const firstOccurrence = paint()
-    if (firstOccurrence)
-      viewer?.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
-    return () => {
-      viewer?.eventBus?.off('pagerendered', paint)
-      container
-        .querySelectorAll('.parsed-evidence-highlight')
-        .forEach((highlight) => highlight.remove())
-    }
-  }, [
-    effectiveRailOpen,
-    inspectedAttempt,
+  const evidenceFieldNames = useMemo(
+    () =>
+      inspectedAttemptSchema?.schemaNodes.map((node) => node.name) ?? [],
+    [inspectedAttemptSchema],
+  )
+  const selectEvidenceAnchor = useEvidenceOverlays({
+    containerRef,
+    viewerRef: pdfViewerRef,
     parsedDocument,
-    pinnedAttempt,
-    railTab,
+    attempt: inspectedAttempt,
+    fieldNames: evidenceFieldNames,
     resultPath,
-    templateState,
-  ])
-
-  useEffect(() => {
-    if (!extractAfterSave?.saved) return
-    queueMicrotask(() => {
-      const { strategy } = extractAfterSave
-      setExtractAfterSave(null)
-      void extraction.runExtraction(strategy)
-    })
-  }, [extractAfterSave, extraction])
+    active: effectiveRailOpen && railTab === 'results',
+  })
 
   async function runExtraction() {
-    if (extractAfterSave !== null) return
-    const strategy = nextExtractionStrategy
-    setNextExtractionStrategy('ARTICLE')
-    const coordinator = schemaSaveCoordinatorRef.current
-    if (!coordinator) return extraction.runExtraction(strategy)
-    setExtractAfterSave({ strategy, saved: false })
+    if (savingForRun) return
+    setSavingForRun(true)
+    const targetSourceRepresentationId = sourceRepresentationId
     try {
-      await coordinator.flush()
-      setExtractAfterSave({ strategy, saved: true })
+      const revision = await schema.flush()
+      if (
+        activeSourceRepresentationIdRef.current !==
+        targetSourceRepresentationId
+      )
+        return
+      if (!revision)
+        throw new Error('Save the Current Schema Revision before extraction.')
+      const terminal = await extraction.runExtraction({
+        sourceRepresentationId: targetSourceRepresentationId,
+        schemaRevisionId: revision.schemaRevisionId,
+      })
+      if (terminal)
+        setLatestAttemptSchema({
+          schemaRevisionId: revision.schemaRevisionId,
+          revisionNumber: revision.revisionNumber,
+          recordDescription: revision.recordDescription,
+          schemaNodes: revision.schemaNodes,
+        })
     } catch (error) {
-      setExtractAfterSave(null)
       showToast(
         error instanceof Error
           ? error.message
           : 'Save the Current Schema Revision before extraction.',
       )
+    } finally {
+      setSavingForRun(false)
     }
   }
 
-  async function flushSchemaEdits() {
-    await schemaSaveCoordinatorRef.current?.flush()
-  }
-
   const running = extraction.state.status === 'running'
+  const runExtractionUnavailable =
+    savingForRun ||
+    !sourceRepresentationId ||
+    !schemaReady ||
+    indexing ||
+    schemaSnap.save?.status === 'conflict' ||
+    schemaSnap.save?.status === 'error'
   const runLabel = running
     ? 'Cancel extraction'
     : extraction.hasResults
@@ -1144,32 +831,12 @@ export function DocumentWorkspace({
               </button>
             </div>
           )}
-          <label className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-ink-muted">
-            <span>Strategy</span>
-            <select
-              aria-label="Extraction strategy"
-              value={nextExtractionStrategy}
-              disabled={running || extractAfterSave !== null}
-              onChange={(event) =>
-                setNextExtractionStrategy(event.target.value as ExtractionStrategy)
-              }
-              className="rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium text-ink outline-none focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <option value="ARTICLE">Article</option>
-              <option value="CATALOG">Catalog</option>
-            </select>
-          </label>
           <Button
             variant="primary"
             size="md"
             disabled={
               !running &&
-              (extractAfterSave !== null ||
-                !sourceRepresentationId ||
-                !schemaReady ||
-                indexing ||
-                schemaSaveState?.status === 'conflict' ||
-                schemaSaveState?.status === 'error')
+              runExtractionUnavailable
             }
             title={
               running
@@ -1226,51 +893,31 @@ export function DocumentWorkspace({
               onToggle={() => setRailOpen((open) => !open)}
               tab={railTab}
               onTabChange={setRailTab}
-              schemaState={templateState}
-              schemaReady={schemaReady}
-              schemaFieldCount={schemaFieldCount}
-              onGenerate={(instruction) => void generateSchema(instruction)}
-              onCancelGenerate={cancelGenerateSchema}
-              onResetSchema={resetSchema}
-              onNodesChange={changeNodes}
-              beforeSchemaEdit={flushSchemaEdits}
-              schemaHistory={schemaHistory}
-              currentSchemaRevisionNumber={schemaSaveState?.acknowledged.revisionNumber}
-              loadSchemaRevision={(schemaRevisionId) => {
-                if (!projectContextId || !durableSchema)
-                  return Promise.reject(new Error('No durable schema is open.'))
-                return getSchemaRevision(
-                  projectContextId,
-                  durableSchema.extractionSchemaId,
-                  schemaRevisionId,
-                )
-              }}
+              schema={schema}
+              onGenerateInstructions={handleGenerate}
+              onClearDraft={resetSchema}
               extraction={extraction}
-              extractionStrategy={nextExtractionStrategy}
+              onRunExtraction={runExtraction}
+              runExtractionDisabled={runExtractionUnavailable}
               inspection={{
                 attempt: inspectedAttempt,
                 readOnly: inspectionReadOnly,
                 documentMarkdown,
                 parsedDocument,
                 reviewDecisions: inspectedAttempt?.reviewDecisions ?? [],
-                pinnedSchema: pinnedAttempt?.extractionSchema ?? null,
-                // A pinned historical Extraction carries its own Extraction Schema;
-                // the latest attempt shows against the current one.
-                exportSchema:
-                  pinnedAttempt?.extractionSchema ??
-                  (templateState.status === 'ready'
-                    ? { recordDescription: templateState.recordDescription, schemaNodes: templateState.nodes }
-                    : null),
+                pinnedSchema: inspectedAttemptSchema,
+                exportSchema: inspectedAttemptSchema,
               }}
               sourceDocumentName={pdfSource.filename}
               schemaName={schemaName}
               onRenameSchema={async (name) => {
-                if (!projectContextId || !durableSchema)
+                const extractionSchemaId = schemaSnap.extractionSchemaId
+                if (!projectContextId || !extractionSchemaId)
                   return 'No durable schema is open.'
                 try {
                   const renamed = await renameExtractionSchema(
                     projectContextId,
-                    durableSchema.extractionSchemaId,
+                    extractionSchemaId,
                     name,
                   )
                   setSchemaName(renamed.name)
