@@ -4,7 +4,7 @@
 
 > **Status: approved 2026-07-16; implement after PR #24 merges.** Carries the
 > surviving tasks from the closed
-> [`harden-canonical-parsing-service`](../harden-canonical-parsing-service/proposal.md)
+> [`harden-canonical-parsing-service`](../archive/2026-08-26-harden-canonical-parsing-service/proposal.md)
 > change: former tasks 2.7, 2.8, and batch 5.
 
 ## Why
