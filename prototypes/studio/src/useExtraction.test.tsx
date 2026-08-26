@@ -36,6 +36,8 @@ function attempt(
       inputTokens: null,
       outputTokens: null,
       grounding: null,
+      catalog: null,
+      retry: null,
     },
     failure: null,
     resultPayload: { records: [{}] },
@@ -92,6 +94,69 @@ describe('useExtraction server-owned lifecycle', () => {
       status: 'ready',
       result: { records: [{}] },
     })
+  })
+
+  it('submits the selected Catalog strategy with the run identity', async () => {
+    vi.mocked(api.requestExtraction).mockResolvedValue(
+      attempt({
+        strategy: 'CATALOG',
+        diagnostics: {
+          ...attempt().diagnostics,
+          catalog: { stages: [], records: [] },
+        },
+      }),
+    )
+    const { result } = renderHook(() => useExtraction(options()))
+
+    await act(() => result.current.runExtraction(undefined, 'CATALOG'))
+
+    expect(api.requestExtraction).toHaveBeenCalledWith(
+      expect.objectContaining({ strategy: 'CATALOG' }),
+      expect.any(AbortSignal),
+    )
+    expect(result.current.attempt?.strategy).toBe('CATALOG')
+  })
+
+  it('submits targeted Catalog retries only for a Catalog parent', async () => {
+    const article = attempt()
+    const { result: articleHook } = renderHook(() =>
+      useExtraction(options(article)),
+    )
+    await act(() =>
+      articleHook.current.retryExtraction({
+        retryDocument: false,
+        rediscover: false,
+        retryRecordStartBlockIds: ['h1'],
+      }),
+    )
+    expect(api.requestExtraction).not.toHaveBeenCalled()
+
+    const catalog = attempt({
+      strategy: 'CATALOG',
+      diagnostics: {
+        ...attempt().diagnostics,
+        catalog: { stages: [], records: [] },
+      },
+    })
+    vi.mocked(api.requestExtraction).mockResolvedValue(catalog)
+    const { result } = renderHook(() => useExtraction(options(catalog)))
+    await act(() =>
+      result.current.retryExtraction({
+        retryDocument: false,
+        rediscover: true,
+        retryRecordStartBlockIds: ['h1'],
+      }),
+    )
+    expect(api.requestExtraction).toHaveBeenCalledWith(
+      {
+        id: expect.any(String),
+        retryOfId: catalog.extractionId,
+        retryDocument: false,
+        rediscover: true,
+        retryRecordStartBlockIds: ['h1'],
+      },
+      expect.any(AbortSignal),
+    )
   })
 
   it('runs with an explicit acknowledged target before the next render', async () => {

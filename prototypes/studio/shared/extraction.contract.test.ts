@@ -24,6 +24,8 @@ const completed = {
     inputTokens: null,
     outputTokens: null,
     grounding: null,
+    catalog: null,
+    retry: null,
   },
   failure: null,
   resultPayload: { records: [{}] },
@@ -100,7 +102,7 @@ describe('Article lifecycle contracts', () => {
     }).success).toBe(false)
   })
 
-  it('rejects Catalog and targeted-retry request shapes', () => {
+  it('accepts Catalog strategy only with ordered stage and boundary diagnostics', () => {
     expect(
       extractionRequestSchema.safeParse({
         id: id('1'),
@@ -108,8 +110,56 @@ describe('Article lifecycle contracts', () => {
         schemaRevisionId: id('4'),
         strategy: 'CATALOG',
       }).success,
-    ).toBe(false)
+    ).toBe(true)
 
+    // Strategy and catalog diagnostics must agree in both directions.
+    expect(
+      extractionAttemptSchema.safeParse({
+        ...completed,
+        strategy: 'CATALOG',
+      }).success,
+    ).toBe(false)
+    const stage = {
+      provenance: 'executed',
+      outcome: 'succeeded',
+      finishReason: 'stop',
+      calls: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      durationMs: 1,
+      failureCode: null,
+    } as const
+    const catalog = {
+      stages: (['document-values', 'discovery', 'record-values', 'grounding'] as const)
+        .map((name) => ({ ...stage, stage: name })),
+      records: [{
+        ...stage,
+        ordinal: 0,
+        boundary: {
+          startBlockId: 'block-1',
+          startContentIndex: 0,
+          endContentIndex: 2,
+          headingText: 'First',
+          headingLevel: 1,
+        },
+      }],
+    }
+    expect(
+      extractionAttemptSchema.safeParse({
+        ...completed,
+        strategy: 'CATALOG',
+        diagnostics: { ...completed.diagnostics, catalog },
+      }).success,
+    ).toBe(true)
+    expect(
+      extractionAttemptSchema.safeParse({
+        ...completed,
+        diagnostics: { ...completed.diagnostics, catalog },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('separates fresh requests from strict targeted retry selections', () => {
     expect(
       extractionRequestSchema.safeParse({
         id: id('1'),
@@ -117,6 +167,35 @@ describe('Article lifecycle contracts', () => {
         schemaRevisionId: id('4'),
         strategy: 'ARTICLE',
         retryOfId: id('5'),
+      }).success,
+    ).toBe(false)
+
+    const retry = extractionRequestSchema.safeParse({
+      id: id('1'),
+      retryOfId: id('5'),
+      retryRecordStartBlockIds: ['block-1'],
+    })
+    expect(retry.success).toBe(true)
+    expect(retry.success && retry.data).toMatchObject({
+      retryOfId: id('5'),
+      retryDocument: false,
+      rediscover: false,
+      retryRecordStartBlockIds: ['block-1'],
+    })
+
+    // A retry never carries caller pins, and record identities must be unique.
+    expect(
+      extractionRequestSchema.safeParse({
+        id: id('1'),
+        retryOfId: id('5'),
+        schemaRevisionId: id('4'),
+      }).success,
+    ).toBe(false)
+    expect(
+      extractionRequestSchema.safeParse({
+        id: id('1'),
+        retryOfId: id('5'),
+        retryRecordStartBlockIds: ['block-1', 'block-1'],
       }).success,
     ).toBe(false)
   })

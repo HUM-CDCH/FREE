@@ -128,7 +128,12 @@ describe('/api/batch-extractions transport', () => {
     })
 
     const catalog = await handle(open({ ...selection, strategy: 'CATALOG' }))
-    expect(catalog.status).toBe(422)
+    expect(catalog.status).toBe(202)
+    expect(module.scheduleBatch).toHaveBeenLastCalledWith({
+      ...selection,
+      strategy: 'CATALOG',
+      repetition: 'reuse-equal-selection',
+    })
   })
 
   it('lists, reads, and exports through caller-shaped module methods', async () => {

@@ -30,4 +30,4 @@
 - [x] 5.1 Add deterministic contract and server tests for call scheduling, field overlays, grounding exemptions, ordered partial assembly, failure states, cancellation, and 100-record truncation.
 - [x] 5.2 Add real Vite + disposable PostgreSQL + fresh-browser lifecycle coverage for Catalog complete, partial, discovery failure, record failure, truncation, cancellation, review finalization, and reopen.
 - [x] 5.3 Run the existing Article lifecycle suite and verify the one-call Article behavior remains intact.
-- [x] 5.4 Manually smoke one Article and one Catalog through each configured provider; block release on calls, completeness, boundaries, and grounding correctness, while reporting tokens and latency without a hard budget.
+- [ ] 5.4 Manually smoke one Article and one Catalog through each configured provider; block release on calls, completeness, boundaries, and grounding correctness, while reporting tokens and latency without a hard budget.

@@ -7,6 +7,7 @@ import {
 } from 'extraction'
 import { createResearcherApiHandlers } from './extractions.js'
 import type * as ExtractionRuntimeModule from './_extraction_runtime.js'
+import { extractionAttemptSchema } from '../shared/extraction.contract.js'
 
 const runtime = vi.hoisted(() => ({
   createResearcherExtractions: vi.fn(),
@@ -59,6 +60,8 @@ const snapshot: ExtractionSnapshot = {
         durationMs: 4,
       },
     ],
+    catalog: null,
+    retry: null,
   },
   result: { records: [{ title: 'Alpha' }] },
   evidence: [
@@ -188,7 +191,50 @@ describe('/api/extractions transport', () => {
     expect((await handle(request(fresh))).status).toBe(200)
   })
 
-  it('rejects targeted retry requests', async () => {
+  it('omits backend-only Catalog document values from strict API JSON', async () => {
+    const documentStage = {
+      stage: 'document-values' as const,
+      provenance: 'reused' as const,
+      outcome: 'succeeded' as const,
+      finishReason: 'stop',
+      calls: 0,
+      inputTokens: null,
+      outputTokens: null,
+      durationMs: 0,
+      failureCode: null,
+    }
+    const catalogSnapshot: ExtractionSnapshot = {
+      ...snapshot,
+      strategy: 'CATALOG',
+      diagnostics: {
+        ...snapshot.diagnostics,
+        catalog: {
+          stages: [documentStage],
+          records: [],
+          documentValues: { archive: 'internal-only' },
+        },
+      },
+    }
+    const module = extractionModule({
+      runSingle: vi.fn<ExtractionModule['runSingle']>(async () => ({
+        disposition: 'created',
+        extraction: catalogSnapshot,
+      })),
+    })
+    const response = await handlerFor(module)(
+      request({ ...fresh, strategy: 'CATALOG' }),
+    )
+    const body = extractionAttemptSchema.parse(await response.json())
+
+    expect(response.status).toBe(201)
+    expect(body.diagnostics.catalog).toEqual({
+      stages: [documentStage],
+      records: [],
+    })
+    expect(body.diagnostics.catalog).not.toHaveProperty('documentValues')
+  })
+
+  it('maps targeted retry requests to retry inputs without caller pins', async () => {
     const module = extractionModule()
     const handle = handlerFor(module)
     const response = await handle(
@@ -201,8 +247,28 @@ describe('/api/extractions transport', () => {
       }),
     )
 
-    expect(response.status).toBe(422)
-    expect(module.runSingle).not.toHaveBeenCalled()
+    expect(response.status).toBe(201)
+    expect(module.runSingle).toHaveBeenCalledWith(
+      {
+        kind: 'retry',
+        extractionId: EXTRACTION,
+        retryOfId: '51000000-0000-4000-8006-000000000099',
+        retryDocument: false,
+        rediscover: true,
+        retryRecordStartBlockIds: ['heading-a'],
+      },
+      expect.anything(),
+    )
+
+    // Mixing retry identity with fresh pins stays rejected at the contract.
+    const mixed = await handle(
+      request({
+        id: EXTRACTION,
+        retryOfId: '51000000-0000-4000-8006-000000000099',
+        schemaRevisionId: '51000000-0000-4000-8006-000000000001',
+      }),
+    )
+    expect(mixed.status).toBe(422)
   })
 
   it('reads canonical review preparation and finalizes submitted decisions', async () => {

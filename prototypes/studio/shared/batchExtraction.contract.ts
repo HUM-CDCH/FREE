@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from 'extraction/batch'
 import { canonicalUuidSchema } from './projectContext.contract.js'
+import { extractionStrategySchema } from './extraction.contract.js'
 
 export { BATCH_EXTRACTION_SELECTION_LIMIT }
 
@@ -21,7 +22,7 @@ export const batchExtractionRequestSchema = z
   .object({
     projectContextId: canonicalUuidSchema,
     schemaRevisionId: canonicalUuidSchema,
-    strategy: z.literal('ARTICLE'),
+    strategy: extractionStrategySchema,
     force: z.boolean().optional(),
     sourceDocumentIds: z
       .array(canonicalUuidSchema)
@@ -64,7 +65,7 @@ export const batchExtractionSchema = z
     extractionSchemaId: canonicalUuidSchema,
     extractionSchemaName: z.string(),
     schemaRevisionNumber: z.number().int().positive(),
-    strategy: z.literal('ARTICLE'),
+    strategy: extractionStrategySchema,
     executionStatus: projectOperationStatusSchema.optional(),
     executionFailureMessage: z.string().nullable().optional(),
     startedAt: z.iso.datetime().nullable().optional(),

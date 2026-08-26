@@ -8,10 +8,22 @@ import {
 import type { ExtractionState } from './extraction'
 import type {
   ExtractionAttempt,
+  ExtractionRetrySelection,
+  ExtractionStrategy,
   ReviewDecisionAction,
   ReviewDecisionInput,
 } from '../shared/extraction.contract'
 import { resultPathKey } from '../shared/groundedExtraction'
+
+export type ExtractionRetryInput = Omit<ExtractionRetrySelection, 'retryOfId'>
+
+type ExtractionRunRequest =
+  | Readonly<{
+      sourceRepresentationRevisionId: string
+      schemaRevisionId: string
+      strategy: ExtractionStrategy
+    }>
+  | Readonly<{ retryOfId: string } & ExtractionRetryInput>
 
 export type ReviewTarget = {
   sourceRepresentationId: string
@@ -228,7 +240,7 @@ export function useExtraction({
     }
   }
 
-  async function runRequest(isRerun: boolean, target: ReviewTarget) {
+  async function runRequest(isRerun: boolean, request: ExtractionRunRequest) {
     if (
       !schemaReady ||
       state.status === 'running' ||
@@ -246,12 +258,7 @@ export function useExtraction({
     setState({ status: 'running', step: 'extraction' })
     try {
       const terminal = await requestExtraction(
-        {
-          id: extractionId,
-          sourceRepresentationRevisionId: target.sourceRepresentationId,
-          schemaRevisionId: target.schemaRevisionId,
-          strategy: 'ARTICLE',
-        },
+        { id: extractionId, ...request },
         controller.signal,
       )
       if (controller.signal.aborted) return
@@ -274,9 +281,22 @@ export function useExtraction({
     }
   }
 
-  async function runExtraction(target: ReviewTarget | null = reviewTarget) {
+  async function runExtraction(
+    target: ReviewTarget | null = reviewTarget,
+    strategy: ExtractionStrategy = 'ARTICLE',
+  ) {
     if (!target) return null
-    return runRequest(attempt !== null, target)
+    return runRequest(attempt !== null, {
+      sourceRepresentationRevisionId: target.sourceRepresentationId,
+      schemaRevisionId: target.schemaRevisionId,
+      strategy,
+    })
+  }
+
+  async function retryExtraction(selection: ExtractionRetryInput) {
+    const parent = attempt
+    if (!parent || parent.strategy !== 'CATALOG') return null
+    return runRequest(true, { retryOfId: parent.extractionId, ...selection })
   }
 
   async function acceptResult() {
@@ -333,6 +353,7 @@ export function useExtraction({
     hasResults,
     stale,
     runExtraction,
+    retryExtraction,
     requestCancellation,
     cancellationRequested,
     cancellationError,

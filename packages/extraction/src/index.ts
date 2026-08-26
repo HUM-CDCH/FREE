@@ -1,5 +1,18 @@
+export {
+  CatalogBoundaryResolutionError,
+  resolveCatalogBoundaries,
+} from './catalog-boundaries.js'
+export type {
+  CatalogBoundary,
+  CatalogBoundaryErrorCode,
+} from './catalog-boundaries.js'
+export {
+  CATALOG_NOT_ATTEMPTED_LIMIT,
+  CATALOG_RECORD_LIMIT,
+} from './catalog.js'
 export { ExtractionError } from './errors.js'
 export { createExtractionRuntime } from './runtime.js'
+export { canonicalSourceSlice } from './source-context.js'
 export type { ExtractionErrorCode } from './errors.js'
 export type { CreateExtractionRuntimeDependencies } from './runtime.js'
 export type {
@@ -15,6 +28,13 @@ export type {
 export type {
   BatchDisposition,
   BatchExtractionMemberSnapshot,
+  CatalogCallDiagnostics,
+  CatalogDiagnostics,
+  CatalogRecordDiagnostics,
+  CatalogStage,
+  CatalogStageDiagnostics,
+  ExtractionRetrySelection,
+  RetryExtractionInput,
   BatchExtractionResultItem,
   BatchExtractionResults,
   BatchExtractionSnapshot,

@@ -1,6 +1,7 @@
 import { assign, fromPromise, setup } from 'xstate'
 import type { SchemaDefinition } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
+import type { ExtractionStrategy } from '../../shared/extraction.contract'
 
 export type BatchSchemaSuggestionOperations = {
   create(sourceDocumentIds: readonly string[]): Promise<BatchSchemaSuggestion>
@@ -9,7 +10,10 @@ export type BatchSchemaSuggestionOperations = {
     suggestion: BatchSchemaSuggestion,
     definition: SchemaDefinition,
   ): Promise<BatchSchemaSuggestion>
-  run(batchSchemaSuggestionId: string): Promise<BatchSchemaSuggestion>
+  run(
+    batchSchemaSuggestionId: string,
+    strategy: ExtractionStrategy,
+  ): Promise<BatchSchemaSuggestion>
   isConflict(error: unknown): boolean
   failureMessage(error: unknown, fallback: string): string
   onSuggestion(suggestion: BatchSchemaSuggestion): void
@@ -34,7 +38,7 @@ type Event =
   | { type: 'suggestion.retry' }
   | { type: 'proposal.changed'; definition: SchemaDefinition }
   | { type: 'draft.flush' }
-  | { type: 'run.requested' }
+  | { type: 'run.requested'; strategy: ExtractionStrategy }
   | { type: 'reset' }
 
 const createSuggestion = fromPromise<
@@ -60,8 +64,11 @@ const saveDraft = fromPromise<
 
 const runSuggestion = fromPromise<
   BatchSchemaSuggestion,
-  Pick<Context, 'run'> & { batchSchemaSuggestionId: string }
->(({ input }) => input.run(input.batchSchemaSuggestionId))
+  Pick<Context, 'run'> & {
+    batchSchemaSuggestionId: string
+    strategy: ExtractionStrategy
+  }
+>(({ input }) => input.run(input.batchSchemaSuggestionId, input.strategy))
 
 function suggestionOutput(event: object): BatchSchemaSuggestion | null {
   if (!('output' in event)) return null
@@ -456,9 +463,11 @@ export const batchSchemaSuggestionMachine = setup({
     running: {
       invoke: {
         src: 'runSuggestion',
-        input: ({ context }) => ({
+        input: ({ context, event }) => ({
           run: context.run,
           batchSchemaSuggestionId: context.suggestion!.batchSchemaSuggestionId,
+          strategy:
+            event.type === 'run.requested' ? event.strategy : 'ARTICLE',
         }),
         onDone: {
           target: 'confirmed',

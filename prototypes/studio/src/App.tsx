@@ -19,6 +19,7 @@ import {
 import { useEvidenceOverlays } from './useEvidenceOverlays'
 // import type { AnnotationsMode } from './api' — retired with the Annotation tab
 import { useExtraction } from './useExtraction'
+import type { ExtractionStrategy } from '../shared/extraction.contract'
 import { Button } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 // Only used by the highlight-editor sync wiring retired below, alongside the
@@ -196,6 +197,15 @@ export function DocumentWorkspace({
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const [schemaName, setSchemaName] = useState(extractionSchema?.name ?? null)
   const [savingForRun, setSavingForRun] = useState(false)
+  // One-shot per-run selection: each new run defaults back to Article, and the
+  // selector never changes the strategy of an active or persisted attempt.
+  const [nextExtractionStrategy, setNextExtractionStrategy] =
+    useState<ExtractionStrategy>('ARTICLE')
+  const [strategyDocument, setStrategyDocument] = useState(sourceRepresentationId)
+  if (strategyDocument !== sourceRepresentationId) {
+    setStrategyDocument(sourceRepresentationId)
+    if (nextExtractionStrategy !== 'ARTICLE') setNextExtractionStrategy('ARTICLE')
+  }
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('schema')
@@ -712,10 +722,15 @@ export function DocumentWorkspace({
         return
       if (!revision)
         throw new Error('Save the Current Schema Revision before extraction.')
-      const terminal = await extraction.runExtraction({
-        sourceRepresentationId: targetSourceRepresentationId,
-        schemaRevisionId: revision.schemaRevisionId,
-      })
+      const strategy = nextExtractionStrategy
+      setNextExtractionStrategy('ARTICLE')
+      const terminal = await extraction.runExtraction(
+        {
+          sourceRepresentationId: targetSourceRepresentationId,
+          schemaRevisionId: revision.schemaRevisionId,
+        },
+        strategy,
+      )
       if (terminal)
         setLatestAttemptSchema({
           schemaRevisionId: revision.schemaRevisionId,
@@ -831,6 +846,21 @@ export function DocumentWorkspace({
               </button>
             </div>
           )}
+          <label className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-ink-muted">
+            Strategy
+            <select
+              aria-label="Extraction strategy"
+              value={nextExtractionStrategy}
+              disabled={running || savingForRun}
+              onChange={(event) =>
+                setNextExtractionStrategy(event.target.value as ExtractionStrategy)
+              }
+              className="rounded-md border border-line bg-surface px-2 py-1 text-xs text-ink"
+            >
+              <option value="ARTICLE">Article</option>
+              <option value="CATALOG">Catalog</option>
+            </select>
+          </label>
           <Button
             variant="primary"
             size="md"

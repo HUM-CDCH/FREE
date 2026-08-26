@@ -32,11 +32,11 @@ export function useBatchSchemaSuggestion({
           definition,
           suggestion.draftVersion,
         ),
-      run: (batchSchemaSuggestionId) =>
+      run: (batchSchemaSuggestionId, strategy) =>
         runBatchSchemaSuggestion(
           projectContextId,
           batchSchemaSuggestionId,
-          'ARTICLE',
+          strategy,
         ),
       isConflict: (error) =>
         error instanceof BatchSchemaSuggestionRequestError &&

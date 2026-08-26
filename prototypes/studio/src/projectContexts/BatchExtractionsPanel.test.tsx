@@ -602,6 +602,68 @@ describe('BatchExtractionsPanel', () => {
     expect(body).not.toHaveProperty('id')
   })
 
+  it('opens a Batch Extraction with the selected Catalog strategy', async () => {
+    const fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return response({ batchExtractions: [] })
+        if (url.startsWith('/api/extraction-schemas?'))
+          return response({
+            extractionSchemas: [
+              {
+                extractionSchemaId: batch.extractionSchemaId,
+                name: 'Places',
+                createdAt: '2026-08-14T10:00:00.000Z',
+                currentRevision: {
+                  schemaRevisionId,
+                  revisionNumber: 1,
+                  origin: 'researcher-edit',
+                  createdAt: '2026-08-14T10:00:00.000Z',
+                },
+              },
+            ],
+          })
+        if (url === '/api/batch-extractions' && init?.method === 'POST')
+          return response({
+            batchExtraction: { ...batch, strategy: 'CATALOG', members: [] },
+            disposition: 'created',
+          })
+        throw new Error(`Unexpected request: ${url}`)
+      },
+    )
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'New Batch Extraction' }),
+    )
+    await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(2))
+    const strategySelect = screen.getByLabelText('Batch extraction strategy')
+    expect(strategySelect).toHaveValue('ARTICLE')
+    fireEvent.change(strategySelect, { target: { value: 'CATALOG' } })
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Run 1 Source Document' }))
+
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/batch-extractions',
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    )
+    const body = JSON.parse(
+      String(
+        fetch.mock.calls.find(
+          ([url, init]) =>
+            url === '/api/batch-extractions' && init?.method === 'POST',
+        )?.[1]?.body,
+      ),
+    )
+    expect(body).toEqual(
+      expect.objectContaining({ strategy: 'CATALOG', schemaRevisionId }),
+    )
+  })
+
   it('keeps an opened batch when the initial history read resolves later', async () => {
     let resolveHistory!: (value: Response) => void
     const history = new Promise<Response>((resolve) => {

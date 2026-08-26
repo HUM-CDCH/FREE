@@ -7,6 +7,22 @@ import type {
   LoadedExtractionInputs,
   TerminalExtraction,
 } from './dependencies.js'
+import {
+  CatalogBoundaryResolutionError,
+  resolveCatalogBoundaries,
+  type CatalogBoundary,
+} from './catalog-boundaries.js'
+import {
+  CATALOG_NOT_ATTEMPTED_LIMIT,
+  CATALOG_RECORD_LIMIT,
+  reuseCall,
+  seedCatalogDiagnostics,
+  sameRetrySelection,
+  setCatalogStage,
+  validateCatalogRetry,
+  type CatalogRetryContext,
+  type MutableCatalogDiagnostics,
+} from './catalog.js'
 import { ExtractionError, extractionError } from './errors.js'
 import { groundExtraction, populatedContentPaths, resultPathKey } from './grounding.js'
 import { decodeParsedDocument, type ParsedDocument } from './parsed-document.js'
@@ -20,10 +36,13 @@ import {
   stripDescriptions,
 } from './schema.js'
 import type { ExtractionSchemaDefinition } from './schema.js'
-import { canonicalSource } from './source-context.js'
+import { canonicalSource, canonicalSourceSlice } from './source-context.js'
 import type {
+  CatalogStageDiagnostics,
   EvidenceLink,
   ExtractionDiagnostics,
+  ExtractionRetrySelection,
+  ExtractionStrategy,
   CancellationResult,
   FinalizeReviewResult,
   ExtractionSnapshot,
@@ -76,7 +95,20 @@ type ExecutionState = {
   ungroundedPaths: ExtractionDiagnostics['ungroundedPaths']
   groundingIssues: ExtractionDiagnostics['groundingIssues']
   groundingBatches: ExtractionDiagnostics['groundingBatches']
+  catalog: MutableCatalogDiagnostics | null
+  retry: ExtractionRetrySelection | null
 }
+
+/** One run's durable identity after retry inputs are resolved against their parent. */
+type ResolvedRun = Readonly<{
+  input: InternalRunSingleInput
+  sourceRepresentationRevisionId: string
+  schemaRevisionId: string
+  strategy: ExtractionStrategy
+  retryOfId: string | null
+  batchExtractionId: string | null
+  retry: CatalogRetryContext | null
+}>
 
 export function createExtractionModule(
   dependencies: ExtractionModuleDependencies,
@@ -299,16 +331,45 @@ export function createExtractionModule(
     },
   }
 
+  async function resolveRun(input: InternalRunSingleInput): Promise<ResolvedRun> {
+    if (input.kind === 'retry') {
+      const parent = await dependencies.persistence.readExtraction(input.retryOfId)
+      const retry = validateCatalogRetry(parent, input)
+      return {
+        input,
+        sourceRepresentationRevisionId: retry.parent.sourceRepresentationRevisionId,
+        schemaRevisionId: retry.parent.schemaRevisionId,
+        strategy: 'CATALOG',
+        retryOfId: retry.parent.extractionId,
+        // A retry stays in the Batch Extraction its parent belongs to.
+        batchExtractionId: retry.parent.batchExtractionId,
+        retry,
+      }
+    }
+    return {
+      input,
+      sourceRepresentationRevisionId: input.sourceRepresentationRevisionId,
+      schemaRevisionId: input.schemaRevisionId,
+      strategy: input.strategy,
+      retryOfId: null,
+      batchExtractionId: input.kind === 'batch-member' ? input.batchExtractionId : null,
+      retry: null,
+    }
+  }
+
   async function execute(input: InternalRunSingleInput, signal: AbortSignal, beginPersist: () => void): Promise<RunSingleResult> {
     const startedAt = now()
+    const resolved = await resolveRun(input)
     const inputs = await dependencies.persistence.loadExtractionInputs(
-      input.sourceRepresentationRevisionId,
-      input.schemaRevisionId,
+      resolved.sourceRepresentationRevisionId,
+      resolved.schemaRevisionId,
     )
     if (!inputs) throw new ExtractionError('invalid_extraction_pins', 'The Source Representation Revision and Schema Revision do not share one Project Context.')
     const state: ExecutionState = {
       phase: 'loading', startedAt, modelCalls: 0, metadata: [], valuesAttribution: null,
       ungroundedPaths: [], groundingIssues: [], groundingBatches: [],
+      catalog: resolved.strategy === 'CATALOG' ? seedCatalogDiagnostics() : null,
+      retry: resolved.retry?.selection ?? null,
     }
     let document: ParsedDocument
     let result: Record<string, unknown> | null = null
@@ -319,13 +380,22 @@ export function createExtractionModule(
       state.valuesAttribution = models.attribution
       document = decodeCanonical(inputs.parsedDocument)
       const definition = parsePinnedSchema(inputs.schemaTree)
-      const generated = await executeArticle(
-        document,
-        definition,
-        models.model,
-        signal,
-        state,
-      )
+      const generated = resolved.strategy === 'CATALOG'
+        ? await executeCatalog(
+            document,
+            definition,
+            models.model,
+            signal,
+            state,
+            resolved.retry,
+          )
+        : await executeArticle(
+            document,
+            definition,
+            models.model,
+            signal,
+            state,
+          )
       result = generated.result
       complete = generated.complete
       state.phase = 'grounding'
@@ -339,17 +409,18 @@ export function createExtractionModule(
       state.groundingIssues = grounding.issues
       state.groundingBatches = grounding.batches
       state.metadata.push(...grounding.metadata)
+      if (state.catalog) setGroundingStage(state.catalog, grounding.batches, grounding.issues)
       if (grounding.ungroundedPaths.length > 0 || grounding.issues.length > 0)
         complete = false
       beginPersist()
       state.phase = 'persisting'
-      return await persistTerminal(input, inputs, state, { outcome: 'SUCCEEDED', complete, result, evidence, failure: null })
+      return await persistTerminal(resolved, inputs, state, { outcome: 'SUCCEEDED', complete, result, evidence, failure: null })
     } catch (error) {
       const mapped = extractionError(error)
       const failurePhase = state.phase
       beginPersist()
       state.phase = 'persisting'
-      return await persistTerminal(input, inputs, state, {
+      return await persistTerminal(resolved, inputs, state, {
         outcome: mapped.code === 'cancelled' || signal.aborted ? 'CANCELLED' : 'FAILED',
         complete: null,
         result: null,
@@ -357,6 +428,51 @@ export function createExtractionModule(
         failure: { code: mapped.code, message: mapped.message, phase: failurePhase },
       })
     }
+  }
+
+  function callDiagnostic(
+    outcome: CatalogStageDiagnostics['outcome'],
+    startedAt: number,
+    metadata: ModelGenerationMetadata | null,
+    failureCode: string | null = null,
+    calls = outcome === 'not_attempted' ? 0 : 1,
+  ): Omit<CatalogStageDiagnostics, 'stage'> {
+    return {
+      provenance: 'executed',
+      outcome,
+      finishReason: metadata?.finishReason ?? null,
+      calls,
+      inputTokens: metadata?.inputTokens ?? null,
+      outputTokens: metadata?.outputTokens ?? null,
+      durationMs:
+        calls === 0 ? 0 : metadata?.durationMs ?? Math.max(0, Math.round(now() - startedAt)),
+      failureCode,
+    }
+  }
+
+  function setGroundingStage(
+    catalog: MutableCatalogDiagnostics,
+    batches: ExtractionDiagnostics['groundingBatches'],
+    issues: ExtractionDiagnostics['groundingIssues'],
+  ): void {
+    const issueCode = issues.map((issue) => issue.code).find((code) => typeof code === 'string')
+    setCatalogStage(catalog, 'grounding', {
+      provenance: 'executed',
+      outcome:
+        batches.some((batch) => batch.outcome === 'failed') || issues.length > 0
+          ? 'failed'
+          : 'succeeded',
+      finishReason: batches.find((batch) => batch.finishReason !== null)?.finishReason ?? null,
+      calls: batches.length,
+      inputTokens: batches.every((batch) => batch.inputTokens === null)
+        ? null
+        : batches.reduce((sum, batch) => sum + (batch.inputTokens ?? 0), 0),
+      outputTokens: batches.every((batch) => batch.outputTokens === null)
+        ? null
+        : batches.reduce((sum, batch) => sum + (batch.outputTokens ?? 0), 0),
+      durationMs: batches.reduce((sum, batch) => sum + batch.durationMs, 0),
+      failureCode: typeof issueCode === 'string' ? issueCode : null,
+    })
   }
 
   async function invoke(model: ExtractionModel, document: string, pages: number, template: Record<string, unknown>, instruction: string, signal: AbortSignal, state: ExecutionState): Promise<ExtractionModelResponse> {
@@ -385,7 +501,283 @@ export function createExtractionModule(
     }
   }
 
-  async function persistTerminal(input: InternalRunSingleInput, inputs: LoadedExtractionInputs, state: ExecutionState, terminal: Pick<TerminalExtraction, 'outcome' | 'complete' | 'result' | 'evidence' | 'failure'>): Promise<RunSingleResult> {
+  async function executeCatalog(
+    document: ParsedDocument,
+    definition: ExtractionSchemaDefinition,
+    model: ExtractionModel,
+    signal: AbortSignal,
+    state: ExecutionState,
+    retry: CatalogRetryContext | null,
+  ): Promise<{ result: Record<string, unknown>; complete: boolean }> {
+    const catalog = state.catalog
+    if (!catalog) throw new ExtractionError('extraction_failed', 'Catalog diagnostics were not initialized.')
+    const { documentNodes, recordNodes } = partitionSchemaNodes(definition.schemaNodes)
+    const parentRecords = retry?.parent.result ? extractionRecords(retry.parent.result) : null
+    // Parent result records carry no identity; they align positionally with the
+    // parent's succeeded record diagnostics, which do carry the start block ID.
+    const parentValuesByStartBlockId = new Map<string, Record<string, unknown>>()
+    let parentValueIndex = 0
+    for (const diagnostic of retry?.parentCatalog.records ?? []) {
+      if (diagnostic.outcome !== 'succeeded') continue
+      const parentValue = parentRecords?.[parentValueIndex++]
+      if (parentValue)
+        parentValuesByStartBlockId.set(diagnostic.boundary.startBlockId, parentValue)
+    }
+    const parentStage = (stage: CatalogStageDiagnostics['stage']) =>
+      retry?.parentCatalog.stages.find((item) => item.stage === stage)
+    const retryDocument = retry?.selection.retryDocument ?? true
+    const rediscover = retry?.selection.rediscover ?? true
+    let complete = true
+
+    let documentValues: Record<string, unknown> = {}
+    const previousDocumentStage = parentStage('document-values')
+    if (retry && previousDocumentStage)
+      setCatalogStage(catalog, 'document-values', reuseCall(previousDocumentStage))
+    if (
+      documentNodes.length > 0 &&
+      retry &&
+      !retryDocument &&
+      retry.parentCatalog.documentValues
+    ) {
+      documentValues = { ...retry.parentCatalog.documentValues }
+      catalog.documentValues = documentValues
+    }
+    if (documentNodes.length > 0 && retryDocument) {
+      const documentStartedAt = now()
+      const described = { records: [{ _description: definition.recordDescription, ...nodesToTemplate(documentNodes) }] }
+      let documentMetadata: ModelGenerationMetadata | null = null
+      try {
+        const generated = await invoke(model, canonicalSource(document), document.page_count, stripDescriptions(described) as Record<string, unknown>, compileInstructions(described), signal, state)
+        documentMetadata = generated.metadata
+        const extracted = extractionRecords(generated.result)
+        if (!extracted || extracted.length !== 1)
+          throw new ExtractionError('invalid_model_output', 'Catalog document extraction must return one record.')
+        documentValues = restoreSchemaNodeOrder(extracted[0], documentNodes)
+        catalog.documentValues = documentValues
+        setCatalogStage(catalog, 'document-values', callDiagnostic('succeeded', documentStartedAt, generated.metadata))
+        if (generated.metadata.finishReason === 'length') complete = false
+      } catch (error) {
+        const code = extractionError(error).code
+        const failureCode = signal.aborted || code === 'cancelled' ? 'cancelled' : code
+        setCatalogStage(
+          catalog,
+          'document-values',
+          callDiagnostic('failed', documentStartedAt, documentMetadata, failureCode),
+        )
+        if (failureCode === 'cancelled') throw error
+        complete = false
+      }
+    }
+    if (
+      documentNodes.length > 0 &&
+      !retryDocument &&
+      previousDocumentStage &&
+      (previousDocumentStage.outcome !== 'succeeded' ||
+        previousDocumentStage.finishReason === 'length')
+    )
+      complete = false
+
+    let boundaries: readonly CatalogBoundary[]
+    const previousDiscoveryStage = parentStage('discovery')
+    if (retry && previousDiscoveryStage)
+      setCatalogStage(catalog, 'discovery', reuseCall(previousDiscoveryStage))
+    if (rediscover) {
+      const discoveryStartedAt = now()
+      let discoveryMetadata: ModelGenerationMetadata | null = null
+      try {
+        const generated = await invoke(
+          model,
+          canonicalSource(document),
+          document.page_count,
+          { starts: ['string'] },
+          'Identify every catalog record start. Return exactly {"starts":[string]} with each item equal to an exact canonical heading label in source order.',
+          signal,
+          state,
+        )
+        discoveryMetadata = generated.metadata
+        const discovery = generated.result
+        if (
+          !isRecord(discovery) ||
+          Object.keys(discovery).length !== 1 ||
+          !Array.isArray(discovery.starts) ||
+          !discovery.starts.every((label) => typeof label === 'string')
+        )
+          throw new ExtractionError('invalid_model_output', 'Catalog discovery must return exactly { starts: string[] }.')
+        boundaries = resolveCatalogBoundaries(document, discovery.starts as string[])
+        if (boundaries.length === 0)
+          throw new ExtractionError(
+            'catalog_no_records',
+            'Catalog discovery returned no records.',
+          )
+        setCatalogStage(catalog, 'discovery', callDiagnostic('succeeded', discoveryStartedAt, generated.metadata))
+        if (generated.metadata.finishReason === 'length') complete = false
+      } catch (error) {
+        const failureCode =
+          error instanceof CatalogBoundaryResolutionError
+            ? error.code
+            : extractionError(error).code
+        const diagnosticCode =
+          signal.aborted || failureCode === 'cancelled' ? 'cancelled' : failureCode
+        setCatalogStage(
+          catalog,
+          'discovery',
+          callDiagnostic(
+            'failed',
+            discoveryStartedAt,
+            discoveryMetadata,
+            diagnosticCode,
+          ),
+        )
+        if (diagnosticCode === 'cancelled' || failureCode === 'catalog_no_records')
+          throw error
+        throw new ExtractionError(
+          'catalog_discovery_failed',
+          error instanceof Error ? error.message : 'Catalog discovery failed.',
+          { cause: error },
+        )
+      }
+    } else {
+      boundaries = retry!.parentCatalog.records.map((record) => record.boundary)
+      if (previousDiscoveryStage?.finishReason === 'length') complete = false
+    }
+
+    const selected = new Set(retry?.selection.retryRecordStartBlockIds ?? [])
+    const successfulRecords: Record<string, unknown>[] = []
+    const recordsStartedAt = now()
+    let executedRecordCount = 0
+    for (const [ordinal, boundary] of boundaries.entries()) {
+      signal.throwIfAborted()
+      const previous = retry?.parentCatalog.records.find(
+        (record) => record.boundary.startBlockId === boundary.startBlockId,
+      )
+      const shouldExecute = !retry || rediscover || selected.has(boundary.startBlockId)
+      if (!shouldExecute && previous?.outcome === 'succeeded') {
+        const reused = parentValuesByStartBlockId.get(boundary.startBlockId)
+        if (reused) successfulRecords.push(reused)
+        catalog.records.push(reuseCall(previous))
+        if (previous.finishReason === 'length') complete = false
+        continue
+      }
+      if (!shouldExecute) {
+        if (previous) {
+          catalog.records.push(reuseCall(previous))
+          if (previous.outcome !== 'succeeded' || previous.finishReason === 'length')
+            complete = false
+        }
+        continue
+      }
+      if (executedRecordCount >= CATALOG_RECORD_LIMIT) {
+        complete = false
+        catalog.records.push({
+          ordinal,
+          boundary,
+          ...callDiagnostic('not_attempted', now(), null, CATALOG_NOT_ATTEMPTED_LIMIT),
+        })
+        continue
+      }
+      executedRecordCount += 1
+      if (recordNodes.length === 0) {
+        successfulRecords.push({})
+        catalog.records.push({ ordinal, boundary, ...callDiagnostic('succeeded', now(), null, null, 0) })
+        continue
+      }
+      const callStartedAt = now()
+      let recordMetadata: ModelGenerationMetadata | null = null
+      try {
+        const described = { records: [{ _description: definition.recordDescription, ...nodesToTemplate(recordNodes) }] }
+        const generated = await invoke(
+          model,
+          canonicalSourceSlice(document, boundary.startContentIndex, boundary.endContentIndex),
+          document.page_count,
+          stripDescriptions(described) as Record<string, unknown>,
+          compileInstructions(described),
+          signal,
+          state,
+        )
+        recordMetadata = generated.metadata
+        const extracted = extractionRecords(generated.result)
+        if (!extracted || extracted.length !== 1)
+          throw new ExtractionError('invalid_model_output', 'Catalog record extraction must return one record.')
+        successfulRecords.push(restoreSchemaNodeOrder(extracted[0], recordNodes))
+        catalog.records.push({ ordinal, boundary, ...callDiagnostic('succeeded', callStartedAt, generated.metadata) })
+        if (generated.metadata.finishReason === 'length') complete = false
+      } catch (error) {
+        const code = extractionError(error).code
+        const failureCode = signal.aborted || code === 'cancelled' ? 'cancelled' : code
+        catalog.records.push({
+          ordinal,
+          boundary,
+          ...callDiagnostic(
+            'failed',
+            callStartedAt,
+            recordMetadata,
+            failureCode,
+          ),
+        })
+        if (failureCode === 'cancelled') throw error
+        complete = false
+      }
+    }
+
+    const attempted = catalog.records.filter(
+      (record) => record.provenance === 'executed' && record.outcome !== 'not_attempted',
+    )
+    const previousRecordStage = parentStage('record-values')
+    if (attempted.length === 0 && previousRecordStage)
+      setCatalogStage(catalog, 'record-values', reuseCall(previousRecordStage))
+    else
+      setCatalogStage(catalog, 'record-values', {
+        provenance: 'executed',
+        outcome:
+          attempted.length === 0
+            ? 'not_attempted'
+            : attempted.every((record) => record.outcome === 'succeeded')
+              ? 'succeeded'
+              : 'failed',
+        finishReason:
+          attempted.find((record) => record.finishReason !== null)?.finishReason ?? null,
+        calls: attempted.reduce((sum, record) => sum + record.calls, 0),
+        inputTokens: attempted.every((record) => record.inputTokens === null)
+          ? null
+          : attempted.reduce((sum, record) => sum + (record.inputTokens ?? 0), 0),
+        outputTokens: attempted.every((record) => record.outputTokens === null)
+          ? null
+          : attempted.reduce((sum, record) => sum + (record.outputTokens ?? 0), 0),
+        durationMs: Math.max(0, Math.round(now() - recordsStartedAt)),
+        failureCode:
+          attempted.find((record) => record.failureCode !== null)?.failureCode ?? null,
+      })
+    if (
+      catalog.records.length !== boundaries.length ||
+      catalog.records.some((record) => record.outcome !== 'succeeded')
+    )
+      complete = false
+    if (successfulRecords.length === 0)
+      throw new ExtractionError('catalog_no_records', 'Catalog produced no successful records.')
+
+    const originalFilename = document.document.source.original_filename
+    return {
+      result: {
+        records: successfulRecords.map((record) => {
+          const restored: Record<string, unknown> = {}
+          for (const node of definition.schemaNodes) {
+            if (node.valueSource === 'source-filename') {
+              if (originalFilename !== null) restored[node.name] = originalFilename
+            } else if (node.valueSource === 'document') {
+              if (Object.hasOwn(documentValues, node.name))
+                restored[node.name] = documentValues[node.name]
+            } else if (Object.hasOwn(record, node.name)) {
+              restored[node.name] = record[node.name]
+            }
+          }
+          return restored
+        }),
+      },
+      complete,
+    }
+  }
+
+  async function persistTerminal(resolved: ResolvedRun, inputs: LoadedExtractionInputs, state: ExecutionState, terminal: Pick<TerminalExtraction, 'outcome' | 'complete' | 'result' | 'evidence' | 'failure'>): Promise<RunSingleResult> {
     const metadata = state.metadata
     const diagnostics: ExtractionDiagnostics = {
       phase: state.phase,
@@ -397,13 +789,15 @@ export function createExtractionModule(
       ungroundedPaths: state.ungroundedPaths,
       groundingIssues: state.groundingIssues,
       groundingBatches: state.groundingBatches,
+      catalog: state.catalog,
+      retry: state.retry,
     }
     const persisted = await dependencies.persistence.persistExtraction({
-      extractionId: input.extractionId,
+      extractionId: resolved.input.extractionId,
       sourceDocumentId: inputs.sourceDocumentId,
       sourceRepresentationRevisionId: inputs.sourceRepresentationRevisionId,
       schemaRevisionId: inputs.schemaRevisionId,
-      strategy: 'ARTICLE',
+      strategy: resolved.strategy,
       ...terminal,
       modelAttribution: state.valuesAttribution,
       diagnostics,
@@ -411,8 +805,8 @@ export function createExtractionModule(
         terminal.outcome === 'SUCCEEDED' &&
         terminal.result !== null &&
         terminal.evidence !== null,
-      retryOfId: null,
-      batchExtractionId: input.kind === 'batch-member' ? input.batchExtractionId : null,
+      retryOfId: resolved.retryOfId,
+      batchExtractionId: resolved.batchExtractionId,
     })
     if (persisted.status === 'invalid') throw new ExtractionError('invalid_extraction_pins', 'The pinned Extraction inputs are no longer valid.')
     if (persisted.status === 'conflict') throw new ExtractionError('extraction_id_conflict', 'That Extraction ID is already bound to different inputs.')
@@ -485,17 +879,24 @@ function reviewDecisionMatchesSchema(
   ) && typeof value === 'string'
 }
 
+
 function sameExtractionIdentity(stored: ExtractionSnapshot, input: InternalRunSingleInput): boolean {
+  if (input.kind === 'retry')
+    return stored.extractionId === input.extractionId &&
+      stored.retryOfId === input.retryOfId &&
+      sameRetrySelection(stored.diagnostics.retry, input)
   return stored.extractionId === input.extractionId &&
     stored.retryOfId === null &&
     stored.sourceRepresentationRevisionId === input.sourceRepresentationRevisionId &&
     stored.schemaRevisionId === input.schemaRevisionId &&
-    stored.strategy === 'ARTICLE' &&
+    stored.strategy === input.strategy &&
     stored.batchExtractionId === (input.kind === 'batch-member' ? input.batchExtractionId : null)
 }
 
 function sameInput(left: InternalRunSingleInput, right: InternalRunSingleInput): boolean {
   if (left.kind !== right.kind || left.extractionId !== right.extractionId) return false
+  if (left.kind === 'retry' && right.kind === 'retry')
+    return left.retryOfId === right.retryOfId && sameRetrySelection(left, right)
   if (left.kind === 'batch-member' && right.kind === 'batch-member') return left.sourceRepresentationRevisionId === right.sourceRepresentationRevisionId && left.schemaRevisionId === right.schemaRevisionId && left.strategy === right.strategy && left.batchExtractionId === right.batchExtractionId
   return left.kind === 'fresh' && right.kind === 'fresh' && left.sourceRepresentationRevisionId === right.sourceRepresentationRevisionId && left.schemaRevisionId === right.schemaRevisionId && left.strategy === right.strategy
 }

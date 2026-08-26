@@ -6,7 +6,7 @@ import { Overline, SegmentedControl, Spinner, Button } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
-import { extractionStateFromAttempt, type ExtractionController } from './useExtraction'
+import { extractionStateFromAttempt, type ExtractionController, type ExtractionRetryInput } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import {
   applyReviewDecisions,
@@ -37,6 +37,10 @@ type View = 'review' | 'json' | 'markdown' | 'schema'
 
 const preClasses =
   'scrollbar-subtle m-0 min-h-0 flex-1 overflow-auto whitespace-pre bg-canvas px-4 py-3.5 font-mono text-[11px] leading-relaxed text-ink'
+
+function outcomeLabel(outcome: string) {
+  return outcome.replaceAll('_', ' ')
+}
 
 function summaryItem(label: string, value: string | number) {
   return (
@@ -120,6 +124,7 @@ function GroundingDiagnostics({
 
 function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
   const diagnostics = attempt.diagnostics
+  const catalog = diagnostics.catalog
   return (
     <section aria-label="Extraction diagnostics">
       <div className="mt-2 space-y-2">
@@ -138,13 +143,195 @@ function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
             }}
             identity={[["Phase", diagnostics.phase]]}
           />
+          {catalog && (
+            <div className="space-y-2" aria-label="Catalog diagnostics">
+              <p className="text-[11.5px] font-semibold text-ink">Catalog stages</p>
+              {catalog.stages.map((stage) => (
+                <div
+                  key={stage.stage}
+                  aria-label={`Catalog stage ${stage.stage}: ${stage.outcome}, ${stage.provenance}`}
+                  className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5"
+                >
+                  <p className="text-[11.5px] text-ink">
+                    {stage.stage} · {outcomeLabel(stage.outcome)} · {stage.provenance}
+                  </p>
+                  <DiagnosticDetails diagnostic={stage} />
+                </div>
+              ))}
+              <p className="text-[11.5px] font-semibold text-ink">Catalog records</p>
+              <div
+                data-testid="catalog-record-diagnostics"
+                className="max-h-48 space-y-1.5 overflow-y-auto pr-1"
+              >
+                {catalog.records.map((record) => (
+                  <div
+                    key={record.ordinal}
+                    aria-label={`Catalog record ${record.ordinal + 1}: ${record.outcome}, ${record.provenance}, ${record.boundary.headingText}`}
+                    className="rounded-md border border-line bg-surface-muted px-2.5 py-1.5"
+                  >
+                    <p className="text-[11.5px] text-ink">
+                      Record {record.ordinal + 1} · {outcomeLabel(record.outcome)} · {record.provenance} · {record.boundary.headingText}
+                    </p>
+                    <p className="text-[11px] text-ink-muted">
+                      Canonical {record.boundary.startContentIndex}–{record.boundary.endContentIndex} · heading level {record.boundary.headingLevel}
+                    </p>
+                    <DiagnosticDetails
+                      diagnostic={record}
+                      identity={[
+                        ['Record identity', record.boundary.startBlockId],
+                        ['Heading', record.boundary.headingText],
+                        ['Canonical start', record.boundary.startContentIndex],
+                        ['Canonical end', record.boundary.endContentIndex],
+                        ['Heading level', record.boundary.headingLevel],
+                      ]}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {diagnostics.grounding && <GroundingDiagnostics diagnostics={diagnostics.grounding} />}
       </div>
     </section>
   )
 }
 
-function AttemptDetails({ attempt }: { attempt: ExtractionAttempt }) {
+const emptyRetrySelection: ExtractionRetryInput = {
+  retryDocument: false,
+  rediscover: false,
+  retryRecordStartBlockIds: [],
+}
+
+function CatalogRetryControls({
+  controller,
+  attempt,
+}: {
+  controller: ExtractionController
+  attempt: ExtractionAttempt
+}) {
+  const catalog = attempt.strategy === 'CATALOG' ? attempt.diagnostics.catalog : null
+  const [selection, setSelection] = useState<ExtractionRetryInput>(emptyRetrySelection)
+
+  if (!catalog || attempt.outcome === 'CANCELLED') return null
+  const documentStage = catalog.stages.find((stage) => stage.stage === 'document-values')
+  const discoveryStage = catalog.stages.find((stage) => stage.stage === 'discovery')
+  // The server accepts document retries only for a failed document-values stage.
+  const retryDocument = documentStage?.outcome === 'failed'
+  const rediscover =
+    discoveryStage?.outcome === 'failed' ||
+    discoveryStage?.finishReason === 'length'
+  const records = catalog.records.filter(
+    (record) => record.outcome === 'failed' || record.outcome === 'not_attempted',
+  )
+  const canGroundOnly = attempt.outcome === 'SUCCEEDED' && attempt.resultPayload !== null
+  if (!retryDocument && !rediscover && records.length === 0 && !canGroundOnly) return null
+
+  const active = controller.state.status === 'running'
+  const selectedCount = selection.retryRecordStartBlockIds.length
+  const canRetrySelected = selection.retryDocument || selection.rediscover || selectedCount > 0
+  const submit = (next: ExtractionRetryInput) => {
+    void controller.retryExtraction(next)
+  }
+
+  return (
+    <section
+      aria-label="Targeted Catalog retry"
+      className="mt-3 border-t border-line pt-2.5"
+    >
+        <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
+          Retry failed Catalog components
+        </p>
+        <p className="mt-1.5 text-[11.5px] leading-snug text-ink-muted">
+          Select failed or truncated work to execute again. Leave every box clear for grounding only; successful components are reused.
+        </p>
+        <div className="mt-2 space-y-1.5 text-[11.5px] text-ink">
+          {retryDocument && (
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                aria-label="Retry failed or truncated document metadata"
+                checked={selection.retryDocument}
+                disabled={active}
+                onChange={(event) =>
+                  setSelection((current) => ({ ...current, retryDocument: event.target.checked }))
+                }
+              />
+              <span>Document metadata (failed or truncated)</span>
+            </label>
+          )}
+          {rediscover && (
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                aria-label="Rediscover Catalog record boundaries"
+                checked={selection.rediscover}
+                disabled={active}
+                onChange={(event) =>
+                  setSelection((current) => ({ ...current, rediscover: event.target.checked }))
+                }
+              />
+              <span>Rediscover record boundaries (and rerun dependent records)</span>
+            </label>
+          )}
+          {records.map((record) => {
+            const id = record.boundary.startBlockId
+            const checked = selection.retryRecordStartBlockIds.includes(id)
+            return (
+              <label key={id} className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  aria-label={`Retry record ${record.ordinal + 1}: ${record.boundary.headingText}`}
+                  checked={checked}
+                  disabled={active}
+                  onChange={(event) =>
+                    setSelection((current) => ({
+                      ...current,
+                      retryRecordStartBlockIds: event.target.checked
+                        ? [...current.retryRecordStartBlockIds, id]
+                        : current.retryRecordStartBlockIds.filter((candidate) => candidate !== id),
+                    }))
+                  }
+                />
+                <span>
+                  Record {record.ordinal + 1}: {record.boundary.headingText} ({outcomeLabel(record.outcome)})
+                </span>
+              </label>
+            )
+          })}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={active || !canRetrySelected}
+            onClick={() => submit(selection)}
+          >
+            Retry selected components
+          </Button>
+          {canGroundOnly && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={active}
+              onClick={() => submit(emptyRetrySelection)}
+            >
+              Grounding only
+            </Button>
+          )}
+        </div>
+    </section>
+  )
+}
+
+function AttemptDetails({
+  controller,
+  attempt,
+  readOnly,
+}: {
+  controller: ExtractionController
+  attempt: ExtractionAttempt
+  readOnly: boolean
+}) {
   return (
     <details className="mt-3 border-t border-line pt-2.5">
       <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
@@ -152,6 +339,9 @@ function AttemptDetails({ attempt }: { attempt: ExtractionAttempt }) {
       </summary>
       <div className="scrollbar-subtle max-h-64 overflow-y-auto pr-1">
         <ExtractionDiagnostics attempt={attempt} />
+        {!readOnly && attempt.strategy === 'CATALOG' && (
+          <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
+        )}
       </div>
     </details>
   )
@@ -358,7 +548,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                         : 'Save Review'}
                   </Button>
                 )}
-                {!readOnly && (
+                {!readOnly && attempt?.strategy !== 'CATALOG' && (
                   <Button variant="secondary" size="sm" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
                     Rerun
                   </Button>
@@ -399,6 +589,15 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 {controller.review.error}
               </p>
             )}
+            {attempt?.complete === false && (
+              <div
+                className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-[11.5px] leading-snug text-amber-900"
+                role="status"
+              >
+                <p className="font-semibold">Incomplete Extraction</p>
+                <p>Successful values remain visible. See the persisted stage diagnostics for details.</p>
+              </div>
+            )}
             {noReviewableResult && (
               <div className="mt-2 rounded-md border border-line-strong bg-surface-muted px-2.5 py-2 text-[11.5px] leading-snug text-ink" role="status">
                 <p className="font-semibold">No reviewable result</p>
@@ -410,7 +609,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. {noReviewableResult ? 'No Review Decisions can be saved; ' : 'You can still save the grounded Review Decisions; '}{state.ungroundedCount === 1 ? 'it' : 'they'} will remain recorded without Evidence.
               </p>
             )}
-            {attempt && <AttemptDetails attempt={attempt} />}
+            {attempt && (
+              <AttemptDetails
+                controller={controller}
+                attempt={attempt}
+                readOnly={readOnly || Boolean(inspectedAttempt)}
+              />
+            )}
           </div>
 
           {view === 'review' && (
@@ -541,7 +746,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
       {state.status === 'running' && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
           <Spinner
-            label="Running Article extraction…"
+            label="Running extraction…"
             hint="The server is extracting values, grounding Evidence, and saving the terminal attempt."
           />
         </div>
@@ -551,12 +756,18 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
         <div className="m-3.25 rounded-xl border border-danger/40 bg-surface px-4 py-3">
           <p className="text-[13px] font-semibold text-danger">Extraction failed</p>
           <p className="mt-1 wrap-anywhere text-[12px] leading-snug text-ink-muted">{state.message}</p>
-          {!readOnly && (
+          {!readOnly && attempt?.strategy !== 'CATALOG' && (
             <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
               Retry extraction
             </Button>
           )}
-          {attempt && <AttemptDetails attempt={attempt} />}
+          {attempt && (
+            <AttemptDetails
+              controller={controller}
+              attempt={attempt}
+              readOnly={readOnly || Boolean(inspectedAttempt)}
+            />
+          )}
         </div>
       )}
 
@@ -588,7 +799,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
           {!readOnly && <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
             Run a new extraction
           </Button>}
-          {attempt && <AttemptDetails attempt={attempt} />}
+          {attempt && (
+            <AttemptDetails
+              controller={controller}
+              attempt={attempt}
+              readOnly={readOnly || Boolean(inspectedAttempt)}
+            />
+          )}
         </div>
       )}
     </div>

@@ -9,6 +9,7 @@ import {
 import { ExtractionError } from './errors.js'
 import { persistSuggestedBatch } from './postgres-suggested-batch.js'
 import { BATCH_EXTRACTION_SELECTION_LIMIT } from './batch.js'
+import { sameRetrySelection } from './catalog.js'
 import type {
   ExtractionPersistence,
   PersistedReviewResult,
@@ -81,6 +82,30 @@ export type ClaimedBatchExtraction = DurableBatchExtraction & Readonly<{ lease: 
 export function uniqueConstraint(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'sqlState' in error && error.sqlState === '23505'
 }
+function extractionIdentityMatches(
+  stored: ExtractionSnapshot,
+  input: TerminalExtraction,
+): boolean {
+  const storedRetry = stored.diagnostics.retry
+  const inputRetry = input.diagnostics.retry
+  const retryMatches =
+    storedRetry === null && inputRetry === null
+      ? true
+      : storedRetry !== null &&
+        inputRetry !== null &&
+        sameRetrySelection(storedRetry, inputRetry)
+  return (
+    stored.sourceDocumentId === input.sourceDocumentId &&
+    stored.sourceRepresentationRevisionId ===
+      input.sourceRepresentationRevisionId &&
+    stored.schemaRevisionId === input.schemaRevisionId &&
+    stored.strategy === input.strategy &&
+    stored.batchExtractionId === input.batchExtractionId &&
+    stored.retryOfId === input.retryOfId &&
+    retryMatches
+  )
+}
+
 function canonicalIds(ids: readonly string[]): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
 }
@@ -735,12 +760,9 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
       if (!uniqueConstraint(error)) throw error
       const extraction = await loadExtraction(this.database.orm, input.extractionId)
       if (!extraction) throw error
-      const same = extraction.sourceRepresentationRevisionId === input.sourceRepresentationRevisionId &&
-        extraction.schemaRevisionId === input.schemaRevisionId &&
-        extraction.strategy === input.strategy &&
-        extraction.batchExtractionId === input.batchExtractionId &&
-        extraction.retryOfId === input.retryOfId
-      return same ? { status: 'replayed', extraction } : { status: 'conflict', extraction }
+      return extractionIdentityMatches(extraction, input)
+        ? { status: 'replayed', extraction }
+        : { status: 'conflict', extraction }
     }
   }
 
@@ -1207,14 +1229,7 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
       if (!uniqueConstraint(error)) throw error
       const extraction = await this.readExtraction(input.extractionId)
       if (!extraction) throw error
-      const same =
-        extraction.sourceRepresentationRevisionId ===
-          input.sourceRepresentationRevisionId &&
-        extraction.schemaRevisionId === input.schemaRevisionId &&
-        extraction.strategy === input.strategy &&
-        extraction.batchExtractionId === null &&
-        extraction.retryOfId === input.retryOfId
-      return same
+      return extractionIdentityMatches(extraction, input)
         ? { status: 'replayed', extraction }
         : { status: 'conflict', extraction }
     }
@@ -1777,14 +1792,7 @@ class ClaimedBatchPostgresExtractionPersistence implements ExtractionPersistence
       if (!uniqueConstraint(error)) throw error
       const extraction = await this.readExtraction(input.extractionId)
       if (!extraction) throw error
-      const same =
-        extraction.sourceRepresentationRevisionId ===
-          input.sourceRepresentationRevisionId &&
-        extraction.schemaRevisionId === input.schemaRevisionId &&
-        extraction.strategy === input.strategy &&
-        extraction.batchExtractionId === this.batchExtractionId &&
-        extraction.retryOfId === input.retryOfId
-      return same
+      return extractionIdentityMatches(extraction, input)
         ? { status: 'replayed', extraction }
         : { status: 'conflict', extraction }
     }

@@ -6,17 +6,68 @@ import {
 } from './groundedExtraction.js'
 import { providerKindSchema } from './modelConfig.contract.js'
 
-export const extractionStrategySchema = z.literal('ARTICLE')
+export const extractionStrategySchema = z.enum(['ARTICLE', 'CATALOG'])
 export type ExtractionStrategy = z.infer<typeof extractionStrategySchema>
 
-export const extractionRequestSchema = z
+/** Durable failure code for Catalog records skipped by the record limit. */
+export const CATALOG_NOT_ATTEMPTED_LIMIT = 'not_attempted_limit'
+
+export const extractionRetrySelectionSchema = z
+  .object({
+    retryOfId: z.uuid(),
+    retryDocument: z.boolean(),
+    rediscover: z.boolean(),
+    retryRecordStartBlockIds: z.array(z.string().min(1)),
+  })
+  .strict()
+
+export type ExtractionRetrySelection = z.infer<
+  typeof extractionRetrySelectionSchema
+>
+
+const extractionFreshRequestSchema = z
   .object({
     id: z.uuid(),
     sourceRepresentationRevisionId: z.uuid(),
     schemaRevisionId: z.uuid(),
     strategy: extractionStrategySchema,
+    retryOfId: z.never().optional(),
+    retryDocument: z.never().optional(),
+    rediscover: z.never().optional(),
+    retryRecordStartBlockIds: z.never().optional(),
   })
   .strict()
+
+const extractionRetryRequestSchema = z
+  .object({
+    id: z.uuid(),
+    retryOfId: z.uuid(),
+    retryDocument: z.boolean().default(false),
+    rediscover: z.boolean().default(false),
+    // Bounded by the server-side CATALOG_RECORD_LIMIT.
+    retryRecordStartBlockIds: z.array(z.string().min(1)).max(100).default([]),
+    // A retry inherits its parent's pins and strategy, so they are never sent.
+    sourceRepresentationRevisionId: z.never().optional(),
+    schemaRevisionId: z.never().optional(),
+    strategy: z.never().optional(),
+  })
+  .strict()
+  .superRefine((request, context) => {
+    if (
+      new Set(request.retryRecordStartBlockIds).size !==
+      request.retryRecordStartBlockIds.length
+    )
+      context.addIssue({
+        code: 'custom',
+        path: ['retryRecordStartBlockIds'],
+        message: 'Retry record identities must be unique.',
+      })
+  })
+
+export const extractionRequestSchema = z.union([
+  extractionFreshRequestSchema,
+  extractionRetryRequestSchema,
+])
 
 export type ExtractionRequest = z.infer<typeof extractionRequestSchema>
 export type ExtractionRequestInput = z.input<typeof extractionRequestSchema>
@@ -119,6 +170,47 @@ const groundingDiagnosticsSchema = z
   })
   .strict()
 
+const catalogCallDiagnosticsSchema = z
+  .object({
+    provenance: z.enum(['executed', 'reused']),
+    outcome: z.enum(['succeeded', 'failed', 'not_attempted']),
+    finishReason: z.string().max(64).nullable(),
+    calls: z.number().int().nonnegative(),
+    inputTokens: z.number().int().nonnegative().nullable(),
+    outputTokens: z.number().int().nonnegative().nullable(),
+    durationMs: z.number().int().nonnegative(),
+    failureCode: z.string().min(1).nullable(),
+  })
+  .strict()
+
+const catalogBoundarySchema = z
+  .object({
+    startBlockId: z.string().min(1),
+    startContentIndex: z.number().int().nonnegative(),
+    endContentIndex: z.number().int().nonnegative(),
+    headingText: z.string(),
+    headingLevel: z.number().int().positive(),
+  })
+  .strict()
+
+const catalogStageDiagnosticsSchema = catalogCallDiagnosticsSchema.extend({
+  stage: z.enum(['document-values', 'discovery', 'record-values', 'grounding']),
+}).strict()
+
+const catalogRecordDiagnosticsSchema = catalogCallDiagnosticsSchema.extend({
+  ordinal: z.number().int().nonnegative(),
+  boundary: catalogBoundarySchema,
+}).strict()
+
+export const catalogDiagnosticsSchema = z
+  .object({
+    stages: z.array(catalogStageDiagnosticsSchema),
+    records: z.array(catalogRecordDiagnosticsSchema),
+  })
+  .strict()
+
+export type CatalogDiagnostics = z.infer<typeof catalogDiagnosticsSchema>
+
 export const extractionDiagnosticsSchema = z
   .object({
     phase: z.enum([
@@ -133,6 +225,8 @@ export const extractionDiagnosticsSchema = z
     inputTokens: z.number().int().nonnegative().nullable(),
     outputTokens: z.number().int().nonnegative().nullable(),
     grounding: groundingDiagnosticsSchema.nullable(),
+    catalog: catalogDiagnosticsSchema.nullable(),
+    retry: extractionRetrySelectionSchema.nullable(),
   })
   .strict()
 
@@ -191,6 +285,15 @@ export const extractionAttemptSchema = z
       context.addIssue({
         code: 'custom',
         message: 'Extraction terminal fields do not match the outcome.',
+      })
+
+    if (
+      (attempt.strategy === 'ARTICLE' && attempt.diagnostics.catalog != null) ||
+      (attempt.strategy === 'CATALOG' && attempt.diagnostics.catalog == null)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Catalog diagnostics must match the Extraction strategy.',
       })
 
     if (

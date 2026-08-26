@@ -42,6 +42,11 @@ function transportDiagnostics(
     issueCodes: string[]
     batches: ExtractionDiagnostics['groundingBatches']
   } | null
+  catalog: Pick<
+    NonNullable<ExtractionDiagnostics['catalog']>,
+    'stages' | 'records'
+  > | null
+  retry: ExtractionDiagnostics['retry']
 } {
   const diagnostics = extraction.diagnostics
   const phase = extraction.failure?.phase ?? diagnostics.phase
@@ -71,6 +76,13 @@ function transportDiagnostics(
           batches: diagnostics.groundingBatches,
         }
       : null,
+    catalog: diagnostics.catalog
+      ? {
+          stages: diagnostics.catalog.stages,
+          records: diagnostics.catalog.records,
+        }
+      : null,
+    retry: diagnostics.retry ?? null,
   }
 }
 

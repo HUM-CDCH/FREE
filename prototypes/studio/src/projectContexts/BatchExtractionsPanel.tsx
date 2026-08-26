@@ -20,6 +20,7 @@ import {
   type SchemaDefinition,
 } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
+import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import SchemaPanel from '../SchemaPanel'
 import {
   createSchemaEditorController,
@@ -221,6 +222,7 @@ export default function BatchExtractionsPanel({
     failure: null,
   })
   const [schemaRevisionId, setSchemaRevisionId] = useState('')
+  const [batchStrategy, setBatchStrategy] = useState<ExtractionStrategy>('ARTICLE')
   const [chosenSchema, setChosenSchema] = useState<SchemaRevision | null>(null)
   const [pinnedBatchSchema, setPinnedBatchSchema] =
     useState<SchemaRevision | null>(null)
@@ -589,7 +591,7 @@ export default function BatchExtractionsPanel({
       const request = {
         projectContextId,
         schemaRevisionId: savedRevision?.schemaRevisionId ?? schemaRevisionId,
-        strategy: 'ARTICLE' as const,
+        strategy: batchStrategy,
         sourceDocumentIds: [...selected],
       }
       acceptOpenedBatch(await openBatchExtraction(request))
@@ -618,7 +620,8 @@ export default function BatchExtractionsPanel({
       const opened = await openBatchExtraction({
         projectContextId,
         schemaRevisionId: batch.schemaRevisionId,
-        strategy: 'ARTICLE',
+        // A rerun repeats the stored Batch Extraction, including its strategy.
+        strategy: batch.strategy,
         sourceDocumentIds: batch.members.map(
           (member) => member.sourceDocumentId,
         ),
@@ -642,7 +645,7 @@ export default function BatchExtractionsPanel({
     setRunNotice(null)
     if (!canRun) return
     if (schemaRevisionId === SUGGEST_SCHEMA) {
-      sendSuggestion({ type: 'run.requested' })
+      sendSuggestion({ type: 'run.requested', strategy: batchStrategy })
       return
     }
     void openExistingSchemaBatch()
@@ -692,7 +695,7 @@ export default function BatchExtractionsPanel({
     (schemaRevisionId === SUGGEST_SCHEMA
       ? confirmedSuggestion === null &&
         suggestedFields?.status === 'ready' &&
-        suggestion.can({ type: 'run.requested' }) &&
+        suggestion.can({ type: 'run.requested', strategy: batchStrategy }) &&
         !suggestionHasPendingLocalEdit &&
         runnableSuggestionDefinition(suggestion.context.draft)
       : schemaRevisionId.length > 0)
@@ -851,6 +854,21 @@ export default function BatchExtractionsPanel({
                         : 'Loading schemas…'}
                     </option>
                   )}
+                </select>
+              </label>
+              <label className="text-[11px] font-semibold text-ink-muted">
+                Extraction Strategy
+                <select
+                  className={`${control} mt-1 block w-full font-normal`}
+                  aria-label="Batch extraction strategy"
+                  value={batchStrategy}
+                  disabled={openingAnyBatch}
+                  onChange={(event) =>
+                    setBatchStrategy(event.target.value as ExtractionStrategy)
+                  }
+                >
+                  <option value="ARTICLE">Article</option>
+                  <option value="CATALOG">Catalog</option>
                 </select>
               </label>
             </div>

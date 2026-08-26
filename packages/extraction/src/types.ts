@@ -1,4 +1,4 @@
-export type ExtractionStrategy = 'ARTICLE'
+export type ExtractionStrategy = 'ARTICLE' | 'CATALOG'
 export type ExtractionOutcome = 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
 export type ExtractionDisposition = 'created' | 'replayed'
 export type BatchDisposition = 'created' | 'replayed'
@@ -54,6 +54,41 @@ export type GroundingBatchSnapshot = Readonly<{
   durationMs: number
 }>
 
+export type CatalogCallDiagnostics = Readonly<{
+  provenance: 'executed' | 'reused'
+  outcome: 'succeeded' | 'failed' | 'not_attempted'
+  finishReason: string | null
+  calls: number
+  inputTokens: number | null
+  outputTokens: number | null
+  durationMs: number
+  failureCode: string | null
+}>
+
+export type CatalogStage = 'document-values' | 'discovery' | 'record-values' | 'grounding'
+
+export type CatalogStageDiagnostics = CatalogCallDiagnostics & Readonly<{
+  stage: CatalogStage
+}>
+
+export type CatalogRecordDiagnostics = CatalogCallDiagnostics & Readonly<{
+  ordinal: number
+  boundary: CatalogBoundary
+}>
+
+export type CatalogDiagnostics = Readonly<{
+  stages: readonly CatalogStageDiagnostics[]
+  records: readonly CatalogRecordDiagnostics[]
+  documentValues: Readonly<Record<string, unknown>> | null
+}>
+
+export type ExtractionRetrySelection = Readonly<{
+  retryOfId: string
+  retryDocument: boolean
+  rediscover: boolean
+  retryRecordStartBlockIds: readonly string[]
+}>
+
 export type ExtractionDiagnostics = Readonly<{
   phase: 'loading' | 'extracting' | 'grounding' | 'persisting'
   durationMs: number
@@ -64,6 +99,8 @@ export type ExtractionDiagnostics = Readonly<{
   ungroundedPaths: readonly ResultPath[]
   groundingIssues: readonly Readonly<Record<string, unknown>>[]
   groundingBatches: readonly GroundingBatchSnapshot[]
+  catalog: CatalogDiagnostics | null
+  retry: ExtractionRetrySelection | null
 }>
 
 export type ExtractionFailure = Readonly<{
@@ -104,7 +141,16 @@ export type FreshExtractionInput = Readonly<{
   strategy: ExtractionStrategy
 }>
 
-export type RunSingleInput = FreshExtractionInput
+export type RetryExtractionInput = Readonly<{
+  kind: 'retry'
+  extractionId: string
+  retryOfId: string
+  retryDocument: boolean
+  rediscover: boolean
+  retryRecordStartBlockIds: readonly string[]
+}>
+
+export type RunSingleInput = FreshExtractionInput | RetryExtractionInput
 export type RunSingleResult = Readonly<{
   disposition: ExtractionDisposition
   extraction: ExtractionSnapshot
@@ -235,4 +281,5 @@ export interface ExtractionRuntime {
   close(): Promise<void>
 }
 import type { ScalarFieldType as SchemaScalarFieldType } from './allowed-values.js'
+import type { CatalogBoundary } from './catalog-boundaries.js'
 import type { SchemaNode } from './schema.js'

@@ -18,6 +18,7 @@ import {
   type BatchSchemaSuggestionFailure,
 } from '../../shared/batchSchemaSuggestion.contract'
 import type { SchemaDefinition } from 'extraction/schema'
+import type { ExtractionStrategy } from '../../shared/extraction.contract'
 import { isRecord } from '../../shared/template'
 
 export class BatchSchemaSuggestionRequestError extends Error {
@@ -72,7 +73,7 @@ export async function openBatchExtraction(
   request: {
     projectContextId: string
     schemaRevisionId: string
-    strategy: 'ARTICLE'
+    strategy: ExtractionStrategy
     sourceDocumentIds: readonly string[]
     force?: boolean
   },
@@ -174,7 +175,7 @@ export async function updateBatchSchemaSuggestionDraft(
 export async function runBatchSchemaSuggestion(
   projectContextId: string,
   batchSchemaSuggestionId: string,
-  strategy: 'ARTICLE',
+  strategy: ExtractionStrategy,
   signal?: AbortSignal,
 ): Promise<BatchSchemaSuggestion> {
   const query = new URLSearchParams({ projectContextId })

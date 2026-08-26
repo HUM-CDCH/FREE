@@ -34,6 +34,7 @@ function controller(
     hasResults: state.status === 'ready',
     stale: false,
     runExtraction: async () => {},
+    retryExtraction: async () => null,
     requestCancellation: async () => {},
     cancellationRequested: false,
     cancellationError: null,
@@ -74,6 +75,8 @@ const articleAttempt: ExtractionAttempt = {
     phase: 'grounding', durationMs: 42, modelCalls: 4,
     finishReason: 'length', inputTokens: 10, outputTokens: 20,
     grounding: null,
+    catalog: null,
+    retry: null,
   },
   failure: null,
   resultPayload: { records: [{ place: 'First place' }] },
@@ -85,6 +88,27 @@ const articleAttempt: ExtractionAttempt = {
   reviewedAt: null,
   reviewDecisions: [],
 }
+const catalogCall = {
+  provenance: 'executed' as const,
+  outcome: 'succeeded' as const,
+  finishReason: 'stop',
+  calls: 1,
+  inputTokens: 1,
+  outputTokens: 1,
+  durationMs: 1,
+  failureCode: null,
+}
+
+function catalogBoundary(index: number, heading: string) {
+  return {
+    startBlockId: `h${index}`,
+    startContentIndex: index * 2,
+    endContentIndex: index * 2 + 2,
+    headingText: heading,
+    headingLevel: 2,
+  }
+}
+
 
 const currentExportSchema: SchemaDefinition = {
   recordDescription: 'Current findings',
@@ -174,7 +198,7 @@ describe('ResultsTab grounded values', () => {
       />,
     )
 
-    expect(screen.getByText('Running Article extraction…')).toBeInTheDocument()
+    expect(screen.getByText('Running extraction…')).toBeInTheDocument()
     expect(screen.queryByText('Report')).not.toBeInTheDocument()
   })
 
@@ -302,6 +326,175 @@ describe('ResultsTab grounded values', () => {
 
     expect(screen.getByText('Extraction cancelled')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run a new extraction' })).toBeInTheDocument()
+  })
+
+  it('renders Catalog diagnostics with targeted retry controls behind Run details', () => {
+    const catalogAttempt: ExtractionAttempt = {
+      ...articleAttempt,
+      strategy: 'CATALOG',
+      diagnostics: {
+        ...articleAttempt.diagnostics,
+        catalog: {
+          stages: [
+            { ...catalogCall, stage: 'document-values', outcome: 'not_attempted', calls: 0, finishReason: null },
+            { ...catalogCall, stage: 'discovery', provenance: 'reused', calls: 0, inputTokens: null, outputTokens: null, durationMs: 0 },
+            { ...catalogCall, stage: 'record-values', outcome: 'failed', failureCode: 'extraction_failed' },
+            { ...catalogCall, stage: 'grounding' },
+          ],
+          records: [
+            { ...catalogCall, provenance: 'reused', calls: 0, inputTokens: null, outputTokens: null, durationMs: 0, ordinal: 0, boundary: catalogBoundary(0, 'First entry') },
+            { ...catalogCall, ordinal: 1, outcome: 'failed', failureCode: 'extraction_failed', boundary: catalogBoundary(1, 'Second entry') },
+            { ...catalogCall, ordinal: 2, outcome: 'not_attempted', calls: 0, failureCode: 'not_attempted_limit', boundary: catalogBoundary(2, 'Third entry') },
+          ],
+        },
+      },
+    }
+    const retryExtraction = vi.fn(async () => null)
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={{
+          ...controller({
+            status: 'ready',
+            result: catalogAttempt.resultPayload!,
+            evidenceLinks: [],
+            ungroundedCount: 0,
+          }, catalogAttempt),
+          retryExtraction,
+        }}
+        schemaReady
+        documentMarkdown="# Source" sourceDocumentName="Catalog.pdf"
+      />,
+    )
+
+    // Incomplete banner is visible without opening diagnostics.
+    expect(screen.getByText('Incomplete Extraction')).toBeInTheDocument()
+    // No generic rerun for a Catalog attempt.
+    expect(screen.queryByRole('button', { name: 'Rerun' })).not.toBeInTheDocument()
+    // Stage and record diagnostics render inside the bounded disclosure.
+    expect(screen.getByTestId('catalog-record-diagnostics')).toBeInTheDocument()
+    expect(screen.getByText(/Record 2 · failed · executed · Second entry/)).toBeInTheDocument()
+    expect(screen.getByText(/Record 3 · not attempted · executed · Third entry/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Catalog stage discovery: succeeded, reused')).toBeInTheDocument()
+    expect(screen.getByLabelText('Catalog record 1: succeeded, reused, First entry')).toBeInTheDocument()
+
+    // Retry controls offer only failed or limit-skipped components.
+    expect(screen.queryByLabelText('Retry failed or truncated document metadata')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Rediscover Catalog record boundaries')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Retry record 1: First entry')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Retry record 2: Second entry'))
+    fireEvent.click(screen.getByLabelText('Retry record 3: Third entry'))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry selected components' }))
+    expect(retryExtraction).toHaveBeenCalledWith({
+      retryDocument: false,
+      rediscover: false,
+      retryRecordStartBlockIds: ['h1', 'h2'],
+    })
+
+    // Grounding only submits the empty selection for a succeeded parent.
+    fireEvent.click(screen.getByRole('button', { name: 'Grounding only' }))
+    expect(retryExtraction).toHaveBeenLastCalledWith({
+      retryDocument: false,
+      rediscover: false,
+      retryRecordStartBlockIds: [],
+    })
+  })
+
+  it('offers rediscovery after an empty failed discovery', () => {
+    const attempt: ExtractionAttempt = {
+      ...articleAttempt,
+      extractionId: '55555555-5555-4555-8555-555555555555',
+      strategy: 'CATALOG',
+      outcome: 'FAILED',
+      complete: null,
+      diagnostics: {
+        ...articleAttempt.diagnostics,
+        catalog: {
+          stages: [
+            { ...catalogCall, stage: 'document-values', provenance: 'reused', calls: 0, inputTokens: null, outputTokens: null, durationMs: 0 },
+            { ...catalogCall, stage: 'discovery', outcome: 'failed', failureCode: 'catalog_no_records' },
+            { ...catalogCall, stage: 'record-values', outcome: 'not_attempted', calls: 0, finishReason: null },
+            { ...catalogCall, stage: 'grounding', outcome: 'not_attempted', calls: 0, finishReason: null },
+          ],
+          records: [],
+        },
+      },
+      failure: {
+        code: 'catalog_no_records',
+        message: 'Catalog discovery returned no records.',
+      },
+      resultPayload: null,
+      evidenceLinks: null,
+      reviewable: false,
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          { status: 'error', message: attempt.failure!.message },
+          attempt,
+        )}
+        schemaReady
+        documentMarkdown="# Source"
+        sourceDocumentName="Catalog.pdf"
+      />,
+    )
+
+    expect(screen.getByLabelText('Catalog stage discovery: failed, executed')).toBeInTheDocument()
+    expect(screen.getByLabelText('Rediscover Catalog record boundaries')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Retry failed or truncated document metadata')).not.toBeInTheDocument()
+  })
+
+  it('renders executed and reused provenance for an inspected Catalog child', () => {
+    const child: ExtractionAttempt = {
+      ...articleAttempt,
+      extractionId: '66666666-6666-4666-8666-666666666666',
+      strategy: 'CATALOG',
+      complete: true,
+      diagnostics: {
+        ...articleAttempt.diagnostics,
+        catalog: {
+          stages: [
+            { ...catalogCall, stage: 'document-values', provenance: 'reused', calls: 0, inputTokens: null, outputTokens: null, durationMs: 0 },
+            { ...catalogCall, stage: 'discovery', provenance: 'reused', calls: 0, inputTokens: null, outputTokens: null, durationMs: 0 },
+            { ...catalogCall, stage: 'record-values' },
+            { ...catalogCall, stage: 'grounding' },
+          ],
+          records: [
+            { ...catalogCall, provenance: 'reused', calls: 0, inputTokens: null, outputTokens: null, durationMs: 0, ordinal: 0, boundary: catalogBoundary(0, 'First entry') },
+            { ...catalogCall, ordinal: 1, boundary: catalogBoundary(1, 'Second entry') },
+          ],
+        },
+        retry: {
+          retryOfId: '55555555-5555-4555-8555-555555555555',
+          retryDocument: false,
+          rediscover: false,
+          retryRecordStartBlockIds: ['h1'],
+        },
+      },
+      resultPayload: {
+        records: [{ place: 'First place' }, { place: 'Second place' }],
+      },
+      retryOfId: '55555555-5555-4555-8555-555555555555',
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller({ status: 'idle' })}
+        inspectedAttempt={child}
+        readOnly
+        schemaReady
+        documentMarkdown="# Source"
+        sourceDocumentName="Catalog.pdf"
+      />,
+    )
+
+    expect(screen.getByLabelText('Catalog stage document-values: succeeded, reused')).toBeInTheDocument()
+    expect(screen.getByLabelText('Catalog stage record-values: succeeded, executed')).toBeInTheDocument()
+    expect(screen.getByLabelText('Catalog record 1: succeeded, reused, First entry')).toBeInTheDocument()
+    expect(screen.getByLabelText('Catalog record 2: succeeded, executed, Second entry')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Retry record 1: First entry')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Retry record 2: Second entry')).not.toBeInTheDocument()
   })
 
   it('exports the current displayed result to Excel with nested and scalar-array schema paths', () => {

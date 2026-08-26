@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { LlmTrace } from '../../shared/llmInspector.contract'
-import { ModalDialog } from '../ui'
+import ModalDialog from '../ui/ModalDialog'
 
 function elapsed(trace: LlmTrace): string {
   const end = trace.completedAt ? Date.parse(trace.completedAt) : Date.now()

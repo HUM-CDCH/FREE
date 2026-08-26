@@ -132,7 +132,7 @@ export type BatchMemberExtractionInput = Readonly<{
   extractionId: string
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
-  strategy: 'ARTICLE'
+  strategy: ExtractionStrategy
   batchExtractionId: string
 }>
 

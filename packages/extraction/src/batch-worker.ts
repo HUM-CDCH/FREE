@@ -9,6 +9,9 @@ import type {
 const LEASE_MS = 2 * 60 * 1000
 const LEASE_RENEW_MS = 30 * 1000
 const MEMBER_TIMEOUT_MS = 10 * 60 * 1000
+// ponytail: a Catalog member can make ~102 bounded model calls; one wider
+// constant instead of per-record budgeting until that proves insufficient.
+const CATALOG_MEMBER_TIMEOUT_MS = 30 * 60 * 1000
 
 
 function fingerprintId(value: unknown): string {
@@ -41,7 +44,8 @@ function leaseGuard(
   const signal = AbortSignal.any([outerSignal, lost.signal])
   return {
     signal,
-    memberSignal: () => AbortSignal.any([signal, AbortSignal.timeout(MEMBER_TIMEOUT_MS)]),
+    memberSignal: (timeoutMs: number = MEMBER_TIMEOUT_MS) =>
+      AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
     lost: () => lost.signal.aborted,
     stop: () => clearInterval(timer),
   }
@@ -141,7 +145,9 @@ export class BatchExtractionWorker {
             schemaRevisionId: batch.schemaRevisionId,
             strategy: batch.strategy,
             batchExtractionId: batch.batchExtractionId,
-          }, guard.memberSignal())
+          }, guard.memberSignal(
+            batch.strategy === 'CATALOG' ? CATALOG_MEMBER_TIMEOUT_MS : MEMBER_TIMEOUT_MS,
+          ))
           if (!await this.persistence.completeBatchMember(
             batch.batchExtractionId,
             member.sourceDocumentId,

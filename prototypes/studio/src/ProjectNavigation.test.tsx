@@ -155,6 +155,8 @@ function hydratedSnapshot() {
         inputTokens: null,
         outputTokens: null,
         grounding: null,
+        catalog: null,
+        retry: null,
       },
       failure: null,
       resultPayload: { place: 'Ellekilde' },

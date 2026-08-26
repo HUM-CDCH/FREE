@@ -14,7 +14,9 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
   studio:
+    command: ["pnpm", "--filter", "studio", "dev", "--host", "0.0.0.0", "--strictPort"]
     environment:
+      NODE_ENV: development
       VITE_SHOW_DEVELOPER_UI: "true"
     develop:
       watch:

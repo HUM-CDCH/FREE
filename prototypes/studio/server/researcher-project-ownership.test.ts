@@ -556,6 +556,7 @@ function twoAccountStoreFixture(): TwoAccountStores {
     extractionModules[accountId] = {
       runSingle: vi.fn<ExtractionModule['runSingle']>(async (input) => {
         if (
+          input.kind !== 'fresh' ||
           input.sourceRepresentationRevisionId !==
             relationship.representationId ||
           input.schemaRevisionId !== relationship.revisionId

@@ -16,6 +16,9 @@ export type ExtractionErrorCode =
   | 'batch_conflict'
   | 'batch_not_ready'
   | 'batch_failed'
+  | 'catalog_discovery_failed'
+  | 'catalog_no_records'
+  | 'invalid_retry'
   | 'cancelled'
 
 export class ExtractionError extends Error {

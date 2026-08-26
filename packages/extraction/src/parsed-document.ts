@@ -75,6 +75,17 @@ export function decodeParsedDocument(data: unknown): ParsedDocument {
       placed.add(tableId)
     }
   }
+  const orderedBlockIds = parsed.pages.flatMap((page) => page.ordered_content)
+  if (
+    parsed.pages.some((page, index) => page.page_number !== index + 1) ||
+    orderedBlockIds.length !== parsed.content_stream.length ||
+    orderedBlockIds.some(
+      (blockId, index) => blockId !== parsed.content_stream[index].block_id,
+    )
+  )
+    throw new Error(
+      'parsed_document.v2: content stream order contradicts ordered content',
+    )
   if (placed.size !== tables.size) throw new Error('parsed_document.v2: every table requires a placement')
   for (const anchor of parsed.evidence_index.anchors) {
     if (anchor.content_sha256 !== parsed.document.content_sha256 || anchor.preprocess_id !== parsed.preprocessing.preprocess_id) throw new Error('parsed_document.v2: evidence identity does not match document')

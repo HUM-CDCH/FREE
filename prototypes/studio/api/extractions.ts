@@ -45,6 +45,7 @@ function asTransportError(error: unknown): unknown {
     case 'not_reviewable':
       return new ApiError(422, 'invalid_review', error.message, { cause: error })
     case 'invalid_request':
+    case 'invalid_retry':
     case 'invalid_review':
       return new ApiError(422, error.code, error.message, { cause: error })
     default:
@@ -68,14 +69,24 @@ export function createResearcherApiHandlers(
         'invalid_request',
         'The Extraction request is invalid.',
       )
-    const input = {
-      kind: 'fresh' as const,
-      extractionId: parsed.data.id,
-      sourceRepresentationRevisionId:
-        parsed.data.sourceRepresentationRevisionId,
-      schemaRevisionId: parsed.data.schemaRevisionId,
-      strategy: parsed.data.strategy,
-    }
+    const input =
+      'retryOfId' in parsed.data && parsed.data.retryOfId !== undefined
+        ? {
+            kind: 'retry' as const,
+            extractionId: parsed.data.id,
+            retryOfId: parsed.data.retryOfId,
+            retryDocument: parsed.data.retryDocument,
+            rediscover: parsed.data.rediscover,
+            retryRecordStartBlockIds: parsed.data.retryRecordStartBlockIds,
+          }
+        : {
+            kind: 'fresh' as const,
+            extractionId: parsed.data.id,
+            sourceRepresentationRevisionId:
+              parsed.data.sourceRepresentationRevisionId!,
+            schemaRevisionId: parsed.data.schemaRevisionId!,
+            strategy: parsed.data.strategy!,
+          }
     const completed = await module.runSingle(input, request.signal)
     return json(extractionAttemptDto(completed.extraction), {
       status: completed.disposition === 'created' ? 201 : 200,

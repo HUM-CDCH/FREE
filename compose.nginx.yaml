@@ -1,0 +1,42 @@
+# Local-only overlay: containerized nginx TLS entry point instead of the
+# host nginx production topology in README.md. Prerequisites (git-ignored):
+#   mkcert -cert-file .certs/studio.crt -key-file .certs/studio.key localhost 127.0.0.1 ::1
+#   .env with STUDIO_ORIGIN=https://localhost:8443 and STUDIO_BASE_PATH=/free
+# Usage: docker compose -f compose.yaml -f compose.nginx.yaml up -d
+services:
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8443:8443"
+    volumes:
+      - type: bind
+        source: ./docker/nginx-local.conf
+        target: /etc/nginx/conf.d/free-studio.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./.certs/studio.crt
+        target: /etc/nginx/certs/studio.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./.certs/studio.key
+        target: /etc/nginx/certs/studio.key
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      studio:
+        condition: service_healthy
+    networks:
+      proxy:
+        ipv4_address: 172.30.0.2
+
+  studio:
+    environment:
+      # Studio's direct socket peer is the nginx container, not the bridge
+      # gateway the host-nginx topology pins.
+      FREE_STUDIO_PROXY_ADDRESS: 172.30.0.2

@@ -153,8 +153,8 @@ describe('batchSchemaSuggestionMachine', () => {
     await vi.waitFor(() =>
       expect(actor.getSnapshot().matches({ drafting: 'saveFailed' })).toBe(true),
     )
-    expect(actor.getSnapshot().can({ type: 'run.requested' })).toBe(false)
-    actor.send({ type: 'run.requested' })
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(false)
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(onRun).not.toHaveBeenCalled()
     expect(save).toHaveBeenCalledTimes(1)
@@ -164,8 +164,8 @@ describe('batchSchemaSuggestionMachine', () => {
     await vi.waitFor(() =>
       expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true),
     )
-    expect(actor.getSnapshot().can({ type: 'run.requested' })).toBe(true)
-    actor.send({ type: 'run.requested' })
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(true)
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
     await vi.waitFor(() => expect(onRun).toHaveBeenCalledTimes(1))
     expect(save).toHaveBeenCalledTimes(2)
     expect(actor.getSnapshot().matches('confirmed')).toBe(true)
@@ -190,14 +190,14 @@ describe('batchSchemaSuggestionMachine', () => {
       suggestion: ready(),
     })
 
-    actor.send({ type: 'run.requested' })
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
     await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1))
     await vi.waitFor(() =>
       expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true),
     )
-    expect(actor.getSnapshot().can({ type: 'run.requested' })).toBe(true)
+    expect(actor.getSnapshot().can({ type: 'run.requested', strategy: 'ARTICLE' })).toBe(true)
 
-    actor.send({ type: 'run.requested' })
+    actor.send({ type: 'run.requested', strategy: 'ARTICLE' })
     await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(2))
     await vi.waitFor(() => expect(onRun).toHaveBeenCalledTimes(1))
     expect(actor.getSnapshot().matches('confirmed')).toBe(true)

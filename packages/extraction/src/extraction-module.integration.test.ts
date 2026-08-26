@@ -11,6 +11,7 @@ import type {
   ExtractionModelRequest,
   GroundingModel,
 } from './dependencies.js'
+import { ExtractionError } from './errors.js'
 import type {
   BatchExtractionSnapshot,
   ExtractionModule,
@@ -423,6 +424,69 @@ if (!disposableDatabaseUrl) {
     return { model, groundingModel, calls }
   }
 
+  /**
+   * A discovery-aware model over the seeded canonical package's two headings.
+   * The first values call against the Product B slice fails, so a fresh
+   * Catalog run persists a partial attempt whose failed record can be retried.
+   */
+  function catalogAdapters(failures = 1): DeterministicAdapters {
+    const base = deterministicAdapters()
+    let betaFailures = failures
+    const model: ExtractionModel = {
+      async extract(request) {
+        base.calls.push(request)
+        if (request.signal.aborted)
+          throw new DOMException('Aborted', 'AbortError')
+        if ('starts' in request.template)
+          return {
+            result: { starts: ['Product A', 'Product B'] },
+            metadata,
+          }
+        if (request.document.markdown.includes('Beta')) {
+          if (betaFailures > 0) {
+            betaFailures -= 1
+            throw new Error('controlled record failure')
+          }
+          return { result: { records: [{ title: 'Beta' }] }, metadata }
+        }
+        return { result: { records: [{ title: 'Alpha' }] }, metadata }
+      },
+    }
+    return { ...base, model }
+  }
+
+  function synchronizedCatalogAdapters(): readonly [
+    DeterministicAdapters,
+    DeterministicAdapters,
+  ] {
+    let arrivals = 0
+    let release: (() => void) | undefined
+    const ready = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const rendezvous = async () => {
+      arrivals += 1
+      if (arrivals === 2) release?.()
+      await ready
+    }
+    const wrap = (): DeterministicAdapters => {
+      const base = catalogAdapters(0)
+      let groundingCalls = 0
+      return {
+        ...base,
+        groundingModel: {
+          async ground(request) {
+            const response = await base.groundingModel.ground(request)
+            groundingCalls += 1
+            if (groundingCalls === 2) await rendezvous()
+            return response
+          },
+        },
+      }
+    }
+    return [wrap(), wrap()]
+  }
+
   function createRuntime(
     researcherAccountId: string,
     adapters: DeterministicAdapters = deterministicAdapters(),
@@ -619,6 +683,308 @@ if (!disposableDatabaseUrl) {
           id: foreignExtractionId,
         })
       assert.equal(unchanged?.reviewedAt, null)
+    })
+
+    it('persists, reopens, replays, and retries a durable Catalog attempt', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const adapters = catalogAdapters()
+      const { module } = createRuntime(project.researcherAccountId, adapters)
+      const input = { ...freshInput(project), strategy: 'CATALOG' as const }
+
+      const created = await module.runSingle(input)
+      assert.equal(created.disposition, 'created')
+      assert.equal(created.extraction.strategy, 'CATALOG')
+      assert.equal(created.extraction.outcome, 'SUCCEEDED')
+      assert.equal(created.extraction.complete, false)
+      assert.deepEqual(created.extraction.result, {
+        records: [{ title: 'Alpha', filename: 'article.pdf' }],
+      })
+      const catalog = created.extraction.diagnostics.catalog
+      assert.ok(catalog)
+      assert.deepEqual(
+        catalog.records.map((record) => [
+          record.boundary.startBlockId,
+          record.outcome,
+        ]),
+        [['heading-a', 'succeeded'], ['heading-b', 'failed']],
+      )
+
+      const replayed = await module.runSingle(input)
+      assert.equal(replayed.disposition, 'replayed')
+      await assert.rejects(
+        module.runSingle({ ...input, strategy: 'ARTICLE' as const }),
+        rejectsWithCode('extraction_id_conflict'),
+      )
+
+      const reopened = await module.readDocumentExtractions({
+        sourceDocumentId: project.documents[0]!.sourceDocumentId,
+      })
+      assert.equal(reopened?.latestAttempt?.strategy, 'CATALOG')
+      assert.deepEqual(reopened?.latestAttempt?.diagnostics.catalog, catalog)
+
+      const retry = {
+        kind: 'retry' as const,
+        extractionId: randomUUID(),
+        retryOfId: input.extractionId,
+        retryDocument: false,
+        rediscover: false,
+        retryRecordStartBlockIds: ['heading-b'] as readonly string[],
+      }
+      const child = (await module.runSingle(retry)).extraction
+      assert.equal(child.retryOfId, input.extractionId)
+      assert.equal(child.strategy, 'CATALOG')
+      assert.equal(child.outcome, 'SUCCEEDED')
+      assert.equal(child.complete, true)
+      assert.deepEqual(child.result, {
+        records: [
+          { title: 'Alpha', filename: 'article.pdf' },
+          { title: 'Beta', filename: 'article.pdf' },
+        ],
+      })
+      assert.deepEqual(
+        child.diagnostics.catalog?.records.map((record) => [
+          record.provenance,
+          record.calls,
+        ]),
+        [['reused', 0], ['executed', 1]],
+      )
+      assert.deepEqual(child.diagnostics.retry, retry && {
+        retryOfId: retry.retryOfId,
+        retryDocument: false,
+        rediscover: false,
+        retryRecordStartBlockIds: ['heading-b'],
+      })
+      assert.equal(child.reviewedAt, null)
+      assert.equal(child.reviewDecisions.length, 0)
+
+      // A stored retry replays for the same selection and conflicts otherwise.
+      const replayedChild = await module.runSingle(retry)
+      assert.equal(replayedChild.disposition, 'replayed')
+      await assert.rejects(
+        module.runSingle({ ...retry, rediscover: true }),
+        rejectsWithCode('extraction_id_conflict'),
+      )
+    })
+
+    it('reopens failed Catalog document values for rediscovery retry', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject({
+        recordDescription: 'One catalog record.',
+        schemaNodes: [
+          {
+            id: 'archive-node',
+            name: 'archive',
+            type: 'string',
+            valueSource: 'document',
+          },
+          { id: 'title-node', name: 'title', type: 'string' },
+          {
+            id: 'filename-node',
+            name: 'filename',
+            type: 'string',
+            valueSource: 'source-filename',
+          },
+        ],
+      })
+      const base = deterministicAdapters()
+      let discoveryCalls = 0
+      const adapters: DeterministicAdapters = {
+        ...base,
+        model: {
+          async extract(request) {
+            base.calls.push(request)
+            if ('starts' in request.template) {
+              discoveryCalls += 1
+              return {
+                result: {
+                  starts:
+                    discoveryCalls === 1
+                      ? []
+                      : ['Product A', 'Product B'],
+                },
+                metadata,
+              }
+            }
+            const templateRecord = Array.isArray(request.template.records)
+              ? request.template.records[0]
+              : null
+            if (
+              templateRecord &&
+              typeof templateRecord === 'object' &&
+              Object.hasOwn(templateRecord, 'archive')
+            )
+              return {
+                result: { records: [{ archive: 'Copenhagen' }] },
+                metadata,
+              }
+            return {
+              result: {
+                records: [{
+                  title: request.document.markdown.includes('Beta')
+                    ? 'Beta'
+                    : 'Alpha',
+                }],
+              },
+              metadata,
+            }
+          },
+        },
+      }
+      const { module } = createRuntime(project.researcherAccountId, adapters)
+      const parentInput = {
+        ...freshInput(project),
+        strategy: 'CATALOG' as const,
+      }
+      const parent = (await module.runSingle(parentInput)).extraction
+      assert.equal(parent.outcome, 'FAILED')
+      assert.equal(parent.failure?.code, 'catalog_no_records')
+      assert.deepEqual(parent.diagnostics.catalog?.documentValues, {
+        archive: 'Copenhagen',
+      })
+
+      const { module: reopenedModule } = createRuntime(
+        project.researcherAccountId,
+        adapters,
+      )
+      const reopened = await reopenedModule.readDocumentExtractions({
+        sourceDocumentId: project.documents[0]!.sourceDocumentId,
+        extractionId: parent.extractionId,
+      })
+      assert.deepEqual(
+        reopened?.latestAttempt?.diagnostics.catalog?.documentValues,
+        { archive: 'Copenhagen' },
+      )
+
+      adapters.calls.length = 0
+      const child = (
+        await reopenedModule.runSingle({
+          kind: 'retry',
+          extractionId: randomUUID(),
+          retryOfId: parent.extractionId,
+          retryDocument: false,
+          rediscover: true,
+          retryRecordStartBlockIds: [],
+        })
+      ).extraction
+      assert.equal(child.outcome, 'SUCCEEDED')
+      assert.deepEqual(child.result, {
+        records: [
+          {
+            archive: 'Copenhagen',
+            title: 'Alpha',
+            filename: 'article.pdf',
+          },
+          {
+            archive: 'Copenhagen',
+            title: 'Beta',
+            filename: 'article.pdf',
+          },
+        ],
+      })
+      assert.equal(adapters.calls.length, 3)
+      assert.ok(
+        adapters.calls.every((call) => {
+          const record = Array.isArray(call.template.records)
+            ? call.template.records[0]
+            : null
+          return (
+            !record ||
+            typeof record !== 'object' ||
+            !Object.hasOwn(record, 'archive')
+          )
+        }),
+      )
+      assert.equal(
+        child.diagnostics.catalog?.stages.find(
+          (stage) => stage.stage === 'document-values',
+        )?.provenance,
+        'reused',
+      )
+    })
+
+    it('arbitrates independent runtime races by complete retry selection', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const parentRuntime = createRuntime(
+        project.researcherAccountId,
+        catalogAdapters(),
+      )
+      const parent = (
+        await parentRuntime.module.runSingle({
+          ...freshInput(project),
+          strategy: 'CATALOG',
+        })
+      ).extraction
+      assert.equal(
+        parent.diagnostics.catalog?.records.find(
+          (record) => record.boundary.startBlockId === 'heading-b',
+        )?.outcome,
+        'failed',
+      )
+
+      const differentAdapters = synchronizedCatalogAdapters()
+      const differentModules = differentAdapters.map(
+        (adapters) =>
+          createRuntime(project.researcherAccountId, adapters).module,
+      )
+      const differentId = randomUUID()
+      const different = await Promise.allSettled([
+        differentModules[0]!.runSingle({
+          kind: 'retry',
+          extractionId: differentId,
+          retryOfId: parent.extractionId,
+          retryDocument: false,
+          rediscover: false,
+          retryRecordStartBlockIds: ['heading-b'],
+        }),
+        differentModules[1]!.runSingle({
+          kind: 'retry',
+          extractionId: differentId,
+          retryOfId: parent.extractionId,
+          retryDocument: false,
+          rediscover: true,
+          retryRecordStartBlockIds: [],
+        }),
+      ])
+      const differentFulfilled = different.filter(
+        (result) => result.status === 'fulfilled',
+      )
+      const differentRejected = different.filter(
+        (result) => result.status === 'rejected',
+      )
+      assert.equal(differentFulfilled.length, 1)
+      assert.equal(differentRejected.length, 1)
+      assert.equal(differentFulfilled[0]!.value.disposition, 'created')
+      assert.equal(
+        differentRejected[0]!.reason instanceof ExtractionError
+          ? differentRejected[0]!.reason.code
+          : null,
+        'extraction_id_conflict',
+      )
+
+      const identicalAdapters = synchronizedCatalogAdapters()
+      const identicalModules = identicalAdapters.map(
+        (adapters) =>
+          createRuntime(project.researcherAccountId, adapters).module,
+      )
+      const identicalId = randomUUID()
+      const identicalInput = {
+        kind: 'retry' as const,
+        extractionId: identicalId,
+        retryOfId: parent.extractionId,
+        retryDocument: false,
+        rediscover: false,
+        retryRecordStartBlockIds: ['heading-b'] as readonly string[],
+      }
+      const identical = await Promise.all([
+        identicalModules[0]!.runSingle(identicalInput),
+        identicalModules[1]!.runSingle(identicalInput),
+      ])
+      assert.deepEqual(
+        identical.map((result) => result.disposition).sort(),
+        ['created', 'replayed'],
+      )
     })
 
     it('persists Article failures as terminal snapshots', async (t) => {

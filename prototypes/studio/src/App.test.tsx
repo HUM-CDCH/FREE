@@ -152,7 +152,7 @@ const reopened: DocumentWorkspaceProps = {
     strategy: 'ARTICLE',
     outcome: 'SUCCEEDED',
     complete: true,
-    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+    diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 0, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null, retry: null },
     failure: null,
     resultPayload: { place: 'Ellekilde' },
     evidenceLinks: [],
@@ -910,6 +910,8 @@ describe('reopened Source Document workspace', () => {
         phase: 'grounding', durationMs: 1, modelCalls: 1,
         finishReason: 'stop', inputTokens: 1, outputTokens: 1,
         grounding: null,
+        catalog: null,
+        retry: null,
       },
       failure: null, resultPayload: { records: [{ place: 'Article' }] },
       evidenceLinks: [], reviewable: true, retryOfId: null, batchExtractionId: null,
@@ -924,6 +926,61 @@ describe('reopened Source Document workspace', () => {
     expect(cancellationRequests).toEqual([])
     },
   )
+
+  it('submits the selected Catalog strategy once, then defaults back to Article', async () => {
+    const extractionRequests: Array<{ strategy?: string }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
+        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
+        if (url.startsWith('/api/schema-revisions?'))
+          return Promise.resolve(Response.json({ revisions: [] }))
+        if (url.endsWith('/api/extractions')) {
+          const body = JSON.parse(String(init?.body)) as { strategy?: string }
+          extractionRequests.push(body)
+          return Promise.resolve(Response.json({
+            extractionId: '51000000-0000-4000-8006-000000000021',
+            sourceDocumentId: '51000000-0000-4000-8001-000000000001',
+            sourceRepresentationRevisionId: reopened.sourceRepresentationId,
+            schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
+            strategy: 'CATALOG', outcome: 'FAILED', complete: null,
+            modelAttribution: null,
+            diagnostics: {
+              phase: 'extracting', durationMs: 1, modelCalls: 1,
+              finishReason: null, inputTokens: null, outputTokens: null,
+              grounding: null,
+              catalog: { stages: [], records: [] },
+              retry: null,
+            },
+            failure: { code: 'catalog_discovery_failed', message: 'Discovery failed.' },
+            resultPayload: null, evidenceLinks: null, reviewable: false,
+            retryOfId: null, batchExtractionId: null,
+            createdAt: '2026-08-12T00:00:00.000Z', reviewedAt: null, reviewDecisions: [],
+          }, { status: 201 }))
+        }
+        return Promise.resolve(new Response('pdf'))
+      }),
+    )
+    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    const selector = screen.getByLabelText('Extraction strategy')
+    expect(selector).toHaveValue('ARTICLE')
+    fireEvent.change(selector, { target: { value: 'CATALOG' } })
+    fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
+
+    await waitFor(() => expect(extractionRequests).toHaveLength(1))
+    expect(extractionRequests[0]).toEqual(
+      expect.objectContaining({ strategy: 'CATALOG' }),
+    )
+    // The selection is one-shot: the next run defaults back to Article.
+    await waitFor(() =>
+      expect(screen.getByLabelText('Extraction strategy')).toHaveValue('ARTICLE'),
+    )
+  })
 
   it('abandons a pending run when the active Source Document changes', async () => {
     const nextSourceRepresentationId =
@@ -1033,7 +1090,7 @@ describe('reopened Source Document workspace', () => {
             outcome: 'SUCCEEDED',
             complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null, retry: null },
             failure: null,
             resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
@@ -1054,7 +1111,7 @@ describe('reopened Source Document workspace', () => {
               schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
               strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
               modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-              diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null },
+              diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null, retry: null },
               failure: null, resultPayload: { records: [{ number: '24-1' }] },
               evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
               reviewable: true, retryOfId: null, batchExtractionId: null,
@@ -1079,7 +1136,7 @@ describe('reopened Source Document workspace', () => {
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
             strategy: 'ARTICLE', outcome: 'SUCCEEDED', complete: true,
             modelAttribution: { provider: 'ollama', modelId: 'test-model' },
-            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null },
+            diagnostics: { phase: 'grounding', durationMs: 1, modelCalls: 2, finishReason: 'stop', inputTokens: 10, outputTokens: 4, grounding: null, catalog: null, retry: null },
             failure: null, resultPayload: { records: [{ number: '24-1' }] },
             evidenceLinks: [{ resultPath: ['records', 0, 'number'], evidenceAnchorId: 'bundled-anchor' }],
             reviewable: true, retryOfId: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z', reviewedAt: '2026-08-10T00:01:00.000Z',
@@ -1142,7 +1199,7 @@ describe('reopened Source Document workspace', () => {
             outcome,
             complete: null,
             modelAttribution: null,
-            diagnostics: { phase: 'extracting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null, grounding: null },
+            diagnostics: { phase: 'extracting', durationMs: 1, modelCalls: 1, finishReason: null, inputTokens: null, outputTokens: null, grounding: null, catalog: null, retry: null },
             failure: outcome === 'FAILED' ? { code: 'extraction_failed', message: 'Extraction failed.' } : null,
             resultPayload: null,
             evidenceLinks: null,

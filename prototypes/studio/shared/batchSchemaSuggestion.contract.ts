@@ -3,6 +3,7 @@ import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
   projectOperationStatusSchema,
 } from './batchExtraction.contract.js'
+import { extractionStrategySchema } from './extraction.contract.js'
 import { canonicalUuidSchema } from './projectContext.contract.js'
 import { schemaDefinitionSchema } from 'extraction/schema'
 
@@ -29,7 +30,7 @@ export const batchSchemaSuggestionDraftRequestSchema = z
   .strict()
 
 export const batchSchemaSuggestionRunRequestSchema = z
-  .object({ strategy: z.literal('ARTICLE') })
+  .object({ strategy: extractionStrategySchema })
   .strict()
 
 const coverageSchema = z

@@ -105,7 +105,8 @@ function batchSchemaLine(batch: BatchExtraction): string {
 
 function selectionLine(batch: BatchExtraction): string {
   const count = batch.members.length
-  return `${count} Source Document${count === 1 ? '' : 's'} · Article`
+  const strategy = batch.strategy === 'CATALOG' ? 'Catalog' : 'Article'
+  return `${count} Source Document${count === 1 ? '' : 's'} · ${strategy}`
 }
 
 export function BatchExtractionHistory({

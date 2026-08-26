@@ -125,9 +125,10 @@ describe('durable operation APIs', () => {
     )
   })
 
-  it('rejects the removed Catalog strategy before scheduling a suggested batch', async () => {
+  it('schedules a suggested batch with the selected Catalog strategy', async () => {
     const module = moduleForSuggestedBatch()
-    const handler = handlerFor({}, module)
+    const getBatchSchemaSuggestion = vi.fn(async () => suggestion)
+    const handler = handlerFor({ getBatchSchemaSuggestion }, module)
     const request = runRequest()
     const response = await handler(
       new Request(request.url, {
@@ -137,8 +138,10 @@ describe('durable operation APIs', () => {
       }),
     )
 
-    expect(response.status).toBe(422)
-    expect(module.scheduleSuggestedBatch).not.toHaveBeenCalled()
+    expect(response.status).toBe(202)
+    expect(module.scheduleSuggestedBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ strategy: 'CATALOG' }),
+    )
   })
 
   it('persists a Schema Suggestion before waking its durable worker', async () => {

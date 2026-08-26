@@ -24,6 +24,7 @@ const defaultController: ExtractionController = {
   hasResults: false,
   stale: false,
   runExtraction: async () => {},
+  retryExtraction: async () => null,
   requestCancellation: async () => {},
   cancellationRequested: false,
   cancellationError: null,

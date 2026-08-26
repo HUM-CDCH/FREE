@@ -37,6 +37,8 @@ const extraction: ExtractionSnapshot = {
     ungroundedPaths: [],
     groundingIssues: [],
     groundingBatches: [],
+    catalog: null,
+    retry: null,
   },
   result: { records: [{ title: 'Ellekilde' }] },
   evidence: [
