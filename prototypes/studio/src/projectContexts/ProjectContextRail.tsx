@@ -58,13 +58,16 @@ function AddSourceDocumentsControl({
           blurs the input on its own schedule, which flashes any style tied
           to the input's own focus. The button's focus never moves. */}
       <button
-        className="flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-ink-faint outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:bg-accent-ghost focus-visible:text-accent focus-visible:ring-1 focus-visible:ring-accent"
+        className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
         type="button"
         aria-label={`Add Source Documents to ${projectName}`}
-        title="Add Source Documents"
-        onClick={() => inputRef.current?.click()}
+        onClick={(event) => {
+          event.currentTarget.closest('details')?.removeAttribute('open')
+          inputRef.current?.click()
+        }}
       >
         <PlusIcon />
+        Add Source Documents
       </button>
       <input
         ref={inputRef}
@@ -248,30 +251,19 @@ export function ProjectContextRail({
 
   return (
     <div className="flex h-full min-h-0 flex-col" ref={railRef}>
-      <header className="flex shrink-0 items-center justify-between py-3 pl-4 pr-2.5">
-        <Overline as="h2">Project</Overline>
-        <div className="flex items-center gap-0.5">
-          <button
-            ref={createTrigger}
-            className="cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
-            type="button"
-            aria-label="New Project Context"
-            title="New Project Context"
-            onClick={() => setCreating(true)}
-          >
-            <PlusIcon />
-          </button>
-          <button
-            data-rail-toggle
-            className="cursor-pointer px-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
-            type="button"
-            aria-label="Collapse Project Contexts"
-            title="Collapse Project Contexts"
-            onClick={onToggle}
-          >
-            <PanelToggleIcon side="left" />
-          </button>
-        </div>
+      {/* The collapse toggle sits on the logo row above this rail. */}
+      <header className="flex shrink-0 items-center justify-between py-4 pl-4 pr-3">
+        <Overline as="h2">Projects</Overline>
+        <button
+          ref={createTrigger}
+          className="cursor-pointer rounded-sm p-1 text-accent outline-none transition-colors hover:bg-accent-ghost focus-visible:ring-1 focus-visible:ring-accent"
+          type="button"
+          aria-label="New Project Context"
+          title="New Project Context"
+          onClick={() => setCreating(true)}
+        >
+          <PlusIcon />
+        </button>
       </header>
 
       <nav
@@ -307,7 +299,7 @@ export function ProjectContextRail({
             const active = projectContextId === activeProjectContextId
             const branch = branches[projectContextId]
             return (
-              <li key={projectContextId} className="py-0.5">
+              <li key={projectContextId} className="py-1.5">
                 {/* The chevron and the name are one control: either discloses
                     Source Documents. Opening the Project Context page and
                     adding to it live in the row's own menu. */}
@@ -325,7 +317,9 @@ export function ProjectContextRail({
                     } Source Documents in ${project.name}`}
                     onClick={() => toggle(projectContextId)}
                   >
-                    <span aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
+                    <span aria-hidden="true" className="text-accent">
+                      {isExpanded ? '▾' : '▸'}
+                    </span>
                     <span
                       className={`min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-[0.07em] ${
                         active ? 'text-accent' : 'text-ink-muted'
@@ -334,11 +328,6 @@ export function ProjectContextRail({
                       {project.name}
                     </span>
                   </button>
-                  <AddSourceDocumentsControl
-                    projectContextId={projectContextId}
-                    projectName={project.name}
-                    addSources={addSources}
-                  />
                   <details className="relative shrink-0">
                     <summary
                       className="flex size-6 cursor-pointer list-none items-center justify-center rounded-sm text-ink-faint outline-none transition-colors hover:bg-accent-ghost hover:text-accent focus-visible:ring-1 focus-visible:ring-accent [&::-webkit-details-marker]:hidden"
@@ -347,7 +336,7 @@ export function ProjectContextRail({
                     >
                       <span aria-hidden="true">•••</span>
                     </summary>
-                    <div className="absolute right-0 top-7 z-10 w-40 rounded-2xl bg-ink p-1.5 text-xs text-white shadow-md">
+                    <div className="absolute right-0 top-7 z-10 w-52 rounded-2xl bg-ink p-1.5 text-xs text-white shadow-md">
                       <button
                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
                         type="button"
@@ -367,6 +356,11 @@ export function ProjectContextRail({
                       >
                         Open project
                       </button>
+                      <AddSourceDocumentsControl
+                        projectContextId={projectContextId}
+                        projectName={project.name}
+                        addSources={addSources}
+                      />
                       <button
                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-danger hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-none"
                         type="button"

@@ -21,6 +21,7 @@ import {
 } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
 import type { ExtractionStrategy } from '../../shared/extraction.contract'
+import PlusIcon from '../PlusIcon'
 import SchemaPanel from '../SchemaPanel'
 import {
   createSchemaEditorController,
@@ -158,7 +159,7 @@ function SuggestionSourceProgress({
                   source.executionStatus === 'FAILED'
                     ? 'shrink-0 font-semibold text-danger'
                     : source.executionStatus === 'COMPLETED'
-                      ? 'shrink-0 font-semibold text-success'
+                      ? 'shrink-0 font-semibold text-green'
                       : 'shrink-0 font-semibold text-ink-faint'
                 }
               >
@@ -743,7 +744,13 @@ export default function BatchExtractionsPanel({
       className="pt-1"
       tabIndex={0}
     >
-      <div className="mb-4 flex min-h-10 items-center justify-between gap-3 border-b border-line pb-3">
+      <div
+        className={`flex min-h-10 justify-between gap-3 ${
+          screen === 'history'
+            ? 'mb-2 items-start pt-4'
+            : 'mb-4 items-center border-b border-line pb-3'
+        }`}
+      >
         <div className="flex min-w-0 items-center gap-3">
           {screen !== 'history' && (
             <button
@@ -758,12 +765,23 @@ export default function BatchExtractionsPanel({
               <span aria-hidden="true">← </span>Back to history
             </button>
           )}
-          <p className="truncate text-xs font-semibold text-ink">{heading}</p>
+          {screen === 'history' ? (
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-ink">
+                {heading}
+              </span>
+              <span className="mt-0.5 block text-xs text-ink-faint">
+                View and monitor your Batch Extraction runs.
+              </span>
+            </span>
+          ) : (
+            <p className="truncate text-sm font-semibold text-ink">{heading}</p>
+          )}
         </div>
         {/* On `prepare` this button only reopens the screen already shown. */}
         {screen !== 'prepare' && (
           <Button
-            variant={screen === 'members' ? 'secondary' : 'primary'}
+            variant="primary"
             size="md"
             disabled={openingAnyBatch}
             onClick={() => {
@@ -771,9 +789,14 @@ export default function BatchExtractionsPanel({
               setPreparing(true)
             }}
           >
-            {openingAnyBatch
-              ? 'Opening Batch Extraction…'
-              : 'New Batch Extraction'}
+            {openingAnyBatch ? (
+              'Opening Batch Extraction…'
+            ) : (
+              <>
+                <PlusIcon />
+                New Batch Extraction
+              </>
+            )}
           </Button>
         )}
       </div>

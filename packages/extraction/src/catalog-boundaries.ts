@@ -9,105 +9,64 @@ export type CatalogBoundary = {
 }
 
 export type CatalogBoundaryErrorCode =
-  | 'unknown_label'
-  | 'duplicate_label'
-  | 'non_heading_label'
-  | 'ambiguous_heading'
+  | 'unknown_start'
+  | 'duplicate_start'
+  | 'non_heading_start'
   | 'non_monotonic_order'
 
 export class CatalogBoundaryResolutionError extends Error {
   readonly code: CatalogBoundaryErrorCode
-  readonly label?: string
 
-  constructor(
-    code: CatalogBoundaryErrorCode,
-    message: string,
-    label?: string,
-  ) {
+  constructor(code: CatalogBoundaryErrorCode, message: string) {
     super(message)
     this.code = code
-    this.label = label
     this.name = 'CatalogBoundaryResolutionError'
   }
 }
 
-function textOf(block: ParsedContentBlock): string | undefined {
-  return 'text' in block ? block.text : undefined
-}
 
-/** Resolve exact discovery labels to canonical, end-exclusive content slices. */
+/** Resolve stable heading block IDs to canonical, end-exclusive content slices. */
 export function resolveCatalogBoundaries(
   document: Pick<ParsedDocument, 'content_stream'>,
-  labels: readonly string[],
+  startBlockIds: readonly string[],
 ): CatalogBoundary[] {
   const seen = new Set<string>()
-  for (const label of labels) {
-    if (seen.has(label)) {
+  for (const startBlockId of startBlockIds) {
+    if (seen.has(startBlockId)) {
       throw new CatalogBoundaryResolutionError(
-        'duplicate_label',
-        `Catalog discovery label is duplicated: ${JSON.stringify(label)}.`,
-        label,
+        'duplicate_start',
+        `Catalog discovery start block is duplicated: ${JSON.stringify(startBlockId)}.`,
       )
     }
-    seen.add(label)
+    seen.add(startBlockId)
   }
 
-  const occurrences = new Map<
-    string,
-    {
-      headings: Array<{
-        index: number
-        block: Extract<ParsedContentBlock, { kind: 'heading' }>
-      }>
-      nonHeading: boolean
-    }
-  >()
-  document.content_stream.forEach((block, index) => {
-    const text = textOf(block)
-    if (text === undefined) return
-    const occurrence = occurrences.get(text) ?? {
-      headings: [],
-      nonHeading: false,
-    }
-    if (block.kind === 'heading') occurrence.headings.push({ index, block })
-    else occurrence.nonHeading = true
-    occurrences.set(text, occurrence)
-  })
-
-  const resolved = labels.map((label) => {
-    const occurrence = occurrences.get(label)
-    const headingMatches = occurrence?.headings ?? []
-    if (headingMatches.length === 0) {
-      const nonHeadingMatch = occurrence?.nonHeading ?? false
-      const code = nonHeadingMatch ? 'non_heading_label' : 'unknown_label'
-      const reason = nonHeadingMatch ? 'identifies only non-heading content' : 'is unknown'
+  const blocks = new Map(
+    document.content_stream.map((block, index) => [
+      block.block_id,
+      { index, block },
+    ]),
+  )
+  const resolved = startBlockIds.map((startBlockId) => {
+    const match = blocks.get(startBlockId)
+    if (!match)
       throw new CatalogBoundaryResolutionError(
-        code,
-        `Catalog discovery label ${JSON.stringify(label)} ${reason}.`,
-        label,
+        'unknown_start',
+        `Catalog discovery start block ${JSON.stringify(startBlockId)} is unknown.`,
       )
-    }
-    if (headingMatches.length > 1) {
+    if (match.block.kind !== 'heading')
       throw new CatalogBoundaryResolutionError(
-        'ambiguous_heading',
-        `Catalog discovery label ${JSON.stringify(label)} matches multiple canonical headings.`,
-        label,
+        'non_heading_start',
+        `Catalog discovery start block ${JSON.stringify(startBlockId)} is not a heading.`,
       )
-    }
-
-    const match = headingMatches[0]
-    return {
-      index: match.index,
-      block: match.block,
-    }
+    return { index: match.index, block: match.block }
   })
 
   for (let index = 1; index < resolved.length; index += 1) {
     if (resolved[index - 1].index >= resolved[index].index) {
       throw new CatalogBoundaryResolutionError(
         'non_monotonic_order',
-        'Catalog discovery labels are not in canonical source order.',
-        labels[index],
+        'Catalog discovery starts are not in canonical source order.',
       )
     }
   }

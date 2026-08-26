@@ -4,6 +4,7 @@ import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
 import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
+import PanelToggleIcon from './PanelToggleIcon'
 import { useOpenDocumentTabs } from './useOpenDocumentTabs'
 import type { NavigableRoute, Route } from './projectNavigation'
 import type { DocumentSnapshot } from './projectContexts/transport'
@@ -295,6 +296,11 @@ export default function AppFrame({
     window.addEventListener('mouseup', onUp)
   }
 
+  const toggleNav = () => {
+    if (viewportWidth >= 860) setNavOpen((open) => !open)
+    else setNarrowNavOpen((open) => !open)
+  }
+
   return (
     <main className="flex h-dvh overflow-hidden bg-canvas text-ink">
       {/* React 19 hoists this into <head>; no title-sync effect needed. */}
@@ -338,16 +344,25 @@ export default function AppFrame({
               FREE
             </h1>
           )} */}
+          {effectiveNavOpen && (
+            <button
+              data-rail-toggle
+              className="ml-auto cursor-pointer rounded-sm p-1 text-ink-muted outline-none transition-colors hover:text-accent focus-visible:text-accent"
+              type="button"
+              aria-label="Collapse Project Contexts"
+              title="Collapse Project Contexts"
+              onClick={toggleNav}
+            >
+              <PanelToggleIcon side="left" />
+            </button>
+          )}
         </div>
         <aside className="min-h-0 flex-1" aria-label="Project navigation">
           <ProjectContextRail
             open={effectiveNavOpen}
             selection={selection}
             routedProjectContextId={routedProjectContextId}
-            onToggle={() => {
-              if (viewportWidth >= 860) setNavOpen((open) => !open)
-              else setNarrowNavOpen((open) => !open)
-            }}
+            onToggle={toggleNav}
             onNavigate={onNavigate}
             onOpenSourceDocument={openSourceDocument}
             onConfigure={(opener) => {

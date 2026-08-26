@@ -1,6 +1,6 @@
 ## Context
 
-The server-owned lifecycle persists a pinned Article attempt after one values call and canonical grounding. Catalog must retain that lifecycle's source package, Evidence Anchor, UUID identity, cancellation, and terminal persistence rules while applying the same visible record schema to multiple canonical source slices. `parsed_document.v2` remains the only source authority; model output supplies values and exact heading-start labels, never source identity or Evidence.
+The server-owned lifecycle persists a pinned Article attempt after one values call and canonical grounding. Catalog must retain that lifecycle's source package, Evidence Anchor, UUID identity, cancellation, and terminal persistence rules while applying the same visible record schema to multiple canonical source slices. `parsed_document.v2` remains the only source authority; model output selects server-marked heading IDs, never source identity or Evidence.
 
 ## Goals / Non-Goals
 
@@ -22,11 +22,11 @@ The server-owned lifecycle persists a pinned Article attempt after one values ca
 
 ### Canonical headings own identity and slices
 
-`shared/catalogBoundaries.ts` will enumerate heading blocks from the decoded canonical content stream. Discovery has the strict shape `{ starts: string[] }` and returns only ordered heading text. Matching is exact after no normalization: case, Unicode code points, and whitespace must match the canonical heading text. Resolution rejects the entire discovery response for unknown, duplicate, non-heading, non-monotonic, or text-ambiguous labels.
+The server enumerates heading blocks from the decoded canonical content stream and marks them for the discovery call with unique, document-local short IDs (`H1`, `H2`, ...). Discovery has the strict shape `{ starts: string[] }` and returns only those IDs in source order. Matching is exact with no normalization. The server rejects an invalid shape or unknown, duplicate, or non-monotonic IDs before record extraction. Short IDs and markers are call-local aliases: they are never persisted and never become source identity.
 
-The canonical start block ID is the record identity. A persisted boundary records the start block ID and inclusive content-stream index plus an exclusive end content-stream index; heading text and level are diagnostic display data, not identity. Each selected start ends immediately before the next selected start. The final record ends immediately before the next later heading at the same or shallower level. If no such heading exists, the canonical document end is its unambiguous exclusive end; contradictory or ambiguous canonical ordering is diagnosed rather than guessed.
+The canonical start block ID is the record identity. After alias resolution, the pure boundary resolver rejects unknown, duplicate, non-heading, or non-monotonic canonical starts. A persisted boundary records the start block ID and inclusive content-stream index plus an exclusive end content-stream index; heading text and level are diagnostic display data, not identity. Each selected start ends immediately before the next selected start. The final record ends immediately before the next later heading at the same or shallower level. If no such heading exists, the canonical document end is its unambiguous exclusive end.
 
-This is stricter than marker/text fallback because a wrong record boundary corrupts every downstream value and Evidence path. It is smaller and auditable: one pure resolver with unit tests.
+This is stricter than heading-text or fuzzy fallback because OCR corruption, merged headings, or model text normalization cannot silently select a different boundary. Compact aliases are copy-safe for the model while canonical block IDs remain the sole durable authority. Resolution stays auditable through one model-call-local alias map and one pure canonical resolver.
 
 ### One orchestration shell, strategy-specific execution
 

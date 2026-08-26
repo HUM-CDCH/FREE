@@ -6,8 +6,8 @@
 
 ## 2. Canonical boundary resolution
 
-- [x] 2.1 Implement the pure exact heading-label resolver and end-exclusive canonical boundary representation.
-- [x] 2.2 Cover unknown, duplicate, non-heading, ambiguous, non-monotonic, nested, terminal-peer, and document-end cases.
+- [x] 2.1 Implement exact document-local heading-ID discovery, pure canonical start resolution, and end-exclusive canonical boundary representation.
+- [x] 2.2 Cover unknown, duplicate, non-heading, non-monotonic, strict short-ID matching, nested, terminal-peer, and document-end cases.
 
 ## 3. Catalog orchestration
 

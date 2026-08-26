@@ -708,7 +708,9 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
 
     resetQueues()
     enqueue('document', { result: { records: [{ year: 2026 }] } })
-    enqueue('discovery', { result: { starts: ['First', 'Second'] } })
+    enqueue('discovery', {
+      result: { starts: ['H1', 'H2'] },
+    })
     enqueue('record', { result: { records: [{ title: 'A' }] } }, { result: { records: [{ title: 'B' }] } })
     enqueue('grounding', { grounding: true }, { grounding: true })
     await page.getByLabel('Extraction strategy').selectOption('CATALOG')
@@ -727,7 +729,11 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
 
     resetQueues()
     enqueue('document', { result: { records: [{ year: 2026 }] } })
-    enqueue('discovery', { result: { starts: ['First', 'Second', 'Third'] } })
+    enqueue('discovery', {
+      result: {
+        starts: ['H1', 'H2', 'H3'],
+      },
+    })
     enqueue('record', { result: { records: [{ title: 'A' }] } }, { status: 500 }, { result: { records: [{ title: 'C' }] } })
     enqueue('grounding', { grounding: true }, { grounding: true })
     const partialId = randomUUID()
@@ -752,7 +758,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
 
     resetQueues()
     enqueue('document', { result: { records: [{ year: 2026 }] } })
-    enqueue('discovery', { result: { starts: ['Missing'] } })
+    enqueue('discovery', { result: { starts: ['H999'] } })
     const discoveryFailureResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },
       data: { id: randomUUID(), sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },
@@ -763,7 +769,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     expect(discoveryFailure.diagnostics.catalog.records).toEqual([])
     expect(discoveryFailure.diagnostics.catalog.stages).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ stage: 'discovery', outcome: 'failed', failureCode: 'unknown_label' }),
+        expect.objectContaining({ stage: 'discovery', outcome: 'failed', failureCode: 'unknown_start' }),
         expect.objectContaining({ stage: 'record-values', outcome: 'not_attempted', calls: 0 }),
       ]),
     )
@@ -848,7 +854,11 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     const callsBeforeCancellation = callCount
     resetQueues()
     enqueue('document', { result: { records: [{ year: 2026 }] } })
-    enqueue('discovery', { result: { starts: ['First', 'Second', 'Third'] } })
+    enqueue('discovery', {
+      result: {
+        starts: ['H1', 'H2', 'H3'],
+      },
+    })
     enqueue('record', { result: { records: [{ title: 'A' }] } }, { result: { records: [{ title: 'B' }] }, delayMs: 10_000 })
     const cancellationPost = page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },

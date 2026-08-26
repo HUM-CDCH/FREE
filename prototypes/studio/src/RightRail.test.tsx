@@ -35,9 +35,12 @@ const defaultController: ExtractionController = {
     loading: false,
     decisions: [],
     reviewedCount: 0,
+    untouchedCount: 0,
+    isTouched: () => false,
     reviewedExtractionId: null,
     error: null,
     setDecision: () => {},
+    approveAll: () => {},
     accept: async () => {},
   },
 }

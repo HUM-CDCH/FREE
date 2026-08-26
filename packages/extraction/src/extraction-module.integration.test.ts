@@ -439,7 +439,7 @@ if (!disposableDatabaseUrl) {
           throw new DOMException('Aborted', 'AbortError')
         if ('starts' in request.template)
           return {
-            result: { starts: ['Product A', 'Product B'] },
+            result: { starts: ['H1', 'H2'] },
             metadata,
           }
         if (request.document.markdown.includes('Beta')) {
@@ -801,7 +801,7 @@ if (!disposableDatabaseUrl) {
                   starts:
                     discoveryCalls === 1
                       ? []
-                      : ['Product A', 'Product B'],
+                      : ['H1', 'H2'],
                 },
                 metadata,
               }

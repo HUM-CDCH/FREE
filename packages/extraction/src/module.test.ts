@@ -225,7 +225,8 @@ function catalogHarness(options: {
   const labels = options.labels ?? ['First', 'Second']
   const document = catalogDocument(labels)
   const store = new Map<string, ExtractionSnapshot>()
-  let starts: readonly string[] = options.starts ?? labels
+  let starts: readonly string[] =
+    options.starts ?? labels.map((_, index) => `H${index + 1}`)
   let script: ScriptedCall[] = [...(options.script ?? [])]
   const calls: { markdown: string; template: Record<string, unknown> }[] = []
   const session: ExtractionModelSession = {
@@ -344,6 +345,9 @@ describe('ExtractionModule Catalog contract', () => {
     // One discovery call plus one bounded call per canonical slice.
     assert.equal(harness.calls.length, 3)
     assert.ok('starts' in harness.calls[0].template)
+    assert.ok(harness.calls[0].markdown.includes('[[heading:H1]] First'))
+    assert.ok(harness.calls[0].markdown.includes('[[heading:H2]] Second'))
+    assert.ok(!harness.calls[0].markdown.includes('[[heading:H3]]'))
     assert.ok(harness.calls[1].markdown.includes('First body'))
     assert.ok(!harness.calls[1].markdown.includes('Second body'))
     assert.ok(harness.calls[2].markdown.includes('Second body'))
@@ -388,19 +392,31 @@ describe('ExtractionModule Catalog contract', () => {
     )
   })
 
-  it('fails discovery without attempting record values', async () => {
-    const harness = catalogHarness({ starts: ['Unknown heading'] })
-    const { extraction } = await harness.module.runSingle(catalogInput())
-    assert.equal(extraction.outcome, 'FAILED')
-    assert.equal(extraction.failure?.code, 'catalog_discovery_failed')
-    assert.equal(extraction.result, null)
-    const catalog = extraction.diagnostics.catalog
-    assert.equal(
-      catalog?.stages.find((stage) => stage.stage === 'discovery')?.failureCode,
-      'unknown_label',
-    )
-    assert.equal(catalog?.records.length, 0)
-    assert.equal(harness.calls.length, 1)
+  it('requires exact unique short heading IDs before record extraction', async () => {
+    const cases: ReadonlyArray<
+      readonly [readonly string[], 'unknown_start' | 'duplicate_start']
+    > = [
+      [['H999'], 'unknown_start'],
+      [['h1'], 'unknown_start'],
+      [[' H1'], 'unknown_start'],
+      [['H1 '], 'unknown_start'],
+      [['H1', 'H1'], 'duplicate_start'],
+    ]
+    for (const [starts, failureCode] of cases) {
+      const harness = catalogHarness({ starts })
+      const { extraction } = await harness.module.runSingle(catalogInput())
+      assert.equal(extraction.outcome, 'FAILED')
+      assert.equal(extraction.failure?.code, 'catalog_discovery_failed')
+      assert.equal(extraction.result, null)
+      const catalog = extraction.diagnostics.catalog
+      assert.equal(
+        catalog?.stages.find((stage) => stage.stage === 'discovery')
+          ?.failureCode,
+        failureCode,
+      )
+      assert.equal(catalog?.records.length, 0)
+      assert.equal(harness.calls.length, 1)
+    }
   })
 
   it('caps Catalog boundaries at the record limit with ordered skip diagnostics', async () => {
@@ -519,7 +535,7 @@ describe('ExtractionModule Catalog contract', () => {
   })
 
   it('requires rediscovery before retrying a failed-discovery parent', async () => {
-    const harness = catalogHarness({ starts: ['Unknown heading'] })
+    const harness = catalogHarness({ starts: ['H999'] })
     const parent = (await harness.module.runSingle(catalogInput())).extraction
     assert.equal(parent.outcome, 'FAILED')
 
@@ -531,7 +547,7 @@ describe('ExtractionModule Catalog contract', () => {
         error instanceof ExtractionError && error.code === 'invalid_retry',
     )
 
-    harness.setStarts(['First', 'Second'])
+    harness.setStarts(['H1', 'H2'])
     const child = (
       await harness.module.runSingle(
         retryInput(parent.extractionId, { rediscover: true }),
@@ -543,7 +559,7 @@ describe('ExtractionModule Catalog contract', () => {
 
   it('reuses retained document values after failed parent discovery', async () => {
     const harness = catalogHarness({
-      starts: ['Unknown heading'],
+      starts: ['H999'],
       schemaTree: {
         recordDescription: 'Catalog records.',
         schemaNodes: [
@@ -560,7 +576,7 @@ describe('ExtractionModule Catalog contract', () => {
     })
 
     harness.calls.length = 0
-    harness.setStarts(['First', 'Second'])
+    harness.setStarts(['H1', 'H2'])
     harness.setScript([
       { result: { records: [{ title: 'Alpha' }] } },
       { result: { records: [{ title: 'Beta' }] } },

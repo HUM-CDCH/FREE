@@ -38,7 +38,7 @@ Catalog SHALL omit failed and unattempted records rather than fabricate placehol
 
 #### Scenario: Discovery cannot resolve records
 
-- **WHEN** discovery fails or its labels are rejected
+- **WHEN** discovery fails or its heading IDs are rejected
 - **THEN** the attempt is `FAILED` with structured discovery diagnostics
 - **AND** no record values calls or result payload are produced
 

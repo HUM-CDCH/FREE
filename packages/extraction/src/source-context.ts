@@ -53,7 +53,11 @@ export function canonicalAnchorInventory(document: ParsedDocument): readonly Can
   return entries
 }
 
-function projectCanonicalSource(document: ParsedDocument, selectedBlockIds?: ReadonlySet<string>): string {
+function projectCanonicalSource(
+  document: ParsedDocument,
+  selectedBlockIds?: ReadonlySet<string>,
+  headingIdByBlockId?: ReadonlyMap<string, string>,
+): string {
   const tables = new Map(document.tables.map((table) => [table.table_id, table]))
   const renderedTableIds = new Set<string>()
   const lines: string[] = []
@@ -90,7 +94,12 @@ function projectCanonicalSource(document: ParsedDocument, selectedBlockIds?: Rea
         continue
       }
       const text = 'text' in block ? block.text : block.kind === 'list' ? block.items.join('; ') : ''
-      if (text.trim()) lines.push(text)
+      if (text.trim())
+        lines.push(
+          block.kind === 'heading' && headingIdByBlockId?.has(block.block_id)
+            ? `[[heading:${headingIdByBlockId.get(block.block_id)}]] ${text}`
+            : text,
+        )
     }
     for (const tableId of unplacedTableIds) addTable(tables.get(tableId))
   }
@@ -99,6 +108,29 @@ function projectCanonicalSource(document: ParsedDocument, selectedBlockIds?: Rea
 
 export function canonicalSource(document: ParsedDocument): string {
   return projectCanonicalSource(document)
+}
+
+export type CatalogDiscoveryContext = Readonly<{
+  text: string
+  startBlockIdByHeadingId: ReadonlyMap<string, string>
+}>
+
+/** Full canonical source whose parser headings carry compact, copy-safe IDs. */
+export function catalogDiscoveryContext(
+  document: ParsedDocument,
+): CatalogDiscoveryContext {
+  const startBlockIdByHeadingId = new Map<string, string>()
+  const headingIdByBlockId = new Map<string, string>()
+  for (const block of document.content_stream) {
+    if (block.kind !== 'heading') continue
+    const headingId = `H${startBlockIdByHeadingId.size + 1}`
+    startBlockIdByHeadingId.set(headingId, block.block_id)
+    headingIdByBlockId.set(block.block_id, headingId)
+  }
+  return {
+    text: projectCanonicalSource(document, undefined, headingIdByBlockId),
+    startBlockIdByHeadingId,
+  }
 }
 
 /** Canonical parser content for one end-exclusive content-stream slice. */

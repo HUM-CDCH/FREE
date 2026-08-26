@@ -40,7 +40,7 @@ function expectCode(action: () => unknown, code: CatalogBoundaryErrorCode) {
 }
 
 describe('resolveCatalogBoundaries', () => {
-  it('resolves exact labels in source order and closes non-terminal records at the next start', () => {
+  it('resolves heading block IDs in source order and closes non-terminal records at the next start', () => {
     const source = document([
       paragraph('intro', 'Introduction'),
       heading('first', 'First', 1),
@@ -49,7 +49,7 @@ describe('resolveCatalogBoundaries', () => {
       paragraph('second-body', 'Second body'),
     ])
 
-    assert.deepEqual(resolveCatalogBoundaries(source, ['First', 'Second']), [
+    assert.deepEqual(resolveCatalogBoundaries(source, ['first', 'second']), [
       {
         startBlockId: 'first',
         startContentIndex: 1,
@@ -67,38 +67,51 @@ describe('resolveCatalogBoundaries', () => {
     ])
   })
 
-  const rejections: ReadonlyArray<readonly [string, readonly string[], CatalogBoundaryErrorCode]> = [
-    ['unknown', ['Missing'], 'unknown_label'],
-    ['duplicate', ['First', 'First'], 'duplicate_label'],
-    ['non-heading', ['Introduction'], 'non_heading_label'],
-    ['non-monotonic', ['Second', 'First'], 'non_monotonic_order'],
+  it('resolves stable heading block IDs despite malformed heading text', () => {
+    const source = document([
+      paragraph('title', 'Beretning'),
+      heading('record-start', 'Tolkinger og perspekঞ  ver', 2),
+      paragraph('record-body', 'Body'),
+    ])
+
+    assert.equal(
+      resolveCatalogBoundaries(source, ['record-start'])[0].headingText,
+      'Tolkinger og perspekঞ  ver',
+    )
+  })
+
+  const rejections: ReadonlyArray<
+    readonly [string, readonly string[], CatalogBoundaryErrorCode]
+  > = [
+    ['unknown', ['missing'], 'unknown_start'],
+    ['duplicate', ['first', 'first'], 'duplicate_start'],
+    ['non-heading', ['intro'], 'non_heading_start'],
+    ['non-monotonic', ['second', 'first'], 'non_monotonic_order'],
   ]
-  for (const [name, labels, code] of rejections) {
-    it(`rejects ${name} discovery labels`, () => {
+  for (const [name, startBlockIds, code] of rejections) {
+    it(`rejects ${name} discovery starts`, () => {
       const source = document([
         paragraph('intro', 'Introduction'),
         heading('first', 'First', 1),
         heading('second', 'Second', 1),
       ])
-      expectCode(() => resolveCatalogBoundaries(source, labels), code)
+      expectCode(() => resolveCatalogBoundaries(source, startBlockIds), code)
     })
   }
 
-  it('rejects canonical headings with identical exact text', () => {
+  it('distinguishes canonical headings with identical text by block ID', () => {
     const source = document([
       heading('first', 'Same', 1),
       paragraph('body', 'Body'),
       heading('second', 'Same', 2),
     ])
 
-    expectCode(() => resolveCatalogBoundaries(source, ['Same']), 'ambiguous_heading')
-  })
-
-  it('does not normalize heading labels', () => {
-    const source = document([heading('first', 'Café', 1)])
-
-    expectCode(() => resolveCatalogBoundaries(source, [' Café ']), 'unknown_label')
-    expectCode(() => resolveCatalogBoundaries(source, ['Cafe\u0301']), 'unknown_label')
+    assert.deepEqual(
+      resolveCatalogBoundaries(source, ['first', 'second']).map(
+        (boundary) => boundary.startBlockId,
+      ),
+      ['first', 'second'],
+    )
   })
 
   it('closes a terminal nested heading before its later peer', () => {
@@ -111,7 +124,7 @@ describe('resolveCatalogBoundaries', () => {
       heading('peer', 'Peer', 2),
     ])
 
-    assert.deepEqual(resolveCatalogBoundaries(source, ['Child']), [
+    assert.deepEqual(resolveCatalogBoundaries(source, ['child']), [
       {
         startBlockId: 'child',
         startContentIndex: 1,
@@ -129,7 +142,7 @@ describe('resolveCatalogBoundaries', () => {
       heading('chapter', 'Chapter', 1),
     ])
 
-    assert.equal(resolveCatalogBoundaries(source, ['Section'])[0].endContentIndex, 2)
+    assert.equal(resolveCatalogBoundaries(source, ['section'])[0].endContentIndex, 2)
   })
 
   it('uses canonical document end when no later peer or shallower heading exists', () => {
@@ -139,13 +152,16 @@ describe('resolveCatalogBoundaries', () => {
       paragraph('body', 'Body'),
     ])
 
-    assert.equal(resolveCatalogBoundaries(source, ['Section'])[0].endContentIndex, 3)
+    assert.equal(resolveCatalogBoundaries(source, ['section'])[0].endContentIndex, 3)
   })
 
-  it('resolves large exact-label selections with linear stream access', () => {
-    const labels = Array.from({ length: 1_000 }, (_, index) => `Entry ${index}`)
-    const blocks = labels.map((label, index) =>
-      heading(`heading-${index}`, label, 1),
+  it('resolves large block-ID selections with linear stream access', () => {
+    const startBlockIds = Array.from(
+      { length: 1_000 },
+      (_, index) => `heading-${index}`,
+    )
+    const blocks = startBlockIds.map((startBlockId, index) =>
+      heading(startBlockId, `Entry ${index}`, 1),
     )
     let indexedReads = 0
     const contentStream = new Proxy(blocks, {
@@ -161,9 +177,9 @@ describe('resolveCatalogBoundaries', () => {
 
     const boundaries = resolveCatalogBoundaries(
       document(contentStream),
-      labels,
+      startBlockIds,
     )
-    assert.equal(boundaries.length, labels.length)
+    assert.equal(boundaries.length, startBlockIds.length)
     assert.equal(boundaries[0].startBlockId, 'heading-0')
     assert.equal(boundaries.at(-1)?.startBlockId, 'heading-999')
     assert.ok(indexedReads <= 3 * contentStream.length + 10)

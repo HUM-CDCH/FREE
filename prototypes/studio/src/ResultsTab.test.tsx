@@ -178,7 +178,9 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByText(fieldName, { exact: true })).toBeVisible()
     expect(document.querySelector('script')).toBeNull()
     expect(document.querySelector('img[src="x"]')).toBeNull()
-    expect(document.querySelector('svg')).toBeNull()
+    // Button icons are real <svg> elements, so the guard is that nothing from
+    // the injected strings became markup: no element carries their handler.
+    expect(document.querySelector('[onload]')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Raw JSON' }))
     expect(screen.getByText(new RegExp('value-secret'))).toBeVisible()

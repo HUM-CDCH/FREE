@@ -1055,7 +1055,7 @@ describe('Project Context navigation', () => {
     history.replaceState(null, '', '/free/projects')
     const fetch = renderRoutes()
 
-    await screen.findByRole('heading', { name: 'Projects' })
+    await home().findByRole('heading', { name: 'Projects' })
     await openProjectPage()
 
     expect(location.pathname).toBe(`/free/projects/${projectContextId}`)
@@ -1070,7 +1070,7 @@ describe('Project Context navigation', () => {
     const fetch = renderRoutes()
 
     expect(
-      await screen.findByRole('heading', { name: 'Projects' }),
+      await home().findByRole('heading', { name: 'Projects' }),
     ).toBeInTheDocument()
     const page = await openProjectPage()
 
@@ -1555,7 +1555,7 @@ describe('Project Context navigation', () => {
 
   it('lets keyboard users resize the Project Context rail', async () => {
     renderRoutes()
-    await screen.findByRole('heading', { name: 'Projects' })
+    await home().findByRole('heading', { name: 'Projects' })
     const separator = screen.getByRole('separator', {
       name: 'Resize Project Context rail',
     })
@@ -1756,7 +1756,7 @@ describe('Project Context navigation', () => {
 
   it('updates from the back/forward listener without pushing another history entry', async () => {
     renderRoutes()
-    await screen.findByRole('heading', { name: 'Projects' })
+    await home().findByRole('heading', { name: 'Projects' })
 
     history.pushState(null, '', `/projects/${projectContextId}`)
     dispatchEvent(new PopStateEvent('popstate'))

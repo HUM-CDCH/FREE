@@ -20,6 +20,26 @@ type ExtractionResultExportControlProps = {
   onExport: (format: ExportFormat, choices: ExportChoices) => Promise<void>
 }
 
+function DownloadIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="13"
+      height="13"
+      viewBox="0 0 20 20"
+      fill="none"
+    >
+      <path
+        d="M10 3v8m0 0 3-3m-3 3-3-3M4 13.5v2c0 .55.45 1 1 1h10c.55 0 1-.45 1-1v-2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 /**
  * The researcher's spreadsheet export: the schema-led choices, then the format.
  * The caller owns what is exported, so one Extraction Result and a whole Batch
@@ -88,6 +108,7 @@ function ExtractionResultExportControl({
         disabled={unavailable || pending}
         onClick={() => setOpen((current) => !current)}
       >
+        <DownloadIcon />
         {pending ? 'Exporting…' : 'Export'}
       </Button>
       {unavailable && disabledReason && (

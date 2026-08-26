@@ -36,7 +36,11 @@ import {
   stripDescriptions,
 } from './schema.js'
 import type { ExtractionSchemaDefinition } from './schema.js'
-import { canonicalSource, canonicalSourceSlice } from './source-context.js'
+import {
+  canonicalSource,
+  canonicalSourceSlice,
+  catalogDiscoveryContext,
+} from './source-context.js'
 import type {
   CatalogStageDiagnostics,
   EvidenceLink,
@@ -585,12 +589,13 @@ export function createExtractionModule(
       const discoveryStartedAt = now()
       let discoveryMetadata: ModelGenerationMetadata | null = null
       try {
+        const discoveryContext = catalogDiscoveryContext(document)
         const generated = await invoke(
           model,
-          canonicalSource(document),
+          discoveryContext.text,
           document.page_count,
           { starts: ['string'] },
-          'Identify every catalog record start. Return exactly {"starts":[string]} with each item equal to an exact canonical heading label in source order.',
+          'Identify every catalog record start. Canonical headings are marked as [[heading:H<number>]]. Return exactly {"starts":[string]} with each item equal to the short heading ID copied from a marked heading, in source order.',
           signal,
           state,
         )
@@ -600,10 +605,22 @@ export function createExtractionModule(
           !isRecord(discovery) ||
           Object.keys(discovery).length !== 1 ||
           !Array.isArray(discovery.starts) ||
-          !discovery.starts.every((label) => typeof label === 'string')
+          !discovery.starts.every((headingId) => typeof headingId === 'string')
         )
           throw new ExtractionError('invalid_model_output', 'Catalog discovery must return exactly { starts: string[] }.')
-        boundaries = resolveCatalogBoundaries(document, discovery.starts as string[])
+        const startBlockIds = (discovery.starts as string[]).map(
+          (headingId) => {
+            const startBlockId =
+              discoveryContext.startBlockIdByHeadingId.get(headingId)
+            if (!startBlockId)
+              throw new CatalogBoundaryResolutionError(
+                'unknown_start',
+                `Catalog discovery heading ID ${JSON.stringify(headingId)} is unknown.`,
+              )
+            return startBlockId
+          },
+        )
+        boundaries = resolveCatalogBoundaries(document, startBlockIds)
         if (boundaries.length === 0)
           throw new ExtractionError(
             'catalog_no_records',

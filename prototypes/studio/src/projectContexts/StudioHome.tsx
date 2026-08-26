@@ -74,6 +74,24 @@ function activityDay(timestamp: string): string {
   })
 }
 
+/** Marks a Project Context row, echoing the rail's folder-shaped grouping. */
+function FolderIcon() {
+  return (
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none">
+      <path
+        d="M2.5 5.5c0-.55.45-1 1-1h3.3c.32 0 .62.15.81.4l.88 1.2h8c.55 0 1 .45 1 1v7.4c0 .55-.45 1-1 1h-13c-.55 0-1-.45-1-1z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/** Shared column track, so the rows line up with their headings. */
+const projectColumns =
+  'grid-cols-1 sm:grid-cols-[minmax(0,1fr)_15rem_6.5rem]'
+
 /** The zero-Project-Context welcome: promise, workflow walkthrough, one action. */
 function FirstRun({ onCreate }: { onCreate: () => void }) {
   return (
@@ -185,71 +203,88 @@ export function StudioHome({
         ) : projects.length === 0 ? (
           <div aria-busy="true">
             <p className="sr-only">Loading Project Contexts…</p>
-            {/* Ghost cards in the real grid, so loaded cards land without a jump. */}
-            <ul
-              aria-hidden="true"
-              className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-7"
-            >
+            {/* Ghost rows on the real track, so loaded rows land without a jump. */}
+            <ul aria-hidden="true" className="divide-y divide-line border-t border-line">
               {[0, 1, 2].map((slot) => (
                 <li
                   key={slot}
-                  className="flex animate-pulse flex-col items-start gap-2.5 rounded-card border border-line bg-surface px-8 py-8"
+                  className={`grid animate-pulse items-center gap-6 py-4 ${projectColumns}`}
                 >
-                  <span className="h-4 w-2/5 rounded-xs bg-surface-muted" />
-                  <span className="h-3 w-3/5 rounded-xs bg-surface-muted" />
-                  <span className="mt-9 h-0.5 self-stretch bg-surface-muted" />
+                  <span className="flex items-center gap-3.5">
+                    <span className="size-9 shrink-0 rounded-card bg-surface-muted" />
+                    <span className="h-3 w-2/5 rounded-xs bg-surface-muted" />
+                  </span>
+                  <span className="hidden h-0.5 bg-surface-muted sm:block" />
+                  <span className="hidden h-3 rounded-xs bg-surface-muted sm:block" />
                 </li>
               ))}
             </ul>
           </div>
         ) : (
           <div className="flex items-start gap-16">
-            <ul className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-7">
-              {projects.map((project) => (
-                <li key={project.projectContextId}>
-                  <button
-                    type="button"
-                    aria-labelledby={`project-${project.projectContextId}-name`}
-                    aria-describedby={`project-${project.projectContextId}-count`}
-                    className="flex h-full w-full cursor-pointer flex-col items-start gap-1 rounded-card border border-line bg-surface px-8 py-8 text-left outline-none transition-[border-color,box-shadow] duration-150 hover:border-line-strong hover:shadow-lift focus-visible:ring-2 focus-visible:ring-accent/40 active:border-line active:shadow-none"
-                    onClick={() => open(project.projectContextId)}
-                  >
-                    <h2
-                      id={`project-${project.projectContextId}-name`}
-                      className="line-clamp-2 font-serif text-[18px] font-normal text-ink"
+            <div className="min-w-0 flex-1">
+              <div
+                aria-hidden="true"
+                className={`grid items-center gap-6 border-b border-line pb-2 ${projectColumns}`}
+              >
+                <Overline>Project</Overline>
+                <Overline className="hidden sm:block">Progress</Overline>
+                <Overline className="hidden sm:block">Updated</Overline>
+              </div>
+              <ul className="divide-y divide-line">
+                {projects.map((project) => (
+                  <li key={project.projectContextId}>
+                    {/* `-mx-2 px-2` keeps the hover fill wider than the row while
+                        the row itself stays flush with its column headings. */}
+                    <button
+                      type="button"
+                      aria-labelledby={`project-${project.projectContextId}-name`}
+                      aria-describedby={`project-${project.projectContextId}-count`}
+                      className={`-mx-2 grid w-[calc(100%+1rem)] cursor-pointer items-center gap-3 rounded-xs px-2 py-4 text-left outline-none hover:bg-line/20 focus-visible:ring-2 focus-visible:ring-accent/40 sm:gap-6 ${projectColumns}`}
+                      onClick={() => open(project.projectContextId)}
                     >
-                      {project.name}
-                    </h2>
-                    <span
-                      id={`project-${project.projectContextId}-count`}
-                      className="text-xs text-ink-faint"
-                    >
-                      {metaLine(project)}
-                    </span>
-                    {/* mt-auto keeps every card's bar on one baseline however the
-                        name wraps. */}
-                    <PhaseProgress
-                      className="mt-auto self-stretch pt-5"
-                      phase={project.summary.phase}
-                      tone={summaryTone(project.summary)}
-                      running={project.summary.runningBatch ?? undefined}
-                      timestamp={
+                      <span className="flex min-w-0 items-center gap-3.5">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-card bg-accent-soft text-accent">
+                          <FolderIcon />
+                        </span>
+                        <span className="min-w-0">
+                          <h2
+                            id={`project-${project.projectContextId}-name`}
+                            className="truncate text-[12.5px] font-semibold text-ink"
+                          >
+                            {project.name}
+                          </h2>
+                          <span
+                            id={`project-${project.projectContextId}-count`}
+                            className="mt-1 block truncate text-[11px] text-ink-faint"
+                          >
+                            {metaLine(project)}
+                          </span>
+                        </span>
+                      </span>
+                      <PhaseProgress
+                        className="w-full"
+                        phase={project.summary.phase}
+                        tone={summaryTone(project.summary)}
+                        running={project.summary.runningBatch ?? undefined}
+                      />
+                      <span className="hidden text-[11px] text-ink-faint sm:block">
                         <time dateTime={project.summary.lastActivityAt}>
                           {activityDay(project.summary.lastActivityAt)}
                         </time>
-                      }
-                    />
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
             {/* No panel chrome and nothing at all when there is no activity. */}
             {recentActivity.length > 0 && (
               <aside
                 aria-label="Recent activity"
-                className="hidden w-[280px] shrink-0 flex-col gap-7 pt-3 lg:flex"
+                className="hidden w-[280px] shrink-0 flex-col gap-6 border-l border-line pl-8 lg:flex"
               >
-                <Overline>Recent</Overline>
+                <Overline>Recent activity</Overline>
                 <ul className="flex flex-col gap-5">
                   {recentActivity.map((event, index) => (
                     <li
@@ -257,20 +292,28 @@ export function StudioHome({
                     >
                       <button
                         type="button"
-                        className="group flex w-full cursor-pointer flex-col gap-0.5 rounded-xs text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                        className="group flex w-full cursor-pointer items-start gap-3 rounded-xs text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                         onClick={() => open(event.projectContextId)}
                       >
-                        <span className="text-[12.5px] text-ink">
-                          {eventLabels[event.kind]}
+                        <span
+                          aria-hidden="true"
+                          className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-accent-soft"
+                        >
+                          <span className="size-1.5 rounded-full bg-accent" />
                         </span>
-                        <span className="text-[11.5px] leading-relaxed text-ink-faint">
-                          <span className="group-hover:underline">
-                            {event.projectContextName}
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-[12.5px] text-ink">
+                            {eventLabels[event.kind]}
                           </span>
-                          {' · '}
-                          <time dateTime={event.occurredAt}>
-                            {activityDay(event.occurredAt)}
-                          </time>
+                          <span className="text-[11.5px] leading-relaxed text-ink-faint">
+                            <span className="group-hover:underline">
+                              {event.projectContextName}
+                            </span>
+                            {' · '}
+                            <time dateTime={event.occurredAt}>
+                              {activityDay(event.occurredAt)}
+                            </time>
+                          </span>
                         </span>
                       </button>
                     </li>

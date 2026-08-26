@@ -15,7 +15,7 @@ Researchers need to extract many records from one canonical Source Document with
 
 ### New Capabilities
 
-- `catalog-boundary-resolution`: Canonically validate discovery labels and derive stable Catalog record slices.
+- `catalog-boundary-resolution`: Canonically validate model-selected heading IDs and derive stable Catalog record slices.
 - `catalog-execution`: Execute, persist, reopen, cancel, retry selected components, and ground bounded Catalog extractions with ordered partial results.
 
 ### Modified Capabilities
