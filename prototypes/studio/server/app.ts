@@ -75,6 +75,7 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/src/auth/authApi.ts': true,
   '/src/auth/authenticatedFetch.ts': true,
   '/src/auth/returnPath.ts': true,
+  '/src/auth/sessionContext.ts': true,
   '/src/studioUrl.ts': true,
   '/shared/studioBasePath.ts': true,
   '/shared/authSession.contract.ts': true,

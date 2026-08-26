@@ -681,6 +681,7 @@ describe('deny-by-default application boundary', () => {
     const publicDevelopmentPaths = [
       '/src/main.tsx',
       '/src/auth/AuthApplication.tsx',
+      '/src/auth/sessionContext.ts',
       '/src/studioUrl.ts',
       '/shared/studioBasePath.ts',
       '/src/llmInspector/mount.tsx',
