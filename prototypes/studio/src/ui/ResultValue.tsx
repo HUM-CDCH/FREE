@@ -7,7 +7,6 @@ import type {
   ReviewDecisionInput,
 } from '../../shared/extraction.contract'
 import { parseReviewedValue } from '../reviewDecisions'
-import Pill from './Pill'
 
 // Local copy so the UI lib imports zero app code (mirrors template.ts#isRecord).
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -94,25 +93,25 @@ function EnterChevron() {
   )
 }
 
-function PencilIcon() {
+function PencilIcon({ size = 13 }: { size?: number }) {
   return (
-    <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor">
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor">
       <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
     </svg>
   )
 }
 
-function CheckIcon() {
+function CheckIcon({ size = 13 }: { size?: number }) {
   return (
-    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="4,10.5 8,15 16,5" />
     </svg>
   )
 }
 
-function XIcon() {
+function XIcon({ size = 13 }: { size?: number }) {
   return (
-    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
       <line x1="5" y1="5" x2="15" y2="15" />
       <line x1="15" y1="5" x2="5" y2="15" />
     </svg>
@@ -241,7 +240,7 @@ function PrimitiveRow({
     return (
       <div className="-mx-2 group rounded-[3px] px-2 pb-2 pt-1.5 transition-colors hover:bg-accent-ghost/30">
         <div className="flex items-center gap-2">
-          <span className="w-2 shrink-0" />
+          <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
           <span className="shrink-0 font-mono text-[13.5px] font-medium text-ink">{name}</span>
           {onChange && (
             <button
@@ -263,7 +262,6 @@ function PrimitiveRow({
               Evidence
             </button>
           )}
-          {touched && decisionLabel && decision && <ReviewBadge label={decisionLabel} decision={decision} tone={decisionTone} />}
         </div>
         <div className="pl-4 pt-0.5 text-[13px] leading-relaxed text-ink-muted wrap-anywhere whitespace-pre-wrap">
           {text}
@@ -286,7 +284,7 @@ function PrimitiveRow({
   return (
     <div className="-mx-2 group rounded-[3px] px-2 transition-colors hover:bg-accent-ghost/30">
       <div className="flex items-center gap-2 py-1.5">
-        <span className="w-2 shrink-0" />
+        <StatusDot decision={decision} touched={touched} label={decisionLabel ?? ''} tone={decisionTone} />
         <span className="shrink-0 truncate font-mono text-[13.5px] font-medium text-ink">
           {name}
         </span>
@@ -316,7 +314,6 @@ function PrimitiveRow({
             Evidence
           </button>
         )}
-        {touched && decisionLabel && decision && <ReviewBadge label={decisionLabel} decision={decision} tone={decisionTone} />}
         {(onChange || reviewEditable) && !reviewEditable && (
           <button
             className="shrink-0 cursor-pointer px-0.5 text-ink-faint opacity-0 outline-none transition-all group-hover:opacity-100 hover:text-accent"
@@ -348,19 +345,34 @@ function PrimitiveRow({
   )
 }
 
-function ReviewBadge({ label, decision, tone }: { label: string; decision: VisibleReviewDecision; tone: 'success' | 'stale' | 'danger' }) {
+// Leading status indicator: a hollow dot for an untouched (default-approved)
+// field, or a solid dot colored/shaped by outcome once the researcher has
+// acted. Hovering reveals the outcome and, once saved, when it happened —
+// the row itself stays quiet instead of carrying a trailing text badge.
+function StatusDot({ decision, touched, label, tone }: { decision: VisibleReviewDecision | undefined; touched: boolean; label: string; tone: 'success' | 'stale' | 'danger' }) {
+  if (!decision) return <span className="w-3.5 shrink-0" />
+  if (!touched) {
+    return (
+      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center" title="Pending review">
+        <span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-line-strong" />
+      </span>
+    )
+  }
   const timestamp = 'createdAt' in decision
     ? new Date(decision.createdAt).toLocaleString()
     : null
+  const toneClass = tone === 'success' ? 'bg-green' : tone === 'stale' ? 'bg-stale' : 'bg-danger'
   return (
-    <Pill
-      tone={tone}
-      outline
-      className="shrink-0"
-      title={timestamp ? `Saved ${timestamp}` : undefined}
+    <span
+      className="flex h-3.5 w-3.5 shrink-0 items-center justify-center"
+      title={timestamp ? `${label} · ${timestamp}` : label}
     >
-      {label}{timestamp ? ` · ${timestamp}` : ''}
-    </Pill>
+      <span className={`flex h-2.5 w-2.5 items-center justify-center rounded-full text-white ${toneClass}`}>
+        {tone === 'success' && <CheckIcon size={7} />}
+        {tone === 'stale' && <PencilIcon size={6} />}
+        {tone === 'danger' && <XIcon size={7} />}
+      </span>
+    </span>
   )
 }
 

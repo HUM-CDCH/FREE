@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { exportExtractionResult } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ResultValue, { singularItemLabel } from './ui/ResultValue'
-import { Overline, SegmentedControl, Spinner, Button } from './ui'
+import { Overline, Spinner, Button } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
@@ -464,6 +464,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     setForwardStack(f => f.slice(0, -1))
   }
 
+  const resultViewTabs: Array<{ value: View; label: string }> = [
+    { value: 'review', label: 'Review' },
+    { value: 'json', label: 'Raw JSON' },
+    { value: 'markdown', label: 'Markdown' },
+    // ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
+  ]
+
   const currentEntries = useMemo((): Array<{ pathKey: string; displayName: string; value: unknown }> => {
     const node = navPath.length === 0 ? displayResult : (displayResult ? getAtPath(displayResult, navPath) : null)
     if (Array.isArray(node)) return node.map((v, i) => ({ pathKey: String(i), displayName: singularItemLabel(navPath[navPath.length - 1] ?? 'item', i), value: v }))
@@ -554,17 +561,27 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                   </Button>
                 )}
               </div>
-                          <SegmentedControl
-                aria-label="Result view"
-                value={view}
-                onChange={setView}
-                options={[
-                  { value: 'review', label: 'Review' },
-                  { value: 'json', label: 'Raw JSON' },
-                  { value: 'markdown', label: 'Markdown' },
-                  // ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
-                ]}
-              />
+              <div className="flex shrink-0 items-center gap-3" role="tablist" aria-label="Result view">
+                {resultViewTabs.map(({ value, label }) => {
+                  const active = view === value
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      role="tab"
+                      id={`results-tab-${value}`}
+                      aria-selected={active}
+                      aria-controls={`results-panel-${value}`}
+                      className={`cursor-pointer border-b-2 px-0.5 pb-1 text-[11px] font-semibold outline-none transition-colors hover:text-ink focus-visible:text-ink ${
+                        active ? 'border-accent text-ink' : 'border-transparent text-ink-muted'
+                      }`}
+                      onClick={() => setView(value)}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             {!readOnly && !inspectedAttempt && controller.stale && (
               <div
@@ -619,7 +636,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
           </div>
 
           {view === 'review' && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div
+              id="results-panel-review"
+              role="tabpanel"
+              aria-labelledby="results-tab-review"
+              className="flex min-h-0 flex-1 flex-col"
+            >
               {/* Breadcrumb bar — always visible */}
               <nav aria-label="Result navigation" className="flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-2 py-1">
                 <button
@@ -715,10 +737,22 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
             </div>
           )}
 
-          {view === 'json' && <pre className={preClasses}>{JSON.stringify(displayResult, null, 2)}</pre>}
+          {view === 'json' && (
+            <pre
+              id="results-panel-json"
+              role="tabpanel"
+              aria-labelledby="results-tab-json"
+              className={preClasses}
+            >{JSON.stringify(displayResult, null, 2)}</pre>
+          )}
 
           {view === 'schema' && pinnedSchema && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div
+              id="results-panel-schema"
+              role="tabpanel"
+              aria-labelledby="results-tab-schema"
+              className="flex min-h-0 flex-1 flex-col"
+            >
               <p className="shrink-0 border-b border-line bg-surface-muted px-4 py-2 text-[11.5px] text-ink-muted">
                 Schema Revision{pinnedSchema.revisionNumber ? ` ${pinnedSchema.revisionNumber}` : ''} · <span className="font-mono text-ink">{pinnedSchema.schemaRevisionId ?? attempt?.schemaRevisionId ?? 'unknown'}</span> · read-only
               </p>
@@ -727,7 +761,12 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
           )}
 
           {view === 'markdown' && (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div
+              id="results-panel-markdown"
+              role="tabpanel"
+              aria-labelledby="results-tab-markdown"
+              className="flex min-h-0 flex-1 flex-col"
+            >
               {documentMarkdown ? (
                 <pre className={preClasses}>{documentMarkdown}</pre>
               ) : (

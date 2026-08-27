@@ -66,6 +66,7 @@ export function persistenceUnavailable(
   cause: unknown,
   message = 'Project Context storage is unavailable.',
 ): ApiError {
+  console.error('persistence_unavailable:', cause)
   return new ApiError(503, 'persistence_unavailable', message, { cause })
 }
 

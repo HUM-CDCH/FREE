@@ -368,11 +368,11 @@ describe('reopened Source Document workspace', () => {
     expect(highlight.dataset.resultPath).toBe('["record","place"]')
     expect(highlight.style.background).toContain('0.28')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(0),
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Review' }))
     await waitFor(() =>
       expect(page.querySelectorAll('[data-evidence-anchor-id]')).toHaveLength(1),
     )
@@ -1158,7 +1158,7 @@ describe('reopened Source Document workspace', () => {
     expect(screen.getByText(reopened.extractionSchema!.schemaRevisionId)).toBeInTheDocument()
     expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
     expect(screen.queryByText(/"number": "string"/)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Review' }))
     fireEvent.click(accept)
 
     await waitFor(() =>

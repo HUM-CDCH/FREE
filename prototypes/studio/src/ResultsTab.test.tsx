@@ -182,7 +182,7 @@ describe('ResultsTab grounded values', () => {
     // the injected strings became markup: no element carries their handler.
     expect(document.querySelector('[onload]')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
     expect(screen.getByText(new RegExp('value-secret'))).toBeVisible()
     expect(document.querySelector('img[src="x"]')).toBeNull()
   })
@@ -291,7 +291,7 @@ describe('ResultsTab grounded values', () => {
     )
     expect(onSelectEvidence).toHaveBeenCalledWith('anchor-1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Raw JSON' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Raw JSON' }))
     expect(screen.getByText(/"title": "Report"/)).toBeInTheDocument()
     expect(screen.queryByText(/"records"/)).not.toBeInTheDocument()
   })
@@ -691,10 +691,10 @@ describe('ResultsTab grounded values', () => {
     render(<Fixture />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject place' }))
-    expect(screen.getByText('Rejected')).toBeInTheDocument()
+    expect(screen.getByTitle('Rejected')).toBeInTheDocument()
     expect(screen.getByText('Missing')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reverse decision for place' }))
-    expect(screen.getByText('Approved')).toBeInTheDocument()
+    expect(screen.getByTitle('Approved')).toBeInTheDocument()
     expect(screen.getByText('Original')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reverse decision for place' })).not.toBeInTheDocument()
   })
@@ -742,7 +742,7 @@ describe('ResultsTab grounded values', () => {
       />,
     )
 
-    expect(screen.queryByText('Approved')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Approved')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Approve place' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.queryByRole('button', { name: 'Reverse decision for place' })).not.toBeInTheDocument()
   })
@@ -831,7 +831,7 @@ describe('ResultsTab grounded values', () => {
       />,
     )
 
-    expect(screen.getByText(/Edited ·/)).toHaveAttribute('title', expect.stringContaining('Saved'))
+    expect(screen.getByTitle(/^Edited · /)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Edit / })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Reject / })).not.toBeInTheDocument()
   })
