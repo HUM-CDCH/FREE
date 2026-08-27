@@ -44,6 +44,7 @@ import {
 } from './api-dispatcher.js'
 import { createStudioApp, type StudioApp } from './app.js'
 import { createFakeEntraIdentityProvider } from './entraIdentityProvider.js'
+import type { PlaywrightAuthentication } from './playwright-auth.js'
 
 const extractionRuntimeMock = vi.hoisted(() => ({
   modules: new Map<string, unknown>(),
@@ -752,7 +753,7 @@ function responseCookie(response: Response, name: string): string {
 }
 
 async function login(app: StudioApp, objectId: string): Promise<string> {
-  const start = await app.request(
+  const response = await app.request(
     `${ORIGIN}/auth/login?${new URLSearchParams({
       fragmentCaptured: '1',
       testIdentity: objectId,
@@ -760,12 +761,27 @@ async function login(app: StudioApp, objectId: string): Promise<string> {
     undefined,
     CLIENT,
   )
-  expect(start.status).toBe(302)
-  const response = await app.request(start.headers.get('location')!, {
-    headers: { cookie: responseCookie(start, 'free_entra_transaction') },
-  })
   expect(response.status).toBe(302)
   return responseCookie(response, 'free_session')
+}
+
+const ownershipAuthentication: PlaywrightAuthentication = (request) => {
+  const objectId = new URL(request.url).searchParams.get('testIdentity')
+  if (objectId === null) return null
+  const accountId =
+    objectId === objectIds[ids.accountA]
+      ? ids.accountA
+      : objectId === objectIds[ids.accountB]
+        ? ids.accountB
+        : null
+  if (accountId === null) throw new Error('Unexpected test Entra identity.')
+  return {
+    tenantId: TENANT_ID,
+    objectId,
+    displayName: displayNames[accountId],
+    expiresAt: Date.now() + 75 * 60 * 1_000,
+    nonce: 'Ownership tests bypass the OIDC transaction.',
+  }
 }
 
 async function appFixture(): Promise<AppFixture> {
@@ -785,6 +801,7 @@ async function appFixture(): Promise<AppFixture> {
       objectId: objectIds[ids.accountA],
       displayName: displayNames[ids.accountA],
     }),
+    playwrightAuthentication: ownershipAuthentication,
     apiDispatcher: createApiDispatcher(ownershipRegistry(stores)),
     researcherProjectStore: createStore,
   })

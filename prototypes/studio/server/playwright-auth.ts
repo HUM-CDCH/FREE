@@ -5,7 +5,9 @@ import type {
 import {
   DEVELOPMENT_ENTRA_OBJECT_ID,
   DEVELOPMENT_ENTRA_TENANT_ID,
+  type EntraIdentity,
 } from './entraIdentityProvider.js'
+import { normalizeCanonicalUuid } from '../shared/uuid.js'
 
 export const PLAYWRIGHT_RESEARCHER_ID =
   '70000000-0000-4000-8000-000000000001'
@@ -14,9 +16,43 @@ export const PLAYWRIGHT_SECOND_RESEARCHER_ID =
 export const PLAYWRIGHT_SECOND_ENTRA_OBJECT_ID =
   '70000000-0000-4000-8000-000000000003'
 
+const PLAYWRIGHT_IDENTITY_LIFETIME_MILLISECONDS = 75 * 60 * 1_000
+
+export type PlaywrightAuthentication = (
+  request: Request,
+) => EntraIdentity | null
+
+/** Explicit identity selection available only in loopback Playwright mode. */
+export function createPlaywrightAuthentication(
+  now: () => number = Date.now,
+): PlaywrightAuthentication {
+  return (request) => {
+    const selections = new URL(request.url).searchParams.getAll('testIdentity')
+    if (selections.length === 0) return null
+    const objectId =
+      selections.length === 1
+        ? normalizeCanonicalUuid(selections[0])
+        : null
+    if (objectId === null)
+      throw new Error(
+        'Playwright authentication requires one canonical testIdentity.',
+      )
+    return {
+      tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
+      objectId,
+      displayName:
+        objectId === DEVELOPMENT_ENTRA_OBJECT_ID
+          ? 'Development Researcher'
+          : `Test Researcher ${objectId.slice(0, 8)}`,
+      expiresAt: now() + PLAYWRIGHT_IDENTITY_LIFETIME_MILLISECONDS,
+      nonce: 'Playwright authentication bypasses the OIDC transaction.',
+    }
+  }
+}
+
 /**
- * Browser-only specs use the real Entra route shape but avoid PostgreSQL.
- * Every fake Entra identity is JIT-provisioned into this process-local store.
+ * Browser-only specs avoid PostgreSQL while keeping account identity stable.
+ * Every selected identity is JIT-provisioned into this process-local store.
  */
 export function createPlaywrightAccountStore(): ResearcherAccountStore {
   const accounts = new Map<string, ResearcherAccountRecord>()

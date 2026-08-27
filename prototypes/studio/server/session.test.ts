@@ -27,12 +27,9 @@ describe('fixed Entra-capped browser sessions', () => {
         identityTokenExpiresAt - SESSION_CLOCK_SKEW_MILLISECONDS,
     })
     const cookie = sessions.serialize(payload!)
-    expect(cookie).toContain(`${SESSION_COOKIE_NAME}=`)
-    expect(cookie).toContain('Path=/')
-    expect(cookie).toContain('Max-Age=3540')
-    expect(cookie).toContain('Secure')
-    expect(cookie).toContain('HttpOnly')
-    expect(cookie).toContain('SameSite=Lax')
+    expect(cookie).toBe(
+      `${SESSION_COOKIE_NAME}=${cookieValue(cookie)}; Max-Age=3540; Path=/; Expires=${new Date(payload!.expiresAt).toUTCString()}; HttpOnly; Secure; SameSite=Lax`,
+    )
     expect(sessions.verify(cookieValue(cookie))).toEqual(payload)
 
     time = payload!.expiresAt
@@ -89,7 +86,7 @@ describe('fixed Entra-capped browser sessions', () => {
   it('clears on the configured base path and rejects short secrets', () => {
     const sessions = createSessionManager(SECRET, Date.now, '/free')
     expect(sessions.clear()).toBe(
-      `${SESSION_COOKIE_NAME}=; Path=/free; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; HttpOnly; SameSite=Lax`,
+      `${SESSION_COOKIE_NAME}=; Max-Age=0; Path=/free; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax`,
     )
     expect(() => createSessionManager(Buffer.alloc(31))).toThrow(
       /at least 32 bytes/,

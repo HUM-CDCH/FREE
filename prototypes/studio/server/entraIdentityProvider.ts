@@ -25,7 +25,6 @@ export type EntraIdentityProvider = {
     state: string
     nonce: string
     codeChallenge: string
-    testIdentity?: string
   }): Promise<string>
   redeemAuthorizationCode(input: {
     redirectUri: string
@@ -228,7 +227,7 @@ export function createFakeEntraIdentityProvider(options: {
     options.tenantId ?? DEVELOPMENT_ENTRA_TENANT_ID,
     'fake tenant',
   )
-  const defaultObjectId = canonicalUuid(
+  const objectId = canonicalUuid(
     options.objectId ?? DEVELOPMENT_ENTRA_OBJECT_ID,
     'fake object identifier',
   )
@@ -244,14 +243,9 @@ export function createFakeEntraIdentityProvider(options: {
       state,
       nonce,
       codeChallenge,
-      testIdentity,
     }) {
-      const objectId =
-        testIdentity === undefined
-          ? defaultObjectId
-          : canonicalUuid(testIdentity, 'fake test identity')
       const code = Buffer.from(
-        JSON.stringify({ nonce, objectId, codeChallenge }),
+        JSON.stringify({ nonce, codeChallenge }),
       ).toString('base64url')
       const url = new URL(redirectUri)
       url.searchParams.set('code', code)
@@ -275,10 +269,6 @@ export function createFakeEntraIdentityProvider(options: {
       if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded))
         throw new EntraIdentityError('The fake authorization code is invalid.')
       const record = decoded as Record<string, unknown>
-      const objectId = canonicalUuid(
-        record.objectId,
-        'fake object identifier',
-      )
       if (typeof record.nonce !== 'string' || record.nonce === '')
         throw new EntraIdentityError('The fake authorization code has no nonce.')
       const expectedChallenge = createHash('sha256')
@@ -292,10 +282,7 @@ export function createFakeEntraIdentityProvider(options: {
       return {
         tenantId,
         objectId,
-        displayName:
-          objectId === defaultObjectId
-            ? displayName
-            : `Test Researcher ${objectId.slice(0, 8)}`,
+        displayName,
         expiresAt: now() + tokenLifetimeMilliseconds,
         nonce: record.nonce,
       }

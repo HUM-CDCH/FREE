@@ -71,6 +71,7 @@ describe('Vite Hono integration', () => {
         logoutUrl: expect.any(Function),
       }),
       accountStore: undefined,
+      playwrightAuthentication: undefined,
       clientHandler: clientFallback,
       viteDevelopmentAssets: true,
     }))
@@ -174,7 +175,15 @@ describe('Vite Hono integration', () => {
         ),
       } as never),
     ).resolves.toBeUndefined()
-    expect(createStudioApp).toHaveBeenCalledOnce()
+    expect(createStudioApp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountStore: expect.objectContaining({
+          findOrCreate: expect.any(Function),
+          findById: expect.any(Function),
+        }),
+        playwrightAuthentication: expect.any(Function),
+      }),
+    )
   })
 })
 

@@ -31,14 +31,9 @@ describe('Entra authorization transactions', () => {
     expect(created.transaction.nonce).toHaveLength(43)
     expect(created.transaction.codeVerifier).toHaveLength(43)
     expect(created.codeChallenge).toHaveLength(43)
-    expect(created.setCookie).toContain(
-      `${ENTRA_TRANSACTION_COOKIE_NAME}=`,
+    expect(created.setCookie).toBe(
+      `${cookieHeader(created.setCookie)}; Max-Age=600; Path=/free/auth; Expires=${new Date(created.transaction.expiresAt).toUTCString()}; HttpOnly; Secure; SameSite=Lax`,
     )
-    expect(created.setCookie).toContain('Path=/free/auth')
-    expect(created.setCookie).toContain('Max-Age=600')
-    expect(created.setCookie).toContain('Secure')
-    expect(created.setCookie).toContain('HttpOnly')
-    expect(created.setCookie).toContain('SameSite=Lax')
 
     expect(
       manager.verify(
@@ -82,7 +77,7 @@ describe('Entra authorization transactions', () => {
 
   it('clears with the exact transaction cookie boundary', () => {
     expect(createEntraTransactionManager(SECRET, '/free').clear()).toBe(
-      `${ENTRA_TRANSACTION_COOKIE_NAME}=; Path=/free/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; HttpOnly; SameSite=Lax`,
+      `${ENTRA_TRANSACTION_COOKIE_NAME}=; Max-Age=0; Path=/free/auth; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax`,
     )
   })
 })

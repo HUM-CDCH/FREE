@@ -35,6 +35,7 @@ import {
 import { normalizeClientAddress } from './request-address.js'
 import { createSessionManager } from './session.js'
 import { createSessionGate } from './sessionGate.js'
+import { clearAuthCookie, serializeAuthCookie } from './authCookie.js'
 import { readSingleCookie } from './signedCookie.js'
 import { timingSafeStringEqual } from './timingSafeStringEqual.js'
 import {
@@ -46,6 +47,7 @@ import {
   DEFAULT_RETURN_PATH,
   validateLocalReturnPath,
 } from '../shared/returnPath.js'
+import type { PlaywrightAuthentication } from './playwright-auth.js'
 
 export const VITE_CLIENT_FALLBACK_HEADER = 'x-free-vite-client-fallback'
 export const GENERAL_API_REQUEST_LIMIT = 1024 * 1024
@@ -135,6 +137,7 @@ export type StudioAppOptions = {
   basePath: string
   sessionSecret: Uint8Array
   identityProvider: EntraIdentityProvider
+  playwrightAuthentication?: PlaywrightAuthentication
   accountStore?: ResearcherAccountStore
   now?: () => number
   apiDispatcher?: ApiDispatcher
@@ -157,10 +160,9 @@ function withCookie(response: Response, cookie: string): Response {
 }
 
 function signedOutCookie(basePath: string, clear = false): string {
-  const expires = clear
-    ? '; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0'
-    : ''
-  return `${SIGNED_OUT_COOKIE_NAME}=${clear ? '' : '1'}; Path=${basePath}${expires}; Secure; HttpOnly; SameSite=Lax`
+  return clear
+    ? clearAuthCookie(SIGNED_OUT_COOKIE_NAME, basePath)
+    : serializeAuthCookie(SIGNED_OUT_COOKIE_NAME, '1', { path: basePath })
 }
 
 function hasSignedOutCookie(request: Request): boolean {
@@ -346,6 +348,7 @@ export async function createStudioApp(
     sessions,
   })
   const identityProvider = options.identityProvider
+  const playwrightAuthentication = options.playwrightAuthentication
   const callbackUri = new URL(
     studioPath(basePath, '/auth/callback'),
     studioOrigin,
@@ -434,6 +437,25 @@ export async function createStudioApp(
     const returnTo =
       validateLocalReturnPath(context.req.query('returnTo') ?? null) ??
       DEFAULT_RETURN_PATH
+    if (playwrightAuthentication) {
+      try {
+        const identity = playwrightAuthentication(context.req.raw)
+        if (identity) {
+          const result = await backend.signIn(identity)
+          return externalRedirect(studioPath(basePath, returnTo), [
+            transactions.clear(),
+            signedOutCookie(basePath, true),
+            result.sessionCookie,
+          ])
+        }
+      } catch (error) {
+        return authenticationFailurePage(
+          basePath,
+          transactions.clear(),
+          error instanceof ApiError && error.status === 503 ? 503 : 400,
+        )
+      }
+    }
     const created = transactions.create(returnTo)
     try {
       const location = await identityProvider.authorizationUrl({
@@ -441,7 +463,6 @@ export async function createStudioApp(
         state: created.transaction.state,
         nonce: created.transaction.nonce,
         codeChallenge: created.codeChallenge,
-        testIdentity: context.req.query('testIdentity'),
       })
       return externalRedirect(location, [
         created.setCookie,

@@ -6,6 +6,7 @@ import {
   readSingleCookie,
   type SingleCookie,
 } from './signedCookie.js'
+import { clearAuthCookie, serializeAuthCookie } from './authCookie.js'
 
 export const SESSION_COOKIE_NAME = 'free_session'
 export const SESSION_CLOCK_SKEW_MILLISECONDS = 60_000
@@ -49,20 +50,8 @@ function validPayload(value: unknown, now: number): value is SessionPayload {
   return issuedAt <= now && expiresAt > issuedAt && now < expiresAt
 }
 
-function serializeCookie(
-  value: string,
-  expiresAt: number,
-  now: number,
-  path: string,
-): string {
-  const maxAge = Math.max(0, Math.floor((expiresAt - now) / 1_000))
-  // Lax permits the top-level return from Entra while unsafe methods remain
-  // protected by the canonical Origin check.
-  return `${SESSION_COOKIE_NAME}=${value}; Path=${path}; Expires=${new Date(expiresAt).toUTCString()}; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Lax`
-}
-
 export function clearSessionCookie(path: string): string {
-  return `${SESSION_COOKIE_NAME}=; Path=${canonicalStudioBasePath(path)}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; HttpOnly; SameSite=Lax`
+  return clearAuthCookie(SESSION_COOKIE_NAME, canonicalStudioBasePath(path))
 }
 
 export function readSessionCookie(request: Request): SessionCookie {
@@ -110,11 +99,17 @@ export function createSessionManager(
     },
 
     serialize(payload) {
-      return serializeCookie(
+      return serializeAuthCookie(
+        SESSION_COOKIE_NAME,
         encodeSignedValue(payload, secret, SESSION_SIGNATURE_CONTEXT),
-        payload.expiresAt,
-        now(),
-        cookiePath,
+        {
+          path: cookiePath,
+          expires: new Date(payload.expiresAt),
+          maxAge: Math.max(
+            0,
+            Math.floor((payload.expiresAt - now()) / 1_000),
+          ),
+        },
       )
     },
 

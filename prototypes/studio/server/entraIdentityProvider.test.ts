@@ -141,9 +141,12 @@ describe('Microsoft Entra identity provider', () => {
 })
 
 describe('fake Entra identity provider', () => {
-  it('round-trips the real route shape with a fixed or selected identity', async () => {
+  it('round-trips the real route shape with only its configured identity', async () => {
     const now = Date.UTC(2026, 7, 20)
-    const provider = createFakeEntraIdentityProvider({ now: () => now })
+    const provider = createFakeEntraIdentityProvider({
+      objectId: OBJECT_ID,
+      now: () => now,
+    })
     const codeVerifier = 'verifier'
     const authorization = await provider.authorizationUrl({
       redirectUri: 'https://localhost:8443/free/auth/callback',
@@ -152,7 +155,6 @@ describe('fake Entra identity provider', () => {
       codeChallenge: createHash('sha256')
         .update(codeVerifier)
         .digest('base64url'),
-      testIdentity: OBJECT_ID,
     })
     const url = new URL(authorization)
     expect(url.searchParams.get('state')).toBe('state')

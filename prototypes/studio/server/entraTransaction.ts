@@ -10,6 +10,7 @@ import {
   readSingleCookie,
 } from './signedCookie.js'
 import { timingSafeStringEqual } from './timingSafeStringEqual.js'
+import { clearAuthCookie, serializeAuthCookie } from './authCookie.js'
 
 export const ENTRA_TRANSACTION_COOKIE_NAME = 'free_entra_transaction'
 export const ENTRA_TRANSACTION_MILLISECONDS = 10 * 60 * 1_000
@@ -94,13 +95,20 @@ export function createEntraTransactionManager(
         secret,
         TRANSACTION_SIGNATURE_CONTEXT,
       )
-      const maxAge = Math.floor(ENTRA_TRANSACTION_MILLISECONDS / 1_000)
       return {
         transaction,
         codeChallenge: createHash('sha256')
           .update(transaction.codeVerifier)
           .digest('base64url'),
-        setCookie: `${ENTRA_TRANSACTION_COOKIE_NAME}=${value}; Path=${path}; Expires=${new Date(transaction.expiresAt).toUTCString()}; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Lax`,
+        setCookie: serializeAuthCookie(
+          ENTRA_TRANSACTION_COOKIE_NAME,
+          value,
+          {
+            path,
+            expires: new Date(transaction.expiresAt),
+            maxAge: Math.floor(ENTRA_TRANSACTION_MILLISECONDS / 1_000),
+          },
+        ),
       }
     },
 
@@ -123,7 +131,7 @@ export function createEntraTransactionManager(
     },
 
     clear() {
-      return `${ENTRA_TRANSACTION_COOKIE_NAME}=; Path=${path}; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; HttpOnly; SameSite=Lax`
+      return clearAuthCookie(ENTRA_TRANSACTION_COOKIE_NAME, path)
     },
   }
 }
