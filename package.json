@@ -5,7 +5,6 @@
     "postinstall": "pnpm db:generate && pnpm --recursive --if-present install:python",
     "db:generate": "pnpm --filter db contract:emit",
     "db:reset": "pnpm --filter db db:reset",
-    "account": "pnpm --filter studio account",
     "setup": "pnpm --filter db db:init",
     "start": "pnpm dev",
     "predev": "pnpm db:generate && pnpm --filter db db:verify",

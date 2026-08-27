@@ -8,10 +8,9 @@ import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-s
 import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import type { ParsedContentBlock, ParsedDocument } from 'extraction/parsed-document'
-import { hashPassword } from '../server/password.js'
+import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import {
   E2E_ORIGIN,
-  E2E_PASSWORD,
   e2eStudioPath,
   loginResearcher,
 } from './auth.js'
@@ -191,7 +190,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   try {
   const projectContextId = randomUUID()
   const researcherAccountId = randomUUID()
-  const researcherEmail = `canonical-evidence-${researcherAccountId}@example.test`
+  const researcherObjectId = randomUUID()
   const sourceDocumentId = randomUUID()
   const extractionSchemaId = randomUUID()
   const firstRepresentationId = randomUUID()
@@ -204,11 +203,9 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
 
   await db.orm.public.ResearcherAccount.create({
     id: researcherAccountId,
-    email: researcherEmail,
-    passwordHash: await hashPassword(E2E_PASSWORD),
-    mustChangePassword: false,
-    disabledAt: null,
-    sessionVersion: 0,
+    tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
+    objectId: researcherObjectId,
+    displayName: 'Canonical Evidence Researcher',
   })
   await db.orm.public.ProjectContext.create({
     id: projectContextId,
@@ -252,16 +249,8 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
 
   const internalUrl = `/projects/${projectContextId}/documents/${sourceDocumentId}`
   const url = e2eStudioPath(internalUrl)
-  await page.goto(
-    `${e2eStudioPath('/login')}?${new URLSearchParams({ returnTo: internalUrl })}`,
-  )
-  const email = page.getByLabel('Email address')
-  await expect(email).toBeFocused()
-  await page.keyboard.type(researcherEmail)
-  await page.keyboard.press('Tab')
-  await page.keyboard.type(E2E_PASSWORD)
-  await page.keyboard.press('Tab')
-  await page.keyboard.press('Enter')
+  await loginResearcher(page, researcherObjectId)
+  await page.goto(url)
   await expect(page).toHaveURL(url)
   await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
     timeout: 20_000,
@@ -426,7 +415,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
 
   const fresh = await browser.newContext()
   const freshPage = await fresh.newPage()
-  await loginResearcher(freshPage, researcherEmail)
+  await loginResearcher(freshPage, researcherObjectId)
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   await expect(freshPage.getByText('No reviewable result')).toBeVisible()
@@ -630,7 +619,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
 
   const projectContextId = randomUUID()
   const researcherAccountId = randomUUID()
-  const researcherEmail = `catalog-lifecycle-${researcherAccountId}@example.test`
+  const researcherObjectId = randomUUID()
   const sourceDocumentId = randomUUID()
   const extractionSchemaId = randomUUID()
   const firstRepresentationId = randomUUID()
@@ -665,11 +654,9 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
   try {
     await db.orm.public.ResearcherAccount.create({
       id: researcherAccountId,
-      email: researcherEmail,
-      passwordHash: await hashPassword(E2E_PASSWORD),
-      mustChangePassword: false,
-      disabledAt: null,
-      sessionVersion: 0,
+      tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
+      objectId: researcherObjectId,
+      displayName: 'Catalog Lifecycle Researcher',
     })
     await db.orm.public.ProjectContext.create({
       id: projectContextId,
@@ -702,7 +689,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
         ],
       },
     })
-    await loginResearcher(page, researcherEmail)
+    await loginResearcher(page, researcherObjectId)
     await page.goto(url)
     await expect(page.getByText('6 pages', { exact: true })).toBeVisible({ timeout: 20_000 })
 
@@ -876,7 +863,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
 
     const fresh = await browser.newContext()
     const freshPage = await fresh.newPage()
-    await loginResearcher(freshPage, researcherEmail)
+    await loginResearcher(freshPage, researcherObjectId)
     await freshPage.goto(url)
     await freshPage.getByRole('tab', { name: /Results/ }).click()
     await expect(

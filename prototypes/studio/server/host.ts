@@ -1,14 +1,18 @@
 import { resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
 import type { ServerType } from '@hono/node-server'
 import { serve } from '@hono/node-server'
 import { extractionRuntime } from '../api/_extraction_runtime.js'
 import { providerRuntime as productionProviderRuntime } from '../api/_provider.js'
 import { createStudioApp } from './app.js'
 import {
-  createClientAddressResolver,
   createRequestPeerVerifier,
   type StudioServerConfig,
 } from './config.js'
+import {
+  createMicrosoftEntraIdentityProvider,
+  type EntraIdentityProvider,
+} from './entraIdentityProvider.js'
 import { createStaticClientHandler } from './static.js'
 
 export type StudioRuntime = {
@@ -29,6 +33,7 @@ export type StudioHostDependencies = {
   signals?: StudioSignalTarget
   logger?: Pick<Console, 'error' | 'log'>
   providerRuntime?: Pick<StudioRuntime, 'close'>
+  identityProvider?: EntraIdentityProvider
 }
 
 export type RunningStudioHost = {
@@ -61,11 +66,22 @@ export async function startStudioServer(
   const providerRuntime =
     dependencies.providerRuntime ?? productionProviderRuntime
   const clientRoot = dependencies.clientRoot ?? productionClientRoot()
+  const identityProvider =
+    dependencies.identityProvider ??
+    createMicrosoftEntraIdentityProvider({
+      tenantId: config.entra.tenantId,
+      clientId: config.entra.clientId,
+      certificateThumbprint: config.entra.certificateThumbprint,
+      certificatePrivateKey: readFileSync(
+        config.entra.certificatePath,
+        'utf8',
+      ),
+    })
   const app = await createStudioApp({
     studioOrigin: config.studioOrigin,
     basePath: config.basePath,
     sessionSecret: config.sessionSecret,
-    clientAddress: createClientAddressResolver(config),
+    identityProvider,
     requestPeer: createRequestPeerVerifier(config),
     clientHandler: createStaticClientHandler(clientRoot, config.basePath),
   })

@@ -9,11 +9,11 @@ export const authenticatedSessionSchema = z
     authenticated: z.literal(true),
     account: z
       .object({
-        id: z.string(),
-        email: z.string(),
-        mustChangePassword: z.boolean(),
+        id: z.string().uuid(),
+        displayName: z.string().trim().min(1),
       })
       .strict(),
+    expiresAt: z.string().datetime(),
   })
   .strict()
 

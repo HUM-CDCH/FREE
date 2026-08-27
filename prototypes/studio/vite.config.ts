@@ -11,6 +11,11 @@ import {
   canonicalStudioBasePath,
   studioBaseHref,
 } from './shared/studioBasePath.js'
+import {
+  createFakeEntraIdentityProvider,
+  createMicrosoftEntraIdentityProvider,
+} from './server/entraIdentityProvider.js'
+import { normalizeEntraCertificateThumbprint } from './server/config.js'
 
 export function developmentStudioOrigin(server: {
   https?: unknown
@@ -83,6 +88,7 @@ export function apiFunctions(configuredBasePath: string): Plugin {
           studioOrigin: string
           basePath: string
           sessionSecret: Uint8Array
+          identityProvider: unknown
           accountStore?: unknown
           clientHandler: () => Response
           viteDevelopmentAssets: boolean
@@ -110,36 +116,54 @@ export function apiFunctions(configuredBasePath: string): Plugin {
       const sessionSecret = encodedSecret
         ? Buffer.from(encodedSecret, 'base64')
         : generatedSessionSecret
-      const playwrightEmail = process.env.FREE_PLAYWRIGHT_RESEARCHER_EMAIL
-      const playwrightPassword =
-        process.env.FREE_PLAYWRIGHT_RESEARCHER_PASSWORD
+      const playwrightAuthentication =
+        process.env.FREE_PLAYWRIGHT_AUTH === '1'
       if (
-        (playwrightEmail === undefined) !== (playwrightPassword === undefined)
-      )
-        throw new Error(
-          'The Playwright Researcher Account email and password must be configured together.',
+        playwrightAuthentication &&
+        !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(
+          studioOrigin,
         )
-      if (
-        playwrightEmail !== undefined &&
-        !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(studioOrigin)
       )
         throw new Error(
-          'The Playwright Researcher Account is restricted to a loopback Studio origin.',
+          'Playwright authentication is restricted to a loopback Studio origin.',
         )
       const accountStore =
-        playwrightEmail === undefined
+        !playwrightAuthentication
           ? undefined
           : await import('./server/playwright-auth.ts').then(
               ({ createPlaywrightAccountStore }) =>
-                createPlaywrightAccountStore(
-                  playwrightEmail,
-                  playwrightPassword!,
-                ),
+                createPlaywrightAccountStore(),
             )
+      const environmentValue = (name: string) =>
+        process.env[name] ?? environment[name]
+      const realEntra =
+        !playwrightAuthentication &&
+        environmentValue('FREE_ENTRA_REAL') === '1'
+      if (realEntra && new URL(studioOrigin).protocol !== 'https:')
+        throw new Error('Real Entra development requires an HTTPS Studio origin.')
+      const required = (name: string) => {
+        const configured = environmentValue(name)
+        if (!configured) throw new Error(`${name} is required for real Entra development.`)
+        return configured
+      }
+      const identityProvider = realEntra
+        ? createMicrosoftEntraIdentityProvider({
+            tenantId: required('FREE_ENTRA_TENANT_ID'),
+            clientId: required('FREE_ENTRA_CLIENT_ID'),
+            certificateThumbprint: normalizeEntraCertificateThumbprint(
+              required('FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
+            ),
+            certificatePrivateKey: readFileSync(
+              required('FREE_ENTRA_CLIENT_CERT_PATH'),
+              'utf8',
+            ),
+          })
+        : createFakeEntraIdentityProvider()
       const app = await studioModule.createStudioApp({
         studioOrigin,
         basePath,
         sessionSecret,
+        identityProvider,
         accountStore,
         clientHandler: studioModule.viteClientFallback,
         viteDevelopmentAssets: true,

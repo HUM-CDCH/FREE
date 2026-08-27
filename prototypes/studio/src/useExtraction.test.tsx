@@ -5,6 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useExtraction } from './useExtraction'
 import * as api from './api'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+import {
+  captureSessionRecovery,
+  clearSessionRecovery,
+  setSessionRecoveryAccount,
+} from './auth/sessionRecovery'
 
 vi.mock('./api', () => ({
   requestExtraction: vi.fn(),
@@ -67,6 +72,9 @@ function options(initialAttempt: ExtractionAttempt | null = null) {
 }
 
 beforeEach(() => {
+  clearSessionRecovery()
+  sessionStorage.clear()
+  setSessionRecoveryAccount('99999999-9999-4999-8999-999999999999')
   vi.mocked(api.requestExtraction).mockReset()
   vi.mocked(api.readExtraction).mockReset()
   vi.mocked(api.cancelExtraction).mockReset()
@@ -399,6 +407,110 @@ describe('useExtraction server-owned lifecycle', () => {
     expect(result.current.review.decisions.find(
       (decision) => decision.resultPath.join('.') === 'records.0.title',
     )?.action).toBe('REJECTED')
+  })
+
+  it('restores touched review decisions only against the same server preparation', async () => {
+    const unreviewed = attempt({
+      resultPayload: { records: [{ title: 'Grounded' }] },
+      evidenceLinks: [
+        {
+          resultPath: ['records', 0, 'title'],
+          evidenceAnchorId: 'anchor-1',
+        },
+      ],
+    })
+    const pending = [
+      {
+        resultPath: ['records', 0, 'title'],
+        evidenceAnchorId: 'anchor-1',
+        reviewedOccurrenceIds: ['occurrence-1'],
+        action: 'APPROVED' as const,
+        reviewedValue: null,
+      },
+    ]
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: unreviewed,
+      pendingReviewDecisions: pending,
+    })
+    const first = renderHook(() => useExtraction(options(unreviewed)))
+    await waitFor(() => expect(first.result.current.review.canAccept).toBe(true))
+    act(() =>
+      first.result.current.review.setDecision(
+        ['records', 0, 'title'],
+        'REJECTED',
+        null,
+      ),
+    )
+    act(() => captureSessionRecovery())
+    first.unmount()
+
+    setSessionRecoveryAccount('99999999-9999-4999-8999-999999999999')
+    const restored = renderHook(() => useExtraction(options(unreviewed)))
+    await waitFor(() =>
+      expect(restored.result.current.review.decisions[0]?.action).toBe(
+        'REJECTED',
+      ),
+    )
+    expect(
+      restored.result.current.review.isTouched(['records', 0, 'title']),
+    ).toBe(true)
+    expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
+  })
+
+  it('keeps a concurrently finalized server review over recovered decisions', async () => {
+    const pending = [{
+      resultPath: ['records', 0, 'title'],
+      evidenceAnchorId: 'anchor-1',
+      reviewedOccurrenceIds: ['occurrence-1'],
+      action: 'APPROVED' as const,
+      reviewedValue: null,
+    }]
+    const unreviewed = attempt({
+      resultPayload: { records: [{ title: 'Grounded' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'title'],
+        evidenceAnchorId: 'anchor-1',
+      }],
+    })
+    const reviewed = attempt({
+      ...unreviewed,
+      reviewedAt: '2026-08-10T00:01:00.000Z',
+      reviewDecisions: [{
+        ...pending[0],
+        createdAt: '2026-08-10T00:01:00.000Z',
+      }],
+    })
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: unreviewed,
+      pendingReviewDecisions: pending,
+    })
+    const first = renderHook(() => useExtraction(options(unreviewed)))
+    await waitFor(() => expect(first.result.current.review.canAccept).toBe(true))
+    act(() =>
+      first.result.current.review.setDecision(
+        ['records', 0, 'title'],
+        'REJECTED',
+        null,
+      ),
+    )
+    act(() => captureSessionRecovery())
+    first.unmount()
+
+    setSessionRecoveryAccount('99999999-9999-4999-8999-999999999999')
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: reviewed,
+      pendingReviewDecisions: [],
+    })
+    const restored = renderHook(() => useExtraction(options(unreviewed)))
+
+    await waitFor(() =>
+      expect(restored.result.current.attempt?.reviewedAt).toBe(
+        reviewed.reviewedAt,
+      ),
+    )
+    expect(restored.result.current.review.decisions[0]?.action).toBe('APPROVED')
+    expect(restored.result.current.review.untouchedCount).toBe(0)
+    expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
   })
 
   it('reads an already-saved review as fully touched', async () => {

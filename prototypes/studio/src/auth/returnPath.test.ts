@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { currentReturnPath, validateLocalReturnPath } from './returnPath.js'
+import { validateLocalReturnPath } from '../../shared/returnPath.js'
+import { currentReturnPath } from './returnPath.js'
 
 afterEach(() => {
   document.querySelector('base')?.remove()
@@ -15,6 +16,7 @@ describe('authentication return paths', () => {
       '/projects/11111111-1111-4111-8111-111111111111/documents/22222222-2222-4222-8222-222222222222?view=review#value',
       '/projects/11111111-1111-4111-8111-111111111111/documents/22222222-2222-4222-8222-222222222222?view=review#value',
     ],
+    ['/projects/not-a-project-id', null],
     ['https://attacker.example/projects/secret', null],
     ['//attacker.example/projects/secret', null],
     ['/..//attacker.example/projects/secret', null],
@@ -39,7 +41,22 @@ describe('authentication return paths', () => {
     history.replaceState(
       null,
       '',
-      `/free/login?${new URLSearchParams({ returnTo })}`,
+      `/free/auth/login?${new URLSearchParams({ returnTo })}`,
+    )
+
+    expect(currentReturnPath()).toBe(returnTo)
+  })
+
+  it('keeps a route that shares the configured base-path prefix', () => {
+    const base = document.createElement('base')
+    base.href = '/projects/'
+    document.head.prepend(base)
+    const returnTo =
+      '/projects/11111111-1111-4111-8111-111111111111/schemas?revision=latest'
+    history.replaceState(
+      null,
+      '',
+      `/projects/auth/login?${new URLSearchParams({ returnTo })}`,
     )
 
     expect(currentReturnPath()).toBe(returnTo)
@@ -57,7 +74,7 @@ describe('authentication return paths', () => {
     history.replaceState(
       null,
       '',
-      `/free/login?${new URLSearchParams({ returnTo })}`,
+      `/free/auth/login?${new URLSearchParams({ returnTo })}`,
     )
 
     expect(currentReturnPath()).toBe('/projects')

@@ -2,17 +2,23 @@ import type { IncomingMessage } from 'node:http'
 import { isIP } from 'node:net'
 import { ApiError } from '../api/_http.js'
 import { canonicalStudioBasePath } from '../shared/studioBasePath.js'
-import { normalizeClientAddress } from './login-limiter.js'
+import { normalizeCanonicalUuid } from '../shared/uuid.js'
 import { canonicalStudioOrigin } from './origin.js'
+import { normalizeClientAddress } from './request-address.js'
 
 export const STUDIO_PORT = 5173
-export const CLIENT_ADDRESS_HEADER = 'X-Real-IP'
 
 export type StudioProxyMode = 'trusted-proxy' | 'loopback'
 export type StudioServerConfig = {
   studioOrigin: string
   basePath: string
   sessionSecret: Buffer
+  entra: {
+    tenantId: string
+    clientId: string
+    certificatePath: string
+    certificateThumbprint: string
+  }
   proxyMode: StudioProxyMode
   proxyAddress: string | null
   hostname: '0.0.0.0' | '127.0.0.1'
@@ -20,9 +26,8 @@ export type StudioServerConfig = {
 }
 
 export type ClientAddressBindings = {
-  incoming?: Pick<IncomingMessage, 'headers' | 'socket'>
+  incoming?: Pick<IncomingMessage, 'socket'>
 }
-
 export class StudioConfigurationError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options)
@@ -59,6 +64,22 @@ function sessionSecret(value: string): Buffer {
       'FREE_SESSION_SECRET must decode to at least 32 bytes.',
     )
   return decoded
+}
+
+function uuid(value: string, name: string): string {
+  const normalized = normalizeCanonicalUuid(value)
+  if (normalized === null)
+    throw new StudioConfigurationError(`${name} must be a UUID.`)
+  return normalized
+}
+
+export function normalizeEntraCertificateThumbprint(value: string): string {
+  const normalized = value.replaceAll(':', '').toUpperCase()
+  if (!/^[0-9A-F]{64}$/.test(normalized))
+    throw new StudioConfigurationError(
+      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be a SHA-256 certificate thumbprint.',
+    )
+  return normalized
 }
 
 function studioOrigin(value: string, proxyMode: StudioProxyMode): string {
@@ -170,6 +191,23 @@ export function loadStudioServerConfig(
     sessionSecret: sessionSecret(
       required(environment, 'FREE_SESSION_SECRET'),
     ),
+    entra: {
+      tenantId: uuid(
+        required(environment, 'FREE_ENTRA_TENANT_ID'),
+        'FREE_ENTRA_TENANT_ID',
+      ),
+      clientId: uuid(
+        required(environment, 'FREE_ENTRA_CLIENT_ID'),
+        'FREE_ENTRA_CLIENT_ID',
+      ),
+      certificatePath: required(
+        environment,
+        'FREE_ENTRA_CLIENT_CERT_PATH',
+      ),
+      certificateThumbprint: normalizeEntraCertificateThumbprint(
+        required(environment, 'FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
+      ),
+    },
     proxyMode,
     proxyAddress,
     hostname: proxyMode === 'loopback' ? '127.0.0.1' : '0.0.0.0',
@@ -191,32 +229,5 @@ export function createRequestPeerVerifier(config: StudioServerConfig) {
         'proxy_peer_rejected',
         'The request did not arrive through the trusted Studio proxy.',
       )
-  }
-}
-
-export function createClientAddressResolver(config: StudioServerConfig) {
-  if (config.proxyMode !== 'trusted-proxy')
-    return (bindings: ClientAddressBindings): string =>
-      normalizeClientAddress(bindings.incoming?.socket.remoteAddress)
-
-  const verifyPeer = createRequestPeerVerifier(config)
-  return (bindings: ClientAddressBindings): string => {
-    verifyPeer(bindings)
-    const supplied =
-      bindings.incoming?.headers[CLIENT_ADDRESS_HEADER.toLowerCase()]
-    if (typeof supplied !== 'string')
-      throw new ApiError(
-        400,
-        'proxy_contract_required',
-        'The trusted client-address proxy contract is required.',
-      )
-    const address = normalizeClientAddress(supplied)
-    if (isIP(address) === 0)
-      throw new ApiError(
-        400,
-        'proxy_contract_required',
-        'The trusted client-address proxy contract is required.',
-      )
-    return address
   }
 }

@@ -48,12 +48,14 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
   )
 
   const accountA = await db.orm.public.ResearcherAccount.create({
-    email: 'cascade-a@example.org',
-    passwordHash: 'test-only-hash',
+    tenantId: '52000000-0000-4000-8000-000000000001',
+    objectId: '52000000-0000-4000-8000-000000000002',
+    displayName: 'Restrict A',
   })
   const accountB = await db.orm.public.ResearcherAccount.create({
-    email: 'cascade-b@example.org',
-    passwordHash: 'test-only-hash',
+    tenantId: '52000000-0000-4000-8000-000000000001',
+    objectId: '52000000-0000-4000-8000-000000000003',
+    displayName: 'Restrict B',
   })
   const store = createResearcherProjectStore(accountA.id, db)
   const survivorStore = createResearcherProjectStore(accountB.id, db)

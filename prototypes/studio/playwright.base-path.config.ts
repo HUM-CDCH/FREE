@@ -14,7 +14,7 @@ export default defineConfig({
   use: { baseURL: origin },
   webServer: {
     command: `pnpm dev --port ${port}`,
-    url: `${origin}${basePath}/login`,
+    url: `${origin}${basePath}/auth/signed-out`,
     reuseExistingServer: process.env.FREE_PLAYWRIGHT_REUSE_SERVER === '1',
     env: {
       DATABASE_URL:
@@ -24,6 +24,7 @@ export default defineConfig({
       STUDIO_BASE_PATH: basePath,
       APPDATA: resolve(import.meta.dirname, 'test-results/config-home'),
       XDG_CONFIG_HOME: resolve(import.meta.dirname, 'test-results/config-home'),
+      FREE_ENTRA_REAL: '0',
     },
   },
 })

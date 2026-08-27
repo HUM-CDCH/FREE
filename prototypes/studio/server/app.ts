@@ -5,12 +5,12 @@ import {
   type ResearcherAccountStore,
   type ResearcherProjectStore,
 } from 'db'
+import { createHash } from 'node:crypto'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import {
   ApiError,
   apiErrorResponse,
-  parseJsonRequest,
 } from '../api/_http.js'
 import { GET as healthResponse } from '../api/healthz.js'
 import {
@@ -22,36 +22,40 @@ import {
 } from './api-dispatcher.js'
 import {
   createAuthenticationBackend,
-  LoginThrottledError,
-  sessionView,
   type AuthenticatedState,
-  type PasswordOperations,
 } from './auth.js'
 import {
-  createLoginLimiter,
-  normalizeClientAddress,
-  type LoginLimiter,
-} from './login-limiter.js'
+  type EntraIdentityProvider,
+} from './entraIdentityProvider.js'
+import { createEntraTransactionManager } from './entraTransaction.js'
 import {
   canonicalStudioOrigin,
   enforceCanonicalOrigin,
 } from './origin.js'
+import { normalizeClientAddress } from './request-address.js'
 import { createSessionManager } from './session.js'
 import { createSessionGate } from './sessionGate.js'
+import { readSingleCookie } from './signedCookie.js'
+import { timingSafeStringEqual } from './timingSafeStringEqual.js'
 import {
   canonicalStudioBasePath,
   studioPath,
   stripStudioBasePath,
 } from '../shared/studioBasePath.js'
+import {
+  DEFAULT_RETURN_PATH,
+  validateLocalReturnPath,
+} from '../shared/returnPath.js'
 
 export const VITE_CLIENT_FALLBACK_HEADER = 'x-free-vite-client-fallback'
 export const GENERAL_API_REQUEST_LIMIT = 1024 * 1024
+const SIGNED_OUT_COOKIE_NAME = 'free_signed_out'
 
 const AUTH_METHOD: Readonly<Record<string, string>> = {
-  login: 'POST',
-  session: 'GET',
-  password: 'POST',
+  login: 'GET',
+  callback: 'GET',
   logout: 'POST',
+  'signed-out': 'GET, HEAD',
 }
 const PUBLIC_BUILD_ASSET_PREFIXES = ['/assets/'] as const
 const VITE_DEVELOPMENT_DEPENDENCY_PREFIXES = [
@@ -76,9 +80,11 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/src/auth/authenticatedFetch.ts': true,
   '/src/auth/returnPath.ts': true,
   '/src/auth/sessionContext.ts': true,
+  '/src/auth/sessionRecovery.ts': true,
   '/src/studioUrl.ts': true,
   '/shared/studioBasePath.ts': true,
   '/shared/authSession.contract.ts': true,
+  '/shared/returnPath.ts': true,
   '/src/ui/Button.tsx': true,
   '/src/ui/ModalDialog.tsx': true,
 }
@@ -127,10 +133,8 @@ export type StudioAppOptions = {
   studioOrigin: string
   basePath: string
   sessionSecret: Uint8Array
+  identityProvider: EntraIdentityProvider
   accountStore?: ResearcherAccountStore
-  limiter?: LoginLimiter
-  passwords?: PasswordOperations
-  dummyPasswordHash?: string
   now?: () => number
   apiDispatcher?: ApiDispatcher
   researcherProjectStore?: (
@@ -138,32 +142,7 @@ export type StudioAppOptions = {
   ) => ResearcherProjectStore
   clientHandler?: ClientHandler
   viteDevelopmentAssets?: boolean
-  clientAddress?: (bindings: StudioBindings) => string
   requestPeer?: (bindings: StudioBindings) => void
-}
-
-type LoginBody = { email: string; password: string }
-type PasswordBody = { currentPassword: string; newPassword: string }
-
-function jsonObject(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new ApiError(400, 'invalid_request', 'The request body is invalid.')
-  return value as Record<string, unknown>
-}
-
-function exactStringBody<T extends object>(
-  value: unknown,
-  fields: readonly (keyof T & string)[],
-): T {
-  const body = jsonObject(value)
-  const keys = Object.keys(body)
-  if (
-    keys.length !== fields.length ||
-    fields.some((field) => typeof body[field] !== 'string') ||
-    keys.some((key) => !fields.includes(key as keyof T & string))
-  )
-    throw new ApiError(400, 'invalid_request', 'The request body is invalid.')
-  return body as T
 }
 
 function withCookie(response: Response, cookie: string): Response {
@@ -174,6 +153,17 @@ function withCookie(response: Response, cookie: string): Response {
     statusText: response.statusText,
     headers,
   })
+}
+
+function signedOutCookie(basePath: string, clear = false): string {
+  const expires = clear
+    ? '; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0'
+    : ''
+  return `${SIGNED_OUT_COOKIE_NAME}=${clear ? '' : '1'}; Path=${basePath}${expires}; Secure; HttpOnly; SameSite=Lax`
+}
+
+function hasSignedOutCookie(request: Request): boolean {
+  return readSingleCookie(request, SIGNED_OUT_COOKIE_NAME).value === '1'
 }
 
 function noStoreResponse(response: Response): Response {
@@ -199,19 +189,6 @@ function authenticationRequired(clearCookie?: string): Response {
   return clearCookie ? withCookie(response, clearCookie) : response
 }
 
-function passwordChangeRequired(cookie?: string): Response {
-  const response = noStoreResponse(
-    apiErrorResponse(
-      new ApiError(
-        403,
-        'password_change_required',
-        'Password change is required.',
-      ),
-    ),
-  )
-  return cookie ? withCookie(response, cookie) : response
-}
-
 function methodNotAllowed(allow: string): Response {
   const response = apiErrorResponse(
     new ApiError(
@@ -225,10 +202,7 @@ function methodNotAllowed(allow: string): Response {
 }
 
 function authErrorResponse(error: unknown): Response {
-  const response = noStoreResponse(apiErrorResponse(error))
-  if (error instanceof LoginThrottledError)
-    response.headers.set('Retry-After', String(error.retryAfterSeconds))
-  return response
+  return noStoreResponse(apiErrorResponse(error))
 }
 
 function bodyTooLarge(): Response {
@@ -273,9 +247,70 @@ function redirect(
   return cookie ? withCookie(response, cookie) : response
 }
 
-function clientAddressFromBindings(bindings: StudioBindings): string {
-  return normalizeClientAddress(
-    bindings.clientAddress ?? bindings.incoming?.socket.remoteAddress,
+function externalRedirect(location: string, cookies: readonly string[] = []) {
+  let response = new Response(null, {
+    status: 302,
+    headers: { Location: location, 'Cache-Control': 'no-store' },
+  })
+  for (const cookie of cookies) response = withCookie(response, cookie)
+  return response
+}
+
+const FRAGMENT_RELAY_SCRIPT = `const url = new URL(location.href)
+const returnTo = url.searchParams.get('returnTo') ?? '${DEFAULT_RETURN_PATH}'
+if (location.hash) url.searchParams.set('returnTo', returnTo + location.hash)
+url.searchParams.set('fragmentCaptured', '1')
+url.hash = ''
+location.replace(url)`
+const FRAGMENT_RELAY_SCRIPT_HASH = createHash('sha256')
+  .update(FRAGMENT_RELAY_SCRIPT)
+  .digest('base64')
+
+function htmlAttribute(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
+
+function fragmentRelayPage(request: Request): Response {
+  const fallback = new URL(request.url)
+  fallback.searchParams.set('fragmentCaptured', '1')
+  fallback.hash = ''
+  const fallbackLocation = htmlAttribute(`${fallback.pathname}${fallback.search}`)
+  return new Response(
+    `<!doctype html><html lang="en"><meta charset="utf-8"><title>Continuing sign-in</title><script>${FRAGMENT_RELAY_SCRIPT}</script><noscript><meta http-equiv="refresh" content="0;url=${fallbackLocation}"><p><a href="${fallbackLocation}">Continue sign-in</a></p></noscript>`,
+    {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Content-Security-Policy':
+          `default-src 'none'; script-src 'sha256-${FRAGMENT_RELAY_SCRIPT_HASH}'; base-uri 'none'; form-action 'none'`,
+      },
+    },
+  )
+}
+
+function authenticationFailurePage(
+  basePath: string,
+  clearTransactionCookie: string,
+  status = 400,
+): Response {
+  const loginPath = studioPath(basePath, '/auth/login')
+  return withCookie(
+    new Response(
+      `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Sign-in failed</title><body><main><h1>Sign-in failed</h1><p>FREE Studio could not complete Microsoft Entra sign-in.</p><p><a href="${loginPath}">Try again</a></p></main></body></html>`,
+      {
+        status,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'",
+        },
+      },
+    ),
+    clearTransactionCookie,
   )
 }
 
@@ -300,14 +335,24 @@ export async function createStudioApp(
     options.now,
     basePath,
   )
-  const limiter = options.limiter ?? createLoginLimiter({ now: options.now })
-  const backend = await createAuthenticationBackend({
+  const transactions = createEntraTransactionManager(
+    options.sessionSecret,
+    basePath,
+    options.now,
+  )
+  const backend = createAuthenticationBackend({
     store: options.accountStore,
     sessions,
-    limiter,
-    passwords: options.passwords,
-    dummyPasswordHash: options.dummyPasswordHash,
   })
+  const identityProvider = options.identityProvider
+  const callbackUri = new URL(
+    studioPath(basePath, '/auth/callback'),
+    studioOrigin,
+  ).href
+  const signedOutUri = new URL(
+    studioPath(basePath, '/auth/signed-out'),
+    studioOrigin,
+  ).href
   const allowViteDevelopmentAssets = options.viteDevelopmentAssets ?? false
   const dispatcher =
     options.apiDispatcher ??
@@ -317,7 +362,6 @@ export async function createStudioApp(
   const researcherProjectStore =
     options.researcherProjectStore ?? createResearcherProjectStore
   const clientHandler = options.clientHandler ?? defaultClientHandler
-  const resolveClientAddress = options.clientAddress ?? clientAddressFromBindings
   const verifyRequestPeer = options.requestPeer
   const gate = createSessionGate({
     backend,
@@ -343,14 +387,10 @@ export async function createStudioApp(
       return
     }
     if (decision.verdict === 'deny')
-      return decision.reason === 'unauthenticated'
-        ? authenticationRequired(decision.setCookie)
-        : passwordChangeRequired(decision.setCookie)
+      return authenticationRequired(decision.setCookie)
 
     context.set('authentication', decision.authentication)
     await next()
-    if (decision.setCookie)
-      context.res = withCookie(context.res, decision.setCookie)
   }
   app.use('/api', authGuard)
   app.use('/api/*', authGuard)
@@ -370,27 +410,6 @@ export async function createStudioApp(
   app.use('/api', apiBodyLimit)
   app.use('/api/*', apiBodyLimit)
 
-  app.post('/api/auth/login', async (context) => {
-    const body = exactStringBody<LoginBody>(
-      await parseJsonRequest(context.req.raw),
-      ['email', 'password'],
-    )
-    const result = await backend.login(
-      body.email,
-      body.password,
-      resolveClientAddress(context.env),
-    )
-    const state: AuthenticatedState = {
-      authenticated: true,
-      account: result.account,
-      renewalCookie: result.sessionCookie,
-    }
-    return withCookie(
-      noStoreResponse(Response.json(sessionView(state))),
-      result.sessionCookie,
-    )
-  })
-
   app.get('/api/auth/session', async (context) => {
     const inspected = await gate.session(context.req.raw)
     const response = noStoreResponse(Response.json(inspected.view))
@@ -399,38 +418,101 @@ export async function createStudioApp(
       : response
   })
 
-  app.post('/api/auth/password', async (context) => {
-    const body = exactStringBody<PasswordBody>(
-      await parseJsonRequest(context.req.raw),
-      ['currentPassword', 'newPassword'],
-    )
-    const state = context.get('authentication')
-    await backend.changePassword(
-      state.account,
-      body.currentPassword,
-      body.newPassword,
-    )
-    return withCookie(
-      noStoreResponse(new Response(null, { status: 204 })),
-      sessions.clear(),
-    )
-  })
-
-  app.post('/api/auth/logout', () =>
-    withCookie(
-      noStoreResponse(new Response(null, { status: 204 })),
-      sessions.clear(),
-    ),
-  )
-
   app.get('/api/healthz', () => healthResponse())
 
   app.all('/api/auth/:operation', (context) => {
     const operation = context.req.param('operation')
+    return operation === 'session'
+      ? methodNotAllowed('GET')
+      : apiErrorResponse(new ApiError(404, 'not_found', 'API route not found.'))
+  })
+
+  app.get('/auth/login', async (context) => {
+    if (context.req.query('fragmentCaptured') !== '1')
+      return fragmentRelayPage(context.req.raw)
+    const returnTo =
+      validateLocalReturnPath(context.req.query('returnTo') ?? null) ??
+      DEFAULT_RETURN_PATH
+    const created = transactions.create(returnTo)
+    try {
+      const location = await identityProvider.authorizationUrl({
+        redirectUri: callbackUri,
+        state: created.transaction.state,
+        nonce: created.transaction.nonce,
+        codeChallenge: created.codeChallenge,
+        testIdentity: context.req.query('testIdentity'),
+      })
+      return externalRedirect(location, [
+        created.setCookie,
+        signedOutCookie(basePath, true),
+      ])
+    } catch {
+      return authenticationFailurePage(
+        basePath,
+        transactions.clear(),
+        503,
+      )
+    }
+  })
+
+  app.get('/auth/callback', async (context) => {
+    const url = new URL(context.req.url)
+    const stateValues = url.searchParams.getAll('state')
+    const codeValues = url.searchParams.getAll('code')
+    const transaction =
+      stateValues.length === 1 && codeValues.length === 1
+        ? transactions.verify(context.req.raw, stateValues[0])
+        : null
+    if (
+      !transaction ||
+      codeValues[0] === '' ||
+      url.searchParams.has('error')
+    )
+      return authenticationFailurePage(basePath, transactions.clear())
+
+    try {
+      const identity = await identityProvider.redeemAuthorizationCode({
+        redirectUri: callbackUri,
+        code: codeValues[0],
+        codeVerifier: transaction.codeVerifier,
+      })
+      // FREE owns nonce validation. Token redemption alone is not authority
+      // for binding this response to the initiating browser transaction.
+      if (!timingSafeStringEqual(transaction.nonce, identity.nonce))
+        return authenticationFailurePage(basePath, transactions.clear())
+      const result = await backend.signIn(identity)
+      return externalRedirect(studioPath(basePath, transaction.returnTo), [
+        transactions.clear(),
+        signedOutCookie(basePath, true),
+        result.sessionCookie,
+      ])
+    } catch (error) {
+      return authenticationFailurePage(
+        basePath,
+        transactions.clear(),
+        error instanceof ApiError && error.status === 503 ? 503 : 400,
+      )
+    }
+  })
+
+  app.post('/auth/logout', () =>
+    externalRedirect(identityProvider.logoutUrl(signedOutUri), [
+      transactions.clear(),
+      sessions.clear(),
+      signedOutCookie(basePath),
+    ]),
+  )
+
+  app.on(['GET', 'HEAD'], '/auth/signed-out', (context) =>
+    clientHandler(context.req.raw),
+  )
+
+  app.all('/auth/:operation', (context) => {
+    const operation = context.req.param('operation')
     const allow = AUTH_METHOD[operation]
     return allow
       ? methodNotAllowed(allow)
-      : apiErrorResponse(new ApiError(404, 'not_found', 'API route not found.'))
+      : apiErrorResponse(new ApiError(404, 'not_found', 'Page not found.'))
   })
 
   const scopedDispatch = (context: Context<StudioEnvironment>) => {
@@ -446,9 +528,11 @@ export async function createStudioApp(
   app.all('*', async (context) => {
     const request = context.req.raw
     const url = new URL(request.url)
+    if (url.pathname === '/login' || url.pathname === '/change-password')
+      return apiErrorResponse(new ApiError(404, 'not_found', 'Page not found.'))
     if (
       publicAsset(request, allowViteDevelopmentAssets) ||
-      url.pathname === '/login'
+      url.pathname === '/auth/signed-out'
     )
       return clientHandler(request)
     if (request.method !== 'GET' && request.method !== 'HEAD')
@@ -456,6 +540,9 @@ export async function createStudioApp(
 
     const decision = await gate.page(request)
     if (decision.verdict === 'deny') {
+      // Network Back reaches the server before the signed-out SPA can run.
+      if (hasSignedOutCookie(request))
+        return redirect(basePath, '/auth/signed-out#', decision.setCookie)
       const { path, returnTo } = decision.redirectTo
       return redirect(
         basePath,
@@ -465,10 +552,7 @@ export async function createStudioApp(
         decision.setCookie,
       )
     }
-    const response = await clientHandler(request)
-    return decision.setCookie
-      ? withCookie(response, decision.setCookie)
-      : response
+    return clientHandler(request)
   })
 
   if (basePath === '/') return app

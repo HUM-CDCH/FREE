@@ -6,14 +6,20 @@ import {
   requestExtraction,
 } from './api'
 import type { ExtractionState } from './extraction'
-import type {
-  ExtractionAttempt,
-  ExtractionRetrySelection,
-  ExtractionStrategy,
-  ReviewDecisionAction,
-  ReviewDecisionInput,
+import {
+  reviewDecisionInputSchema,
+  type ExtractionAttempt,
+  type ExtractionRetrySelection,
+  type ExtractionStrategy,
+  type ReviewDecisionAction,
+  type ReviewDecisionInput,
 } from '../shared/extraction.contract'
 import { resultPathKey } from '../shared/groundedExtraction'
+import {
+  consumeSessionRecovery,
+  registerSessionRecoveryCapture,
+  removeSessionRecovery,
+} from './auth/sessionRecovery'
 
 export type ExtractionRetryInput = Omit<ExtractionRetrySelection, 'retryOfId'>
 
@@ -89,6 +95,57 @@ function sameTarget(
       target?.sourceRepresentationId &&
     attempt?.schemaRevisionId === target?.schemaRevisionId
   )
+}
+
+function sameStrings(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  )
+}
+
+function recoveredReview(
+  value: unknown,
+  prepared: readonly ReviewDecisionInput[],
+): { decisions: ReviewDecisionInput[]; touchedPaths: Set<string> } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const candidate = value as Record<string, unknown>
+  if (!Array.isArray(candidate.decisions) || !Array.isArray(candidate.touchedPaths))
+    return null
+  const parsed = candidate.decisions.map((decision) =>
+    reviewDecisionInputSchema.safeParse(decision),
+  )
+  if (parsed.some((decision) => !decision.success)) return null
+  const decisions = parsed.map((decision) => decision.data!)
+  if (decisions.length !== prepared.length) return null
+  const byPath = new Map(
+    decisions.map((decision) => [resultPathKey(decision.resultPath), decision]),
+  )
+  if (byPath.size !== decisions.length) return null
+  const ordered = prepared.map((serverDecision) => {
+    const recovered = byPath.get(resultPathKey(serverDecision.resultPath))
+    return recovered &&
+      recovered.evidenceAnchorId === serverDecision.evidenceAnchorId &&
+      sameStrings(
+        recovered.reviewedOccurrenceIds,
+        serverDecision.reviewedOccurrenceIds,
+      )
+      ? recovered
+      : null
+  })
+  if (ordered.some((decision) => decision === null)) return null
+  if (!candidate.touchedPaths.every((path) => typeof path === 'string'))
+    return null
+  const validPaths = new Set(byPath.keys())
+  const touchedPaths = new Set(candidate.touchedPaths as string[])
+  if ([...touchedPaths].some((path) => !validPaths.has(path))) return null
+  return {
+    decisions: ordered as ReviewDecisionInput[],
+    touchedPaths,
+  }
 }
 
 export function useExtraction({
@@ -183,6 +240,26 @@ export function useExtraction({
   )
 
   useEffect(() => {
+    if (
+      !attempt ||
+      attempt.reviewedAt !== null ||
+      !reviewAvailable
+    )
+      return
+    return registerSessionRecoveryCapture(
+      'extraction-review',
+      attempt.extractionId,
+      () =>
+        touchedPaths.size === 0
+          ? null
+          : {
+              decisions: reviewDecisions,
+              touchedPaths: [...touchedPaths],
+            },
+    )
+  }, [attempt, reviewAvailable, reviewDecisions, touchedPaths])
+
+  useEffect(() => {
     const load = ++reviewLoadRef.current
     void Promise.resolve().then(async () => {
       if (reviewLoadRef.current !== load) return
@@ -200,6 +277,7 @@ export function useExtraction({
         return
       }
       if (attempt.reviewedAt) {
+        removeSessionRecovery('extraction-review', attempt.extractionId)
         setReviewLoading(false)
         const decisions = attempt.reviewDecisions.map(pendingDecision)
         setReviewDecisions(decisions)
@@ -214,8 +292,29 @@ export function useExtraction({
       try {
         const prepared = await readExtraction(attempt.extractionId)
         if (reviewLoadRef.current !== load) return
-        setReviewDecisions([...prepared.pendingReviewDecisions])
-        setTouchedPaths(new Set())
+        if (prepared.extraction.reviewedAt) {
+          removeSessionRecovery('extraction-review', attempt.extractionId)
+          setAttempt(prepared.extraction)
+          setState(extractionStateFromAttempt(prepared.extraction))
+          const decisions =
+            prepared.extraction.reviewDecisions.map(pendingDecision)
+          setReviewDecisions(decisions)
+          setTouchedPaths(
+            new Set(
+              decisions.map((decision) => resultPathKey(decision.resultPath)),
+            ),
+          )
+          return
+        }
+        const recovered = consumeSessionRecovery(
+          'extraction-review',
+          attempt.extractionId,
+          (value) => recoveredReview(value, prepared.pendingReviewDecisions),
+        )
+        setReviewDecisions(
+          recovered?.decisions ?? [...prepared.pendingReviewDecisions],
+        )
+        setTouchedPaths(recovered?.touchedPaths ?? new Set())
       } catch (error) {
         if (reviewLoadRef.current !== load) return
         setReviewError(
@@ -247,6 +346,8 @@ export function useExtraction({
       indexing
     )
       return null
+    if (attempt)
+      removeSessionRecovery('extraction-review', attempt.extractionId)
     abandonRunning()
     const controller = new AbortController()
     const extractionId = crypto.randomUUID()
@@ -304,12 +405,12 @@ export function useExtraction({
     setSaving(true)
     setReviewError(null)
     try {
-      setAttempt(
-        await finalizeExtractionReview(
-          attempt.extractionId,
-          reviewDecisions,
-        ),
+      const finalized = await finalizeExtractionReview(
+        attempt.extractionId,
+        reviewDecisions,
       )
+      setAttempt(finalized)
+      removeSessionRecovery('extraction-review', attempt.extractionId)
     } catch (error) {
       setReviewError(
         error instanceof Error ? error.message : 'Saving the review failed.',

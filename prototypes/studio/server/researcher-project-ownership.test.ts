@@ -43,7 +43,7 @@ import {
   type ResearcherApiHandlerFactory,
 } from './api-dispatcher.js'
 import { createStudioApp, type StudioApp } from './app.js'
-import { validatePassword } from './password.js'
+import { createFakeEntraIdentityProvider } from './entraIdentityProvider.js'
 
 const extractionRuntimeMock = vi.hoisted(() => ({
   modules: new Map<string, unknown>(),
@@ -67,8 +67,8 @@ vi.mock('../api/_project_operations.js', () => ({
 const ORIGIN = 'https://studio.example'
 const SECRET = Buffer.alloc(32, 17)
 const CLIENT = { clientAddress: '192.0.2.45' }
-const PASSWORD = 'researcher password 123'
 const CREATED_AT = new Date('2026-08-20T10:00:00.000Z')
+const TENANT_ID = '30000000-0000-4000-8000-000000000001'
 
 const ids = {
   accountA: '10000000-0000-4000-8000-000000000001',
@@ -95,9 +95,13 @@ const ids = {
   ingestion: '11000000-0000-4009-8000-000000000001',
 } as const
 
-const emails = {
-  [ids.accountA]: 'alice@example.test',
-  [ids.accountB]: 'bob@example.test',
+const objectIds = {
+  [ids.accountA]: '30000000-0000-4000-8000-000000000002',
+  [ids.accountB]: '30000000-0000-4000-8000-000000000003',
+} as const
+const displayNames = {
+  [ids.accountA]: 'Alice Researcher',
+  [ids.accountB]: 'Bob Researcher',
 } as const
 const projectNames = {
   [ids.accountA]: 'Alice private project',
@@ -114,14 +118,12 @@ const schemaDefinition = {
   schemaNodes: [{ id: 'title', name: 'title', type: 'string' as const }],
 }
 
-function account(id: keyof typeof emails): ResearcherAccountRecord {
+function account(id: keyof typeof objectIds): ResearcherAccountRecord {
   return {
     id,
-    email: emails[id],
-    passwordHash: `hash:${PASSWORD}`,
-    mustChangePassword: false,
-    disabledAt: null,
-    sessionVersion: 0,
+    tenantId: TENANT_ID,
+    objectId: objectIds[id],
+    displayName: displayNames[id],
     createdAt: CREATED_AT,
     updatedAt: CREATED_AT,
   }
@@ -130,16 +132,20 @@ function account(id: keyof typeof emails): ResearcherAccountRecord {
 function accountStore(): ResearcherAccountStore {
   const accounts = [account(ids.accountA), account(ids.accountB)]
   return {
-    create: vi.fn(async () => accounts[0]),
-    findByEmail: vi.fn(async (email) => {
-      const normalized = email.trim().toLowerCase()
-      return accounts.find((candidate) => candidate.email === normalized) ?? null
+    findOrCreate: vi.fn(async (identity) => {
+      const existing = accounts.find(
+        (candidate) =>
+          candidate.tenantId === identity.tenantId &&
+          candidate.objectId === identity.objectId,
+      )
+      if (!existing) throw new Error('Unexpected test Entra identity.')
+      existing.displayName = identity.displayName
+      existing.updatedAt = new Date()
+      return existing
     }),
     findById: vi.fn(async (id) =>
       accounts.find((candidate) => candidate.id === id) ?? null,
     ),
-    replacePassword: vi.fn(async () => null),
-    disable: vi.fn(async () => null),
   }
 }
 
@@ -737,24 +743,29 @@ type AppFixture = TwoAccountStores & {
   createStore: Mock<(accountId: string) => ResearcherProjectStore>
 }
 
-function responseCookie(response: Response): string {
-  const value = response.headers.get('set-cookie')
-  if (!value) throw new Error('Expected a session cookie.')
+function responseCookie(response: Response, name: string): string {
+  const headers = response.headers as Headers & { getSetCookie?: () => string[] }
+  const values = headers.getSetCookie?.() ?? [response.headers.get('set-cookie') ?? '']
+  const value = values.find((candidate) => candidate.startsWith(`${name}=`))
+  if (!value) throw new Error(`Expected a ${name} cookie.`)
   return value.split(';', 1)[0]
 }
 
-async function login(app: StudioApp, email: string): Promise<string> {
-  const response = await app.request(
-    `${ORIGIN}/api/auth/login`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: ORIGIN },
-      body: JSON.stringify({ email, password: PASSWORD }),
-    },
+async function login(app: StudioApp, objectId: string): Promise<string> {
+  const start = await app.request(
+    `${ORIGIN}/auth/login?${new URLSearchParams({
+      fragmentCaptured: '1',
+      testIdentity: objectId,
+    })}`,
+    undefined,
     CLIENT,
   )
-  expect(response.status).toBe(200)
-  return responseCookie(response)
+  expect(start.status).toBe(302)
+  const response = await app.request(start.headers.get('location')!, {
+    headers: { cookie: responseCookie(start, 'free_entra_transaction') },
+  })
+  expect(response.status).toBe(302)
+  return responseCookie(response, 'free_session')
 }
 
 async function appFixture(): Promise<AppFixture> {
@@ -769,23 +780,21 @@ async function appFixture(): Promise<AppFixture> {
     basePath: '/',
     sessionSecret: SECRET,
     accountStore: accountStore(),
+    identityProvider: createFakeEntraIdentityProvider({
+      tenantId: TENANT_ID,
+      objectId: objectIds[ids.accountA],
+      displayName: displayNames[ids.accountA],
+    }),
     apiDispatcher: createApiDispatcher(ownershipRegistry(stores)),
     researcherProjectStore: createStore,
-    dummyPasswordHash: 'hash:dummy password verification',
-    passwords: {
-      validate: validatePassword,
-      hash: async (password) => `hash:${password}`,
-      verify: async (password, representation) =>
-        representation === `hash:${password}`,
-    },
   })
   return {
     ...stores,
     app,
     createStore,
     cookies: {
-      [ids.accountA]: await login(app, emails[ids.accountA]),
-      [ids.accountB]: await login(app, emails[ids.accountB]),
+      [ids.accountA]: await login(app, objectIds[ids.accountA]),
+      [ids.accountB]: await login(app, objectIds[ids.accountB]),
     },
   }
 }
@@ -837,7 +846,7 @@ function ingestionRequest(): RequestInit {
 
 const forbiddenB = [
   ids.accountB,
-  emails[ids.accountB],
+  displayNames[ids.accountB],
   ids.projectB,
   projectNames[ids.accountB],
   ids.documentB,
@@ -1399,7 +1408,7 @@ describe('two-account physical package isolation', () => {
       ),
       [
         ids.accountA,
-        emails[ids.accountA],
+        displayNames[ids.accountA],
         ids.projectA,
         ids.documentA,
         ids.representationA,

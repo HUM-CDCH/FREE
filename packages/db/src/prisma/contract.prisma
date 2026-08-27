@@ -5,15 +5,15 @@ types {
 }
 
 model ResearcherAccount {
-  id                 Uuid         @id @default(uuid())
-  email              String       @unique
-  passwordHash       String
-  mustChangePassword Boolean      @default(true)
-  disabledAt         Timestamptz6?
-  sessionVersion     Int          @default(0)
-  createdAt          Timestamptz6 @default(now())
-  updatedAt          temporal.updatedAt()
-  projectContexts    ProjectContext[]
+  id              Uuid         @id @default(uuid())
+  tenantId        Uuid
+  objectId        Uuid
+  displayName     String
+  createdAt       Timestamptz6 @default(now())
+  updatedAt       temporal.updatedAt()
+  projectContexts ProjectContext[]
+
+  @@unique([tenantId, objectId])
 }
 
 enum AttemptOutcome {

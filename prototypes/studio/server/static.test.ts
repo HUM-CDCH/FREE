@@ -28,7 +28,11 @@ afterEach(async () => {
 describe('production static client handler', () => {
   it('serves SPA navigation through no-cache index HTML', async () => {
     const handle = createStaticClientHandler(root, '/free')
-    for (const pathname of ['/login', '/projects/project-id', '/change-password']) {
+    for (const pathname of [
+      '/auth/signed-out',
+      '/projects/project-id',
+      '/projects',
+    ]) {
       const response = await handle(
         new Request(`https://studio.example${pathname}`),
       )

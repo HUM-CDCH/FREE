@@ -299,11 +299,9 @@ if (!disposableDatabaseUrl) {
     if (!accounts.has(researcherAccountId)) {
       await db.orm.public.ResearcherAccount.create({
         id: researcherAccountId,
-        email: `${researcherAccountId}@example.test`,
-        passwordHash: 'test-only-password-hash',
-        mustChangePassword: false,
-        disabledAt: null,
-        sessionVersion: 0,
+        tenantId: '91000000-0000-4000-8000-000000000001',
+        objectId: researcherAccountId,
+        displayName: `Extraction test ${researcherAccountId.slice(0, 8)}`,
       })
       accounts.add(researcherAccountId)
     }
