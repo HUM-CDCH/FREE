@@ -1,0 +1,650 @@
+[
+  {
+    "id": "dropConstraint.extractionReview.extractionReview_extractionId_key",
+    "label": "Drop constraint \"extractionReview_extractionId_key\" on \"extractionReview\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extractionReview_extractionId_key",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extractionReview_extractionId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_key",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop constraint \"extractionReview_extractionId_key\"",
+        "sql": "ALTER TABLE \"public\".\"extractionReview\" DROP CONSTRAINT \"extractionReview_extractionId_key\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extractionReview_extractionId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_key",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.extractionReview.revisionNumber",
+    "label": "Add column \"revisionNumber\" to \"extractionReview\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "revisionNumber",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"revisionNumber\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extractionReview",
+          "revisionNumber"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"revisionNumber\"",
+        "sql": "ALTER TABLE \"public\".\"extractionReview\" ADD COLUMN \"revisionNumber\" int4"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"revisionNumber\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extractionReview",
+          "revisionNumber"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "data_migration.backfill-extractionReview-revisionNumber",
+    "label": "Data transform: backfill-extractionReview-revisionNumber",
+    "operationClass": "data",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [
+      {
+        "description": "Check backfill-extractionReview-revisionNumber has work to do",
+        "sql": "SELECT EXISTS (SELECT \"id\" AS \"id\" FROM \"public\".\"extractionReview\" WHERE \"revisionNumber\" IS NULL LIMIT 1) AS ok",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "Run backfill-extractionReview-revisionNumber",
+        "sql": "UPDATE \"public\".\"extractionReview\" SET \"revisionNumber\" = $1",
+        "params": [
+          1
+        ]
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "Verify backfill-extractionReview-revisionNumber resolved all violations",
+        "sql": "SELECT NOT EXISTS (SELECT \"id\" AS \"id\" FROM \"public\".\"extractionReview\" WHERE \"revisionNumber\" IS NULL LIMIT 1) AS ok",
+        "params": []
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.extractionReview.revisionNumber",
+    "label": "Set NOT NULL on \"extractionReview\".\"revisionNumber\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "revisionNumber",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"revisionNumber\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extractionReview",
+          "revisionNumber"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"revisionNumber\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"extractionReview\" WHERE \"revisionNumber\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"revisionNumber\"",
+        "sql": "ALTER TABLE \"public\".\"extractionReview\" ALTER COLUMN \"revisionNumber\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"revisionNumber\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "extractionReview",
+          "revisionNumber",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.reviewDecision.extractionReviewId",
+    "label": "Add column \"extractionReviewId\" to \"reviewDecision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "extractionReviewId",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"extractionReviewId\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "extractionReviewId"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"extractionReviewId\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\" ADD COLUMN \"extractionReviewId\" \"uuid\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"extractionReviewId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "extractionReviewId"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "data_migration.backfill-reviewDecision-extractionReviewId",
+    "label": "Data transform: backfill-reviewDecision-extractionReviewId",
+    "operationClass": "data",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [
+      {
+        "description": "Check backfill-reviewDecision-extractionReviewId has work to do",
+        "sql": "SELECT EXISTS (SELECT \"id\" AS \"id\" FROM \"public\".\"reviewDecision\" WHERE \"extractionReviewId\" IS NULL LIMIT 1) AS ok",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "Run backfill-reviewDecision-extractionReviewId",
+        "sql": "UPDATE \"public\".\"reviewDecision\" SET \"extractionReviewId\" = \n              (SELECT \"id\"\n               FROM \"public\".\"extractionReview\"\n               WHERE \"extractionReview\".\"extractionId\" = \"reviewDecision\".\"extractionId\")\n            ",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "Verify backfill-reviewDecision-extractionReviewId resolved all violations",
+        "sql": "SELECT NOT EXISTS (SELECT \"id\" AS \"id\" FROM \"public\".\"reviewDecision\" WHERE \"extractionReviewId\" IS NULL LIMIT 1) AS ok",
+        "params": []
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.reviewDecision.extractionReviewId",
+    "label": "Set NOT NULL on \"reviewDecision\".\"extractionReviewId\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "extractionReviewId",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"extractionReviewId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "extractionReviewId"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"extractionReviewId\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"reviewDecision\" WHERE \"extractionReviewId\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"extractionReviewId\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\" ALTER COLUMN \"extractionReviewId\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"extractionReviewId\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "extractionReviewId",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropConstraint.reviewDecision.reviewDecision_extractionId_fkey",
+    "label": "Drop constraint \"reviewDecision_extractionId_fkey\" on \"reviewDecision\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "reviewDecision_extractionId_fkey",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"reviewDecision_extractionId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionId_fkey",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop constraint \"reviewDecision_extractionId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\" DROP CONSTRAINT \"reviewDecision_extractionId_fkey\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"reviewDecision_extractionId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionId_fkey",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropIndex.reviewDecision.reviewDecision_extractionId_idx",
+    "label": "Drop index \"reviewDecision_extractionId_idx\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "reviewDecision_extractionId_idx",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"reviewDecision_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop index \"reviewDecision_extractionId_idx\"",
+        "sql": "DROP INDEX \"public\".\"reviewDecision_extractionId_idx\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"reviewDecision_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropConstraint.reviewDecision.reviewDecision_extractionId_resultPathKey_key",
+    "label": "Drop constraint \"reviewDecision_extractionId_resultPathKey_key\" on \"reviewDecision\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "reviewDecision_extractionId_resultPathKey_key",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"reviewDecision_extractionId_resultPathKey_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionId_resultPathKey_key",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop constraint \"reviewDecision_extractionId_resultPathKey_key\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\" DROP CONSTRAINT \"reviewDecision_extractionId_resultPathKey_key\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"reviewDecision_extractionId_resultPathKey_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionId_resultPathKey_key",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.reviewDecision.extractionId",
+    "label": "Drop column \"extractionId\" from \"reviewDecision\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "extractionId",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"extractionId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "extractionId"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"extractionId\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\" DROP COLUMN \"extractionId\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"extractionId\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "reviewDecision",
+          "extractionId"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.extractionReview.extractionReview_extractionId_revisionNumber_key",
+    "label": "Add unique constraint on \"extractionReview\" (extractionId, revisionNumber)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "extractionReview_extractionId_revisionNumber_key",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extractionReview_extractionId_revisionNumber_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_revisionNumber_key",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"extractionReview_extractionId_revisionNumber_key\"",
+        "sql": "ALTER TABLE \"public\".\"extractionReview\" ADD CONSTRAINT \"extractionReview_extractionId_revisionNumber_key\" UNIQUE (\"extractionId\", \"revisionNumber\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extractionReview_extractionId_revisionNumber_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extractionReview_extractionId_revisionNumber_key",
+          "public",
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.reviewDecision.reviewDecision_extractionReviewId_resultPathKey_key",
+    "label": "Add unique constraint on \"reviewDecision\" (extractionReviewId, resultPathKey)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "reviewDecision_extractionReviewId_resultPathKey_key",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"reviewDecision_extractionReviewId_resultPathKey_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionReviewId_resultPathKey_key",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"reviewDecision_extractionReviewId_resultPathKey_key\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\" ADD CONSTRAINT \"reviewDecision_extractionReviewId_resultPathKey_key\" UNIQUE (\"extractionReviewId\", \"resultPathKey\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"reviewDecision_extractionReviewId_resultPathKey_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionReviewId_resultPathKey_key",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.extractionReview.extractionReview_extractionId_idx",
+    "label": "Create index \"extractionReview_extractionId_idx\" on \"extractionReview\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extractionReview_extractionId_idx",
+        "table": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extractionReview_extractionId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview_extractionId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"extractionReview_extractionId_idx\"",
+        "sql": "CREATE INDEX \"extractionReview_extractionId_idx\" ON \"public\".\"extractionReview\" (\"extractionId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extractionReview_extractionId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview_extractionId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.reviewDecision.reviewDecision_extractionReviewId_idx",
+    "label": "Create index \"reviewDecision_extractionReviewId_idx\" on \"reviewDecision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "reviewDecision_extractionReviewId_idx",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"reviewDecision_extractionReviewId_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision_extractionReviewId_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"reviewDecision_extractionReviewId_idx\"",
+        "sql": "CREATE INDEX \"reviewDecision_extractionReviewId_idx\" ON \"public\".\"reviewDecision\" (\"extractionReviewId\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"reviewDecision_extractionReviewId_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision_extractionReviewId_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.reviewDecision.reviewDecision_extractionReviewId_fkey",
+    "label": "Add foreign key \"reviewDecision_extractionReviewId_fkey\" on \"reviewDecision\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "reviewDecision_extractionReviewId_fkey",
+        "table": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"reviewDecision_extractionReviewId_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionReviewId_fkey",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"reviewDecision_extractionReviewId_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"reviewDecision\"\nADD CONSTRAINT \"reviewDecision_extractionReviewId_fkey\"\nFOREIGN KEY (\"extractionReviewId\")\nREFERENCES \"public\".\"extractionReview\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"reviewDecision_extractionReviewId_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "reviewDecision_extractionReviewId_fkey",
+          "public",
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ]
+  }
+]
