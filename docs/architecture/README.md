@@ -22,7 +22,8 @@ Open the URL that LikeC4 prints, then follow these views:
 
 1. `current_context` — the private host-nginx + Studio runtime and its stores.
 2. `current_modules` — maintained module seams, not an import graph.
-3. `current_account_session` — explicit account provisioning and password replacement.
+3. `current_account_session` — Microsoft Entra authentication and JIT
+   Researcher Account provisioning.
 4. `project_context_lifecycle` — account-owned creation, rename, and deletion.
 5. `source_document_reopen` — durable artifact reads for an owned Source Document.
 6. `source_document_ingestion` — authenticated multi-PDF ingestion.

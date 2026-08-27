@@ -33,8 +33,10 @@ The production deployment below expects an institution- or VPN-managed
 certificate and an NVIDIA runtime. For a local Windows workstation without
 those prerequisites, create a localhost certificate, stable secrets, and a CPU
 override before the first start. `.env`, `.certs/`, and `compose.local.yaml` are
-ignored by Git. Keep `.env` and `.certs/studio.key` private and retain them while
-the corresponding Podman volumes exist.
+ignored by Git. Gitignore is not secret storage: the commands below put the
+Entra client private key outside the checkout under `%LOCALAPPDATA%`. Keep that
+key, `.env`, and `.certs/studio.key` private and retain them while the
+corresponding Podman volumes exist.
 
 Run these commands from the repository root in PowerShell. Git for Windows
 provides the OpenSSL executable used here:
@@ -42,13 +44,16 @@ provides the OpenSSL executable used here:
 ```powershell
 $openssl = 'C:\Program Files\Git\usr\bin\openssl.exe'
 New-Item -ItemType Directory -Force .certs | Out-Null
+$entraSecretDirectory = Join-Path $env:LOCALAPPDATA 'FREE\secrets'
+New-Item -ItemType Directory -Force $entraSecretDirectory | Out-Null
+$entraPrivateKeyFile = Join-Path $entraSecretDirectory 'entra-client.pem'
 
 & $openssl req -x509 -newkey rsa:3072 -sha256 -days 825 -nodes `
   -keyout .certs/studio.key -out .certs/studio.crt `
   -subj '/CN=localhost' `
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1'
 & $openssl req -x509 -newkey rsa:3072 -sha256 -days 365 -nodes `
-  -keyout .certs/entra-client.pem -out .certs/entra-client.crt `
+  -keyout $entraPrivateKeyFile -out .certs/entra-client.crt `
   -subj '/CN=FREE local Entra client'
 & $openssl x509 -in .certs/entra-client.crt -noout -fingerprint -sha256
 
@@ -64,7 +69,7 @@ $sessionSecret = [Convert]::ToBase64String($sessionBytes)
 $postgresPassword = [Convert]::ToHexString($passwordBytes).ToLowerInvariant()
 $certificatePath = (Resolve-Path .certs/studio.crt).Path.Replace('\', '/')
 $privateKeyPath = (Resolve-Path .certs/studio.key).Path.Replace('\', '/')
-$entraPrivateKeyPath = (Resolve-Path .certs/entra-client.pem).Path.Replace('\', '/')
+$entraPrivateKeyPath = (Resolve-Path $entraPrivateKeyFile).Path.Replace('\', '/')
 
 @"
 COMPOSE_PROJECT_NAME=free-local
