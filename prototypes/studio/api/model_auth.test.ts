@@ -14,6 +14,7 @@ import {
   type ApiDispatcher,
 } from '../server/api-dispatcher.js'
 import { createStudioApp, type StudioApp } from '../server/app.js'
+import { createFakeEntraIdentityProvider } from '../server/entraIdentityProvider.js'
 import { createSessionManager } from '../server/session.js'
 import type { CredentialStore } from './_keyring.js'
 import {
@@ -65,27 +66,20 @@ type ModelAuthFixture = {
   providerFetch: Mock<ProviderFetch>
 }
 
-async function modelAuthFixture(
-  mustChangePassword = false,
-): Promise<ModelAuthFixture> {
+async function modelAuthFixture(): Promise<ModelAuthFixture> {
   const root = await mkdtemp(join(tmpdir(), 'free-model-auth-test-'))
   roots.push(root)
   const account: ResearcherAccountRecord = {
     id: ACCOUNT_ID,
-    email: 'researcher@example.org',
-    passwordHash: 'unused',
-    mustChangePassword,
-    disabledAt: null,
-    sessionVersion: 0,
+    tenantId: '30000000-0000-4000-8000-000000000003',
+    objectId: '30000000-0000-4000-8000-000000000004',
+    displayName: 'Researcher',
     createdAt: new Date('2026-08-01T00:00:00Z'),
     updatedAt: new Date('2026-08-01T00:00:00Z'),
   }
   const accountStore: ResearcherAccountStore = {
-    create: vi.fn(async () => account),
-    findByEmail: vi.fn(async () => account),
+    findOrCreate: vi.fn(async () => account),
     findById: vi.fn(async (id) => (id === account.id ? account : null)),
-    replacePassword: vi.fn(async () => account),
-    disable: vi.fn(async () => account),
   }
 
   const credentials = new Map<string, string>()
@@ -129,15 +123,15 @@ async function modelAuthFixture(
     sessionSecret: SECRET,
     now: () => NOW,
     accountStore,
-    dummyPasswordHash: 'unused',
+    identityProvider: createFakeEntraIdentityProvider({ now: () => NOW }),
     apiDispatcher: dispatcher,
     researcherProjectStore: (researcherAccountId) =>
       ({ researcherAccountId }) as ResearcherProjectStore,
   })
   const sessions = createSessionManager(SECRET, () => NOW)
-  const cookie = sessions
-    .serialize(sessions.issue(account.id, account.sessionVersion))
-    .split(';', 1)[0]
+  const payload = sessions.issue(account.id, NOW + 75 * 60 * 1_000)
+  if (!payload) throw new Error('Test session could not be issued.')
+  const cookie = sessions.serialize(payload).split(';', 1)[0]
 
   return {
     app,
@@ -208,35 +202,6 @@ describe('model API authentication boundary', () => {
     for (const response of responses) {
       await expect(response.json()).resolves.toMatchObject({
         error: { code: 'authentication_required' },
-      })
-    }
-    expectNoModelSideEffects(test)
-  })
-
-  it('denies mandatory-change GET, PUT, and probe before configuration, keyring, or provider access', async () => {
-    const test = await modelAuthFixture(true)
-    const responses = await Promise.all([
-      modelRequest(test, '/api/model_config', 'GET', undefined, test.cookie),
-      modelRequest(
-        test,
-        '/api/model_config',
-        'PUT',
-        { config, credentials: { [CONNECTION_ID]: MANAGED_SECRET } },
-        test.cookie,
-      ),
-      modelRequest(
-        test,
-        '/api/model_probe',
-        'POST',
-        { connection: config.connections[0], credential: MANAGED_SECRET },
-        test.cookie,
-      ),
-    ])
-
-    expect(responses.map(({ status }) => status)).toEqual([403, 403, 403])
-    for (const response of responses) {
-      await expect(response.json()).resolves.toMatchObject({
-        error: { code: 'password_change_required' },
       })
     }
     expectNoModelSideEffects(test)

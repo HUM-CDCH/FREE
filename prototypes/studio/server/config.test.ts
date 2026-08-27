@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createClientAddressResolver,
   createRequestPeerVerifier,
   loadStudioServerConfig,
   type ClientAddressBindings,
 } from './config.js'
 
 const SECRET = Buffer.alloc(32, 11).toString('base64')
+const ENTRA = {
+  FREE_ENTRA_TENANT_ID: '10000000-0000-4000-8000-000000000001',
+  FREE_ENTRA_CLIENT_ID: '10000000-0000-4000-8000-000000000002',
+  FREE_ENTRA_CLIENT_CERT_PATH: '/run/secrets/free-entra-client.pem',
+  FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'ab:'.repeat(31) + 'ab',
+} satisfies NodeJS.ProcessEnv
 const HOSTED = {
+  ...ENTRA,
   STUDIO_ORIGIN: 'https://studio.example',
   STUDIO_BASE_PATH: '/free',
   FREE_SESSION_SECRET: SECRET,
@@ -15,16 +21,10 @@ const HOSTED = {
   FREE_STUDIO_PROXY_ADDRESS: '172.30.0.2',
 } satisfies NodeJS.ProcessEnv
 
-function requestBindings(
-  peer: string,
-  clientAddress?: string | string[],
-): ClientAddressBindings {
+function requestBindings(peer: string): ClientAddressBindings {
   return {
     incoming: {
-      headers:
-        clientAddress === undefined
-          ? {}
-          : { 'x-real-ip': clientAddress },
+      headers: {},
       socket: { remoteAddress: peer },
     },
   } as unknown as ClientAddressBindings
@@ -36,6 +36,12 @@ describe('production Studio configuration', () => {
       studioOrigin: 'https://studio.example',
       basePath: '/free',
       sessionSecret: Buffer.alloc(32, 11),
+      entra: {
+        tenantId: ENTRA.FREE_ENTRA_TENANT_ID,
+        clientId: ENTRA.FREE_ENTRA_CLIENT_ID,
+        certificatePath: ENTRA.FREE_ENTRA_CLIENT_CERT_PATH,
+        certificateThumbprint: 'AB'.repeat(32),
+      },
       proxyMode: 'trusted-proxy',
       proxyAddress: '172.30.0.2',
       hostname: '0.0.0.0',
@@ -48,6 +54,10 @@ describe('production Studio configuration', () => {
       'FREE_SESSION_SECRET',
       'FREE_STUDIO_PROXY',
       'FREE_STUDIO_PROXY_ADDRESS',
+      'FREE_ENTRA_TENANT_ID',
+      'FREE_ENTRA_CLIENT_ID',
+      'FREE_ENTRA_CLIENT_CERT_PATH',
+      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT',
     ]) {
       const environment = { ...HOSTED }
       delete environment[name as keyof typeof environment]
@@ -96,6 +106,27 @@ describe('production Studio configuration', () => {
       ).toThrow(/FREE_SESSION_SECRET/)
   })
 
+  it('rejects malformed Entra identifiers and certificate thumbprints', () => {
+    expect(() =>
+      loadStudioServerConfig({
+        ...HOSTED,
+        FREE_ENTRA_TENANT_ID: 'common',
+      }),
+    ).toThrow(/FREE_ENTRA_TENANT_ID/)
+    expect(() =>
+      loadStudioServerConfig({
+        ...HOSTED,
+        FREE_ENTRA_CLIENT_ID: 'not-a-uuid',
+      }),
+    ).toThrow(/FREE_ENTRA_CLIENT_ID/)
+    expect(() =>
+      loadStudioServerConfig({
+        ...HOSTED,
+        FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AA:BB',
+      }),
+    ).toThrow(/FREE_ENTRA_CLIENT_CERT_THUMBPRINT/)
+  })
+
   it('requires one canonical proxy peer address', () => {
     for (const address of [
       '172.030.0.2',
@@ -121,6 +152,7 @@ describe('production Studio configuration', () => {
 
   it('allows only an explicit socket-only loopback exception', () => {
     const config = loadStudioServerConfig({
+      ...ENTRA,
       STUDIO_ORIGIN: 'http://127.0.0.1:5173',
       STUDIO_BASE_PATH: '/',
       FREE_SESSION_SECRET: SECRET,
@@ -133,6 +165,7 @@ describe('production Studio configuration', () => {
     })
     expect(
       loadStudioServerConfig({
+        ...ENTRA,
         STUDIO_ORIGIN: 'http://127.0.0.1:5174',
         STUDIO_BASE_PATH: '/',
         FREE_SESSION_SECRET: SECRET,
@@ -146,6 +179,7 @@ describe('production Studio configuration', () => {
     for (const port of ['0', '65536', '5173.5', ' 5174'])
       expect(() =>
         loadStudioServerConfig({
+          ...ENTRA,
           STUDIO_ORIGIN: 'http://127.0.0.1:5173',
           STUDIO_BASE_PATH: '/',
           FREE_SESSION_SECRET: SECRET,
@@ -155,6 +189,7 @@ describe('production Studio configuration', () => {
       ).toThrow(/PORT/)
     expect(() =>
       loadStudioServerConfig({
+        ...ENTRA,
         STUDIO_ORIGIN: 'http://studio.example:5173',
         STUDIO_BASE_PATH: '/',
         FREE_SESSION_SECRET: SECRET,
@@ -163,6 +198,7 @@ describe('production Studio configuration', () => {
     ).toThrow(/Loopback STUDIO_ORIGIN/)
     expect(() =>
       loadStudioServerConfig({
+        ...ENTRA,
         STUDIO_ORIGIN: 'http://127.0.0.1:5173',
         STUDIO_BASE_PATH: '/',
         FREE_SESSION_SECRET: SECRET,
@@ -175,6 +211,7 @@ describe('production Studio configuration', () => {
   it('rejects the removed unverified container-loopback mode', () => {
     expect(() =>
       loadStudioServerConfig({
+        ...ENTRA,
         STUDIO_ORIGIN: 'http://localhost:5173',
         STUDIO_BASE_PATH: '/',
         FREE_SESSION_SECRET: SECRET,
@@ -184,49 +221,31 @@ describe('production Studio configuration', () => {
   })
 })
 
-describe('trusted request peer and client address', () => {
-  it('rejects direct or spoofed hosted peers before consuming the header', () => {
-    const config = loadStudioServerConfig(HOSTED)
-    const verifyPeer = createRequestPeerVerifier(config)
-    const clientAddress = createClientAddressResolver(config)
-    const proxy = requestBindings('::ffff:172.30.0.2', '198.51.100.7')
+describe('trusted request peer', () => {
+  it('rejects direct or spoofed hosted peers', () => {
+    const verifyPeer = createRequestPeerVerifier(loadStudioServerConfig(HOSTED))
 
-    expect(() => verifyPeer(proxy)).not.toThrow()
-    expect(clientAddress(proxy)).toBe('198.51.100.7')
-
-    const spoofed = requestBindings('172.30.0.9', '198.51.100.7')
-    expect(() => verifyPeer(spoofed)).toThrowError(
-      expect.objectContaining({ status: 403, code: 'proxy_peer_rejected' }),
-    )
-    expect(() => clientAddress(spoofed)).toThrowError(
+    expect(() =>
+      verifyPeer(requestBindings('::ffff:172.30.0.2')),
+    ).not.toThrow()
+    expect(() =>
+      verifyPeer(requestBindings('172.30.0.9')),
+    ).toThrowError(
       expect.objectContaining({ status: 403, code: 'proxy_peer_rejected' }),
     )
   })
 
-  it('requires one valid proxy-overwritten client address', () => {
-    const resolver = createClientAddressResolver(loadStudioServerConfig(HOSTED))
-    for (const bindings of [
-      requestBindings('172.30.0.2'),
-      requestBindings('172.30.0.2', ['198.51.100.7', '198.51.100.8']),
-      requestBindings('172.30.0.2', 'not-an-ip'),
-    ])
-      expect(() => resolver(bindings)).toThrowError(
-        expect.objectContaining({
-          status: 400,
-          code: 'proxy_contract_required',
-        }),
-      )
-  })
 
-  it('uses the loopback socket and ignores a browser-supplied header', () => {
+  it('accepts the loopback socket', () => {
     const config = loadStudioServerConfig({
+      ...ENTRA,
       STUDIO_ORIGIN: 'http://localhost:5173',
       STUDIO_BASE_PATH: '/',
       FREE_SESSION_SECRET: SECRET,
       FREE_STUDIO_PROXY: 'loopback',
     })
-    const bindings = requestBindings('::ffff:127.0.0.1', '203.0.113.99')
-    expect(() => createRequestPeerVerifier(config)(bindings)).not.toThrow()
-    expect(createClientAddressResolver(config)(bindings)).toBe('127.0.0.1')
+    expect(() =>
+      createRequestPeerVerifier(config)(requestBindings('::ffff:127.0.0.1')),
+    ).not.toThrow()
   })
 })

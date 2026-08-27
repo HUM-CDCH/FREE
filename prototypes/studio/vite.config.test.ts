@@ -61,13 +61,37 @@ describe('Vite Hono integration', () => {
     await plugin.configureServer(server as never)
     expect(ssrLoadModule).toHaveBeenCalledWith('/api/_extraction_runtime.ts')
     expect(ssrLoadModule).toHaveBeenCalledWith('/server/app.ts')
-    expect(createStudioApp).toHaveBeenCalledWith({
+    expect(createStudioApp).toHaveBeenCalledWith(expect.objectContaining({
       studioOrigin: 'http://127.0.0.1:5173',
       basePath: '/free',
       sessionSecret: expect.any(Uint8Array),
+      identityProvider: expect.objectContaining({
+        authorizationUrl: expect.any(Function),
+        redeemAuthorizationCode: expect.any(Function),
+        logoutUrl: expect.any(Function),
+      }),
+      accountStore: undefined,
+      playwrightAuthentication: undefined,
       clientHandler: clientFallback,
       viteDevelopmentAssets: true,
-    })
+    }))
+    const identityProvider = createStudioApp.mock.calls[0][0]
+      .identityProvider as {
+        authorizationUrl(input: {
+          redirectUri: string
+          state: string
+          nonce: string
+          codeChallenge: string
+        }): Promise<string>
+      }
+    await expect(
+      identityProvider.authorizationUrl({
+        redirectUri: 'http://127.0.0.1:5173/free/auth/callback',
+        state: 'state',
+        nonce: 'nonce',
+        codeChallenge: 'challenge',
+      }),
+    ).resolves.toContain('/free/auth/callback?')
     expect(use).toHaveBeenCalledTimes(1)
 
     const middleware = use.mock.calls[0][0] as (
@@ -90,6 +114,114 @@ describe('Vite Hono integration', () => {
     handleStudioNodeRequest.mockResolvedValueOnce(false)
     await middleware(request, response, next)
     expect(next).toHaveBeenCalledOnce()
+  })
+
+  it('uses real Entra only after explicit HTTPS opt-in', async () => {
+    vi.stubEnv('FREE_ENTRA_REAL', '1')
+    const createStudioApp = vi.fn()
+    const plugin = apiFunctions('/')
+    if (typeof plugin.configureServer !== 'function')
+      throw new Error('Expected a Vite configureServer hook.')
+
+    await expect(
+      plugin.configureServer({
+        config: {
+          mode: 'development',
+          root: temporaryDirectory(),
+          server: { https: false },
+          logger: { error: vi.fn() },
+        },
+        middlewares: { use: vi.fn() },
+        ssrLoadModule: vi.fn(async () => ({
+          createStudioApp,
+          viteClientFallback: vi.fn(),
+          handleStudioNodeRequest: vi.fn(),
+        })),
+      } as never),
+    ).rejects.toThrow('Real Entra development requires an HTTPS Studio origin.')
+    expect(createStudioApp).not.toHaveBeenCalled()
+  })
+
+  it('keeps Playwright on fake Entra despite inherited real-Entra state', async () => {
+    vi.stubEnv('FREE_ENTRA_REAL', '1')
+    vi.stubEnv('FREE_PLAYWRIGHT_AUTH', '1')
+    const createStudioApp = vi.fn(async () => ({}))
+    const runtime = {
+      run: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+    }
+    const plugin = apiFunctions('/')
+    if (typeof plugin.configureServer !== 'function')
+      throw new Error('Expected a Vite configureServer hook.')
+
+    await expect(
+      plugin.configureServer({
+        config: {
+          mode: 'development',
+          root: temporaryDirectory(),
+          server: { https: false, host: '127.0.0.1' },
+          logger: { error: vi.fn() },
+        },
+        httpServer: { once: vi.fn() },
+        middlewares: { use: vi.fn() },
+        ssrLoadModule: vi.fn(async (path: string) =>
+          path === '/api/_extraction_runtime.ts'
+            ? { extractionRuntime: runtime }
+            : {
+                createStudioApp,
+                viteClientFallback: vi.fn(),
+                handleStudioNodeRequest: vi.fn(),
+              },
+        ),
+      } as never),
+    ).resolves.toBeUndefined()
+    expect(createStudioApp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountStore: expect.objectContaining({
+          findOrCreate: expect.any(Function),
+          findById: expect.any(Function),
+        }),
+        playwrightAuthentication: expect.any(Function),
+      }),
+    )
+  })
+
+  it('rejects Playwright authentication on a wildcard Vite listener', async () => {
+    vi.stubEnv('FREE_PLAYWRIGHT_AUTH', '1')
+    const createStudioApp = vi.fn(async () => ({}))
+    const runtime = {
+      run: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+    }
+    const plugin = apiFunctions('/')
+    if (typeof plugin.configureServer !== 'function')
+      throw new Error('Expected a Vite configureServer hook.')
+
+    await expect(
+      plugin.configureServer({
+        config: {
+          mode: 'https',
+          root: temporaryDirectory(),
+          server: { https: true, host: '0.0.0.0' },
+          logger: { error: vi.fn() },
+        },
+        httpServer: { once: vi.fn() },
+        middlewares: { use: vi.fn() },
+        ssrLoadModule: vi.fn(async (path: string) =>
+          path === '/api/_extraction_runtime.ts'
+            ? { extractionRuntime: runtime }
+            : {
+                createStudioApp,
+                viteClientFallback: vi.fn(),
+                handleStudioNodeRequest: vi.fn(),
+              },
+        ),
+      } as never),
+    ).rejects.toThrow(
+      'Playwright authentication requires Vite to listen on 127.0.0.1.',
+    )
+    expect(runtime.run).not.toHaveBeenCalled()
+    expect(createStudioApp).not.toHaveBeenCalled()
   })
 })
 

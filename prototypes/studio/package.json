@@ -9,7 +9,6 @@
     "dev:https": "vite --mode https --host 0.0.0.0 --strictPort",
     "build": "tsc -b && vite build && vite build --config vite.server.config.ts",
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
-    "account": "tsx server/account-cli.ts",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -19,6 +18,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@azure/msal-node": "^5.6.0",
     "@ai-sdk/anthropic": "^4.0.19",
     "@ai-sdk/google": "^4.0.23",
     "@ai-sdk/openai": "^4.0.20",

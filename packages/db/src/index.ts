@@ -5,9 +5,9 @@ export type {
 } from './artifact-store.js'
 export {
   createResearcherAccountStore,
-  normalizeResearcherEmail,
 } from './researcher-account-store.js'
 export type {
+  EntraResearcherIdentity,
   ResearcherAccountRecord,
   ResearcherAccountStore,
 } from './researcher-account-store.js'

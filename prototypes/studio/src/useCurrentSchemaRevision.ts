@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { schemaDefinitionSchema } from 'extraction/schema'
 import {
   appendSchemaRevision,
   getSchemaRevision,
@@ -11,6 +12,12 @@ import {
   durableSchemaPersistence,
   type SchemaEditorController,
 } from './currentSchemaRevision'
+import {
+  consumeSessionRecovery,
+  isAuthenticationRedirecting,
+  registerSessionRecoveryCapture,
+  removeSessionRecovery,
+} from './auth/sessionRecovery'
 
 /**
  * Mount-scoped controller: created once, disposed on unmount. Consumers that
@@ -59,12 +66,43 @@ export type DurableSchemaScope = {
 export function useDurableCurrentSchemaRevision(
   scope: DurableSchemaScope,
 ): SchemaEditorController {
+  const recoveryResourceId = `${scope.projectContextId}/${
+    scope.extractionSchema?.extractionSchemaId ?? 'new'
+  }/${scope.sourceRepresentationId ?? 'schema-only'}`
   const sourceRepresentationIdRef = useRef(scope.sourceRepresentationId)
   useEffect(() => {
     sourceRepresentationIdRef.current = scope.sourceRepresentationId
   }, [scope.sourceRepresentationId])
   const controller = useSchemaEditorController(() => {
     const initial = scope.extractionSchema
+    const validateRecoveredDraft = (value: unknown) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+      const candidate = value as Record<string, unknown>
+      if (
+        candidate.extractionSchemaId !==
+          (initial?.extractionSchemaId ?? null) ||
+        candidate.acknowledgedRevisionNumber !==
+          (initial?.revisionNumber ?? null)
+      )
+        return null
+      const parsed = schemaDefinitionSchema.safeParse(candidate.draft)
+      return parsed.success ? parsed.data : null
+    }
+    const recoveredDraft =
+      consumeSessionRecovery(
+        'schema-draft',
+        recoveryResourceId,
+        validateRecoveredDraft,
+      ) ??
+      (initial
+        ? consumeSessionRecovery(
+            'schema-draft',
+            `${scope.projectContextId}/new/${
+              scope.sourceRepresentationId ?? 'schema-only'
+            }`,
+            validateRecoveredDraft,
+          )
+        : null)
     const persistence = durableSchemaPersistence({
       initial,
       debounceMs: scope.debounceMs,
@@ -96,7 +134,7 @@ export function useDurableCurrentSchemaRevision(
             extractionSchemaId: revision.extractionSchemaId,
             schemaRevisionId: revision.schemaRevisionId,
           }
-    return createSchemaEditorController(persistence, {
+    const created = createSchemaEditorController(persistence, {
       initialDraft: initial
         ? {
             recordDescription: initial.recordDescription,
@@ -107,7 +145,36 @@ export function useDurableCurrentSchemaRevision(
       initialExtractableRevisionId: initial?.schemaRevisionId ?? null,
       onCommitMessage: scope.onCommitMessage,
     })
+    if (recoveredDraft)
+      created.replaceDraft(recoveredDraft, 'Recovered unsaved draft')
+    return created
   })
+
+  useEffect(() => {
+    const unregister = registerSessionRecoveryCapture(
+      'schema-draft',
+      recoveryResourceId,
+      () => {
+        const save = controller.snapshot().save
+        if (!save || save.status === 'saved') return null
+        return {
+          extractionSchemaId: save.acknowledged.extractionSchemaId,
+          acknowledgedRevisionNumber: save.acknowledged.revisionNumber,
+          draft: save.draft,
+        }
+      },
+    )
+    const removeWhenSaved = () => {
+      if (controller.snapshot().save?.status === 'saved')
+        removeSessionRecovery('schema-draft', recoveryResourceId)
+    }
+    const unsubscribe = controller.subscribe(removeWhenSaved)
+    removeWhenSaved()
+    return () => {
+      unsubscribe()
+      unregister()
+    }
+  }, [controller, recoveryResourceId])
 
   // Warn before leaving with an unsaved durable draft. The Batch prepare
   // screen gains this guard through unification; the workspace always had it.
@@ -117,7 +184,9 @@ export function useDurableCurrentSchemaRevision(
       const save = controller.snapshot().save
       const shouldWarn = save !== null && save.status !== 'saved'
       if (shouldWarn && detach === null) {
-        const warn = (event: BeforeUnloadEvent) => event.preventDefault()
+        const warn = (event: BeforeUnloadEvent) => {
+          if (!isAuthenticationRedirecting()) event.preventDefault()
+        }
         window.addEventListener('beforeunload', warn)
         detach = () => window.removeEventListener('beforeunload', warn)
       } else if (!shouldWarn && detach !== null) {

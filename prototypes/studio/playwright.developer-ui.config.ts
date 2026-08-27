@@ -27,9 +27,8 @@ export default defineConfig({
         import.meta.dirname,
         'test-results/config-home-developer',
       ),
-      FREE_PLAYWRIGHT_RESEARCHER_EMAIL: 'browser-fixture@example.test',
-      FREE_PLAYWRIGHT_RESEARCHER_PASSWORD:
-        'E2E authentication password 123!',
+      FREE_ENTRA_REAL: '0',
+      FREE_PLAYWRIGHT_AUTH: '1',
       VITE_SHOW_DEVELOPER_UI: 'true',
     },
   },

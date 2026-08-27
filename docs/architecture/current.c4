@@ -21,8 +21,9 @@ specification {
 }
 
 model {
-  operator = person 'FREE Operator' 'Deploys FREE and provisions or disables Researcher Accounts through the container CLI.'
+  operator = person 'FREE Operator' 'Deploys FREE and assigns Researchers to the Microsoft Entra enterprise application.'
   researcher = person 'Humanities Researcher' 'Opens a Source Document, shapes an Extraction Schema, runs Extraction, and reviews Evidence.'
+  entra = external 'Microsoft Entra ID' 'Single-tenant OIDC identity provider and the source of application assignment.'
 
   gateway = container 'HTTPS Gateway' 'The host nginx reverse proxy on the university machine. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Nginx'
 
@@ -30,8 +31,7 @@ model {
     ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence, and Model Connections.' 'React'
     browser_http = component 'Browser HTTP adapter' '`src/api.ts`, `src/projectContexts.ts`, and `src/schemaRevisions.ts` send parsing and same-origin requests.' 'TypeScript'
     handlers = container 'Hono Node host' '`server/*.ts` authenticates and scopes browser requests, serves the built client, and dispatches `api/*.ts` same-origin handlers.' 'Hono, Node.js'
-    authentication = component 'Authentication boundary' 'Password sessions, mandatory temporary-password replacement, login throttling, canonical-origin enforcement, and the trusted-proxy peer contract.' 'TypeScript'
-    account_cli = component 'Researcher Account CLI' '`pnpm account` explicitly creates, resets, or disables an account; no migration or seed creates one.' 'TypeScript, tsx'
+    authentication = component 'Authentication boundary' 'OIDC authorization-code transactions with PKCE and nonce validation, fixed token-expiry sessions, canonical-origin enforcement, and the trusted-proxy peer contract.' 'TypeScript, MSAL Node'
     provider_registry = component 'Provider registry' '`api/_provider.ts` resolves a Capability Route and adapts the configured provider.' 'AI SDK v7 provider adapters'
     extraction_module = component 'Extraction module' '`packages/extraction` owns Extraction execution, grounding, review, batch scheduling, and their PostgreSQL persistence.' 'TypeScript, Prisma Next'
     project_store = component 'ProjectStore' '`packages/db` owns the remaining Project Store reads and writes; handlers hold no SQL.' 'TypeScript, Prisma Next'
@@ -48,8 +48,9 @@ model {
   model_config = datastore 'Model configuration and credential store' '`model-config.json` in the `FREE Studio` config directory; FREE-managed credentials stay in the operating system credential store.' 'JSON, OS keyring'
   model_connections = external 'Model Connections' 'Configured external HTTP or local CLI model providers.'
 
-  operator -> studio.account_cli 'Creates, resets, or disables Researcher Accounts'
+  operator -> entra 'Registers the application, rotates its certificate, and assigns Researchers'
   researcher -> gateway 'Uses the canonical private HTTPS origin'
+  researcher -> entra 'Signs in with the assigned institutional identity'
   gateway -> studio 'Forwards requests from the pinned proxy address'
   studio -> parsing_service 'Parses selected PDFs through same-origin ingestion'
   studio -> project_db 'Reads research state and appends durable writes'
@@ -61,8 +62,8 @@ model {
   studio.ui -> studio.browser_http 'Starts product flows'
   studio.browser_http -> studio.handlers 'Calls /api/*'
   studio.handlers -> studio.authentication 'Authenticates the session and resolves its Researcher Account'
-  studio.authentication -> project_db 'Reads accounts and replaces passwords or session versions'
-  studio.account_cli -> project_db 'Creates accounts or updates password and disabled state'
+  studio.authentication -> entra 'Exchanges the authorization code and validates tenant identity claims'
+  studio.authentication -> project_db 'Creates or refreshes the local account keyed by tenant and object IDs'
   studio.handlers -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /tasks/:id/download'
   studio.handlers -> studio.provider_registry 'Resolves a Capability Route'
   studio.handlers -> studio.extraction_module 'Runs and reopens Extractions; records reviews; schedules and reads batches'
@@ -85,8 +86,8 @@ views {
     description '''
       Implemented runtime boundaries only. The production topology publishes
       only the host nginx reverse proxy on private HTTPS. The Hono Node host
-      authenticates each browser
-      session and scopes research state to its Researcher Account. Model
+      authenticates each browser session through Microsoft Entra ID and scopes
+      research state to its local Researcher Account. Model
       configuration and credentials remain deployment-wide shared state.
 
       The Project Store is consumed. Studio reads its research state from
@@ -95,32 +96,30 @@ views {
       The Parsing Service task directory stays a processor cache; the durable
       artifact is the canonical package.
     '''
-    include operator, researcher, gateway, studio, parsing_service, project_db, package_store, model_config, model_connections
+    include operator, researcher, entra, gateway, studio, parsing_service, project_db, package_store, model_config, model_connections
   }
 
   view current_modules {
     title 'FREE — current runtime modules'
     description 'Maintained module seams; this is not an import graph.'
-    include operator, researcher, gateway, studio.*, parsing_service.*, project_db, package_store, model_config, model_connections
+    include operator, researcher, entra, gateway, studio.*, parsing_service.*, project_db, package_store, model_config, model_connections
   }
 
   dynamic view current_account_session {
     title 'Researcher Account and authenticated session — current'
     description '''
-      No migration, seed, registration route, or default credential creates an
-      account. An operator explicitly creates the account with a temporary
-      password. The first browser session can only replace that password; the
-      replacement invalidates the temporary session before normal login.
+      Microsoft Entra application assignment is the authorization source. A
+      successful callback creates or refreshes the local account keyed by the
+      tenant and object claims. The fixed FREE session expires before the ID
+      token and is never renewed in place.
     '''
-    operator -> studio.account_cli 'Create an account and enter a temporary password'
-    studio.account_cli -> project_db 'Store the password hash with mandatory change set'
-    researcher -> gateway 'POST /api/auth/login over HTTPS'
+    operator -> entra 'Assign the Researcher to the enterprise application'
+    researcher -> gateway 'GET /auth/login over HTTPS'
     gateway -> studio.handlers 'Forward from the pinned proxy address'
-    studio.handlers -> studio.authentication 'Verify credentials and issue a temporary session'
-    studio.authentication -> project_db 'Read the Researcher Account'
-    researcher -> gateway 'POST /api/auth/password'
-    studio.authentication -> project_db 'Replace the hash, clear mandatory change, and advance session version'
-    studio.handlers -> researcher 'Clear the temporary session; require normal login'
+    studio.handlers -> studio.authentication 'Create a signed OIDC transaction with state, nonce, and PKCE'
+    studio.authentication -> entra 'Redirect, then exchange the authorization code'
+    studio.authentication -> project_db 'Create or refresh the tenant/object account'
+    studio.handlers -> researcher 'Issue a fixed session capped before token expiry and return to the local path'
   }
 
   dynamic view project_context_lifecycle {

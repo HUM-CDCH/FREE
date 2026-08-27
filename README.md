@@ -6,19 +6,18 @@ Document Extraction & Evaluation — shared team repo.
 
 Open the repository in a Dev Container to get Python 3.13, Node.js 24, pnpm
 10.9, `uv`, and PostgreSQL 17. Dependencies are installed automatically when
-the container is first created. Replay the authored database migrations, create
-the first Researcher Account explicitly, and then start the application:
+the container is first created. Replay the authored database migrations and
+start the application:
 
 ```bash
 pnpm --filter db db:init
-pnpm account create researcher@example.edu
-pnpm start
+pnpm dev
 ```
 
-The account command reads a temporary password from a hidden prompt; it never
-accepts the password as an argument. No migration or seed creates a default
-account. The first login is limited to choosing a new password, after which the
-researcher logs in again normally.
+Development uses a fixed fake Microsoft Entra identity by default and creates
+its local Researcher Account on first sign-in. Set `FREE_ENTRA_REAL=1` only when
+testing a real tenant over HTTPS; the tenant, client, certificate path, and
+certificate thumbprint variables are then required.
 
 The Studio and Parsing Service ports are forwarded automatically. The database
 is stored in a named Docker volume and is available to the workspace through
@@ -34,8 +33,10 @@ The production deployment below expects an institution- or VPN-managed
 certificate and an NVIDIA runtime. For a local Windows workstation without
 those prerequisites, create a localhost certificate, stable secrets, and a CPU
 override before the first start. `.env`, `.certs/`, and `compose.local.yaml` are
-ignored by Git. Keep `.env` and `.certs/studio.key` private and retain them while
-the corresponding Podman volumes exist.
+ignored by Git. Gitignore is not secret storage: the commands below put the
+Entra client private key outside the checkout under `%LOCALAPPDATA%`. Keep that
+key, `.env`, and `.certs/studio.key` private and retain them while the
+corresponding Podman volumes exist.
 
 Run these commands from the repository root in PowerShell. Git for Windows
 provides the OpenSSL executable used here:
@@ -43,11 +44,22 @@ provides the OpenSSL executable used here:
 ```powershell
 $openssl = 'C:\Program Files\Git\usr\bin\openssl.exe'
 New-Item -ItemType Directory -Force .certs | Out-Null
+$entraSecretDirectory = Join-Path $env:LOCALAPPDATA 'FREE\secrets'
+New-Item -ItemType Directory -Force $entraSecretDirectory | Out-Null
+$entraPrivateKeyFile = Join-Path $entraSecretDirectory 'entra-client.pem'
 
 & $openssl req -x509 -newkey rsa:3072 -sha256 -days 825 -nodes `
   -keyout .certs/studio.key -out .certs/studio.crt `
   -subj '/CN=localhost' `
   -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1'
+& $openssl req -x509 -newkey rsa:3072 -sha256 -days 365 -nodes `
+  -keyout $entraPrivateKeyFile -out .certs/entra-client.crt `
+  -subj '/CN=FREE local Entra client'
+& $openssl x509 -in .certs/entra-client.crt -noout -fingerprint -sha256
+
+$entraTenantId = Read-Host 'Microsoft Entra tenant UUID'
+$entraClientId = Read-Host 'Microsoft Entra application client UUID'
+$entraThumbprint = Read-Host 'Displayed SHA-256 certificate thumbprint'
 
 $sessionBytes = [byte[]]::new(32)
 [Security.Cryptography.RandomNumberGenerator]::Fill($sessionBytes)
@@ -57,6 +69,7 @@ $sessionSecret = [Convert]::ToBase64String($sessionBytes)
 $postgresPassword = [Convert]::ToHexString($passwordBytes).ToLowerInvariant()
 $certificatePath = (Resolve-Path .certs/studio.crt).Path.Replace('\', '/')
 $privateKeyPath = (Resolve-Path .certs/studio.key).Path.Replace('\', '/')
+$entraPrivateKeyPath = (Resolve-Path $entraPrivateKeyFile).Path.Replace('\', '/')
 
 @"
 COMPOSE_PROJECT_NAME=free-local
@@ -64,10 +77,19 @@ STUDIO_ORIGIN=https://localhost
 STUDIO_BASE_PATH=/
 FREE_SESSION_SECRET=$sessionSecret
 FREE_POSTGRES_PASSWORD=$postgresPassword
+FREE_ENTRA_TENANT_ID=$entraTenantId
+FREE_ENTRA_CLIENT_ID=$entraClientId
+FREE_ENTRA_CLIENT_CERT_PATH=$entraPrivateKeyPath
+FREE_ENTRA_CLIENT_CERT_THUMBPRINT=$entraThumbprint
 FREE_TLS_CERTIFICATE_PATH=$certificatePath
 FREE_TLS_PRIVATE_KEY_PATH=$privateKeyPath
 "@ | Set-Content -Encoding utf8NoBOM .env
 ```
+
+Upload `.certs/entra-client.crt` to the Entra application registration and
+register `https://localhost/auth/callback` plus
+`https://localhost/auth/signed-out` before starting this root-path setup. See
+the [Entra authentication runbook](docs/operations/entra-authentication.md).
 
 On a machine without an NVIDIA runtime, create `compose.local.yaml`:
 
@@ -109,16 +131,9 @@ podman compose -f compose.yaml -f compose.local.yaml ps
 curl.exe --fail --silent --show-error https://localhost/api/healthz
 ```
 
-A clean database has no Researcher Accounts. Create one interactively after
-Studio is healthy; passwords contain 6 through 128 Unicode scalar values:
-
-```powershell
-podman exec -it free-local-studio-1 pnpm --filter studio account create researcher@example.edu
-```
-
-Open `https://localhost`, sign in with the temporary password, choose a new
-password when prompted, and sign in again. To stop the stack without deleting
-its volumes, run:
+Open `https://localhost` and sign in with a Researcher assigned to the Entra
+enterprise application. The first successful callback creates the local
+Researcher Account. To stop the stack without deleting its volumes, run:
 
 ```powershell
 podman compose -f compose.yaml -f compose.local.yaml down
@@ -162,6 +177,10 @@ STUDIO_ORIGIN=https://free.example.edu
 STUDIO_BASE_PATH=/free
 FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
+FREE_ENTRA_TENANT_ID=<microsoft-entra-tenant-uuid>
+FREE_ENTRA_CLIENT_ID=<application-client-uuid>
+FREE_ENTRA_CLIENT_CERT_PATH=/srv/free-secrets/entra-client.pem
+FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
 ```
 
 - `STUDIO_ORIGIN` is the one externally visible, canonical HTTPS origin served
@@ -172,6 +191,10 @@ FREE_POSTGRES_PASSWORD=<hex-output>
 - `FREE_SESSION_SECRET` must be canonical standard Base64 that decodes to at
   least 32 bytes. Keep it secret and stable; replacing it invalidates every
   browser session.
+- `FREE_ENTRA_TENANT_ID` and `FREE_ENTRA_CLIENT_ID` identify the single-tenant
+  application registration. `FREE_ENTRA_CLIENT_CERT_PATH` names the private-key
+  PEM mounted read-only into Studio; the thumbprint is the uploaded
+  certificate's SHA-256 fingerprint with or without colons.
 - `FREE_POSTGRES_PASSWORD` must be the generated hexadecimal value. Compose
   supplies this one value to PostgreSQL and interpolates it into Studio's
   `DATABASE_URL`; restricting it to hexadecimal avoids URI-encoding and
@@ -268,45 +291,23 @@ instead opens a local TCP connection; because the entrypoint starts the Node
 host only after migrations, a healthy container proves the schema replay
 succeeded.
 
-### Manage Researcher Accounts
+### Manage Researcher access
 
-After migrations complete, create the first account from a terminal attached to
-the running Studio container:
+Assign or remove Researchers on the Microsoft Entra enterprise application.
+FREE requests only `openid` and `profile`; it does not use Graph, groups, app
+roles, refresh tokens, or a local disable list. A successful sign-in creates or
+refreshes the local account keyed by the tenant and object claims.
 
-```bash
-docker compose exec studio pnpm --filter studio account create researcher@example.edu
-```
+FREE sessions are fixed and expire one minute before the Entra ID token. On
+expiry the browser captures only the supported in-progress extraction, schema,
+and batch drafts in same-tab storage, signs in again through Entra, and restores
+them only for the same account and resource. Arbitrary component-local text can
+be lost. Removing an Entra assignment takes effect at the next sign-in, normally
+within about an hour; rotating `FREE_SESSION_SECRET` is the only immediate
+global forced logout and signs out everyone.
 
-The command prompts for and confirms a hidden temporary password. Creation and
-reset accept exactly 6 through 128 Unicode scalar values without Unicode
-normalization. They can also read the password once from standard input with
-`docker compose exec -T`, but the password must never be appended to the command
-or exposed in process arguments.
-
-Operators use the same CLI to reset a forgotten password or disable an account:
-
-```bash
-docker compose exec studio pnpm --filter studio account reset-password researcher@example.edu
-docker compose exec studio pnpm --filter studio account disable researcher@example.edu
-```
-
-Create and reset require a mandatory password change and invalidate that
-account's existing sessions. Disable also invalidates every session and blocks
-future login while leaving the account's Project Contexts and descendants
-durable. There is no default account, default password, public registration, or
-self-service reset.
-
-The 6-character minimum is an explicit private-deployment policy, not a public
-internet recommendation. Accounts are operator-provisioned, Studio is limited
-to the institution LAN or VPN, and failed logins are throttled independently by
-normalized email and client address. Revisit the policy before broadening that
-exposure boundary.
-
-Open `STUDIO_ORIGIN` followed by `STUDIO_BASE_PATH` (for example,
-`https://free.example.edu/free`), log in with the temporary password, and
-choose a new 6–128-scalar password on the required password-change screen.
-Research and model pages remain unavailable until that succeeds. The change
-invalidates the temporary session, so log in once more with the new password.
+See [the Entra authentication runbook](docs/operations/entra-authentication.md)
+for registration, certificate rotation, guarded cutover, and smoke checks.
 
 ### Configure shared models
 

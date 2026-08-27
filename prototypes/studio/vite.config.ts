@@ -11,6 +11,11 @@ import {
   canonicalStudioBasePath,
   studioBaseHref,
 } from './shared/studioBasePath.js'
+import {
+  createFakeEntraIdentityProvider,
+  createMicrosoftEntraIdentityProvider,
+} from './server/entraIdentityProvider.js'
+import { normalizeEntraCertificateThumbprint } from './server/config.js'
 
 export function developmentStudioOrigin(server: {
   https?: unknown
@@ -45,6 +50,11 @@ export function apiFunctions(configuredBasePath: string): Plugin {
   return {
     name: 'free-api-functions',
     async configureServer(server) {
+      const playwrightMode = process.env.FREE_PLAYWRIGHT_AUTH === '1'
+      if (playwrightMode && server.config.server.host !== '127.0.0.1')
+        throw new Error(
+          'Playwright authentication requires Vite to listen on 127.0.0.1.',
+        )
       if (server.httpServer) {
         // Use Vite's SSR graph so the lifecycle owns the same singleton loaded
         // by API handlers, after defineConfig has established database settings.
@@ -83,7 +93,9 @@ export function apiFunctions(configuredBasePath: string): Plugin {
           studioOrigin: string
           basePath: string
           sessionSecret: Uint8Array
+          identityProvider: unknown
           accountStore?: unknown
+          playwrightAuthentication?: unknown
           clientHandler: () => Response
           viteDevelopmentAssets: boolean
         }): Promise<unknown>
@@ -110,37 +122,52 @@ export function apiFunctions(configuredBasePath: string): Plugin {
       const sessionSecret = encodedSecret
         ? Buffer.from(encodedSecret, 'base64')
         : generatedSessionSecret
-      const playwrightEmail = process.env.FREE_PLAYWRIGHT_RESEARCHER_EMAIL
-      const playwrightPassword =
-        process.env.FREE_PLAYWRIGHT_RESEARCHER_PASSWORD
       if (
-        (playwrightEmail === undefined) !== (playwrightPassword === undefined)
+        playwrightMode &&
+        !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(
+          studioOrigin,
+        )
       )
         throw new Error(
-          'The Playwright Researcher Account email and password must be configured together.',
+          'Playwright authentication is restricted to a loopback Studio origin.',
         )
-      if (
-        playwrightEmail !== undefined &&
-        !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(studioOrigin)
-      )
-        throw new Error(
-          'The Playwright Researcher Account is restricted to a loopback Studio origin.',
-        )
-      const accountStore =
-        playwrightEmail === undefined
-          ? undefined
-          : await import('./server/playwright-auth.ts').then(
-              ({ createPlaywrightAccountStore }) =>
-                createPlaywrightAccountStore(
-                  playwrightEmail,
-                  playwrightPassword!,
-                ),
-            )
+      const playwright = playwrightMode
+        ? await import('./server/playwright-auth.ts')
+        : undefined
+      const accountStore = playwright?.createPlaywrightAccountStore()
+      const playwrightAuthentication =
+        playwright?.createPlaywrightAuthentication()
+      const environmentValue = (name: string) =>
+        process.env[name] ?? environment[name]
+      const realEntra =
+        !playwrightMode && environmentValue('FREE_ENTRA_REAL') === '1'
+      if (realEntra && new URL(studioOrigin).protocol !== 'https:')
+        throw new Error('Real Entra development requires an HTTPS Studio origin.')
+      const required = (name: string) => {
+        const configured = environmentValue(name)
+        if (!configured) throw new Error(`${name} is required for real Entra development.`)
+        return configured
+      }
+      const identityProvider = realEntra
+        ? createMicrosoftEntraIdentityProvider({
+            tenantId: required('FREE_ENTRA_TENANT_ID'),
+            clientId: required('FREE_ENTRA_CLIENT_ID'),
+            certificateThumbprint: normalizeEntraCertificateThumbprint(
+              required('FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
+            ),
+            certificatePrivateKey: readFileSync(
+              required('FREE_ENTRA_CLIENT_CERT_PATH'),
+              'utf8',
+            ),
+          })
+        : createFakeEntraIdentityProvider()
       const app = await studioModule.createStudioApp({
         studioOrigin,
         basePath,
         sessionSecret,
+        identityProvider,
         accountStore,
+        playwrightAuthentication,
         clientHandler: studioModule.viteClientFallback,
         viteDevelopmentAssets: true,
       })

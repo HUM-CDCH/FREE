@@ -73,6 +73,28 @@ function selected(actor: ReturnType<typeof createActor<typeof batchSchemaSuggest
 }
 
 describe('batchSchemaSuggestionMachine', () => {
+  it('re-enters the ordinary dirty/save path for a recovered draft', () => {
+    const onSuggestion = vi.fn()
+    const actor = createActor(batchSchemaSuggestionMachine, {
+      input: operations({ onSuggestion }),
+    }).start()
+    actor.send({
+      type: 'selection.changed',
+      sourceDocumentIds: ['51000000-0000-4000-8001-000000000001'],
+      suggestion: ready(),
+    })
+    expect(actor.getSnapshot().matches({ drafting: 'clean' })).toBe(true)
+
+    actor.send({ type: 'proposal.recovered', definition: secondDefinition })
+
+    expect(actor.getSnapshot().matches({ drafting: 'dirty' })).toBe(true)
+    expect(actor.getSnapshot().context.draft).toEqual(secondDefinition)
+    expect(onSuggestion).toHaveBeenCalledWith(
+      expect.objectContaining({ draft: secondDefinition }),
+    )
+    actor.stop()
+  })
+
   it('names create, poll, failure, retry, draft, and confirmed modes', async () => {
     const actor = createActor(batchSchemaSuggestionMachine, {
       input: operations(),

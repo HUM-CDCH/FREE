@@ -1,7 +1,6 @@
 import { browserStudioPath } from '../studioUrl.js'
 import {
   authSessionSchema,
-  type AuthenticatedSession,
   type AuthSession,
 } from '../../shared/authSession.contract'
 
@@ -47,11 +46,6 @@ async function sessionFrom(response: Response): Promise<AuthSession> {
   }
 }
 
-const jsonHeaders = {
-  Accept: 'application/json',
-  'Content-Type': 'application/json',
-}
-
 export async function getAuthSession(signal?: AbortSignal): Promise<AuthSession> {
   return sessionFrom(
     await fetch(browserStudioPath('/api/auth/session'), {
@@ -61,43 +55,4 @@ export async function getAuthSession(signal?: AbortSignal): Promise<AuthSession>
       signal,
     }),
   )
-}
-
-export async function login(
-  email: string,
-  password: string,
-): Promise<AuthenticatedSession> {
-  const session = await sessionFrom(
-    await fetch(browserStudioPath('/api/auth/login'), {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: jsonHeaders,
-      body: JSON.stringify({ email, password }),
-    }),
-  )
-  if (!session.authenticated)
-    throw new Error('The login response did not establish a session.')
-  return session
-}
-
-export async function changePassword(
-  currentPassword: string,
-  newPassword: string,
-): Promise<void> {
-  const response = await fetch(browserStudioPath('/api/auth/password'), {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: jsonHeaders,
-    body: JSON.stringify({ currentPassword, newPassword }),
-  })
-  if (!response.ok) throw await authHttpError(response)
-}
-
-export async function logout(): Promise<void> {
-  const response = await fetch(browserStudioPath('/api/auth/logout'), {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
-  })
-  if (!response.ok) throw await authHttpError(response)
 }

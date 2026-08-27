@@ -37,6 +37,7 @@ type Event =
   | { type: 'suggestion.requested' }
   | { type: 'suggestion.retry' }
   | { type: 'proposal.changed'; definition: SchemaDefinition }
+  | { type: 'proposal.recovered'; definition: SchemaDefinition }
   | { type: 'draft.flush' }
   | { type: 'run.requested'; strategy: ExtractionStrategy }
   | { type: 'reset' }
@@ -156,9 +157,12 @@ export const batchSchemaSuggestionMachine = setup({
     }),
     editProposal: assign({
       draft: ({ context, event }) =>
-        event.type === 'proposal.changed' ? event.definition : context.draft,
+        event.type === 'proposal.changed' || event.type === 'proposal.recovered'
+          ? event.definition
+          : context.draft,
       suggestion: ({ context, event }) =>
-        event.type === 'proposal.changed' && context.suggestion
+        (event.type === 'proposal.changed' ||
+          event.type === 'proposal.recovered') && context.suggestion
           ? { ...context.suggestion, draft: event.definition }
           : context.suggestion,
       error: () => null,
@@ -364,6 +368,13 @@ export const batchSchemaSuggestionMachine = setup({
       states: {
         clean: {
           on: {
+            'proposal.recovered': {
+              target: 'dirty',
+              actions: [
+                { type: 'editProposal' },
+                { type: 'notifySuggestion' },
+              ],
+            },
             'proposal.changed': {
               target: 'dirty',
               actions: [

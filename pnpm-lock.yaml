@@ -106,6 +106,9 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: ^3.0.14
         version: 3.0.20(zod@4.4.3)
+      '@azure/msal-node':
+        specifier: ^5.6.0
+        version: 5.6.0
       '@hono/node-server':
         specifier: ^2.0.12
         version: 2.0.12(hono@4.12.33)
@@ -360,6 +363,14 @@ packages:
 
   '@asamuzakjp/nwsapi@2.3.9':
     resolution: {integrity: sha512-n8GuYSrI9bF7FFZ/SjhwevlHc8xaVlb/7HmHelnc/PZXBD2ZR49NnN9sMMuDdEGPeeRQ5d0hqlSlEpgCX3Wl0Q==}
+
+  '@azure/msal-common@16.13.0':
+    resolution: {integrity: sha512-rOAy0KUcyBbdwVJ+f3uPpthXatFLLZN+/KWAsTLzk1aB23Xl9DRmmXYwSvBFOZyXj4jUQQ5FKxxRkhAFW1fOow==}
+    engines: {node: '>=0.8.0'}
+
+  '@azure/msal-node@5.6.0':
+    resolution: {integrity: sha512-uFY9NxrWHw8PwZx7gAX6PDn+9vdfS05+levc/kwkx77IkjfaldnQbbcQzzDIZ5Hq5Zdr6/z92oAIoRWKp6MnOA==}
+    engines: {node: '>=20'}
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -1017,6 +1028,7 @@ packages:
   '@prisma-next/adapter-postgres@0.16.0':
     resolution: {integrity: sha512-SUldSFt4NXtg5LY8ywCNuukrZj8lNDBQ2++ijRBF2VMMWRQvqztX/4/+9CoS/UjKnev/0QRbjf5oBf1wqAxcEQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1026,6 +1038,7 @@ packages:
   '@prisma-next/cli-telemetry@0.16.0':
     resolution: {integrity: sha512-nhPOSiDQwckRkz/JPd2hDlRbnpoLbSYOQqUtPKgXqZbeNP3hES2clhelmHGFvExbZ8GdHRJUDaohw00Je4FOhw==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1035,6 +1048,7 @@ packages:
   '@prisma-next/cli@0.16.0':
     resolution: {integrity: sha512-f3wvWdMaKRHqp9Xtjt3nCgXMdAT4eCdQuGPPKmxpLp0Sj4LcgzOmPI7BtOWIhQEYqsHZLcpC6bl4zlgZsJtGZA==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     hasBin: true
     peerDependencies:
       typescript: '>=5.9'
@@ -1045,6 +1059,7 @@ packages:
   '@prisma-next/config-loader@0.16.0':
     resolution: {integrity: sha512-2Rq0H+I+LBBoNIUX2r3jOT/JhPHBQoIfI8O5PpKRRI+k418r1lnl0ukT8+31u7H8lCHyyp0iUtynb5Qh7DhQMg==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1054,6 +1069,7 @@ packages:
   '@prisma-next/config@0.16.0':
     resolution: {integrity: sha512-o+52umD7vGJe9TPczsvfMVd0QUxBbEL2OF46noVOoH4yL3DDaTH2q4KGBiLIDvFGzaKp93GX+7nNG1w5/nAIYw==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1063,6 +1079,7 @@ packages:
   '@prisma-next/contract-authoring@0.16.0':
     resolution: {integrity: sha512-3XcwR55QEEWoyrX8oEZOMc12WXPXiLelCGmiQRYSkYMTMaF8+EqkBu8a7kxM+/Wh9gwkw4NDQo4jo8CYelPUsg==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1072,6 +1089,7 @@ packages:
   '@prisma-next/contract@0.16.0':
     resolution: {integrity: sha512-6NJvWCVfuW3Yitrq5VDLUyy61QEwH+3civpoXauTqZ4s6uytG6Ix+LbKAlyImcDVp6OCud1veRwR/C4pH8aR1Q==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1081,6 +1099,7 @@ packages:
   '@prisma-next/driver-postgres@0.16.0':
     resolution: {integrity: sha512-N+sx7CETZ3ok5eis8hsI8wxHSbU+9rRxiPJMSpE5NvjRO6QgSW4udwd1NSbdWHPOheT547lRLNcWhRgsH9A/LQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1090,6 +1109,7 @@ packages:
   '@prisma-next/emitter@0.16.0':
     resolution: {integrity: sha512-J+qLnDoJmPxYrAFg/HjG1lEu1I9U7bZTOydhFOUWaKBgxI0eOMrDwl3FFADl6i0lR2iGWxtedXd+wDtiXk+i5A==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1099,6 +1119,7 @@ packages:
   '@prisma-next/errors@0.16.0':
     resolution: {integrity: sha512-1LJtSN2QVc0RY4vr3+5QYyJnJnFW4XhnPtWuXeI+64LRjQYxC33qvpKQQdMKF+YbdNONW+ABmhNhM7WvQ3YVsA==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1108,6 +1129,7 @@ packages:
   '@prisma-next/family-sql@0.16.0':
     resolution: {integrity: sha512-I6T0/E+MTaZ1jq7GZ4Pt68S6EKRepl+1piiszyBUZVvfU9o1XEje/flXv/YJeFs8bATaqy4dOIFO5LoXkmWHHg==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1117,6 +1139,7 @@ packages:
   '@prisma-next/framework-components@0.16.0':
     resolution: {integrity: sha512-VeZ/5NWDIfUNBAg4+QWbIbHDwNEr3zXJSKOdljsaE2ZvWOfYoe5hZa5MGEUR/XP90yRbBim2808iRB4TTm3//g==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1126,6 +1149,7 @@ packages:
   '@prisma-next/ids@0.16.0':
     resolution: {integrity: sha512-Jq6GtYVibSxB0G5wmThCT1aIlkmCC3ccsnA466YBbI/8r1LEyX6cMAvdCN3WWYHepLTLdRfwefPzZYkDXUYLDA==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1135,6 +1159,7 @@ packages:
   '@prisma-next/language-server@0.16.0':
     resolution: {integrity: sha512-/YHY/gA4u/0sS+hhwJOiif949TaB/x7+VYayzOKG0NXUnZ2CPTF1BKHJR4y2446QeRsCFIjERxu78+qlcnwmzQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1144,6 +1169,7 @@ packages:
   '@prisma-next/migration-tools@0.16.0':
     resolution: {integrity: sha512-hm9MfRfJAZUq6TZ5nV/+90ClvGbTqvKE8noyu+cLfLqUQ9u8q4d0CZW7Z4r4WuRj6vK7DBctEoGpj7xeilFZhQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1153,6 +1179,7 @@ packages:
   '@prisma-next/operations@0.16.0':
     resolution: {integrity: sha512-n+5HffZ9CMeOCAIMpQ+WfXO+N7S6W94YLtqoySBJyJ1K/WIymUONSnQfmibctYzZcYMa9n36K2saScZQ+blhsQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1162,6 +1189,7 @@ packages:
   '@prisma-next/postgres@0.16.0':
     resolution: {integrity: sha512-H45TKeHuHuR3jhHomkGWe2hRTHa2TreRX9haA2vungooLgJPhYwBjU19bOa0tfEgAWk5P5BmS4OfhF5mWEnwTA==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1171,6 +1199,7 @@ packages:
   '@prisma-next/psl-parser@0.16.0':
     resolution: {integrity: sha512-cgPYAVQYEm8yJt+dvNNiq/Uy4hgrN/OLzDkqcO6RIpC24fHIJCIv7om7Fdu7HyS4kNpEeWxA/hNj4Dv8PAKCEw==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1180,6 +1209,7 @@ packages:
   '@prisma-next/psl-printer@0.16.0':
     resolution: {integrity: sha512-0kuozAaLKUP6D9HoIHYQt9gHSUr1xpx+IfGZtbl9vV2ECRE8k8/AARwY3dWK8DPnGN4s+UNCaepKwbUs893INA==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1189,6 +1219,7 @@ packages:
   '@prisma-next/sql-builder@0.16.0':
     resolution: {integrity: sha512-lNUR3T6/aLB0GwdX1QvU5s0Fe+V4LkwoQV2KyCbGFOLV/+L/9HJcLYd/RWdq43l7W0U1XvK0GJBcLcC5SseiFw==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1198,6 +1229,7 @@ packages:
   '@prisma-next/sql-contract-emitter@0.16.0':
     resolution: {integrity: sha512-epP3u9FqFPWZyRP1fngBpBNIipUoFqo0ogq0yfbS9nQSeGOlC82bWhSwy6kla3KybbVpp6SkZCk3ciiESziGiQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1207,6 +1239,7 @@ packages:
   '@prisma-next/sql-contract-psl@0.16.0':
     resolution: {integrity: sha512-9Z94wBLQult9cStxL/dvp4sVerrUaj5WJatL1c/9y+RDF0+itYZiUzdKQ6dqUZR+72hW/p+pa2KUFvVYOVbB+g==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1216,6 +1249,7 @@ packages:
   '@prisma-next/sql-contract-ts@0.16.0':
     resolution: {integrity: sha512-O/SEtFZSshWetL16GnnMlqZpZ9dy3Hf6ggAXN0NS9zC+dQkLhdyzt9uA4Fja+mR4zURzz8ZutbpS28FV29wTbw==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1225,6 +1259,7 @@ packages:
   '@prisma-next/sql-contract@0.16.0':
     resolution: {integrity: sha512-reYsOs6m+ZZzPaCLWGtUiPCKQgL8ap6WnVC0Q0RE/zXwBD7cw4knZJNjvpkpJBDQU2lQHXn728ZHZ3r9qTah3Q==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1234,6 +1269,7 @@ packages:
   '@prisma-next/sql-errors@0.16.0':
     resolution: {integrity: sha512-OVQ1GbQfYVCtt5ciUj5dkI7McHLQPgEyapaLawY1ViVH3UUh36L17N8KC0phE/RASsx2JQt5GxOLPtksIHhvRA==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1243,6 +1279,7 @@ packages:
   '@prisma-next/sql-operations@0.16.0':
     resolution: {integrity: sha512-T8D2tVVpwZqZsO8aPwhQQA5DFvotWbkyKTdcsUVLt7nIePSSlTOupnA0JXr3O6ZJDLB9Pz9GOIc1KgxtS4oFpA==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1252,6 +1289,7 @@ packages:
   '@prisma-next/sql-orm-client@0.16.0':
     resolution: {integrity: sha512-u8IvNI8H/Y44sJCsZUvhbCC8TZMHLq2cFTA7+SsNb4nqOCI9Ip2hUPrbp/fWwOOhI4bUf3EbptfYyfS8uwL5GQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1261,6 +1299,7 @@ packages:
   '@prisma-next/sql-relational-core@0.16.0':
     resolution: {integrity: sha512-PmU6fjX21O6eyspv9n7BbHJWh869oDdFspU0KIy2eLAGH2tqG/1RWYk71VoJFPutdR9HWTlQIWhf3V80qHrYhA==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1270,6 +1309,7 @@ packages:
   '@prisma-next/sql-runtime@0.16.0':
     resolution: {integrity: sha512-3ysbTyDVq3NraFpGrKUlmvLRoG19spxBuwRcU2Uj+VJuTgJctddncDhaS6Uu7pYNqyxnNbyqXIEVUTyeAE8U7g==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1279,6 +1319,7 @@ packages:
   '@prisma-next/sql-schema-ir@0.16.0':
     resolution: {integrity: sha512-vITsu7BYfdKmtacfHO5V/RV6MBNKh/mIzRmHa56PDTJrcJU2B+qatg4rRZ9a6tAGAQ8au2y3DPo8+YoidAfTQQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1288,6 +1329,7 @@ packages:
   '@prisma-next/target-postgres@0.16.0':
     resolution: {integrity: sha512-MXZkNhGwG9xy4097RtC1B2rYFv82qKZDY/p+zccGZxc3727oXLQsiAMD+jSuW/UX1CYihrA2Vpa3qae4yoahSQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1297,6 +1339,7 @@ packages:
   '@prisma-next/ts-render@0.16.0':
     resolution: {integrity: sha512-Be+jx+plchQoTPdtgqKYLmX8JY+SGjFXnfOMpHZMCrpH1wouDPJHqsaU73SYGRAtutlJIUlAahAZW61qqfJptg==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1306,6 +1349,7 @@ packages:
   '@prisma-next/utils@0.16.0':
     resolution: {integrity: sha512-j/Q02VfXO+aSPXIEu+YNQ54/r0zCoxDWRY33H8VULln4Pe9l9s9zw3gGniXV8OqCphBp4eO4z4hQYvXIfXn8mQ==}
     engines: {node: '>=24'}
+    deprecated: The @prisma-next scope is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     peerDependencies:
       typescript: '>=5.9'
     peerDependenciesMeta:
@@ -1811,6 +1855,9 @@ packages:
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
 
+  buffer-equal-constant-time@1.0.1:
+    resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
+
   bundle-require@5.1.0:
     resolution: {integrity: sha512-3WrrOuZiyaaZPWiEt4G3+IffISVC9HYlWueJEBWED4ZH4aIAC2PnkdnuRrR94M+w6yGWn4AglWtJtBI8YqvgoA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
@@ -1972,6 +2019,9 @@ packages:
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
     engines: {node: '>= 0.4'}
+
+  ecdsa-sig-formatter@1.0.11:
+    resolution: {integrity: sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ==}
 
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
@@ -2388,6 +2438,16 @@ packages:
     resolution: {integrity: sha512-wy8OTjwsJwQRnQJkKnMJJ9vcytRdBPAgIF/Hy6+s1dAj42BHMKiyL8JzEieIl3JY7idt8eyHwBWTO8mh/+mtwA==}
     hasBin: true
 
+  jsonwebtoken@9.0.3:
+    resolution: {integrity: sha512-MT/xP0CrubFRNLNKvxJ2BYfy53Zkm++5bX9dtuPbqAeQpTVe0MQTFhao8+Cp//EmJp244xt6Drw/GVEGCUj40g==}
+    engines: {node: '>=12', npm: '>=6'}
+
+  jwa@2.0.1:
+    resolution: {integrity: sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==}
+
+  jws@4.0.1:
+    resolution: {integrity: sha512-EKI/M/yqPncGUUh44xz0PxSidXFr/+r0pA70+gIYhjv+et7yxM+s29Y+VGDkovRofQem0fs7Uvf4+YmAdyRduA==}
+
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
@@ -2577,6 +2637,27 @@ packages:
   locate-path@6.0.0:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
     engines: {node: '>=10'}
+
+  lodash.includes@4.3.0:
+    resolution: {integrity: sha512-W3Bx6mdkRTGtlJISOvVD/lbqjTlPPUDTMnlXZFnVwi9NKJ6tiAk6LVdlhZMm17VZisqhKcgzpO5Wz91PCt5b0w==}
+
+  lodash.isboolean@3.0.3:
+    resolution: {integrity: sha512-Bz5mupy2SVbPHURB98VAcw+aHh4vRV5IPNhILUCsOzRmsTmSQ17jIuqopAentWoehktxGd9e/hbIXq980/1QJg==}
+
+  lodash.isinteger@4.0.4:
+    resolution: {integrity: sha512-DBwtEWN2caHQ9/imiNeEA5ys1JoRtRfY3d7V9wkqtbycnAmTvRRmbHKDV4a0EYc678/dia0jrte4tjYwVBaZUA==}
+
+  lodash.isnumber@3.0.3:
+    resolution: {integrity: sha512-QYqzpfwO3/CWf3XP+Z+tkQsfaLL/EnUlXWVkIk5FUPc4sBdTehEqZONuyRt2P67PXAk+NXmTBcc97zw9t1FQrw==}
+
+  lodash.isplainobject@4.0.6:
+    resolution: {integrity: sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA==}
+
+  lodash.isstring@4.0.1:
+    resolution: {integrity: sha512-0wJxfxH1wgO3GrbuP+dTTk7op+6L41QCXbGINEmD+ny/G/eCqGzxyCsh7159S+mgDDcoarnBw6PC1PS5+wUGgw==}
+
+  lodash.once@4.1.1:
+    resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
 
   lru-cache@11.5.2:
     resolution: {integrity: sha512-4pfM1Ff0x50o0tQwb5ucw/RzNyD0/YJME6IVcStalZuMWxdt3sR3huStTtxz4PUmvZfRguvDejasvQ2kifR11g==}
@@ -2835,6 +2916,7 @@ packages:
   prisma-next@0.16.0:
     resolution: {integrity: sha512-l7JuIcDJjX+ii8qif03O4pmLwy1kdMrz9x6TlvbITgxYDT9w6bV171CILTFN/JiPfBTOI1EX9SC6Ir80U2yBJA==}
     engines: {node: '>=24'}
+    deprecated: The prisma-next package is retired. Prisma Next continues as Prisma ORM v8, published as the prisma package from https://github.com/prisma/prisma. To upgrade, run npm install prisma and follow the docs at https://docs.prisma.io/docs/orm.
     hasBin: true
     peerDependencies:
       typescript: '>=5.9'
@@ -2901,6 +2983,9 @@ packages:
   router@2.2.0:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
+
+  safe-buffer@5.2.1:
+    resolution: {integrity: sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==}
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
@@ -3465,6 +3550,13 @@ snapshots:
   '@asamuzakjp/generational-cache@1.0.1': {}
 
   '@asamuzakjp/nwsapi@2.3.9': {}
+
+  '@azure/msal-common@16.13.0': {}
+
+  '@azure/msal-node@5.6.0':
+    dependencies:
+      '@azure/msal-common': 16.13.0
+      jsonwebtoken: 9.0.3
 
   '@babel/code-frame@7.29.7':
     dependencies:
@@ -4875,6 +4967,8 @@ snapshots:
       node-releases: 2.0.51
       update-browserslist-db: 1.2.3(browserslist@4.28.7)
 
+  buffer-equal-constant-time@1.0.1: {}
+
   bundle-require@5.1.0(esbuild@0.28.1):
     dependencies:
       esbuild: 0.28.1
@@ -5009,6 +5103,10 @@ snapshots:
       call-bind-apply-helpers: 1.0.2
       es-errors: 1.3.0
       gopd: 1.2.0
+
+  ecdsa-sig-formatter@1.0.11:
+    dependencies:
+      safe-buffer: 5.2.1
 
   ee-first@1.1.1: {}
 
@@ -5444,6 +5542,30 @@ snapshots:
 
   jsonrepair@3.15.0: {}
 
+  jsonwebtoken@9.0.3:
+    dependencies:
+      jws: 4.0.1
+      lodash.includes: 4.3.0
+      lodash.isboolean: 3.0.3
+      lodash.isinteger: 4.0.4
+      lodash.isnumber: 3.0.3
+      lodash.isplainobject: 4.0.6
+      lodash.isstring: 4.0.1
+      lodash.once: 4.1.1
+      ms: 2.1.3
+      semver: 7.8.5
+
+  jwa@2.0.1:
+    dependencies:
+      buffer-equal-constant-time: 1.0.1
+      ecdsa-sig-formatter: 1.0.11
+      safe-buffer: 5.2.1
+
+  jws@4.0.1:
+    dependencies:
+      jwa: 2.0.1
+      safe-buffer: 5.2.1
+
   keyv@4.5.4:
     dependencies:
       json-buffer: 3.0.1
@@ -5594,6 +5716,20 @@ snapshots:
   locate-path@6.0.0:
     dependencies:
       p-locate: 5.0.0
+
+  lodash.includes@4.3.0: {}
+
+  lodash.isboolean@3.0.3: {}
+
+  lodash.isinteger@4.0.4: {}
+
+  lodash.isnumber@3.0.3: {}
+
+  lodash.isplainobject@4.0.6: {}
+
+  lodash.isstring@4.0.1: {}
+
+  lodash.once@4.1.1: {}
 
   lru-cache@11.5.2: {}
 
@@ -5910,6 +6046,8 @@ snapshots:
       path-to-regexp: 8.4.2
     transitivePeerDependencies:
       - supports-color
+
+  safe-buffer@5.2.1: {}
 
   safer-buffer@2.1.2: {}
 

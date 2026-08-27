@@ -1,7 +1,9 @@
 # Local-only overlay: containerized nginx TLS entry point instead of the
 # host nginx production topology in README.md. Prerequisites (git-ignored):
 #   mkcert -cert-file .certs/studio.crt -key-file .certs/studio.key localhost 127.0.0.1 ::1
-#   .env with STUDIO_ORIGIN=https://localhost:8443 and STUDIO_BASE_PATH=/free
+#   .env based on .env.example, with STUDIO_ORIGIN=https://localhost:8443,
+#   STUDIO_BASE_PATH=/free, and an Entra registration containing the exact
+#   /free/auth/callback and /free/auth/signed-out URIs.
 # Usage: docker compose -f compose.yaml -f compose.nginx.yaml up -d
 services:
   nginx:

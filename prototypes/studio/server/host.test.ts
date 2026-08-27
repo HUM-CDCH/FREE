@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadStudioServerConfig } from './config.js'
+import { createFakeEntraIdentityProvider } from './entraIdentityProvider.js'
 import {
   startStudioServer,
   type StudioRuntime,
@@ -68,6 +69,10 @@ describe('production Studio process', () => {
       STUDIO_BASE_PATH: '/free',
       FREE_SESSION_SECRET: SECRET,
       FREE_STUDIO_PROXY: 'loopback',
+      FREE_ENTRA_TENANT_ID: '10000000-0000-4000-8000-000000000001',
+      FREE_ENTRA_CLIENT_ID: '10000000-0000-4000-8000-000000000002',
+      FREE_ENTRA_CLIENT_CERT_PATH: '/unused/in/injected-test.pem',
+      FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB'.repeat(32),
     })
 
     const host = await startStudioServer(config, {
@@ -77,6 +82,7 @@ describe('production Studio process', () => {
       signals: signalEmitter,
       logger,
       providerRuntime,
+      identityProvider: createFakeEntraIdentityProvider(),
     })
     expect(serve).toHaveBeenCalledOnce()
     expect(serve.mock.calls[0][0]).toMatchObject({
@@ -95,13 +101,13 @@ describe('production Studio process', () => {
     expect(health.status).toBe(200)
     await expect(health.json()).resolves.toEqual({ status: 'ok' })
 
-    const login = (await fetchApplication!(
-      new Request('http://127.0.0.1:5173/free/login'),
+    const signedOut = (await fetchApplication!(
+      new Request('http://127.0.0.1:5173/free/auth/signed-out'),
       {},
     )) as Response
-    expect(login.status).toBe(200)
-    expect(login.headers.get('cache-control')).toBe('no-cache')
-    expect(await login.text()).toBe(
+    expect(signedOut.status).toBe(200)
+    expect(signedOut.headers.get('cache-control')).toBe('no-cache')
+    expect(await signedOut.text()).toBe(
       '<base href="/free/" /><main>Production Studio</main>',
     )
 

@@ -62,6 +62,10 @@ services:
       STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
       STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:?STUDIO_BASE_PATH must be / or a canonical path such as /free}"
       FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes}"
+      FREE_ENTRA_TENANT_ID: "${FREE_ENTRA_TENANT_ID:?FREE_ENTRA_TENANT_ID must be the application tenant UUID}"
+      FREE_ENTRA_CLIENT_ID: "${FREE_ENTRA_CLIENT_ID:?FREE_ENTRA_CLIENT_ID must be the application client UUID}"
+      FREE_ENTRA_CLIENT_CERT_PATH: /run/secrets/free-entra-client.pem
+      FREE_ENTRA_CLIENT_CERT_THUMBPRINT: "${FREE_ENTRA_CLIENT_CERT_THUMBPRINT:?FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be the SHA-256 certificate thumbprint}"
       FREE_STUDIO_PROXY: trusted-proxy
       FREE_STUDIO_PROXY_ADDRESS: 172.30.0.1
     depends_on:
@@ -82,6 +86,12 @@ services:
       retries: 12
       start_period: 30s
     volumes:
+      - type: bind
+        source: "${FREE_ENTRA_CLIENT_CERT_PATH:?FREE_ENTRA_CLIENT_CERT_PATH must name the Entra client private-key PEM}"
+        target: /run/secrets/free-entra-client.pem
+        read_only: true
+        bind:
+          create_host_path: false
       # Canonical ingestion packages under `env-paths('FREE Studio').data`.
       - studio-data:/root/.local/share
       # `model-config.json` under `env-paths('FREE Studio').config`.

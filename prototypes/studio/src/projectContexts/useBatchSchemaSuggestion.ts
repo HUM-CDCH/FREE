@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useMachine } from '@xstate/react'
+import { schemaDefinitionSchema } from 'extraction/schema'
 import type { BatchSchemaSuggestion } from '../../shared/batchSchemaSuggestion.contract'
 import {
   BatchSchemaSuggestionRequestError,
@@ -9,6 +10,11 @@ import {
   updateBatchSchemaSuggestionDraft,
 } from './batchExtractions'
 import { batchSchemaSuggestionMachine } from './batchSchemaSuggestionMachine'
+import {
+  consumeSessionRecovery,
+  registerSessionRecoveryCapture,
+  removeSessionRecovery,
+} from '../auth/sessionRecovery'
 
 export function useBatchSchemaSuggestion({
   projectContextId,
@@ -47,6 +53,62 @@ export function useBatchSchemaSuggestion({
       onRun,
     },
   })
+  const restoredVersion = useRef<string | null>(null)
+
+  useEffect(() => {
+    const suggestion = snapshot.context.suggestion
+    if (!suggestion) return
+    return registerSessionRecoveryCapture(
+      'batch-schema-draft',
+      suggestion.batchSchemaSuggestionId,
+      () =>
+        (snapshot.matches({ drafting: 'dirty' }) ||
+          snapshot.matches({ drafting: 'saving' }) ||
+          snapshot.matches({ drafting: 'saveFailed' })) &&
+        snapshot.context.draft
+          ? {
+              draftVersion: suggestion.draftVersion,
+              draft: snapshot.context.draft,
+            }
+          : null,
+    )
+  }, [snapshot])
+
+  useEffect(() => {
+    const suggestion = snapshot.context.suggestion
+    if (!suggestion || !snapshot.matches({ drafting: 'clean' })) return
+    const version = `${suggestion.batchSchemaSuggestionId}:${suggestion.draftVersion}`
+    if (restoredVersion.current === version) return
+    restoredVersion.current = version
+    const recovered = consumeSessionRecovery(
+      'batch-schema-draft',
+      suggestion.batchSchemaSuggestionId,
+      (value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value))
+          return null
+        const candidate = value as Record<string, unknown>
+        if (candidate.draftVersion !== suggestion.draftVersion) return null
+        const parsed = schemaDefinitionSchema.safeParse(candidate.draft)
+        return parsed.success ? parsed.data : null
+      },
+    )
+    if (recovered) send({ type: 'proposal.recovered', definition: recovered })
+  }, [send, snapshot])
+
+  useEffect(() => {
+    const suggestion = snapshot.context.suggestion
+    if (
+      suggestion &&
+      (snapshot.matches('confirmed') ||
+        snapshot.matches('heterogeneous') ||
+        snapshot.matches('failed') ||
+        snapshot.matches('conflict'))
+    )
+      removeSessionRecovery(
+        'batch-schema-draft',
+        suggestion.batchSchemaSuggestionId,
+      )
+  }, [snapshot])
 
   useEffect(() => {
     const flush = () => send({ type: 'draft.flush' })

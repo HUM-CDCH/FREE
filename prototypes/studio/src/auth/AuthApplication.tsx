@@ -2,21 +2,24 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import {
   AuthenticationLoading,
-  LoginForm,
-  PasswordChangeForm,
   ProjectLoadFailure,
   ProjectLoading,
+  SessionExpiryWarning,
   SessionFailure,
+  SignedOutLanding,
 } from './AuthForms.tsx'
 import { ResearcherSessionContext } from './sessionContext.ts'
 import { getAuthSession } from './authApi.ts'
-import type {
-  AuthenticatedSession,
-  AuthSession,
-} from './authApi.ts'
+import type { AuthenticatedSession, AuthSession } from './authApi.ts'
 import { subscribeToAuthenticationRequired } from './authenticatedFetch.ts'
 import { currentReturnPath } from './returnPath.ts'
-import { browserStudioPath } from '../studioUrl.js'
+import {
+  captureSessionRecovery,
+  clearSessionRecovery,
+  isSessionSignedOut,
+  setSessionRecoveryAccount,
+} from './sessionRecovery.ts'
+import { browserStudioPath, browserStudioPathname } from '../studioUrl.js'
 
 type ProjectNavigationModule = {
   ProjectNavigationProvider: ComponentType<{ children: ReactNode }>
@@ -28,13 +31,11 @@ export type ProjectNavigationLoader = () => Promise<ProjectNavigationModule>
 type AuthState =
   | { phase: 'resolving' }
   | { phase: 'failed' }
-  | { phase: 'anonymous'; notice?: string }
-  | {
-      phase: 'password-change'
-      session: AuthenticatedSession
-      temporaryPassword: string
-    }
+  | { phase: 'anonymous' }
+  | { phase: 'redirecting' }
   | { phase: 'authenticated'; session: AuthenticatedSession }
+
+const EXPIRY_WARNING_MILLISECONDS = 5 * 60 * 1000
 
 function loadProjectNavigation(): Promise<ProjectNavigationModule> {
   return import('../ProjectNavigation.tsx')
@@ -43,16 +44,19 @@ function loadProjectNavigation(): Promise<ProjectNavigationModule> {
 function AuthenticatedProject({
   session,
   loadNavigation,
-  onLoggedOut,
+  onReauthenticate,
 }: {
   session: AuthenticatedSession
   loadNavigation: ProjectNavigationLoader
-  onLoggedOut: () => void
+  onReauthenticate: () => void
 }) {
   const [navigation, setNavigation] =
     useState<ProjectNavigationModule | null>(null)
   const [loadFailed, setLoadFailed] = useState(false)
   const [loadAttempt, setLoadAttempt] = useState(0)
+  const [expiryWarning, setExpiryWarning] = useState(
+    () => Date.parse(session.expiresAt) - Date.now() <= EXPIRY_WARNING_MILLISECONDS,
+  )
 
   useEffect(() => {
     let active = true
@@ -69,14 +73,29 @@ function AuthenticatedProject({
     }
   }, [loadAttempt, loadNavigation])
 
+  useEffect(() => {
+    const expiresAt = Date.parse(session.expiresAt)
+    const warningTimeout = window.setTimeout(
+      () => setExpiryWarning(true),
+      Math.max(0, expiresAt - Date.now() - EXPIRY_WARNING_MILLISECONDS),
+    )
+    const expiryTimeout = window.setTimeout(
+      onReauthenticate,
+      Math.max(0, expiresAt - Date.now()),
+    )
+    return () => {
+      window.clearTimeout(warningTimeout)
+      window.clearTimeout(expiryTimeout)
+    }
+  }, [onReauthenticate, session.expiresAt])
+
   const retryNavigation = () => {
     setNavigation(null)
     setLoadFailed(false)
     setLoadAttempt((value) => value + 1)
   }
   let project = <ProjectLoading />
-  if (loadFailed)
-    project = <ProjectLoadFailure onRetry={retryNavigation} />
+  if (loadFailed) project = <ProjectLoadFailure onRetry={retryNavigation} />
   else if (navigation) {
     const { ProjectNavigationProvider, ProjectRoutes } = navigation
     project = (
@@ -87,61 +106,69 @@ function AuthenticatedProject({
   }
 
   return (
-    <ResearcherSessionContext value={{ session, onLoggedOut }}>
+    <ResearcherSessionContext value={{ session }}>
+      {expiryWarning && <SessionExpiryWarning onContinue={onReauthenticate} />}
       {project}
     </ResearcherSessionContext>
   )
 }
 
+function browserNavigate(location: string): void {
+  window.location.assign(location)
+}
+function browserReplace(location: string): void {
+  window.location.replace(location)
+}
+
 export default function AuthApplication({
   loadNavigation = loadProjectNavigation,
+  navigate = browserNavigate,
+  replace = browserReplace,
 }: {
   loadNavigation?: ProjectNavigationLoader
+  navigate?: (location: string) => void
+  replace?: (location: string) => void
 }) {
   const [state, setState] = useState<AuthState>({ phase: 'resolving' })
   const [resolutionAttempt, setResolutionAttempt] = useState(0)
-  const authenticationTransitioned = useRef(true)
+  const redirecting = useRef(false)
+  const restoredFromCache = useRef(false)
+
+  const reauthenticate = useCallback(() => {
+    if (redirecting.current) return
+    redirecting.current = true
+    captureSessionRecovery()
+    setState({ phase: 'redirecting' })
+    const query = new URLSearchParams({
+      returnTo: currentReturnPath(),
+      fragmentCaptured: '1',
+    })
+    navigate(`${browserStudioPath('/auth/login')}?${query}`)
+  }, [navigate])
 
   const acceptSession = useCallback(
-    (session: AuthSession, temporaryPassword?: string) => {
+    (session: AuthSession) => {
       if (!session.authenticated) {
-        authenticationTransitioned.current = true
+        if (restoredFromCache.current) {
+          restoredFromCache.current = false
+          clearSessionRecovery()
+          replace(browserStudioPath('/auth/signed-out'))
+          return
+        }
         setState({ phase: 'anonymous' })
         return
       }
-      if (session.account.mustChangePassword) {
-        authenticationTransitioned.current = true
-        // The password change re-authenticates with the password just typed,
-        // so a session resolved without one starts at the login form again.
-        setState(
-          temporaryPassword === undefined
-            ? {
-                phase: 'anonymous',
-                notice: 'Sign in again to choose a permanent password.',
-              }
-            : { phase: 'password-change', session, temporaryPassword },
-        )
-        return
-      }
-      authenticationTransitioned.current = false
-      history.replaceState(null, '', browserStudioPath(currentReturnPath()))
+      restoredFromCache.current = false
+      redirecting.current = false
+      setSessionRecoveryAccount(session.account.id)
       setState({ phase: 'authenticated', session })
     },
-    [],
+    [replace],
   )
 
   useEffect(
-    () =>
-      subscribeToAuthenticationRequired(() => {
-        if (authenticationTransitioned.current) return
-        authenticationTransitioned.current = true
-        history.replaceState(null, '', browserStudioPath('/login'))
-        setState({
-          phase: 'anonymous',
-          notice: 'Your session expired. Sign in again.',
-        })
-      }),
-    [],
+    () => subscribeToAuthenticationRequired(reauthenticate),
+    [reauthenticate],
   )
 
   useEffect(() => {
@@ -157,7 +184,40 @@ export default function AuthApplication({
     return () => controller.abort()
   }, [acceptSession, resolutionAttempt])
 
-  if (state.phase === 'resolving') return <AuthenticationLoading />
+  useEffect(() => {
+    const revalidateRestoredPage = () => {
+      restoredFromCache.current = true
+      redirecting.current = false
+      setState({ phase: 'resolving' })
+      setResolutionAttempt((value) => value + 1)
+    }
+    const pageShown = (event: PageTransitionEvent) => {
+      if (event.persisted) revalidateRestoredPage()
+    }
+    const historyChanged = () => {
+      if (isSessionSignedOut()) revalidateRestoredPage()
+    }
+    addEventListener('pageshow', pageShown)
+    addEventListener('popstate', historyChanged)
+    return () => {
+      removeEventListener('pageshow', pageShown)
+      removeEventListener('popstate', historyChanged)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (state.phase !== 'anonymous') return
+    if (browserStudioPathname() === '/auth/signed-out') {
+      clearSessionRecovery()
+      return
+    }
+    if (isSessionSignedOut()) {
+      replace(browserStudioPath('/auth/signed-out'))
+      return
+    }
+    reauthenticate()
+  }, [reauthenticate, replace, state.phase])
+
   if (state.phase === 'failed')
     return (
       <SessionFailure
@@ -167,38 +227,16 @@ export default function AuthApplication({
         }}
       />
     )
-  if (state.phase === 'anonymous')
-    return (
-      <LoginForm notice={state.notice} onAuthenticated={acceptSession} />
-    )
-  if (state.phase === 'password-change')
-    return (
-      <PasswordChangeForm
-        session={state.session}
-        temporaryPassword={state.temporaryPassword}
-        onPasswordChanged={() => {
-          history.replaceState(null, '', browserStudioPath('/login'))
-          setState({
-            phase: 'anonymous',
-            notice: 'Password changed. Sign in with your new password.',
-          })
-        }}
-        onLoggedOut={() => {
-          history.replaceState(null, '', browserStudioPath('/login'))
-          setState({ phase: 'anonymous', notice: 'You have signed out.' })
-        }}
-      />
-    )
+  if (state.phase === 'anonymous' && browserStudioPathname() === '/auth/signed-out')
+    return <SignedOutLanding />
+  if (state.phase !== 'authenticated') return <AuthenticationLoading />
 
   return (
     <AuthenticatedProject
+      key={`${state.session.account.id}:${state.session.expiresAt}`}
       session={state.session}
       loadNavigation={loadNavigation}
-      onLoggedOut={() => {
-        authenticationTransitioned.current = true
-        history.replaceState(null, '', browserStudioPath('/login'))
-        setState({ phase: 'anonymous', notice: 'You have signed out.' })
-      }}
+      onReauthenticate={reauthenticate}
     />
   )
 }

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   createSessionManager,
-  SESSION_ABSOLUTE_MILLISECONDS,
+  SESSION_CLOCK_SKEW_MILLISECONDS,
   SESSION_COOKIE_NAME,
-  SESSION_IDLE_MILLISECONDS,
 } from './session.js'
 
 const ACCOUNT_ID = '10000000-0000-4000-8000-000000000001'
@@ -13,89 +12,81 @@ function cookieValue(serialized: string): string {
   return serialized.slice(`${SESSION_COOKIE_NAME}=`.length).split(';', 1)[0]
 }
 
-describe('signed browser sessions', () => {
-  it('encodes only signed session authority and emits every required attribute', () => {
+describe('fixed Entra-capped browser sessions', () => {
+  it('expires before the identity token and emits hardened cookie attributes', () => {
     let time = Date.UTC(2026, 7, 20)
+    const identityTokenExpiresAt = time + 60 * 60 * 1_000
     const sessions = createSessionManager(SECRET, () => time)
-    const payload = sessions.issue(ACCOUNT_ID, 4)
-    const cookie = sessions.serialize(payload)
+    const payload = sessions.issue(ACCOUNT_ID, identityTokenExpiresAt)
 
     expect(payload).toEqual({
-      version: 1,
+      version: 2,
       accountId: ACCOUNT_ID,
-      sessionVersion: 4,
       issuedAt: time,
-      expiresAt: time + SESSION_IDLE_MILLISECONDS,
+      expiresAt:
+        identityTokenExpiresAt - SESSION_CLOCK_SKEW_MILLISECONDS,
     })
-    expect(cookie).toContain(`${SESSION_COOKIE_NAME}=`)
-    expect(cookie).toContain('Path=/')
-    expect(cookie).toContain('Max-Age=43200')
-    expect(cookie).toContain('Secure')
-    expect(cookie).toContain('HttpOnly')
-    expect(cookie).toContain('SameSite=Strict')
+    const cookie = sessions.serialize(payload!)
+    expect(cookie).toBe(
+      `${SESSION_COOKIE_NAME}=${cookieValue(cookie)}; Max-Age=3540; Path=/; Expires=${new Date(payload!.expiresAt).toUTCString()}; HttpOnly; Secure; SameSite=Lax`,
+    )
     expect(sessions.verify(cookieValue(cookie))).toEqual(payload)
 
-    time += 1
-    expect(sessions.verify(cookieValue(cookie))).toEqual(payload)
+    time = payload!.expiresAt
+    expect(sessions.verify(cookieValue(cookie))).toBeNull()
   })
 
-  it('rejects tampering, duplicate cookies, malformed values, and idle expiry', () => {
-    let time = 10_000
+  it('rejects tokens without positive post-skew lifetime', () => {
+    const time = Date.UTC(2026, 7, 20)
     const sessions = createSessionManager(SECRET, () => time)
-    const value = cookieValue(sessions.serialize(sessions.issue(ACCOUNT_ID, 0)))
-    const replacement = value.endsWith('A') ? 'B' : 'A'
-    const tampered = `${value.slice(0, -1)}${replacement}`
 
-    expect(sessions.verify(tampered)).toBeNull()
+    expect(
+      sessions.issue(
+        ACCOUNT_ID,
+        time + SESSION_CLOCK_SKEW_MILLISECONDS,
+      ),
+    ).toBeNull()
+    expect(
+      sessions.issue(
+        ACCOUNT_ID,
+        time + SESSION_CLOCK_SKEW_MILLISECONDS - 1,
+      ),
+    ).toBeNull()
+    expect(sessions.issue('not-an-account-id', time + 120_000)).toBeNull()
+    expect(
+      sessions.issue(
+        'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+        time + 120_000,
+      ),
+    ).toBeNull()
+  })
+
+  it('rejects tampering, malformed values, and duplicate cookies', () => {
+    const time = Date.UTC(2026, 7, 20)
+    const sessions = createSessionManager(SECRET, () => time)
+    const payload = sessions.issue(ACCOUNT_ID, time + 3_600_000)!
+    const value = cookieValue(sessions.serialize(payload))
+    const replacement = value.endsWith('A') ? 'B' : 'A'
+
+    expect(
+      sessions.verify(`${value.slice(0, -1)}${replacement}`),
+    ).toBeNull()
     expect(sessions.verify('not.a.valid.session')).toBeNull()
     expect(
       sessions.read(
         new Request('https://studio.example', {
-          headers: { cookie: `${SESSION_COOKIE_NAME}=${value}; ${SESSION_COOKIE_NAME}=${value}` },
+          headers: {
+            cookie: `${SESSION_COOKIE_NAME}=${value}; ${SESSION_COOKIE_NAME}=${value}`,
+          },
         }),
       ),
     ).toEqual({ present: true, value: null })
-
-    time += SESSION_IDLE_MILLISECONDS
-    expect(sessions.verify(value)).toBeNull()
   })
 
-  it('renews idle expiry without moving issue time or crossing seven days', () => {
-    let time = 20_000
-    const sessions = createSessionManager(SECRET, () => time)
-    const initial = sessions.issue(ACCOUNT_ID, 2)
-
-    time += 6 * 60 * 60 * 1_000
-    const renewed = sessions.renew(initial)
-    expect(renewed).toEqual({
-      ...initial,
-      expiresAt: time + SESSION_IDLE_MILLISECONDS,
-    })
-
-    let active = renewed!
-    for (let hours = 17; hours <= 160; hours += 11) {
-      time = initial.issuedAt + hours * 60 * 60 * 1_000
-      active = sessions.renew(active)!
-    }
-    time = initial.issuedAt + SESSION_ABSOLUTE_MILLISECONDS - 60_000
-    const final = sessions.renew(active)
-    expect(final).toEqual({
-      ...initial,
-      expiresAt: initial.issuedAt + SESSION_ABSOLUTE_MILLISECONDS,
-    })
-
-    time = initial.issuedAt + SESSION_ABSOLUTE_MILLISECONDS
-    expect(sessions.renew(final!)).toBeNull()
-    expect(sessions.verify(cookieValue(sessions.serialize(final!)))).toBeNull()
-  })
-
-  it('clears with the same hardened cookie boundary and rejects short secrets', () => {
+  it('clears on the configured base path and rejects short secrets', () => {
     const sessions = createSessionManager(SECRET, Date.now, '/free')
     expect(sessions.clear()).toBe(
-      `${SESSION_COOKIE_NAME}=; Path=/free; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Secure; HttpOnly; SameSite=Strict`,
-    )
-    expect(sessions.serialize(sessions.issue(ACCOUNT_ID, 0))).toContain(
-      'Path=/free',
+      `${SESSION_COOKIE_NAME}=; Max-Age=0; Path=/free; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Lax`,
     )
     expect(() => createSessionManager(Buffer.alloc(31))).toThrow(
       /at least 32 bytes/,
