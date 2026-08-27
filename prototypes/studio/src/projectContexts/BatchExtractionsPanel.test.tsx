@@ -130,14 +130,18 @@ function RoutedPanel({
   sourceDocuments?: typeof documents
 }) {
   const [open, setOpen] = useState<string | null>(batchExtractionId)
+  const [view, setView] = useState<'grid' | null>(null)
   return (
     <BatchExtractionsPanel
       projectContextId={projectContextId}
       sourceDocuments={sourceDocuments}
       openBatchExtractionId={open}
+      openBatchExtractionView={view}
       onNavigate={(route) => {
-        if (route.kind === 'project' && route.tab === 'extractions')
+        if (route.kind === 'project' && route.tab === 'extractions') {
           setOpen(route.batchExtractionId ?? null)
+          setView(route.view ?? null)
+        }
         onNavigate(route)
       }}
     />
@@ -1904,11 +1908,155 @@ describe('BatchExtractionsPanel', () => {
         'No successful Extraction Results are available to export.',
       ),
     ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Review grid' })).toBeDisabled()
     expect(
       fetch.mock.calls.some(([url]) =>
         String(url).includes('/results?'),
       ),
     ).toBe(false)
+  })
+
+  it('opens the review grid, edits a field there, saves it, and returns to results', async () => {
+    const succeededMember = {
+      ...batch.members[1],
+      executionStatus: 'COMPLETED' as const,
+      executionFailureMessage: null,
+      startedAt: '2026-08-14T10:42:00.000Z',
+      finishedAt: '2026-08-14T10:43:00.000Z',
+      latestExtraction: {
+        ...batch.members[1].latestExtraction,
+        outcome: 'SUCCEEDED' as const,
+        complete: true,
+        reviewable: true,
+      },
+    }
+    const listedBatch = {
+      ...batch,
+      executionStatus: 'COMPLETED' as const,
+      members: [batch.members[0], succeededMember],
+    }
+    const pinnedRevision = {
+      schemaRevisionId,
+      extractionSchemaId: batch.extractionSchemaId,
+      revisionNumber: 1,
+      origin: 'researcher-edit',
+      createdAt: '2026-08-14T10:00:00.000Z',
+      recordDescription: 'One place record.',
+      schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+    }
+    const reviewedExtractionId = succeededMember.latestExtraction.extractionId
+    const attempt = {
+      extractionId: reviewedExtractionId,
+      sourceDocumentId: cancelledDocumentId,
+      sourceRepresentationRevisionId: succeededMember.sourceRepresentationRevisionId,
+      schemaRevisionId,
+      strategy: 'ARTICLE' as const,
+      outcome: 'SUCCEEDED' as const,
+      complete: true,
+      modelAttribution: { provider: 'ollama', modelId: 'fixture' },
+      diagnostics: {
+        phase: 'grounding',
+        durationMs: 1,
+        modelCalls: 0,
+        finishReason: null,
+        inputTokens: null,
+        outputTokens: null,
+        grounding: null,
+        catalog: null,
+        retry: null,
+      },
+      failure: null,
+      resultPayload: { records: [{ place: 'Rome' }] },
+      evidenceLinks: [{ resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-1' }],
+      reviewable: true,
+      retryOfId: null,
+      batchExtractionId,
+      createdAt: '2026-08-14T10:43:00.000Z',
+      reviewedAt: null,
+      reviewDecisions: [],
+    }
+    const pendingReviewDecisions = [
+      {
+        resultPath: ['records', 0, 'place'],
+        evidenceAnchorId: 'anchor-1',
+        reviewedOccurrenceIds: ['occurrence-1'],
+        action: 'APPROVED' as const,
+        reviewedValue: null,
+      },
+    ]
+    let reviewed = false
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/batch-extractions?'))
+        return response({
+          batchExtractions: [
+            reviewed
+              ? {
+                  ...listedBatch,
+                  members: [
+                    listedBatch.members[0],
+                    {
+                      ...succeededMember,
+                      latestExtraction: {
+                        ...succeededMember.latestExtraction,
+                        reviewedAt: '2026-08-14T10:45:00.000Z',
+                      },
+                    },
+                  ],
+                }
+              : listedBatch,
+          ],
+        })
+      if (url.startsWith(`/api/schema-revisions/${schemaRevisionId}?`))
+        return response({ revision: pinnedRevision })
+      if (url.startsWith('/api/batch-schema-suggestions?'))
+        return response({ batchSchemaSuggestions: [] })
+      if (url === `/api/extractions/${reviewedExtractionId}` && (init?.method ?? 'GET') === 'GET')
+        return response({ extraction: attempt, pendingReviewDecisions })
+      if (url === `/api/extractions/${reviewedExtractionId}/review` && init?.method === 'POST') {
+        reviewed = true
+        return response({
+          ...attempt,
+          reviewedAt: '2026-08-14T10:45:00.000Z',
+          reviewDecisions: [
+            { ...pendingReviewDecisions[0], action: 'EDITED', reviewedValue: 'Milan', createdAt: '2026-08-14T10:45:00.000Z' },
+          ],
+        })
+      }
+      throw new Error(`Unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch)
+    renderPanel()
+
+    fireEvent.click(await screen.findByText('Places · Schema Revision 1'))
+    await screen.findByRole('list', { name: 'Batch Extraction members' })
+    const gridButton = screen.getByRole('button', { name: 'Review grid' })
+    await waitFor(() => expect(gridButton).toBeEnabled())
+    fireEvent.click(gridButton)
+
+    expect(await screen.findByText('Rome')).toBeVisible()
+    fireEvent.click(screen.getByText('Rome'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const input = screen.getByDisplayValue('Rome')
+    fireEvent.change(input, { target: { value: 'Milan' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Save all reviews (1)' }))
+
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(
+          ([callUrl, callInit]) =>
+            String(callUrl) === `/api/extractions/${reviewedExtractionId}/review` &&
+            callInit?.method === 'POST' &&
+            JSON.parse(String(callInit.body)).reviewDecisions[0].reviewedValue === 'Milan',
+        ),
+      ).toBe(true),
+    )
+    await screen.findByText('Reviewed')
+
+    fireEvent.click(screen.getByRole('button', { name: /Back to results/ }))
+    await screen.findByRole('list', { name: 'Batch Extraction members' })
   })
 
   it('explains a pinned Schema Revision failure and retries it explicitly', async () => {

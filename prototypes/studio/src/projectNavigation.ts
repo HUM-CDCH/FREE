@@ -18,7 +18,7 @@ import { browserStudioPath } from './studioUrl.js'
 export type ProjectResource =
   | { tab: 'sources' }
   | { tab: 'schemas' }
-  | { tab: 'extractions'; batchExtractionId?: string }
+  | { tab: 'extractions'; batchExtractionId?: string; view?: 'grid' }
 
 export type ProjectRoute = {
   kind: 'project'
@@ -82,6 +82,18 @@ export function parseRoute(pathname: string, search = ''): Route {
       : { kind: 'badReference' }
   }
 
+  // The batch review grid is a distinct screen over one Batch Extraction, so
+  // it needs its own path shape ahead of the bare extractions match below.
+  const batchReview =
+    /^\/projects\/([^/]+)\/extractions\/([^/]+)\/review$/.exec(path)
+  if (batchReview) {
+    const [, projectContextId, batchExtractionId] = batchReview
+    return canonicalUuidSchema.safeParse(projectContextId).success &&
+      canonicalUuidSchema.safeParse(batchExtractionId).success
+      ? { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId, view: 'grid' }
+      : { kind: 'badReference' }
+  }
+
   // Extractions is the one tab with a resource of its own beneath it.
   const extractions = /^\/projects\/([^/]+)\/extractions(?:\/([^/]+))?$/.exec(
     path,
@@ -137,7 +149,7 @@ export function href(route: NavigableRoute): string {
   if (route.tab === 'schemas') return `${project}/schemas`
   return `${project}/extractions${
     route.batchExtractionId ? `/${route.batchExtractionId}` : ''
-  }`
+  }${route.batchExtractionId && route.view === 'grid' ? '/review' : ''}`
 }
 
 /** Only `opening` reads, and `routing` holds document routes until containment. */

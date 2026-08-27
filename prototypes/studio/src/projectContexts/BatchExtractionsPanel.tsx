@@ -44,8 +44,9 @@ import {
   BatchExtractionHistory,
   BatchExtractionMembers,
 } from './BatchExtractionScreens'
+import BatchExtractionReviewGrid from './BatchExtractionReviewGrid'
 
-type Screen = 'history' | 'prepare' | 'members'
+type Screen = 'history' | 'prepare' | 'members' | 'grid'
 
 type SourceDocument = {
   sourceDocumentId: string
@@ -183,12 +184,15 @@ export default function BatchExtractionsPanel({
   projectContextId,
   sourceDocuments,
   openBatchExtractionId,
+  openBatchExtractionView,
   onNavigate,
 }: {
   projectContextId: string
   sourceDocuments: readonly SourceDocument[]
   /** The routed Batch Extraction, so one is linkable and survives a refresh. */
   openBatchExtractionId: string | null
+  /** The routed sub-view over that Batch Extraction, e.g. the review grid. */
+  openBatchExtractionView: 'grid' | null
   onNavigate: (route: NavigableRoute) => void
 }) {
   const sourceDocumentIds = sourceDocuments.map(
@@ -200,7 +204,9 @@ export default function BatchExtractionsPanel({
   const screen: Screen = preparing
     ? 'prepare'
     : openBatchExtractionId
-      ? 'members'
+      ? openBatchExtractionView === 'grid'
+        ? 'grid'
+        : 'members'
       : 'history'
   const showHistory = useCallback(() => {
     setPreparing(false)
@@ -433,10 +439,13 @@ export default function BatchExtractionsPanel({
     batchList.find(
       (batch) => batch.batchExtractionId === openBatchExtractionId,
     ) ?? null
-  const pinnedExtractionSchemaId =
-    screen === 'members' ? (openBatch?.extractionSchemaId ?? null) : null
-  const pinnedSchemaRevisionId =
-    screen === 'members' ? (openBatch?.schemaRevisionId ?? null) : null
+  const onBatchScreen = screen === 'members' || screen === 'grid'
+  const pinnedExtractionSchemaId = onBatchScreen
+    ? (openBatch?.extractionSchemaId ?? null)
+    : null
+  const pinnedSchemaRevisionId = onBatchScreen
+    ? (openBatch?.schemaRevisionId ?? null)
+    : null
   const currentPinnedBatchSchema =
     pinnedBatchSchema?.schemaRevisionId === pinnedSchemaRevisionId
       ? pinnedBatchSchema
@@ -662,6 +671,16 @@ export default function BatchExtractionsPanel({
     })
   }
 
+  const openGridReview = (batch: BatchExtraction) => {
+    onNavigate({
+      kind: 'project',
+      projectContextId,
+      tab: 'extractions',
+      batchExtractionId: batch.batchExtractionId,
+      view: 'grid',
+    })
+  }
+
   const openBatchHasSuccessfulResult =
     openBatch?.members.some(
       (member) => member.latestExtraction?.outcome === 'SUCCEEDED',
@@ -741,11 +760,11 @@ export default function BatchExtractionsPanel({
       id="project-extractions-panel"
       role="tabpanel"
       aria-labelledby="project-extractions-tab"
-      className="pt-1"
+      className="flex h-full min-h-0 flex-col pt-1"
       tabIndex={0}
     >
       <div
-        className={`flex min-h-10 justify-between gap-3 ${
+        className={`flex shrink-0 min-h-10 justify-between gap-3 ${
           screen === 'history'
             ? 'mb-2 items-start pt-4'
             : 'mb-4 items-center border-b border-line pb-3'
@@ -801,17 +820,21 @@ export default function BatchExtractionsPanel({
         )}
       </div>
       {runFailure && (
-        <p className="mb-3 text-[11px] leading-snug text-danger" role="alert">
+        <p className="mb-3 shrink-0 text-[11px] leading-snug text-danger" role="alert">
           {runFailure}
         </p>
       )}
       {runNotice && (
-        <p className="mb-3 text-[11px] leading-snug text-ink-muted" role="status">
+        <p className="mb-3 shrink-0 text-[11px] leading-snug text-ink-muted" role="status">
           {runNotice}
         </p>
       )}
 
-      <div className="min-h-[430px]">
+      <div
+        className={
+          screen === 'grid' ? 'flex min-h-0 flex-1 flex-col' : 'min-h-[430px]'
+        }
+      >
         {screen === 'history' ? (
           batchesUnread ? (
             batchesUnread
@@ -1114,6 +1137,22 @@ export default function BatchExtractionsPanel({
           <p className="py-6 text-center text-xs text-ink-muted">
             That Batch Extraction is no longer listed.
           </p>
+        ) : screen === 'grid' ? (
+          <BatchExtractionReviewGrid
+            batch={openBatch}
+            schemaNodes={currentPinnedBatchSchema?.schemaNodes ?? null}
+            documentName={documentName}
+            onBack={() => openMembers(openBatch)}
+            onOpenMember={(sourceDocumentId, extractionId) =>
+              onNavigate({
+                kind: 'document',
+                projectContextId,
+                sourceDocumentId,
+                extractionId,
+              })
+            }
+            onMemberSaved={() => setReload((value) => value + 1)}
+          />
         ) : (
           <BatchExtractionMembers
             batch={openBatch}
@@ -1140,6 +1179,7 @@ export default function BatchExtractionsPanel({
               setPinnedBatchSchemaReload((value) => value + 1)
             }
             onRunAgain={() => void runOpenBatchAgain(openBatch)}
+            onOpenGridReview={() => openGridReview(openBatch)}
             onOpenMember={(sourceDocumentId, extractionId) =>
               onNavigate({
                 kind: 'document',

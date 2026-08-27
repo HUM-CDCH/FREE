@@ -6,12 +6,10 @@ import type {
 import {
   batchExtractionProgress,
   type BatchExtraction,
-  type BatchExtractionMember,
 } from '../../shared/batchExtraction.contract'
 import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import { Button, Pill } from '../ui'
-
-type StatusTone = 'neutral' | 'accent' | 'success' | 'danger'
+import { memberStatus, type StatusTone } from './batchExtractionStatus'
 
 const statusInk: Record<StatusTone, string> = {
   neutral: 'text-ink-muted',
@@ -62,6 +60,33 @@ function RerunIcon() {
   )
 }
 
+function GridIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="13"
+      height="13"
+      viewBox="0 0 20 20"
+      fill="none"
+    >
+      <rect
+        x="3"
+        y="3"
+        width="14"
+        height="14"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M3 8.5h14M3 13h14M8.5 3v14M13 3v14"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </svg>
+  )
+}
+
 function DocumentIcon() {
   return (
     <svg
@@ -90,55 +115,8 @@ function stamp(value: string): string {
   })
 }
 
-function memberStatus(member: BatchExtractionMember): {
-  label: string
-  tone: StatusTone
-  message: string | null
-} {
-  const extraction = member.latestExtraction
-  if (member.executionStatus === 'RUNNING')
-    return { label: 'Running', tone: 'accent', message: null }
-  if (member.executionStatus === 'FAILED' && !extraction)
-    return {
-      label: 'No result in this batch',
-      tone: 'danger',
-      message:
-        member.executionFailureMessage ??
-        'The member Extraction did not finish.',
-    }
-  if (!extraction)
-    return {
-      label: member.executionStatus === 'QUEUED' ? 'Queued' : 'Not run',
-      tone: 'neutral',
-      message: null,
-    }
-  if (extraction.outcome === 'FAILED')
-    return {
-      label: 'Failed',
-      tone: 'danger',
-      message:
-        extraction.failureMessage ??
-        'The Extraction failed without a recorded reason.',
-    }
-  if (extraction.outcome === 'CANCELLED')
-    return {
-      label: 'Cancelled',
-      tone: 'neutral',
-      message: 'The Extraction was cancelled before completion.',
-    }
-  if (extraction.reviewedAt)
-    return { label: 'Reviewed', tone: 'success', message: null }
-  if (!extraction.reviewable)
-    return {
-      label: 'No reviewable result',
-      tone: 'neutral',
-      message: 'The Extraction produced no grounded Evidence to review.',
-    }
-  return { label: 'Needs review', tone: 'accent', message: null }
-}
-
 /** Status chip shared by the summary line and every member row. */
-function StatusPill({ tone, label }: { tone: StatusTone; label: string }) {
+export function StatusPill({ tone, label }: { tone: StatusTone; label: string }) {
   return (
     <Pill tone={tone} className="gap-1.5">
       <StatusDot />
@@ -282,6 +260,7 @@ export function BatchExtractionMembers({
   onExport,
   onRetrySchema,
   onRunAgain,
+  onOpenGridReview,
   onOpenMember,
 }: {
   batch: BatchExtraction
@@ -294,6 +273,7 @@ export function BatchExtractionMembers({
   onExport(format: ExportFormat, choices: ExportChoices): Promise<void>
   onRetrySchema(): void
   onRunAgain(): void
+  onOpenGridReview(): void
   onOpenMember(sourceDocumentId: string, extractionId: string): void
 }) {
   const status = batchStatus(batch)
@@ -315,6 +295,20 @@ export function BatchExtractionMembers({
             }
             onExport={onExport}
           />
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!hasSuccessfulResult}
+            title={
+              !hasSuccessfulResult
+                ? 'No successful Extraction Results are available to review.'
+                : undefined
+            }
+            onClick={onOpenGridReview}
+          >
+            <GridIcon />
+            Review grid
+          </Button>
           <Button
             size="sm"
             variant="secondary"

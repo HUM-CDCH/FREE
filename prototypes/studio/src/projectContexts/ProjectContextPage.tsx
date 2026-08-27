@@ -189,6 +189,9 @@ export default function ProjectContextPage({
   onOpenSourceDocument,
 }: ProjectContextPageProps) {
   const tab = resource.tab
+  // The review grid is a spreadsheet: it earns the full viewport instead of
+  // the reading-width column every other tab renders in.
+  const isGridScreen = resource.tab === 'extractions' && resource.view === 'grid'
   const {
     projects,
     branches,
@@ -328,8 +331,8 @@ export default function ProjectContextPage({
     )
 
   return (
-    <div className="scrollbar-subtle h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 pt-6 pb-28 sm:p-8 sm:pb-28">
+    <div className="scrollbar-subtle flex h-full flex-col overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-6 px-4 pt-6 sm:p-8 sm:pb-0">
         <header>
           {renaming && project ? (
             <RenameForm
@@ -436,7 +439,15 @@ export default function ProjectContextPage({
             ))}
           </div>
         </div>
+      </div>
 
+      <div
+        className={
+          isGridScreen
+            ? 'flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-8 sm:pb-8'
+            : 'mx-auto w-full max-w-3xl flex-1 px-4 pb-28 sm:p-8 sm:pb-28'
+        }
+      >
         {tab === 'extractions' ? (
           <BatchExtractionsPanel
             // A different Project Context is different research state, never a
@@ -450,6 +461,9 @@ export default function ProjectContextPage({
               resource.tab === 'extractions'
                 ? (resource.batchExtractionId ?? null)
                 : null
+            }
+            openBatchExtractionView={
+              resource.tab === 'extractions' ? (resource.view ?? null) : null
             }
             onNavigate={onNavigate}
           />

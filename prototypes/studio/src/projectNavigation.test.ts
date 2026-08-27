@@ -46,6 +46,20 @@ describe('Project Context routes', () => {
       { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId },
     ],
     [
+      `/projects/${projectContextId}/extractions/${batchExtractionId}/review`,
+      {
+        kind: 'project',
+        projectContextId,
+        tab: 'extractions',
+        batchExtractionId,
+        view: 'grid',
+      },
+    ],
+    [
+      `/projects/${projectContextId}/extractions/review`,
+      { kind: 'badReference' },
+    ],
+    [
       `/projects/${projectContextId}/documents/${sourceDocumentId}`,
       { kind: 'document', projectContextId, sourceDocumentId },
     ],
@@ -76,6 +90,13 @@ describe('Project Context routes', () => {
     { kind: 'project', projectContextId, tab: 'schemas' },
     { kind: 'project', projectContextId, tab: 'extractions' },
     { kind: 'project', projectContextId, tab: 'extractions', batchExtractionId },
+    {
+      kind: 'project',
+      projectContextId,
+      tab: 'extractions',
+      batchExtractionId,
+      view: 'grid',
+    },
     { kind: 'document', projectContextId, sourceDocumentId },
     { kind: 'document', projectContextId, sourceDocumentId, extractionId },
   ])('builds the canonical href for $kind routes', (route) => {
@@ -102,6 +123,20 @@ describe('Project Context routes', () => {
         batchExtractionId,
       }),
     ).toBe(`/projects/${projectContextId}/extractions/${batchExtractionId}`)
+    expect(
+      href({
+        kind: 'project',
+        projectContextId,
+        tab: 'extractions',
+        batchExtractionId,
+        view: 'grid',
+      }),
+    ).toBe(`/projects/${projectContextId}/extractions/${batchExtractionId}/review`)
+    // A grid view with no open Batch Extraction has nothing to append the
+    // suffix to, so it degrades to the plain extractions tab.
+    expect(
+      href({ kind: 'project', projectContextId, tab: 'extractions', view: 'grid' }),
+    ).toBe(`/projects/${projectContextId}/extractions`)
   })
 })
 

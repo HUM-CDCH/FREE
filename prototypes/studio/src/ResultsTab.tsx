@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { exportExtractionResult } from 'extraction-result-export'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ResultValue, { singularItemLabel } from './ui/ResultValue'
-import { Overline, Spinner, Button } from './ui'
+import { Overline, Spinner, Button, ModalDialog } from './ui'
 import { isRecord } from '../shared/template'
 import { schemaDefinitionToTemplate, type SchemaDefinition } from 'extraction/schema'
 import { resultStats } from './resultStats'
@@ -323,6 +323,16 @@ function CatalogRetryControls({
   )
 }
 
+function InfoIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="10" cy="6.5" r="1" fill="currentColor" />
+      <path d="M10 9.5v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function AttemptDetails({
   controller,
   attempt,
@@ -332,18 +342,48 @@ function AttemptDetails({
   attempt: ExtractionAttempt
   readOnly: boolean
 }) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   return (
-    <details className="mt-3 border-t border-line pt-2.5">
-      <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
-        Run details
-      </summary>
-      <div className="scrollbar-subtle max-h-64 overflow-y-auto pr-1">
-        <ExtractionDiagnostics attempt={attempt} />
-        {!readOnly && attempt.strategy === 'CATALOG' && (
-          <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
-        )}
-      </div>
-    </details>
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        title="Run details"
+        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink-muted hover:text-ink"
+        onClick={() => setOpen(true)}
+      >
+        <InfoIcon />
+        <span className="sr-only">Run details</span>
+      </button>
+      {open && (
+        <ModalDialog
+          ariaLabel="Run details"
+          className="m-auto w-96 max-w-[90vw] rounded-md border border-line bg-surface p-3 text-ink shadow-float backdrop:bg-ink/35"
+          returnFocusRef={triggerRef}
+          onDismiss={() => setOpen(false)}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">Run details</p>
+            <button
+              type="button"
+              className="cursor-pointer rounded px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted hover:text-ink"
+              onClick={() => setOpen(false)}
+            >
+              Close
+            </button>
+          </div>
+          <div className="scrollbar-subtle mt-1.5 max-h-64 overflow-y-auto pr-1">
+            <ExtractionDiagnostics attempt={attempt} />
+            {!readOnly && attempt.strategy === 'CATALOG' && (
+              <CatalogRetryControls key={attempt.extractionId} controller={controller} attempt={attempt} />
+            )}
+          </div>
+        </ModalDialog>
+      )}
+    </>
   )
 }
 
@@ -480,9 +520,19 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex min-h-9.5 shrink-0 items-center gap-2 border-b border-line px-4">
+      {/* <header className="flex min-h-9.5 shrink-0 items-center gap-2 border-b border-line px-4">
         <Overline as="h2">Extraction results</Overline>
-      </header>
+      </header> */}
+      <div className="flex items-center justify-between px-4 py-2.5">
+        <Overline as="h2">Extraction results</Overline>
+        {attempt && (
+          <AttemptDetails
+            controller={controller}
+            attempt={attempt}
+            readOnly={readOnly || Boolean(inspectedAttempt)}
+          />
+        )}
+      </div>
 
       {state.status === 'ready' && stats && (
         <>
@@ -626,13 +676,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 {state.ungroundedCount} value{state.ungroundedCount === 1 ? '' : 's'} could not be grounded. {noReviewableResult ? 'No Review Decisions can be saved; ' : 'You can still save the grounded Review Decisions; '}{state.ungroundedCount === 1 ? 'it' : 'they'} will remain recorded without Evidence.
               </p>
             )}
-            {attempt && (
-              <AttemptDetails
-                controller={controller}
-                attempt={attempt}
-                readOnly={readOnly || Boolean(inspectedAttempt)}
-              />
-            )}
           </div>
 
           {view === 'review' && (
@@ -722,14 +765,14 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                         ? schemaNodeAtResultPath(pinnedSchema.schemaNodes, absoluteReviewPath(path))
                         : null,
                       isTouched: (path) => controller.review.isTouched(absoluteReviewPath(path)),
-                      onDecision: readOnly || inspectedAttempt
+                      onDecision: readOnly || inspectedAttempt || attempt?.reviewedAt
                         ? undefined
                         : (path, action, reviewedValue) => controller.review.setDecision(
                             absoluteReviewPath(path),
                             action,
                             reviewedValue,
                           ),
-                      readOnly: readOnly || Boolean(inspectedAttempt),
+                      readOnly: readOnly || Boolean(inspectedAttempt) || Boolean(attempt?.reviewedAt),
                     }}
                   />
                 ))}
@@ -800,13 +843,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               Retry extraction
             </Button>
           )}
-          {attempt && (
-            <AttemptDetails
-              controller={controller}
-              attempt={attempt}
-              readOnly={readOnly || Boolean(inspectedAttempt)}
-            />
-          )}
         </div>
       )}
 
@@ -838,13 +874,6 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
           {!readOnly && <Button variant="primary" size="md" className="mt-2.5" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
             Run a new extraction
           </Button>}
-          {attempt && (
-            <AttemptDetails
-              controller={controller}
-              attempt={attempt}
-              readOnly={readOnly || Boolean(inspectedAttempt)}
-            />
-          )}
         </div>
       )}
     </div>

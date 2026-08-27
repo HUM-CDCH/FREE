@@ -344,8 +344,7 @@ model Extraction {
   sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId, sourceDocumentId], references: [id, sourceDocumentId], onDelete: Cascade)
   retryOf                        Extraction?                  @relation("ExtractionRetries", fields: [retryOfId, sourceRepresentationRevisionId, schemaRevisionId, strategy], references: [id, sourceRepresentationRevisionId, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_retry_pin_fkey")
   retries                        Extraction[]                 @relation("ExtractionRetries")
-  review                         ExtractionReview?
-  reviewDecisions                ReviewDecision[]
+  reviews                        ExtractionReview[]
 
   @@unique([id, sourceDocumentId])
   @@unique([id, sourceRepresentationRevisionId, schemaRevisionId, strategy], map: "extraction_retry_pin_key")
@@ -358,24 +357,28 @@ model Extraction {
 }
 
 model ExtractionReview {
-  id             Uuid         @id @default(uuid())
-  extractionId   Uuid         @unique
+  id             Uuid             @id @default(uuid())
+  extractionId   Uuid
+  revisionNumber Int
   decisionDigest String
-  createdAt      Timestamptz6 @default(now())
-  extraction     Extraction   @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  createdAt      Timestamptz6     @default(now())
+  extraction     Extraction       @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  decisions      ReviewDecision[]
+
+  @@unique([extractionId, revisionNumber])
 }
 
 model ReviewDecision {
-  id                    Uuid       @id @default(uuid())
-  extractionId          Uuid
+  id                    Uuid             @id @default(uuid())
+  extractionReviewId    Uuid
   resultPath            Json
   resultPathKey         String
   evidenceAnchorId      String
   reviewedOccurrenceIds Json
   action                String
   reviewedValue         Json?
-  createdAt             Timestamptz6 @default(now())
-  extraction            Extraction @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  createdAt             Timestamptz6     @default(now())
+  extractionReview      ExtractionReview @relation(fields: [extractionReviewId], references: [id], onDelete: Cascade)
 
-  @@unique([extractionId, resultPathKey])
+  @@unique([extractionReviewId, resultPathKey])
 }

@@ -836,6 +836,67 @@ describe('ResultsTab grounded values', () => {
     expect(screen.queryByRole('button', { name: /^Reject / })).not.toBeInTheDocument()
   })
 
+  it('stops offering field-level review controls once its own attempt is already saved', () => {
+    const setDecision = vi.fn()
+    const savedAttempt: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      reviewedAt: '2026-08-10T01:00:00.000Z',
+      resultPayload: { records: [{ place: 'Saved place' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'place'], evidenceAnchorId: 'anchor-place',
+      }],
+      reviewDecisions: [{
+        resultPath: ['records', 0, 'place'],
+        evidenceAnchorId: 'anchor-place',
+        reviewedOccurrenceIds: ['occurrence-place'],
+        action: 'APPROVED',
+        reviewedValue: null,
+        createdAt: '2026-08-10T01:00:00.000Z',
+      }],
+    }
+    render(
+      <ResultsTab
+        {...defaultRunProps}
+        controller={controller(
+          {
+            status: 'ready', result: savedAttempt.resultPayload!,
+            evidenceLinks: savedAttempt.evidenceLinks!, ungroundedCount: 0,
+          },
+          savedAttempt,
+          {
+            // A leftover pending decision from before "Save Review" was
+            // clicked — must not still be reachable through the UI now
+            // that the attempt itself is saved and read-only.
+            available: true,
+            canAccept: false,
+            reviewedExtractionId: savedAttempt.extractionId,
+            decisions: [{
+              resultPath: ['records', 0, 'place'],
+              evidenceAnchorId: 'anchor-place',
+              reviewedOccurrenceIds: ['occurrence-place'],
+              action: 'REJECTED',
+              reviewedValue: null,
+            }],
+            reviewedCount: 1,
+            setDecision,
+          },
+        )}
+        schemaReady
+        pinnedSchema={{
+          recordDescription: 'One place.',
+          schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+        }}
+        documentMarkdown="# Source"
+        sourceDocumentName="already-saved.pdf"
+      />,
+    )
+
+    expect(screen.getByText('Saved place')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reject place' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit place' })).not.toBeInTheDocument()
+  })
+
   it('exports reviewed edits and shows the exact pinned Schema Revision read-only', () => {
     const setDecision = vi.fn()
     const schema: SchemaDefinition = {
