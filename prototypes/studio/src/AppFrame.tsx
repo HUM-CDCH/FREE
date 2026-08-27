@@ -6,6 +6,7 @@ import ProviderConfigPage from './providerConfig/ProviderConfigPage'
 import DocumentTabBar from './DocumentTabBar'
 import PanelToggleIcon from './PanelToggleIcon'
 import { useOpenDocumentTabs } from './useOpenDocumentTabs'
+import { useShiftWheelHorizontalScroll } from './useShiftWheelHorizontalScroll'
 import type { NavigableRoute, Route } from './projectNavigation'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import type { ProjectContextRouteState } from './projectContexts/useProjectContexts'
@@ -137,6 +138,7 @@ export default function AppFrame({
   const [tabBarSlot, setTabBarSlot] = useState<HTMLDivElement | null>(null)
   const tabs = useOpenDocumentTabs()
   const { projects } = useProjectContexts()
+  useShiftWheelHorizontalScroll()
 
   useEffect(() => {
     const onResize = () => {
@@ -393,7 +395,7 @@ export default function AppFrame({
           }}
         />
       )}
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {routedProjectContextId && openProjectTabs.length > 0 && (
           <DocumentTabBar
             projectName={activeProjectName}

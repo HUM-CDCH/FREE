@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { BatchExtraction } from '../../shared/batchExtraction.contract'
 import { batchExtractionProgress } from '../../shared/batchExtraction.contract'
@@ -14,6 +14,98 @@ import {
   type GridColumn,
   type MemberReviewState,
 } from '../useBatchExtractionReviewGrid'
+
+// Mirrors the PDF viewer's zoom pill (App.tsx), sized for a table rather
+// than a page: additive percent steps instead of pdf.js's own ratio steps.
+// The floor is lower than the PDF viewer's: a schema with many columns
+// needs auto-fit to shrink well past what's still comfortably readable
+// rather than stop and leave a horizontal scrollbar.
+const ZOOM_MIN = 20
+const ZOOM_MAX = 200
+const ZOOM_STEP = 10
+const ZOOM_DEFAULT = 100
+
+function isEditableTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element &&
+    target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') !==
+      null
+  )
+}
+
+/**
+ * Zoom starts in "fit" mode: the table's natural width is measured against
+ * its scroll container on every render and the percent shrinks (never grows
+ * past 100%) so all columns fit without a horizontal scrollbar. Manual +/-
+ * drops out of fit mode; the fit button (or the `0` shortcut) returns to it.
+ */
+function useGridZoom(containerRef: React.RefObject<HTMLDivElement | null>) {
+  const [percent, setPercent] = useState(ZOOM_DEFAULT)
+  const [fit, setFit] = useState(true)
+
+  const zoomIn = () => {
+    setFit(false)
+    setPercent((value) => Math.min(ZOOM_MAX, value + ZOOM_STEP))
+  }
+  const zoomOut = () => {
+    setFit(false)
+    setPercent((value) => Math.max(ZOOM_MIN, value - ZOOM_STEP))
+  }
+  const reset = () => setFit(true)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    document.addEventListener(
+      'keydown',
+      (event) => {
+        if (isEditableTarget(event.target)) return
+        const key = event.key
+        if (key === '+' || key === '=' || key === 'Add') {
+          event.preventDefault()
+          zoomIn()
+        } else if (key === '-' || key === 'Subtract') {
+          event.preventDefault()
+          zoomOut()
+        } else if (key === '0' || key === 'Numpad0') {
+          event.preventDefault()
+          reset()
+        }
+      },
+      { signal: controller.signal },
+    )
+    return () => controller.abort()
+  }, [])
+
+  // No dependency array: re-measures after every render, so it tracks
+  // column/row content changes without having to thread those as deps.
+  useLayoutEffect(() => {
+    if (!fit) return
+    const container = containerRef.current
+    if (!container) return
+
+    const applyFit = () => {
+      // `container.scrollWidth`, not the zoomed table's own scrollWidth: a
+      // CSS `zoom`-affected element reports its own box in local (unzoomed)
+      // units, while its *parent*'s scrollWidth reflects the zoomed,
+      // as-rendered footprint — dividing the table's own scrollWidth by
+      // percent double-counts the zoom and spirals toward ZOOM_MIN.
+      const naturalWidth = container.scrollWidth / (percent / 100)
+      if (naturalWidth <= 0) return
+      const raw = (container.clientWidth / naturalWidth) * 100
+      const stepped = Math.floor(raw / ZOOM_STEP) * ZOOM_STEP
+      const next = Math.min(ZOOM_DEFAULT, Math.max(ZOOM_MIN, stepped))
+      setPercent((current) => (current === next ? current : next))
+    }
+
+    applyFit()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(applyFit)
+    observer.observe(container)
+    return () => observer.disconnect()
+  })
+
+  return { percent, fit, zoomIn, zoomOut, reset }
+}
 
 type DisplayRow = {
   sourceDocumentId: string
@@ -175,6 +267,8 @@ export default function BatchExtractionReviewGrid({
   onMemberSaved?(): void
 }) {
   const grid = useBatchExtractionReviewGrid(batch, schemaNodes, onMemberSaved)
+  const gridContainerRef = useRef<HTMLDivElement | null>(null)
+  const zoom = useGridZoom(gridContainerRef)
   const [activeCell, setActiveCell] = useState<string | null>(null)
   const [editingCell, setEditingCell] = useState<string | null>(null)
   const progress = batchExtractionProgress(batch)
@@ -208,6 +302,42 @@ export default function BatchExtractionReviewGrid({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <div
+            role="group"
+            aria-label="Grid zoom"
+            className="flex shrink-0 items-center rounded-full border border-line bg-surface-muted p-0.5"
+          >
+            <button
+              type="button"
+              aria-label="Zoom out"
+              title="Zoom out (Ctrl + -)"
+              disabled={zoom.percent <= ZOOM_MIN}
+              onClick={zoom.zoomOut}
+              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              aria-label="Fit columns to screen width"
+              title="Fit columns to screen width"
+              onClick={zoom.reset}
+              disabled={zoom.fit}
+              className="min-w-11 rounded-full px-1.5 text-center text-xs font-medium text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:hover:bg-transparent"
+            >
+              {zoom.fit ? 'Fit' : `${zoom.percent}%`}
+            </button>
+            <button
+              type="button"
+              aria-label="Zoom in"
+              title="Zoom in (Ctrl + +)"
+              disabled={zoom.percent >= ZOOM_MAX}
+              onClick={zoom.zoomIn}
+              className="flex size-6.5 items-center justify-center rounded-full text-[15px] leading-none text-ink-muted outline-none transition-colors hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+            >
+              +
+            </button>
+          </div>
           <Button size="sm" variant="secondary" onClick={grid.approveAllVisible}>
             Approve all visible
           </Button>
@@ -225,8 +355,11 @@ export default function BatchExtractionReviewGrid({
       {grid.columns.length === 0 ? (
         <EmptyState title="This Extraction Schema has no fields to review." />
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-card border border-line">
-          <table className="w-full border-collapse text-[11.5px]">
+        <div ref={gridContainerRef} className="min-h-0 flex-1 overflow-auto rounded-card border border-line">
+          <table
+            className="w-full border-collapse text-[11.5px]"
+            style={{ zoom: zoom.percent / 100 }}
+          >
             <thead>
               <tr>
                 <th className="sticky left-0 top-0 z-20 min-w-[14rem] border-b border-r border-line bg-surface px-3 py-2 text-left font-semibold text-ink-muted">

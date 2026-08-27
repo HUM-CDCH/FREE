@@ -2035,6 +2035,19 @@ describe('BatchExtractionsPanel', () => {
     fireEvent.click(gridButton)
 
     expect(await screen.findByText('Rome')).toBeVisible()
+
+    const zoomIn = screen.getByRole('button', { name: 'Zoom in' })
+    const zoomOut = screen.getByRole('button', { name: 'Zoom out' })
+    const zoomReset = screen.getByRole('button', { name: 'Fit columns to screen width' })
+    expect(zoomReset).toHaveTextContent('Fit')
+    fireEvent.click(zoomIn)
+    fireEvent.click(zoomIn)
+    expect(zoomReset).toHaveTextContent('120%')
+    fireEvent.click(zoomOut)
+    expect(zoomReset).toHaveTextContent('110%')
+    fireEvent.click(zoomReset)
+    expect(zoomReset).toHaveTextContent('Fit')
+
     fireEvent.click(screen.getByText('Rome'))
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     const input = screen.getByDisplayValue('Rome')
