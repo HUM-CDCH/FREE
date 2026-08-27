@@ -50,6 +50,11 @@ export function apiFunctions(configuredBasePath: string): Plugin {
   return {
     name: 'free-api-functions',
     async configureServer(server) {
+      const playwrightMode = process.env.FREE_PLAYWRIGHT_AUTH === '1'
+      if (playwrightMode && server.config.server.host !== '127.0.0.1')
+        throw new Error(
+          'Playwright authentication requires Vite to listen on 127.0.0.1.',
+        )
       if (server.httpServer) {
         // Use Vite's SSR graph so the lifecycle owns the same singleton loaded
         // by API handlers, after defineConfig has established database settings.
@@ -117,7 +122,6 @@ export function apiFunctions(configuredBasePath: string): Plugin {
       const sessionSecret = encodedSecret
         ? Buffer.from(encodedSecret, 'base64')
         : generatedSessionSecret
-      const playwrightMode = process.env.FREE_PLAYWRIGHT_AUTH === '1'
       if (
         playwrightMode &&
         !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(

@@ -159,7 +159,7 @@ describe('Vite Hono integration', () => {
         config: {
           mode: 'development',
           root: temporaryDirectory(),
-          server: { https: false },
+          server: { https: false, host: '127.0.0.1' },
           logger: { error: vi.fn() },
         },
         httpServer: { once: vi.fn() },
@@ -184,6 +184,44 @@ describe('Vite Hono integration', () => {
         playwrightAuthentication: expect.any(Function),
       }),
     )
+  })
+
+  it('rejects Playwright authentication on a wildcard Vite listener', async () => {
+    vi.stubEnv('FREE_PLAYWRIGHT_AUTH', '1')
+    const createStudioApp = vi.fn(async () => ({}))
+    const runtime = {
+      run: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+    }
+    const plugin = apiFunctions('/')
+    if (typeof plugin.configureServer !== 'function')
+      throw new Error('Expected a Vite configureServer hook.')
+
+    await expect(
+      plugin.configureServer({
+        config: {
+          mode: 'https',
+          root: temporaryDirectory(),
+          server: { https: true, host: '0.0.0.0' },
+          logger: { error: vi.fn() },
+        },
+        httpServer: { once: vi.fn() },
+        middlewares: { use: vi.fn() },
+        ssrLoadModule: vi.fn(async (path: string) =>
+          path === '/api/_extraction_runtime.ts'
+            ? { extractionRuntime: runtime }
+            : {
+                createStudioApp,
+                viteClientFallback: vi.fn(),
+                handleStudioNodeRequest: vi.fn(),
+              },
+        ),
+      } as never),
+    ).rejects.toThrow(
+      'Playwright authentication requires Vite to listen on 127.0.0.1.',
+    )
+    expect(runtime.run).not.toHaveBeenCalled()
+    expect(createStudioApp).not.toHaveBeenCalled()
   })
 })
 
