@@ -86,7 +86,10 @@ export async function loginResearcher(
   objectId: string = DEVELOPMENT_ENTRA_OBJECT_ID,
 ): Promise<void> {
   const response = await page.request.get(
-    `${e2eStudioPath('/auth/login')}?${new URLSearchParams({ testIdentity: objectId })}`,
+    `${e2eStudioPath('/auth/login')}?${new URLSearchParams({
+      fragmentCaptured: '1',
+      testIdentity: objectId,
+    })}`,
   )
   expect(response.ok()).toBe(true)
 }

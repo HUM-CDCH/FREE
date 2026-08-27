@@ -20,6 +20,15 @@ async function openAccountMenu(page: import('@playwright/test').Page) {
   return signOut
 }
 
+test('request-context sign-in bypasses the browser-only fragment relay and authenticates @deterministic', async ({
+  page,
+}) => {
+  await loginResearcher(page)
+
+  const session = await page.request.get('/api/auth/session')
+  await expect(session.json()).resolves.toMatchObject({ authenticated: true })
+})
+
 test('deep-link Entra sign-in and keyboard logout clear local authority @deterministic', async ({
   page,
 }) => {
