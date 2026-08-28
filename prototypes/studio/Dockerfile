@@ -8,12 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates dbus-daemon gnome-keyring \
     && rm -rf /var/lib/apt/lists/*
 
-# The provider starts the package-local Codex executable from an isolated
-# temporary cwd. CODEX_HOME lives in the mounted Studio configuration volume.
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
-    HOME=/root \
-    CODEX_HOME=/root/.config/codex
+    HOME=/root
 RUN corepack enable && corepack prepare pnpm@10.9.0 --activate
 
 WORKDIR /workspace
@@ -34,9 +31,7 @@ COPY prototypes/parsing_service/package.json prototypes/parsing_service/
 RUN --mount=type=cache,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store --global \
     && pnpm install --frozen-lockfile --ignore-scripts \
-    && pnpm rebuild @prisma/engines esbuild prisma \
-    && install -d -m 700 "$CODEX_HOME" \
-    && pnpm --filter studio exec codex --version
+    && pnpm rebuild @prisma/engines esbuild prisma
 
 COPY . .
 

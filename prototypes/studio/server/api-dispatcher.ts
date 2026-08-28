@@ -2,7 +2,6 @@
 
 import { ApiError, apiErrorResponse } from '../api/_http.js'
 import type { ResearcherProjectStore } from 'db'
-import * as llmInspector from '../api/llm_inspector.js'
 
 export const SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT = 51 * 1024 * 1024
 
@@ -37,7 +36,6 @@ const PARAMETERIZED: ReadonlyArray<readonly [RegExp, string]> = [
 
 const STATIC_API: Readonly<Record<string, true>> = {
   healthz: true,
-  llm_inspector: true,
   model_config: true,
   model_probe: true,
 }
@@ -62,7 +60,6 @@ export type ApiDispatcher = (
 const eagerModules = import.meta.glob<ApiHandlerModule>(
   [
     '../api/[a-z]*.ts',
-    '!../api/llm_inspector.ts',
   ],
   { eager: true },
 )
@@ -108,10 +105,6 @@ export function createApiHandlerRegistry(
 }
 
 const eagerRegistry = createApiHandlerRegistry(eagerModules)
-const developmentRegistry = createApiHandlerRegistry({
-  ...eagerModules,
-  '../api/llm_inspector.ts': llmInspector,
-})
 
 export function apiHandlerName(
   pathname: string,
@@ -173,6 +166,3 @@ export function createApiDispatcher(
 }
 
 export const dispatchApiRequest = createApiDispatcher(eagerRegistry)
-export const dispatchDevelopmentApiRequest = createApiDispatcher(
-  developmentRegistry,
-)

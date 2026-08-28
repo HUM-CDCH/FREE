@@ -19,7 +19,6 @@ import {
 import { applyAllowedValues } from 'extraction/allowed-values'
 import { parseExtractionResult, parseTemplate } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
-import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'
 import {
   appendProviderResource,
   resolveCapabilityRoute,
@@ -106,7 +105,7 @@ async function operationTarget(
     ...dependencies,
     readConfig: dependencies.readConfig ?? (() => readModelConfig()),
   })
-  return inspectTarget(operation, resolved)
+  return resolved
 }
 
 export async function streamChatWithModel(
@@ -176,7 +175,7 @@ export async function extractWithModel(
       signal,
     })
   } else {
-    generated = await generateWithNuExtractRawPrompt('extraction', resolved, {
+    generated = await generateWithNuExtractRawPrompt(resolved, {
       mode: 'structured',
       template: JSON.stringify(extractionTemplate, null, 2),
       instructions: callerInstruction
@@ -233,7 +232,7 @@ export async function generateSchemaWithModel(
           temperature,
           signal,
         })
-      : await generateWithNuExtractRawPrompt('schema-suggestion', resolved, {
+      : await generateWithNuExtractRawPrompt(resolved, {
           mode: 'template-generation',
           instructions: null,
           documentParts: [{ type: 'text', text: guidance }, ...documentParts.parts],
@@ -313,7 +312,6 @@ async function generateWithGenericJsonPrompt(
 }
 
 async function generateWithNuExtractRawPrompt(
-  operation: ModelOperation,
   target: NuExtractRawExecutionTarget,
   input: {
     readonly mode: NuExtractMode
@@ -342,20 +340,15 @@ async function generateWithNuExtractRawPrompt(
   })
   let response: Response
   try {
-    response = await inspectHttpExchange(
-      operation,
-      target,
-      { url, method: 'POST', body: JSON.parse(requestBody) },
-      () => requestFetch(url, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(target.authorization === null ? {} : { authorization: target.authorization }),
-        },
-        body: requestBody,
-        signal: input.signal,
-      }),
-    )
+    response = await requestFetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(target.authorization === null ? {} : { authorization: target.authorization }),
+      },
+      body: requestBody,
+      signal: input.signal,
+    })
   } catch (error) {
     throw asModelOperationError(error, 'Ollama generation failed.')
   }

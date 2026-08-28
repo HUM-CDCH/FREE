@@ -5,16 +5,9 @@
     "postinstall": "pnpm db:generate && pnpm --recursive --if-present install:python",
     "db:generate": "pnpm --filter db contract:emit",
     "db:reset": "pnpm --filter db db:reset",
-    "setup": "pnpm --filter db db:init",
-    "start": "pnpm dev",
     "dev": "node scripts/free.mjs local",
-    "dev:wifi": "node scripts/free.mjs local --wifi",
-    "dev:wifi:revoke": "node scripts/free.mjs local --revoke-wifi-access",
     "production": "node scripts/free.mjs production",
     "prebuild": "pnpm db:generate",
     "build": "pnpm --filter studio build"
-  },
-  "devDependencies": {
-    "likec4": "^1.59.2"
   }
 }

@@ -13,7 +13,6 @@ import {
 } from './shared/studioBasePath.js'
 import {
   createDevelopmentOidcIdentityProvider,
-  createFakeEntraIdentityProvider,
   createMicrosoftEntraIdentityProvider,
   DEVELOPMENT_ENTRA_CLIENT_ID,
   DEVELOPMENT_ENTRA_TENANT_ID,
@@ -126,15 +125,11 @@ export function apiFunctions(configuredBasePath: string): Plugin {
         throw new Error('Real Entra development requires an HTTPS Studio origin.')
       const required = (name: string) => {
         const configured = environmentValue(name)
-        if (!configured) throw new Error(`${name} is required for real Entra development.`)
+        if (!configured) throw new Error(`${name} is required for development sign-in.`)
         return configured
       }
       // compose.override.yaml points development at its mock OIDC service so
-      // every sign-in runs the real MSAL client code; without the mock (Dev
-      // Container, host-run dev server) identity falls back to the fake.
-      const mockOidcIssuer = !realEntra
-        ? environmentValue('FREE_ENTRA_MOCK_ISSUER')
-        : undefined
+      // every sign-in runs the real MSAL client code and session path.
       const identityProvider = realEntra
         ? createMicrosoftEntraIdentityProvider({
             tenantId: required('FREE_ENTRA_TENANT_ID'),
@@ -147,16 +142,14 @@ export function apiFunctions(configuredBasePath: string): Plugin {
               'utf8',
             ),
           })
-        : mockOidcIssuer
-          ? createDevelopmentOidcIdentityProvider({
-              tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
-              clientId: DEVELOPMENT_ENTRA_CLIENT_ID,
-              serverIssuer: mockOidcIssuer,
-              browserIssuer:
-                environmentValue('FREE_ENTRA_MOCK_BROWSER_ISSUER') ??
-                mockOidcIssuer,
-            })
-          : createFakeEntraIdentityProvider()
+        : createDevelopmentOidcIdentityProvider({
+            tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
+            clientId: DEVELOPMENT_ENTRA_CLIENT_ID,
+            serverIssuer: required('FREE_ENTRA_MOCK_ISSUER'),
+            browserIssuer:
+              environmentValue('FREE_ENTRA_MOCK_BROWSER_ISSUER') ??
+              required('FREE_ENTRA_MOCK_ISSUER'),
+          })
       const app = await studioModule.createStudioApp({
         studioOrigin,
         basePath,

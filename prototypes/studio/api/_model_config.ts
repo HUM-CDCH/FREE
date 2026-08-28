@@ -14,7 +14,6 @@ import {
   type ModelConfigUpdate,
   type ModelConnection,
   type ModelProbeRequest,
-  type ProviderKind,
 } from '../shared/modelConfig.contract.js'
 import { ApiError, boundedValidationDetails, type ValidationIssue } from './_http.js'
 import type { CredentialStore } from './_keyring.js'
@@ -68,7 +67,6 @@ function invalidModelConfig(path: string, issues: readonly ValidationIssue[], ca
 function semanticIssues(config: ModelConfig): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const connectionById = new Map<string, ModelConnection>()
-  const cliCounts = new Map<ProviderKind, number>()
 
   config.connections.forEach((connection, index) => {
     const at = `connections.${index}`
@@ -76,18 +74,6 @@ function semanticIssues(config: ModelConfig): ValidationIssue[] {
       issues.push({ path: `${at}.id`, message: 'Connection IDs must be unique.' })
     } else {
       connectionById.set(connection.id, connection)
-    }
-
-    if (providerTable[connection.provider].transport === 'cli') {
-      if (connection.baseUrl !== null) {
-        issues.push({ path: `${at}.baseUrl`, message: 'CLI providers require a null API base.' })
-      }
-      const count = (cliCounts.get(connection.provider) ?? 0) + 1
-      cliCounts.set(connection.provider, count)
-      if (count > 1) {
-        issues.push({ path: `${at}.provider`, message: 'CLI provider kinds allow only one connection.' })
-      }
-      return
     }
 
     if (connection.baseUrl === null) {
@@ -157,8 +143,8 @@ export function parseModelConfigUpdate(
     })
   }
 
-  // The submitted document is whole, so duplicate IDs, CLI singletons, API bases
-  // and dangling routes are all decidable here, by the same rules a saved one obeys.
+  // The submitted document is whole, so duplicate IDs, API bases and dangling
+  // routes are all decidable here, by the same rules a saved one obeys.
   const issues = semanticIssues(parsed.data.config)
   if (issues.length > 0) {
     throw invalidSubmitted(issues.map((issue) => ({ ...issue, path: `config.${issue.path}` })))
@@ -270,7 +256,6 @@ export async function credentialStates(
 ): Promise<Record<string, CredentialState>> {
   const states: Record<string, CredentialState> = {}
   for (const connection of config.connections) {
-    if (providerTable[connection.provider].authentication === 'external') continue
     try {
       states[connection.id] = await store.state(connection.id)
     } catch {
@@ -333,12 +318,7 @@ function updateIssues(
       continue
     }
     const { authentication } = providerTable[connection.provider]
-    if (authentication === 'external') {
-      issues.push({
-        path: `credentials.${id}`,
-        message: 'Externally authenticated providers have no FREE-managed credential.',
-      })
-    } else if (authentication === 'managed' && action === null) {
+    if (authentication === 'managed' && action === null) {
       issues.push({ path: `credentials.${id}`, message: 'This provider requires a credential.' })
     }
   }
@@ -419,8 +399,8 @@ export async function updateModelConfig(
   // reactivate a leftover credential: managed/new endpoints require an explicit
   // credential, while optional/new endpoints delete any leftover before commit.
   const submitted = new Set(config.connections.map(({ id }) => id))
-  for (const { id, provider } of previous.connections) {
-    if (submitted.has(id) || providerTable[provider].authentication === 'external') continue
+  for (const { id } of previous.connections) {
+    if (submitted.has(id)) continue
     await store.delete(id).catch(() => undefined)
   }
 

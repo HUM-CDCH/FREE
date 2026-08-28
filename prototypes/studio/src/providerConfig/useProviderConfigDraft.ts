@@ -74,13 +74,7 @@ export function useProviderConfigDraft({ providers, scheduleProbe, disposeProbe 
       connections: draft.connections.map((item) => (item.id === connection.id ? next : item)),
       routes,
     })
-    const action = provider.authentication === 'external' ? undefined : actionFor(connection.id)
-    if (provider.authentication === 'external' && Object.hasOwn(credentialActions, connection.id)) {
-      const actions = { ...credentialActions }
-      delete actions[connection.id]
-      setCredentialActions(actions)
-    }
-    scheduleProbe(next, action)
+    scheduleProbe(next, actionFor(connection.id))
   }
 
   function updateCredential(connection: ModelConnection, action: string | null | undefined): void {
