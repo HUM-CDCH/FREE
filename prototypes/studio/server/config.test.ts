@@ -127,13 +127,21 @@ describe('production Studio configuration', () => {
     ).toThrow(/FREE_ENTRA_CLIENT_CERT_THUMBPRINT/)
   })
 
-  it('requires one canonical proxy peer address', () => {
+  it('requires one canonical proxy peer address or IPv4 CIDR block', () => {
     for (const address of [
       '172.030.0.2',
       '172.30.0.2:443',
       ' 172.30.0.2',
       '2001:0db8:0:0:0:0:0:1',
       'not-an-ip',
+      // Non-canonical or malformed CIDR blocks.
+      '172.30.0.1/24',
+      '172.30.0.0/0',
+      '172.30.0.0/33',
+      '172.30.0.0/024',
+      '172.30.0.0/',
+      '172.30.0.0/24/8',
+      '2001:db8::/64',
     ])
       expect(() =>
         loadStudioServerConfig({
@@ -148,6 +156,12 @@ describe('production Studio configuration', () => {
         FREE_STUDIO_PROXY_ADDRESS: '2001:db8::1',
       }).proxyAddress,
     ).toBe('2001:db8::1')
+    expect(
+      loadStudioServerConfig({
+        ...HOSTED,
+        FREE_STUDIO_PROXY_ADDRESS: '172.30.0.0/24',
+      }).proxyAddress,
+    ).toBe('172.30.0.0/24')
   })
 
   it('allows only an explicit socket-only loopback exception', () => {
@@ -233,6 +247,26 @@ describe('trusted request peer', () => {
     ).toThrowError(
       expect.objectContaining({ status: 403, code: 'proxy_peer_rejected' }),
     )
+  })
+
+  it('trusts exactly the configured proxy-network CIDR block', () => {
+    const verifyPeer = createRequestPeerVerifier(
+      loadStudioServerConfig({
+        ...HOSTED,
+        FREE_STUDIO_PROXY_ADDRESS: '172.30.0.0/24',
+      }),
+    )
+
+    expect(() => verifyPeer(requestBindings('172.30.0.2'))).not.toThrow()
+    expect(() =>
+      verifyPeer(requestBindings('::ffff:172.30.0.254')),
+    ).not.toThrow()
+    for (const peer of ['172.30.1.2', '127.0.0.1', '2001:db8::1', undefined])
+      expect(() =>
+        verifyPeer(requestBindings(peer as never)),
+      ).toThrowError(
+        expect.objectContaining({ status: 403, code: 'proxy_peer_rejected' }),
+      )
   })
 
 

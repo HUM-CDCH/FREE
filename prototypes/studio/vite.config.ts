@@ -12,8 +12,11 @@ import {
   studioBaseHref,
 } from './shared/studioBasePath.js'
 import {
+  createDevelopmentOidcIdentityProvider,
   createFakeEntraIdentityProvider,
   createMicrosoftEntraIdentityProvider,
+  DEVELOPMENT_ENTRA_CLIENT_ID,
+  DEVELOPMENT_ENTRA_TENANT_ID,
 } from './server/entraIdentityProvider.js'
 import { normalizeEntraCertificateThumbprint } from './server/config.js'
 
@@ -148,6 +151,13 @@ export function apiFunctions(configuredBasePath: string): Plugin {
         if (!configured) throw new Error(`${name} is required for real Entra development.`)
         return configured
       }
+      // compose.override.yaml points development at its mock OIDC service so
+      // every sign-in runs the real MSAL client code; without the mock (Dev
+      // Container, host-run dev server) identity falls back to the fake.
+      const mockOidcIssuer =
+        !playwrightMode && !realEntra
+          ? environmentValue('FREE_ENTRA_MOCK_ISSUER')
+          : undefined
       const identityProvider = realEntra
         ? createMicrosoftEntraIdentityProvider({
             tenantId: required('FREE_ENTRA_TENANT_ID'),
@@ -160,7 +170,16 @@ export function apiFunctions(configuredBasePath: string): Plugin {
               'utf8',
             ),
           })
-        : createFakeEntraIdentityProvider()
+        : mockOidcIssuer
+          ? createDevelopmentOidcIdentityProvider({
+              tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
+              clientId: DEVELOPMENT_ENTRA_CLIENT_ID,
+              serverIssuer: mockOidcIssuer,
+              browserIssuer:
+                environmentValue('FREE_ENTRA_MOCK_BROWSER_ISSUER') ??
+                mockOidcIssuer,
+            })
+          : createFakeEntraIdentityProvider()
       const app = await studioModule.createStudioApp({
         studioOrigin,
         basePath,
@@ -199,7 +218,7 @@ export default defineConfig(({ command, mode }) => {
   if (command === 'serve') {
     process.env.DATABASE_URL ??= loadEnv(
       mode,
-      resolve(import.meta.dirname, '../../packages/db'),
+      resolve(import.meta.dirname, '../..'),
       '',
     ).DATABASE_URL
   }
@@ -215,7 +234,12 @@ export default defineConfig(({ command, mode }) => {
       outDir: 'dist/client',
       emptyOutDir: true,
     },
-    server: mode === 'https' ? localHttps() : { host: '127.0.0.1' as const },
+    // The Compose development overlay widens the bind with the `--host` CLI
+    // flag; the config itself never listens beyond loopback.
+    server:
+      mode === 'https'
+        ? localHttps()
+        : { host: '127.0.0.1', port: 5173, strictPort: true },
   }
 })
 

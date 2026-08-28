@@ -142,9 +142,67 @@ describe('Vite Hono integration', () => {
     expect(createStudioApp).not.toHaveBeenCalled()
   })
 
+  it('drives development sign-in through the mock OIDC issuer when configured', async () => {
+    vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', 'http://mock-oidc:8080/dev')
+    vi.stubEnv('FREE_ENTRA_MOCK_BROWSER_ISSUER', 'http://localhost:8444/dev')
+    const createStudioApp = vi.fn(async () => ({}))
+    const runtime = {
+      run: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+    }
+    const plugin = apiFunctions('/free')
+    if (typeof plugin.configureServer !== 'function')
+      throw new Error('Expected a Vite configureServer hook.')
+
+    await plugin.configureServer({
+      config: {
+        mode: 'development',
+        root: temporaryDirectory(),
+        server: { https: false },
+        logger: { error: vi.fn() },
+      },
+      httpServer: { once: vi.fn() },
+      middlewares: { use: vi.fn() },
+      ssrLoadModule: vi.fn(async (path: string) =>
+        path === '/api/_extraction_runtime.ts'
+          ? { extractionRuntime: runtime }
+          : {
+              createStudioApp,
+              viteClientFallback: vi.fn(),
+              handleStudioNodeRequest: vi.fn(),
+            },
+      ),
+    } as never)
+
+    const identityProvider = createStudioApp.mock.calls[0]![0]!
+      .identityProvider as {
+        authorizationUrl(input: {
+          redirectUri: string
+          state: string
+          nonce: string
+          codeChallenge: string
+        }): Promise<string>
+        logoutUrl(postLogoutRedirectUri: string): string
+      }
+    await expect(
+      identityProvider.authorizationUrl({
+        redirectUri: 'https://localhost:8443/free/auth/callback',
+        state: 'state',
+        nonce: 'nonce',
+        codeChallenge: 'challenge',
+      }),
+    ).resolves.toMatch(/^http:\/\/localhost:8444\/dev\/authorize\?/)
+    expect(
+      identityProvider.logoutUrl(
+        'https://localhost:8443/free/auth/signed-out',
+      ),
+    ).toMatch(/^http:\/\/localhost:8444\/dev\/endsession\?/)
+  })
+
   it('keeps Playwright on fake Entra despite inherited real-Entra state', async () => {
     vi.stubEnv('FREE_ENTRA_REAL', '1')
     vi.stubEnv('FREE_PLAYWRIGHT_AUTH', '1')
+    vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', 'http://mock-oidc:8080/dev')
     const createStudioApp = vi.fn(async () => ({}))
     const runtime = {
       run: vi.fn(async () => undefined),
@@ -184,6 +242,28 @@ describe('Vite Hono integration', () => {
         playwrightAuthentication: expect.any(Function),
       }),
     )
+    // The fake provider answers with the redirect URI itself, proving neither
+    // the real tenant nor the mock issuer was selected.
+    const identityProvider = (
+      createStudioApp.mock.calls[0]![0] as {
+        identityProvider: {
+          authorizationUrl(input: {
+            redirectUri: string
+            state: string
+            nonce: string
+            codeChallenge: string
+          }): Promise<string>
+        }
+      }
+    ).identityProvider
+    await expect(
+      identityProvider.authorizationUrl({
+        redirectUri: 'http://127.0.0.1:5173/auth/callback',
+        state: 'state',
+        nonce: 'nonce',
+        codeChallenge: 'challenge',
+      }),
+    ).resolves.toMatch(/^http:\/\/127\.0\.0\.1:5173\/auth\/callback\?code=/)
   })
 
   it('rejects Playwright authentication on a wildcard Vite listener', async () => {
@@ -280,7 +360,11 @@ describe('Vite HTTPS mode', () => {
       isPreview: false,
     })
 
-    expect(config.server).toEqual({ host: '127.0.0.1' })
+    expect(config.server).toEqual({
+      host: '127.0.0.1',
+      port: 5173,
+      strictPort: true,
+    })
   })
 
   it('serves a configured path prefix and keeps production assets relocatable', async () => {

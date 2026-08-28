@@ -1,12 +1,13 @@
 import {
   ConfidentialClientApplication,
+  ProtocolMode,
   ResponseMode,
   type IConfidentialClientApplication,
   type INetworkModule,
   type NetworkRequestOptions,
   type NetworkResponse,
 } from '@azure/msal-node'
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync } from 'node:crypto'
 import { normalizeCanonicalUuid } from '../shared/uuid.js'
 
 const OIDC_SCOPES = ['openid', 'profile']
@@ -215,6 +216,87 @@ export const DEVELOPMENT_ENTRA_TENANT_ID =
   '00000000-0000-4000-8000-000000000001'
 export const DEVELOPMENT_ENTRA_OBJECT_ID =
   '00000000-0000-4000-8000-000000000002'
+export const DEVELOPMENT_ENTRA_CLIENT_ID =
+  '00000000-0000-4000-8000-000000000003'
+
+export type DevelopmentOidcIdentityProviderConfig = {
+  tenantId: string
+  clientId: string
+  /** Mock OIDC issuer as reached by the Studio server process. */
+  serverIssuer: string
+  /** The same issuer as reached by the researcher's browser. */
+  browserIssuer: string
+}
+
+/**
+ * Drives the production Microsoft Entra provider — the real MSAL client,
+ * certificate client assertion, PKCE, and claim validation — against a local
+ * mock OIDC server instead of a real tenant. Development-only. The mock
+ * accepts any client credential, so the assertion is signed with a throwaway
+ * key generated per boot, and the endpoints are pinned through
+ * `authorityMetadata` because the browser and the Studio server reach the
+ * mock through different hosts across the Docker boundary. MSAL refuses a
+ * non-HTTPS authority URL but never contacts it once metadata is supplied,
+ * so a placeholder identifier stands in.
+ */
+export function createDevelopmentOidcIdentityProvider(
+  config: DevelopmentOidcIdentityProviderConfig,
+  request: typeof fetch = fetch,
+): EntraIdentityProvider {
+  const serverIssuer = config.serverIssuer.replace(/\/+$/, '')
+  const browserIssuer = config.browserIssuer.replace(/\/+$/, '')
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+  })
+  const certificatePrivateKey = privateKey
+    .export({ type: 'pkcs8', format: 'pem' })
+    .toString()
+  const certificateThumbprint = createHash('sha256')
+    .update(publicKey.export({ type: 'spki', format: 'der' }))
+    .digest('hex')
+    .toUpperCase()
+  const provider = createMicrosoftEntraIdentityProvider(
+    {
+      tenantId: config.tenantId,
+      clientId: config.clientId,
+      certificateThumbprint,
+      certificatePrivateKey,
+    },
+    new ConfidentialClientApplication({
+      auth: {
+        clientId: config.clientId,
+        // MSAL rewrites endpoint paths to mirror the authority's path
+        // segments, so the placeholder must carry the issuer's own path.
+        authority: `https://development-oidc.invalid${new URL(serverIssuer).pathname}`,
+        knownAuthorities: ['development-oidc.invalid'],
+        authorityMetadata: JSON.stringify({
+          issuer: serverIssuer,
+          authorization_endpoint: `${browserIssuer}/authorize`,
+          token_endpoint: `${serverIssuer}/token`,
+          jwks_uri: `${serverIssuer}/jwks`,
+          end_session_endpoint: `${browserIssuer}/endsession`,
+        }),
+        clientCertificate: {
+          thumbprintSha256: certificateThumbprint,
+          privateKey: certificatePrivateKey,
+        },
+      },
+      system: {
+        networkClient: createOidcOnlyNetworkClient(request),
+        protocolMode: ProtocolMode.OIDC,
+      },
+    }),
+  )
+  return {
+    ...provider,
+    // The one Entra-specific URL the production provider hardcodes.
+    logoutUrl(postLogoutRedirectUri) {
+      const url = new URL(`${browserIssuer}/endsession`)
+      url.searchParams.set('post_logout_redirect_uri', postLogoutRedirectUri)
+      return url.href
+    },
+  }
+}
 
 export function createFakeEntraIdentityProvider(options: {
   tenantId?: string

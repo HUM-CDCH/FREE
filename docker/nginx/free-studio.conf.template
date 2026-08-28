@@ -1,0 +1,27 @@
+# Development nginx entry point (Compose service in compose.override.yaml).
+# The nginx image's entrypoint renders every /etc/nginx/templates/*.template
+# with envsubst; free-studio-locations.inc.template renders alongside this file
+# and carries the application proxy behavior shared with the production host
+# nginx. Only this wrapper is environment-specific: mkcert TLS files and the
+# root redirect on a server that serves nothing else.
+map $http_upgrade $free_connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/tls/studio.crt;
+    ssl_certificate_key /etc/nginx/tls/studio.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    location = / {
+        absolute_redirect off;
+        return 308 ${STUDIO_BASE_PATH}/;
+    }
+
+    include /etc/nginx/conf.d/free-studio-locations.inc;
+}
