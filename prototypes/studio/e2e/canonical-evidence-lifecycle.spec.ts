@@ -364,7 +364,14 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     .orderBy((attempt) => attempt.createdAt.desc())
     .first()
   expect(reviewed?.reviewedAt).not.toBeNull()
-  const persistedDecisions = await db.orm.public.ReviewDecision.where({ extractionId: reviewed!.id })
+  const persistedReview = await db.orm.public.ExtractionReview.where({ extractionId: reviewed!.id })
+    .select('id')
+    .orderBy((review) => review.revisionNumber.desc())
+    .first()
+  expect(persistedReview).not.toBeNull()
+  const persistedDecisions = await db.orm.public.ReviewDecision.where({
+    extractionReviewId: persistedReview!.id,
+  })
     .select('resultPath', 'action', 'reviewedValue', 'createdAt')
     .all()
   expect(persistedDecisions.length).toBeGreaterThan(1)

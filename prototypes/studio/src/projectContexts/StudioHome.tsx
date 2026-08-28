@@ -95,9 +95,9 @@ const projectColumns =
 /** The zero-Project-Context welcome: promise, workflow walkthrough, one action. */
 function FirstRun({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-14 p-12">
+    <div className="flex h-full flex-col items-center justify-center gap-8 overflow-y-auto p-4 pt-16 sm:gap-14 sm:p-12">
       <div className="flex max-w-lg flex-col items-center gap-3.5 text-center">
-        <h1 className="font-serif text-[38px] leading-[1.25] font-normal tracking-[-0.01em] text-ink">
+        <h1 className="font-serif text-[28px] leading-[1.2] font-normal tracking-[-0.01em] text-ink sm:text-[38px] sm:leading-[1.25]">
           From source to structured data, with the evidence to prove it
         </h1>
         <p className="text-sm leading-relaxed text-ink-muted">
@@ -106,9 +106,9 @@ function FirstRun({ onCreate }: { onCreate: () => void }) {
         </p>
       </div>
 
-      <ol className="flex flex-wrap items-start justify-center gap-x-16 gap-y-8">
+      <ol className="grid w-full max-w-xl grid-cols-2 items-start gap-6 sm:flex sm:max-w-none sm:flex-wrap sm:justify-center sm:gap-x-16 sm:gap-y-8">
         {phases.map((phase) => (
-          <li key={phase.number} className="flex w-[150px] flex-col gap-1.5 pt-4">
+          <li key={phase.number} className="flex min-w-0 flex-col gap-1.5 pt-4 sm:w-[150px]">
             <span aria-hidden="true" className="font-mono text-[11px] text-accent">
               {phase.number}
             </span>
@@ -170,9 +170,9 @@ export function StudioHome({
     )
 
   return (
-    <div className="scrollbar-subtle h-full overflow-y-auto p-12">
+    <div className="scrollbar-subtle h-full overflow-y-auto p-4 pt-16 sm:p-12">
       <div className="mx-auto w-full max-w-[1120px]">
-        <div className="mb-10 flex items-end justify-between">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4 sm:mb-10">
           <div className="flex flex-col gap-2">
             <h1 className="font-serif text-[32px] leading-none font-normal tracking-[-0.01em] text-ink">
               Projects

@@ -205,17 +205,23 @@ async function loadExtraction(orm: DatabaseOrm, extractionId: string): Promise<E
     id: row.schemaRevisionId,
   })
   if (!representation || !schema) throw new Error('Stored Extraction pins are unavailable.')
-  const decisions = await orm.public.ReviewDecision.where({ extractionId })
-    .select(
-      'resultPath',
-      'resultPathKey',
-      'evidenceAnchorId',
-      'reviewedOccurrenceIds',
-      'action',
-      'reviewedValue',
-      'createdAt',
-    )
-    .orderBy((decision) => decision.resultPathKey.asc()).all()
+  const review = await orm.public.ExtractionReview.where({ extractionId })
+    .select('id')
+    .orderBy((candidate) => candidate.revisionNumber.desc())
+    .first()
+  const decisions = review
+    ? await orm.public.ReviewDecision.where({ extractionReviewId: review.id })
+      .select(
+        'resultPath',
+        'resultPathKey',
+        'evidenceAnchorId',
+        'reviewedOccurrenceIds',
+        'action',
+        'reviewedValue',
+        'createdAt',
+      )
+      .orderBy((decision) => decision.resultPathKey.asc()).all()
+    : []
   return {
     extractionId: row.id,
     sourceDocumentId: row.sourceDocumentId,
@@ -440,7 +446,10 @@ function reviewAuthorityMatchesExtraction(
   )
 }
 async function reviewDigest(orm: DatabaseOrm, extractionId: string): Promise<string | null> {
-  return (await orm.public.ExtractionReview.select('decisionDigest').first({ extractionId }))?.decisionDigest ?? null
+  return (await orm.public.ExtractionReview.where({ extractionId })
+    .select('decisionDigest')
+    .orderBy((review) => review.revisionNumber.desc())
+    .first())?.decisionDigest ?? null
 }
 type DatabaseTransaction = Parameters<
   Parameters<Database['transaction']>[0]
@@ -780,10 +789,14 @@ class PostgresExtractionPersistence implements ExtractionPersistence {
         if (!reviewAuthorityMatchesExtraction(extraction, submitted, authority))
           return 'invalid' as const
         if (extraction.reviewedAt) return (await reviewDigest(orm, extractionId)) === digest ? 'replayed' as const : 'conflict' as const
-        await orm.public.ExtractionReview.create({ extractionId, decisionDigest: digest })
+        const review = await orm.public.ExtractionReview.create({
+          extractionId,
+          revisionNumber: 1,
+          decisionDigest: digest,
+        })
         for (const decision of submitted)
           await orm.public.ReviewDecision.create({
-            extractionId,
+            extractionReviewId: review.id,
             ...decision,
             // Prisma Next's JSONB decoder requires an object/array wire value;
             // an explicit envelope preserves scalar review values losslessly.
@@ -1270,13 +1283,14 @@ class ResearcherPostgresExtractionPersistence implements ExtractionPersistence {
           return (await reviewDigest(orm, extractionId)) === digest
             ? ('replayed' as const)
             : ('conflict' as const)
-        await orm.public.ExtractionReview.create({
+        const review = await orm.public.ExtractionReview.create({
           extractionId,
+          revisionNumber: 1,
           decisionDigest: digest,
         })
         for (const decision of submitted)
           await orm.public.ReviewDecision.create({
-            extractionId,
+            extractionReviewId: review.id,
             ...decision,
             reviewedValue: encodeReviewedValue(decision.reviewedValue),
           })

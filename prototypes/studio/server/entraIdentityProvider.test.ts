@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import {
+  createDevelopmentOidcIdentityProvider,
   createFakeEntraIdentityProvider,
   createMicrosoftEntraIdentityProvider,
   createOidcOnlyNetworkClient,
@@ -136,6 +137,113 @@ describe('Microsoft Entra identity provider', () => {
       provider.logoutUrl('https://studio.example/free/auth/signed-out'),
     ).toBe(
       `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/logout?post_logout_redirect_uri=https%3A%2F%2Fstudio.example%2Ffree%2Fauth%2Fsigned-out`,
+    )
+  })
+})
+
+describe('development OIDC identity provider', () => {
+  const CLIENT_ID = '00000000-0000-4000-8000-000000000003'
+
+  function developmentProvider(request: typeof fetch) {
+    return createDevelopmentOidcIdentityProvider(
+      {
+        tenantId: TENANT_ID,
+        clientId: CLIENT_ID,
+        serverIssuer: 'http://mock-oidc:8080/dev',
+        browserIssuer: 'http://localhost:8444/dev/',
+      },
+      request,
+    )
+  }
+
+  function idToken(claims: Record<string, unknown>): string {
+    const encode = (value: unknown) =>
+      Buffer.from(JSON.stringify(value)).toString('base64url')
+    return `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode(claims)}.signature`
+  }
+
+  it('builds the browser-facing authorization URL without network access', async () => {
+    const request = vi.fn<typeof fetch>()
+    const provider = developmentProvider(request)
+
+    const url = new URL(
+      await provider.authorizationUrl({
+        redirectUri: 'https://localhost:8443/free/auth/callback',
+        state: 'state',
+        nonce: 'nonce',
+        codeChallenge: 'challenge',
+      }),
+    )
+
+    expect(url.origin + url.pathname).toBe(
+      'http://localhost:8444/dev/authorize',
+    )
+    expect(url.searchParams.get('scope')).toBe('openid profile')
+    expect(url.searchParams.get('redirect_uri')).toBe(
+      'https://localhost:8443/free/auth/callback',
+    )
+    expect(url.searchParams.get('state')).toBe('state')
+    expect(url.searchParams.get('nonce')).toBe('nonce')
+    expect(url.searchParams.get('code_challenge')).toBe('challenge')
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('redeems the code at the server-facing token endpoint with a client assertion', async () => {
+    const request = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args
+      return Response.json({
+        token_type: 'Bearer',
+        scope: 'openid profile',
+        expires_in: 3600,
+        access_token: 'access-token',
+        id_token: idToken({
+          iss: 'http://mock-oidc:8080/dev',
+          aud: CLIENT_ID,
+          sub: OBJECT_ID,
+          tid: TENANT_ID,
+          oid: OBJECT_ID,
+          name: 'Development Researcher',
+          iat: 1_800_000_000,
+          exp: 1_800_003_600,
+          nonce: 'expected-nonce',
+        }),
+      })
+    })
+    const provider = developmentProvider(request as typeof fetch)
+
+    await expect(
+      provider.redeemAuthorizationCode({
+        redirectUri: 'https://localhost:8443/free/auth/callback',
+        code: 'authorization-code',
+        codeVerifier: 'verifier',
+      }),
+    ).resolves.toEqual({
+      tenantId: TENANT_ID,
+      objectId: OBJECT_ID,
+      displayName: 'Development Researcher',
+      expiresAt: 1_800_003_600_000,
+      nonce: 'expected-nonce',
+    })
+
+    expect(request).toHaveBeenCalledOnce()
+    const tokenUrl = new URL(request.mock.calls[0]![0] as string)
+    expect(tokenUrl.origin + tokenUrl.pathname).toBe(
+      'http://mock-oidc:8080/dev/token',
+    )
+    const body = new URLSearchParams(request.mock.calls[0]![1]!.body as string)
+    expect(body.get('grant_type')).toBe('authorization_code')
+    expect(body.get('code')).toBe('authorization-code')
+    expect(body.get('code_verifier')).toBe('verifier')
+    expect(body.get('scope')).toBe('openid profile')
+    expect(body.get('client_assertion')).toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/)
+  })
+
+  it('signs out through the browser-facing end-session endpoint', () => {
+    const provider = developmentProvider(vi.fn<typeof fetch>())
+    expect(
+      provider.logoutUrl('https://localhost:8443/free/auth/signed-out'),
+    ).toBe(
+      'http://localhost:8444/dev/endsession?post_logout_redirect_uri=https%3A%2F%2Flocalhost%3A8443%2Ffree%2Fauth%2Fsigned-out',
     )
   })
 })

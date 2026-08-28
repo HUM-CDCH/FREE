@@ -114,6 +114,16 @@ function studioOrigin(value: string, proxyMode: StudioProxyMode): string {
   return origin
 }
 
+function ipv4ToInteger(address: string): number {
+  return address
+    .split('.')
+    .reduce((total, octet) => total * 256 + Number(octet), 0)
+}
+
+function ipv4CidrMask(prefixLength: number): number {
+  return prefixLength === 0 ? 0 : (~0 << (32 - prefixLength)) >>> 0
+}
+
 function canonicalProxyAddress(value: string): string {
   const family = isIP(value)
   let canonical = value
@@ -126,8 +136,40 @@ function canonicalProxyAddress(value: string): string {
   }
   if (family === 0 || canonical !== value)
     throw new StudioConfigurationError(
-      'FREE_STUDIO_PROXY_ADDRESS must be one canonical IP address.',
+      'FREE_STUDIO_PROXY_ADDRESS must be one canonical IP address or IPv4 CIDR block.',
     )
+  return value
+}
+
+type ProxyPeer =
+  | { kind: 'address'; address: string }
+  | { kind: 'network'; network: number; mask: number }
+
+function parseProxyPeer(value: string): ProxyPeer {
+  const separator = value.indexOf('/')
+  if (separator === -1)
+    return { kind: 'address', address: canonicalProxyAddress(value) }
+  const network = value.slice(0, separator)
+  const prefix = value.slice(separator + 1)
+  if (
+    isIP(network) !== 4 ||
+    !/^[1-9]\d?$/.test(prefix) ||
+    Number(prefix) > 32
+  )
+    throw new StudioConfigurationError(
+      'FREE_STUDIO_PROXY_ADDRESS must be one canonical IP address or IPv4 CIDR block.',
+    )
+  const mask = ipv4CidrMask(Number(prefix))
+  const networkInteger = ipv4ToInteger(network)
+  if ((networkInteger & mask) >>> 0 !== networkInteger)
+    throw new StudioConfigurationError(
+      'FREE_STUDIO_PROXY_ADDRESS must be one canonical IP address or IPv4 CIDR block.',
+    )
+  return { kind: 'network', network: networkInteger, mask }
+}
+
+function canonicalProxyPeer(value: string): string {
+  parseProxyPeer(value)
   return value
 }
 
@@ -174,7 +216,7 @@ export function loadStudioServerConfig(
   const proxyMode: StudioProxyMode = proxy
   let proxyAddress: string | null = null
   if (proxyMode === 'trusted-proxy')
-    proxyAddress = canonicalProxyAddress(
+    proxyAddress = canonicalProxyPeer(
       required(environment, 'FREE_STUDIO_PROXY_ADDRESS'),
     )
   else if (environment.FREE_STUDIO_PROXY_ADDRESS !== undefined)
@@ -218,12 +260,18 @@ export function loadStudioServerConfig(
 export function createRequestPeerVerifier(config: StudioServerConfig) {
   if (config.proxyMode !== 'trusted-proxy') return (): void => {}
 
-  const expected = config.proxyAddress!
+  const expected = parseProxyPeer(config.proxyAddress!)
+  const trusted =
+    expected.kind === 'address'
+      ? (peer: string) => peer === expected.address
+      : (peer: string) =>
+          isIP(peer) === 4 &&
+          (ipv4ToInteger(peer) & expected.mask) >>> 0 === expected.network
   return (bindings: ClientAddressBindings): void => {
     const peer = normalizeClientAddress(
       bindings.incoming?.socket.remoteAddress,
     )
-    if (peer !== expected)
+    if (!trusted(peer))
       throw new ApiError(
         403,
         'proxy_peer_rejected',

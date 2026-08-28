@@ -33,11 +33,11 @@ function DocumentTabBar({
     <div className="flex shrink-0 flex-col bg-surface">
       {/* h-14 matches the sidebar logo header (AppFrame.tsx) so the two
           border-b lines meet at the same height across the divider. */}
-      <div className="flex h-14 items-end gap-1 border-b border-line pl-1.5">
+      <div className="flex min-h-14 flex-wrap items-end gap-1 border-b border-line pl-12 sm:h-14 sm:flex-nowrap sm:pl-1.5">
         <div
           role="tablist"
           aria-label="Open Source Documents"
-          className="scrollbar-subtle flex min-w-0 flex-1 items-end gap-1 overflow-x-auto"
+          className="scrollbar-subtle flex h-14 min-w-0 flex-1 items-end gap-1 overflow-x-auto sm:h-auto"
         >
         {tabs.map((tab) => {
           const active = tab.sourceDocumentId === activeSourceDocumentId
@@ -85,7 +85,7 @@ function DocumentTabBar({
         </div>
         <div
           ref={slotRef}
-          className="flex shrink-0 items-center gap-3 px-3 py-2"
+          className="scrollbar-subtle flex w-[calc(100%+3rem)] shrink-0 -ml-12 items-center gap-3 overflow-x-auto border-t border-line px-3 py-2 sm:ml-0 sm:w-auto sm:border-t-0"
         />
       </div>
       <nav
