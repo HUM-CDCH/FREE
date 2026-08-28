@@ -53,11 +53,6 @@ export function apiFunctions(configuredBasePath: string): Plugin {
   return {
     name: 'free-api-functions',
     async configureServer(server) {
-      const playwrightMode = process.env.FREE_PLAYWRIGHT_AUTH === '1'
-      if (playwrightMode && server.config.server.host !== '127.0.0.1')
-        throw new Error(
-          'Playwright authentication requires Vite to listen on 127.0.0.1.',
-        )
       if (server.httpServer) {
         // Use Vite's SSR graph so the lifecycle owns the same singleton loaded
         // by API handlers, after defineConfig has established database settings.
@@ -98,7 +93,6 @@ export function apiFunctions(configuredBasePath: string): Plugin {
           sessionSecret: Uint8Array
           identityProvider: unknown
           accountStore?: unknown
-          playwrightAuthentication?: unknown
           clientHandler: () => Response
           viteDevelopmentAssets: boolean
         }): Promise<unknown>
@@ -125,25 +119,9 @@ export function apiFunctions(configuredBasePath: string): Plugin {
       const sessionSecret = encodedSecret
         ? Buffer.from(encodedSecret, 'base64')
         : generatedSessionSecret
-      if (
-        playwrightMode &&
-        !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(
-          studioOrigin,
-        )
-      )
-        throw new Error(
-          'Playwright authentication is restricted to a loopback Studio origin.',
-        )
-      const playwright = playwrightMode
-        ? await import('./server/playwright-auth.ts')
-        : undefined
-      const accountStore = playwright?.createPlaywrightAccountStore()
-      const playwrightAuthentication =
-        playwright?.createPlaywrightAuthentication()
       const environmentValue = (name: string) =>
         process.env[name] ?? environment[name]
-      const realEntra =
-        !playwrightMode && environmentValue('FREE_ENTRA_REAL') === '1'
+      const realEntra = environmentValue('FREE_ENTRA_REAL') === '1'
       if (realEntra && new URL(studioOrigin).protocol !== 'https:')
         throw new Error('Real Entra development requires an HTTPS Studio origin.')
       const required = (name: string) => {
@@ -154,10 +132,9 @@ export function apiFunctions(configuredBasePath: string): Plugin {
       // compose.override.yaml points development at its mock OIDC service so
       // every sign-in runs the real MSAL client code; without the mock (Dev
       // Container, host-run dev server) identity falls back to the fake.
-      const mockOidcIssuer =
-        !playwrightMode && !realEntra
-          ? environmentValue('FREE_ENTRA_MOCK_ISSUER')
-          : undefined
+      const mockOidcIssuer = !realEntra
+        ? environmentValue('FREE_ENTRA_MOCK_ISSUER')
+        : undefined
       const identityProvider = realEntra
         ? createMicrosoftEntraIdentityProvider({
             tenantId: required('FREE_ENTRA_TENANT_ID'),
@@ -185,8 +162,6 @@ export function apiFunctions(configuredBasePath: string): Plugin {
         basePath,
         sessionSecret,
         identityProvider,
-        accountStore,
-        playwrightAuthentication,
         clientHandler: studioModule.viteClientFallback,
         viteDevelopmentAssets: true,
       })

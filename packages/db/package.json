@@ -6,8 +6,6 @@
   "private": true,
   "exports": "./src/index.ts",
   "scripts": {
-    "test": "tsx --test src/*.test.ts",
-    "test:postgres": "tsx --test src/project-store.postgres.check.ts",
     "contract:emit": "prisma-next contract emit",
     "db:start": "tsx src/start-development-database.ts",
     "db:reset": "tsx src/reset-database.ts && prisma-next migrate --yes",

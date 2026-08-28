@@ -62,8 +62,6 @@ export type ApiDispatcher = (
 const eagerModules = import.meta.glob<ApiHandlerModule>(
   [
     '../api/[a-z]*.ts',
-    '!../api/*.test.ts',
-    '!../api/*.fixture.ts',
     '!../api/llm_inspector.ts',
   ],
   { eager: true },

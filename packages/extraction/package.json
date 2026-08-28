@@ -12,9 +12,7 @@
     "./schema": "./src/schema.ts",
     "./source-context": "./src/source-context.ts"
   },
-  "scripts": {
-    "test": "tsx --test src/*.test.ts"
-  },
+  "scripts": {},
   "dependencies": {
     "db": "workspace:*",
     "zod": "^4.4.3"
