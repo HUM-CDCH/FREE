@@ -37,7 +37,7 @@ function run(command, args, options = {}) {
   return result
 }
 
-function ensureCertificates() {
+export function ensureCertificates() {
   const certificate = resolve(ROOT, '.certs', 'studio.crt')
   const key = resolve(ROOT, '.certs', 'studio.key')
   if (existsSync(certificate) && existsSync(key)) return

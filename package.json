@@ -8,6 +8,7 @@
     "dev": "node scripts/free.mjs local",
     "production": "node scripts/free.mjs production",
     "prebuild": "pnpm db:generate",
-    "build": "pnpm --filter studio build"
+    "build": "pnpm --filter studio build",
+    "test": "node --test --test-concurrency=1 tests/safety.test.mjs tests/contract.test.mjs"
   }
 }
