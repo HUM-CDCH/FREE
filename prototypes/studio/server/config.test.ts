@@ -269,6 +269,19 @@ describe('trusted request peer', () => {
       )
   })
 
+  it('uses the configured address family for an exact IPv6 proxy peer', () => {
+    const verifyPeer = createRequestPeerVerifier(
+      loadStudioServerConfig({
+        ...HOSTED,
+        FREE_STUDIO_PROXY_ADDRESS: '2001:db8::1',
+      }),
+    )
+
+    expect(() => verifyPeer(requestBindings('2001:db8::1'))).not.toThrow()
+    expect(() => verifyPeer(requestBindings('2001:db8::2'))).toThrowError(
+      expect.objectContaining({ status: 403, code: 'proxy_peer_rejected' }),
+    )
+  })
 
   it('accepts the loopback socket', () => {
     const config = loadStudioServerConfig({

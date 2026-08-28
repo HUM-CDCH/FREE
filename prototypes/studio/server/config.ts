@@ -1,5 +1,5 @@
 import type { IncomingMessage } from 'node:http'
-import { isIP } from 'node:net'
+import { BlockList, isIP } from 'node:net'
 import { ApiError } from '../api/_http.js'
 import { canonicalStudioBasePath } from '../shared/studioBasePath.js'
 import { normalizeCanonicalUuid } from '../shared/uuid.js'
@@ -143,7 +143,7 @@ function canonicalProxyAddress(value: string): string {
 
 type ProxyPeer =
   | { kind: 'address'; address: string }
-  | { kind: 'network'; network: number; mask: number }
+  | { kind: 'network'; address: string; prefix: number }
 
 function parseProxyPeer(value: string): ProxyPeer {
   const separator = value.indexOf('/')
@@ -165,7 +165,7 @@ function parseProxyPeer(value: string): ProxyPeer {
     throw new StudioConfigurationError(
       'FREE_STUDIO_PROXY_ADDRESS must be one canonical IP address or IPv4 CIDR block.',
     )
-  return { kind: 'network', network: networkInteger, mask }
+  return { kind: 'network', address: network, prefix: Number(prefix) }
 }
 
 function canonicalProxyPeer(value: string): string {
@@ -261,17 +261,22 @@ export function createRequestPeerVerifier(config: StudioServerConfig) {
   if (config.proxyMode !== 'trusted-proxy') return (): void => {}
 
   const expected = parseProxyPeer(config.proxyAddress!)
-  const trusted =
-    expected.kind === 'address'
-      ? (peer: string) => peer === expected.address
-      : (peer: string) =>
-          isIP(peer) === 4 &&
-          (ipv4ToInteger(peer) & expected.mask) >>> 0 === expected.network
+  const trusted = new BlockList()
+  if (expected.kind === 'address')
+    trusted.addAddress(
+      expected.address,
+      isIP(expected.address) === 6 ? 'ipv6' : 'ipv4',
+    )
+  else trusted.addSubnet(expected.address, expected.prefix, 'ipv4')
   return (bindings: ClientAddressBindings): void => {
     const peer = normalizeClientAddress(
       bindings.incoming?.socket.remoteAddress,
     )
-    if (!trusted(peer))
+    const family = isIP(peer)
+    if (
+      family === 0 ||
+      !trusted.check(peer, family === 6 ? 'ipv6' : 'ipv4')
+    )
       throw new ApiError(
         403,
         'proxy_peer_rejected',

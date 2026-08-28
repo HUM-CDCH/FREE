@@ -2,17 +2,18 @@
 
 Document Extraction & Evaluation — shared team repo.
 
-There is one topology, orchestrated by Compose: PostgreSQL, the Parsing
-Service, Studio, and an nginx TLS entry point, always serving
-`STUDIO_BASE_PATH=/free` over HTTPS. Development and production differ only by
-overlay (`compose.override.yaml`, loaded automatically, adds the development
-nginx container and mock sign-in; `compose.prod.yaml` is the production delta
-behind the host-managed nginx), and both are started by the one launcher,
-`node scripts/free.mjs <local|production>`.
+The supported host topology is orchestrated by Compose: PostgreSQL, the Parsing
+Service, Studio, and an nginx TLS entry point serve `STUDIO_BASE_PATH=/free`
+over HTTPS. Host development and production differ only by overlay
+(`compose.override.yaml`, loaded automatically, adds the development nginx
+container and mock sign-in; `compose.prod.yaml` is the production delta behind
+the host-managed nginx). The repository Dev Container is the explicit
+no-Docker-socket exception and runs the services directly over loopback HTTP.
+Both paths use the one launcher, `node scripts/free.mjs <local|production>`.
 
 ## Quickstart
 
-With Node.js 24, pnpm 10.9, Docker Desktop (Compose v2.24+), and `mkcert`
+With Node.js 24, pnpm 10.9, Docker Desktop (Compose v2.33.1+), and `mkcert`
 (`mkcert -install` once):
 
 ```bash

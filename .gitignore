@@ -25,5 +25,6 @@ artifacts/architecture/site/
 .scratch/
 artifacts/
 .certs/
+.dev/
 .nginx/
 compose.local.yaml

@@ -12,6 +12,7 @@ import type { DocumentSnapshot } from './projectContexts/transport'
 import type { ProjectContextRouteState } from './projectContexts/useProjectContexts'
 import type { projectContextErrorSchema } from '../shared/projectContext.contract'
 import type { z } from 'zod'
+import RouteLoadBoundary from './RouteLoadBoundary.tsx'
 import { Button, EmptyState, ModalDialog } from './ui'
 import { browserStudioPath } from './studioUrl.js'
 
@@ -425,33 +426,43 @@ export default function AppFrame({
           }
         >
           {workspace ? (
-            <Suspense
-              fallback={<div aria-busy="true">Loading Source Document…</div>}
+            <RouteLoadBoundary
+              key="source-document-workspace"
+              resource="The Source Document workspace"
             >
-              {/* Keyed to the Project Context, not the Source Document: the
-                  Schema panel is a Project Context resource and must survive
-                  switching between the project's Source Documents. Switching
-                  Project Contexts still starts clean. */}
-              <DocumentWorkspace
-                key={workspace.projectContextId}
-                {...workspace}
-                onInitialResourceLoadFailure={onInitialResourceLoadFailure}
-              />
-            </Suspense>
+              <Suspense
+                fallback={<div aria-busy="true">Loading Source Document…</div>}
+              >
+                {/* Keyed to the Project Context, not the Source Document: the
+                    Schema panel is a Project Context resource and must survive
+                    switching between the project's Source Documents. Switching
+                    Project Contexts still starts clean. */}
+                <DocumentWorkspace
+                  key={workspace.projectContextId}
+                  {...workspace}
+                  onInitialResourceLoadFailure={onInitialResourceLoadFailure}
+                />
+              </Suspense>
+            </RouteLoadBoundary>
           ) : route.kind === 'project' ? (
-            <Suspense
-              fallback={<div aria-busy="true">Loading Project Context…</div>}
+            <RouteLoadBoundary
+              key="project-context-page"
+              resource="The Project Context page"
             >
-              {/* Keyed to the Project Context only: switching resource tabs
-                  is a route change within one page, not a new page. */}
-              <ProjectContextPage
-                key={route.projectContextId}
-                projectContextId={route.projectContextId}
-                resource={route}
-                onNavigate={onNavigate}
-                onOpenSourceDocument={openSourceDocument}
-              />
-            </Suspense>
+              <Suspense
+                fallback={<div aria-busy="true">Loading Project Context…</div>}
+              >
+                {/* Keyed to the Project Context only: switching resource tabs
+                    is a route change within one page, not a new page. */}
+                <ProjectContextPage
+                  key={route.projectContextId}
+                  projectContextId={route.projectContextId}
+                  resource={route}
+                  onNavigate={onNavigate}
+                  onOpenSourceDocument={openSourceDocument}
+                />
+              </Suspense>
+            </RouteLoadBoundary>
           ) : route.kind === 'root' ? (
             <StudioHome onNavigate={onNavigate} />
           ) : (

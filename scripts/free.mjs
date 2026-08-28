@@ -18,6 +18,13 @@ import { networkInterfaces } from 'node:os'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseEnv } from 'node:util'
+import {
+  canonicalBase64Secret,
+  ensureDevelopmentSessionSecret as ensureSessionSecretFile,
+} from './development-session-secret.mjs'
+import { validateComposeVersion } from './compose-version.mjs'
+
+export { validateComposeVersion } from './compose-version.mjs'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const NGINX_PORT = 8443
@@ -25,6 +32,7 @@ const MOCK_OIDC_PORT = 8444
 const FIREWALL_RULE = 'FREE Studio Wi-Fi development'
 const WINDOWS = process.platform === 'win32'
 const STUDIO_PORT = 5173
+const DEVELOPMENT_SESSION_SECRET = '.dev/session-secret'
 const NGINX_LOCATIONS_TEMPLATE = 'docker/nginx/free-studio-locations.inc.template'
 const RENDERED_NGINX_LOCATIONS = '.nginx/free-studio-locations.conf'
 
@@ -215,6 +223,24 @@ function ensureCertificates(profile) {
     )
 }
 
+// Development sessions outlive the dev server. Without a persisted secret the
+// Studio server generates one per boot, so every restart silently invalidates
+// the Researcher's session cookie. This is per-machine generated material, like
+// the mkcert certificates above, never a shared constant: `--wifi` publishes
+// the entry point to the local subnet, where a known secret would be forgeable.
+export function ensureDevelopmentSessionSecret(
+  file = resolve(ROOT, DEVELOPMENT_SESSION_SECRET),
+) {
+  return ensureSessionSecretFile(file)
+}
+
+function ensureCompatibleCompose() {
+  const version = run('docker', ['compose', 'version', '--short'], {
+    capture: true,
+  })
+  validateComposeVersion(version.stdout)
+}
+
 function printReady(profile) {
   console.log(`\nStarting FREE at ${profile.origin}/free`)
   console.log(`  network: ${profile.wifi ? 'private Wi-Fi' : 'this device only'}`)
@@ -248,6 +274,7 @@ function loadRootDatabaseUrl() {
 export function developmentComposeEnvironment(
   profile,
   environment = process.env,
+  sessionSecret = ensureDevelopmentSessionSecret(),
 ) {
   return {
     ...environment,
@@ -258,6 +285,7 @@ export function developmentComposeEnvironment(
     DOCLING_DEVICE: 'cpu',
     FREE_NGINX_PORT: String(NGINX_PORT),
     FREE_POSTGRES_PASSWORD: 'postgres',
+    FREE_SESSION_SECRET: sessionSecret,
     STUDIO_BASE_PATH: '/free',
     STUDIO_ORIGIN: profile.origin,
     FREE_NGINX_BIND: profile.nginxBind,
@@ -278,6 +306,7 @@ async function devContainerMain() {
     ...process.env,
     STUDIO_ORIGIN: 'http://localhost:5173',
     STUDIO_BASE_PATH: '/free',
+    FREE_SESSION_SECRET: ensureDevelopmentSessionSecret(),
     FREE_ENTRA_REAL: '0',
   }
   console.log('\nStarting FREE at http://localhost:5173/free\n')
@@ -312,8 +341,10 @@ async function localMain(args) {
     await devContainerMain()
     return
   }
+  ensureCompatibleCompose()
   const profile = deriveDevProfile(options)
   ensureCertificates(profile)
+  const sessionSecret = ensureDevelopmentSessionSecret()
   // The mock OIDC port must open with nginx so a phone can follow the
   // sign-in redirect.
   if (profile.wifi && profile.firewall)
@@ -323,7 +354,7 @@ async function localMain(args) {
   await awaitChild(
     spawn('docker', ['compose', 'up', '--build', '--watch'], {
       cwd: ROOT,
-      env: developmentComposeEnvironment(profile),
+      env: developmentComposeEnvironment(profile, process.env, sessionSecret),
       stdio: 'inherit',
       shell: false,
     }),
@@ -341,16 +372,6 @@ function canonicalHttpsOrigin(value) {
     return false
   }
   return parsed.protocol === 'https:' && parsed.origin === value
-}
-
-function canonicalBase64Secret(value) {
-  let decoded
-  try {
-    decoded = Buffer.from(value, 'base64')
-  } catch {
-    return false
-  }
-  return decoded.toString('base64') === value && decoded.byteLength >= 32
 }
 
 // Fail before any container starts, with every problem reported at once. The
@@ -438,6 +459,7 @@ async function productionMain(args) {
     throw new Error(
       'Production needs the root .env file described in docs/operations/deployment.md.',
     )
+  ensureCompatibleCompose()
   // Compose interpolation lets the process environment win over .env; validate
   // the same effective values.
   const environment = { ...dotEnv, ...process.env }

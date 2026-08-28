@@ -1,13 +1,38 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { after, describe, it } from 'node:test'
 import {
   developmentComposeEnvironment,
   deriveDevProfile,
+  ensureDevelopmentSessionSecret,
   parseDevOptions,
   renderNginxLocations,
   selectWifiAddress,
+  validateComposeVersion,
   validateProductionEnvironment,
 } from './free.mjs'
+
+const temporaryDirectories = []
+
+function temporarySecretFile() {
+  const directory = mkdtempSync(join(tmpdir(), 'free-launcher-'))
+  temporaryDirectories.push(directory)
+  return join(directory, 'nested', 'session-secret')
+}
+
+after(() => {
+  for (const directory of temporaryDirectories.splice(0))
+    rmSync(directory, { recursive: true, force: true })
+})
 
 const interfaces = {
   Ethernet: [
@@ -73,14 +98,19 @@ describe('development launcher profiles', () => {
 
   it('isolates Compose development from deployment environment values', () => {
     const profile = deriveDevProfile(parseDevOptions([]), interfaces)
-    const environment = developmentComposeEnvironment(profile, {
-      PATH: 'kept',
-      DOCLING_DEVICE: 'cuda',
-      FREE_NGINX_PORT: '443',
-      FREE_POSTGRES_PASSWORD: 'deployment-secret',
-      STUDIO_BASE_PATH: '/deployment',
-      STUDIO_ORIGIN: 'https://free.example.edu',
-    })
+    const environment = developmentComposeEnvironment(
+      profile,
+      {
+        PATH: 'kept',
+        DOCLING_DEVICE: 'cuda',
+        FREE_NGINX_PORT: '443',
+        FREE_POSTGRES_PASSWORD: 'deployment-secret',
+        STUDIO_BASE_PATH: '/deployment',
+        STUDIO_ORIGIN: 'https://free.example.edu',
+        FREE_SESSION_SECRET: 'ZGVwbG95bWVudC1zZWNyZXQtdGhhdC1pcy0zMi1ieXRlcyE=',
+      },
+      'ZGV2ZWxvcG1lbnQtc2VjcmV0LXRoYXQtaXMtMzItYnl0ZXMhIQ==',
+    )
 
     assert.equal(environment.PATH, 'kept')
     assert.equal(environment.COMPOSE_DISABLE_ENV_FILE, '1')
@@ -89,7 +119,48 @@ describe('development launcher profiles', () => {
     assert.equal(environment.FREE_POSTGRES_PASSWORD, 'postgres')
     assert.equal(environment.STUDIO_BASE_PATH, '/free')
     assert.equal(environment.STUDIO_ORIGIN, 'https://localhost:8443')
+    assert.equal(
+      environment.FREE_SESSION_SECRET,
+      'ZGV2ZWxvcG1lbnQtc2VjcmV0LXRoYXQtaXMtMzItYnl0ZXMhIQ==',
+    )
   })
+
+  it('keeps one development session secret per machine', () => {
+    const file = temporarySecretFile()
+
+    const generated = ensureDevelopmentSessionSecret(file)
+
+    assert.equal(Buffer.from(generated, 'base64').toString('base64'), generated)
+    assert.ok(Buffer.from(generated, 'base64').byteLength >= 32)
+    assert.equal(ensureDevelopmentSessionSecret(file), generated)
+    assert.equal(readFileSync(file, 'utf8').trim(), generated)
+  })
+
+  it('replaces a development session secret the server would reject', () => {
+    const file = temporarySecretFile()
+    ensureDevelopmentSessionSecret(file)
+    writeFileSync(file, 'not base64 at all')
+
+    const replaced = ensureDevelopmentSessionSecret(file)
+
+    assert.notEqual(replaced, 'not base64 at all')
+    assert.ok(Buffer.from(replaced, 'base64').byteLength >= 32)
+    assert.equal(ensureDevelopmentSessionSecret(file), replaced)
+  })
+
+  it(
+    'keeps a development session secret private on POSIX',
+    { skip: process.platform === 'win32' },
+    () => {
+      const file = temporarySecretFile()
+      ensureDevelopmentSessionSecret(file)
+      chmodSync(file, 0o644)
+
+      ensureDevelopmentSessionSecret(file)
+
+      assert.equal(statSync(file).mode & 0o777, 0o600)
+    },
+  )
 
   it('rejects unknown options', () => {
     assert.throws(
@@ -107,6 +178,37 @@ describe('development launcher profiles', () => {
       () => parseDevOptions(['--revoke-wifi-access', '--wifi']),
       /cannot be combined/,
     )
+  })
+})
+
+describe('Compose version preflight', () => {
+  it('accepts the minimum and newer Compose versions', () => {
+    assert.doesNotThrow(() => validateComposeVersion('2.33.1'))
+    assert.doesNotThrow(() => validateComposeVersion('v5.4.0'))
+    assert.doesNotThrow(() =>
+      validateComposeVersion('Docker Compose version v2.40.0-desktop.1'),
+    )
+  })
+
+  it('rejects older and unrecognizable Compose versions', () => {
+    assert.throws(
+      () => validateComposeVersion('2.24.0'),
+      /2\.33\.1.*found 2\.24\.0/,
+    )
+    assert.throws(
+      () => validateComposeVersion('unknown'),
+      /could not be determined/,
+    )
+  })
+})
+
+describe('Docker build context', () => {
+  it('excludes per-machine development secrets', () => {
+    const dockerignore = readFileSync(
+      new URL('../.dockerignore', import.meta.url),
+      'utf8',
+    )
+    assert.match(dockerignore, /^\.dev$/m)
   })
 })
 

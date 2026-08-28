@@ -17,6 +17,7 @@
 .omo
 .worktrees
 .codegraph
+.dev
 .devcontainer
 .scratch
 .vscode

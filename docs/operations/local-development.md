@@ -1,22 +1,25 @@
 # Local development
 
-There is one development topology, and it is the production topology: Compose
-runs PostgreSQL, the Parsing Service, Studio, and an nginx TLS entry point,
-with `STUDIO_BASE_PATH=/free` and HTTPS always on. Development differs from
-production only through `compose.override.yaml` (loaded automatically): Studio
+The host development topology mirrors production: Compose runs PostgreSQL, the
+Parsing Service, Studio, and an nginx TLS entry point, with
+`STUDIO_BASE_PATH=/free` over HTTPS. Host development differs from production
+only through `compose.override.yaml` (loaded automatically): Studio
 and the Parsing Service run their reload-capable development servers with live
 source sync, sign-in goes through a local mock OIDC identity provider, the
 certificates come from `mkcert`, and nginx runs as a container (production
 uses the deployment machine's host-managed nginx) — both render the same
 shared `docker/nginx/free-studio-locations.inc.template`, so the
-application-facing proxy behavior is identical.
+application-facing proxy behavior is identical. The repository Dev Container
+is the supported exception: because it deliberately has no Docker socket, the
+same launcher runs its services directly on loopback HTTP as described below.
 
 ## Prerequisites
 
 - Node.js 24 and pnpm 10.9 (`pnpm install` at the root also syncs Python
   services through `uv`).
-- Docker Desktop with Docker Compose v2.24 or later (Compose Watch and
-  `!override` are used).
+- Docker Desktop with Docker Compose v2.33.1 or later (Compose Watch,
+  `!override`, and `gw_priority` are used). The launcher checks this before
+  starting the host stack.
 - `mkcert`, with its root CA installed once: `mkcert -install`.
 
 No `.env` is required for development. If one exists, only `DATABASE_URL`
@@ -102,9 +105,10 @@ overlay:
 docker compose -f compose.yaml -f compose.override.yaml -f compose.entra.yaml up --build --watch
 ```
 
-See the [Entra authentication runbook](entra-authentication.md). Because the
-base path and TLS are identical in every topology, the redirect URIs differ
-from production only by host.
+See the [Entra authentication runbook](entra-authentication.md). In the host
+Compose topologies the base path and TLS behavior are identical, so the
+redirect URIs differ from production only by host. The direct Dev Container
+path uses its documented loopback HTTP callback instead.
 
 ## Dev Container
 

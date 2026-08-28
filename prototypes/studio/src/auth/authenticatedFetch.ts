@@ -13,6 +13,15 @@ export function subscribeToAuthenticationRequired(
 }
 
 /**
+ * Report a protected resource that answered as unauthenticated outside
+ * `authenticatedFetch` — a code-split route module, whose failed import the
+ * browser reports without a status.
+ */
+export function reportAuthenticationRequired(): void {
+  authenticationEvents.dispatchEvent(new Event(authenticationRequired))
+}
+
+/**
  * The sole browser transport for protected Studio resources. A 401 is returned
  * unchanged so endpoint-specific error handling remains intact, after the
  * authentication state has been told to unmount the protected application.
@@ -29,7 +38,6 @@ export async function authenticatedFetch(
     ...init,
     credentials: 'same-origin',
   })
-  if (response.status === 401)
-    authenticationEvents.dispatchEvent(new Event(authenticationRequired))
+  if (response.status === 401) reportAuthenticationRequired()
   return response
 }
