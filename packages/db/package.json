@@ -7,13 +7,8 @@
   "exports": "./src/index.ts",
   "scripts": {
     "contract:emit": "prisma-next contract emit",
-    "db:start": "tsx src/start-development-database.ts",
     "db:reset": "tsx src/reset-database.ts && prisma-next migrate --yes",
-    "db:init": "prisma-next migrate --yes",
-    "db:update": "prisma-next db update",
-    "db:verify": "tsx src/verify-database.ts",
-    "db:migrate": "prisma-next migrate",
-    "db:studio": "set -a && . ./.env && set +a && npx prisma@dev studio --url \"$DATABASE_URL\""
+    "db:init": "prisma-next migrate --yes"
   },
   "keywords": [],
   "author": "",
