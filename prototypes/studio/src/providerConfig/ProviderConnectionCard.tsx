@@ -75,7 +75,8 @@ export function ProviderConnectionCard({
           </label>
         )}
       </div>
-      <div className="mt-2 grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr_auto]">
+      {provider.authentication !== 'external' && (
+        <div className="mt-2 grid grid-cols-1 items-end gap-2 md:grid-cols-[1fr_auto]">
           <label className="flex flex-col gap-1">
             <span className="font-mono text-[9px] font-semibold uppercase text-ink-muted">{provider.authentication === 'managed' ? 'API credential' : 'API credential (optional)'}</span>
             <input type="text" autoComplete="off" data-1p-ignore value={typeof credentialAction === 'string' ? credentialAction : ''} onChange={(event) => onCredentialChange(event.target.value || undefined)} placeholder={credentialState === 'present' ? 'Stored credential will be preserved' : 'Enter a credential'} className={`font-mono [-webkit-text-security:disc] ${providerFieldClass}`} />
@@ -85,7 +86,8 @@ export function ProviderConnectionCard({
             {credentialAction !== undefined && <Button variant="secondary" size="sm" onClick={() => onCredentialChange(undefined)}>Preserve stored value</Button>}
           </div>
           {credentialState === 'unavailable' && <p className="text-[11px] text-danger">Credential store unavailable.</p>}
-      </div>
+        </div>
+      )}
       <p className={`mt-2 whitespace-pre-line text-[11px] ${tones[tone].text}`}>{statusText}</p>
     </article>
   )

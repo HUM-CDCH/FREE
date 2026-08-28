@@ -1,3 +1,4 @@
+import { isDeveloperUiEnabled } from './developerUi'
 import PanelToggleIcon from './PanelToggleIcon'
 // The Annotation and Chat tabs were retired: the Annotation tab's highlight-set
 // list and the generic document Chat tab were folded into SchemaPanel's own
@@ -12,9 +13,10 @@ import { countTemplateFields } from '../shared/template'
 import ResultsTab from './ResultsTab'
 import type { ExtractionController } from './useExtraction'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
+import EvidenceTab from './EvidenceTab'
 import type { SchemaDefinition } from 'extraction/schema'
 import type { ParsedDocument, ParsedEvidenceAnchor } from 'extraction/parsed-document'
-export type RailTab = 'schema' | 'results'
+export type RailTab = 'evidence' | 'schema' | 'results'
 
 export type ExtractionInspection = {
   attempt: ExtractionAttempt | null
@@ -80,8 +82,9 @@ function RightRail({
   onSelectEvidence,
   onResultPathChange,
 }: RightRailProps) {
-  const { documentMarkdown, parsedDocument } = inspection
-  const activeTab = tab
+  const { documentMarkdown, parsedDocument, reviewDecisions } = inspection
+  const showDeveloperUi = isDeveloperUiEnabled()
+  const activeTab = !showDeveloperUi && tab === 'evidence' ? 'schema' : tab
 
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const schemaReady = schemaSnap.view === 'editing'
@@ -94,6 +97,21 @@ function RightRail({
     label: string
     badge?: { label: string; done?: boolean } | null
   }[] = [
+    ...(showDeveloperUi
+      ? [
+          {
+            key: 'evidence' as const,
+            label: 'Evidence',
+            badge: parsedDocument
+              ? {
+                  label: String(
+                    parsedDocument.evidence_index.anchors.length,
+                  ),
+                }
+              : null,
+          },
+        ]
+      : []),
     {
       key: 'schema',
       label: 'Schema',
@@ -165,6 +183,11 @@ function RightRail({
         />
       </div>
       */}
+      {showDeveloperUi && (
+        <div id="rail-panel-evidence" aria-labelledby="rail-tab-evidence" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'evidence'}>
+          <EvidenceTab document={parsedDocument} reviewDecisions={reviewDecisions} onSelectAnchor={onSelectEvidence} />
+        </div>
+      )}
       <div id="rail-panel-schema" aria-labelledby="rail-tab-schema" role="tabpanel" tabIndex={0} className="min-h-0 flex-1" hidden={activeTab !== 'schema'}>
         <SchemaPanel
           schema={schema}

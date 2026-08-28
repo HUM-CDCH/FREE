@@ -5,6 +5,8 @@ export const PROVIDER_KINDS = [
   'openai',
   'anthropic',
   'google',
+  'codex-cli',
+  'claude-code',
   'openai-compatible',
 ] as const
 export const providerKindSchema = z.enum(PROVIDER_KINDS)
@@ -65,9 +67,9 @@ export const providerDescriptorSchema = z
   .object({
     kind: providerKindSchema,
     label: z.string(),
-    transport: z.enum(['http']),
+    transport: z.enum(['http', 'cli']),
     defaultBaseUrl: z.string().nullable(),
-    authentication: z.enum(['managed', 'optional']),
+    authentication: z.enum(['managed', 'optional', 'external']),
     supportsNuextractRaw: z.boolean(),
   })
   .strict()

@@ -1,9 +1,16 @@
+import { execFile as execFileCallback, type ExecFileException } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { promisify } from 'node:util'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModel } from 'ai'
 import { createOllama } from 'ai-sdk-ollama'
+import { claudeCode } from 'ai-sdk-provider-claude-code'
+import { createCodexAppServer, type CodexAppServerProvider } from 'ai-sdk-provider-codex-cli'
 import type {
   ModelConfig,
   ModelConnection,
@@ -20,14 +27,17 @@ import { systemCredentialStore, type CredentialStore } from './_keyring.js'
 export type JsonOutputCapability = 'native' | 'prompt'
 type ExecutionCapability = 'general' | 'nuextract-raw'
 type Fetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
+type CodexModel = { id: string; displayName?: string; name?: string | null; hidden?: boolean }
 
 export type ProviderProbeDependencies = {
   fetch?: Fetch
+  codexListModels?: (signal: AbortSignal) => Promise<readonly CodexModel[]>
+  claudeStatus?: (signal: AbortSignal) => Promise<void>
   now?: () => Date
   timeoutMs?: number
 }
 
-type DiscoveryContext = Required<Pick<ProviderProbeDependencies, 'fetch'>> & {
+type DiscoveryContext = Required<Pick<ProviderProbeDependencies, 'fetch' | 'codexListModels' | 'claudeStatus'>> & {
   signal: AbortSignal
 }
 type DiscoveryObservation = Omit<ProbeResult, 'checkedAt'>
@@ -47,11 +57,103 @@ const MAX_MODELS = 10_000
 const MAX_MODEL_TEXT = 512
 const MAX_MESSAGE_TEXT = 512
 const PROBE_TIMEOUT_MS = 15_000
+const execFile = promisify(execFileCallback)
 
 /** A provider base already includes every researcher-supplied path prefix. */
 export function appendProviderResource(baseUrl: string, resource: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${resource.replace(/^\/+/, '')}`
 }
+
+function isolatedCodexWorkingDirectory(): string {
+  try {
+    return mkdtempSync(join(tmpdir(), 'free-codex-sandbox-'))
+  } catch (cause) {
+    throw new ApiError(500, 'unexpected_failure', 'Could not initialize the Codex CLI provider.', { cause })
+  }
+}
+
+export function createRestrictedCodexProvider(
+  cwd: string,
+  factory: typeof createCodexAppServer = createCodexAppServer,
+): CodexAppServerProvider {
+  return factory({
+    defaultSettings: {
+      approvalPolicy: 'never',
+      codexPath: join(
+        process.cwd(),
+        'node_modules',
+        '.bin',
+        process.platform === 'win32' ? 'codex.CMD' : 'codex',
+      ),
+      cwd,
+      effort: 'none',
+      sandboxPolicy: 'read-only',
+      connectionTimeoutMs: PROBE_TIMEOUT_MS,
+      requestTimeoutMs: PROBE_TIMEOUT_MS,
+      idleTimeoutMs: 60_000,
+      minCodexVersion: '0.144.0',
+      logger: false,
+      configOverrides: {
+        mcp_servers: {},
+        'tools.web_search': false,
+        'features.apps': false,
+        'features.browser_use': false,
+        'features.code_mode_host': false,
+        'features.computer_use': false,
+        'features.image_generation': false,
+        'features.multi_agent': false,
+        'features.shell_snapshot': false,
+        'features.shell_tool': false,
+        'features.tool_suggest': false,
+        'features.unified_exec': false,
+      },
+    },
+  })
+}
+
+// The app server owns a process and intentionally survives requests. Models are not cached.
+let codexAppServer: CodexAppServerProvider | null = null
+let codexSandboxDirectory: string | null = null
+function codexProvider(): CodexAppServerProvider {
+  if (codexAppServer) return codexAppServer
+  const workingDirectory = isolatedCodexWorkingDirectory()
+  try {
+    codexAppServer = createRestrictedCodexProvider(workingDirectory)
+    codexSandboxDirectory = workingDirectory
+  } catch (cause) {
+    try {
+      rmSync(workingDirectory, { recursive: true, force: true })
+    } catch {
+      // Preserve the provider initialization failure.
+    }
+    throw cause
+  }
+  return codexAppServer
+}
+
+export async function closeProviderRuntime(): Promise<void> {
+  const provider = codexAppServer
+  const workingDirectory = codexSandboxDirectory
+  codexAppServer = null
+  codexSandboxDirectory = null
+  try {
+    await provider?.close()
+  } finally {
+    if (workingDirectory)
+      rmSync(workingDirectory, { recursive: true, force: true })
+  }
+}
+
+export const providerRuntime = { close: closeProviderRuntime }
+
+async function productionCodexListModels(): Promise<readonly CodexModel[]> {
+  return (await codexProvider().listModels()).models
+}
+
+async function productionClaudeStatus(signal: AbortSignal): Promise<void> {
+  await execFile('claude', ['auth', 'status'], { signal })
+}
+
 
 function httpDiscovery(
   resource: string,
@@ -238,6 +340,54 @@ function googleCatalog(value: unknown): ModelDescriptor[] {
   })
 }
 
+async function discoverCodex(
+  _connection: ModelConnection,
+  _credential: string | null,
+  context: DiscoveryContext,
+): Promise<DiscoveryObservation> {
+  try {
+    const models = await context.codexListModels(context.signal)
+    const catalog = boundedCatalog(
+      models.filter((model) => model.hidden !== true).map((model) => ({
+        id: model.id,
+        label: model.displayName || model.name || model.id,
+      })),
+    )
+    return { status: 'connected', message: `Connected. ${catalog.length} models available.`, catalog }
+  } catch (error) {
+    if (context.signal.aborted) throw error
+    return cliObservation(error)
+  }
+}
+
+async function discoverClaude(
+  _connection: ModelConnection,
+  _credential: string | null,
+  context: DiscoveryContext,
+): Promise<DiscoveryObservation> {
+  try {
+    await context.claudeStatus(context.signal)
+    const catalog = ['fable', 'opus', 'sonnet', 'haiku'].map((id) => ({ id, label: id }))
+    return { status: 'connected', message: 'Connected. 4 models available.', catalog }
+  } catch (error) {
+    if (context.signal.aborted) throw error
+    return cliObservation(error)
+  }
+}
+
+function cliObservation(error: unknown): DiscoveryObservation {
+  const data = typeof error === 'object' && error !== null ? (error as Record<string, unknown>) : {}
+  const code = data.code
+  if (code === 'ENOENT') return observation('not_installed', 'The provider CLI is not installed.')
+  const status = data.statusCode ?? data.exitCode
+  const exception = error as ExecFileException
+  const diagnostic = `${error instanceof Error ? error.message : ''} ${typeof exception.stderr === 'string' ? exception.stderr : ''}`
+  if (status === 401 || /\b(auth(?:entication)?|unauthori[sz]ed|login|sign in)\b/i.test(diagnostic)) {
+    return observation('authentication_failed', 'The provider CLI is not authenticated.')
+  }
+  return observation('discovery_failed', 'The provider CLI could not list models.')
+}
+
 const commonHttpHeaders = (credential: string | null): Record<string, string> => ({
   accept: 'application/json',
   ...(credential === null ? {} : { authorization: `Bearer ${credential}` }),
@@ -309,6 +459,32 @@ export const providerTable = {
     createModel: (connection, modelId, credential) =>
       createGoogleGenerativeAI({ baseURL: connection.baseUrl!, apiKey: credential! })(modelId),
   },
+  'codex-cli': {
+    kind: 'codex-cli',
+    label: 'Codex CLI',
+    transport: 'cli',
+    defaultBaseUrl: null,
+    authentication: 'external',
+    supportsNuextractRaw: false,
+    jsonOutput: 'native',
+    temperatureSupported: false,
+    execution: ['general'],
+    discover: discoverCodex,
+    createModel: (_connection, modelId) => codexProvider()(modelId),
+  },
+  'claude-code': {
+    kind: 'claude-code',
+    label: 'Claude Code',
+    transport: 'cli',
+    defaultBaseUrl: null,
+    authentication: 'external',
+    supportsNuextractRaw: false,
+    jsonOutput: 'prompt',
+    temperatureSupported: false,
+    execution: ['general'],
+    discover: discoverClaude,
+    createModel: (_connection, modelId) => claudeCode(modelId, { tools: [], settingSources: [] }),
+  },
   'openai-compatible': {
     kind: 'openai-compatible',
     label: 'OpenAI-compatible',
@@ -358,6 +534,8 @@ export async function probeConnection(
   }, timeoutMs)
   const context: DiscoveryContext = {
     fetch: dependencies.fetch ?? fetch,
+    codexListModels: dependencies.codexListModels ?? productionCodexListModels,
+    claudeStatus: dependencies.claudeStatus ?? productionClaudeStatus,
     signal: controller.signal,
   }
   try {
@@ -426,6 +604,7 @@ async function resolvedCredential(
   store: CredentialStore,
 ): Promise<string | null> {
   const authentication = providerTable[connection.provider].authentication
+  if (authentication === 'external') return null
   try {
     const value = await store.get?.(connection.id)
     // Loose null: the keyring resolves `null`, not `undefined`, for a missing entry.

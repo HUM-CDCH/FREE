@@ -20,6 +20,7 @@ async function savedCredential(
   dependencies: ModelProbeDependencies,
 ): Promise<string | null> {
   const entry = providerTable[connection.provider]
+  if (entry.authentication === 'external') return null
   const saved = (await readModelConfig(dependencies)).connections.find(
     ({ id, provider, baseUrl }) =>
       id === connection.id &&
@@ -47,6 +48,10 @@ export function createPostModelProbe(dependencies: ModelProbeDependencies = {}) 
   return async function postModelProbe(request: Request): Promise<Response> {
     try {
       const parsed = parseModelProbeRequest(await parseJsonRequest(request))
+      const entry = providerTable[parsed.connection.provider]
+      if (entry.authentication === 'external' && parsed.credential !== undefined) {
+        throw new ApiError(409, 'invalid_model_config', 'External providers do not accept managed credentials.')
+      }
       const credential = Object.hasOwn(parsed, 'credential')
         ? (parsed.credential ?? null)
         : await savedCredential(parsed.connection, dependencies)

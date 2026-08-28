@@ -15,6 +15,7 @@ import {
 import { GET as healthResponse } from '../api/healthz.js'
 import {
   dispatchApiRequest,
+  dispatchDevelopmentApiRequest,
   isSourceDocumentIngestionPath,
   SOURCE_DOCUMENT_INGESTION_REQUEST_LIMIT,
   type ApiDispatcher,
@@ -71,6 +72,8 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/src/main.tsx': true,
   '/src/index.css': true,
   '/src/pdf-viewer.css': true,
+  '/src/developerUi.ts': true,
+  '/src/llmInspector/mount.tsx': true,
   '/src/auth/AuthApplication.tsx': true,
   '/src/auth/AuthForms.tsx': true,
   '/src/auth/authApi.ts': true,
@@ -351,7 +354,11 @@ export async function createStudioApp(
     studioOrigin,
   ).href
   const allowViteDevelopmentAssets = options.viteDevelopmentAssets ?? false
-  const dispatcher = options.apiDispatcher ?? dispatchApiRequest
+  const dispatcher =
+    options.apiDispatcher ??
+    (allowViteDevelopmentAssets
+      ? dispatchDevelopmentApiRequest
+      : dispatchApiRequest)
   const researcherProjectStore =
     options.researcherProjectStore ?? createResearcherProjectStore
   const clientHandler = options.clientHandler ?? defaultClientHandler
