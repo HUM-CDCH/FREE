@@ -21,6 +21,7 @@ WORKDIR /workspace
 # Manifests first so the dependency layer survives every source edit.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/db/package.json packages/db/
+COPY packages/studio-configuration/package.json packages/studio-configuration/
 COPY packages/extraction/package.json packages/extraction/
 COPY packages/extraction-result-export/package.json packages/extraction-result-export/
 COPY prototypes/studio/package.json prototypes/studio/

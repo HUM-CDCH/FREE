@@ -1,3 +1,4 @@
+import { CANONICAL_UUID } from 'studio-configuration'
 import { z } from 'zod'
 
 export const PROVIDER_KINDS = [
@@ -12,10 +13,9 @@ export const PROVIDER_KINDS = [
 export const providerKindSchema = z.enum(PROVIDER_KINDS)
 export type ProviderKind = z.infer<typeof providerKindSchema>
 
-export const uuidSchema = z.string().regex(
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-  'Must be a canonical lowercase UUID.',
-)
+export const uuidSchema = z
+  .string()
+  .regex(CANONICAL_UUID, 'Must be a canonical lowercase UUID.')
 
 export const modelConnectionSchema = z
   .object({

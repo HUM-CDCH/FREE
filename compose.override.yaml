@@ -105,6 +105,13 @@ services:
             - src/prisma/node_modules/
             - src/prisma/src/
         - action: sync
+          path: ./packages/studio-configuration
+          target: /workspace/packages/studio-configuration
+          initial_sync: true
+          ignore:
+            - package.json
+            - node_modules/
+        - action: sync
           path: ./packages/extraction-result-export
           target: /workspace/packages/extraction-result-export
           initial_sync: true
@@ -129,6 +136,8 @@ services:
           path: ./package.json
         - action: rebuild
           path: ./packages/db/package.json
+        - action: rebuild
+          path: ./packages/studio-configuration/package.json
         - action: rebuild
           path: ./packages/extraction-result-export/package.json
         - action: rebuild

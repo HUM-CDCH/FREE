@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
 import {
+  developmentComposeEnvironment,
   renderNginxLocations,
   validateProductionEnvironment,
 } from '../scripts/free.mjs'
@@ -105,6 +106,82 @@ test('production: the compose overlay renders with a valid environment', () => {
   // Production has no containerized nginx and no mock identity provider.
   assert.ok(!/^\s{2}nginx:/m.test(result.stdout), 'nginx stays on the host')
   assert.ok(!result.stdout.includes('mock-oidc'), 'the mock cannot reach production')
+})
+
+test('development: Studio watches the shared configuration package and rebuilds its manifest', () => {
+  const result = spawnSync(
+    'docker',
+    [
+      'compose',
+      '-f',
+      'compose.yaml',
+      '-f',
+      'compose.override.yaml',
+      'config',
+      '--format',
+      'json',
+    ],
+    {
+      cwd: ROOT,
+      env: developmentComposeEnvironment(
+        undefined,
+        process.env,
+        Buffer.alloc(32, 8).toString('base64'),
+      ),
+      encoding: 'utf8',
+      timeout: 120_000,
+    },
+  )
+  assert.equal(result.status, 0, result.stderr)
+  const watch = JSON.parse(result.stdout).services.studio.develop.watch
+  const sharedSource = watch.find(
+    ({ path, action }) =>
+      action === 'sync' &&
+      path.replaceAll('\\', '/').endsWith('/packages/studio-configuration'),
+  )
+  assert.deepEqual(
+    {
+      target: sharedSource?.target,
+      initialSync: sharedSource?.initial_sync,
+      ignore: sharedSource?.ignore,
+    },
+    {
+      target: '/workspace/packages/studio-configuration',
+      initialSync: true,
+      ignore: ['package.json', 'node_modules/'],
+    },
+  )
+  assert.ok(
+    watch.some(
+      ({ path, action }) =>
+        action === 'rebuild' &&
+        path
+          .replaceAll('\\', '/')
+          .endsWith('/packages/studio-configuration/package.json'),
+    ),
+    'the shared configuration manifest must rebuild the Studio image',
+  )
+})
+
+test('image: the shared configuration manifest precedes Studio dependency installation', () => {
+  const dockerfile = readFileSync(
+    resolve(ROOT, 'prototypes/studio/Dockerfile'),
+    'utf8',
+  )
+  const manifest = dockerfile.indexOf(
+    'COPY packages/studio-configuration/package.json packages/studio-configuration/',
+  )
+  const install = dockerfile.indexOf('pnpm install --frozen-lockfile')
+  const source = dockerfile.indexOf('COPY . .')
+  assert.ok(manifest >= 0, 'the image must copy the shared package manifest')
+  assert.ok(
+    manifest < install,
+    'the shared package manifest must invalidate the dependency layer',
+  )
+  assert.ok(
+    install < source,
+    'workspace source must remain outside the manifest-first dependency layer',
+  )
 })
 
 test('proxy parity: the shared fragment renders and passes nginx -t for the host wrapper', () => {
