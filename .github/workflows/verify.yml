@@ -1,0 +1,65 @@
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_extraction
+      EXTRACTION_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_extraction
+      PROJECT_STORE_POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/free_test_project_store
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: free_test_project_store
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d free_test_project_store"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.9.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create extraction integration database
+        run: docker exec "${{ job.services.postgres.id }}" createdb --username postgres free_test_extraction
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter studio exec playwright install --with-deps chromium
+
+      - name: Run deterministic verification
+        run: pnpm test:ci

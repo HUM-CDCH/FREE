@@ -1,6 +1,7 @@
 {
   "name": "free-root",
   "private": true,
+  "packageManager": "pnpm@10.9.0",
   "scripts": {
     "postinstall": "pnpm db:generate && pnpm --recursive --if-present install:python",
     "db:generate": "pnpm --filter db contract:emit",
@@ -14,12 +15,14 @@
     "prebuild": "pnpm db:generate",
     "build": "pnpm --filter studio build",
     "test": "pnpm test:unit",
-    "test:unit": "node --test scripts/free.test.mjs && pnpm --filter studio-configuration test && pnpm --filter studio test && pnpm --filter db test && pnpm --filter extraction test && pnpm --filter extraction-result-export test && pnpm --filter parsing-service test",
+    "test:unit": "node --test scripts/free.test.mjs scripts/test-ci.test.mjs && pnpm --filter studio-configuration test && pnpm --filter studio test && pnpm --filter db test && pnpm --filter extraction test && pnpm --filter extraction-result-export test && pnpm --filter parsing-service test",
     "test:safety": "node --test --test-concurrency=1 tests/safety.test.mjs",
     "test:postgres": "pnpm --filter db test:postgres && pnpm --filter extraction test:postgres",
     "test:e2e": "pnpm --filter studio test:e2e",
     "test:live-model": "pnpm --filter studio test:live-model && pnpm --filter parsing-service test:live-model",
     "test:system": "node --test --test-concurrency=1 tests/contract.test.mjs",
+    "test:all": "pnpm typecheck && pnpm test:unit && pnpm test:safety && pnpm test:postgres && pnpm test:e2e",
+    "test:ci": "node scripts/test-ci.mjs",
     "typecheck": "pnpm --filter studio typecheck && pnpm --filter db typecheck && pnpm --filter extraction typecheck && pnpm --filter extraction-result-export typecheck",
     "architecture:dev": "likec4 dev docs/architecture",
     "architecture:check": "likec4 validate docs/architecture",
