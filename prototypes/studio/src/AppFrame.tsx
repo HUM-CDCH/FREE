@@ -150,8 +150,18 @@ export default function AppFrame({
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  const effectiveNavOpen = viewportWidth >= 860 ? navOpen : narrowNavOpen
-  const effectiveNavWidth = effectiveNavOpen ? navWidth : collapsedWidth
+  const narrowViewport = viewportWidth < 860
+  // On a narrow viewport the rail is an overlay, so anything that moves the
+  // researcher somewhere else also dismisses it.
+  const closeNarrowNav = () => setNarrowNavOpen(false)
+  const effectiveNavOpen = narrowViewport ? narrowNavOpen : navOpen
+  const effectiveNavWidth = effectiveNavOpen
+    ? narrowViewport
+      ? Math.min(navWidth, viewportWidth - 48)
+      : navWidth
+    : narrowViewport
+      ? 0
+      : collapsedWidth
   const { branch: routedBranch, documentContained: routedDocumentContained } =
     routedProjectContext
   const routedProjectContextId =
@@ -228,6 +238,7 @@ export default function AppFrame({
     name: string,
   ) {
     tabs.open(projectContextId, sourceDocumentId, name)
+    if (narrowViewport) closeNarrowNav()
     if (!isRoutedDocument(projectContextId, sourceDocumentId))
       onNavigate({ kind: 'document', projectContextId, sourceDocumentId })
   }
@@ -300,8 +311,13 @@ export default function AppFrame({
   }
 
   const toggleNav = () => {
-    if (viewportWidth >= 860) setNavOpen((open) => !open)
+    if (!narrowViewport) setNavOpen((open) => !open)
     else setNarrowNavOpen((open) => !open)
+  }
+
+  const navigateFromRail = (nextRoute: NavigableRoute) => {
+    if (narrowViewport) closeNarrowNav()
+    onNavigate(nextRoute)
   }
 
   return (
@@ -310,9 +326,21 @@ export default function AppFrame({
       <title>
         {workspace ? `FREE Studio — ${workspace.filename}` : 'FREE Studio'}
       </title>
+      {narrowViewport && effectiveNavOpen && (
+        <button
+          className="fixed inset-0 z-30 cursor-default bg-ink/45 backdrop-blur-[1px]"
+          type="button"
+          aria-label="Close project navigation"
+          onClick={closeNarrowNav}
+        />
+      )}
       <div
         style={{ width: effectiveNavWidth }}
-        className="flex shrink-0 flex-col border-r border-line bg-surface"
+        className={`flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200 motion-reduce:transition-none ${
+          narrowViewport
+            ? 'fixed inset-y-0 left-0 z-40 shadow-xl'
+            : 'relative'
+        }`}
       >
         <div
           className={`flex h-14 shrink-0 items-center gap-2.5 border-b border-line ${
@@ -333,7 +361,7 @@ export default function AppFrame({
               )
                 return
               event.preventDefault()
-              if (route.kind !== 'root') onNavigate({ kind: 'root' })
+              if (route.kind !== 'root') navigateFromRail({ kind: 'root' })
             }}
           >
             <img
@@ -366,7 +394,7 @@ export default function AppFrame({
             selection={selection}
             routedProjectContextId={routedProjectContextId}
             onToggle={toggleNav}
-            onNavigate={onNavigate}
+            onNavigate={navigateFromRail}
             onOpenSourceDocument={openSourceDocument}
             onConfigure={(opener) => {
               providerTrigger.current = opener
@@ -375,7 +403,7 @@ export default function AppFrame({
           />
         </aside>
       </div>
-      {effectiveNavOpen && (
+      {effectiveNavOpen && !narrowViewport && (
         <div
           className="z-5 -ml-1.25 w-1.25 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-accent-soft focus-visible:bg-accent-soft focus-visible:outline-none"
           role="separator"
@@ -397,6 +425,17 @@ export default function AppFrame({
         />
       )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {narrowViewport && !effectiveNavOpen && (
+          <button
+            className="fixed left-2 top-2 z-30 grid size-10 place-items-center rounded-md border border-line bg-surface/95 text-ink-muted shadow-sm backdrop-blur outline-none transition-colors hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40"
+            type="button"
+            aria-label="Open project navigation"
+            title="Open project navigation"
+            onClick={() => setNarrowNavOpen(true)}
+          >
+            <PanelToggleIcon side="left" />
+          </button>
+        )}
         {routedProjectContextId && openProjectTabs.length > 0 && (
           <DocumentTabBar
             projectName={activeProjectName}
