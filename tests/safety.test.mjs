@@ -214,6 +214,25 @@ test('Dev Container: direct Studio launcher uses sibling and browser OIDC issuer
   )
 })
 
+test('database tooling: package exposes only supported operator commands', () => {
+  const scripts = JSON.parse(
+    readFileSync(resolve(ROOT, 'packages/db/package.json'), 'utf8'),
+  ).scripts
+
+  for (const supported of [
+    'contract:emit',
+    'db:start',
+    'db:reset',
+    'db:init',
+    'db:verify',
+  ])
+    assert.equal(typeof scripts[supported], 'string', supported)
+
+  for (const unsupported of ['db:update', 'db:migrate', 'db:studio'])
+    assert.equal(scripts[unsupported], undefined, unsupported)
+})
+
+
 test('development: Studio watches the shared configuration package and rebuilds its manifest', () => {
   const result = spawnSync(
     'docker',
