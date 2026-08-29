@@ -14,7 +14,9 @@ test('an authenticated Researcher reaches the empty workspace shell', async ({
   await gotoAuthenticated(page, '/')
 
   await expect(
-    page.getByRole('heading', { name: 'No project open' }),
+    page.getByRole('heading', {
+      name: 'From source to structured data, with the evidence to prove it',
+    }),
   ).toBeVisible()
   await expect(page.getByText('Workspace unavailable')).toHaveCount(0)
 })
