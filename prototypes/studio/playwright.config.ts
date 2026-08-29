@@ -24,9 +24,9 @@ export default defineConfig({
   webServer: {
     command: playwrightWebServerCommand,
     url: e2eOrigin,
-    reuseExistingServer: process.env.FREE_PLAYWRIGHT_REUSE_SERVER === '1',
     env: {
       DATABASE_URL: stack.databaseUrl,
+      FREE_PLAYWRIGHT_LIFECYCLE_ID: stack.lifecycleId,
       STUDIO_ORIGIN: e2eOrigin,
       STUDIO_BASE_PATH: '/',
       APPDATA: e2eConfigHome,
