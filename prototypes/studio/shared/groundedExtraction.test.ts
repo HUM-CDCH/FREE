@@ -50,7 +50,7 @@ describe('grounded Extraction paths', () => {
   })
 
   it('rejects duplicate paths even when their anchors differ', () => {
-    const resultPath = ['records', 0, 'find_number'] as const
+    const resultPath: (string | number)[] = ['records', 0, 'find_number']
     expect(
       evidenceLinksHaveUniqueScalarPaths(result, [
         { resultPath, evidenceAnchorId: 'a1' },

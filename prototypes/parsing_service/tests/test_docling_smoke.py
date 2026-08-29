@@ -10,8 +10,9 @@ from support import PDF_BYTES
 
 
 @unittest.skipUnless(
-    os.environ.get("RUN_DOCLING_SMOKE") == "1",
-    "set RUN_DOCLING_SMOKE=1 to run the model-backed Docling smoke test",
+    os.environ.get("RUN_DOCLING_SMOKE") == "1"
+    or os.environ.get("npm_lifecycle_event") == "test:live-model",
+    "run pnpm test:live-model or set RUN_DOCLING_SMOKE=1",
 )
 class RealDoclingSmokeTests(unittest.TestCase):
     def test_real_converter_produces_parsed_document_v2(self) -> None:

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import {
   createResearcherProjectStore,
   type ResearcherAccountStore,
@@ -625,7 +626,9 @@ export async function sendNodeResponse(
   }
 
   await new Promise<void>((resolve, reject) => {
-    const stream = Readable.fromWeb(response.body!)
+    const stream = Readable.fromWeb(
+      response.body as NodeReadableStream<Uint8Array>,
+    )
     stream.once('error', reject)
     outgoing.once('finish', resolve)
     outgoing.once('error', reject)

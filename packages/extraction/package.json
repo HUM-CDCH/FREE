@@ -12,7 +12,11 @@
     "./schema": "./src/schema.ts",
     "./source-context": "./src/source-context.ts"
   },
-  "scripts": {},
+  "scripts": {
+    "test": "tsx --test src/batch-worker.test.ts src/catalog-boundaries.test.ts src/module.test.ts src/parsed-document.test.ts",
+    "test:postgres": "tsx --test src/extraction-module.integration.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "db": "workspace:*",
     "zod": "^4.4.3"

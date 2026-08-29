@@ -61,7 +61,7 @@ describe('SchemaNode conversion', () => {
   })
 
   it('reports duplicate opaque keys', () => {
-    const duplicate = [
+    const duplicate: SchemaNode[] = [
       { id: 'a', name: 'same', type: 'string' },
       { id: 'b', name: 'same', type: 'number' },
     ]
@@ -90,7 +90,7 @@ describe('SchemaNode conversion', () => {
   })
 
   it('refuses to serialize duplicate sibling field names', () => {
-    const duplicate = [
+    const duplicate: SchemaNode[] = [
       { id: 'a', name: 'same', type: 'string' },
       { id: 'b', name: 'same', type: 'number' },
     ]
