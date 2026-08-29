@@ -48,6 +48,18 @@ describe('destructive database target', () => {
       )
   })
 
+  it('rejects every query parameter', () => {
+    for (const parameter of ['sslmode=disable', 'application_name=free-reset'])
+      assert.throws(
+        () =>
+          validateDestructiveDatabaseTarget(
+            `postgresql://postgres:local@localhost:5432/free?${parameter}`,
+            destructiveOptions,
+          ),
+        destructiveTargetError,
+      )
+  })
+
   it('rejects the wrong protocol, user, port, or database', () => {
     for (const value of [
       'http://postgres:local@localhost:5432/free',
@@ -89,12 +101,14 @@ describe('disposable PostgreSQL test target', () => {
       )
   })
 
-  it('rejects query parameters that override the connection target', () => {
+  it('rejects every query parameter', () => {
     for (const parameter of [
       'database=free_test_override',
       'host=localhost',
       'port=5432',
       'user=postgres',
+      'sslmode=disable',
+      'application_name=free-tests',
     ])
       assert.throws(
         () =>

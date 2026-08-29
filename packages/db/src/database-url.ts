@@ -4,13 +4,6 @@ const LOOPBACK_HOSTS: Record<string, true> = {
   '[::1]': true,
 }
 
-const TARGET_QUERY_PARAMETERS: Record<string, true> = {
-  database: true,
-  host: true,
-  port: true,
-  user: true,
-}
-
 interface DatabaseTargetPolicy {
   acceptsDatabase(database: string): boolean
   allowDevContainerHost: boolean
@@ -31,12 +24,6 @@ function validateDatabaseTarget(
     LOOPBACK_HOSTS[url.hostname] === true ||
     (policy.allowDevContainerHost && url.hostname === 'db')
   const database = url.pathname.slice(1)
-  let queryOverridesTarget = false
-  for (const parameter of url.searchParams.keys())
-    if (TARGET_QUERY_PARAMETERS[parameter] === true) {
-      queryOverridesTarget = true
-      break
-    }
 
   if (
     url.protocol !== 'postgresql:' ||
@@ -44,7 +31,7 @@ function validateDatabaseTarget(
     !acceptedHost ||
     url.port !== '5432' ||
     !policy.acceptsDatabase(database) ||
-    queryOverridesTarget
+    url.searchParams.size !== 0
   )
     throw new Error(policy.errorMessage)
 

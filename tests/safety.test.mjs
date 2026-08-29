@@ -19,15 +19,17 @@ import {
 } from '../scripts/free.mjs'
 import { ROOT } from './helpers.mjs'
 
-function resetDatabase(databaseUrl) {
+function resetDatabase(databaseUrl, environment = process.env) {
   return spawnSync(
-    'pnpm',
-    ['--filter', 'db', 'exec', 'tsx', 'src/reset-database.ts'],
+    process.execPath,
+    [
+      resolve(ROOT, 'packages/db/node_modules/tsx/dist/cli.mjs'),
+      resolve(ROOT, 'packages/db/src/reset-database.ts'),
+    ],
     {
       cwd: ROOT,
-      env: { ...process.env, DATABASE_URL: databaseUrl },
+      env: { ...environment, DATABASE_URL: databaseUrl },
       encoding: 'utf8',
-      shell: true,
       timeout: 120_000,
     },
   )
@@ -72,6 +74,29 @@ test('db safety: reset refuses a remote database target', () => {
 
 test('db safety: reset refuses a local database that is not the dev database', () => {
   const result = resetDatabase('postgresql://postgres:postgres@127.0.0.1:5432/researchdata')
+  assert.notEqual(result.status, 0)
+  assert.match(
+    result.stderr + result.stdout,
+    /Destructive database operations require/,
+  )
+})
+
+test('db safety: dotenv cannot enable the Dev Container host allowance', (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'free-reset-env-test-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const dotenvPath = join(directory, '.env')
+  writeFileSync(dotenvPath, 'FREE_DEVCONTAINER=1\n')
+  const environment = {
+    ...process.env,
+    DOTENV_CONFIG_PATH: dotenvPath,
+  }
+  delete environment.FREE_DEVCONTAINER
+
+  const result = resetDatabase(
+    'postgresql://postgres:postgres@db:5432/free',
+    environment,
+  )
+
   assert.notEqual(result.status, 0)
   assert.match(
     result.stderr + result.stdout,
