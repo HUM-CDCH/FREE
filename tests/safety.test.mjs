@@ -36,7 +36,7 @@ test('db safety: reset refuses a remote database target', () => {
   assert.notEqual(result.status, 0)
   assert.match(
     result.stderr + result.stdout,
-    /Only the local development database named "free" is accepted/,
+    /Destructive database operations require/,
   )
 })
 
@@ -45,7 +45,7 @@ test('db safety: reset refuses a local database that is not the dev database', (
   assert.notEqual(result.status, 0)
   assert.match(
     result.stderr + result.stdout,
-    /Only the local development database named "free" is accepted/,
+    /Destructive database operations require/,
   )
 })
 
