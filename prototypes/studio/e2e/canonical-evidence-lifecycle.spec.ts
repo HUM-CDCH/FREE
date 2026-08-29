@@ -427,7 +427,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await freshPage.getByRole('tab', { name: /Results/ }).click()
   await expect(freshPage.getByText('No reviewable result')).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
-  await freshPage.getByRole('button', { name: 'Raw JSON' }).click()
+  await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
   const reopened = documentReopenResponseSchema.parse(
     await (
@@ -453,10 +453,10 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await freshPage.getByLabel('Extraction snapshot').selectOption(String(reviewed?.id))
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
   await expect(freshPage.locator('.pdfViewer .page')).toHaveCount(6)
-  await freshPage.getByRole('button', { name: 'Pinned schema' }).click()
+  await freshPage.getByRole('tab', { name: 'Pinned schema' }).click()
   await expect(freshPage.locator('pre').filter({ hasText: 'One lifecycle fixture record.' })).toBeVisible()
   await expect(freshPage.getByText(firstSchemaRevisionId, { exact: true })).toBeVisible()
-  await freshPage.getByRole('button', { name: 'Review' }).click()
+  await freshPage.getByRole('tab', { name: 'Review' }).click()
   await expect(
     freshPage.getByRole('tabpanel', { name: /Results/ }),
   ).toContainText('Reviewed, café')
@@ -832,7 +832,11 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     })
 
     resetQueues()
-    enqueue('discovery', { result: { starts: Array.from({ length: 101 }, (_, index) => `Record ${index + 1}`) } })
+    enqueue('discovery', {
+      result: {
+        starts: Array.from({ length: 101 }, (_, index) => `H${index + 1}`),
+      },
+    })
     const truncationResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },
       data: { id: randomUUID(), sourceRepresentationRevisionId: truncationRepresentationId, schemaRevisionId: packageSchemaRevisionId, strategy: 'CATALOG' },

@@ -542,7 +542,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 'Status',
                 attempt?.complete === false ? 'incomplete' : 'ready',
               )} */}
-              {/* {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())} */}
+              {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())}
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
