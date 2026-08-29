@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SHARED_STUDIO_CONFIGURATION_FIELDS,
+  validateSharedStudioConfiguration,
+} from 'studio-configuration'
+import {
   createRequestPeerVerifier,
   loadStudioServerConfig,
+  StudioConfigurationError,
   type ClientAddressBindings,
 } from './config.js'
 
@@ -49,15 +54,9 @@ describe('production Studio configuration', () => {
     })
 
     for (const name of [
-      'STUDIO_ORIGIN',
-      'STUDIO_BASE_PATH',
-      'FREE_SESSION_SECRET',
       'FREE_STUDIO_PROXY',
       'FREE_STUDIO_PROXY_ADDRESS',
-      'FREE_ENTRA_TENANT_ID',
-      'FREE_ENTRA_CLIENT_ID',
-      'FREE_ENTRA_CLIENT_CERT_PATH',
-      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT',
+      ...SHARED_STUDIO_CONFIGURATION_FIELDS,
     ]) {
       const environment = { ...HOSTED }
       delete environment[name as keyof typeof environment]
@@ -106,6 +105,24 @@ describe('production Studio configuration', () => {
       ).toThrow(/FREE_SESSION_SECRET/)
   })
 
+  it('adapts the same shared syntax issues to Studio errors', () => {
+    for (const override of [
+      { STUDIO_ORIGIN: 'https://studio.example/path' },
+      { STUDIO_BASE_PATH: '/free/' },
+      { FREE_SESSION_SECRET: 'not base64' },
+      { FREE_ENTRA_TENANT_ID: '10000000-0000-0000-0000-000000000001' },
+      { FREE_ENTRA_CLIENT_ID: 'not-a-uuid' },
+      { FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AA:BB' },
+    ]) {
+      const environment = { ...HOSTED, ...override }
+      const [issue] = validateSharedStudioConfiguration(environment).issues
+      expect(issue).toBeDefined()
+      expect(() => loadStudioServerConfig(environment)).toThrowError(
+        new StudioConfigurationError(issue.message),
+      )
+    }
+  })
+
   it('rejects malformed Entra identifiers and certificate thumbprints', () => {
     expect(() =>
       loadStudioServerConfig({
@@ -127,13 +144,21 @@ describe('production Studio configuration', () => {
     ).toThrow(/FREE_ENTRA_CLIENT_CERT_THUMBPRINT/)
   })
 
-  it('requires one canonical proxy peer address', () => {
+  it('requires one canonical proxy peer address or IPv4 CIDR block', () => {
     for (const address of [
       '172.030.0.2',
       '172.30.0.2:443',
       ' 172.30.0.2',
       '2001:0db8:0:0:0:0:0:1',
       'not-an-ip',
+      // Non-canonical or malformed CIDR blocks.
+      '172.30.0.1/24',
+      '172.30.0.0/0',
+      '172.30.0.0/33',
+      '172.30.0.0/024',
+      '172.30.0.0/',
+      '172.30.0.0/24/8',
+      '2001:db8::/64',
     ])
       expect(() =>
         loadStudioServerConfig({
@@ -148,6 +173,12 @@ describe('production Studio configuration', () => {
         FREE_STUDIO_PROXY_ADDRESS: '2001:db8::1',
       }).proxyAddress,
     ).toBe('2001:db8::1')
+    expect(
+      loadStudioServerConfig({
+        ...HOSTED,
+        FREE_STUDIO_PROXY_ADDRESS: '172.30.0.0/24',
+      }).proxyAddress,
+    ).toBe('172.30.0.0/24')
   })
 
   it('allows only an explicit socket-only loopback exception', () => {
@@ -235,6 +266,39 @@ describe('trusted request peer', () => {
     )
   })
 
+  it('trusts exactly the configured proxy-network CIDR block', () => {
+    const verifyPeer = createRequestPeerVerifier(
+      loadStudioServerConfig({
+        ...HOSTED,
+        FREE_STUDIO_PROXY_ADDRESS: '172.30.0.0/24',
+      }),
+    )
+
+    expect(() => verifyPeer(requestBindings('172.30.0.2'))).not.toThrow()
+    expect(() =>
+      verifyPeer(requestBindings('::ffff:172.30.0.254')),
+    ).not.toThrow()
+    for (const peer of ['172.30.1.2', '127.0.0.1', '2001:db8::1', undefined])
+      expect(() =>
+        verifyPeer(requestBindings(peer as never)),
+      ).toThrowError(
+        expect.objectContaining({ status: 403, code: 'proxy_peer_rejected' }),
+      )
+  })
+
+  it('uses the configured address family for an exact IPv6 proxy peer', () => {
+    const verifyPeer = createRequestPeerVerifier(
+      loadStudioServerConfig({
+        ...HOSTED,
+        FREE_STUDIO_PROXY_ADDRESS: '2001:db8::1',
+      }),
+    )
+
+    expect(() => verifyPeer(requestBindings('2001:db8::1'))).not.toThrow()
+    expect(() => verifyPeer(requestBindings('2001:db8::2'))).toThrowError(
+      expect.objectContaining({ status: 403, code: 'proxy_peer_rejected' }),
+    )
+  })
 
   it('accepts the loopback socket', () => {
     const config = loadStudioServerConfig({

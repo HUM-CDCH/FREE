@@ -1,21 +1,25 @@
-import type { ExtractionRuntime } from 'extraction'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { randomBytes } from 'node:crypto'
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
-  applyStudioBaseTag,
+  canonicalEntraCertificateThumbprint,
   canonicalStudioBasePath,
+} from 'studio-configuration'
+import {
+  applyStudioBaseTag,
   studioBaseHref,
 } from './shared/studioBasePath.js'
 import {
+  createDevelopmentOidcIdentityProvider,
   createFakeEntraIdentityProvider,
   createMicrosoftEntraIdentityProvider,
+  DEVELOPMENT_ENTRA_CLIENT_ID,
+  DEVELOPMENT_ENTRA_TENANT_ID,
 } from './server/entraIdentityProvider.js'
-import { normalizeEntraCertificateThumbprint } from './server/config.js'
+import { createDevelopmentHost } from './server/developmentHost.js'
 
 export function developmentStudioOrigin(server: {
   https?: unknown
@@ -43,7 +47,36 @@ function studioBaseHtml(basePath: string): Plugin {
     },
   }
 }
-// Local development invokes the same Hono composition root as the Node host.
+
+type StudioServerModule = {
+  createStudioApp(options: {
+    studioOrigin: string
+    basePath: string
+    sessionSecret: Uint8Array
+    identityProvider: unknown
+    accountStore?: unknown
+    playwrightAuthentication?: unknown
+    clientHandler: () => Response
+    viteDevelopmentAssets: boolean
+  }): Promise<unknown>
+  viteClientFallback(): Response
+  handleStudioNodeRequest(...args: unknown[]): Promise<boolean>
+}
+
+// One loaded composition root: the module that dispatches a request, the
+// application it composed, and the origin that application enforces.
+type StudioComposition = {
+  studio: StudioServerModule
+  app: unknown
+  studioOrigin: string
+}
+
+// Local development invokes the same Hono composition root as the Node host,
+// and recomposes it whenever a server module it loaded changes. Vite
+// invalidates the SSR module graph upwards, from the edited file through its
+// importers, so recomposition re-evaluates exactly the changed server code
+// while process-wide singletons its dependencies own — the database pool, the
+// Extraction runtime — stay the instances already loaded.
 export function apiFunctions(configuredBasePath: string): Plugin {
   const basePath = canonicalStudioBasePath(configuredBasePath)
   const generatedSessionSecret = randomBytes(32)
@@ -55,126 +88,97 @@ export function apiFunctions(configuredBasePath: string): Plugin {
         throw new Error(
           'Playwright authentication requires Vite to listen on 127.0.0.1.',
         )
-      if (server.httpServer) {
-        // Use Vite's SSR graph so the lifecycle owns the same singleton loaded
-        // by API handlers, after defineConfig has established database settings.
-        const runtimeModule = await server.ssrLoadModule(
-          '/api/_extraction_runtime.ts',
+      const composeStudio = async (): Promise<StudioComposition> => {
+        const studio = (await server.ssrLoadModule(
+          '/server/app.ts',
+        )) as StudioServerModule
+        const environment = loadEnv(server.config.mode, server.config.root, '')
+        const developmentOrigin = developmentStudioOrigin(server.config.server)
+        const studioOrigin =
+          process.env.STUDIO_ORIGIN ??
+          environment.STUDIO_ORIGIN ??
+          developmentOrigin
+        const encodedSecret =
+          process.env.FREE_SESSION_SECRET ?? environment.FREE_SESSION_SECRET
+        const sessionSecret = encodedSecret
+          ? Buffer.from(encodedSecret, 'base64')
+          : generatedSessionSecret
+        if (
+          playwrightMode &&
+          !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(studioOrigin)
         )
-        const extractionRuntime: ExtractionRuntime =
-          runtimeModule.extractionRuntime
-        const runtimeAbort = new AbortController()
-        const running = extractionRuntime
-          .run(runtimeAbort.signal)
-          .catch((error) => {
-            if (!runtimeAbort.signal.aborted)
-              server.config.logger.error(
-                error instanceof Error
-                  ? (error.stack ?? error.message)
-                  : String(error),
-              )
-          })
-        server.httpServer.once('close', () => {
-          runtimeAbort.abort()
-          void extractionRuntime
-            .close()
-            .then(() => running)
-            .catch((error) => {
-              server.config.logger.error(
-                error instanceof Error
-                  ? (error.stack ?? error.message)
-                  : String(error),
-              )
+          throw new Error(
+            'Playwright authentication is restricted to a loopback Studio origin.',
+          )
+        const playwright = playwrightMode
+          ? await import('./server/playwright-auth.ts')
+          : undefined
+        const accountStore = playwright?.createPlaywrightAccountStore()
+        const playwrightAuthentication =
+          playwright?.createPlaywrightAuthentication()
+        const environmentValue = (name: string) =>
+          process.env[name] ?? environment[name]
+        const realEntra =
+          !playwrightMode && environmentValue('FREE_ENTRA_REAL') === '1'
+        if (realEntra && new URL(studioOrigin).protocol !== 'https:')
+          throw new Error(
+            'Real Entra development requires an HTTPS Studio origin.',
+          )
+        const required = (name: string) => {
+          const configured = environmentValue(name)
+          if (!configured)
+            throw new Error(`${name} is required for real Entra development.`)
+          return configured
+        }
+        // compose.override.yaml points development at its mock OIDC service so
+        // every sign-in runs the real MSAL client code; without the mock (Dev
+        // Container, host-run dev server) identity falls back to the fake.
+        const mockOidcIssuer =
+          !playwrightMode && !realEntra
+            ? environmentValue('FREE_ENTRA_MOCK_ISSUER')
+            : undefined
+        const identityProvider = realEntra
+          ? createMicrosoftEntraIdentityProvider({
+              tenantId: required('FREE_ENTRA_TENANT_ID'),
+              clientId: required('FREE_ENTRA_CLIENT_ID'),
+              certificateThumbprint: canonicalEntraCertificateThumbprint(
+                required('FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
+              ),
+              certificatePrivateKey: readFileSync(
+                required('FREE_ENTRA_CLIENT_CERT_PATH'),
+                'utf8',
+              ),
             })
-        })
-      }
-      const studioModule = (await server.ssrLoadModule('/server/app.ts')) as {
-        createStudioApp(options: {
-          studioOrigin: string
-          basePath: string
-          sessionSecret: Uint8Array
-          identityProvider: unknown
-          accountStore?: unknown
-          playwrightAuthentication?: unknown
-          clientHandler: () => Response
-          viteDevelopmentAssets: boolean
-        }): Promise<unknown>
-        viteClientFallback(): Response
-        handleStudioNodeRequest(
-          app: unknown,
-          studioOrigin: string,
-          incoming: IncomingMessage,
-          outgoing: ServerResponse,
-        ): Promise<boolean>
-      }
-      const environment = loadEnv(
-        server.config.mode,
-        server.config.root,
-        '',
-      )
-      const developmentOrigin = developmentStudioOrigin(server.config.server)
-      const studioOrigin =
-        process.env.STUDIO_ORIGIN ??
-        environment.STUDIO_ORIGIN ??
-        developmentOrigin
-      const encodedSecret =
-        process.env.FREE_SESSION_SECRET ?? environment.FREE_SESSION_SECRET
-      const sessionSecret = encodedSecret
-        ? Buffer.from(encodedSecret, 'base64')
-        : generatedSessionSecret
-      if (
-        playwrightMode &&
-        !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(
+          : mockOidcIssuer
+            ? createDevelopmentOidcIdentityProvider({
+                tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
+                clientId: DEVELOPMENT_ENTRA_CLIENT_ID,
+                serverIssuer: mockOidcIssuer,
+                browserIssuer:
+                  environmentValue('FREE_ENTRA_MOCK_BROWSER_ISSUER') ??
+                  mockOidcIssuer,
+              })
+            : createFakeEntraIdentityProvider()
+        const app = await studio.createStudioApp({
           studioOrigin,
-        )
-      )
-        throw new Error(
-          'Playwright authentication is restricted to a loopback Studio origin.',
-        )
-      const playwright = playwrightMode
-        ? await import('./server/playwright-auth.ts')
-        : undefined
-      const accountStore = playwright?.createPlaywrightAccountStore()
-      const playwrightAuthentication =
-        playwright?.createPlaywrightAuthentication()
-      const environmentValue = (name: string) =>
-        process.env[name] ?? environment[name]
-      const realEntra =
-        !playwrightMode && environmentValue('FREE_ENTRA_REAL') === '1'
-      if (realEntra && new URL(studioOrigin).protocol !== 'https:')
-        throw new Error('Real Entra development requires an HTTPS Studio origin.')
-      const required = (name: string) => {
-        const configured = environmentValue(name)
-        if (!configured) throw new Error(`${name} is required for real Entra development.`)
-        return configured
+          basePath,
+          sessionSecret,
+          identityProvider,
+          accountStore,
+          playwrightAuthentication,
+          clientHandler: studio.viteClientFallback,
+          viteDevelopmentAssets: true,
+        })
+        return { studio, app, studioOrigin }
       }
-      const identityProvider = realEntra
-        ? createMicrosoftEntraIdentityProvider({
-            tenantId: required('FREE_ENTRA_TENANT_ID'),
-            clientId: required('FREE_ENTRA_CLIENT_ID'),
-            certificateThumbprint: normalizeEntraCertificateThumbprint(
-              required('FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
-            ),
-            certificatePrivateKey: readFileSync(
-              required('FREE_ENTRA_CLIENT_CERT_PATH'),
-              'utf8',
-            ),
-          })
-        : createFakeEntraIdentityProvider()
-      const app = await studioModule.createStudioApp({
-        studioOrigin,
-        basePath,
-        sessionSecret,
-        identityProvider,
-        accountStore,
-        playwrightAuthentication,
-        clientHandler: studioModule.viteClientFallback,
-        viteDevelopmentAssets: true,
-      })
+
+      const developmentHost = await createDevelopmentHost(server, composeStudio)
 
       server.middlewares.use(async (request, response, next) => {
         try {
-          const handled = await studioModule.handleStudioNodeRequest(
+          const { studio, app, studioOrigin } =
+            await developmentHost.composition()
+          const handled = await studio.handleStudioNodeRequest(
             app,
             studioOrigin,
             request,
@@ -199,7 +203,7 @@ export default defineConfig(({ command, mode }) => {
   if (command === 'serve') {
     process.env.DATABASE_URL ??= loadEnv(
       mode,
-      resolve(import.meta.dirname, '../../packages/db'),
+      resolve(import.meta.dirname, '../..'),
       '',
     ).DATABASE_URL
   }
@@ -215,7 +219,12 @@ export default defineConfig(({ command, mode }) => {
       outDir: 'dist/client',
       emptyOutDir: true,
     },
-    server: mode === 'https' ? localHttps() : { host: '127.0.0.1' as const },
+    // The Compose development overlay widens the bind with the `--host` CLI
+    // flag; the config itself never listens beyond loopback.
+    server:
+      mode === 'https'
+        ? localHttps()
+        : { host: '127.0.0.1', port: 5173, strictPort: true },
   }
 })
 

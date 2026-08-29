@@ -1,6 +1,6 @@
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
-/** Refuse to reset anything except FREE's conventional local development DB. */
+/** Accept only FREE's conventional local development database. */
 export function localDevelopmentDatabase(
   value: string,
   allowDevContainerHost = false,
@@ -11,7 +11,7 @@ export function localDevelopmentDatabase(
     (allowDevContainerHost && url.hostname === 'db')
   if (!localHost || url.pathname !== '/free')
     throw new Error(
-      'db:reset only accepts the local development database named "free".',
+      'Only the local development database named "free" is accepted.',
     )
   return url
 }

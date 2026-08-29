@@ -8,10 +8,8 @@ import {
   resolve,
 } from 'node:path'
 import { Readable } from 'node:stream'
-import {
-  applyStudioBaseTag,
-  canonicalStudioBasePath,
-} from '../shared/studioBasePath.js'
+import { canonicalStudioBasePath } from 'studio-configuration'
+import { applyStudioBaseTag } from '../shared/studioBasePath.js'
 import type { ClientHandler } from './app.js'
 
 const MIME_TYPE: Readonly<Record<string, string>> = {

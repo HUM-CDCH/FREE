@@ -6,28 +6,6 @@ const SAFE_METHODS: Readonly<Record<string, true>> = {
   OPTIONS: true,
 }
 
-export function canonicalStudioOrigin(value: string): string {
-  let parsed: URL
-  try {
-    parsed = new URL(value)
-  } catch (cause) {
-    throw new Error('The Studio origin must be a canonical HTTP or HTTPS origin.', {
-      cause,
-    })
-  }
-  if (
-    (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
-    parsed.origin !== value ||
-    parsed.username !== '' ||
-    parsed.password !== '' ||
-    parsed.pathname !== '/' ||
-    parsed.search !== '' ||
-    parsed.hash !== ''
-  )
-    throw new Error('The Studio origin must be a canonical HTTP or HTTPS origin.')
-  return value
-}
-
 export function enforceCanonicalOrigin(
   request: Request,
   studioOrigin: string,

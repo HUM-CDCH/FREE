@@ -17,7 +17,7 @@ const databaseUrl = process.env.PROJECT_STORE_POSTGRES_URL
 test('PostgreSQL cascades the complete Project Context graph', async () => {
   if (!databaseUrl)
     throw new Error(
-      'Set PROJECT_STORE_POSTGRES_URL to a disposable free_test_* database, for example: docker compose -f packages/db/docker-compose.yml up -d && createdb free_test_cascade.',
+      'Set PROJECT_STORE_POSTGRES_URL to a disposable free_test_* database, for example: pnpm --filter db db:start && createdb free_test_cascade.',
     )
   const url = new URL(databaseUrl)
   if (!url.pathname.slice(1).startsWith('free_test_'))
@@ -231,12 +231,13 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     resultPayload: {},
     reviewable: true,
   })
-  await db.orm.public.ExtractionReview.create({
+  const review = await db.orm.public.ExtractionReview.create({
     extractionId: extraction.id,
+    revisionNumber: 1,
     decisionDigest: 'cascade-check',
   })
   await db.orm.public.ReviewDecision.create({
-    extractionId: extraction.id,
+    extractionReviewId: review.id,
     resultPath: ['title'],
     resultPathKey: '["title"]',
     evidenceAnchorId: 'anchor-1',

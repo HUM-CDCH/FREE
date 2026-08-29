@@ -13,8 +13,9 @@ Microsoft Graph, groups, app roles, refresh tokens, or a local disable list.
    `STUDIO_BASE_PATH=/`, use `<STUDIO_ORIGIN>/auth/callback` and
    `<STUDIO_ORIGIN>/auth/signed-out`. Otherwise use
    `<STUDIO_ORIGIN><STUDIO_BASE_PATH>/auth/callback` and
-   `<STUDIO_ORIGIN><STUDIO_BASE_PATH>/auth/signed-out`. For the local nginx
-   overlay these are `https://localhost:8443/free/auth/callback` and
+   `<STUDIO_ORIGIN><STUDIO_BASE_PATH>/auth/signed-out`. For the development
+   Entra overlay (`compose.entra.yaml`) these are
+   `https://localhost:8443/free/auth/callback` and
    `https://localhost:8443/free/auth/signed-out`.
 3. Keep only the OIDC `openid` and `profile` delegated permissions. Do not add
    Graph data permissions, group claims, app roles, or an implicit/hybrid
@@ -81,7 +82,7 @@ path:
   page;
 - the browser back button cannot reopen protected UI after logout;
 - the exact `/free/auth/callback` and `/free/auth/signed-out` URIs work on the
-  local nginx overlay or their hosted equivalents.
+  development Entra overlay or their hosted equivalents.
 
 Server-acknowledged state always wins over recovery. FREE deliberately accepts
 loss of arbitrary component-local text across the reauthentication redirect.

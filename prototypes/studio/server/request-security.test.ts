@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { canonicalStudioOrigin } from 'studio-configuration'
 import { normalizeClientAddress } from './request-address.js'
-import {
-  canonicalStudioOrigin,
-  enforceCanonicalOrigin,
-} from './origin.js'
+import { enforceCanonicalOrigin } from './origin.js'
 
 describe('canonical Origin enforcement', () => {
   it('accepts only the configured canonical origin on unsafe methods', () => {

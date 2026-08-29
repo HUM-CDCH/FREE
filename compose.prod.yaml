@@ -1,0 +1,72 @@
+# Production overlay for one private LAN or VPN deployment behind the
+# host-managed nginx:
+#
+#   node scripts/free.mjs production
+#
+# (which validates .env, renders .nginx/free-studio-locations.conf for the
+# host nginx, and runs
+# `docker compose -f compose.yaml -f compose.prod.yaml up --build -d --wait`).
+#
+# Same container topology as development minus the nginx container: the host
+# nginx terminates TLS and proxies to Studio's loopback-published port. This
+# overlay adds only the production deltas: restart policies, required (never
+# defaulted) secrets, real Entra authentication, and the loopback publish plus
+# pinned proxy peer for the host nginx. See docs/operations/deployment.md.
+services:
+  db:
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: "${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}"
+
+  parsing_service:
+    restart: unless-stopped
+    # For a GPU deployment, provide the NVIDIA runtime explicitly and select
+    # CUDA, for example:
+    #   environment:
+    #     DOCLING_DEVICE: cuda
+    #   deploy:
+    #     resources:
+    #       reservations:
+    #         devices:
+    #           - driver: nvidia
+    #             count: all
+    #             capabilities: [gpu]
+
+  studio:
+    restart: unless-stopped
+    # The FREE_ENTRA_* values and the client-certificate mount are duplicated
+    # in compose.entra.yaml (Compose cannot share anchors across files); keep
+    # the two blocks identical.
+    environment:
+      DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:?FREE_POSTGRES_PASSWORD must be set to a generated hexadecimal password}@db:5432/free"
+      STUDIO_ORIGIN: "${STUDIO_ORIGIN:?STUDIO_ORIGIN must be set to the canonical HTTPS origin}"
+      STUDIO_BASE_PATH: "${STUDIO_BASE_PATH:?STUDIO_BASE_PATH must be a canonical path such as /free}"
+      FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes}"
+      FREE_ENTRA_TENANT_ID: "${FREE_ENTRA_TENANT_ID:?FREE_ENTRA_TENANT_ID must be the application tenant UUID}"
+      FREE_ENTRA_CLIENT_ID: "${FREE_ENTRA_CLIENT_ID:?FREE_ENTRA_CLIENT_ID must be the application client UUID}"
+      FREE_ENTRA_CLIENT_CERT_PATH: /run/secrets/free-entra-client.pem
+      FREE_ENTRA_CLIENT_CERT_THUMBPRINT: "${FREE_ENTRA_CLIENT_CERT_THUMBPRINT:?FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be the SHA-256 certificate thumbprint}"
+      # The host nginx's connections to the loopback-published port enter the
+      # container through the proxy network's bridge gateway (gw_priority
+      # below), so that single address is the whole trusted peer set; every
+      # other container has its own non-gateway address and is rejected.
+      FREE_STUDIO_PROXY_ADDRESS: 172.30.0.1
+    # Published for the host nginx only; the host or perimeter firewall never
+    # needs to expose 5173.
+    ports:
+      - "127.0.0.1:5173:5173"
+    networks:
+      app:
+      proxy:
+        # Host port forwarding must enter through this network: Docker
+        # otherwise routes the published port via the `app` network, so host
+        # nginx connections would arrive from its gateway and be rejected as
+        # an untrusted peer.
+        gw_priority: 1
+    volumes:
+      - type: bind
+        source: "${FREE_ENTRA_CLIENT_CERT_PATH:?FREE_ENTRA_CLIENT_CERT_PATH must name the Entra client private-key PEM}"
+        target: /run/secrets/free-entra-client.pem
+        read_only: true
+        bind:
+          create_host_path: false

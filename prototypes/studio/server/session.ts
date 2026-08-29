@@ -1,5 +1,7 @@
-import { canonicalStudioBasePath } from '../shared/studioBasePath.js'
-import { CANONICAL_UUID } from '../shared/uuid.js'
+import {
+  CANONICAL_UUID,
+  canonicalStudioBasePath,
+} from 'studio-configuration'
 import {
   decodeSignedValue,
   encodeSignedValue,
