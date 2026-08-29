@@ -5,8 +5,11 @@ import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
-  applyStudioBaseTag,
+  canonicalEntraCertificateThumbprint,
   canonicalStudioBasePath,
+} from 'studio-configuration'
+import {
+  applyStudioBaseTag,
   studioBaseHref,
 } from './shared/studioBasePath.js'
 import {
@@ -16,7 +19,6 @@ import {
   DEVELOPMENT_ENTRA_CLIENT_ID,
   DEVELOPMENT_ENTRA_TENANT_ID,
 } from './server/entraIdentityProvider.js'
-import { normalizeEntraCertificateThumbprint } from './server/config.js'
 import { createDevelopmentHost } from './server/developmentHost.js'
 
 export function developmentStudioOrigin(server: {
@@ -139,7 +141,7 @@ export function apiFunctions(configuredBasePath: string): Plugin {
           ? createMicrosoftEntraIdentityProvider({
               tenantId: required('FREE_ENTRA_TENANT_ID'),
               clientId: required('FREE_ENTRA_CLIENT_ID'),
-              certificateThumbprint: normalizeEntraCertificateThumbprint(
+              certificateThumbprint: canonicalEntraCertificateThumbprint(
                 required('FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
               ),
               certificatePrivateKey: readFileSync(

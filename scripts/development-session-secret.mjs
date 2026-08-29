@@ -8,23 +8,16 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname } from 'node:path'
+import { decodeCanonicalSessionSecret } from 'studio-configuration'
 
 const OWNER_READ_WRITE = 0o600
-
-export function canonicalBase64Secret(value) {
-  let decoded
-  try {
-    decoded = Buffer.from(value, 'base64')
-  } catch {
-    return false
-  }
-  return decoded.toString('base64') === value && decoded.byteLength >= 32
-}
 
 function readValidSecret(file) {
   try {
     const stored = readFileSync(file, 'utf8').trim()
-    return canonicalBase64Secret(stored) ? stored : null
+    return decodeCanonicalSessionSecret(stored)?.byteLength >= 32
+      ? stored
+      : null
   } catch (error) {
     if (error.code === 'ENOENT') return null
     throw error

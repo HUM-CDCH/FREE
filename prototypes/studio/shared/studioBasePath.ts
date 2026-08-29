@@ -1,31 +1,4 @@
-const SEGMENT = /^[A-Za-z0-9._~-]+$/
-
-export function canonicalStudioBasePath(value: string): string {
-  if (value === '/') return value
-  if (
-    !value.startsWith('/') ||
-    value.endsWith('/') ||
-    value.startsWith('//') ||
-    value.includes('\\') ||
-    value.includes('%') ||
-    value.includes('?') ||
-    value.includes('#')
-  )
-    throw new Error('The Studio base path is not canonical.')
-
-  const segments = value.slice(1).split('/')
-  if (
-    segments.some(
-      (segment) =>
-        segment === '' ||
-        segment === '.' ||
-        segment === '..' ||
-        !SEGMENT.test(segment),
-    )
-  )
-    throw new Error('The Studio base path is not canonical.')
-  return value
-}
+import { canonicalStudioBasePath } from 'studio-configuration'
 
 function internalStudioPath(value: string): string {
   if (!value.startsWith('/') || value.startsWith('//'))

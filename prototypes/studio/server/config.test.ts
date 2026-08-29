@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SHARED_STUDIO_CONFIGURATION_FIELDS,
+  validateSharedStudioConfiguration,
+} from 'studio-configuration'
+import {
   createRequestPeerVerifier,
   loadStudioServerConfig,
+  StudioConfigurationError,
   type ClientAddressBindings,
 } from './config.js'
 
@@ -49,15 +54,9 @@ describe('production Studio configuration', () => {
     })
 
     for (const name of [
-      'STUDIO_ORIGIN',
-      'STUDIO_BASE_PATH',
-      'FREE_SESSION_SECRET',
       'FREE_STUDIO_PROXY',
       'FREE_STUDIO_PROXY_ADDRESS',
-      'FREE_ENTRA_TENANT_ID',
-      'FREE_ENTRA_CLIENT_ID',
-      'FREE_ENTRA_CLIENT_CERT_PATH',
-      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT',
+      ...SHARED_STUDIO_CONFIGURATION_FIELDS,
     ]) {
       const environment = { ...HOSTED }
       delete environment[name as keyof typeof environment]
@@ -104,6 +103,24 @@ describe('production Studio configuration', () => {
       expect(() =>
         loadStudioServerConfig({ ...HOSTED, FREE_SESSION_SECRET: secret }),
       ).toThrow(/FREE_SESSION_SECRET/)
+  })
+
+  it('adapts the same shared syntax issues to Studio errors', () => {
+    for (const override of [
+      { STUDIO_ORIGIN: 'https://studio.example/path' },
+      { STUDIO_BASE_PATH: '/free/' },
+      { FREE_SESSION_SECRET: 'not base64' },
+      { FREE_ENTRA_TENANT_ID: '10000000-0000-0000-0000-000000000001' },
+      { FREE_ENTRA_CLIENT_ID: 'not-a-uuid' },
+      { FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AA:BB' },
+    ]) {
+      const environment = { ...HOSTED, ...override }
+      const [issue] = validateSharedStudioConfiguration(environment).issues
+      expect(issue).toBeDefined()
+      expect(() => loadStudioServerConfig(environment)).toThrowError(
+        new StudioConfigurationError(issue.message),
+      )
+    }
   })
 
   it('rejects malformed Entra identifiers and certificate thumbprints', () => {

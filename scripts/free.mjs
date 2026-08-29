@@ -18,8 +18,8 @@ import { networkInterfaces } from 'node:os'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseEnv } from 'node:util'
+import { validateSharedStudioConfiguration } from 'studio-configuration'
 import {
-  canonicalBase64Secret,
   ensureDevelopmentSessionSecret as ensureSessionSecretFile,
 } from './development-session-secret.mjs'
 import { validateComposeVersion } from './compose-version.mjs'
@@ -361,19 +361,6 @@ async function localMain(args) {
   )
 }
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function canonicalHttpsOrigin(value) {
-  let parsed
-  try {
-    parsed = new URL(value)
-  } catch {
-    return false
-  }
-  return parsed.protocol === 'https:' && parsed.origin === value
-}
-
 // Fail before any container starts, with every problem reported at once. The
 // Studio server re-validates the same values at boot; this pass exists so a
 // misconfigured deployment stops here instead of in a container restart loop.
@@ -382,61 +369,66 @@ export function validateProductionEnvironment(
   fileExists = existsSync,
 ) {
   const errors = []
-  const value = (name) => {
-    const supplied = environment[name]
-    if (supplied === undefined || supplied === '') {
-      errors.push(`${name} is required in .env.`)
-      return null
-    }
-    return supplied
+  const shared = validateSharedStudioConfiguration(environment)
+  const invalidMessages = {
+    STUDIO_ORIGIN:
+      'STUDIO_ORIGIN must be a canonical HTTPS origin with no path, query, fragment, or credentials.',
+    STUDIO_BASE_PATH:
+      'STUDIO_BASE_PATH must be a non-root canonical path such as /free, without a trailing slash. The shipped nginx behavior requires a non-root base path.',
+    FREE_SESSION_SECRET:
+      'FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes (openssl rand -base64 32).',
+    FREE_ENTRA_TENANT_ID: 'FREE_ENTRA_TENANT_ID must be a UUID.',
+    FREE_ENTRA_CLIENT_ID: 'FREE_ENTRA_CLIENT_ID must be a UUID.',
+    FREE_ENTRA_CLIENT_CERT_THUMBPRINT:
+      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be the SHA-256 certificate thumbprint (64 hex digits, colons allowed).',
+  }
+  const appendSharedIssue = (field) => {
+    const issue = shared.issues.find((candidate) => candidate.field === field)
+    if (issue === undefined) return false
+    errors.push(
+      issue.code === 'required'
+        ? `${field} is required in .env.`
+        : invalidMessages[field] ?? issue.message,
+    )
+    return true
   }
 
-  const origin = value('STUDIO_ORIGIN')
-  if (origin !== null && !canonicalHttpsOrigin(origin))
+  if (
+    !appendSharedIssue('STUDIO_ORIGIN') &&
+    new URL(shared.values.STUDIO_ORIGIN).protocol !== 'https:'
+  )
     errors.push(
       'STUDIO_ORIGIN must be a canonical HTTPS origin with no path, query, fragment, or credentials.',
     )
 
-  const basePath = value('STUDIO_BASE_PATH')
   if (
-    basePath !== null &&
-    !/^\/[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*$/.test(basePath)
+    !appendSharedIssue('STUDIO_BASE_PATH') &&
+    shared.values.STUDIO_BASE_PATH === '/'
   )
     errors.push(
       'STUDIO_BASE_PATH must be a non-root canonical path such as /free, without a trailing slash. The shipped nginx behavior requires a non-root base path.',
     )
 
-  const sessionSecret = value('FREE_SESSION_SECRET')
-  if (sessionSecret !== null && !canonicalBase64Secret(sessionSecret))
-    errors.push(
-      'FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes (openssl rand -base64 32).',
-    )
+  appendSharedIssue('FREE_SESSION_SECRET')
 
-  const postgresPassword = value('FREE_POSTGRES_PASSWORD')
-  if (postgresPassword !== null && !/^[0-9a-fA-F]{32,}$/.test(postgresPassword))
+  const postgresPassword = environment.FREE_POSTGRES_PASSWORD
+  if (postgresPassword === undefined || postgresPassword === '')
+    errors.push('FREE_POSTGRES_PASSWORD is required in .env.')
+  else if (!/^[0-9a-fA-F]{32,}$/.test(postgresPassword))
     errors.push(
       'FREE_POSTGRES_PASSWORD must be a generated hexadecimal password (openssl rand -hex 32).',
     )
 
-  for (const name of ['FREE_ENTRA_TENANT_ID', 'FREE_ENTRA_CLIENT_ID']) {
-    const uuid = value(name)
-    if (uuid !== null && !UUID_PATTERN.test(uuid))
-      errors.push(`${name} must be a UUID.`)
-  }
+  appendSharedIssue('FREE_ENTRA_TENANT_ID')
+  appendSharedIssue('FREE_ENTRA_CLIENT_ID')
+  appendSharedIssue('FREE_ENTRA_CLIENT_CERT_THUMBPRINT')
 
-  const thumbprint = value('FREE_ENTRA_CLIENT_CERT_THUMBPRINT')
   if (
-    thumbprint !== null &&
-    !/^[0-9a-fA-F]{64}$/.test(thumbprint.replaceAll(':', ''))
+    !appendSharedIssue('FREE_ENTRA_CLIENT_CERT_PATH') &&
+    !fileExists(shared.values.FREE_ENTRA_CLIENT_CERT_PATH)
   )
     errors.push(
-      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be the SHA-256 certificate thumbprint (64 hex digits, colons allowed).',
-    )
-
-  const certificatePath = value('FREE_ENTRA_CLIENT_CERT_PATH')
-  if (certificatePath !== null && !fileExists(certificatePath))
-    errors.push(
-      `FREE_ENTRA_CLIENT_CERT_PATH names ${certificatePath}, which does not exist on this host.`,
+      `FREE_ENTRA_CLIENT_CERT_PATH names ${shared.values.FREE_ENTRA_CLIENT_CERT_PATH}, which does not exist on this host.`,
     )
 
   return errors

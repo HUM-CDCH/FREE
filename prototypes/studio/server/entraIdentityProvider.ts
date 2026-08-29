@@ -8,7 +8,7 @@ import {
   type NetworkResponse,
 } from '@azure/msal-node'
 import { createHash, generateKeyPairSync } from 'node:crypto'
-import { normalizeCanonicalUuid } from '../shared/uuid.js'
+import { normalizeCanonicalUuid } from 'studio-configuration'
 
 const OIDC_SCOPES = ['openid', 'profile']
 

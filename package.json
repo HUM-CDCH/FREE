@@ -22,5 +22,8 @@
   },
   "devDependencies": {
     "likec4": "^1.59.2"
+  },
+  "dependencies": {
+    "studio-configuration": "workspace:*"
   }
 }

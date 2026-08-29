@@ -1,0 +1,15 @@
+{
+  "name": "studio-configuration",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/index.d.mts",
+      "default": "./src/index.mjs"
+    }
+  },
+  "scripts": {
+    "test": "node --test src/*.test.mjs"
+  }
+}

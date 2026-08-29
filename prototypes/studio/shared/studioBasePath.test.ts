@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { canonicalStudioBasePath } from 'studio-configuration'
 import {
-  canonicalStudioBasePath,
   studioBaseHref,
   studioPath,
   stripStudioBasePath,

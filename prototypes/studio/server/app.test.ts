@@ -347,9 +347,6 @@ describe('authentication gate and route contract', () => {
     )
     expect(returnPathModule.status).toBe(200)
     expect(returnPathModule.headers.get('location')).toBeNull()
-    const uuidModule = await test.app.request(`${ORIGIN}/shared/uuid.ts`)
-    expect(uuidModule.status).toBe(200)
-    expect(uuidModule.headers.get('location')).toBeNull()
   })
 
   it('uses exact base-path callback and post-logout redirect URIs', async () => {

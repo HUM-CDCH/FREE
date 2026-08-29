@@ -7,7 +7,7 @@ import {
   DEVELOPMENT_ENTRA_TENANT_ID,
   type EntraIdentity,
 } from './entraIdentityProvider.js'
-import { normalizeCanonicalUuid } from '../shared/uuid.js'
+import { normalizeCanonicalUuid } from 'studio-configuration'
 
 export const PLAYWRIGHT_RESEARCHER_ID =
   '70000000-0000-4000-8000-000000000001'

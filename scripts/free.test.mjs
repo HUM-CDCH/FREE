@@ -11,6 +11,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import {
+  SHARED_STUDIO_CONFIGURATION_FIELDS,
+  validateSharedStudioConfiguration,
+} from 'studio-configuration'
+import {
   developmentComposeEnvironment,
   deriveDevProfile,
   ensureDevelopmentSessionSecret,
@@ -233,7 +237,10 @@ describe('production environment validation', () => {
 
   it('reports every missing value at once', () => {
     const errors = validateProductionEnvironment({}, () => true)
-    for (const name of Object.keys(productionEnvironment))
+    for (const name of [
+      ...SHARED_STUDIO_CONFIGURATION_FIELDS,
+      'FREE_POSTGRES_PASSWORD',
+    ])
       assert.ok(
         errors.some((error) => error.includes(`${name} is required`)),
         `expected an error for ${name}`,
@@ -271,6 +278,27 @@ describe('production environment validation', () => {
         () => true,
       )
       assert.ok(errors.some((error) => error.includes('FREE_SESSION_SECRET')))
+    }
+  })
+
+  it('adapts the shared syntax issues instead of redefining their rules', () => {
+    for (const override of [
+      { STUDIO_ORIGIN: 'https://free.example.edu/path' },
+      { STUDIO_BASE_PATH: '/free/' },
+      { FREE_SESSION_SECRET: 'not base64!!' },
+      { FREE_ENTRA_TENANT_ID: '00000000-0000-0000-0000-000000000001' },
+      { FREE_ENTRA_CLIENT_ID: 'not-a-uuid' },
+      { FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB' },
+    ]) {
+      const environment = { ...productionEnvironment, ...override }
+      const shared = validateSharedStudioConfiguration(environment)
+      assert.equal(shared.issues.length, 1)
+      assert.ok(
+        validateProductionEnvironment(environment, () => true).some((error) =>
+          error.includes(shared.issues[0].field),
+        ),
+        `launcher did not adapt the shared ${shared.issues[0].field} issue`,
+      )
     }
   })
 
