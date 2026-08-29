@@ -59,6 +59,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: prototypes/parsing_service/uv.lock
 
+      - name: Install Docker Compose
+        uses: docker/setup-compose-action@v2
+        with:
+          version: v2.33.1
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
