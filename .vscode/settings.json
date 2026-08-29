@@ -1,0 +1,4 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/prototypes/parsing_service/.venv/Scripts/python.exe",
+  "python.terminal.activateEnvironment": false
+}

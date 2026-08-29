@@ -9,6 +9,10 @@ import { createHash } from 'node:crypto'
 import { Hono, type Context, type MiddlewareHandler } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import {
+  canonicalStudioBasePath,
+  canonicalStudioOrigin,
+} from 'studio-configuration'
+import {
   ApiError,
   apiErrorResponse,
 } from '../api/_http.js'
@@ -28,10 +32,7 @@ import {
   type EntraIdentityProvider,
 } from './entraIdentityProvider.js'
 import { createEntraTransactionManager } from './entraTransaction.js'
-import {
-  canonicalStudioOrigin,
-  enforceCanonicalOrigin,
-} from './origin.js'
+import { enforceCanonicalOrigin } from './origin.js'
 import { normalizeClientAddress } from './request-address.js'
 import { createSessionManager } from './session.js'
 import { createSessionGate } from './sessionGate.js'
@@ -39,7 +40,6 @@ import { clearAuthCookie, serializeAuthCookie } from './authCookie.js'
 import { readSingleCookie } from './signedCookie.js'
 import { timingSafeStringEqual } from './timingSafeStringEqual.js'
 import {
-  canonicalStudioBasePath,
   studioPath,
   stripStudioBasePath,
 } from '../shared/studioBasePath.js'
@@ -85,7 +85,6 @@ const VITE_DEVELOPMENT_ASSETS: Readonly<Record<string, true>> = {
   '/shared/studioBasePath.ts': true,
   '/shared/authSession.contract.ts': true,
   '/shared/returnPath.ts': true,
-  '/shared/uuid.ts': true,
   '/src/ui/Button.tsx': true,
   '/src/ui/ModalDialog.tsx': true,
 }

@@ -1,8 +1,5 @@
-import {
-  canonicalStudioBasePath,
-  studioPath,
-  stripStudioBasePath,
-} from '../shared/studioBasePath.js'
+import { canonicalStudioBasePath } from 'studio-configuration'
+import { studioPath, stripStudioBasePath } from '../shared/studioBasePath.js'
 
 function browserStudioBasePath(): string {
   if (typeof document === 'undefined') return '/'

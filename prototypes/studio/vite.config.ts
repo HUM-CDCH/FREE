@@ -1,14 +1,15 @@
-import type { ExtractionRuntime } from 'extraction'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { randomBytes } from 'node:crypto'
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import {
-  applyStudioBaseTag,
+  canonicalEntraCertificateThumbprint,
   canonicalStudioBasePath,
+} from 'studio-configuration'
+import {
+  applyStudioBaseTag,
   studioBaseHref,
 } from './shared/studioBasePath.js'
 import {
@@ -17,7 +18,7 @@ import {
   DEVELOPMENT_ENTRA_CLIENT_ID,
   DEVELOPMENT_ENTRA_TENANT_ID,
 } from './server/entraIdentityProvider.js'
-import { normalizeEntraCertificateThumbprint } from './server/config.js'
+import { createDevelopmentHost } from './server/developmentHost.js'
 
 export function developmentStudioOrigin(server: {
   https?: unknown
@@ -45,123 +46,108 @@ function studioBaseHtml(basePath: string): Plugin {
     },
   }
 }
-// Local development invokes the same Hono composition root as the Node host.
+
+type StudioServerModule = {
+  createStudioApp(options: {
+    studioOrigin: string
+    basePath: string
+    sessionSecret: Uint8Array
+    identityProvider: unknown
+    clientHandler: () => Response
+    viteDevelopmentAssets: boolean
+  }): Promise<unknown>
+  viteClientFallback(): Response
+  handleStudioNodeRequest(...args: unknown[]): Promise<boolean>
+}
+
+// One loaded composition root: the module that dispatches a request, the
+// application it composed, and the origin that application enforces.
+type StudioComposition = {
+  studio: StudioServerModule
+  app: unknown
+  studioOrigin: string
+}
+
+// Local development invokes the same Hono composition root as the Node host,
+// and recomposes it whenever a server module it loaded changes. Vite
+// invalidates the SSR module graph upwards, from the edited file through its
+// importers, so recomposition re-evaluates exactly the changed server code
+// while process-wide singletons its dependencies own — the database pool, the
+// Extraction runtime — stay the instances already loaded.
 export function apiFunctions(configuredBasePath: string): Plugin {
   const basePath = canonicalStudioBasePath(configuredBasePath)
   const generatedSessionSecret = randomBytes(32)
   return {
     name: 'free-api-functions',
     async configureServer(server) {
-      if (server.httpServer) {
-        // Use Vite's SSR graph so the lifecycle owns the same singleton loaded
-        // by API handlers, after defineConfig has established database settings.
-        const runtimeModule = await server.ssrLoadModule(
-          '/api/_extraction_runtime.ts',
-        )
-        const extractionRuntime: ExtractionRuntime =
-          runtimeModule.extractionRuntime
-        const runtimeAbort = new AbortController()
-        const running = extractionRuntime
-          .run(runtimeAbort.signal)
-          .catch((error) => {
-            if (!runtimeAbort.signal.aborted)
-              server.config.logger.error(
-                error instanceof Error
-                  ? (error.stack ?? error.message)
-                  : String(error),
-              )
-          })
-        server.httpServer.once('close', () => {
-          runtimeAbort.abort()
-          void extractionRuntime
-            .close()
-            .then(() => running)
-            .catch((error) => {
-              server.config.logger.error(
-                error instanceof Error
-                  ? (error.stack ?? error.message)
-                  : String(error),
-              )
+      const composeStudio = async (): Promise<StudioComposition> => {
+        const studio = (await server.ssrLoadModule(
+          '/server/app.ts',
+        )) as StudioServerModule
+        const environment = loadEnv(server.config.mode, server.config.root, '')
+        const developmentOrigin = developmentStudioOrigin(server.config.server)
+        const studioOrigin =
+          process.env.STUDIO_ORIGIN ??
+          environment.STUDIO_ORIGIN ??
+          developmentOrigin
+        const encodedSecret =
+          process.env.FREE_SESSION_SECRET ?? environment.FREE_SESSION_SECRET
+        const sessionSecret = encodedSecret
+          ? Buffer.from(encodedSecret, 'base64')
+          : generatedSessionSecret
+        const environmentValue = (name: string) =>
+          process.env[name] ?? environment[name]
+        const realEntra = environmentValue('FREE_ENTRA_REAL') === '1'
+        if (realEntra && new URL(studioOrigin).protocol !== 'https:')
+          throw new Error(
+            'Real Entra development requires an HTTPS Studio origin.',
+          )
+        const required = (name: string) => {
+          const configured = environmentValue(name)
+          if (!configured)
+            throw new Error(`${name} is required for development sign-in.`)
+          return configured
+        }
+        // compose.override.yaml points development at its mock OIDC service so
+        // every sign-in runs the real MSAL client code and session path.
+        const identityProvider = realEntra
+          ? createMicrosoftEntraIdentityProvider({
+              tenantId: required('FREE_ENTRA_TENANT_ID'),
+              clientId: required('FREE_ENTRA_CLIENT_ID'),
+              certificateThumbprint: canonicalEntraCertificateThumbprint(
+                required('FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
+              ),
+              certificatePrivateKey: readFileSync(
+                required('FREE_ENTRA_CLIENT_CERT_PATH'),
+                'utf8',
+              ),
             })
+          : createDevelopmentOidcIdentityProvider({
+              tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
+              clientId: DEVELOPMENT_ENTRA_CLIENT_ID,
+              serverIssuer: required('FREE_ENTRA_MOCK_ISSUER'),
+              browserIssuer:
+                environmentValue('FREE_ENTRA_MOCK_BROWSER_ISSUER') ??
+                required('FREE_ENTRA_MOCK_ISSUER'),
+            })
+        const app = await studio.createStudioApp({
+          studioOrigin,
+          basePath,
+          sessionSecret,
+          identityProvider,
+          clientHandler: studio.viteClientFallback,
+          viteDevelopmentAssets: true,
         })
+        return { studio, app, studioOrigin }
       }
-      const studioModule = (await server.ssrLoadModule('/server/app.ts')) as {
-        createStudioApp(options: {
-          studioOrigin: string
-          basePath: string
-          sessionSecret: Uint8Array
-          identityProvider: unknown
-          accountStore?: unknown
-          clientHandler: () => Response
-          viteDevelopmentAssets: boolean
-        }): Promise<unknown>
-        viteClientFallback(): Response
-        handleStudioNodeRequest(
-          app: unknown,
-          studioOrigin: string,
-          incoming: IncomingMessage,
-          outgoing: ServerResponse,
-        ): Promise<boolean>
-      }
-      const environment = loadEnv(
-        server.config.mode,
-        server.config.root,
-        '',
-      )
-      const developmentOrigin = developmentStudioOrigin(server.config.server)
-      const studioOrigin =
-        process.env.STUDIO_ORIGIN ??
-        environment.STUDIO_ORIGIN ??
-        developmentOrigin
-      const encodedSecret =
-        process.env.FREE_SESSION_SECRET ?? environment.FREE_SESSION_SECRET
-      const sessionSecret = encodedSecret
-        ? Buffer.from(encodedSecret, 'base64')
-        : generatedSessionSecret
-      const environmentValue = (name: string) =>
-        process.env[name] ?? environment[name]
-      const realEntra = environmentValue('FREE_ENTRA_REAL') === '1'
-      if (realEntra && new URL(studioOrigin).protocol !== 'https:')
-        throw new Error('Real Entra development requires an HTTPS Studio origin.')
-      const required = (name: string) => {
-        const configured = environmentValue(name)
-        if (!configured) throw new Error(`${name} is required for development sign-in.`)
-        return configured
-      }
-      // compose.override.yaml points development at its mock OIDC service so
-      // every sign-in runs the real MSAL client code and session path.
-      const identityProvider = realEntra
-        ? createMicrosoftEntraIdentityProvider({
-            tenantId: required('FREE_ENTRA_TENANT_ID'),
-            clientId: required('FREE_ENTRA_CLIENT_ID'),
-            certificateThumbprint: normalizeEntraCertificateThumbprint(
-              required('FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
-            ),
-            certificatePrivateKey: readFileSync(
-              required('FREE_ENTRA_CLIENT_CERT_PATH'),
-              'utf8',
-            ),
-          })
-        : createDevelopmentOidcIdentityProvider({
-            tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
-            clientId: DEVELOPMENT_ENTRA_CLIENT_ID,
-            serverIssuer: required('FREE_ENTRA_MOCK_ISSUER'),
-            browserIssuer:
-              environmentValue('FREE_ENTRA_MOCK_BROWSER_ISSUER') ??
-              required('FREE_ENTRA_MOCK_ISSUER'),
-          })
-      const app = await studioModule.createStudioApp({
-        studioOrigin,
-        basePath,
-        sessionSecret,
-        identityProvider,
-        clientHandler: studioModule.viteClientFallback,
-        viteDevelopmentAssets: true,
-      })
+
+      const developmentHost = await createDevelopmentHost(server, composeStudio)
 
       server.middlewares.use(async (request, response, next) => {
         try {
-          const handled = await studioModule.handleStudioNodeRequest(
+          const { studio, app, studioOrigin } =
+            await developmentHost.composition()
+          const handled = await studio.handleStudioNodeRequest(
             app,
             studioOrigin,
             request,

@@ -1,9 +1,7 @@
 import type { IncomingMessage } from 'node:http'
-import { isIP } from 'node:net'
+import { BlockList, isIP } from 'node:net'
+import { validateSharedStudioConfiguration } from 'studio-configuration'
 import { ApiError } from '../api/_http.js'
-import { canonicalStudioBasePath } from '../shared/studioBasePath.js'
-import { normalizeCanonicalUuid } from '../shared/uuid.js'
-import { canonicalStudioOrigin } from './origin.js'
 import { normalizeClientAddress } from './request-address.js'
 
 export const STUDIO_PORT = 5173
@@ -45,61 +43,14 @@ function required(
   return value
 }
 
-function sessionSecret(value: string): Buffer {
-  let decoded: Buffer
-  try {
-    decoded = Buffer.from(value, 'base64')
-  } catch (cause) {
-    throw new StudioConfigurationError(
-      'FREE_SESSION_SECRET must be canonical base64.',
-      { cause },
-    )
-  }
-  if (decoded.toString('base64') !== value)
-    throw new StudioConfigurationError(
-      'FREE_SESSION_SECRET must be canonical base64.',
-    )
-  if (decoded.byteLength < 32)
-    throw new StudioConfigurationError(
-      'FREE_SESSION_SECRET must decode to at least 32 bytes.',
-    )
-  return decoded
-}
-
-function uuid(value: string, name: string): string {
-  const normalized = normalizeCanonicalUuid(value)
-  if (normalized === null)
-    throw new StudioConfigurationError(`${name} must be a UUID.`)
-  return normalized
-}
-
-export function normalizeEntraCertificateThumbprint(value: string): string {
-  const normalized = value.replaceAll(':', '').toUpperCase()
-  if (!/^[0-9A-F]{64}$/.test(normalized))
-    throw new StudioConfigurationError(
-      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be a SHA-256 certificate thumbprint.',
-    )
-  return normalized
-}
-
 function studioOrigin(value: string, proxyMode: StudioProxyMode): string {
-  let origin: string
-  try {
-    origin = canonicalStudioOrigin(value)
-  } catch (cause) {
-    throw new StudioConfigurationError(
-      'STUDIO_ORIGIN must be a canonical HTTP or HTTPS origin.',
-      { cause },
-    )
-  }
-
-  const parsed = new URL(origin)
+  const parsed = new URL(value)
   if (proxyMode === 'trusted-proxy') {
     if (parsed.protocol !== 'https:')
       throw new StudioConfigurationError(
         'Hosted STUDIO_ORIGIN must use HTTPS.',
       )
-    return origin
+    return value
   }
 
   const hostname = parsed.hostname.toLowerCase()
@@ -111,7 +62,7 @@ function studioOrigin(value: string, proxyMode: StudioProxyMode): string {
     throw new StudioConfigurationError(
       'Loopback STUDIO_ORIGIN must name localhost, 127.0.0.1, or [::1].',
     )
-  return origin
+  return value
 }
 
 function ipv4ToInteger(address: string): number {
@@ -143,7 +94,7 @@ function canonicalProxyAddress(value: string): string {
 
 type ProxyPeer =
   | { kind: 'address'; address: string }
-  | { kind: 'network'; network: number; mask: number }
+  | { kind: 'network'; address: string; prefix: number }
 
 function parseProxyPeer(value: string): ProxyPeer {
   const separator = value.indexOf('/')
@@ -165,23 +116,12 @@ function parseProxyPeer(value: string): ProxyPeer {
     throw new StudioConfigurationError(
       'FREE_STUDIO_PROXY_ADDRESS must be one canonical IP address or IPv4 CIDR block.',
     )
-  return { kind: 'network', network: networkInteger, mask }
+  return { kind: 'network', address: network, prefix: Number(prefix) }
 }
 
 function canonicalProxyPeer(value: string): string {
   parseProxyPeer(value)
   return value
-}
-
-function studioBasePath(value: string): string {
-  try {
-    return canonicalStudioBasePath(value)
-  } catch (cause) {
-    throw new StudioConfigurationError(
-      'STUDIO_BASE_PATH must be / or one canonical absolute path without a trailing slash.',
-      { cause },
-    )
-  }
 }
 
 function studioPort(
@@ -224,31 +164,20 @@ export function loadStudioServerConfig(
       'FREE_STUDIO_PROXY_ADDRESS must be omitted in loopback mode.',
     )
 
+  const shared = validateSharedStudioConfiguration(environment)
+  if (shared.issues.length > 0)
+    throw new StudioConfigurationError(shared.issues[0].message)
+  const values = shared.values
+
   return {
-    studioOrigin: studioOrigin(
-      required(environment, 'STUDIO_ORIGIN'),
-      proxyMode,
-    ),
-    basePath: studioBasePath(required(environment, 'STUDIO_BASE_PATH')),
-    sessionSecret: sessionSecret(
-      required(environment, 'FREE_SESSION_SECRET'),
-    ),
+    studioOrigin: studioOrigin(values.STUDIO_ORIGIN!, proxyMode),
+    basePath: values.STUDIO_BASE_PATH!,
+    sessionSecret: Buffer.from(values.FREE_SESSION_SECRET!),
     entra: {
-      tenantId: uuid(
-        required(environment, 'FREE_ENTRA_TENANT_ID'),
-        'FREE_ENTRA_TENANT_ID',
-      ),
-      clientId: uuid(
-        required(environment, 'FREE_ENTRA_CLIENT_ID'),
-        'FREE_ENTRA_CLIENT_ID',
-      ),
-      certificatePath: required(
-        environment,
-        'FREE_ENTRA_CLIENT_CERT_PATH',
-      ),
-      certificateThumbprint: normalizeEntraCertificateThumbprint(
-        required(environment, 'FREE_ENTRA_CLIENT_CERT_THUMBPRINT'),
-      ),
+      tenantId: values.FREE_ENTRA_TENANT_ID!,
+      clientId: values.FREE_ENTRA_CLIENT_ID!,
+      certificatePath: values.FREE_ENTRA_CLIENT_CERT_PATH!,
+      certificateThumbprint: values.FREE_ENTRA_CLIENT_CERT_THUMBPRINT!,
     },
     proxyMode,
     proxyAddress,
@@ -261,17 +190,22 @@ export function createRequestPeerVerifier(config: StudioServerConfig) {
   if (config.proxyMode !== 'trusted-proxy') return (): void => {}
 
   const expected = parseProxyPeer(config.proxyAddress!)
-  const trusted =
-    expected.kind === 'address'
-      ? (peer: string) => peer === expected.address
-      : (peer: string) =>
-          isIP(peer) === 4 &&
-          (ipv4ToInteger(peer) & expected.mask) >>> 0 === expected.network
+  const trusted = new BlockList()
+  if (expected.kind === 'address')
+    trusted.addAddress(
+      expected.address,
+      isIP(expected.address) === 6 ? 'ipv6' : 'ipv4',
+    )
+  else trusted.addSubnet(expected.address, expected.prefix, 'ipv4')
   return (bindings: ClientAddressBindings): void => {
     const peer = normalizeClientAddress(
       bindings.incoming?.socket.remoteAddress,
     )
-    if (!trusted(peer))
+    const family = isIP(peer)
+    if (
+      family === 0 ||
+      !trusted.check(peer, family === 6 ? 'ipv6' : 'ipv4')
+    )
       throw new ApiError(
         403,
         'proxy_peer_rejected',

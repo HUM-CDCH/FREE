@@ -1,27 +1,116 @@
 // The FREE launcher: one entry point with an explicit target.
 //
-//   node scripts/free.mjs local
+//   node scripts/free.mjs local [--wifi] [--host=<ip>] [--firewall=on|off]
 //   node scripts/free.mjs production
 //
 // Compose owns the topology (compose.yaml plus compose.override.yaml or
 // compose.prod.yaml); this script only prepares what Compose cannot.
-// `local` prepares mkcert certificates and the per-machine environment
-// values. `production` validates .env before anything starts, renders the
-// host nginx include from the shared template, and starts the production
-// overlay detached, waiting for health.
-import { spawn } from 'node:child_process'
+// `local` prepares mkcert certificates, the optional Windows Wi-Fi firewall
+// rule, and the per-machine environment values — or, inside the Dev Container
+// where Docker is unavailable, starts the services directly. `production`
+// validates .env before anything starts, renders the host nginx include from
+// the shared template, and starts the production overlay detached, waiting
+// for health.
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { isIP } from 'node:net'
+import { networkInterfaces } from 'node:os'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseEnv } from 'node:util'
-import { spawnSync } from 'node:child_process'
+import { validateSharedStudioConfiguration } from 'studio-configuration'
+import {
+  ensureDevelopmentSessionSecret as ensureSessionSecretFile,
+} from './development-session-secret.mjs'
+import { validateComposeVersion } from './compose-version.mjs'
+
+export { validateComposeVersion } from './compose-version.mjs'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const NGINX_PORT = 8443
 const MOCK_OIDC_PORT = 8444
+const FIREWALL_RULE = 'FREE Studio Wi-Fi development'
+const WINDOWS = process.platform === 'win32'
 const STUDIO_PORT = 5173
+const DEVELOPMENT_SESSION_SECRET = '.dev/session-secret'
 const NGINX_LOCATIONS_TEMPLATE = 'docker/nginx/free-studio-locations.inc.template'
 const RENDERED_NGINX_LOCATIONS = '.nginx/free-studio-locations.conf'
+
+function onOff(value, option) {
+  if (value === 'on') return true
+  if (value === 'off') return false
+  throw new Error(`${option} must be on or off.`)
+}
+
+export function parseDevOptions(args) {
+  const options = {
+    wifi: false,
+    host: null,
+    firewall: true,
+    revokeWifiAccess: false,
+  }
+  for (const argument of args) {
+    if (argument === '--wifi') options.wifi = true
+    else if (argument.startsWith('--firewall='))
+      options.firewall = onOff(argument.slice(11), '--firewall')
+    else if (argument.startsWith('--host=')) {
+      options.host = argument.slice(7)
+      options.wifi = true
+    } else if (argument === '--revoke-wifi-access')
+      options.revokeWifiAccess = true
+    else throw new Error(`Unknown development option: ${argument}`)
+  }
+  if (options.revokeWifiAccess && args.length !== 1)
+    throw new Error('--revoke-wifi-access cannot be combined with startup options.')
+  return options
+}
+
+function privateIpv4(address) {
+  if (isIP(address) !== 4) return false
+  const parts = address.split('.').map(Number)
+  return (
+    parts.length === 4 &&
+    (parts[0] === 10 ||
+      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+      (parts[0] === 192 && parts[1] === 168))
+  )
+}
+
+export function selectWifiAddress(interfaces = networkInterfaces()) {
+  const candidates = Object.entries(interfaces).flatMap(([name, addresses]) =>
+    (addresses ?? [])
+      .filter(
+        ({ address, family, internal }) =>
+          !internal &&
+          (family === 'IPv4' || family === 4) &&
+          privateIpv4(address),
+      )
+      .map(({ address }) => ({
+        address,
+        preferred: /wi-?fi|wlan|wireless/i.test(name),
+      })),
+  )
+  candidates.sort((left, right) => Number(right.preferred) - Number(left.preferred))
+  if (candidates.length === 0)
+    throw new Error(
+      'No private IPv4 network address was found. Connect to Wi-Fi or pass --host=<private-ip>.',
+    )
+  return candidates[0].address
+}
+
+export function deriveDevProfile(options, interfaces = networkInterfaces()) {
+  if (options.host !== null && !privateIpv4(options.host))
+    throw new Error('--host must be a private IPv4 address.')
+  const host = options.wifi
+    ? (options.host ?? selectWifiAddress(interfaces))
+    : 'localhost'
+  return {
+    ...options,
+    host,
+    origin: `https://${host}:${NGINX_PORT}`,
+    nginxBind: options.wifi ? '0.0.0.0' : '127.0.0.1',
+  }
+}
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -37,20 +126,136 @@ function run(command, args, options = {}) {
   return result
 }
 
-export function ensureCertificates() {
+function pnpm(args) {
+  if (!WINDOWS) return run('pnpm', args)
+  return run(process.env.ComSpec ?? 'cmd.exe', [
+    '/d',
+    '/s',
+    '/c',
+    `pnpm ${args.join(' ')}`,
+  ])
+}
+
+function encodedPowerShell(script) {
+  return Buffer.from(script, 'utf16le').toString('base64')
+}
+
+function firewallRuleExists() {
+  if (!WINDOWS) return true
+  const script = `if (Get-NetFirewallRule -DisplayName '${FIREWALL_RULE}' -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }`
+  return (
+    run('powershell.exe', ['-NoProfile', '-Command', script], {
+      allowFailure: true,
+      capture: true,
+    }).status === 0
+  )
+}
+
+function firewallRuleAllows(ports) {
+  if (!WINDOWS) return true
+  const contained = ports
+    .map((port) => `$ports.LocalPort -contains '${port}'`)
+    .join(' -and ')
+  const script = `$rule = Get-NetFirewallRule -DisplayName '${FIREWALL_RULE}' -ErrorAction SilentlyContinue; if (-not $rule) { exit 1 }; $ports = $rule | Get-NetFirewallPortFilter; if (${contained}) { exit 0 } else { exit 1 }`
+  return (
+    run('powershell.exe', ['-NoProfile', '-Command', script], {
+      allowFailure: true,
+      capture: true,
+    }).status === 0
+  )
+}
+
+function elevatedPowerShell(script) {
+  const encoded = encodedPowerShell(script)
+  const launcher = `$process = Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList @('-NoProfile','-EncodedCommand','${encoded}') -Wait -PassThru; exit $process.ExitCode`
+  return run('powershell.exe', ['-NoProfile', '-Command', launcher], {
+    allowFailure: true,
+  }).status
+}
+
+function ensureWifiFirewall(ports) {
+  if (!WINDOWS || firewallRuleAllows(ports)) return
+  console.log(
+    `\nWindows will ask for permission to expose Studio ports ${ports.join(' and ')} on private Wi-Fi.`,
+  )
+  const script = `
+$existing = Get-NetFirewallRule -DisplayName '${FIREWALL_RULE}' -ErrorAction SilentlyContinue
+if ($existing) { Remove-NetFirewallRule -DisplayName '${FIREWALL_RULE}' }
+New-NetFirewallRule -DisplayName '${FIREWALL_RULE}' -Description 'FREE Studio development access from the private local subnet.' -Direction Inbound -Action Allow -Protocol TCP -LocalPort ${ports.join(',')} -Profile Private -RemoteAddress LocalSubnet | Out-Null
+`
+  if (elevatedPowerShell(script) !== 0 || !firewallRuleAllows(ports))
+    throw new Error(
+      'Wi-Fi access needs the Windows Firewall approval. Accept the UAC prompt or rerun with --firewall=off if policy is managed elsewhere.',
+    )
+}
+
+function revokeWifiFirewall() {
+  if (!WINDOWS) {
+    console.log('Automatic firewall revocation is only available on Windows.')
+    return
+  }
+  if (!firewallRuleExists()) {
+    console.log('The FREE Studio Wi-Fi firewall rule is already absent.')
+    return
+  }
+  const script = `Remove-NetFirewallRule -DisplayName '${FIREWALL_RULE}' -ErrorAction SilentlyContinue`
+  if (elevatedPowerShell(script) !== 0 || firewallRuleExists())
+    throw new Error('Windows Firewall access could not be revoked.')
+  console.log('Revoked FREE Studio access from the private local subnet.')
+}
+
+export function ensureCertificates(
+  profile = deriveDevProfile(parseDevOptions([]), {}),
+) {
   const certificate = resolve(ROOT, '.certs', 'studio.crt')
   const key = resolve(ROOT, '.certs', 'studio.key')
-  if (existsSync(certificate) && existsSync(key)) return
+  // A Wi-Fi run must cover the selected private address, so it regenerates.
+  if (!profile.wifi && existsSync(certificate) && existsSync(key)) return
   mkdirSync(resolve(ROOT, '.certs'), { recursive: true })
+  const names = ['localhost', '127.0.0.1', '::1']
+  if (profile.wifi) names.push(profile.host)
   const generated = run(
     'mkcert',
-    ['-cert-file', certificate, '-key-file', key, 'localhost', '127.0.0.1', '::1'],
+    ['-cert-file', certificate, '-key-file', key, ...names],
     { allowFailure: true },
   )
   if (generated.error?.code === 'ENOENT' || generated.status !== 0)
     throw new Error(
       'mkcert could not generate .certs/studio.crt. Install mkcert and run `mkcert -install` once.',
     )
+}
+
+// Development sessions outlive the dev server. Without a persisted secret the
+// Studio server generates one per boot, so every restart silently invalidates
+// the Researcher's session cookie. This is per-machine generated material, like
+// the mkcert certificates above, never a shared constant: `--wifi` publishes
+// the entry point to the local subnet, where a known secret would be forgeable.
+export function ensureDevelopmentSessionSecret(
+  file = resolve(ROOT, DEVELOPMENT_SESSION_SECRET),
+) {
+  return ensureSessionSecretFile(file)
+}
+
+function ensureCompatibleCompose() {
+  const version = run('docker', ['compose', 'version', '--short'], {
+    capture: true,
+  })
+  validateComposeVersion(version.stdout)
+}
+
+function printReady(profile) {
+  console.log(`\nStarting FREE at ${profile.origin}/free`)
+  console.log(`  network: ${profile.wifi ? 'private Wi-Fi' : 'this device only'}`)
+  console.log('  identity: mock OIDC service on 127.0.0.1:8444 (compose.entra.yaml for the real tenant)')
+  if (profile.wifi) {
+    const caroot = run('mkcert', ['-CAROOT'], {
+      capture: true,
+      allowFailure: true,
+    })
+    if (caroot.status === 0)
+      console.log(`  phone trust: install the mkcert root CA from ${caroot.stdout.trim()}`)
+  }
+  console.log('Press Ctrl+C to stop the stack.\n')
 }
 
 function loadDotEnv() {
@@ -68,7 +273,11 @@ function loadRootDatabaseUrl() {
   if (databaseUrl) process.env.DATABASE_URL = databaseUrl
 }
 
-export function developmentComposeEnvironment(environment = process.env) {
+export function developmentComposeEnvironment(
+  profile = deriveDevProfile(parseDevOptions([]), {}),
+  environment = process.env,
+  sessionSecret = ensureDevelopmentSessionSecret(),
+) {
   return {
     ...environment,
     // Deployment values may coexist in the root .env. Compose development is
@@ -78,12 +287,42 @@ export function developmentComposeEnvironment(environment = process.env) {
     DOCLING_DEVICE: 'cpu',
     FREE_NGINX_PORT: String(NGINX_PORT),
     FREE_POSTGRES_PASSWORD: 'postgres',
+    FREE_SESSION_SECRET: sessionSecret,
     STUDIO_BASE_PATH: '/free',
-    STUDIO_ORIGIN: `https://localhost:${NGINX_PORT}`,
-    FREE_NGINX_BIND: '127.0.0.1',
-    FREE_MOCK_OIDC_BIND: '127.0.0.1',
-    FREE_ENTRA_MOCK_BROWSER_ISSUER: `http://localhost:${MOCK_OIDC_PORT}/dev`,
+    STUDIO_ORIGIN: profile.origin,
+    FREE_NGINX_BIND: profile.nginxBind,
+    FREE_MOCK_OIDC_BIND: profile.nginxBind,
+    FREE_ENTRA_MOCK_BROWSER_ISSUER: `http://${profile.host}:${MOCK_OIDC_PORT}/dev`,
   }
+}
+
+// The Dev Container has PostgreSQL as a sibling service and no Docker socket,
+// so it keeps the direct process path: migrate, verify, then run Studio and
+// the Parsing Service on loopback HTTP with the same /free base path.
+async function devContainerMain() {
+  pnpm(['db:generate'])
+  pnpm(['--filter', 'db', 'db:start'])
+  pnpm(['setup'])
+  pnpm(['--filter', 'db', 'db:verify'])
+  const environment = {
+    ...process.env,
+    STUDIO_ORIGIN: 'http://localhost:5173',
+    STUDIO_BASE_PATH: '/free',
+    FREE_SESSION_SECRET: ensureDevelopmentSessionSecret(),
+    FREE_ENTRA_REAL: '0',
+  }
+  console.log('\nStarting FREE at http://localhost:5173/free\n')
+  const services = spawn(
+    WINDOWS ? (process.env.ComSpec ?? 'cmd.exe') : 'pnpm',
+    WINDOWS
+      ? ['/d', '/s', '/c', 'pnpm --parallel --filter studio --filter parsing-service dev']
+      : ['--parallel', '--filter', 'studio', '--filter', 'parsing-service', 'dev'],
+    { cwd: ROOT, env: environment, stdio: 'inherit', shell: false },
+  )
+  process.exitCode = await new Promise((resolvePromise, reject) => {
+    services.once('error', reject)
+    services.once('exit', (code) => resolvePromise(code ?? 1))
+  })
 }
 
 async function awaitChild(child) {
@@ -94,44 +333,34 @@ async function awaitChild(child) {
 }
 
 async function localMain(args) {
-  if (args.length > 0)
-    throw new Error(`The local target takes no options: ${args.join(' ')}`)
   loadRootDatabaseUrl()
-  ensureCertificates()
-  console.log(`\nStarting FREE at https://localhost:${NGINX_PORT}/free`)
-  console.log('  identity: mock OIDC service on 127.0.0.1:8444')
-  console.log('Press Ctrl+C to stop the stack.\n')
+  const options = parseDevOptions(args)
+  if (options.revokeWifiAccess) {
+    revokeWifiFirewall()
+    return
+  }
+  if (process.env.FREE_DEVCONTAINER === '1') {
+    await devContainerMain()
+    return
+  }
+  ensureCompatibleCompose()
+  const profile = deriveDevProfile(options)
+  ensureCertificates(profile)
+  const sessionSecret = ensureDevelopmentSessionSecret()
+  // The mock OIDC port must open with nginx so a phone can follow the
+  // sign-in redirect.
+  if (profile.wifi && profile.firewall)
+    ensureWifiFirewall([NGINX_PORT, MOCK_OIDC_PORT])
+  printReady(profile)
+
   await awaitChild(
     spawn('docker', ['compose', 'up', '--build', '--watch'], {
       cwd: ROOT,
-      env: developmentComposeEnvironment(),
+      env: developmentComposeEnvironment(profile, process.env, sessionSecret),
       stdio: 'inherit',
       shell: false,
     }),
   )
-}
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function canonicalHttpsOrigin(value) {
-  let parsed
-  try {
-    parsed = new URL(value)
-  } catch {
-    return false
-  }
-  return parsed.protocol === 'https:' && parsed.origin === value
-}
-
-function canonicalBase64Secret(value) {
-  let decoded
-  try {
-    decoded = Buffer.from(value, 'base64')
-  } catch {
-    return false
-  }
-  return decoded.toString('base64') === value && decoded.byteLength >= 32
 }
 
 // Fail before any container starts, with every problem reported at once. The
@@ -142,61 +371,66 @@ export function validateProductionEnvironment(
   fileExists = existsSync,
 ) {
   const errors = []
-  const value = (name) => {
-    const supplied = environment[name]
-    if (supplied === undefined || supplied === '') {
-      errors.push(`${name} is required in .env.`)
-      return null
-    }
-    return supplied
+  const shared = validateSharedStudioConfiguration(environment)
+  const invalidMessages = {
+    STUDIO_ORIGIN:
+      'STUDIO_ORIGIN must be a canonical HTTPS origin with no path, query, fragment, or credentials.',
+    STUDIO_BASE_PATH:
+      'STUDIO_BASE_PATH must be a non-root canonical path such as /free, without a trailing slash. The shipped nginx behavior requires a non-root base path.',
+    FREE_SESSION_SECRET:
+      'FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes (openssl rand -base64 32).',
+    FREE_ENTRA_TENANT_ID: 'FREE_ENTRA_TENANT_ID must be a UUID.',
+    FREE_ENTRA_CLIENT_ID: 'FREE_ENTRA_CLIENT_ID must be a UUID.',
+    FREE_ENTRA_CLIENT_CERT_THUMBPRINT:
+      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be the SHA-256 certificate thumbprint (64 hex digits, colons allowed).',
+  }
+  const appendSharedIssue = (field) => {
+    const issue = shared.issues.find((candidate) => candidate.field === field)
+    if (issue === undefined) return false
+    errors.push(
+      issue.code === 'required'
+        ? `${field} is required in .env.`
+        : invalidMessages[field] ?? issue.message,
+    )
+    return true
   }
 
-  const origin = value('STUDIO_ORIGIN')
-  if (origin !== null && !canonicalHttpsOrigin(origin))
+  if (
+    !appendSharedIssue('STUDIO_ORIGIN') &&
+    new URL(shared.values.STUDIO_ORIGIN).protocol !== 'https:'
+  )
     errors.push(
       'STUDIO_ORIGIN must be a canonical HTTPS origin with no path, query, fragment, or credentials.',
     )
 
-  const basePath = value('STUDIO_BASE_PATH')
   if (
-    basePath !== null &&
-    !/^\/[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)*$/.test(basePath)
+    !appendSharedIssue('STUDIO_BASE_PATH') &&
+    shared.values.STUDIO_BASE_PATH === '/'
   )
     errors.push(
       'STUDIO_BASE_PATH must be a non-root canonical path such as /free, without a trailing slash. The shipped nginx behavior requires a non-root base path.',
     )
 
-  const sessionSecret = value('FREE_SESSION_SECRET')
-  if (sessionSecret !== null && !canonicalBase64Secret(sessionSecret))
-    errors.push(
-      'FREE_SESSION_SECRET must be canonical base64 decoding to at least 32 bytes (openssl rand -base64 32).',
-    )
+  appendSharedIssue('FREE_SESSION_SECRET')
 
-  const postgresPassword = value('FREE_POSTGRES_PASSWORD')
-  if (postgresPassword !== null && !/^[0-9a-fA-F]{32,}$/.test(postgresPassword))
+  const postgresPassword = environment.FREE_POSTGRES_PASSWORD
+  if (postgresPassword === undefined || postgresPassword === '')
+    errors.push('FREE_POSTGRES_PASSWORD is required in .env.')
+  else if (!/^[0-9a-fA-F]{32,}$/.test(postgresPassword))
     errors.push(
       'FREE_POSTGRES_PASSWORD must be a generated hexadecimal password (openssl rand -hex 32).',
     )
 
-  for (const name of ['FREE_ENTRA_TENANT_ID', 'FREE_ENTRA_CLIENT_ID']) {
-    const uuid = value(name)
-    if (uuid !== null && !UUID_PATTERN.test(uuid))
-      errors.push(`${name} must be a UUID.`)
-  }
+  appendSharedIssue('FREE_ENTRA_TENANT_ID')
+  appendSharedIssue('FREE_ENTRA_CLIENT_ID')
+  appendSharedIssue('FREE_ENTRA_CLIENT_CERT_THUMBPRINT')
 
-  const thumbprint = value('FREE_ENTRA_CLIENT_CERT_THUMBPRINT')
   if (
-    thumbprint !== null &&
-    !/^[0-9a-fA-F]{64}$/.test(thumbprint.replaceAll(':', ''))
+    !appendSharedIssue('FREE_ENTRA_CLIENT_CERT_PATH') &&
+    !fileExists(shared.values.FREE_ENTRA_CLIENT_CERT_PATH)
   )
     errors.push(
-      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be the SHA-256 certificate thumbprint (64 hex digits, colons allowed).',
-    )
-
-  const certificatePath = value('FREE_ENTRA_CLIENT_CERT_PATH')
-  if (certificatePath !== null && !fileExists(certificatePath))
-    errors.push(
-      `FREE_ENTRA_CLIENT_CERT_PATH names ${certificatePath}, which does not exist on this host.`,
+      `FREE_ENTRA_CLIENT_CERT_PATH names ${shared.values.FREE_ENTRA_CLIENT_CERT_PATH}, which does not exist on this host.`,
     )
 
   return errors
@@ -216,7 +450,10 @@ async function productionMain(args) {
     throw new Error(`The production target takes no options: ${args.join(' ')}`)
   const dotEnv = loadDotEnv()
   if (dotEnv === null)
-    throw new Error('Production needs the root .env file (see .env.example).')
+    throw new Error(
+      'Production needs the root .env file described in docs/operations/deployment.md.',
+    )
+  ensureCompatibleCompose()
   // Compose interpolation lets the process environment win over .env; validate
   // the same effective values.
   const environment = { ...dotEnv, ...process.env }
@@ -259,6 +496,7 @@ The containers are healthy; migrations replayed before Studio started.
 Host nginx checklist (once per configuration change):
   1. Make the FREE server block include the rendered file, for example:
        include ${resolve(ROOT, RENDERED_NGINX_LOCATIONS)};
+     (see docs/operations/deployment.md for the full wrapper example)
   2. sudo nginx -t
   3. sudo systemctl reload nginx
 Then verify: curl --fail ${environment.STUDIO_ORIGIN}${environment.STUDIO_BASE_PATH}/api/healthz`)

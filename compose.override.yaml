@@ -54,6 +54,10 @@ services:
       # reverse proxy.
       FREE_STUDIO_PROXY_ADDRESS: 172.30.0.0/24
       DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:-postgres}@db:5432/free"
+      # `pnpm dev` generates and persists this per machine. Without it the dev
+      # server mints a session secret per boot, so every restart silently
+      # invalidates the Researcher's session cookie.
+      FREE_SESSION_SECRET: "${FREE_SESSION_SECRET:?FREE_SESSION_SECRET comes from pnpm dev; start the stack with it}"
       VITE_SHOW_DEVELOPER_UI: "true"
       # Development sign-in drives the production Entra client code against the
       # mock-oidc service. The token endpoint is redeemed server-side over the

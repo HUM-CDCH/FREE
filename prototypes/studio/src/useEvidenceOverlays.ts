@@ -81,6 +81,23 @@ function removeOverlays(container: HTMLElement | null, className: string) {
     .forEach((overlay) => overlay.remove())
 }
 
+/**
+ * Scrolls the viewer once, straight to the overlay. pdf.js renders pages as
+ * they enter the scroll container, so animating across pages competes with
+ * that rendering and stutters; a long jump therefore lands instantly and only
+ * a hop inside the current view glides.
+ */
+function scrollOverlayIntoView(container: HTMLElement, overlay: HTMLElement) {
+  const view = container.getBoundingClientRect()
+  const target = overlay.getBoundingClientRect()
+  const delta = target.top - view.top - (view.height - target.height) / 2
+  if (Math.abs(delta) < 2) return
+  container.scrollTo({
+    top: container.scrollTop + delta,
+    behavior: Math.abs(delta) > view.height ? 'auto' : 'smooth',
+  })
+}
+
 
 /**
  * Owns persistent result-path painting and focused-anchor navigation. The
@@ -170,7 +187,9 @@ export function useEvidenceOverlays({
 
     viewer?.eventBus?.on('pagerendered', paint)
     const firstOccurrence = paint()
-    if (firstOccurrence)
+    // A focused anchor already scrolled precisely; a page-top jump on top of
+    // that reads as the viewer moving twice.
+    if (firstOccurrence && !container.querySelector('.parsed-evidence-focus'))
       viewer?.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     return () => {
       viewer?.eventBus?.off('pagerendered', paint)
@@ -198,7 +217,6 @@ export function useEvidenceOverlays({
       )
       const firstOccurrence = occurrences[0]
       if (!firstOccurrence) return
-      viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
       let firstFocus: HTMLElement | null = null
       for (const occurrence of occurrences) {
         const focus = appendOverlay(container, parsedDocument, occurrence, {
@@ -208,11 +226,8 @@ export function useEvidenceOverlays({
         })
         if (focus) firstFocus ??= focus
       }
-      firstFocus?.scrollIntoView({
-        block: 'center',
-        inline: 'nearest',
-        behavior: 'smooth',
-      })
+      if (firstFocus) scrollOverlayIntoView(container, firstFocus)
+      else viewer.scrollPageIntoView({ pageNumber: firstOccurrence.page_number })
     },
     [attempt, containerRef, parsedDocument, viewerRef],
   )

@@ -2,7 +2,8 @@ import {
   createHash,
   randomBytes,
 } from 'node:crypto'
-import { canonicalStudioBasePath, studioPath } from '../shared/studioBasePath.js'
+import { canonicalStudioBasePath } from 'studio-configuration'
+import { studioPath } from '../shared/studioBasePath.js'
 import {
   decodeSignedValue,
   encodeSignedValue,

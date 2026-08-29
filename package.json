@@ -5,10 +5,23 @@
     "postinstall": "pnpm db:generate && pnpm --recursive --if-present install:python",
     "db:generate": "pnpm --filter db contract:emit",
     "db:reset": "pnpm --filter db db:reset",
+    "setup": "pnpm --filter db db:init",
+    "start": "pnpm dev",
     "dev": "node scripts/free.mjs local",
+    "dev:wifi": "node scripts/free.mjs local --wifi",
+    "dev:wifi:revoke": "node scripts/free.mjs local --revoke-wifi-access",
     "production": "node scripts/free.mjs production",
     "prebuild": "pnpm db:generate",
     "build": "pnpm --filter studio build",
-    "test": "node --test --test-concurrency=1 tests/safety.test.mjs tests/contract.test.mjs"
+    "test": "node --test --test-concurrency=1 tests/safety.test.mjs tests/contract.test.mjs",
+    "architecture:dev": "likec4 dev docs/architecture",
+    "architecture:check": "likec4 validate docs/architecture",
+    "architecture:build": "likec4 build docs/architecture -o artifacts/architecture/site --use-hash-history"
+  },
+  "devDependencies": {
+    "likec4": "^1.59.2"
+  },
+  "dependencies": {
+    "studio-configuration": "workspace:*"
   }
 }

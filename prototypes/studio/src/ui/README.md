@@ -1,0 +1,31 @@
+# FREE UI
+
+Presentational primitives for the FREE studio, decoupled from PDF.js and app
+state — they import only React and the shared Tailwind tokens (`src/index.css`).
+
+## Components
+
+| Component | Purpose |
+|-----------|---------|
+| `Button` | `primary` (terracotta) / `secondary` (outline) / `pill` actions |
+| `Pill` | Rounded chip with `neutral`/`accent`/`evidence`/`success`/`stale` tones |
+| `SegmentedControl` | Single-select segmented toggle |
+| `EmptyState` | Dashed placeholder card (`neutral`/`danger`) with optional action |
+| `Spinner` | Loading ring, optionally with label + hint |
+| `Overline` | Uppercase, letter-spaced section label |
+| `PhaseProgress` | Five-segment workflow position bar with a small state line |
+| `Panel` | Full-height column with bordered header/footer + scrolling body |
+| `ResultValue` | Recursive renderer for an extraction result tree |
+
+## Library build
+
+```bash
+pnpm build:lib   # → dist-lib/free-ui.js + dist-lib/free-ui.css
+```
+
+`dist-lib/` is the consumable design-system artifact (ES bundle + a
+Tailwind-compiled stylesheet carrying the palette). React is externalized.
+
+The studio app does not yet consume these primitives — they currently mirror
+inline patterns in `App.tsx`/`SchemaPanel.tsx`/etc. Adopting them in the app is
+a follow-up that removes that duplication.

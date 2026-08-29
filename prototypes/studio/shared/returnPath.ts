@@ -1,4 +1,4 @@
-import { CANONICAL_UUID_PATTERN } from './uuid.js'
+import { CANONICAL_UUID_PATTERN } from 'studio-configuration'
 
 const LOCAL_URL_BASE = 'https://free.local'
 const PROJECT_PATH = new RegExp(
