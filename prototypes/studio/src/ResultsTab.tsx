@@ -508,7 +508,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     { value: 'review', label: 'Review' },
     { value: 'json', label: 'Raw JSON' },
     { value: 'markdown', label: 'Markdown' },
-    // ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
+    ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
   ]
 
   const currentEntries = useMemo((): Array<{ pathKey: string; displayName: string; value: unknown }> => {
