@@ -16,7 +16,9 @@ import {
 import type { LlmTrace } from '../shared/llmInspector.contract.js'
 
 const EXPECTED_GRAVES = [8, 13, 24, 26, 28, 30, 31]
-const LIVE = process.env.FREE_LIVE_MODEL_E2E === '1'
+const LIVE =
+  process.env.FREE_LIVE_MODEL_E2E === '1' ||
+  process.env.npm_lifecycle_event === 'test:live-model'
 const CAPTURE_LIVE = LIVE && Boolean(process.env.FREE_LIVE_MODEL_CAPTURE)
 const TIMEOUT_MS = 12 * 60 * 1_000
 const LIVE_OLLAMA_URL = process.env.FREE_LIVE_OLLAMA_URL ?? 'http://127.0.0.1:11434'

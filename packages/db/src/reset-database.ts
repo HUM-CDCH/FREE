@@ -1,14 +1,13 @@
 import 'dotenv/config'
 import { Client } from 'pg'
-import { localDevelopmentDatabase } from './database-url.js'
+import { validateDestructiveDatabaseTarget } from './database-url.js'
 
 const configuredUrl = process.env.DATABASE_URL
 if (!configuredUrl) throw new Error('DATABASE_URL is required.')
 
-const adminUrl = localDevelopmentDatabase(
-  configuredUrl,
-  process.env.FREE_DEVCONTAINER === '1',
-)
+const adminUrl = validateDestructiveDatabaseTarget(configuredUrl, {
+  allowDevContainerHost: process.env.FREE_DEVCONTAINER === '1',
+})
 adminUrl.pathname = '/postgres'
 const client = new Client({ connectionString: adminUrl.toString() })
 await client.connect()

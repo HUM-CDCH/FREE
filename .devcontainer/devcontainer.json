@@ -19,13 +19,16 @@
     "XDG_RUNTIME_DIR": "/tmp/free-keyring-runtime",
     "UV_LINK_MODE": "copy"
   },
-  "forwardPorts": [5173, 8055],
+  "forwardPorts": [5173, 8055, 8444],
   "portsAttributes": {
     "5173": {
       "label": "Studio"
     },
     "8055": {
       "label": "Parsing service"
+    },
+    "8444": {
+      "label": "Mock OIDC"
     }
   },
   "postCreateCommand": "sudo npm install --global @openai/codex && corepack enable && corepack prepare pnpm@10.9.0 --activate && pnpm install",

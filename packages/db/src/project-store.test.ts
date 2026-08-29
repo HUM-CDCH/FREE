@@ -178,15 +178,16 @@ function fakeDatabase(
       async aggregate(
         select: (aggregate: { count: () => number }) => Record<string, number>,
       ) {
-        if (!groupField) throw new Error('aggregate requires groupBy')
+        const groupedBy = groupField
+        if (!groupedBy) throw new Error('aggregate requires groupBy')
         const [countName] = Object.keys(select({ count: () => 0 }))
         const counts: Record<string, number> = {}
         for (const row of selected) {
-          const key = String(row[groupField])
+          const key = String(row[groupedBy])
           counts[key] = (counts[key] ?? 0) + 1
         }
         return Object.entries(counts).map(([key, count]) => ({
-          [groupField]: key,
+          [groupedBy]: key,
           [countName]: count,
         }))
       },

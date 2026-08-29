@@ -15,13 +15,18 @@ import {
   validateSharedStudioConfiguration,
 } from 'studio-configuration'
 import {
+  developmentComposeArguments,
   developmentComposeEnvironment,
+  developmentComposeFiles,
   deriveDevProfile,
+  effectiveLocalEnvironment,
   ensureDevelopmentSessionSecret,
+  loadLocalEntraEnvironment,
   parseDevOptions,
   renderNginxLocations,
   selectWifiAddress,
   validateComposeVersion,
+  validateLocalEntraEnvironment,
   validateProductionEnvironment,
 } from './free.mjs'
 
@@ -31,6 +36,14 @@ function temporarySecretFile() {
   const directory = mkdtempSync(join(tmpdir(), 'free-launcher-'))
   temporaryDirectories.push(directory)
   return join(directory, 'nested', 'session-secret')
+}
+
+function temporaryFile(name) {
+  const directory = mkdtempSync(join(tmpdir(), 'free-launcher-'))
+  temporaryDirectories.push(directory)
+  const file = join(directory, name)
+  writeFileSync(file, 'test certificate')
+  return file
 }
 
 after(() => {
@@ -47,6 +60,13 @@ const interfaces = {
   ],
 }
 
+const validEntraEnvironment = (certificatePath) => ({
+  FREE_ENTRA_TENANT_ID: '10000000-0000-4000-8000-000000000001',
+  FREE_ENTRA_CLIENT_ID: '10000000-0000-4000-8000-000000000002',
+  FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'ab:'.repeat(31) + 'ab',
+  FREE_ENTRA_CLIENT_CERT_PATH: certificatePath,
+})
+
 describe('development launcher profiles', () => {
   it('keeps the default profile loopback-only behind the nginx entry point', () => {
     const profile = deriveDevProfile(parseDevOptions([]), interfaces)
@@ -54,6 +74,48 @@ describe('development launcher profiles', () => {
     assert.equal(profile.origin, 'https://localhost:8443')
     assert.equal(profile.nginxBind, '127.0.0.1')
     assert.equal(profile.wifi, false)
+    assert.equal(profile.entra, false)
+    assert.deepEqual(developmentComposeFiles(profile), [
+      'compose.yaml',
+      'compose.override.yaml',
+    ])
+    assert.deepEqual(developmentComposeArguments(profile), [
+      'compose',
+      '--profile',
+      'mock-oidc',
+      '-f',
+      'compose.yaml',
+      '-f',
+      'compose.override.yaml',
+      'up',
+      '--build',
+      '--watch',
+    ])
+  })
+
+  it('selects the canonical loopback real-Entra Compose profile', () => {
+    const profile = deriveDevProfile(parseDevOptions(['--entra']), interfaces)
+
+    assert.equal(profile.entra, true)
+    assert.equal(profile.origin, 'https://localhost:8443')
+    assert.equal(profile.nginxBind, '127.0.0.1')
+    assert.deepEqual(developmentComposeFiles(profile), [
+      'compose.yaml',
+      'compose.override.yaml',
+      'compose.entra.yaml',
+    ])
+    assert.deepEqual(developmentComposeArguments(profile), [
+      'compose',
+      '-f',
+      'compose.yaml',
+      '-f',
+      'compose.override.yaml',
+      '-f',
+      'compose.entra.yaml',
+      'up',
+      '--build',
+      '--watch',
+    ])
   })
 
   it('selects Wi-Fi ahead of other private adapters', () => {
@@ -73,6 +135,23 @@ describe('development launcher profiles', () => {
     assert.equal(profile.origin, 'https://10.0.0.8:8443')
     assert.equal(profile.wifi, true)
     assert.equal(profile.firewall, false)
+  })
+
+  it('rejects network and firewall options with real Entra', () => {
+    for (const argument of [
+      '--wifi',
+      '--host=10.0.0.8',
+      '--firewall=on',
+      '--firewall=off',
+    ])
+      assert.throws(
+        () => parseDevOptions(['--entra', argument]),
+        /--entra cannot be combined/,
+      )
+    assert.throws(
+      () => parseDevOptions(['--entra', '--revoke-wifi-access']),
+      /cannot be combined/,
+    )
   })
 
   it('rejects a public explicit host', () => {
@@ -112,6 +191,14 @@ describe('development launcher profiles', () => {
         STUDIO_BASE_PATH: '/deployment',
         STUDIO_ORIGIN: 'https://free.example.edu',
         FREE_SESSION_SECRET: 'ZGVwbG95bWVudC1zZWNyZXQtdGhhdC1pcy0zMi1ieXRlcyE=',
+        FREE_NGINX_BIND: '0.0.0.0',
+        FREE_MOCK_OIDC_BIND: '0.0.0.0',
+        FREE_ENTRA_REAL: '1',
+        FREE_ENTRA_TENANT_ID: '20000000-0000-4000-8000-000000000001',
+        FREE_ENTRA_CLIENT_ID: '20000000-0000-4000-8000-000000000002',
+        FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AA'.repeat(32),
+        FREE_ENTRA_CLIENT_CERT_PATH: '/deployment/client.pem',
+        COMPOSE_PROFILES: 'deployment-profile',
       },
       'ZGV2ZWxvcG1lbnQtc2VjcmV0LXRoYXQtaXMtMzItYnl0ZXMhIQ==',
     )
@@ -123,9 +210,73 @@ describe('development launcher profiles', () => {
     assert.equal(environment.FREE_POSTGRES_PASSWORD, 'postgres')
     assert.equal(environment.STUDIO_BASE_PATH, '/free')
     assert.equal(environment.STUDIO_ORIGIN, 'https://localhost:8443')
+    assert.equal(environment.FREE_NGINX_BIND, '127.0.0.1')
+    assert.equal(environment.COMPOSE_PROFILES, undefined)
+    assert.equal(environment.FREE_MOCK_OIDC_BIND, '127.0.0.1')
+    assert.equal(environment.FREE_ENTRA_REAL, '0')
+    assert.equal(environment.FREE_ENTRA_TENANT_ID, undefined)
+    assert.equal(environment.FREE_ENTRA_CLIENT_ID, undefined)
+    assert.equal(environment.FREE_ENTRA_CLIENT_CERT_THUMBPRINT, undefined)
+    assert.equal(environment.FREE_ENTRA_CLIENT_CERT_PATH, undefined)
     assert.equal(
       environment.FREE_SESSION_SECRET,
       'ZGV2ZWxvcG1lbnQtc2VjcmV0LXRoYXQtaXMtMzItYnl0ZXMhIQ==',
+    )
+  })
+
+  it('passes only validated credentials into the isolated real-Entra profile', () => {
+    const certificatePath = temporaryFile('client.pem')
+    const profile = deriveDevProfile(parseDevOptions(['--entra']), interfaces)
+    const entraEnvironment = loadLocalEntraEnvironment(
+      validEntraEnvironment(certificatePath),
+      null,
+    )
+    const environment = developmentComposeEnvironment(
+      profile,
+      {
+        PATH: 'kept',
+        DOCLING_DEVICE: 'cuda',
+        FREE_NGINX_PORT: '443',
+        FREE_NGINX_BIND: '0.0.0.0',
+        FREE_MOCK_OIDC_BIND: '0.0.0.0',
+        FREE_ENTRA_REAL: '0',
+        FREE_ENTRA_MOCK_ISSUER: 'https://fake.invalid',
+        FREE_ENTRA_MOCK_BROWSER_ISSUER: 'https://fake.invalid',
+        FREE_ENTRA_CLIENT_ID: 'deployment-client',
+        FREE_POSTGRES_PASSWORD: 'deployment-secret',
+        FREE_SESSION_SECRET: 'deployment-secret',
+        STUDIO_BASE_PATH: '/deployment',
+        STUDIO_ORIGIN: 'https://free.example.edu',
+        COMPOSE_PROFILES: 'mock-oidc',
+      },
+      'ZGV2ZWxvcG1lbnQtc2VjcmV0LXRoYXQtaXMtMzItYnl0ZXMhIQ==',
+      entraEnvironment,
+    )
+
+    assert.equal(environment.PATH, 'kept')
+    assert.equal(environment.DOCLING_DEVICE, 'cpu')
+    assert.equal(environment.FREE_NGINX_PORT, '8443')
+    assert.equal(environment.FREE_NGINX_BIND, '127.0.0.1')
+    assert.equal(environment.COMPOSE_PROFILES, undefined)
+    assert.equal(environment.FREE_MOCK_OIDC_BIND, undefined)
+    assert.equal(environment.FREE_POSTGRES_PASSWORD, 'postgres')
+    assert.equal(
+      environment.FREE_SESSION_SECRET,
+      'ZGV2ZWxvcG1lbnQtc2VjcmV0LXRoYXQtaXMtMzItYnl0ZXMhIQ==',
+    )
+    assert.equal(environment.STUDIO_BASE_PATH, '/free')
+    assert.equal(environment.STUDIO_ORIGIN, 'https://localhost:8443')
+    assert.equal(environment.FREE_ENTRA_REAL, '1')
+    assert.equal(environment.FREE_ENTRA_MOCK_ISSUER, undefined)
+    assert.equal(environment.FREE_ENTRA_MOCK_BROWSER_ISSUER, undefined)
+    assert.deepEqual(
+      Object.fromEntries(
+        Object.keys(entraEnvironment).map((field) => [
+          field,
+          environment[field],
+        ]),
+      ),
+      entraEnvironment,
     )
   })
 
@@ -181,6 +332,112 @@ describe('development launcher profiles', () => {
     assert.throws(
       () => parseDevOptions(['--revoke-wifi-access', '--wifi']),
       /cannot be combined/,
+    )
+  })
+})
+
+describe('local real-Entra configuration', () => {
+  it('loads .env values with the process environment taking precedence', () => {
+    const certificatePath = temporaryFile('client.pem')
+    const dotEnvironment = validEntraEnvironment(certificatePath)
+    const environment = {
+      FREE_ENTRA_CLIENT_ID: 'A0000000-0000-4000-8000-00000000000A',
+      UNSET_VALUE: undefined,
+    }
+
+    const effective = effectiveLocalEnvironment(environment, dotEnvironment)
+    const loaded = loadLocalEntraEnvironment(
+      environment,
+      dotEnvironment,
+      () => true,
+    )
+
+    assert.equal(
+      effective.FREE_ENTRA_TENANT_ID,
+      dotEnvironment.FREE_ENTRA_TENANT_ID,
+    )
+    assert.equal(effective.FREE_ENTRA_CLIENT_ID, environment.FREE_ENTRA_CLIENT_ID)
+    assert.equal(effective.UNSET_VALUE, undefined)
+    assert.deepEqual(loaded, {
+      FREE_ENTRA_TENANT_ID: dotEnvironment.FREE_ENTRA_TENANT_ID,
+      FREE_ENTRA_CLIENT_ID: 'a0000000-0000-4000-8000-00000000000a',
+      FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB'.repeat(32),
+      FREE_ENTRA_CLIENT_CERT_PATH: certificatePath,
+    })
+  })
+
+  it('reports every missing Entra value together', () => {
+    const errors = validateLocalEntraEnvironment({}, () => true)
+
+    for (const field of [
+      'FREE_ENTRA_TENANT_ID',
+      'FREE_ENTRA_CLIENT_ID',
+      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT',
+      'FREE_ENTRA_CLIENT_CERT_PATH',
+    ])
+      assert.ok(errors.some((error) => error.includes(`${field} is required`)))
+    assert.throws(
+      () => loadLocalEntraEnvironment({}, null, () => true),
+      /FREE_ENTRA_TENANT_ID[\s\S]*FREE_ENTRA_CLIENT_CERT_PATH/,
+    )
+  })
+
+  it('uses Studio configuration validation for UUIDs and thumbprints', () => {
+    const errors = validateLocalEntraEnvironment(
+      {
+        ...validEntraEnvironment('client.pem'),
+        FREE_ENTRA_TENANT_ID: '10000000-0000-0000-0000-000000000001',
+        FREE_ENTRA_CLIENT_ID: 'not-a-uuid',
+        FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AA:BB',
+      },
+      () => true,
+    )
+
+    assert.deepEqual(errors, [
+      'FREE_ENTRA_TENANT_ID must be a UUID.',
+      'FREE_ENTRA_CLIENT_ID must be a UUID.',
+      'FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be the SHA-256 certificate thumbprint (64 hex digits, colons allowed).',
+    ])
+  })
+
+  it('requires the selected client certificate to exist on the host', () => {
+    assert.deepEqual(
+      validateLocalEntraEnvironment(
+        validEntraEnvironment('missing-client.pem'),
+        () => false,
+      ),
+      [
+        'FREE_ENTRA_CLIENT_CERT_PATH names missing-client.pem, which does not exist on this host.',
+      ],
+    )
+  })
+
+  it('cannot apply credentials to the wrong identity profile', () => {
+    const mockProfile = deriveDevProfile(parseDevOptions([]), interfaces)
+    const entraProfile = deriveDevProfile(
+      parseDevOptions(['--entra']),
+      interfaces,
+    )
+    const entraEnvironment = validEntraEnvironment('client.pem')
+
+    assert.throws(
+      () =>
+        developmentComposeEnvironment(
+          mockProfile,
+          {},
+          'development-secret',
+          entraEnvironment,
+        ),
+      /cannot be applied to the mock OIDC profile/,
+    )
+    assert.throws(
+      () =>
+        developmentComposeEnvironment(
+          entraProfile,
+          {},
+          'development-secret',
+        ),
+      /requires validated Entra configuration/,
     )
   })
 })

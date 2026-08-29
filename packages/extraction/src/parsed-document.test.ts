@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { decodeParsedDocument } from './parsed-document.js'
+import {
+  decodeParsedDocument,
+  type ParsedDocument,
+} from './parsed-document.js'
 
-const fixture = {
+const fixture: ParsedDocument = {
   schema_version: 'parsed_document.v2',
   document: {
     document_id: 'document-a',

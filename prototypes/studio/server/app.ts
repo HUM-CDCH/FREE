@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import {
   createResearcherProjectStore,
   type ResearcherAccountStore,
@@ -47,8 +48,6 @@ import {
   DEFAULT_RETURN_PATH,
   validateLocalReturnPath,
 } from '../shared/returnPath.js'
-import type { PlaywrightAuthentication } from './playwright-auth.js'
-
 export const VITE_CLIENT_FALLBACK_HEADER = 'x-free-vite-client-fallback'
 export const GENERAL_API_REQUEST_LIMIT = 1024 * 1024
 const SIGNED_OUT_COOKIE_NAME = 'free_signed_out'
@@ -136,7 +135,6 @@ export type StudioAppOptions = {
   basePath: string
   sessionSecret: Uint8Array
   identityProvider: EntraIdentityProvider
-  playwrightAuthentication?: PlaywrightAuthentication
   accountStore?: ResearcherAccountStore
   now?: () => number
   apiDispatcher?: ApiDispatcher
@@ -347,7 +345,6 @@ export async function createStudioApp(
     sessions,
   })
   const identityProvider = options.identityProvider
-  const playwrightAuthentication = options.playwrightAuthentication
   const callbackUri = new URL(
     studioPath(basePath, '/auth/callback'),
     studioOrigin,
@@ -436,25 +433,6 @@ export async function createStudioApp(
     const returnTo =
       validateLocalReturnPath(context.req.query('returnTo') ?? null) ??
       DEFAULT_RETURN_PATH
-    if (playwrightAuthentication) {
-      try {
-        const identity = playwrightAuthentication(context.req.raw)
-        if (identity) {
-          const result = await backend.signIn(identity)
-          return externalRedirect(studioPath(basePath, returnTo), [
-            transactions.clear(),
-            signedOutCookie(basePath, true),
-            result.sessionCookie,
-          ])
-        }
-      } catch (error) {
-        return authenticationFailurePage(
-          basePath,
-          transactions.clear(),
-          error instanceof ApiError && error.status === 503 ? 503 : 400,
-        )
-      }
-    }
     const created = transactions.create(returnTo)
     try {
       const location = await identityProvider.authorizationUrl({
@@ -648,7 +626,9 @@ export async function sendNodeResponse(
   }
 
   await new Promise<void>((resolve, reject) => {
-    const stream = Readable.fromWeb(response.body!)
+    const stream = Readable.fromWeb(
+      response.body as NodeReadableStream<Uint8Array>,
+    )
     stream.once('error', reject)
     outgoing.once('finish', resolve)
     outgoing.once('error', reject)

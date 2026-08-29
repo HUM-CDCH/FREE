@@ -41,6 +41,9 @@ export declare function canonicalEntraCertificateThumbprint(
 export declare function decodeCanonicalSessionSecret(
   value: string,
 ): Uint8Array | null
+export declare function canonicalStudioSessionSecret(
+  value: string,
+): Uint8Array
 
 export declare function validateSharedStudioConfiguration(
   environment: Record<string, string | undefined>,

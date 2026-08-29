@@ -1,6 +1,6 @@
 // The FREE launcher: one entry point with an explicit target.
 //
-//   node scripts/free.mjs local [--wifi] [--host=<ip>] [--firewall=on|off]
+//   node scripts/free.mjs local [--entra] [--wifi] [--host=<ip>] [--firewall=on|off]
 //   node scripts/free.mjs production
 //
 // Compose owns the topology (compose.yaml plus compose.override.yaml or
@@ -35,6 +35,18 @@ const STUDIO_PORT = 5173
 const DEVELOPMENT_SESSION_SECRET = '.dev/session-secret'
 const NGINX_LOCATIONS_TEMPLATE = 'docker/nginx/free-studio-locations.inc.template'
 const RENDERED_NGINX_LOCATIONS = '.nginx/free-studio-locations.conf'
+const LOCAL_ENTRA_FIELDS = Object.freeze([
+  'FREE_ENTRA_TENANT_ID',
+  'FREE_ENTRA_CLIENT_ID',
+  'FREE_ENTRA_CLIENT_CERT_THUMBPRINT',
+  'FREE_ENTRA_CLIENT_CERT_PATH',
+])
+const LOCAL_ENTRA_INVALID_MESSAGES = Object.freeze({
+  FREE_ENTRA_TENANT_ID: 'FREE_ENTRA_TENANT_ID must be a UUID.',
+  FREE_ENTRA_CLIENT_ID: 'FREE_ENTRA_CLIENT_ID must be a UUID.',
+  FREE_ENTRA_CLIENT_CERT_THUMBPRINT:
+    'FREE_ENTRA_CLIENT_CERT_THUMBPRINT must be the SHA-256 certificate thumbprint (64 hex digits, colons allowed).',
+})
 
 function onOff(value, option) {
   if (value === 'on') return true
@@ -44,13 +56,15 @@ function onOff(value, option) {
 
 export function parseDevOptions(args) {
   const options = {
+    entra: false,
     wifi: false,
     host: null,
     firewall: true,
     revokeWifiAccess: false,
   }
   for (const argument of args) {
-    if (argument === '--wifi') options.wifi = true
+    if (argument === '--entra') options.entra = true
+    else if (argument === '--wifi') options.wifi = true
     else if (argument.startsWith('--firewall='))
       options.firewall = onOff(argument.slice(11), '--firewall')
     else if (argument.startsWith('--host=')) {
@@ -62,6 +76,13 @@ export function parseDevOptions(args) {
   }
   if (options.revokeWifiAccess && args.length !== 1)
     throw new Error('--revoke-wifi-access cannot be combined with startup options.')
+  if (
+    options.entra &&
+    (options.wifi || args.some((argument) => argument.startsWith('--firewall=')))
+  )
+    throw new Error(
+      '--entra cannot be combined with --wifi, --host, or --firewall.',
+    )
   return options
 }
 
@@ -204,7 +225,9 @@ function revokeWifiFirewall() {
   console.log('Revoked FREE Studio access from the private local subnet.')
 }
 
-function ensureCertificates(profile) {
+export function ensureCertificates(
+  profile = deriveDevProfile(parseDevOptions([]), {}),
+) {
   const certificate = resolve(ROOT, '.certs', 'studio.crt')
   const key = resolve(ROOT, '.certs', 'studio.key')
   // A Wi-Fi run must cover the selected private address, so it regenerates.
@@ -244,7 +267,11 @@ function ensureCompatibleCompose() {
 function printReady(profile) {
   console.log(`\nStarting FREE at ${profile.origin}/free`)
   console.log(`  network: ${profile.wifi ? 'private Wi-Fi' : 'this device only'}`)
-  console.log('  identity: mock OIDC service on 127.0.0.1:8444 (compose.entra.yaml for the real tenant)')
+  console.log(
+    profile.entra
+      ? '  identity: real Microsoft Entra tenant'
+      : '  identity: mock OIDC service on 127.0.0.1:8444',
+  )
   if (profile.wifi) {
     const caroot = run('mkcert', ['-CAROOT'], {
       capture: true,
@@ -270,14 +297,107 @@ function loadRootDatabaseUrl() {
   const databaseUrl = loadDotEnv()?.DATABASE_URL
   if (databaseUrl) process.env.DATABASE_URL = databaseUrl
 }
-
-export function developmentComposeEnvironment(
-  profile,
+export function effectiveLocalEnvironment(
   environment = process.env,
-  sessionSecret = ensureDevelopmentSessionSecret(),
+  dotEnvironment = loadDotEnv(),
 ) {
   return {
-    ...environment,
+    ...(dotEnvironment ?? {}),
+    ...Object.fromEntries(
+      Object.entries(environment).filter(([, value]) => value !== undefined),
+    ),
+  }
+}
+
+function inspectLocalEntraEnvironment(environment, fileExists) {
+  const shared = validateSharedStudioConfiguration(environment)
+  const issues = shared.issues.filter(({ field }) =>
+    LOCAL_ENTRA_FIELDS.includes(field),
+  )
+  const errors = issues.map(({ field, code, message }) =>
+    code === 'required'
+      ? `${field} is required in the environment or .env.`
+      : (LOCAL_ENTRA_INVALID_MESSAGES[field] ?? message),
+  )
+  const certificatePath = shared.values.FREE_ENTRA_CLIENT_CERT_PATH
+  if (
+    certificatePath !== undefined &&
+    !fileExists(resolve(ROOT, certificatePath))
+  )
+    errors.push(
+      `FREE_ENTRA_CLIENT_CERT_PATH names ${certificatePath}, which does not exist on this host.`,
+    )
+  return { errors, values: shared.values }
+}
+
+export function validateLocalEntraEnvironment(
+  environment,
+  fileExists = existsSync,
+) {
+  return inspectLocalEntraEnvironment(environment, fileExists).errors
+}
+
+export function loadLocalEntraEnvironment(
+  environment = process.env,
+  dotEnvironment = loadDotEnv(),
+  fileExists = existsSync,
+) {
+  const effectiveEnvironment = effectiveLocalEnvironment(
+    environment,
+    dotEnvironment,
+  )
+  const { errors, values } = inspectLocalEntraEnvironment(
+    effectiveEnvironment,
+    fileExists,
+  )
+  if (errors.length > 0)
+    throw new Error(
+      `Real Entra local configuration is invalid:\n- ${errors.join('\n- ')}`,
+    )
+  return Object.fromEntries(
+    LOCAL_ENTRA_FIELDS.map((field) => [field, values[field]]),
+  )
+}
+
+export function developmentComposeFiles(profile) {
+  return [
+    'compose.yaml',
+    'compose.override.yaml',
+    ...(profile.entra ? ['compose.entra.yaml'] : []),
+  ]
+}
+
+export function developmentComposeArguments(profile) {
+  return [
+    'compose',
+    ...(!profile.entra ? ['--profile', 'mock-oidc'] : []),
+    ...developmentComposeFiles(profile).flatMap((file) => ['-f', file]),
+    'up',
+    '--build',
+    '--watch',
+  ]
+}
+
+export function developmentComposeEnvironment(
+  profile = deriveDevProfile(parseDevOptions([]), {}),
+  environment = process.env,
+  sessionSecret = ensureDevelopmentSessionSecret(),
+  entraEnvironment = null,
+) {
+  if (profile.entra !== (entraEnvironment !== null))
+    throw new Error(
+      profile.entra
+        ? 'The real Entra profile requires validated Entra configuration.'
+        : 'Entra configuration cannot be applied to the mock OIDC profile.',
+    )
+
+  const composeEnvironment = { ...environment }
+  for (const field of Object.keys(composeEnvironment))
+    if (field.startsWith('FREE_ENTRA_')) delete composeEnvironment[field]
+  delete composeEnvironment.COMPOSE_PROFILES
+  delete composeEnvironment.FREE_MOCK_OIDC_BIND
+
+  Object.assign(composeEnvironment, {
     // Deployment values may coexist in the root .env. Compose development is
     // deliberately self-contained; only host-run tooling consumes its
     // DATABASE_URL.
@@ -289,26 +409,41 @@ export function developmentComposeEnvironment(
     STUDIO_BASE_PATH: '/free',
     STUDIO_ORIGIN: profile.origin,
     FREE_NGINX_BIND: profile.nginxBind,
-    FREE_MOCK_OIDC_BIND: profile.nginxBind,
-    FREE_ENTRA_MOCK_BROWSER_ISSUER: `http://${profile.host}:${MOCK_OIDC_PORT}/dev`,
+    FREE_ENTRA_REAL: profile.entra ? '1' : '0',
+  })
+  if (profile.entra) Object.assign(composeEnvironment, entraEnvironment)
+  else
+    Object.assign(composeEnvironment, {
+      FREE_MOCK_OIDC_BIND: profile.nginxBind,
+      FREE_ENTRA_MOCK_BROWSER_ISSUER: `http://${profile.host}:${MOCK_OIDC_PORT}/dev`,
+    })
+  return composeEnvironment
+}
+
+export function devContainerEnvironment(
+  environment = process.env,
+  sessionSecret = ensureDevelopmentSessionSecret(),
+) {
+  return {
+    ...environment,
+    STUDIO_ORIGIN: 'http://localhost:5173',
+    STUDIO_BASE_PATH: '/free',
+    FREE_SESSION_SECRET: sessionSecret,
+    FREE_ENTRA_REAL: '0',
+    FREE_ENTRA_MOCK_ISSUER: 'http://mock-oidc:8080/dev',
+    FREE_ENTRA_MOCK_BROWSER_ISSUER: 'http://localhost:8444/dev',
   }
 }
 
-// The Dev Container has PostgreSQL as a sibling service and no Docker socket,
-// so it keeps the direct process path: migrate, verify, then run Studio and
-// the Parsing Service on loopback HTTP with the same /free base path.
+// The Dev Container has PostgreSQL and mock OIDC as sibling services but no
+// Docker socket, so it keeps the direct process path: migrate, verify, then run
+// Studio and the Parsing Service on loopback HTTP with the same /free base path.
 async function devContainerMain() {
   pnpm(['db:generate'])
   pnpm(['--filter', 'db', 'db:start'])
   pnpm(['setup'])
   pnpm(['--filter', 'db', 'db:verify'])
-  const environment = {
-    ...process.env,
-    STUDIO_ORIGIN: 'http://localhost:5173',
-    STUDIO_BASE_PATH: '/free',
-    FREE_SESSION_SECRET: ensureDevelopmentSessionSecret(),
-    FREE_ENTRA_REAL: '0',
-  }
+  const environment = devContainerEnvironment()
   console.log('\nStarting FREE at http://localhost:5173/free\n')
   const services = spawn(
     WINDOWS ? (process.env.ComSpec ?? 'cmd.exe') : 'pnpm',
@@ -338,11 +473,20 @@ async function localMain(args) {
     return
   }
   if (process.env.FREE_DEVCONTAINER === '1') {
+    if (options.entra)
+      throw new Error(
+        '--entra requires the local Compose stack and is unavailable in the Dev Container.',
+      )
     await devContainerMain()
     return
   }
-  ensureCompatibleCompose()
   const profile = deriveDevProfile(options)
+  const entraEnvironment = profile.entra
+    ? loadLocalEntraEnvironment()
+    : null
+  // Validate the real tenant values and certificate before the first Docker
+  // command, including the Compose version preflight.
+  ensureCompatibleCompose()
   ensureCertificates(profile)
   const sessionSecret = ensureDevelopmentSessionSecret()
   // The mock OIDC port must open with nginx so a phone can follow the
@@ -352,9 +496,14 @@ async function localMain(args) {
   printReady(profile)
 
   await awaitChild(
-    spawn('docker', ['compose', 'up', '--build', '--watch'], {
+    spawn('docker', developmentComposeArguments(profile), {
       cwd: ROOT,
-      env: developmentComposeEnvironment(profile, process.env, sessionSecret),
+      env: developmentComposeEnvironment(
+        profile,
+        process.env,
+        sessionSecret,
+        entraEnvironment,
+      ),
       stdio: 'inherit',
       shell: false,
     }),

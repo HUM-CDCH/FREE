@@ -192,10 +192,11 @@ docker compose -f compose.yaml -f compose.prod.yaml ps
 `down` retains them and therefore does not perform this clean cutover.
 
 On every Studio container start, the entrypoint runs only
-`pnpm --filter db db:init` to replay authored migrations before starting the
-built Node host. It never runs `db:update`, seeds sample data, or creates an
-account or credential. A clean start therefore contains zero Researcher
-Accounts, zero Project Contexts, and no Model Connections or Capability Routes.
+`pnpm --filter db db:init`: authored forward migrations replay before the built
+Node host starts. Startup never resets or seeds data. A clean deployment
+therefore contains zero Researcher Accounts, zero Project Contexts, and no
+Model Connections, Capability Routes, or saved provider credentials.
+`pnpm db:reset` must never be run against production.
 
 `node scripts/free.mjs production` returns once every service is healthy; then
 check the public shallow health route through the canonical HTTPS origin:

@@ -373,6 +373,7 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByText('Incomplete Extraction')).toBeInTheDocument()
     // No generic rerun for a Catalog attempt.
     expect(screen.queryByRole('button', { name: 'Rerun' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Run details' }))
     // Stage and record diagnostics render inside the bounded disclosure.
     expect(screen.getByTestId('catalog-record-diagnostics')).toBeInTheDocument()
     expect(screen.getByText(/Record 2 · failed · executed · Second entry/)).toBeInTheDocument()
@@ -442,6 +443,7 @@ describe('ResultsTab grounded values', () => {
       />,
     )
 
+    fireEvent.click(screen.getByRole('button', { name: 'Run details' }))
     expect(screen.getByLabelText('Catalog stage discovery: failed, executed')).toBeInTheDocument()
     expect(screen.getByLabelText('Rediscover Catalog record boundaries')).toBeInTheDocument()
     expect(screen.queryByLabelText('Retry failed or truncated document metadata')).not.toBeInTheDocument()
@@ -491,6 +493,7 @@ describe('ResultsTab grounded values', () => {
       />,
     )
 
+    fireEvent.click(screen.getByRole('button', { name: 'Run details' }))
     expect(screen.getByLabelText('Catalog stage document-values: succeeded, reused')).toBeInTheDocument()
     expect(screen.getByLabelText('Catalog stage record-values: succeeded, executed')).toBeInTheDocument()
     expect(screen.getByLabelText('Catalog record 1: succeeded, reused, First entry')).toBeInTheDocument()
@@ -949,7 +952,7 @@ describe('ResultsTab grounded values', () => {
       { place: 'Reviewed' },
       expect.objectContaining({ format: 'csv', schemaNodes: schema.schemaNodes }),
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Pinned schema' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Pinned schema' }))
     expect(screen.getByText(new RegExp(articleAttempt.schemaRevisionId)).closest('p')).toHaveTextContent('read-only')
     expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
   })

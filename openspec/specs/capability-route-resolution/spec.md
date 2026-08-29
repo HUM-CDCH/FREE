@@ -1,7 +1,7 @@
 # capability-route-resolution Specification
 
 ## Purpose
-TBD - created by archiving change runtime-model-configuration. Update Purpose after archive.
+Maps every model operation to one saved machine-wide target without environment fallback.
 ## Requirements
 ### Requirement: Exactly two Capability Routes determine all model operations
 

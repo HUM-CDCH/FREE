@@ -23,9 +23,13 @@ specification {
 model {
   operator = person 'FREE Operator' 'Deploys FREE and assigns Researchers to the Microsoft Entra enterprise application.'
   researcher = person 'Humanities Researcher' 'Opens a Source Document, shapes an Extraction Schema, runs Extraction, and reviews Evidence.'
+  browser = container 'Researcher browser' 'Runs the React client and follows OIDC redirects; it reaches production and local Compose only through their nginx TLS entry points.' 'Web browser'
+  dev_browser = container 'Dev Container browser' 'Reaches the directly started Studio process on loopback HTTP; there is no nginx in this topology.' 'Web browser'
   entra = external 'Microsoft Entra ID' 'Single-tenant OIDC identity provider and the source of application assignment.'
+  mock_oidc = container 'Mock OIDC service' 'The sibling development identity service. Studio uses its server issuer while the browser follows the published loopback issuer.' 'mock-oauth2-server'
 
-  gateway = container 'HTTPS Gateway' 'The host nginx reverse proxy on the university machine. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Nginx'
+  gateway = container 'Host nginx TLS gateway' 'The host nginx reverse proxy on the university machine. Terminates operator-supplied TLS, adds security headers, pins the client-address proxy contract, and forwards to Studio.' 'Nginx'
+  local_gateway = container 'Container nginx TLS gateway' 'The default local Compose entry point. Terminates mkcert TLS on port 8443 and applies the same shared proxy include as host nginx.' 'Nginx'
 
   studio = system 'Studio Application' 'React UI plus a production Hono Node host on one authenticated same-origin boundary.' {
     ui = container 'React UI' 'Source Document viewer, browser annotations, schema editor, Extraction Results, Evidence, and Model Connections.' 'React'
@@ -34,6 +38,7 @@ model {
     authentication = component 'Authentication boundary' 'OIDC authorization-code transactions with PKCE and nonce validation, fixed token-expiry sessions, canonical-origin enforcement, and the trusted-proxy peer contract.' 'TypeScript, MSAL Node'
     provider_registry = component 'Provider registry' '`api/_provider.ts` resolves a Capability Route and adapts the configured provider.' 'AI SDK v7 provider adapters'
     extraction_module = component 'Extraction module' '`packages/extraction` owns Extraction execution, grounding, review, batch scheduling, and their PostgreSQL persistence.' 'TypeScript, Prisma Next'
+    batch_worker = component 'Batch Extraction worker' '`packages/extraction` claims durable batch work in the Studio process and runs each member through the same Extraction module and pinned model-session boundary.' 'TypeScript'
     project_store = component 'ProjectStore' '`packages/db` owns the remaining Project Store reads and writes; handlers hold no SQL.' 'TypeScript, Prisma Next'
   }
 
@@ -43,15 +48,20 @@ model {
     task_cache = datastore 'Task directory' 'Processor cache: source bytes, task metadata, and the published package. Never a durable dependency.'
   }
 
-  project_db = datastore 'Project Store' 'Researcher Accounts plus account-owned Project Contexts, Source Documents, Source Representations, Annotation Sets, Schema Revisions, reviewed Extractions, and Review Decisions.' 'PostgreSQL 17, Prisma Next'
+  project_db = datastore 'Project Store' 'Researcher Accounts plus account-owned Project Contexts, Source Documents, Source Representations, Annotation Sets, Schema Revisions, Extractions, and versioned ExtractionReview records that own their Review Decisions.' 'PostgreSQL 17, Prisma Next'
   package_store = datastore 'Canonical ingestion packages' 'Content-addressed portable packages in the `FREE Studio` data directory. The Project Store keeps only the package reference.' 'Operating system data directory'
   model_config = datastore 'Model configuration and credential store' '`model-config.json` in the `FREE Studio` config directory; FREE-managed credentials stay in the operating system credential store.' 'JSON, OS keyring'
   model_connections = external 'Model Connections' 'Configured external HTTP or local CLI model providers.'
 
   operator -> entra 'Registers the application, rotates its certificate, and assigns Researchers'
-  researcher -> gateway 'Uses the canonical private HTTPS origin'
-  researcher -> entra 'Signs in with the assigned institutional identity'
+  researcher -> browser 'Uses FREE from a web browser'
+  researcher -> dev_browser 'Uses FREE from the Dev Container browser'
+  browser -> gateway 'Uses the canonical private HTTPS origin'
+  browser -> local_gateway 'Uses the local HTTPS origin'
+  browser -> entra 'Follows Microsoft Entra authorization and sign-out redirects'
+  dev_browser -> studio.handlers 'Uses direct loopback HTTP in the Dev Container'
   gateway -> studio 'Forwards requests from the pinned proxy address'
+  local_gateway -> studio.handlers 'Forwards TLS requests from the dedicated proxy network'
   studio -> parsing_service 'Parses selected PDFs through same-origin ingestion'
   studio -> project_db 'Reads research state and appends durable writes'
   studio -> package_store 'Reads the pinned canonical package'
@@ -64,15 +74,21 @@ model {
   studio.handlers -> studio.authentication 'Authenticates the session and resolves its Researcher Account'
   studio.authentication -> entra 'Exchanges the authorization code and validates tenant identity claims'
   studio.authentication -> project_db 'Creates or refreshes the local account keyed by tenant and object IDs'
+  studio.authentication -> mock_oidc 'Uses the mock issuer for default local and Dev Container sign-in'
   studio.handlers -> parsing_service.http_api 'POST /tasks; poll /tasks/:id; GET /tasks/:id/download'
   studio.handlers -> studio.provider_registry 'Resolves a Capability Route'
-  studio.handlers -> studio.extraction_module 'Runs and reopens Extractions; records reviews; schedules and reads batches'
+  studio.handlers -> studio.extraction_module 'Runs and reopens Extractions; records versioned reviews; schedules and reads batches'
   studio.handlers -> studio.project_store 'Reads a snapshot; creates, renames, and deletes a Project Context; appends a Schema Revision'
   studio.handlers -> package_store 'Reads the pdf, markdown, and source entries; removes the packages a deleted Project Context left unreferenced'
   studio.project_store -> project_db 'Reads and writes through Prisma Next'
-  studio.extraction_module -> project_db 'Reads and writes Extraction, Evidence, Review Decision, and batch state through Prisma Next'
+  studio.extraction_module -> project_db 'Reads and writes Extraction, Evidence, versioned ExtractionReview records with owned Review Decisions, and batch state through Prisma Next'
   studio.extraction_module -> package_store 'Reads the pinned canonical representation package'
   studio.extraction_module -> studio.provider_registry 'Opens one pinned Extraction model session per attempt'
+  studio.extraction_module -> studio.batch_worker 'Wakes the in-process worker after durable batch scheduling'
+  studio.batch_worker -> studio.extraction_module 'Runs each claimed member through the shared Extraction boundary'
+  studio.batch_worker -> project_db 'Claims batch work and persists member attempts through Prisma Next'
+  studio.batch_worker -> package_store 'Reads each member’s pinned canonical representation package'
+  studio.batch_worker -> studio.provider_registry 'Opens one pinned Extraction model session per claimed member'
   studio.provider_registry -> model_config 'Reads routes, connections, and credentials'
   studio.provider_registry -> model_connections 'Calls the resolved Model Connection'
   parsing_service.http_api -> parsing_service.parser 'Runs parsing work through the bounded FIFO queue'
@@ -82,27 +98,29 @@ model {
 
 views {
   view current_context {
-    title 'FREE — current runtime context'
+    title 'FREE — production runtime context'
     description '''
-      Implemented runtime boundaries only. The production topology publishes
-      only the host nginx reverse proxy on private HTTPS. The Hono Node host
-      authenticates each browser session through Microsoft Entra ID and scopes
-      research state to its local Researcher Account. Model
-      configuration and credentials remain deployment-wide shared state.
+      Implemented production runtime boundaries only. The browser reaches the
+      deployment through the host nginx TLS boundary; the Hono Node host serves
+      the React client and same-origin API, authenticates each browser session
+      through Microsoft Entra ID, and scopes research state to its local
+      Researcher Account. Model configuration and credentials remain
+      deployment-wide shared state.
 
       The Project Store is consumed. Studio reads its research state from
       PostgreSQL and creates, renames, and deletes Project Contexts, appends
-      Schema Revisions, and writes reviewed Extractions to it.
+      Schema Revisions, Extractions, and versioned ExtractionReview records
+      whose Review Decisions they own.
       The Parsing Service task directory stays a processor cache; the durable
       artifact is the canonical package.
     '''
-    include operator, researcher, entra, gateway, studio, parsing_service, project_db, package_store, model_config, model_connections
+    include operator, researcher, browser, entra, gateway, studio, parsing_service, project_db, package_store, model_config, model_connections
   }
 
   view current_modules {
     title 'FREE — current runtime modules'
     description 'Maintained module seams; this is not an import graph.'
-    include operator, researcher, entra, gateway, studio.*, parsing_service.*, project_db, package_store, model_config, model_connections
+    include operator, researcher, browser, entra, gateway, studio.*, parsing_service.*, project_db, package_store, model_config, model_connections
   }
 
   dynamic view current_account_session {
@@ -114,12 +132,13 @@ views {
       token and is never renewed in place.
     '''
     operator -> entra 'Assign the Researcher to the enterprise application'
-    researcher -> gateway 'GET /auth/login over HTTPS'
+    researcher -> browser 'Open GET /auth/login on the canonical HTTPS origin'
+    browser -> gateway 'Send the TLS request'
     gateway -> studio.handlers 'Forward from the pinned proxy address'
     studio.handlers -> studio.authentication 'Create a signed OIDC transaction with state, nonce, and PKCE'
-    studio.authentication -> entra 'Redirect, then exchange the authorization code'
+    studio.authentication -> entra 'Redirect the browser, then exchange the authorization code'
     studio.authentication -> project_db 'Create or refresh the tenant/object account'
-    studio.handlers -> researcher 'Issue a fixed session capped before token expiry and return to the local path'
+    studio.handlers -> browser 'Issue a fixed session capped before token expiry and return to the local path'
   }
 
   dynamic view project_context_lifecycle {
@@ -208,7 +227,10 @@ views {
       The Extraction Route serves Schema Suggestion, Extraction, and Evidence
       grounding. The Interaction Route serves chat and conversational schema
       edits. The Extraction module resolves one model session for an attempt,
-      then uses that pinned route for values and every grounding batch.
+      then uses that pinned route for values and every grounding batch. Review
+      finalization appends versioned ExtractionReview revision 1, which owns
+      its Review Decisions; Review Decisions never attach directly to an
+      Extraction.
 
       `POST /api/schema-revisions` initializes the first Schema Revision, or
       appends the next one against `expectedRevisionNumber`. A stale number
@@ -240,8 +262,61 @@ views {
     researcher -> studio.ui 'Accept the Extraction Result'
     studio.ui -> studio.handlers 'POST /api/extractions/:id/reviews'
     studio.handlers -> studio.extraction_module 'Validate Evidence and record the review'
-    studio.extraction_module -> project_db 'Store Review Decisions in one transaction'
+    studio.extraction_module -> project_db 'Create ExtractionReview revision 1 and its owned Review Decisions in one transaction'
     studio.handlers -> studio.ui 'Return the reviewed Extraction identity'
+  }
+
+  dynamic view local_compose_topology {
+    title 'Local development — default Compose topology'
+    description '''
+      `pnpm dev` runs compose.yaml with compose.override.yaml: the browser uses
+      the container nginx TLS entry point; Studio, PostgreSQL, the Parsing
+      Service, and mock OIDC are sibling Compose services. Studio redeems tokens
+      against the mock service over the app network.
+    '''
+    researcher -> browser 'Open https://localhost:8443/free'
+    browser -> local_gateway 'Send the TLS request'
+    local_gateway -> studio.handlers 'Forward to Studio on the proxy network'
+    studio.handlers -> studio.authentication 'Start the normal OIDC session path'
+    studio.authentication -> mock_oidc 'Authorize and redeem against the development issuer'
+    studio.handlers -> parsing_service.http_api 'Submit and poll parsing tasks'
+    studio.handlers -> studio.project_store 'Read and write account-owned research state'
+    studio.project_store -> project_db 'Persist through Prisma Next'
+  }
+
+  dynamic view local_entra_topology {
+    title 'Local development — Compose with Microsoft Entra'
+    description '''
+      `pnpm dev -- --entra` adds compose.entra.yaml. The local nginx TLS entry
+      point and the Studio, PostgreSQL, and Parsing Service topology stay the
+      same; FREE_ENTRA_REAL selects Microsoft Entra, and the mock-only Compose
+      profile remains inactive.
+    '''
+    researcher -> browser 'Open https://localhost:8443/free'
+    browser -> local_gateway 'Send the TLS request'
+    local_gateway -> studio.handlers 'Forward to Studio on the proxy network'
+    studio.handlers -> studio.authentication 'Start the normal OIDC session path'
+    studio.authentication -> entra 'Authorize and redeem against the real tenant'
+    studio.handlers -> parsing_service.http_api 'Submit and poll parsing tasks'
+    studio.handlers -> studio.project_store 'Read and write account-owned research state'
+    studio.project_store -> project_db 'Persist through Prisma Next'
+  }
+
+  dynamic view devcontainer_topology {
+    title 'Local development — Dev Container topology'
+    description '''
+      With FREE_DEVCONTAINER=1, the launcher starts Studio and the Parsing
+      Service directly in the workspace on loopback HTTP. PostgreSQL and mock
+      OIDC are sibling Dev Container Compose services; nginx is absent, and
+      `--entra` is rejected for this topology.
+    '''
+    researcher -> dev_browser 'Open http://localhost:5173/free'
+    dev_browser -> studio.handlers 'Call the directly started Studio process'
+    studio.handlers -> studio.authentication 'Start the normal OIDC session path'
+    studio.authentication -> mock_oidc 'Redeem against the sibling development issuer'
+    studio.handlers -> parsing_service.http_api 'Call the directly started process on port 8055'
+    studio.handlers -> studio.project_store 'Read and write account-owned research state'
+    studio.project_store -> project_db 'Persist to sibling PostgreSQL'
   }
 
   dynamic view model_configuration {

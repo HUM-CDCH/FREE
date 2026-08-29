@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines how humanities researchers attach free-text descriptions to group-level schema nodes (objects and arrays) in the Schema Panel. Descriptions are stored in the UI state, displayed and edited via an ℹ icon in the fields view and via `_description` keys in the editable JSON view, and compiled into the extraction instructions slot when running extraction — keeping the template JSON clean.
+Defines group-level Extraction Schema descriptions, their Fields and JSON editing surfaces, and their server-side compilation into model instructions.
 
 ## Requirements
 
@@ -99,19 +99,19 @@ The JSON tab SHALL provide an Edit button that switches the read-only `<pre>` di
 
 ### Requirement: Descriptions are compiled into extraction instructions
 
-When extraction is run, the frontend SHALL compile all non-empty group descriptions from the current schema nodes into a structured text block and pass it as the `instructions` parameter to the `/api/extract` call. If no group has a description, the instructions string SHALL be empty (or omitted). The extraction template JSON sent to the model SHALL NOT contain any `_description` keys.
+When extraction runs, the server-side Extraction operation SHALL compile all non-empty group descriptions from the pinned Schema Revision into a structured text block supplied to the model. If no group has a description, the instructions string SHALL be empty. The extraction template JSON sent to the model SHALL NOT contain any `_description` keys.
 
 #### Scenario: Descriptions compiled into instructions block
 
 - **WHEN** extraction runs and one or more group nodes have non-empty descriptions
-- **THEN** the `instructions` string passed to `/api/extract` contains one line per described group in the format `- <field.path>: <description>`
+- **THEN** the model instructions contain one line per described group in the format `- <field.path>: <description>`
 - **AND** the extraction template JSON contains no `_description` keys
 
 #### Scenario: No descriptions — instructions empty
 
 - **WHEN** extraction runs and no group node has a description
-- **THEN** the `instructions` string is empty or the parameter is omitted
-- **AND** extraction behavior is unchanged from the pre-feature baseline
+- **THEN** the compiled instructions string is empty
+- **AND** extraction proceeds without description guidance
 
 #### Scenario: Nested group descriptions use dot-separated paths
 

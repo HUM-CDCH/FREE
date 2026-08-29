@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
-import { localDevelopmentDatabase } from './database-url.js'
+import { validateDestructiveDatabaseTarget } from './database-url.js'
 
 const repositoryRoot = new URL('../../..', import.meta.url)
 let configuredUrl = process.env.DATABASE_URL
@@ -18,7 +18,9 @@ if (!configuredUrl) {
 if (!configuredUrl) throw new Error('DATABASE_URL is required.')
 
 const devContainer = process.env.FREE_DEVCONTAINER === '1'
-const database = localDevelopmentDatabase(configuredUrl, devContainer)
+const database = validateDestructiveDatabaseTarget(configuredUrl, {
+  allowDevContainerHost: devContainer,
+})
 
 if (devContainer) {
   console.log('Using the Dev Container PostgreSQL service.')

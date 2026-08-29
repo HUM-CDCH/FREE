@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Plugin } from 'vite'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import studioConfig, {
   apiFunctions,
   developmentStudioOrigin,
@@ -17,6 +17,10 @@ function temporaryDirectory(): string {
   temporaryDirectories.push(directory)
   return directory
 }
+
+beforeEach(() => {
+  vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', 'http://mock-oidc:8080/dev')
+})
 
 afterEach(() => {
   vi.useRealTimers()
@@ -109,6 +113,53 @@ function configureServerHook(plugin: Plugin) {
 }
 
 describe('Vite Hono integration', () => {
+  it.each([
+    {
+      reason: 'noncanonical base64',
+      value: Buffer.alloc(32, 11).toString('base64').slice(0, -1),
+      error: /canonical base64/,
+    },
+    {
+      reason: 'a decoded value below 32 bytes',
+      value: Buffer.alloc(31, 11).toString('base64'),
+      error: /at least 32 bytes/,
+    },
+  ])(
+    'rejects a configured session secret with $reason',
+    async ({ value, error }) => {
+      vi.stubEnv('FREE_SESSION_SECRET', value)
+      const createStudioApp = vi.fn(async () => ({}))
+      const development = developmentServer({
+        ssrLoadModule: studioModules({ createStudioApp }),
+      })
+
+      await expect(
+        configureServerHook(apiFunctions('/'))(development.server),
+      ).rejects.toThrow(error)
+      expect(createStudioApp).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([32, 33])(
+    'accepts a configured session secret of %i bytes',
+    async (byteLength) => {
+      const secret = Buffer.alloc(byteLength, 11)
+      vi.stubEnv('FREE_SESSION_SECRET', secret.toString('base64'))
+      const createStudioApp = vi.fn(async () => ({}))
+      const development = developmentServer({
+        ssrLoadModule: studioModules({ createStudioApp }),
+      })
+
+      await configureServerHook(apiFunctions('/'))(development.server)
+
+      expect(createStudioApp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionSecret: new Uint8Array(secret),
+        }),
+      )
+    },
+  )
+
   it('loads one shared application root and delegates every request to it', async () => {
     const app = {}
     const clientFallback = vi.fn(() => new Response(null))
@@ -142,8 +193,6 @@ describe('Vite Hono integration', () => {
         redeemAuthorizationCode: expect.any(Function),
         logoutUrl: expect.any(Function),
       }),
-      accountStore: undefined,
-      playwrightAuthentication: undefined,
       clientHandler: clientFallback,
       viteDevelopmentAssets: true,
     }))
@@ -163,7 +212,7 @@ describe('Vite Hono integration', () => {
         nonce: 'nonce',
         codeChallenge: 'challenge',
       }),
-    ).resolves.toContain('/free/auth/callback?')
+    ).resolves.toMatch(/^http:\/\/mock-oidc:8080\/dev\/authorize\?/)
 
     const middleware = development.middleware()
     const request = {} as IncomingMessage
@@ -366,6 +415,22 @@ describe('Vite Hono integration', () => {
     expect(createStudioApp).not.toHaveBeenCalled()
   })
 
+  it('requires a mock OIDC issuer when real Entra is not selected', async () => {
+    vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', '')
+    const createStudioApp = vi.fn(async () => ({}))
+    const development = developmentServer({
+      ssrLoadModule: studioModules({ createStudioApp }),
+    })
+    const plugin = apiFunctions('/')
+
+    await expect(
+      configureServerHook(plugin)(development.server),
+    ).rejects.toThrow(
+      'FREE_ENTRA_MOCK_ISSUER is required for development sign-in.',
+    )
+    expect(createStudioApp).not.toHaveBeenCalled()
+  })
+
   it('drives development sign-in through the mock OIDC issuer when configured', async () => {
     vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', 'http://mock-oidc:8080/dev')
     vi.stubEnv('FREE_ENTRA_MOCK_BROWSER_ISSUER', 'http://localhost:8444/dev')
@@ -402,78 +467,6 @@ describe('Vite Hono integration', () => {
     ).toMatch(/^http:\/\/localhost:8444\/dev\/endsession\?/)
   })
 
-  it('keeps Playwright on fake Entra despite inherited real-Entra state', async () => {
-    vi.stubEnv('FREE_ENTRA_REAL', '1')
-    vi.stubEnv('FREE_PLAYWRIGHT_AUTH', '1')
-    vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', 'http://mock-oidc:8080/dev')
-    const createStudioApp = vi.fn(async () => ({}))
-    const development = developmentServer({
-      server: { https: false, host: '127.0.0.1' },
-      ssrLoadModule: studioModules({ createStudioApp }),
-    })
-    const plugin = apiFunctions('/')
-
-    await expect(
-      configureServerHook(plugin)(development.server),
-    ).resolves.toBeUndefined()
-    expect(createStudioApp).toHaveBeenCalledWith(
-      expect.objectContaining({
-        accountStore: expect.objectContaining({
-          findOrCreate: expect.any(Function),
-          findById: expect.any(Function),
-        }),
-        playwrightAuthentication: expect.any(Function),
-      }),
-    )
-    // The fake provider answers with the redirect URI itself, proving neither
-    // the real tenant nor the mock issuer was selected.
-    const identityProvider = (
-      createStudioApp.mock.calls[0]![0] as {
-        identityProvider: {
-          authorizationUrl(input: {
-            redirectUri: string
-            state: string
-            nonce: string
-            codeChallenge: string
-          }): Promise<string>
-        }
-      }
-    ).identityProvider
-    await expect(
-      identityProvider.authorizationUrl({
-        redirectUri: 'http://127.0.0.1:5173/auth/callback',
-        state: 'state',
-        nonce: 'nonce',
-        codeChallenge: 'challenge',
-      }),
-    ).resolves.toMatch(/^http:\/\/127\.0\.0\.1:5173\/auth\/callback\?code=/)
-  })
-
-  it('rejects Playwright authentication on a wildcard Vite listener', async () => {
-    vi.stubEnv('FREE_PLAYWRIGHT_AUTH', '1')
-    const createStudioApp = vi.fn(async () => ({}))
-    const runtime = {
-      run: vi.fn(async () => undefined),
-      close: vi.fn(async () => undefined),
-    }
-    const development = developmentServer({
-      mode: 'https',
-      server: { https: true, host: '0.0.0.0' },
-      ssrLoadModule: studioModules({
-        createStudioApp,
-        extractionRuntime: runtime,
-      }),
-    })
-    const plugin = apiFunctions('/')
-
-    await expect(
-      configureServerHook(plugin)(development.server),
-    ).rejects.toThrow(
-      'Playwright authentication requires Vite to listen on 127.0.0.1.',
-    )
-    expect(runtime.run).not.toHaveBeenCalled()
-    expect(createStudioApp).not.toHaveBeenCalled()
-  })
 })
 
 describe('Vite HTTPS mode', () => {

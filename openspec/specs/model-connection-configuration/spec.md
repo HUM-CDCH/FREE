@@ -1,7 +1,7 @@
 # model-connection-configuration Specification
 
 ## Purpose
-TBD - created by archiving change runtime-model-configuration. Update Purpose after archive.
+Defines durable machine-wide Model Connections, credentials, provider discovery, and Capability Routes.
 ## Requirements
 ### Requirement: Model configuration has one durable machine-wide source
 

@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test'
-import { PLAYWRIGHT_SECOND_ENTRA_OBJECT_ID } from '../server/playwright-auth.js'
-import { E2E_ORIGIN, loginResearcher } from './auth.js'
+import {
+  completeMockOidcLogin,
+  E2E_ORIGIN,
+  loginResearcher,
+  SECOND_E2E_ENTRA_OBJECT_ID,
+} from './auth.js'
 import {
   activateWithKeyboard,
   expectOperableInViewport,
@@ -20,7 +24,7 @@ async function openAccountMenu(page: import('@playwright/test').Page) {
   return signOut
 }
 
-test('request-context sign-in bypasses the browser-only fragment relay and authenticates @deterministic', async ({
+test('mock OIDC sign-in establishes a real Studio session @deterministic', async ({
   page,
 }) => {
   await loginResearcher(page)
@@ -40,6 +44,7 @@ test('deep-link Entra sign-in and keyboard logout clear local authority @determi
   )
 
   await page.goto('/projects?view=all#top')
+  await completeMockOidcLogin(page)
   await expect(page).toHaveURL(/\/projects\?view=all#top$/)
   await expect(page.getByText('Development Researcher')).toBeVisible()
   await expect(
@@ -59,7 +64,8 @@ test('deep-link Entra sign-in and keyboard logout clear local authority @determi
     page,
     finalSignOut,
   )
-  expect((await landing).ok()).toBe(true)
+  const landingResponse = await landing
+  expect(landingResponse.ok()).toBe(true)
   await signedOut
 
   await expect(
@@ -136,7 +142,7 @@ test('switching Entra accounts does not retain the previous project rail @determ
   ).toBeVisible()
 
   visibleAccount = second
-  await loginResearcher(page, PLAYWRIGHT_SECOND_ENTRA_OBJECT_ID)
+  await loginResearcher(page, SECOND_E2E_ENTRA_OBJECT_ID)
   await page.goto('/projects')
   await expect(projects.getByText(second.name).first()).toBeVisible()
   await expect(projects.getByText(first.name)).toHaveCount(0)

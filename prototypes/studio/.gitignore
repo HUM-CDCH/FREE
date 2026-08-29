@@ -36,3 +36,4 @@ ds-bundle/
 # Playwright output
 test-results/
 playwright-report/
+.playwright-stack-*/

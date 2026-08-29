@@ -21,6 +21,7 @@ WORKDIR /workspace
 # Manifests first so the dependency layer survives every source edit.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/db/package.json packages/db/
+COPY packages/studio-configuration/package.json packages/studio-configuration/
 COPY packages/extraction/package.json packages/extraction/
 COPY packages/extraction-result-export/package.json packages/extraction-result-export/
 COPY prototypes/studio/package.json prototypes/studio/
@@ -46,8 +47,8 @@ COPY . .
 RUN DATABASE_URL=postgresql://contract:emit@127.0.0.1:5432/free pnpm db:generate
 
 # Produce both the browser bundle and the Node server before the runtime image
-# is started. The image deliberately retains the workspace tooling so operators
-# can run the account CLI against the same database and credential store.
+# is started. The image deliberately retains the workspace tooling needed to
+# replay authored database migrations at startup.
 RUN pnpm --filter studio build
 
 ENV NODE_ENV=production

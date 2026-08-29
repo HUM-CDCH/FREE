@@ -516,25 +516,28 @@ async function expectBatchRunClearOfSession(page: Page): Promise<void> {
   await scrollRegion.evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
-  const [runBox, sessionBox, viewport] = await Promise.all([
+  const [runBox, viewport] = await Promise.all([
     run.boundingBox(),
-    page.getByLabel('Researcher session').boundingBox(),
     page.evaluate(() => ({ width: innerWidth, height: innerHeight })),
   ])
   expect(runBox).not.toBeNull()
-  expect(sessionBox).not.toBeNull()
-  if (!runBox || !sessionBox) return
+  if (!runBox) return
   expect(runBox.x).toBeGreaterThanOrEqual(0)
   expect(runBox.y).toBeGreaterThanOrEqual(0)
   expect(runBox.x + runBox.width).toBeLessThanOrEqual(viewport.width)
   expect(runBox.y + runBox.height).toBeLessThanOrEqual(viewport.height)
-  const overlapsSession = !(
-    runBox.x + runBox.width <= sessionBox.x ||
-    sessionBox.x + sessionBox.width <= runBox.x ||
-    runBox.y + runBox.height <= sessionBox.y ||
-    sessionBox.y + sessionBox.height <= runBox.y
-  )
-  expect(overlapsSession).toBe(false)
+  const session = page.getByRole('button', { name: /Researcher Account/ })
+  const sessionBox =
+    (await session.count()) === 0 ? null : await session.boundingBox()
+  if (sessionBox) {
+    const overlapsSession = !(
+      runBox.x + runBox.width <= sessionBox.x ||
+      sessionBox.x + sessionBox.width <= runBox.x ||
+      runBox.y + runBox.height <= sessionBox.y ||
+      sessionBox.y + sessionBox.height <= runBox.y
+    )
+    expect(overlapsSession).toBe(false)
+  }
   await expect(run).toBeEnabled()
 }
 

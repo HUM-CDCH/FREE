@@ -1,3 +1,4 @@
+import { CANONICAL_UUID } from 'studio-configuration'
 import { z } from 'zod'
 import { extractionAttemptSchema } from './extraction.contract'
 import {
@@ -7,10 +8,7 @@ import {
 
 export const canonicalUuidSchema = z
   .string()
-  .regex(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    'Must be a canonical lowercase UUID.',
-  )
+  .regex(CANONICAL_UUID, 'Must be a canonical lowercase UUID.')
 
 const timestamp = z.iso
   .datetime({ offset: true })
@@ -74,8 +72,8 @@ const projectContextSourceDocumentSchema = sourceDocumentSummarySchema
   .strict()
 /**
  * One name contract for creating and renaming a Project Context. The durable
- * limit lives in `ResearcherProjectStore`;
- * `api/project_contexts.test.ts` fails if the two ever disagree.
+ * limit lives in `ResearcherProjectStore`; the module-load guard in
+ * `api/project_contexts.ts` fails if the two ever disagree.
  */
 export const projectContextNameLimit = 512
 export const projectContextNameSchema = z

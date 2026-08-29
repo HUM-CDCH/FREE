@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadStudioServerConfig } from './config.js'
-import { createFakeEntraIdentityProvider } from './entraIdentityProvider.js'
+import { createInMemoryEntraIdentityProvider } from '../test/support/inMemoryEntraIdentityProvider.js'
 import {
   startStudioServer,
   type StudioRuntime,
@@ -82,7 +82,7 @@ describe('production Studio process', () => {
       signals: signalEmitter,
       logger,
       providerRuntime,
-      identityProvider: createFakeEntraIdentityProvider(),
+      identityProvider: createInMemoryEntraIdentityProvider(),
     })
     expect(serve).toHaveBeenCalledOnce()
     expect(serve.mock.calls[0][0]).toMatchObject({

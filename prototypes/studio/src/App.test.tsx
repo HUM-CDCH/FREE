@@ -1154,7 +1154,7 @@ describe('reopened Source Document workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: '▶ Run extraction' }))
     const accept = await screen.findByRole('button', { name: 'Save Review' })
     await waitFor(() => expect(accept).toBeEnabled())
-    fireEvent.click(screen.getByRole('button', { name: 'Pinned schema' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Pinned schema' }))
     expect(screen.getByText(reopened.extractionSchema!.schemaRevisionId)).toBeInTheDocument()
     expect(screen.getByText(/"place": "string"/)).toBeInTheDocument()
     expect(screen.queryByText(/"number": "string"/)).not.toBeInTheDocument()

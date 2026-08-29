@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path'
 import {
   canonicalEntraCertificateThumbprint,
   canonicalStudioBasePath,
+  canonicalStudioSessionSecret,
 } from 'studio-configuration'
 import {
   applyStudioBaseTag,
@@ -14,7 +15,6 @@ import {
 } from './shared/studioBasePath.js'
 import {
   createDevelopmentOidcIdentityProvider,
-  createFakeEntraIdentityProvider,
   createMicrosoftEntraIdentityProvider,
   DEVELOPMENT_ENTRA_CLIENT_ID,
   DEVELOPMENT_ENTRA_TENANT_ID,
@@ -54,8 +54,6 @@ type StudioServerModule = {
     basePath: string
     sessionSecret: Uint8Array
     identityProvider: unknown
-    accountStore?: unknown
-    playwrightAuthentication?: unknown
     clientHandler: () => Response
     viteDevelopmentAssets: boolean
   }): Promise<unknown>
@@ -83,11 +81,6 @@ export function apiFunctions(configuredBasePath: string): Plugin {
   return {
     name: 'free-api-functions',
     async configureServer(server) {
-      const playwrightMode = process.env.FREE_PLAYWRIGHT_AUTH === '1'
-      if (playwrightMode && server.config.server.host !== '127.0.0.1')
-        throw new Error(
-          'Playwright authentication requires Vite to listen on 127.0.0.1.',
-        )
       const composeStudio = async (): Promise<StudioComposition> => {
         const studio = (await server.ssrLoadModule(
           '/server/app.ts',
@@ -101,25 +94,11 @@ export function apiFunctions(configuredBasePath: string): Plugin {
         const encodedSecret =
           process.env.FREE_SESSION_SECRET ?? environment.FREE_SESSION_SECRET
         const sessionSecret = encodedSecret
-          ? Buffer.from(encodedSecret, 'base64')
+          ? canonicalStudioSessionSecret(encodedSecret)
           : generatedSessionSecret
-        if (
-          playwrightMode &&
-          !/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(studioOrigin)
-        )
-          throw new Error(
-            'Playwright authentication is restricted to a loopback Studio origin.',
-          )
-        const playwright = playwrightMode
-          ? await import('./server/playwright-auth.ts')
-          : undefined
-        const accountStore = playwright?.createPlaywrightAccountStore()
-        const playwrightAuthentication =
-          playwright?.createPlaywrightAuthentication()
         const environmentValue = (name: string) =>
           process.env[name] ?? environment[name]
-        const realEntra =
-          !playwrightMode && environmentValue('FREE_ENTRA_REAL') === '1'
+        const realEntra = environmentValue('FREE_ENTRA_REAL') === '1'
         if (realEntra && new URL(studioOrigin).protocol !== 'https:')
           throw new Error(
             'Real Entra development requires an HTTPS Studio origin.',
@@ -127,16 +106,11 @@ export function apiFunctions(configuredBasePath: string): Plugin {
         const required = (name: string) => {
           const configured = environmentValue(name)
           if (!configured)
-            throw new Error(`${name} is required for real Entra development.`)
+            throw new Error(`${name} is required for development sign-in.`)
           return configured
         }
         // compose.override.yaml points development at its mock OIDC service so
-        // every sign-in runs the real MSAL client code; without the mock (Dev
-        // Container, host-run dev server) identity falls back to the fake.
-        const mockOidcIssuer =
-          !playwrightMode && !realEntra
-            ? environmentValue('FREE_ENTRA_MOCK_ISSUER')
-            : undefined
+        // every sign-in runs the real MSAL client code and session path.
         const identityProvider = realEntra
           ? createMicrosoftEntraIdentityProvider({
               tenantId: required('FREE_ENTRA_TENANT_ID'),
@@ -149,23 +123,19 @@ export function apiFunctions(configuredBasePath: string): Plugin {
                 'utf8',
               ),
             })
-          : mockOidcIssuer
-            ? createDevelopmentOidcIdentityProvider({
-                tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
-                clientId: DEVELOPMENT_ENTRA_CLIENT_ID,
-                serverIssuer: mockOidcIssuer,
-                browserIssuer:
-                  environmentValue('FREE_ENTRA_MOCK_BROWSER_ISSUER') ??
-                  mockOidcIssuer,
-              })
-            : createFakeEntraIdentityProvider()
+          : createDevelopmentOidcIdentityProvider({
+              tenantId: DEVELOPMENT_ENTRA_TENANT_ID,
+              clientId: DEVELOPMENT_ENTRA_CLIENT_ID,
+              serverIssuer: required('FREE_ENTRA_MOCK_ISSUER'),
+              browserIssuer:
+                environmentValue('FREE_ENTRA_MOCK_BROWSER_ISSUER') ??
+                required('FREE_ENTRA_MOCK_ISSUER'),
+            })
         const app = await studio.createStudioApp({
           studioOrigin,
           basePath,
           sessionSecret,
           identityProvider,
-          accountStore,
-          playwrightAuthentication,
           clientHandler: studio.viteClientFallback,
           viteDevelopmentAssets: true,
         })
@@ -219,6 +189,10 @@ export default defineConfig(({ command, mode }) => {
       outDir: 'dist/client',
       emptyOutDir: true,
     },
+    // Signed-out pages load the shared browser configuration without a
+    // session. Pre-bundle the linked workspace package so Vite serves it from
+    // the public dependency path rather than an authenticated /@fs path.
+    optimizeDeps: { include: ['studio-configuration'] },
     // The Compose development overlay widens the bind with the `--host` CLI
     // flag; the config itself never listens beyond loopback.
     server:

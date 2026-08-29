@@ -7,7 +7,10 @@ import {
   parseJsonRequest,
   persistenceUnavailable,
 } from './_http.js'
-import type { ResearcherProjectStore } from '../../../packages/db/src/project-store.js'
+import {
+  PROJECT_CONTEXT_NAME_LIMIT,
+  type ResearcherProjectStore,
+} from '../../../packages/db/src/project-store.js'
 import {
   canonicalPackageStore,
   type CanonicalArtifactRead,
@@ -104,6 +107,9 @@ async function requestedName(request: Request): Promise<string> {
     )
   return parsed.data.name
 }
+
+if (projectContextNameLimit !== PROJECT_CONTEXT_NAME_LIMIT)
+  throw new Error('Project Context name limits must match.')
 
 export function createGetProjectContexts(
   store: ProjectContextReadStore,

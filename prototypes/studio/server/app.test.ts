@@ -5,14 +5,8 @@ import type {
   ResearcherProjectStore,
 } from 'db'
 import { createStudioApp, type StudioApp } from './app.js'
-import {
-  createFakeEntraIdentityProvider,
-  type EntraIdentityProvider,
-} from './entraIdentityProvider.js'
-import {
-  createPlaywrightAuthentication,
-  type PlaywrightAuthentication,
-} from './playwright-auth.js'
+import type { EntraIdentityProvider } from './entraIdentityProvider.js'
+import { createInMemoryEntraIdentityProvider } from '../test/support/inMemoryEntraIdentityProvider.js'
 
 const ORIGIN = 'https://studio.example'
 const NOW = Date.parse('2026-08-26T18:00:00.000Z')
@@ -45,7 +39,6 @@ function cookie(response: Response, name: string): string {
 async function fixture(options: {
   basePath?: string
   identityProvider?: EntraIdentityProvider
-  playwrightAuthentication?: PlaywrightAuthentication
   viteDevelopmentAssets?: boolean
 } = {}): Promise<Fixture> {
   let account: ResearcherAccountRecord | null = null
@@ -78,8 +71,7 @@ async function fixture(options: {
     accountStore,
     identityProvider:
       options.identityProvider ??
-      createFakeEntraIdentityProvider({ now: () => NOW }),
-    playwrightAuthentication: options.playwrightAuthentication,
+      createInMemoryEntraIdentityProvider({ now: () => NOW }),
     viteDevelopmentAssets: options.viteDevelopmentAssets,
     apiDispatcher: dispatcher,
     researcherProjectStore: (id) => ({ id }) as unknown as ResearcherProjectStore,
@@ -153,53 +145,21 @@ describe('Microsoft Entra authentication routes', () => {
     })
   })
 
-  it('keeps request-selected identities behind explicit Playwright authentication', async () => {
-    const ordinary = await fixture()
-    await signIn(ordinary, '/projects', '', {
+  it('ignores request-selected identities and uses the configured provider', async () => {
+    const test = await fixture()
+    await signIn(test, '/projects', '', {
       testIdentity: REQUESTED_OBJECT_ID,
     })
-    expect(ordinary.findOrCreate).toHaveBeenCalledWith(
+
+    expect(test.findOrCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         objectId: '00000000-0000-4000-8000-000000000002',
-      }),
-    )
-
-    const playwright = await fixture({
-      playwrightAuthentication: createPlaywrightAuthentication(() => NOW),
-    })
-    const ordinaryPlaywrightLogin = await playwright.app.request(
-      `${ORIGIN}/auth/login?fragmentCaptured=1`,
-    )
-    expect(
-      new URL(ordinaryPlaywrightLogin.headers.get('location')!).pathname,
-    ).toBe('/auth/callback')
-    expect(cookie(ordinaryPlaywrightLogin, 'free_entra_transaction')).toMatch(
-      /^free_entra_transaction=\S+$/,
-    )
-    expect(playwright.findOrCreate).not.toHaveBeenCalled()
-
-    const response = await playwright.app.request(
-      `${ORIGIN}/auth/login?${new URLSearchParams({
-        returnTo: '/projects',
-        fragmentCaptured: '1',
-        testIdentity: REQUESTED_OBJECT_ID,
-      })}`,
-    )
-
-    expect(response.status).toBe(302)
-    expect(response.headers.get('location')).toBe('/projects')
-    expect(cookie(response, 'free_session')).toMatch(/^free_session=\S+$/)
-    expect(playwright.findOrCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantId: '00000000-0000-4000-8000-000000000001',
-        objectId: REQUESTED_OBJECT_ID,
-        displayName: 'Test Researcher 20000000',
       }),
     )
   })
 
   it('compares the returned nonce itself and refuses callback replay without the transaction', async () => {
-    const delegate = createFakeEntraIdentityProvider({ now: () => NOW })
+    const delegate = createInMemoryEntraIdentityProvider({ now: () => NOW })
     const wrongNonce: EntraIdentityProvider = {
       ...delegate,
       async redeemAuthorizationCode(input) {

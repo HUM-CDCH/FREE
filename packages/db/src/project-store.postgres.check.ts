@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { after, test } from 'node:test'
+import { validateDisposableTestDatabaseTarget } from './database-url.js'
 
 /**
  * The cascade is a PostgreSQL behaviour, so only PostgreSQL can prove it. This
@@ -19,11 +20,7 @@ test('PostgreSQL cascades the complete Project Context graph', async () => {
     throw new Error(
       'Set PROJECT_STORE_POSTGRES_URL to a disposable free_test_* database, for example: pnpm --filter db db:start && createdb free_test_cascade.',
     )
-  const url = new URL(databaseUrl)
-  if (!url.pathname.slice(1).startsWith('free_test_'))
-    throw new Error(
-      'The PostgreSQL cascade check requires a free_test_* database.',
-    )
+  validateDisposableTestDatabaseTarget(databaseUrl)
   process.env.DATABASE_URL = databaseUrl
 
   const [

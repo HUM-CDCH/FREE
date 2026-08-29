@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  canonicalStudioSessionSecret,
   SHARED_STUDIO_CONFIGURATION_FIELDS,
   validateSharedStudioConfiguration,
 } from './index.mjs'
@@ -46,5 +47,29 @@ describe('shared Studio configuration syntax', () => {
       result.values.FREE_SESSION_SECRET,
       new Uint8Array(32).fill(11),
     )
+  })
+
+  it('rejects noncanonical or undersized session secrets', () => {
+    const canonical = Buffer.alloc(32, 11).toString('base64')
+
+    assert.throws(
+      () => canonicalStudioSessionSecret(canonical.slice(0, -1)),
+      /canonical base64/,
+    )
+    assert.throws(
+      () =>
+        canonicalStudioSessionSecret(Buffer.alloc(31, 11).toString('base64')),
+      /at least 32 bytes/,
+    )
+  })
+
+  it('accepts session secrets of 32 bytes or more', () => {
+    for (const byteLength of [32, 33]) {
+      const secret = Buffer.alloc(byteLength, 11)
+      assert.deepEqual(
+        canonicalStudioSessionSecret(secret.toString('base64')),
+        new Uint8Array(secret),
+      )
+    }
   })
 })

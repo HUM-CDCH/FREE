@@ -508,7 +508,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     { value: 'review', label: 'Review' },
     { value: 'json', label: 'Raw JSON' },
     { value: 'markdown', label: 'Markdown' },
-    // ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
+    ...(pinnedSchema ? [{ value: 'schema' as const, label: 'Pinned schema' }] : []),
   ]
 
   const currentEntries = useMemo((): Array<{ pathKey: string; displayName: string; value: unknown }> => {
@@ -542,7 +542,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                 'Status',
                 attempt?.complete === false ? 'incomplete' : 'ready',
               )} */}
-              {/* {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())} */}
+              {attempt && summaryItem('Strategy', attempt.strategy.toLowerCase())}
               {summaryItem('Fields', stats.fields)}
               {summaryItem('Missing', stats.missing)}
               {summaryItem('Grounded', state.evidenceLinks.length)}
