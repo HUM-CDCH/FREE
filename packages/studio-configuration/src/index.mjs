@@ -107,6 +107,22 @@ export function decodeCanonicalSessionSecret(value) {
 }
 
 /**
+ * Decode the canonical base64 representation of a Studio session secret and
+ * enforce the shared minimum strength policy.
+ *
+ * @param {string} value
+ * @returns {Uint8Array}
+ */
+export function canonicalStudioSessionSecret(value) {
+  const decoded = decodeCanonicalSessionSecret(value)
+  if (decoded === null)
+    throw new Error('FREE_SESSION_SECRET must be canonical base64.')
+  if (decoded.byteLength < 32)
+    throw new Error('FREE_SESSION_SECRET must decode to at least 32 bytes.')
+  return decoded
+}
+
+/**
  * Validate the syntax shared by every production Studio entry point. The
  * caller owns deployment policy, side effects, and error adaptation.
  *
@@ -162,20 +178,18 @@ export function validateSharedStudioConfiguration(environment) {
 
   const sessionSecret = required('FREE_SESSION_SECRET')
   if (sessionSecret !== null) {
-    const decoded = decodeCanonicalSessionSecret(sessionSecret)
-    if (decoded === null)
+    try {
+      values.FREE_SESSION_SECRET = canonicalStudioSessionSecret(sessionSecret)
+    } catch (error) {
       issues.push({
         field: 'FREE_SESSION_SECRET',
         code: 'invalid',
-        message: 'FREE_SESSION_SECRET must be canonical base64.',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'FREE_SESSION_SECRET is invalid.',
       })
-    else if (decoded.byteLength < 32)
-      issues.push({
-        field: 'FREE_SESSION_SECRET',
-        code: 'invalid',
-        message: 'FREE_SESSION_SECRET must decode to at least 32 bytes.',
-      })
-    else values.FREE_SESSION_SECRET = decoded
+    }
   }
 
   for (const field of [

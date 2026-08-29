@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { after, describe, it, test } from 'node:test'
 import { strToU8, zipSync } from 'fflate'
 import type { CanonicalPackageStore, Database } from 'db'
+import { validateDisposableTestDatabaseTarget } from 'db/database-url'
 import type {
   ExtractionModel,
   ExtractionModelRequest,
@@ -20,23 +21,15 @@ import type {
 
 const configuredDatabaseUrl =
   process.env.EXTRACTION_TEST_DATABASE_URL ?? process.env.DATABASE_URL
-const disposableDatabaseUrl = (() => {
-  if (!configuredDatabaseUrl) return null
-  try {
-    const url = new URL(configuredDatabaseUrl)
-    return url.pathname.slice(1).startsWith('free_test_') ? configuredDatabaseUrl : null
-  } catch {
-    return null
-  }
-})()
+const disposableDatabaseUrl = configuredDatabaseUrl
+  ? validateDisposableTestDatabaseTarget(configuredDatabaseUrl).toString()
+  : null
 
 if (!disposableDatabaseUrl) {
   test(
     'ExtractionModule PostgreSQL contracts',
     {
-      skip: configuredDatabaseUrl
-        ? 'EXTRACTION_TEST_DATABASE_URL/DATABASE_URL must name a disposable free_test_* database'
-        : 'set EXTRACTION_TEST_DATABASE_URL (or DATABASE_URL) to a migrated disposable free_test_* database',
+      skip: 'set EXTRACTION_TEST_DATABASE_URL (or DATABASE_URL) to a migrated disposable free_test_* database',
     },
     () => {},
   )

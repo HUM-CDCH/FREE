@@ -14,7 +14,7 @@
     "prebuild": "pnpm db:generate",
     "build": "pnpm --filter studio build",
     "test": "pnpm test:unit",
-    "test:unit": "pnpm --filter studio test && pnpm --filter db test && pnpm --filter extraction test && pnpm --filter extraction-result-export test && pnpm --filter parsing-service test",
+    "test:unit": "node --test scripts/free.test.mjs && pnpm --filter studio-configuration test && pnpm --filter studio test && pnpm --filter db test && pnpm --filter extraction test && pnpm --filter extraction-result-export test && pnpm --filter parsing-service test",
     "test:safety": "node --test --test-concurrency=1 tests/safety.test.mjs",
     "test:postgres": "pnpm --filter db test:postgres && pnpm --filter extraction test:postgres",
     "test:e2e": "pnpm --filter studio test:e2e",

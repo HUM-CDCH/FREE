@@ -113,6 +113,53 @@ function configureServerHook(plugin: Plugin) {
 }
 
 describe('Vite Hono integration', () => {
+  it.each([
+    {
+      reason: 'noncanonical base64',
+      value: Buffer.alloc(32, 11).toString('base64').slice(0, -1),
+      error: /canonical base64/,
+    },
+    {
+      reason: 'a decoded value below 32 bytes',
+      value: Buffer.alloc(31, 11).toString('base64'),
+      error: /at least 32 bytes/,
+    },
+  ])(
+    'rejects a configured session secret with $reason',
+    async ({ value, error }) => {
+      vi.stubEnv('FREE_SESSION_SECRET', value)
+      const createStudioApp = vi.fn(async () => ({}))
+      const development = developmentServer({
+        ssrLoadModule: studioModules({ createStudioApp }),
+      })
+
+      await expect(
+        configureServerHook(apiFunctions('/'))(development.server),
+      ).rejects.toThrow(error)
+      expect(createStudioApp).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([32, 33])(
+    'accepts a configured session secret of %i bytes',
+    async (byteLength) => {
+      const secret = Buffer.alloc(byteLength, 11)
+      vi.stubEnv('FREE_SESSION_SECRET', secret.toString('base64'))
+      const createStudioApp = vi.fn(async () => ({}))
+      const development = developmentServer({
+        ssrLoadModule: studioModules({ createStudioApp }),
+      })
+
+      await configureServerHook(apiFunctions('/'))(development.server)
+
+      expect(createStudioApp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionSecret: new Uint8Array(secret),
+        }),
+      )
+    },
+  )
+
   it('loads one shared application root and delegates every request to it', async () => {
     const app = {}
     const clientFallback = vi.fn(() => new Response(null))

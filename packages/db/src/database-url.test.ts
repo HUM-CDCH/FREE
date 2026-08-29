@@ -89,6 +89,22 @@ describe('disposable PostgreSQL test target', () => {
       )
   })
 
+  it('rejects query parameters that override the connection target', () => {
+    for (const parameter of [
+      'database=free_test_override',
+      'host=localhost',
+      'port=5432',
+      'user=postgres',
+    ])
+      assert.throws(
+        () =>
+          validateDisposableTestDatabaseTarget(
+            `postgresql://postgres:test@localhost:5432/free_test_cascade?${parameter}`,
+          ),
+        disposableTargetError,
+      )
+  })
+
   it('rejects the wrong protocol, user, port, or database', () => {
     for (const value of [
       'http://postgres:test@localhost:5432/free_test_cascade',

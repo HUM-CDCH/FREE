@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path'
 import {
   canonicalEntraCertificateThumbprint,
   canonicalStudioBasePath,
-  decodeCanonicalSessionSecret,
+  canonicalStudioSessionSecret,
 } from 'studio-configuration'
 import {
   applyStudioBaseTag,
@@ -93,13 +93,9 @@ export function apiFunctions(configuredBasePath: string): Plugin {
           developmentOrigin
         const encodedSecret =
           process.env.FREE_SESSION_SECRET ?? environment.FREE_SESSION_SECRET
-        let sessionSecret: Uint8Array = generatedSessionSecret
-        if (encodedSecret) {
-          const decoded = decodeCanonicalSessionSecret(encodedSecret)
-          if (decoded === null)
-            throw new Error('FREE_SESSION_SECRET must be canonical base64.')
-          sessionSecret = decoded
-        }
+        const sessionSecret = encodedSecret
+          ? canonicalStudioSessionSecret(encodedSecret)
+          : generatedSessionSecret
         const environmentValue = (name: string) =>
           process.env[name] ?? environment[name]
         const realEntra = environmentValue('FREE_ENTRA_REAL') === '1'
