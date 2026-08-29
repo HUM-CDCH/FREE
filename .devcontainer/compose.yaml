@@ -10,6 +10,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mock-oidc:
+        condition: service_started
 
   db:
     image: postgres:17
@@ -25,6 +27,33 @@ services:
       retries: 15
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
+  mock-oidc:
+    image: ghcr.io/navikt/mock-oauth2-server:2.2.1
+    environment:
+      JSON_CONFIG: |
+        {
+          "interactiveLogin": false,
+          "tokenCallbacks": [
+            {
+              "issuerId": "dev",
+              "tokenExpiry": 3600,
+              "requestMappings": [
+                {
+                  "requestParam": "grant_type",
+                  "match": "*",
+                  "claims": {
+                    "tid": "00000000-0000-4000-8000-000000000001",
+                    "oid": "00000000-0000-4000-8000-000000000002",
+                    "name": "Development Researcher"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+    ports:
+      - "127.0.0.1:8444:8080"
 
 volumes:
   postgres-data:

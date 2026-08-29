@@ -416,21 +416,30 @@ export function developmentComposeEnvironment(
   return composeEnvironment
 }
 
-// The Dev Container has PostgreSQL as a sibling service and no Docker socket,
-// so it keeps the direct process path: migrate, verify, then run Studio and
-// the Parsing Service on loopback HTTP with the same /free base path.
+export function devContainerEnvironment(
+  environment = process.env,
+  sessionSecret = ensureDevelopmentSessionSecret(),
+) {
+  return {
+    ...environment,
+    STUDIO_ORIGIN: 'http://localhost:5173',
+    STUDIO_BASE_PATH: '/free',
+    FREE_SESSION_SECRET: sessionSecret,
+    FREE_ENTRA_REAL: '0',
+    FREE_ENTRA_MOCK_ISSUER: 'http://mock-oidc:8080/dev',
+    FREE_ENTRA_MOCK_BROWSER_ISSUER: 'http://localhost:8444/dev',
+  }
+}
+
+// The Dev Container has PostgreSQL and mock OIDC as sibling services but no
+// Docker socket, so it keeps the direct process path: migrate, verify, then run
+// Studio and the Parsing Service on loopback HTTP with the same /free base path.
 async function devContainerMain() {
   pnpm(['db:generate'])
   pnpm(['--filter', 'db', 'db:start'])
   pnpm(['setup'])
   pnpm(['--filter', 'db', 'db:verify'])
-  const environment = {
-    ...process.env,
-    STUDIO_ORIGIN: 'http://localhost:5173',
-    STUDIO_BASE_PATH: '/free',
-    FREE_SESSION_SECRET: ensureDevelopmentSessionSecret(),
-    FREE_ENTRA_REAL: '0',
-  }
+  const environment = devContainerEnvironment()
   console.log('\nStarting FREE at http://localhost:5173/free\n')
   const services = spawn(
     WINDOWS ? (process.env.ComSpec ?? 'cmd.exe') : 'pnpm',
