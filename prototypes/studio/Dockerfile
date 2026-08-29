@@ -47,8 +47,8 @@ COPY . .
 RUN DATABASE_URL=postgresql://contract:emit@127.0.0.1:5432/free pnpm db:generate
 
 # Produce both the browser bundle and the Node server before the runtime image
-# is started. The image deliberately retains the workspace tooling so operators
-# can run the account CLI against the same database and credential store.
+# is started. The image deliberately retains the workspace tooling needed to
+# replay authored database migrations at startup.
 RUN pnpm --filter studio build
 
 ENV NODE_ENV=production

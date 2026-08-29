@@ -4,13 +4,16 @@
 // same proxy fragment.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
 import {
+  developmentComposeArguments,
   developmentComposeEnvironment,
+  deriveDevProfile,
   devContainerEnvironment,
+  parseDevOptions,
   renderNginxLocations,
   validateProductionEnvironment,
 } from '../scripts/free.mjs'
@@ -28,6 +31,32 @@ function resetDatabase(databaseUrl) {
       timeout: 120_000,
     },
   )
+}
+
+function renderDevelopmentCompose(profile, entraEnvironment = null) {
+  const launchArguments = developmentComposeArguments(profile)
+  const result = spawnSync(
+    'docker',
+    [
+      ...launchArguments.slice(0, launchArguments.indexOf('up')),
+      'config',
+      '--format',
+      'json',
+    ],
+    {
+      cwd: ROOT,
+      env: developmentComposeEnvironment(
+        profile,
+        process.env,
+        Buffer.alloc(32, 8).toString('base64'),
+        entraEnvironment,
+      ),
+      encoding: 'utf8',
+      timeout: 120_000,
+    },
+  )
+  assert.equal(result.status, 0, result.stderr)
+  return JSON.parse(result.stdout)
 }
 
 test('db safety: reset refuses a remote database target', () => {
@@ -61,8 +90,9 @@ const completeProductionEnvironment = (certificatePath) => ({
   FREE_ENTRA_CLIENT_CERT_PATH: certificatePath,
 })
 
-test('production: a complete Entra deployment environment validates', () => {
+test('production: a complete Entra deployment environment validates', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'free-prod-test-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
   const certificate = join(directory, 'client.pem')
   writeFileSync(certificate, 'not-a-real-key')
   assert.deepEqual(
@@ -84,8 +114,9 @@ test('production: missing or weak values are rejected before startup', () => {
   assert.ok(errors.some((error) => error.includes('FREE_ENTRA_TENANT_ID')))
 })
 
-test('production: the compose overlay renders with a valid environment', () => {
+test('production: the compose overlay renders with a valid environment', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'free-prod-compose-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
   const certificate = join(directory, 'client.pem')
   writeFileSync(certificate, 'not-a-real-key')
   const result = spawnSync(
@@ -232,8 +263,56 @@ test('database tooling: package exposes only supported operator commands', () =>
     assert.equal(scripts[unsupported], undefined, unsupported)
 })
 
+test('development: mock and real Entra Compose profiles render exclusively', () => {
+  const mockProfile = deriveDevProfile(parseDevOptions([]), {})
+  const mockServices = renderDevelopmentCompose(mockProfile).services
+  assert.deepEqual(mockServices['mock-oidc']?.profiles, ['mock-oidc'])
+  assert.equal(
+    mockServices.studio.depends_on['mock-oidc'].condition,
+    'service_started',
+  )
+  assert.equal(mockServices.studio.depends_on['mock-oidc'].required, false)
+  assert.equal(
+    mockServices.studio.environment.FREE_ENTRA_MOCK_ISSUER,
+    'http://mock-oidc:8080/dev',
+  )
+  assert.ok(
+    mockServices['mock-oidc'].ports.some(
+      ({ target, published }) =>
+        target === 8080 && String(published) === '8444',
+    ),
+    'the active mock profile must publish its browser issuer',
+  )
 
-test('development: Studio watches the shared configuration package and rebuilds its manifest', () => {
+  const realProfile = deriveDevProfile(parseDevOptions(['--entra']), {})
+  const certificate = resolve(ROOT, '.certs/studio.key')
+  const realServices = renderDevelopmentCompose(realProfile, {
+    FREE_ENTRA_TENANT_ID: '11111111-2222-4333-8444-555555555555',
+    FREE_ENTRA_CLIENT_ID: '66666666-7777-4888-9999-aaaaaaaaaaaa',
+    FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'b'.repeat(64),
+    FREE_ENTRA_CLIENT_CERT_PATH: certificate,
+  }).services
+  assert.equal(realServices['mock-oidc'], undefined)
+  assert.equal(realServices.studio.depends_on['mock-oidc'], undefined)
+  assert.equal(
+    realServices.studio.environment.FREE_ENTRA_MOCK_ISSUER,
+    null,
+  )
+  assert.equal(
+    realServices.studio.environment.FREE_ENTRA_MOCK_BROWSER_ISSUER,
+    null,
+  )
+  assert.ok(
+    Object.values(realServices).every((service) =>
+      (service.ports ?? []).every(
+        ({ published }) => String(published) !== '8444',
+      ),
+    ),
+    'the real Entra topology must not bind the mock browser port',
+  )
+})
+
+test('development: Studio watches shared configuration and rebuild-owned database inputs', () => {
   const result = spawnSync(
     'docker',
     [
@@ -276,6 +355,32 @@ test('development: Studio watches the shared configuration package and rebuilds 
       ignore: ['package.json', 'node_modules/'],
     },
   )
+  const databaseSource = watch.find(
+    ({ path, action }) =>
+      action === 'sync' &&
+      path.replaceAll('\\', '/').endsWith('/packages/db'),
+  )
+  for (const rebuildOwnedInput of [
+    'prisma-next.config.ts',
+    'migrations/',
+    'src/prisma/contract.prisma',
+  ])
+    assert.ok(
+      databaseSource?.ignore.includes(rebuildOwnedInput),
+      `${rebuildOwnedInput} must not be generically synced`,
+    )
+  const rebuildPaths = watch
+    .filter(({ action }) => action === 'rebuild')
+    .map(({ path }) => path.replaceAll('\\', '/'))
+  for (const rebuildOwnedInput of [
+    '/packages/db/prisma-next.config.ts',
+    '/packages/db/src/prisma/contract.prisma',
+    '/packages/db/migrations',
+  ])
+    assert.ok(
+      rebuildPaths.some((path) => path.endsWith(rebuildOwnedInput)),
+      `${rebuildOwnedInput} must rebuild the Studio image`,
+    )
   assert.ok(
     watch.some(
       ({ path, action }) =>
@@ -309,7 +414,7 @@ test('image: the shared configuration manifest precedes Studio dependency instal
   )
 })
 
-test('proxy parity: the shared fragment renders and passes nginx -t for the host wrapper', () => {
+test('proxy parity: the shared fragment renders and passes nginx -t for the host wrapper', (t) => {
   const template = readFileSync(
     resolve(ROOT, 'docker/nginx/free-studio-locations.inc.template'),
     'utf8',
@@ -322,6 +427,7 @@ test('proxy parity: the shared fragment renders and passes nginx -t for the host
   assert.ok(!rendered.includes('${'), 'no unrendered placeholders')
 
   const directory = mkdtempSync(join(tmpdir(), 'free-nginx-test-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
   writeFileSync(join(directory, 'free-studio-locations.conf'), rendered)
   writeFileSync(
     join(directory, 'wrapper.conf'),

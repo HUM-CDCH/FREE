@@ -18,8 +18,8 @@ same launcher runs its services directly on loopback HTTP as described below.
 - Node.js 24 and pnpm 10.9 (`pnpm install` at the root also syncs Python
   services through `uv`).
 - Docker Desktop with Docker Compose v2.33.1 or later (Compose Watch,
-  `!override`, and `gw_priority` are used). The launcher checks this before
-  starting the host stack.
+  optional profile dependencies, `!reset`, and `gw_priority` are used). The
+  launcher checks this before starting the host stack.
 - `mkcert`, with its root CA installed once: `mkcert -install`.
 
 The default mock-OIDC profile needs no `.env`. The real-Entra profile reads the
@@ -33,8 +33,9 @@ pnpm dev
 ```
 
 The launcher generates `.certs/studio.crt`/`.certs/studio.key` with `mkcert`
-when missing, then runs `docker compose up --build --watch`. On the first run
-the Parsing Service image build and its Docling model download take several
+when missing, then runs `docker compose --profile mock-oidc up --build --watch`.
+On the first run, the Parsing Service image build and its Docling model
+download take several
 minutes; later runs reuse the image and the named model cache.
 
 Open **https://localhost:8443/free**. Signing in runs the OIDC authorization
@@ -44,9 +45,12 @@ automatically in the Studio container entrypoint before the dev server
 starts.
 
 Source changes under `prototypes/studio`, `prototypes/parsing_service`,
-`packages/db`, `packages/extraction`, and `packages/extraction-result-export`
-sync live into the relevant container; dependency manifest or Dockerfile
-changes rebuild the image (see the watch rules in `compose.override.yaml`).
+`packages/db`, `packages/studio-configuration`, `packages/extraction`, and
+`packages/extraction-result-export` sync live into the relevant container.
+Changes to the database schema, Prisma Next generator configuration, or
+migrations rebuild Studio so contract generation and migration replay run
+again; dependency manifest or Dockerfile changes also rebuild the image (see
+the watch rules in `compose.override.yaml`).
 
 Stop with Ctrl+C. Data lives in named Docker volumes and survives restarts; to
 recreate the disposable development database run `pnpm db:reset`, and to drop

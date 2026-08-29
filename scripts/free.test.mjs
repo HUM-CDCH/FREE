@@ -79,6 +79,18 @@ describe('development launcher profiles', () => {
       'compose.yaml',
       'compose.override.yaml',
     ])
+    assert.deepEqual(developmentComposeArguments(profile), [
+      'compose',
+      '--profile',
+      'mock-oidc',
+      '-f',
+      'compose.yaml',
+      '-f',
+      'compose.override.yaml',
+      'up',
+      '--build',
+      '--watch',
+    ])
   })
 
   it('selects the canonical loopback real-Entra Compose profile', () => {
@@ -186,6 +198,7 @@ describe('development launcher profiles', () => {
         FREE_ENTRA_CLIENT_ID: '20000000-0000-4000-8000-000000000002',
         FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AA'.repeat(32),
         FREE_ENTRA_CLIENT_CERT_PATH: '/deployment/client.pem',
+        COMPOSE_PROFILES: 'deployment-profile',
       },
       'ZGV2ZWxvcG1lbnQtc2VjcmV0LXRoYXQtaXMtMzItYnl0ZXMhIQ==',
     )
@@ -198,6 +211,7 @@ describe('development launcher profiles', () => {
     assert.equal(environment.STUDIO_BASE_PATH, '/free')
     assert.equal(environment.STUDIO_ORIGIN, 'https://localhost:8443')
     assert.equal(environment.FREE_NGINX_BIND, '127.0.0.1')
+    assert.equal(environment.COMPOSE_PROFILES, undefined)
     assert.equal(environment.FREE_MOCK_OIDC_BIND, '127.0.0.1')
     assert.equal(environment.FREE_ENTRA_REAL, '0')
     assert.equal(environment.FREE_ENTRA_TENANT_ID, undefined)
@@ -233,6 +247,7 @@ describe('development launcher profiles', () => {
         FREE_SESSION_SECRET: 'deployment-secret',
         STUDIO_BASE_PATH: '/deployment',
         STUDIO_ORIGIN: 'https://free.example.edu',
+        COMPOSE_PROFILES: 'mock-oidc',
       },
       'ZGV2ZWxvcG1lbnQtc2VjcmV0LXRoYXQtaXMtMzItYnl0ZXMhIQ==',
       entraEnvironment,
@@ -242,7 +257,8 @@ describe('development launcher profiles', () => {
     assert.equal(environment.DOCLING_DEVICE, 'cpu')
     assert.equal(environment.FREE_NGINX_PORT, '8443')
     assert.equal(environment.FREE_NGINX_BIND, '127.0.0.1')
-    assert.equal(environment.FREE_MOCK_OIDC_BIND, '127.0.0.1')
+    assert.equal(environment.COMPOSE_PROFILES, undefined)
+    assert.equal(environment.FREE_MOCK_OIDC_BIND, undefined)
     assert.equal(environment.FREE_POSTGRES_PASSWORD, 'postgres')
     assert.equal(
       environment.FREE_SESSION_SECRET,

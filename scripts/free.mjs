@@ -370,6 +370,7 @@ export function developmentComposeFiles(profile) {
 export function developmentComposeArguments(profile) {
   return [
     'compose',
+    ...(!profile.entra ? ['--profile', 'mock-oidc'] : []),
     ...developmentComposeFiles(profile).flatMap((file) => ['-f', file]),
     'up',
     '--build',
@@ -393,6 +394,8 @@ export function developmentComposeEnvironment(
   const composeEnvironment = { ...environment }
   for (const field of Object.keys(composeEnvironment))
     if (field.startsWith('FREE_ENTRA_')) delete composeEnvironment[field]
+  delete composeEnvironment.COMPOSE_PROFILES
+  delete composeEnvironment.FREE_MOCK_OIDC_BIND
 
   Object.assign(composeEnvironment, {
     // Deployment values may coexist in the root .env. Compose development is
@@ -406,13 +409,14 @@ export function developmentComposeEnvironment(
     STUDIO_BASE_PATH: '/free',
     STUDIO_ORIGIN: profile.origin,
     FREE_NGINX_BIND: profile.nginxBind,
-    FREE_MOCK_OIDC_BIND: profile.nginxBind,
     FREE_ENTRA_REAL: profile.entra ? '1' : '0',
   })
   if (profile.entra) Object.assign(composeEnvironment, entraEnvironment)
   else
-    composeEnvironment.FREE_ENTRA_MOCK_BROWSER_ISSUER =
-      `http://${profile.host}:${MOCK_OIDC_PORT}/dev`
+    Object.assign(composeEnvironment, {
+      FREE_MOCK_OIDC_BIND: profile.nginxBind,
+      FREE_ENTRA_MOCK_BROWSER_ISSUER: `http://${profile.host}:${MOCK_OIDC_PORT}/dev`,
+    })
   return composeEnvironment
 }
 

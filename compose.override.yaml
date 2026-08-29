@@ -62,7 +62,7 @@ services:
       # Development sign-in drives the production Entra client code against the
       # mock-oidc service. The token endpoint is redeemed server-side over the
       # app network; the browser follows authorize/end-session redirects to the
-      # published loopback port.
+      # published loopback port. The Entra overlay removes these mock-only values.
       FREE_ENTRA_MOCK_ISSUER: http://mock-oidc:8080/dev
       # The Wi-Fi launcher profile overrides this with the selected private
       # address so a phone can follow the authorize redirect.
@@ -70,6 +70,7 @@ services:
     depends_on:
       mock-oidc:
         condition: service_started
+        required: false
     develop:
       watch:
         - action: sync
@@ -97,9 +98,13 @@ services:
           ignore:
             - package.json
             - node_modules/
-            - src/generated/
+            # Rebuild-owned Prisma Next inputs below.
+            - prisma-next.config.ts
+            - migrations/
+            - src/prisma/contract.prisma
             # These are generated for Linux while the image is built. Do not
             # replace them with host-generated or host-installed artifacts.
+            - src/generated/
             - src/prisma/contract.d.ts
             - src/prisma/contract.json
             - src/prisma/node_modules/
@@ -136,6 +141,14 @@ services:
           path: ./package.json
         - action: rebuild
           path: ./packages/db/package.json
+        # Rebuild the image so contract emission and entrypoint migration replay
+        # cannot keep generated clients or the live schema on stale inputs.
+        - action: rebuild
+          path: ./packages/db/prisma-next.config.ts
+        - action: rebuild
+          path: ./packages/db/src/prisma/contract.prisma
+        - action: rebuild
+          path: ./packages/db/migrations
         - action: rebuild
           path: ./packages/studio-configuration/package.json
         - action: rebuild
@@ -149,13 +162,14 @@ services:
         - action: rebuild
           path: ./docker/studio-entrypoint.sh
 
-  # Local OIDC identity provider for development sign-in. It accepts any
-  # client credential (so Studio's certificate client assertion passes
-  # unchanged) and issues silently — no login page. The pinned claims mirror
-  # DEVELOPMENT_ENTRA_TENANT_ID / DEVELOPMENT_ENTRA_OBJECT_ID in
-  # prototypes/studio/server/entraIdentityProvider.ts, so mock and fake
-  # sign-ins resolve to the same Researcher Account.
+  # Local OIDC identity provider for mock-only development sign-in. The
+  # launcher activates this profile only for non-Entra local runs. It accepts
+  # any client credential (so Studio's certificate client assertion passes
+  # unchanged) and issues silently — no login page. The pinned claims identify
+  # the default Development Researcher; the normal callback creates or refreshes
+  # that Researcher Account.
   mock-oidc:
+    profiles: ["mock-oidc"]
     image: ghcr.io/navikt/mock-oauth2-server:2.2.1
     environment:
       JSON_CONFIG: |

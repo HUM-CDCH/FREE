@@ -21,8 +21,8 @@ printf '\n' | gnome-keyring-daemon --unlock >/dev/null
 gnome-keyring-daemon --start --components=secrets >/dev/null
 
 # Hosted startup replays the authored migration history. It never updates the
-# schema directly or seeds an account; the first account is created explicitly
-# through the operator CLI after this command succeeds.
+# schema directly or seeds an account; the first successful OIDC callback
+# creates the Researcher Account just in time.
 pnpm --filter db db:init
 
 exec "$@"

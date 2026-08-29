@@ -289,8 +289,8 @@ views {
     description '''
       `pnpm dev -- --entra` adds compose.entra.yaml. The local nginx TLS entry
       point and the Studio, PostgreSQL, and Parsing Service topology stay the
-      same; FREE_ENTRA_REAL selects Microsoft Entra instead of the mock issuer.
-      The merged mock container may still run, but Studio does not use it.
+      same; FREE_ENTRA_REAL selects Microsoft Entra, and the mock-only Compose
+      profile remains inactive.
     '''
     researcher -> browser 'Open https://localhost:8443/free'
     browser -> local_gateway 'Send the TLS request'
