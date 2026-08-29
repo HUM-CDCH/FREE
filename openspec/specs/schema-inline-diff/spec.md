@@ -1,7 +1,7 @@
 # schema-inline-diff Specification
 
 ## Purpose
-TBD - created by archiving change inline-diff-preview. Update Purpose after archive.
+Defines the inline, per-node review surface for a conversational Extraction Schema proposal.
 ## Requirements
 ### Requirement: Schema tree renders diff state inline
 When a pending chat edit exists, the schema tree SHALL project the immutable proposal with each affected node rendered once and annotated directly on its tree row. Added, removed, and modified nodes SHALL be keyed by their real or provisional node id; modified nodes SHALL use complete before and after data and SHALL NOT create ghost nodes. Changing acceptance SHALL update replay outcomes without changing which rows or proposed values are rendered.

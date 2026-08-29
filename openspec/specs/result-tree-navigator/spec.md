@@ -1,7 +1,7 @@
 # result-tree-navigator Specification
 
 ## Purpose
-TBD - created by archiving change result-tab-explorer-nav. Update Purpose after archive.
+Defines hierarchical Extraction Result navigation with breadcrumbs and browser-like history.
 ## Requirements
 ### Requirement: Root breadcrumb bar
 
