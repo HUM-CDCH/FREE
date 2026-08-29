@@ -188,6 +188,10 @@ export default defineConfig(({ command, mode }) => {
       outDir: 'dist/client',
       emptyOutDir: true,
     },
+    // Signed-out pages load the shared browser configuration without a
+    // session. Pre-bundle the linked workspace package so Vite serves it from
+    // the public dependency path rather than an authenticated /@fs path.
+    optimizeDeps: { include: ['studio-configuration'] },
     // The Compose development overlay widens the bind with the `--host` CLI
     // flag; the config itself never listens beyond loopback.
     server:

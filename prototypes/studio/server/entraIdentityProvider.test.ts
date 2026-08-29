@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import {
   createDevelopmentOidcIdentityProvider,
-  createFakeEntraIdentityProvider,
   createMicrosoftEntraIdentityProvider,
   createOidcOnlyNetworkClient,
   EntraIdentityError,
 } from './entraIdentityProvider.js'
+import { createInMemoryEntraIdentityProvider } from '../test/support/inMemoryEntraIdentityProvider.js'
 
 const TENANT_ID = 'a3927f91-cda1-4696-af89-8c9f1ceffa91'
 const OBJECT_ID = 'cd97c8af-656f-412a-977c-ef5fc06dd1a2'
@@ -248,10 +248,10 @@ describe('development OIDC identity provider', () => {
   })
 })
 
-describe('fake Entra identity provider', () => {
+describe('test-only in-memory Entra identity provider', () => {
   it('round-trips the real route shape with only its configured identity', async () => {
     const now = Date.UTC(2026, 7, 20)
-    const provider = createFakeEntraIdentityProvider({
+    const provider = createInMemoryEntraIdentityProvider({
       objectId: OBJECT_ID,
       now: () => now,
     })
@@ -282,9 +282,9 @@ describe('fake Entra identity provider', () => {
     )
   })
 
-  it('rejects a malformed fake code', async () => {
+  it('rejects a malformed in-memory authorization code', async () => {
     await expect(
-      createFakeEntraIdentityProvider().redeemAuthorizationCode({
+      createInMemoryEntraIdentityProvider().redeemAuthorizationCode({
         redirectUri: 'https://localhost/auth/callback',
         code: 'not-json',
         codeVerifier: 'verifier',
@@ -292,8 +292,8 @@ describe('fake Entra identity provider', () => {
     ).rejects.toBeInstanceOf(EntraIdentityError)
   })
 
-  it('rejects a fake callback with the wrong PKCE verifier', async () => {
-    const provider = createFakeEntraIdentityProvider()
+  it('rejects an in-memory callback with the wrong PKCE verifier', async () => {
+    const provider = createInMemoryEntraIdentityProvider()
     const authorization = new URL(
       await provider.authorizationUrl({
         redirectUri: 'https://localhost/auth/callback',

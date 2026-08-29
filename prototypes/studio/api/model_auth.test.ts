@@ -14,7 +14,7 @@ import {
   type ApiDispatcher,
 } from '../server/api-dispatcher.js'
 import { createStudioApp, type StudioApp } from '../server/app.js'
-import { createFakeEntraIdentityProvider } from '../server/entraIdentityProvider.js'
+import { createInMemoryEntraIdentityProvider } from '../test/support/inMemoryEntraIdentityProvider.js'
 import { createSessionManager } from '../server/session.js'
 import type { CredentialStore } from './_keyring.js'
 import {
@@ -123,7 +123,7 @@ async function modelAuthFixture(): Promise<ModelAuthFixture> {
     sessionSecret: SECRET,
     now: () => NOW,
     accountStore,
-    identityProvider: createFakeEntraIdentityProvider({ now: () => NOW }),
+    identityProvider: createInMemoryEntraIdentityProvider({ now: () => NOW }),
     apiDispatcher: dispatcher,
     researcherProjectStore: (researcherAccountId) =>
       ({ researcherAccountId }) as ResearcherProjectStore,

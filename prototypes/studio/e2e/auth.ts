@@ -4,11 +4,17 @@ import {
   type Request,
   type Response,
 } from '@playwright/test'
-import { DEVELOPMENT_ENTRA_OBJECT_ID } from '../server/entraIdentityProvider.js'
+import { normalizeCanonicalUuid } from 'studio-configuration'
+import {
+  DEVELOPMENT_ENTRA_OBJECT_ID,
+  DEVELOPMENT_ENTRA_TENANT_ID,
+} from '../server/entraIdentityProvider.js'
 
 const e2ePort = Number(process.env.FREE_PLAYWRIGHT_PORT ?? 41749)
 export const E2E_ORIGIN = `http://localhost:${e2ePort}`
 export const E2E_BASE_PATH = process.env.FREE_PLAYWRIGHT_BASE_PATH ?? '/'
+export const SECOND_E2E_ENTRA_OBJECT_ID =
+  '70000000-0000-4000-8000-000000000003'
 
 export function e2eStudioPath(internalPath: string): string {
   if (!internalPath.startsWith('/') || internalPath.startsWith('//'))
@@ -81,15 +87,51 @@ export async function gotoAuthenticated(
   }
 }
 
+type E2eIdentity = {
+  objectId: string
+  displayName: string
+}
+
+function e2eIdentity(objectId: string): E2eIdentity {
+  const canonicalObjectId = normalizeCanonicalUuid(objectId)
+  if (canonicalObjectId === null)
+    throw new Error(`Invalid E2E Entra identity ${objectId}.`)
+  return {
+    objectId: canonicalObjectId,
+    displayName:
+      canonicalObjectId === DEVELOPMENT_ENTRA_OBJECT_ID
+        ? 'Development Researcher'
+        : `Test Researcher ${canonicalObjectId.slice(0, 8)}`,
+  }
+}
+
+export async function completeMockOidcLogin(
+  page: Page,
+  objectId: string = DEVELOPMENT_ENTRA_OBJECT_ID,
+): Promise<void> {
+  const selected = e2eIdentity(objectId)
+  await page.locator('input[name="username"]').fill(selected.displayName)
+  await page.locator('textarea[name="claims"]').fill(
+    JSON.stringify({
+      tid: DEVELOPMENT_ENTRA_TENANT_ID,
+      oid: selected.objectId,
+      name: selected.displayName,
+    }),
+  )
+  await Promise.all([
+    page.waitForURL(new RegExp(`${e2eStudioPath('/projects')}(?:[?#]|$)`)),
+    page.locator('input[type="submit"]').click(),
+  ])
+}
+
 export async function loginResearcher(
   page: Page,
   objectId: string = DEVELOPMENT_ENTRA_OBJECT_ID,
 ): Promise<void> {
-  const response = await page.request.get(
+  await page.goto(
     `${e2eStudioPath('/auth/login')}?${new URLSearchParams({
       fragmentCaptured: '1',
-      testIdentity: objectId,
     })}`,
   )
-  expect(response.ok()).toBe(true)
+  await completeMockOidcLogin(page, objectId)
 }

@@ -43,8 +43,10 @@ import {
   type ResearcherApiHandlerFactory,
 } from './api-dispatcher.js'
 import { createStudioApp, type StudioApp } from './app.js'
-import { createFakeEntraIdentityProvider } from './entraIdentityProvider.js'
-import type { PlaywrightAuthentication } from './playwright-auth.js'
+import {
+  createInMemoryEntraIdentityProvider,
+  type InMemoryEntraIdentityProvider,
+} from '../test/support/inMemoryEntraIdentityProvider.js'
 
 const extractionRuntimeMock = vi.hoisted(() => ({
   modules: new Map<string, unknown>(),
@@ -752,22 +754,11 @@ function responseCookie(response: Response, name: string): string {
   return value.split(';', 1)[0]
 }
 
-async function login(app: StudioApp, objectId: string): Promise<string> {
-  const response = await app.request(
-    `${ORIGIN}/auth/login?${new URLSearchParams({
-      fragmentCaptured: '1',
-      testIdentity: objectId,
-    })}`,
-    undefined,
-    CLIENT,
-  )
-  expect(response.status).toBe(302)
-  return responseCookie(response, 'free_session')
-}
-
-const ownershipAuthentication: PlaywrightAuthentication = (request) => {
-  const objectId = new URL(request.url).searchParams.get('testIdentity')
-  if (objectId === null) return null
+async function login(
+  app: StudioApp,
+  identityProvider: InMemoryEntraIdentityProvider,
+  objectId: string,
+): Promise<string> {
   const accountId =
     objectId === objectIds[ids.accountA]
       ? ids.accountA
@@ -775,13 +766,25 @@ const ownershipAuthentication: PlaywrightAuthentication = (request) => {
         ? ids.accountB
         : null
   if (accountId === null) throw new Error('Unexpected test Entra identity.')
-  return {
+  identityProvider.selectIdentity({
     tenantId: TENANT_ID,
     objectId,
     displayName: displayNames[accountId],
-    expiresAt: Date.now() + 75 * 60 * 1_000,
-    nonce: 'Ownership tests bypass the OIDC transaction.',
-  }
+  })
+  const login = await app.request(
+    `${ORIGIN}/auth/login?fragmentCaptured=1`,
+    undefined,
+    CLIENT,
+  )
+  expect(login.status).toBe(302)
+  const transactionCookie = responseCookie(login, 'free_entra_transaction')
+  const callback = await app.request(
+    login.headers.get('location')!,
+    { headers: { cookie: transactionCookie } },
+    CLIENT,
+  )
+  expect(callback.status).toBe(302)
+  return responseCookie(callback, 'free_session')
 }
 
 async function appFixture(): Promise<AppFixture> {
@@ -791,17 +794,13 @@ async function appFixture(): Promise<AppFixture> {
     if (!store) throw new Error(`Unknown Researcher Account ${accountId}.`)
     return store
   })
+  const identityProvider = createInMemoryEntraIdentityProvider()
   const app = await createStudioApp({
     studioOrigin: ORIGIN,
     basePath: '/',
     sessionSecret: SECRET,
     accountStore: accountStore(),
-    identityProvider: createFakeEntraIdentityProvider({
-      tenantId: TENANT_ID,
-      objectId: objectIds[ids.accountA],
-      displayName: displayNames[ids.accountA],
-    }),
-    playwrightAuthentication: ownershipAuthentication,
+    identityProvider,
     apiDispatcher: createApiDispatcher(ownershipRegistry(stores)),
     researcherProjectStore: createStore,
   })
@@ -810,8 +809,8 @@ async function appFixture(): Promise<AppFixture> {
     app,
     createStore,
     cookies: {
-      [ids.accountA]: await login(app, objectIds[ids.accountA]),
-      [ids.accountB]: await login(app, objectIds[ids.accountB]),
+      [ids.accountA]: await login(app, identityProvider, objectIds[ids.accountA]),
+      [ids.accountB]: await login(app, identityProvider, objectIds[ids.accountB]),
     },
   }
 }
