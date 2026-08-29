@@ -13,8 +13,8 @@ Microsoft Graph, groups, app roles, refresh tokens, or a local disable list.
    `STUDIO_BASE_PATH=/`, use `<STUDIO_ORIGIN>/auth/callback` and
    `<STUDIO_ORIGIN>/auth/signed-out`. Otherwise use
    `<STUDIO_ORIGIN><STUDIO_BASE_PATH>/auth/callback` and
-   `<STUDIO_ORIGIN><STUDIO_BASE_PATH>/auth/signed-out`. For the development
-   Entra overlay (`compose.entra.yaml`) these are
+   `<STUDIO_ORIGIN><STUDIO_BASE_PATH>/auth/signed-out`. For local real-Entra
+   development (`pnpm dev -- --entra`) these are
    `https://localhost:8443/free/auth/callback` and
    `https://localhost:8443/free/auth/signed-out`.
 3. Keep only the OIDC `openid` and `profile` delegated permissions. Do not add
@@ -60,7 +60,9 @@ data.
    Project Contexts before their Researcher Accounts using an audited, manual
    database operation. This deletion is runbook-only and must not be added to
    startup or migration code.
-4. Run `pnpm --filter db db:init`, then start Studio.
+4. Replay the authored forward migrations with `pnpm --filter db db:init`,
+   then start Studio. This migration command may target the deployment;
+   production must never use `pnpm db:reset`.
 5. Keep the previous image and backup until the browser smoke checks pass.
 
 The Project Context foreign key remains `ON DELETE RESTRICT`, so an account

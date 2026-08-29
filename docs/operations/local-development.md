@@ -22,8 +22,9 @@ same launcher runs its services directly on loopback HTTP as described below.
   starting the host stack.
 - `mkcert`, with its root CA installed once: `mkcert -install`.
 
-No `.env` is required for development. If one exists, only `DATABASE_URL`
-matters to host-run tooling (see below).
+The default mock-OIDC profile needs no `.env`. The real-Entra profile reads the
+four `FREE_ENTRA_*` values described below. `DATABASE_URL` is also read by
+host-run database tooling.
 
 ## Start
 
@@ -53,24 +54,19 @@ every volume run `docker compose down --volumes`.
 
 ## Development identity
 
-Sign-in in the Compose stack is a real OIDC authorization code flow. The
-`mock-oidc` service (`ghcr.io/navikt/mock-oauth2-server`, published on
-`127.0.0.1:8444`) stands in for the Microsoft Entra tenant, and Studio drives
-it through the same MSAL client code as production: PKCE, the certificate
-client assertion (signed with a throwaway key generated at boot — the mock
-accepts any client credential), code redemption on
-`https://localhost:8443/free/auth/callback`, and the end-session redirect back
-to `https://localhost:8443/free/auth/signed-out`. The mock signs in silently
-(no login page) with the pinned claims in `compose.override.yaml`, which
-mirror the fake identity's development constants, so mock and fake sign-ins
-resolve to the same Researcher Account.
+The default Compose stack uses the `mock-oidc` service
+(`ghcr.io/navikt/mock-oauth2-server`, published on `127.0.0.1:8444`) but still
+runs the real authorization-code and session path: PKCE, a certificate client
+assertion signed with a throwaway key, code redemption, the
+`https://localhost:8443/free/auth/callback` callback, and the
+`https://localhost:8443/free/auth/signed-out` end-session redirect. The mock
+accepts the development credential and signs in silently with the pinned
+development Researcher claims in `compose.override.yaml`.
 
-Outside Compose — the Dev Container and a host-run
-`pnpm --filter studio dev` — `FREE_ENTRA_MOCK_ISSUER` is unset and sign-in
-falls back to the fake development identity provider. While the Compose stack
-runs, a host-run dev server can opt into its mock with
-`FREE_ENTRA_MOCK_ISSUER=http://localhost:8444/dev` (browser and server then
-share the one published issuer URL).
+The Dev Container also uses OIDC rather than a development identity shortcut.
+Its direct Studio process reaches the sibling mock at
+`http://mock-oidc:8080/dev`, while the browser reaches the same issuer through
+the sibling service's loopback publish at `http://localhost:8444/dev`.
 
 ## Wi-Fi profile (test from a phone)
 
@@ -95,14 +91,14 @@ elsewhere.
 
 ## Real Entra in development
 
-Development identity uses the local mock by default. To verify the real
-tenant, put the four `FREE_ENTRA_*` values in `.env`, register the exact
+Development uses the local mock by default. To verify the real tenant, put the
+four `FREE_ENTRA_*` values in `.env`, register the exact
 `https://localhost:8443/free/auth/callback` and
-`https://localhost:8443/free/auth/signed-out` URIs, and start with the Entra
-overlay:
+`https://localhost:8443/free/auth/signed-out` URIs, and let the launcher
+validate the values, certificate, and Compose profile:
 
 ```bash
-docker compose -f compose.yaml -f compose.override.yaml -f compose.entra.yaml up --build --watch
+pnpm dev -- --entra
 ```
 
 See the [Entra authentication runbook](entra-authentication.md). In the host
@@ -112,25 +108,56 @@ path uses its documented loopback HTTP callback instead.
 
 ## Dev Container
 
-Inside the repository Dev Container (no Docker socket), `pnpm dev` keeps the
-direct process path: it waits for the sibling PostgreSQL service, applies
-authored migrations, verifies the live schema, and starts Studio and the
-Parsing Service on **http://localhost:5173/free** over plain HTTP. The base
-path is still `/free`; only TLS and nginx are absent there.
+Inside the repository Dev Container (no Docker socket), `pnpm dev` waits for
+the sibling PostgreSQL service, replays authored migrations, verifies the live
+schema, and starts Studio and the Parsing Service directly from the workspace.
+Studio serves **http://localhost:5173/free** over plain HTTP. Authentication
+uses the sibling mock OIDC service, whose browser endpoint is forwarded on
+loopback port **8444**. The base path remains `/free`; only TLS and nginx are
+absent.
 
 FREE-managed provider credentials use the Dev Container user's GNOME Keyring.
 A rebuild creates a fresh keyring, so enter managed credentials again after
 rebuilding.
 
+## Database operations
+
+- `pnpm --filter db db:init` replays authored forward migrations against
+  `DATABASE_URL`. It does not reset or seed data and may deliberately target a
+  deployment database.
+- `pnpm db:reset` drops and recreates the configured database, then replays
+  migrations. It is destructive and is accepted only for PostgreSQL user
+  `postgres`, explicit port `5432`, database `free`, and a loopback host. The
+  only non-loopback exception is host `db` when `FREE_DEVCONTAINER=1` is
+  explicit.
+- Disposable PostgreSQL integration targets must use user `postgres`, explicit
+  port `5432`, a loopback host, and a database named `free_test_*`. The
+  Dev Container host `db` is not accepted for these checks.
+- Production startup runs only `pnpm --filter db db:init`; production is never
+  reset.
+
+## Verification
+
+`pnpm test` is the fast unit/static aggregate. It does not require a running
+FREE stack, PostgreSQL, a browser, or a live model. Run the other checks
+deliberately according to their infrastructure and mutation boundaries:
+
+| Command | Requirements and effects |
+| --- | --- |
+| `pnpm test:safety` | Requires pnpm, Git, and a working Docker engine. It checks destructive-target rejection, deployment/Compose configuration, Dev Container wiring, secrets policy, and nginx rendering without a running FREE stack. It uses temporary files and a throwaway nginx container but does not mutate a database. |
+| `pnpm test:postgres` | Requires caller-created and migrated disposable databases. Set `PROJECT_STORE_POSTGRES_URL` and `EXTRACTION_TEST_DATABASE_URL` to separate fresh targets such as `postgresql://postgres:postgres@localhost:5432/free_test_cascade` and `postgresql://postgres:postgres@localhost:5432/free_test_extraction`. The checks write and delete integration fixtures; a failed run may leave data, so do not reuse that database as if it were fresh. |
+| `pnpm test:e2e` | Requires Docker and Playwright's browser. By default it removes any prior `free-studio-e2e` test stack, creates isolated PostgreSQL and interactive mock-OIDC containers, migrates the test database, starts Studio on a test loopback port, and removes the stack and volumes afterward. Browser sign-in runs through that mock OIDC service; the default development stack is not used. |
+| `pnpm test:live-model` | Requires Ollama at `FREE_LIVE_OLLAMA_URL` (default `http://127.0.0.1:11434`) with `FREE_LIVE_OLLAMA_MODEL` (default `qwen3.8:latest`). It also runs the real Docling conversion smoke check, which may download models into the local cache. |
+| `pnpm test:system` | Requires Docker, `mkcert`, the default local Compose topology, and an Ollama endpoint reachable from its containers (`FREE_TEST_OLLAMA_BASE_URL`, default `http://host.docker.internal:11434`; model `FREE_TEST_OLLAMA_MODEL`, default `qwen3.8:latest`). It starts the stack if needed, creates an authenticated account and research workflow, replaces shared model configuration, restarts the stack to prove durability, deletes its Project Context, and leaves the stack running. Use only against disposable local development data. |
+| `pnpm typecheck` | Runs the workspace TypeScript checks without services or data mutation. |
+
 ## Host-run tooling
 
-Tests and scripts that run on the host (Vitest, Playwright, Prisma scripts,
-`pnpm --filter studio dev`) reach PostgreSQL through
-`DATABASE_URL=postgresql://postgres:postgres@localhost:5432/free`; the
-development overlay publishes the db service on `127.0.0.1:5432`, and
+Host-run database checks and scripts reach the development PostgreSQL publish
+through `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/free`.
+The development overlay publishes the `db` service on `127.0.0.1:5432`, and
 `pnpm --filter db db:start` starts just that service. The Parsing Service stays
 published on `127.0.0.1:8055`.
 
-The Studio container's port is not published on the host, so a host-run
-`pnpm --filter studio dev` on 5173 can coexist with the Compose stack; only one
-process at a time can own the published `127.0.0.1:8055` Parsing Service port.
+Studio is not published directly by the host Compose topology; nginx is its
+only browser entry point.
