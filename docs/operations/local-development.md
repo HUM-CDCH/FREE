@@ -17,7 +17,7 @@ same launcher runs its services directly on loopback HTTP as described below.
 
 - Node.js 24 and pnpm 10.9 (`pnpm install` at the root also syncs Python
   services through `uv`).
-- Docker Desktop with Docker Compose v2.33.1 or later (Compose Watch,
+- Docker Desktop with Docker Compose v2.40.0 or later (Compose Watch,
   optional profile dependencies, `!reset`, and `gw_priority` are used). The
   launcher checks this before starting the host stack.
 - `mkcert`, with its root CA installed once: `mkcert -install`.

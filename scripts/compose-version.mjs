@@ -1,4 +1,4 @@
-export const MINIMUM_COMPOSE_VERSION = '2.33.1'
+export const MINIMUM_COMPOSE_VERSION = '2.40.0'
 
 function versionParts(value) {
   const match = String(value).trim().match(/^(?:Docker Compose version )?v?(\d+)\.(\d+)\.(\d+)/)

@@ -444,7 +444,7 @@ describe('local real-Entra configuration', () => {
 
 describe('Compose version preflight', () => {
   it('accepts the minimum and newer Compose versions', () => {
-    assert.doesNotThrow(() => validateComposeVersion('2.33.1'))
+    assert.doesNotThrow(() => validateComposeVersion('2.40.0'))
     assert.doesNotThrow(() => validateComposeVersion('v5.4.0'))
     assert.doesNotThrow(() =>
       validateComposeVersion('Docker Compose version v2.40.0-desktop.1'),
@@ -453,8 +453,8 @@ describe('Compose version preflight', () => {
 
   it('rejects older and unrecognizable Compose versions', () => {
     assert.throws(
-      () => validateComposeVersion('2.24.0'),
-      /2\.33\.1.*found 2\.24\.0/,
+      () => validateComposeVersion('2.33.1'),
+      /2\.40\.0.*found 2\.33\.1/,
     )
     assert.throws(
       () => validateComposeVersion('unknown'),

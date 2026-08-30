@@ -62,7 +62,7 @@ jobs:
       - name: Install Docker Compose
         uses: docker/setup-compose-action@v2
         with:
-          version: v2.33.1
+          version: v2.40.0
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

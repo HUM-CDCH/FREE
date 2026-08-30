@@ -24,7 +24,7 @@ touches the host nginx configuration outside the one include described below.
 
 ## Prerequisites and hosted settings
 
-Install Docker with Docker Compose v2.33.1 or later. The launcher checks this
+Install Docker with Docker Compose v2.40.0 or later. The launcher checks this
 before starting because the production network selection uses `gw_priority`.
 
 The Parsing Service defaults to `DOCLING_DEVICE=cpu` so the stack stays

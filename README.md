@@ -104,7 +104,7 @@ in the [local development runbook](docs/operations/local-development.md).
 
 ## Quickstart
 
-With Node.js 24, pnpm 10.9, Docker Desktop (Compose v2.33.1+), and `mkcert`
+With Node.js 24, pnpm 10.9, Docker Desktop (Compose v2.40.0+), and `mkcert`
 (`mkcert -install` once):
 
 ```bash
