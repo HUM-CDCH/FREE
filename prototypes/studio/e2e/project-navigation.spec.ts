@@ -929,7 +929,10 @@ test.describe('rail navigation', () => {
     const release = studio.hold(`${FUNDLISTE}/reopen`)
     await documentRow(page, 'Fundliste_Ellekilde.pdf').click()
     // The previous Source Document stays readable-in-place under the overlay.
-    await expect(page.getByText('Opening Source Document…')).toBeVisible()
+    const opening = page.getByRole('status', {
+      name: 'Opening Source Document',
+    })
+    await expect(opening).toBeVisible()
     await expect(
       page.getByRole('tab', { name: /Beretning_Ellekilde_8_13\.pdf/ }),
     ).toBeVisible()
@@ -941,7 +944,7 @@ test.describe('rail navigation', () => {
     await expect(
       projectPage(page).getByRole('heading', { name: 'Hørsholm, TAK 1402' }),
     ).toBeVisible()
-    await expect(page.getByText('Opening Source Document…')).toBeHidden()
+    await expect(opening).toBeHidden()
     expect(studio.cancelled).toContain(
       `/api/project-contexts/${ELLEKILDE}/source-documents/${FUNDLISTE}/reopen`,
     )

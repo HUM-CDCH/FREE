@@ -14,9 +14,17 @@ function Spinner({ label, hint, className = '', ariaLabel }: SpinnerProps) {
     />
   )
 
-  if (!label && !hint) {
-    return ring
-  }
+  if (!label && !hint)
+    return ariaLabel ? (
+      <div
+        className={`flex items-center justify-center ${className}`}
+        role="status"
+        aria-label={ariaLabel}
+        aria-busy="true"
+      >
+        {ring}
+      </div>
+    ) : ring
 
   return (
     <div

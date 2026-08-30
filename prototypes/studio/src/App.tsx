@@ -890,8 +890,6 @@ export function DocumentWorkspace({
               <Spinner
                 className="absolute inset-0 z-20 justify-center bg-canvas/85 backdrop-blur-[1px]"
                 ariaLabel="Loading Source Document"
-                label="Loading Source Document…"
-                hint="Preparing the PDF and document index."
               />
             )}
             {toast && (

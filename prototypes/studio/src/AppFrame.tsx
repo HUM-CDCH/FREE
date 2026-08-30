@@ -495,9 +495,7 @@ export default function AppFrame({
                 fallback={
                   <Spinner
                     className="h-full justify-center bg-canvas"
-                    ariaLabel="Loading Source Document"
-                    label="Loading Source Document…"
-                    hint="Preparing the PDF and document index."
+                    ariaLabel="Preparing Source Document"
                   />
                 }
               >
@@ -547,9 +545,7 @@ export default function AppFrame({
               // The whole column dims so the previous Source Document stays
               // readable-in-place but unusable while the next one opens.
               className="absolute inset-0 z-20 justify-center bg-canvas/70 backdrop-blur-[1px]"
-              ariaLabel="Loading Source Document"
-              label="Loading Source Document…"
-              hint="Preparing the PDF and document index."
+              ariaLabel="Opening Source Document"
             />
           )}
         </section>

@@ -2325,7 +2325,9 @@ describe('routed Source Document reopening', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Historical.pdf' }))
 
-    const overlay = await screen.findByText('Loading Source Document…')
+    const overlay = await screen.findByRole('status', {
+      name: 'Opening Source Document',
+    })
     expect(overlay).toBeInTheDocument()
     expect(screen.getByText(/Opened Beretning.pdf/)).toBeInTheDocument()
     expect(overlay.closest('[aria-busy="true"]')).toHaveClass('absolute')
@@ -2341,7 +2343,7 @@ describe('routed Source Document reopening', () => {
     expect(await screen.findByText(/Opened Historical.pdf/)).toBeInTheDocument()
     expect(document.title).toBe('FREE Studio — Historical.pdf')
     expect(
-      screen.queryByText('Loading Source Document…'),
+      screen.queryByRole('status', { name: 'Opening Source Document' }),
     ).not.toBeInTheDocument()
     expect(reads).toBe(2)
   })
@@ -2456,7 +2458,7 @@ describe('routed Source Document reopening', () => {
     await screen.findByRole('button', { name: secondDocument.name })
 
     expect(
-      await screen.findByText('Loading Source Document…'),
+      await screen.findByRole('status', { name: 'Opening Source Document' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: railRow() })).toHaveAttribute(
       'aria-current',
