@@ -200,13 +200,55 @@ async function renderReopened() {
       ),
     ),
   )
-  render(<DocumentWorkspace {...reopened} />)
+  const mounted = render(<DocumentWorkspace {...reopened} />)
   await waitFor(() =>
     expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
   )
+  return mounted
 }
 
 describe('reopened Source Document workspace', () => {
+  it('conceals the previous Source Document while switched resources load', async () => {
+    const mounted = await renderReopened()
+    fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
+    expect(screen.getByText('Ellekilde')).toBeVisible()
+
+    const nextSourceRepresentationId =
+      '51000000-0000-4000-8002-000000000099'
+    const pendingIndex = Promise.withResolvers<Response>()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string | URL | Request) => {
+        const url = String(input)
+        if (url.includes(nextSourceRepresentationId)) {
+          if (url.endsWith('/pdf')) return Promise.resolve(new Response('pdf'))
+          return pendingIndex.promise
+        }
+        return Promise.resolve(
+          url.endsWith('/source')
+            ? Response.json(parsedDocument)
+            : new Response('# Beretning'),
+        )
+      }),
+    )
+
+    mounted.rerender(
+      <DocumentWorkspace
+        {...reopened}
+        sourceRepresentationId={nextSourceRepresentationId}
+        pdfUrl={`/sources/${nextSourceRepresentationId}/pdf`}
+        markdownUrl={`/sources/${nextSourceRepresentationId}/markdown`}
+        parsedDocumentUrl={`/sources/${nextSourceRepresentationId}/source`}
+        persistedExtraction={null}
+      />,
+    )
+
+    expect(
+      screen.getByRole('status', { name: 'Loading Source Document' }),
+    ).toBeVisible()
+    expect(screen.queryByText('Ellekilde')).not.toBeInTheDocument()
+  })
+
   it('keeps the collapsed right rail narrow at mobile widths', async () => {
     await renderReopened()
     const rail = screen.getByRole('complementary', {

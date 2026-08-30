@@ -13,7 +13,7 @@ import type { ProjectContextRouteState } from './projectContexts/useProjectConte
 import type { projectContextErrorSchema } from '../shared/projectContext.contract'
 import type { z } from 'zod'
 import RouteLoadBoundary from './RouteLoadBoundary.tsx'
-import { Button, EmptyState, ModalDialog } from './ui'
+import { Button, EmptyState, ModalDialog, Spinner } from './ui'
 import { browserStudioPath } from './studioUrl.js'
 
 const collapsedWidth = 46
@@ -470,7 +470,14 @@ export default function AppFrame({
               resource="The Source Document workspace"
             >
               <Suspense
-                fallback={<div aria-busy="true">Loading Source Document…</div>}
+                fallback={
+                  <Spinner
+                    className="h-full justify-center bg-canvas"
+                    ariaLabel="Loading Source Document"
+                    label="Loading Source Document…"
+                    hint="Preparing the PDF and document index."
+                  />
+                }
               >
                 {/* Keyed to the Project Context, not the Source Document: the
                     Schema panel is a Project Context resource and must survive
@@ -514,17 +521,14 @@ export default function AppFrame({
             />
           )}
           {opening && (
-            <div
+            <Spinner
               // The whole column dims so the previous Source Document stays
               // readable-in-place but unusable while the next one opens.
-              className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/70 backdrop-blur-[1px]"
-              aria-busy="true"
-              aria-live="polite"
-            >
-              <p className="rounded-full border border-line bg-surface px-4 py-1.5 text-xs font-medium text-ink-muted shadow-sm">
-                Opening Source Document…
-              </p>
-            </div>
+              className="absolute inset-0 z-20 justify-center bg-canvas/70 backdrop-blur-[1px]"
+              ariaLabel="Loading Source Document"
+              label="Loading Source Document…"
+              hint="Preparing the PDF and document index."
+            />
           )}
         </section>
       </div>

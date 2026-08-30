@@ -42,32 +42,39 @@ function Inspector({
   const [traces, setTraces] = useState<LlmTrace[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const mutationVersion = useRef(0)
 
   useEffect(() => {
     const controller = new AbortController()
+    let timer: number | undefined
     const refresh = async () => {
+      const version = mutationVersion.current
       try {
         const response = await authenticatedFetch('/api/llm_inspector', { signal: controller.signal, cache: 'no-store' })
         if (!response.ok) throw new Error('Inspector unavailable')
         const body = await response.json() as { traces: LlmTrace[] }
+        if (controller.signal.aborted || version !== mutationVersion.current) return
         setTraces(body.traces)
         setSelectedId((current) => body.traces.some(({ id }) => id === current) ? current : body.traces[0]?.id ?? null)
         setError(null)
       } catch (cause) {
         if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Inspector unavailable')
+      } finally {
+        if (!controller.signal.aborted)
+          timer = window.setTimeout(() => void refresh(), 750)
       }
     }
     void refresh()
-    const timer = window.setInterval(() => void refresh(), 750)
     return () => {
       controller.abort()
-      window.clearInterval(timer)
+      if (timer !== undefined) window.clearTimeout(timer)
     }
   }, [])
 
   const selected = useMemo(() => traces.find(({ id }) => id === selectedId) ?? null, [selectedId, traces])
 
   async function clear() {
+    mutationVersion.current += 1
     const response = await authenticatedFetch('/api/llm_inspector', { method: 'DELETE' })
     if (!response.ok) return setError('Could not clear the inspector')
     setTraces([])

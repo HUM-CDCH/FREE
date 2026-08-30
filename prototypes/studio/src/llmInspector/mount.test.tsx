@@ -10,10 +10,50 @@ let unmount: (() => void) | undefined
 afterEach(() => {
   act(() => unmount?.())
   unmount = undefined
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
 describe('LLM inspector launcher', () => {
+  it('waits for a slow refresh before scheduling the next poll', async () => {
+    vi.useFakeTimers()
+    const slowRefresh = Promise.withResolvers<Response>()
+    let slow = false
+    let slowReads = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === 'DELETE')
+          return Promise.resolve(new Response(null, { status: 204 }))
+        if (slow) {
+          slowReads += 1
+          return slowRefresh.promise
+        }
+        return Promise.resolve(Response.json({ traces: [] }))
+      }),
+    )
+    act(() => {
+      unmount = mountLlmInspector()
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Inspect LLM messages' }),
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    slow = true
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_500)
+    })
+
+    expect(slowReads).toBe(1)
+    slowRefresh.resolve(Response.json({ traces: [] }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+  })
+
   it('opens independently, renders traces, and clears them', async () => {
     const trace = {
       id: 'trace-1',

@@ -178,8 +178,19 @@ export function useExtraction({
   const activeIdRef = useRef<string | null>(null)
   const runInputsKey = `${reviewTarget?.sourceRepresentationId ?? ''}\n${reviewTarget?.schemaRevisionId ?? ''}`
   const previousInputsRef = useRef(runInputsKey)
-  const previousDocumentKeyRef = useRef(documentKey)
   const reviewLoadRef = useRef(0)
+  const [renderedDocumentKey, setRenderedDocumentKey] = useState(documentKey)
+
+  if (renderedDocumentKey !== documentKey) {
+    setRenderedDocumentKey(documentKey)
+    setAttempt(initialAttempt)
+    setState(extractionStateFromAttempt(initialAttempt))
+    setReviewDecisions([])
+    setTouchedPaths(new Set())
+    setReviewError(null)
+    setCancellationRequested(false)
+    setCancellationError(null)
+  }
 
   function abandonRunning() {
     const id = activeIdRef.current
@@ -201,22 +212,6 @@ export function useExtraction({
     setTouchedPaths(new Set())
     setReviewError(null)
   }, [runInputsKey])
-  // The active Source Document changed under an unmounted hook — reseed the
-  // inspected attempt from its own persisted Extraction rather than the
-  // previous document's.
-  useEffect(() => {
-    if (previousDocumentKeyRef.current === documentKey) return
-    previousDocumentKeyRef.current = documentKey
-    abandonRunning()
-    setAttempt(initialAttempt)
-    setState(extractionStateFromAttempt(initialAttempt))
-    setReviewDecisions([])
-    setTouchedPaths(new Set())
-    setReviewError(null)
-    setCancellationRequested(false)
-    setCancellationError(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentKey])
 
   const hasResults = state.status === 'ready'
   const stale = attempt !== null && !sameTarget(attempt, reviewTarget)

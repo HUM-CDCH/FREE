@@ -2,6 +2,7 @@
 
 import '@testing-library/jest-dom/vitest'
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -165,10 +166,59 @@ function renderPanel(
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.unstubAllGlobals()
 })
 
 describe('BatchExtractionsPanel', () => {
+  it('does not abort a slow poll to start the next interval refresh', async () => {
+    vi.useFakeTimers()
+    const runningBatch = { ...batch, executionStatus: 'RUNNING' as const }
+    const slowRead = Promise.withResolvers<Response>()
+    let batchReads = 0
+    let abortedReads = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?')) {
+          batchReads += 1
+          if (batchReads === 1)
+            return Promise.resolve(
+              response({ batchExtractions: [runningBatch] }),
+            )
+          init?.signal?.addEventListener('abort', () => {
+            abortedReads += 1
+          })
+          return slowRead.promise
+        }
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return Promise.resolve(response({ batchSchemaSuggestions: [] }))
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(batchReads).toBe(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+    expect(batchReads).toBe(2)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+    })
+
+    expect(batchReads).toBe(2)
+    expect(abortedReads).toBe(0)
+    slowRead.resolve(response({ batchExtractions: [runningBatch] }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+  })
+
   it('renders markup-like batch schema and member names as inert text', async () => {
     const schemaName = '<img src=x onerror="batch-secret">'
     const sourceName = '<script>member-secret</script>.pdf'

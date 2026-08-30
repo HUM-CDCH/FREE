@@ -20,7 +20,7 @@ import { useEvidenceOverlays } from './useEvidenceOverlays'
 // import type { AnnotationsMode } from './api' — retired with the Annotation tab
 import { useExtraction } from './useExtraction'
 import type { ExtractionStrategy } from '../shared/extraction.contract'
-import { Button } from './ui'
+import { Button, Spinner } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 // Only used by the highlight-editor sync wiring retired below, alongside the
 // Annotation tab. Left in place, commented out, rather than deleted.
@@ -201,18 +201,13 @@ export function DocumentWorkspace({
   // selector never changes the strategy of an active or persisted attempt.
   const [nextExtractionStrategy, setNextExtractionStrategy] =
     useState<ExtractionStrategy>('ARTICLE')
-  const [strategyDocument, setStrategyDocument] = useState(sourceRepresentationId)
-  if (strategyDocument !== sourceRepresentationId) {
-    setStrategyDocument(sourceRepresentationId)
-    if (nextExtractionStrategy !== 'ARTICLE') setNextExtractionStrategy('ARTICLE')
-  }
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const [railTab, setRailTab] = useState<RailTab>('schema')
   const [resultPath, setResultPath] = useState<string[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(persistedExtraction?.extractionId ?? null)
-  const [latestAttemptSchema, setLatestAttemptSchema] = useState<PinnedAttemptSchema | null>(
+  const persistedAttemptSchema: PinnedAttemptSchema | null =
     persistedExtraction
       ? {
           schemaRevisionId: persistedExtraction.schemaRevisionId,
@@ -220,38 +215,30 @@ export function DocumentWorkspace({
           recordDescription: persistedExtraction.extractionSchema.recordDescription,
           schemaNodes: persistedExtraction.extractionSchema.schemaNodes,
         }
-      : null,
-  )
+      : null
+  const [latestAttemptSchema, setLatestAttemptSchema] =
+    useState(persistedAttemptSchema)
   const pdfSource = useMemo(
     () => ({ url: pdfUrl, filename }),
     [filename, pdfUrl],
   )
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
 
-  // This workspace now stays mounted across Source Document switches within
-  // the same Project Context (only the Schema panel above should survive
-  // that switch), so the pieces of local state that used to reset via a full
-  // remount need an explicit reset keyed on the active document instead.
-  const previousSourceRepresentationIdRef = useRef(sourceRepresentationId)
-  useEffect(() => {
-    if (previousSourceRepresentationIdRef.current === sourceRepresentationId)
-      return
-    previousSourceRepresentationIdRef.current = sourceRepresentationId
+  // Reset before children render so the previous document never flashes while
+  // the effects below tear down its viewer and start the next reads.
+  const [renderedSourceRepresentationId, setRenderedSourceRepresentationId] =
+    useState(sourceRepresentationId)
+  if (renderedSourceRepresentationId !== sourceRepresentationId) {
+    setRenderedSourceRepresentationId(sourceRepresentationId)
+    setLoadState({ status: 'loading' })
+    setZoomPercent(100)
+    setNextExtractionStrategy('ARTICLE')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
-    setLatestAttemptSchema(
-      persistedExtraction
-        ? {
-            schemaRevisionId: persistedExtraction.schemaRevisionId,
-            revisionNumber: persistedExtraction.extractionSchema.revisionNumber,
-            recordDescription: persistedExtraction.extractionSchema.recordDescription,
-            schemaNodes: persistedExtraction.extractionSchema.schemaNodes,
-          }
-        : null,
-    )
+    setLatestAttemptSchema(persistedAttemptSchema)
     setResultPath(null)
     setToast(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceRepresentationId])
+    setDocIndex({ status: 'parsing' })
+  }
 
   const indexing = docIndex.status === 'parsing'
   const documentMarkdown = docIndex.status === 'ready' ? docIndex.markdown : null
@@ -892,6 +879,14 @@ export function DocumentWorkspace({
             <div className="pdf-viewer scrollbar-subtle absolute inset-0 overflow-auto py-4 sm:py-8" ref={setContainerNode}>
               <div className="pdfViewer" ref={setViewerNode} />
             </div>
+            {loadState.status === 'loading' && (
+              <Spinner
+                className="absolute inset-0 z-20 justify-center bg-canvas/85 backdrop-blur-[1px]"
+                ariaLabel="Loading Source Document"
+                label="Loading Source Document…"
+                hint="Preparing the PDF and document index."
+              />
+            )}
             {toast && (
               <div className="pointer-events-none absolute inset-x-4 top-4 z-20 flex justify-center">
                 <p className="animate-fadeup min-w-0 truncate rounded-xl border border-line-strong bg-surface px-4.5 py-2 text-xs font-semibold text-ink shadow-float">

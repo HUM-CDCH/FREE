@@ -251,6 +251,7 @@ export default function BatchExtractionsPanel({
   // can wait for the chosen schema's pending save.
   const savedSchemaFlush = useRef<(() => Promise<AcknowledgedSchemaRevision | null>) | null>(null)
   const historyGeneration = useRef(0)
+  const pendingRefreshes = useRef(0)
   const [suggestions, setSuggestions] = useState<Read<BatchSchemaSuggestion[]>>({
     value: null,
     failure: null,
@@ -311,7 +312,8 @@ export default function BatchExtractionsPanel({
   useEffect(() => {
     const controller = new AbortController()
     const requestGeneration = ++historyGeneration.current
-    listBatchExtractions(projectContextId, controller.signal).then(
+    pendingRefreshes.current += 1
+    void listBatchExtractions(projectContextId, controller.signal).then(
       (listed) => {
         if (
           !controller.signal.aborted &&
@@ -330,13 +332,16 @@ export default function BatchExtractionsPanel({
           failure: failureText(error, 'Batch Extractions could not be read.'),
         })
       },
-    )
+    ).finally(() => {
+      pendingRefreshes.current -= 1
+    })
     return () => controller.abort()
   }, [projectContextId, reload])
 
   useEffect(() => {
     const controller = new AbortController()
-    listBatchSchemaSuggestions(projectContextId, controller.signal).then(
+    pendingRefreshes.current += 1
+    void listBatchSchemaSuggestions(projectContextId, controller.signal).then(
       (listed) => {
         if (!controller.signal.aborted)
           setSuggestions({ value: listed, failure: null })
@@ -351,7 +356,9 @@ export default function BatchExtractionsPanel({
             ),
           })
       },
-    )
+    ).finally(() => {
+      pendingRefreshes.current -= 1
+    })
     return () => controller.abort()
   }, [projectContextId, reload])
   useEffect(() => {
@@ -423,13 +430,19 @@ export default function BatchExtractionsPanel({
       operation.executionStatus === 'RUNNING',
     )
     if (!active) return
-    const refresh = () => setReload((value) => value + 1)
+    const refresh = () => {
+      if (pendingRefreshes.current === 0)
+        setReload((value) => value + 1)
+    }
     const interval = window.setInterval(refresh, 2_000)
     return () => window.clearInterval(interval)
   }, [batches.value, suggestions.value])
 
   useEffect(() => {
-    const refresh = () => setReload((value) => value + 1)
+    const refresh = () => {
+      if (pendingRefreshes.current === 0)
+        setReload((value) => value + 1)
+    }
     window.addEventListener('focus', refresh)
     return () => window.removeEventListener('focus', refresh)
   }, [])

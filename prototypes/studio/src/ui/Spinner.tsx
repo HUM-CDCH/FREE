@@ -3,9 +3,10 @@ export type SpinnerProps = {
   label?: string
   hint?: string
   className?: string
+  ariaLabel?: string
 }
 
-function Spinner({ label, hint, className = '' }: SpinnerProps) {
+function Spinner({ label, hint, className = '', ariaLabel }: SpinnerProps) {
   const ring = (
     <span
       aria-hidden="true"
@@ -18,7 +19,12 @@ function Spinner({ label, hint, className = '' }: SpinnerProps) {
   }
 
   return (
-    <div className={`flex flex-col items-center gap-3 text-center ${className}`} aria-live="polite">
+    <div
+      className={`flex flex-col items-center gap-3 text-center ${className}`}
+      role="status"
+      aria-label={ariaLabel}
+      aria-busy="true"
+    >
       {ring}
       {label && <p className="text-[13px] font-semibold text-ink">{label}</p>}
       {hint && <p className="max-w-[34ch] text-xs leading-snug text-ink-muted">{hint}</p>}
