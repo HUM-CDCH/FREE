@@ -915,7 +915,11 @@ export function DocumentWorkspace({
           )}
           <aside
             style={{ width: effectiveRailWidth }}
-            className="min-h-0 shrink-0 border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 max-[859px]:!w-[min(90vw,32rem)] max-[859px]:shadow-xl"
+            className={`min-h-0 shrink-0 border-l border-line bg-surface max-[859px]:absolute max-[859px]:inset-y-0 max-[859px]:right-0 max-[859px]:z-30 ${
+              effectiveRailOpen
+                ? 'max-[859px]:!w-[min(90vw,32rem)] max-[859px]:shadow-xl'
+                : ''
+            }`}
             aria-label="Evidence, schema and results"
           >
             <RightRail

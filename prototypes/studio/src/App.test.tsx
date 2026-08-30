@@ -207,6 +207,25 @@ async function renderReopened() {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('keeps the collapsed right rail narrow at mobile widths', async () => {
+    await renderReopened()
+    const rail = screen.getByRole('complementary', {
+      name: 'Evidence, schema and results',
+    })
+    const mobileDrawerWidth = 'max-[859px]:!w-[min(90vw,32rem)]'
+
+    expect(rail.className).toContain(mobileDrawerWidth)
+
+    fireEvent.click(screen.getByTitle('Collapse panel'))
+
+    expect(rail).toHaveStyle({ width: '46px' })
+    expect(rail.className).not.toContain(mobileDrawerWidth)
+
+    fireEvent.click(screen.getByTitle('Expand panel'))
+
+    expect(rail.className).toContain(mobileDrawerWidth)
+  })
+
   it('initializes PDF zoom only after the first page is available', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
