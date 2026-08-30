@@ -2039,7 +2039,7 @@ describe('BatchExtractionsPanel', () => {
     const zoomIn = screen.getByRole('button', { name: 'Zoom in' })
     const zoomOut = screen.getByRole('button', { name: 'Zoom out' })
     const zoomReset = screen.getByRole('button', { name: 'Fit columns to screen width' })
-    expect(zoomReset).toHaveTextContent('Fit')
+    expect(zoomReset).toHaveTextContent('100%')
     fireEvent.click(zoomIn)
     fireEvent.click(zoomIn)
     expect(zoomReset).toHaveTextContent('120%')

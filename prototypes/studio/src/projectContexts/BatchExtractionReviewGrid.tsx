@@ -4,8 +4,8 @@ import type { BatchExtraction } from '../../shared/batchExtraction.contract'
 import { batchExtractionProgress } from '../../shared/batchExtraction.contract'
 import type { ReviewDecisionInput } from '../../shared/extraction.contract'
 import { parseReviewedValue, resultPathKey } from '../reviewDecisions'
-import { Button, EmptyState, Spinner } from '../ui'
-import { memberStatus, type StatusTone } from './batchExtractionStatus'
+import { Button, CheckIcon, EmptyState, Pill, PencilIcon, SegmentedControl, Spinner, StatusDot, XIcon } from '../ui'
+import { memberStatus } from './batchExtractionStatus'
 import { StatusPill } from './BatchExtractionScreens'
 import {
   projectedRecords,
@@ -25,6 +25,18 @@ const ZOOM_MAX = 200
 const ZOOM_STEP = 10
 const ZOOM_DEFAULT = 100
 
+// The displayed percent is a label, not the literal CSS zoom multiplier:
+// everything renders 20% larger than its label reads (100% label -> 1.2x
+// actual zoom) because a literal 1:1 default read as too small on screen.
+// Zoom math (fit's cap, +/- steps) stays entirely in label units; only the
+// final CSS `zoom` value and the fit natural-width measurement need to
+// convert between the two.
+const ZOOM_VISUAL_SCALE = 1.2
+
+function appliedZoom(percent: number) {
+  return (percent / 100) * ZOOM_VISUAL_SCALE
+}
+
 function isEditableTarget(target: EventTarget | null) {
   return (
     target instanceof Element &&
@@ -34,14 +46,14 @@ function isEditableTarget(target: EventTarget | null) {
 }
 
 /**
- * Zoom starts in "fit" mode: the table's natural width is measured against
- * its scroll container on every render and the percent shrinks (never grows
- * past 100%) so all columns fit without a horizontal scrollbar. Manual +/-
- * drops out of fit mode; the fit button (or the `0` shortcut) returns to it.
+ * Zoom starts fixed at 100%. Entering "fit" mode (the fit button or the `0`
+ * shortcut) measures the table's natural width against its scroll container
+ * on every render and shrinks the percent (never past 100%) so all columns
+ * fit without a horizontal scrollbar. Manual +/- drops back out of fit mode.
  */
 function useGridZoom(containerRef: React.RefObject<HTMLDivElement | null>) {
   const [percent, setPercent] = useState(ZOOM_DEFAULT)
-  const [fit, setFit] = useState(true)
+  const [fit, setFit] = useState(false)
 
   const zoomIn = () => {
     setFit(false)
@@ -88,10 +100,12 @@ function useGridZoom(containerRef: React.RefObject<HTMLDivElement | null>) {
       // CSS `zoom`-affected element reports its own box in local (unzoomed)
       // units, while its *parent*'s scrollWidth reflects the zoomed,
       // as-rendered footprint — dividing the table's own scrollWidth by
-      // percent double-counts the zoom and spirals toward ZOOM_MIN.
-      const naturalWidth = container.scrollWidth / (percent / 100)
+      // the actual applied zoom double-counts the zoom and spirals toward
+      // ZOOM_MIN. `raw` is converted back out of actual-zoom units into
+      // label units before stepping/clamping, since `percent` is a label.
+      const naturalWidth = container.scrollWidth / appliedZoom(percent)
       if (naturalWidth <= 0) return
-      const raw = (container.clientWidth / naturalWidth) * 100
+      const raw = ((container.clientWidth / naturalWidth) * 100) / ZOOM_VISUAL_SCALE
       const stepped = Math.floor(raw / ZOOM_STEP) * ZOOM_STEP
       const next = Math.min(ZOOM_DEFAULT, Math.max(ZOOM_MIN, stepped))
       setPercent((current) => (current === next ? current : next))
@@ -139,17 +153,75 @@ function formatScalarValue(value: unknown): { text: string; missing: boolean } {
   return { text: String(value), missing: false }
 }
 
-function decisionTone(action: ReviewDecisionInput['action']): StatusTone {
-  if (action === 'REJECTED') return 'danger'
-  if (action === 'EDITED') return 'accent'
-  return 'neutral'
+const qualityToneClass: Record<'success' | 'accent' | 'danger', string> = {
+  success: 'text-green',
+  accent: 'text-accent',
+  danger: 'text-danger',
 }
 
-const cellToneClass: Record<StatusTone, string> = {
-  neutral: '',
-  accent: 'bg-accent/10',
-  success: 'bg-green/10',
-  danger: 'bg-danger/10',
+/** A compact, always-visible bulk-approve affordance for one row or column
+ *  header — hidden until hover/focus so the grid stays quiet at rest, and
+ *  disabled once there's nothing left pending in its scope. */
+function ApproveAllBadge({
+  label,
+  pendingCount,
+  onClick,
+}: {
+  label: string
+  pendingCount: number
+  onClick(): void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={pendingCount > 0 ? label : 'Nothing pending here'}
+      disabled={pendingCount === 0}
+      onClick={onClick}
+      className="flex size-3.5 shrink-0 items-center justify-center rounded-sm border border-green text-green opacity-0 outline-none transition-colors hover:bg-green-soft focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent/40 group-hover:opacity-100 disabled:opacity-0"
+    >
+      <CheckIcon size={8} />
+    </button>
+  )
+}
+
+/** Share of one member's Review Decisions still at their grounded APPROVED
+ *  default — i.e. the researcher didn't need to touch them. A per-document
+ *  extraction-quality signal, not a correctness guarantee: an untouched
+ *  value can still be wrong if the researcher hasn't looked at it yet. */
+function unchangedShare(decisions: readonly ReviewDecisionInput[]): number | null {
+  if (decisions.length === 0) return null
+  const approved = decisions.filter((decision) => decision.action === 'APPROVED').length
+  return approved / decisions.length
+}
+
+function qualityTone(share: number): 'success' | 'accent' | 'danger' {
+  if (share >= 0.9) return 'success'
+  if (share >= 0.6) return 'accent'
+  return 'danger'
+}
+
+/** A compact "N% unchanged" quality signal for one document's Extraction. */
+function QualityScoreBadge({ decisions }: { decisions: readonly ReviewDecisionInput[] }) {
+  const share = unchangedShare(decisions)
+  if (share === null) return null
+  const percent = Math.round(share * 100)
+  return (
+    <span
+      className={`text-[10.5px] font-semibold ${qualityToneClass[qualityTone(share)]}`}
+      title={`${percent}% of fields approved unchanged`}
+    >
+      {percent}% unchanged
+    </span>
+  )
+}
+
+function decisionLabelAndTone(
+  action: ReviewDecisionInput['action'],
+): { label: string; tone: 'success' | 'stale' | 'danger' } {
+  if (action === 'EDITED') return { label: 'Edited', tone: 'stale' }
+  if (action === 'REJECTED') return { label: 'Rejected', tone: 'danger' }
+  return { label: 'Approved', tone: 'success' }
 }
 
 /** One field of one record, either a plain value or an Approve/Reject/Edit cell. */
@@ -157,6 +229,7 @@ function GridCell({
   value,
   column,
   decision,
+  touched,
   editable,
   active,
   editing,
@@ -170,6 +243,9 @@ function GridCell({
   value: unknown
   column: GridColumn
   decision: ReviewDecisionInput | undefined
+  /** Whether the researcher has explicitly acted on this field — an
+   *  untouched field is showing its unreviewed 'APPROVED' default. */
+  touched: boolean
   editable: boolean
   active: boolean
   editing: boolean
@@ -189,15 +265,21 @@ function GridCell({
 
   const { text, missing } = formatScalarValue(value)
   const interactive = editable && Boolean(decision)
+  const { label, tone } = decision
+    ? decisionLabelAndTone(decision.action)
+    : { label: '', tone: 'success' as const }
 
   if (!interactive)
     return (
-      <td className={`max-w-[16rem] truncate px-3 py-2 ${missing ? 'text-ink-faint italic' : 'text-ink'}`}>
-        {text}
+      <td className="max-w-[16rem] px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <StatusDot decision={decision} touched={touched} label={label} tone={tone} />
+          <span className={`min-w-0 flex-1 truncate ${missing ? 'text-ink-faint italic' : 'text-ink'}`}>
+            {text}
+          </span>
+        </div>
       </td>
     )
-
-  const tone = decision ? decisionTone(decision.action) : 'neutral'
 
   if (editing)
     return (
@@ -226,13 +308,14 @@ function GridCell({
     )
 
   return (
-    <td className={`max-w-[16rem] px-3 py-2 ${cellToneClass[tone]}`}>
+    <td className="max-w-[16rem] px-3 py-2">
       <button
         type="button"
-        className="block w-full truncate text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        className="flex w-full items-center gap-1.5 truncate text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
         onClick={active ? onClose : onActivate}
       >
-        {text}
+        <StatusDot decision={decision} touched={touched} label={label} tone={tone} />
+        <span className="min-w-0 flex-1 truncate">{text}</span>
       </button>
       {active && (
         <div className="mt-1.5 flex gap-1">
@@ -271,11 +354,51 @@ export default function BatchExtractionReviewGrid({
   const zoom = useGridZoom(gridContainerRef)
   const [activeCell, setActiveCell] = useState<string | null>(null)
   const [editingCell, setEditingCell] = useState<string | null>(null)
+  const [filter, setFilter] = useState<'all' | 'needs-review'>('all')
   const progress = batchExtractionProgress(batch)
-  const rows = buildRows(batch, grid.members)
+  const allRows = buildRows(batch, grid.members)
+  const rows =
+    filter === 'needs-review'
+      ? allRows.filter((row) => {
+          const member = batch.members.find((item) => item.sourceDocumentId === row.sourceDocumentId)
+          return member ? memberStatus(member).label === 'Needs review' : false
+        })
+      : allRows
   const savingAny = [...grid.members.values()].some(
     (state) => state.status === 'ready' && state.saving,
   )
+
+  /** Untouched (still-pending) decisions matching one column's path, across
+   *  every ready+editable member — what a column-header bulk approve would
+   *  affect. */
+  function columnPendingCount(column: GridColumn): number {
+    let count = 0
+    for (const state of grid.members.values()) {
+      if (state.status !== 'ready' || !state.editable) continue
+      for (const decision of state.decisions) {
+        if (
+          decision.resultPath[0] === 'records' &&
+          decision.resultPath.length === column.path.length + 2 &&
+          column.path.every((segment, index) => decision.resultPath[index + 2] === segment) &&
+          !state.touched.has(resultPathKey(decision.resultPath))
+        )
+          count += 1
+      }
+    }
+    return count
+  }
+
+  /** Untouched (still-pending) decisions in one displayed row — what that
+   *  row's bulk-approve badge would affect. */
+  function rowPendingCount(state: MemberReviewState, recordIndex: number): number {
+    if (state.status !== 'ready') return 0
+    return state.decisions.filter(
+      (decision) =>
+        decision.resultPath[0] === 'records' &&
+        decision.resultPath[1] === recordIndex &&
+        !state.touched.has(resultPathKey(decision.resultPath)),
+    ).length
+  }
 
   if (!schemaNodes)
     return (
@@ -295,13 +418,39 @@ export default function BatchExtractionReviewGrid({
           >
             <span aria-hidden="true">← </span>Back to results
           </button>
-          <p className="min-w-0 truncate text-[11px] text-ink-faint">
-            {progress.total} Source Document{progress.total === 1 ? '' : 's'} ·{' '}
-            {progress.reviewed} reviewed · {progress.needsReview} need review
-            {progress.failed ? ` · ${progress.failed} failed` : ''}
-          </p>
+          <div
+            className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-ink-faint"
+            aria-label={`${progress.total} Source Document${progress.total === 1 ? '' : 's'}, ${progress.reviewed} reviewed, ${progress.needsReview} need review${progress.unreviewable ? `, ${progress.unreviewable} with no reviewable result` : ''}${progress.failed ? `, ${progress.failed} failed` : ''}`}
+          >
+            <span className="min-w-0 shrink-0 truncate">
+              {progress.total} Source Document{progress.total === 1 ? '' : 's'}
+            </span>
+            <span className="flex shrink-0 flex-wrap items-center gap-1.5" aria-hidden="true">
+              {progress.reviewed > 0 && <Pill tone="success">{progress.reviewed} reviewed</Pill>}
+              {progress.needsReview > 0 && (
+                <Pill tone="accent">{progress.needsReview} need review</Pill>
+              )}
+              {progress.unreviewable > 0 && (
+                <span className="text-ink-faint">{progress.unreviewable} no reviewable result</span>
+              )}
+              {progress.failed > 0 && <Pill tone="danger">{progress.failed} failed</Pill>}
+            </span>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <SegmentedControl
+            aria-label="Filter Source Documents"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: `All (${progress.total})` },
+              {
+                value: 'needs-review',
+                label: `Needs review (${progress.needsReview})`,
+                title: 'Show only Source Documents that still need review',
+              },
+            ]}
+          />
           <div
             role="group"
             aria-label="Grid zoom"
@@ -338,8 +487,8 @@ export default function BatchExtractionReviewGrid({
               +
             </button>
           </div>
-          <Button size="sm" variant="secondary" onClick={grid.approveAllVisible}>
-            Approve all visible
+          <Button size="sm" variant="secondary" onClick={grid.approveAll}>
+            Approve all
           </Button>
           <Button
             size="sm"
@@ -352,13 +501,49 @@ export default function BatchExtractionReviewGrid({
         </div>
       </div>
 
+      {grid.columns.length > 0 && (
+        <div className="flex shrink-0 flex-col gap-1 px-1 text-[11px] text-ink-faint">
+          <div className="flex flex-wrap items-center gap-3.5" aria-hidden="true">
+            <span className="flex items-center gap-1.5">
+              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                <span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-line-strong" />
+              </span>
+              Grounded, pending
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-green text-white">
+                <CheckIcon size={7} />
+              </span>
+              Approved
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-stale text-white">
+                <PencilIcon size={6} />
+              </span>
+              Edited
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-danger text-white">
+                <XIcon size={7} />
+              </span>
+              Rejected
+            </span>
+          </div>
+          <p>
+            Hover a column header, or a row marked &ldquo;Needs review,&rdquo; for a bulk Approve
+            action — it only ever touches values still pending, never one you already edited or
+            rejected.
+          </p>
+        </div>
+      )}
+
       {grid.columns.length === 0 ? (
         <EmptyState title="This Extraction Schema has no fields to review." />
       ) : (
         <div ref={gridContainerRef} className="min-h-0 flex-1 overflow-auto rounded-card border border-line">
           <table
             className="w-full border-collapse text-[11.5px]"
-            style={{ zoom: zoom.percent / 100 }}
+            style={{ zoom: appliedZoom(zoom.percent) }}
           >
             <thead>
               <tr>
@@ -368,9 +553,18 @@ export default function BatchExtractionReviewGrid({
                 {grid.columns.map((column) => (
                   <th
                     key={column.key}
-                    className="sticky top-0 z-10 min-w-[10rem] border-b border-line bg-surface px-3 py-2 text-left font-semibold text-ink-muted"
+                    className="group sticky top-0 z-10 min-w-[10rem] border-b border-line bg-surface px-3 py-2 text-left font-semibold text-ink-muted"
                   >
-                    {column.path.length > 1 ? column.path.join(' › ') : column.node.name}
+                    <div className="flex min-w-0 items-center gap-1">
+                      <span className="min-w-0 truncate">
+                        {column.path.length > 1 ? column.path.join(' › ') : column.node.name}
+                      </span>
+                      <ApproveAllBadge
+                        label={`Approve ${columnPendingCount(column)} pending in ${column.node.name}`}
+                        pendingCount={columnPendingCount(column)}
+                        onClick={() => grid.approveColumn(column)}
+                      />
+                    </div>
                   </th>
                 ))}
               </tr>
@@ -383,35 +577,48 @@ export default function BatchExtractionReviewGrid({
                 const state = grid.members.get(row.sourceDocumentId)
                 const status = memberStatus(member)
                 const isFirstRecordRow = row.recordIndex === 0
+                const titleContent = (
+                  <>
+                    {documentName(row.sourceDocumentId)}
+                    {row.recordCount > 1 ? ` · Record ${row.recordIndex + 1}/${row.recordCount}` : ''}
+                  </>
+                )
+                const pendingInRow =
+                  state?.status === 'ready' && state.editable
+                    ? rowPendingCount(state, row.recordIndex)
+                    : 0
                 const nameCell = (
                   <td className="sticky left-0 z-10 min-w-[14rem] border-r border-line bg-surface px-3 py-2 align-top">
-                    <p className="truncate text-[12px] font-semibold text-ink">
-                      {documentName(row.sourceDocumentId)}
-                      {row.recordCount > 1 ? ` · Record ${row.recordIndex + 1}/${row.recordCount}` : ''}
-                    </p>
+                    <div className="flex min-w-0 items-center gap-1">
+                      {member.latestExtraction ? (
+                        <button
+                          type="button"
+                          title="Open document"
+                          className="min-w-0 truncate text-left text-[12px] font-semibold text-ink outline-none hover:text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent/40"
+                          onClick={() =>
+                            onOpenMember(row.sourceDocumentId, member.latestExtraction!.extractionId)
+                          }
+                        >
+                          {titleContent}
+                        </button>
+                      ) : (
+                        <p className="min-w-0 truncate text-[12px] font-semibold text-ink">
+                          {titleContent}
+                        </p>
+                      )}
+                      {state?.status === 'ready' && state.editable && (
+                        <ApproveAllBadge
+                          label={`Approve ${pendingInRow} pending in this row`}
+                          pendingCount={pendingInRow}
+                          onClick={() => grid.approveRow(row.sourceDocumentId, row.recordIndex)}
+                        />
+                      )}
+                    </div>
                     {isFirstRecordRow && (
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
                         <StatusPill tone={status.tone} label={status.label} />
-                        {state?.status === 'ready' && state.editable && state.touched.size > 0 && (
-                          <Button
-                            size="sm"
-                            variant="pill"
-                            disabled={state.saving}
-                            onClick={() => void grid.saveMember(row.sourceDocumentId)}
-                          >
-                            {state.saving ? 'Saving…' : 'Save'}
-                          </Button>
-                        )}
-                        {member.latestExtraction && (
-                          <button
-                            type="button"
-                            className="text-[10.5px] font-medium text-accent outline-none hover:underline"
-                            onClick={() =>
-                              onOpenMember(row.sourceDocumentId, member.latestExtraction!.extractionId)
-                            }
-                          >
-                            Open document
-                          </button>
+                        {state?.status === 'ready' && (
+                          <QualityScoreBadge decisions={state.decisions} />
                         )}
                       </div>
                     )}
@@ -464,7 +671,7 @@ export default function BatchExtractionReviewGrid({
                 const record = records[row.recordIndex] ?? {}
 
                 return (
-                  <tr key={`${row.sourceDocumentId}-${row.recordIndex}`}>
+                  <tr key={`${row.sourceDocumentId}-${row.recordIndex}`} className="group">
                     {nameCell}
                     {grid.columns.map((column) => {
                       const resultPath = ['records', row.recordIndex, ...column.path]
@@ -479,6 +686,7 @@ export default function BatchExtractionReviewGrid({
                           value={valueAtColumn(record, column)}
                           column={column}
                           decision={decision}
+                          touched={state.touched.has(key)}
                           editable={state.editable}
                           active={activeCell === cellKey}
                           editing={editingCell === cellKey}

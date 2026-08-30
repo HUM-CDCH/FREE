@@ -27,6 +27,7 @@
     "@ai-sdk/openai-compatible": "^3.0.14",
     "@hono/node-server": "^2.0.12",
     "@napi-rs/canvas": "^1.0.3",
+    "@anthropic-ai/claude-code": "2.1.251",
     "@napi-rs/keyring": "^1.2.0",
     "@openai/codex": "0.148.0",
     "@tailwindcss/vite": "^4.3.0",

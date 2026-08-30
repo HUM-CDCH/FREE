@@ -35,9 +35,10 @@ COPY prototypes/parsing_service/package.json prototypes/parsing_service/
 RUN --mount=type=cache,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store --global \
     && pnpm install --frozen-lockfile --ignore-scripts \
-    && pnpm rebuild @prisma/engines esbuild prisma \
+    && pnpm -r rebuild @anthropic-ai/claude-code @prisma/engines esbuild prisma \
     && install -d -m 700 "$CODEX_HOME" \
-    && pnpm --filter studio exec codex --version
+    && pnpm --filter studio exec codex --version \
+    && pnpm --filter studio exec claude --version
 
 COPY . .
 
