@@ -286,12 +286,14 @@ export default function ProjectContextPage({
     if (tab !== 'schemas') return
     const controller = new AbortController()
     listExtractionSchemas(projectContextId, undefined, controller.signal).then(
-      (schemas) =>
+      (schemas) => {
+        if (controller.signal.aborted) return
         setSettledSchemaList({
           status: 'ready',
           requestKey: schemaRequestKey,
           schemas,
-        }),
+        })
+      },
       (error: unknown) => {
         if (controller.signal.aborted) return
         setSettledSchemaList({

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportExtractionResult } from 'extraction-result-export'
@@ -837,6 +837,58 @@ describe('ResultsTab grounded values', () => {
     expect(screen.getByTitle(/^Edited · /)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Edit / })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Reject / })).not.toBeInTheDocument()
+  })
+
+  it('reports one result path when a parent stores a reviewed inspection path', () => {
+    const inspectedAttempt: ExtractionAttempt = {
+      ...articleAttempt,
+      complete: true,
+      reviewedAt: '2026-08-10T01:00:00.000Z',
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'place'],
+        evidenceAnchorId: 'anchor-place',
+      }],
+      reviewDecisions: [{
+        resultPath: ['records', 0, 'place'],
+        evidenceAnchorId: 'anchor-place',
+        reviewedOccurrenceIds: ['occurrence-place'],
+        action: 'EDITED',
+        reviewedValue: 'Revised place',
+        createdAt: '2026-08-10T01:00:00.000Z',
+      }],
+    }
+    const onResultPathChange = vi.fn<(path: string[] | null) => void>()
+    const inspectionController = controller({ status: 'idle' })
+
+    function Fixture() {
+      const [, setResultPath] = useState<string[] | null>(null)
+      const storeResultPath = useCallback((path: string[] | null) => {
+        onResultPathChange(path)
+        // Bound a regression so the test fails instead of exhausting React.
+        if (onResultPathChange.mock.calls.length < 3) setResultPath(path)
+      }, [])
+      return (
+        <ResultsTab
+          {...defaultRunProps}
+          controller={inspectionController}
+          inspectedAttempt={inspectedAttempt}
+          readOnly
+          schemaReady
+          pinnedSchema={{
+            recordDescription: 'One place.',
+            schemaNodes: [{ id: 'place', name: 'place', type: 'string' }],
+          }}
+          documentMarkdown="# Source"
+          sourceDocumentName="historical.pdf"
+          onResultPathChange={storeResultPath}
+        />
+      )
+    }
+
+    render(<Fixture />)
+
+    expect(onResultPathChange).toHaveBeenCalledTimes(1)
+    expect(onResultPathChange).toHaveBeenLastCalledWith(['records', '0'])
   })
 
   it('stops offering field-level review controls once its own attempt is already saved', () => {

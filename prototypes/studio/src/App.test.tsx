@@ -208,6 +208,60 @@ async function renderReopened() {
 }
 
 describe('reopened Source Document workspace', () => {
+  it('clears a resize drag when the workspace unmounts', async () => {
+    const mounted = await renderReopened()
+    const separator = mounted.container.querySelector<HTMLElement>(
+      '[title="Drag to resize"]',
+    )
+    expect(separator).not.toBeNull()
+    fireEvent.mouseDown(separator!, { clientX: 100 })
+    expect(document.body.style.cursor).toBe('col-resize')
+
+    mounted.unmount()
+    try {
+      expect(document.body.style.cursor).toBe('')
+    } finally {
+      window.dispatchEvent(new MouseEvent('mouseup'))
+      document.body.style.cursor = ''
+    }
+  })
+
+  it('does not reload Source Document resources when only its name changes', async () => {
+    let renamed = false
+    const pending = new Promise<Response>(() => undefined)
+    const fetch = vi.fn((input: string | URL | Request) => {
+      const url = String(input)
+      if (renamed) return pending
+      return Promise.resolve(
+        url.endsWith('/source')
+          ? Response.json(parsedDocument)
+          : new Response(url.endsWith('/pdf') ? 'pdf' : '# Beretning'),
+      )
+    })
+    vi.stubGlobal('fetch', fetch)
+    const mounted = render(<DocumentWorkspace {...reopened} />)
+    await waitFor(() =>
+      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
+    )
+    await waitFor(() => expect(getDocument).toHaveBeenCalledOnce())
+    const callsEndingWith = (suffix: string) =>
+      fetch.mock.calls.filter(([input]) => String(input).endsWith(suffix)).length
+    expect(callsEndingWith('/pdf')).toBe(1)
+    expect(callsEndingWith('/markdown')).toBe(1)
+    expect(callsEndingWith('/source')).toBe(1)
+
+    renamed = true
+    mounted.rerender(
+      <DocumentWorkspace {...reopened} filename="Renamed.pdf" />,
+    )
+
+    expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument()
+    expect(callsEndingWith('/pdf')).toBe(1)
+    expect(callsEndingWith('/markdown')).toBe(1)
+    expect(callsEndingWith('/source')).toBe(1)
+    expect(getDocument).toHaveBeenCalledOnce()
+  })
+
   it('conceals the previous Source Document while switched resources load', async () => {
     const mounted = await renderReopened()
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))

@@ -302,7 +302,10 @@ describe('useExtraction server-owned lifecycle', () => {
     await waitFor(() => expect(result.current.review.canAccept).toBe(true))
     await act(() => result.current.review.accept())
 
-    expect(api.readExtraction).toHaveBeenCalledWith(unreviewed.extractionId)
+    expect(api.readExtraction).toHaveBeenCalledWith(
+      unreviewed.extractionId,
+      expect.any(AbortSignal),
+    )
     expect(api.finalizeExtractionReview).toHaveBeenCalledWith(
       unreviewed.extractionId,
       decisions,
@@ -455,6 +458,56 @@ describe('useExtraction server-owned lifecycle', () => {
       restored.result.current.review.isTouched(['records', 0, 'title']),
     ).toBe(true)
     expect(sessionStorage.getItem('free.auth.recovery.v1')).toBeNull()
+  })
+
+  it('leaves recovery untouched when a pending review load unmounts', async () => {
+    const unreviewed = attempt({
+      resultPayload: { records: [{ title: 'Grounded' }] },
+      evidenceLinks: [{
+        resultPath: ['records', 0, 'title'],
+        evidenceAnchorId: 'anchor-1',
+      }],
+    })
+    const pending = [{
+      resultPath: ['records', 0, 'title'],
+      evidenceAnchorId: 'anchor-1',
+      reviewedOccurrenceIds: ['occurrence-1'],
+      action: 'APPROVED' as const,
+      reviewedValue: null,
+    }]
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: unreviewed,
+      pendingReviewDecisions: pending,
+    })
+    const first = renderHook(() => useExtraction(options(unreviewed)))
+    await waitFor(() => expect(first.result.current.review.canAccept).toBe(true))
+    act(() =>
+      first.result.current.review.setDecision(
+        ['records', 0, 'title'],
+        'REJECTED',
+        null,
+      ),
+    )
+    act(() => captureSessionRecovery())
+    first.unmount()
+
+    setSessionRecoveryAccount('99999999-9999-4999-8999-999999999999')
+    const deferred = Promise.withResolvers<{
+      extraction: ExtractionAttempt
+      pendingReviewDecisions: typeof pending
+    }>()
+    vi.mocked(api.readExtraction).mockReset()
+    vi.mocked(api.readExtraction).mockReturnValue(deferred.promise)
+    const second = renderHook(() => useExtraction(options(unreviewed)))
+    await waitFor(() => expect(api.readExtraction).toHaveBeenCalledOnce())
+    const signal = vi.mocked(api.readExtraction).mock.calls[0]?.[1]
+    second.unmount()
+
+    deferred.resolve({ extraction: unreviewed, pendingReviewDecisions: pending })
+    await act(async () => deferred.promise)
+
+    expect(signal?.aborted).toBe(true)
+    expect(sessionStorage.getItem('free.auth.recovery.v1')).not.toBeNull()
   })
 
   it('keeps a concurrently finalized server review over recovered decisions', async () => {

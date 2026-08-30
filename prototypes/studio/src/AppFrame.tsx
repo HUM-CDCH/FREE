@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { ProjectContextRail } from './projectContexts/ProjectContextRail'
 import { StudioHome } from './projectContexts/StudioHome'
 import { useProjectContexts } from './projectContexts/useProjectContexts'
@@ -137,6 +137,7 @@ export default function AppFrame({
   const providerTrigger = useRef<HTMLButtonElement>(null)
   const providerInitialFocus = useRef<HTMLButtonElement>(null)
   const [tabBarSlot, setTabBarSlot] = useState<HTMLDivElement | null>(null)
+  const resizeControllerRef = useRef<AbortController | null>(null)
   const tabs = useOpenDocumentTabs()
   const { projects } = useProjectContexts()
   useShiftWheelHorizontalScroll()
@@ -188,25 +189,29 @@ export default function AppFrame({
         : route
   // Durable hydration: the PDF, its name, and its Markdown all come from the
   // reopened representation. Rail state, PDF position, focus, and drafts do not.
-  const workspace = openDocument && {
-    projectContextId: openDocument.projectContext.projectContextId,
-    pdfUrl: openDocument.sourceRepresentation.resources.sourcePdfUrl,
-    filename: openDocument.sourceDocument.name,
-    sourceRepresentationId:
-      openDocument.sourceRepresentation.sourceRepresentationId,
-    markdownUrl: openDocument.sourceRepresentation.resources.markdownUrl,
-    parsedDocumentUrl:
-      openDocument.sourceRepresentation.resources.parsedDocumentUrl,
-    // DocumentWorkspace no longer reads annotationSet — the Annotation tab was
-    // retired in favor of SchemaPanel's own doc chat. The DB layer still
-    // returns it; only this pass-through stopped. Left in place, commented
-    // out, rather than deleted.
-    // annotationSet: openDocument.annotationSet,
-    extractionSchema: openDocument.extractionSchema,
-    persistedExtraction: openDocument.latestAttempt,
-    latestReviewedExtraction: openDocument.latestReviewed,
-    tabBarSlot,
-  }
+  const workspace = useMemo(
+    () =>
+      openDocument && {
+        projectContextId: openDocument.projectContext.projectContextId,
+        pdfUrl: openDocument.sourceRepresentation.resources.sourcePdfUrl,
+        filename: openDocument.sourceDocument.name,
+        sourceRepresentationId:
+          openDocument.sourceRepresentation.sourceRepresentationId,
+        markdownUrl: openDocument.sourceRepresentation.resources.markdownUrl,
+        parsedDocumentUrl:
+          openDocument.sourceRepresentation.resources.parsedDocumentUrl,
+        // DocumentWorkspace no longer reads annotationSet — the Annotation tab was
+        // retired in favor of SchemaPanel's own doc chat. The DB layer still
+        // returns it; only this pass-through stopped. Left in place, commented
+        // out, rather than deleted.
+        // annotationSet: openDocument.annotationSet,
+        extractionSchema: openDocument.extractionSchema,
+        persistedExtraction: openDocument.latestAttempt,
+        latestReviewedExtraction: openDocument.latestReviewed,
+        tabBarSlot,
+      },
+    [openDocument, tabBarSlot],
+  )
 
   // Keeps open tabs in sync with routes reached other than a tab-strip or
   // rail click — a deep link, browser back/forward, or the Project Context
@@ -223,6 +228,12 @@ export default function AppFrame({
     // are the stable (useCallback) identities this effect actually depends on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route, workspace, tabs.activeSourceDocumentIdFor, tabs.open])
+
+  useEffect(() => () => {
+    if (!resizeControllerRef.current) return
+    resizeControllerRef.current.abort()
+    document.body.style.cursor = ''
+  }, [])
 
   function isRoutedDocument(projectContextId: string, sourceDocumentId: string) {
     return (
@@ -293,21 +304,41 @@ export default function AppFrame({
         )?.name ??
         null)
       : null
+  const hasOpenDocumentTabs = Boolean(
+    routedProjectContextId && openProjectTabs.length > 0,
+  )
+  const narrowNavToggle = narrowViewport && !effectiveNavOpen && (
+    <button
+      className={`grid size-10 shrink-0 place-items-center rounded-md border border-line bg-surface/95 text-ink-muted shadow-sm backdrop-blur outline-none transition-colors hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40 ${
+        hasOpenDocumentTabs ? 'self-center' : 'fixed left-2 top-2 z-30'
+      }`}
+      type="button"
+      aria-label="Open project navigation"
+      title="Open project navigation"
+      onClick={() => setNarrowNavOpen(true)}
+    >
+      <PanelToggleIcon side="left" />
+    </button>
+  )
 
   function startResize(event: React.MouseEvent) {
     event.preventDefault()
+    resizeControllerRef.current?.abort()
+    const controller = new AbortController()
+    resizeControllerRef.current = controller
     const startX = event.clientX
     const startWidth = navWidth
     const onMove = (moveEvent: MouseEvent) =>
       setNavWidth(clampNavWidth(startWidth + moveEvent.clientX - startX))
     const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      controller.abort()
+      if (resizeControllerRef.current === controller)
+        resizeControllerRef.current = null
       document.body.style.cursor = ''
     }
     document.body.style.cursor = 'col-resize'
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    window.addEventListener('mousemove', onMove, { signal: controller.signal })
+    window.addEventListener('mouseup', onUp, { signal: controller.signal })
   }
 
   const toggleNav = () => {
@@ -425,17 +456,7 @@ export default function AppFrame({
         />
       )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {narrowViewport && !effectiveNavOpen && (
-          <button
-            className="fixed left-2 top-2 z-30 grid size-10 place-items-center rounded-md border border-line bg-surface/95 text-ink-muted shadow-sm backdrop-blur outline-none transition-colors hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40"
-            type="button"
-            aria-label="Open project navigation"
-            title="Open project navigation"
-            onClick={() => setNarrowNavOpen(true)}
-          >
-            <PanelToggleIcon side="left" />
-          </button>
-        )}
+        {!hasOpenDocumentTabs && narrowNavToggle}
         {routedProjectContextId && openProjectTabs.length > 0 && (
           <DocumentTabBar
             projectName={activeProjectName}
@@ -452,6 +473,7 @@ export default function AppFrame({
               })
             }
             slotRef={setTabBarSlot}
+            navigationToggle={narrowNavToggle}
           />
         )}
         <section

@@ -506,6 +506,10 @@ function SchemaPanel({
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
   const chatAbortRef = useRef<AbortController | null>(null)
+  useEffect(() => () => {
+    chatAbortRef.current?.abort()
+    chatAbortRef.current = null
+  }, [])
   const [view, setView] = useState<'fields' | 'json'>('fields')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -948,6 +952,7 @@ function SchemaPanel({
         }
       }
     } catch (err) {
+      if (chatAbortRef.current !== controller) return
       if (
         typeof err === 'object' &&
         err !== null &&
@@ -960,8 +965,10 @@ function SchemaPanel({
         setChat(c => [...c, { role: 'assistant', text: `Error: ${err instanceof Error ? err.message : 'Request failed'}` }])
       }
     } finally {
-      chatAbortRef.current = null
-      setChatLoading(false)
+      if (chatAbortRef.current === controller) {
+        chatAbortRef.current = null
+        setChatLoading(false)
+      }
     }
   }
 

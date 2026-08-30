@@ -244,6 +244,136 @@ describe('useBatchExtractionReviewGrid', () => {
     expect(savedState.editable).toBe(false)
     expect(result.current.dirtyCount).toBe(1)
   })
+
+  it('keeps a newer member load when an older retry resolves last', async () => {
+    const newerExtractionId = '51000000-0000-4000-8006-000000000099'
+    const staleRetry = Promise.withResolvers<{
+      extraction: ExtractionAttempt
+      pendingReviewDecisions: typeof pendingDecisions
+    }>()
+    let oldReads = 0
+    vi.mocked(api.readExtraction).mockImplementation((id) => {
+      if (id === extractionId) {
+        oldReads += 1
+        return oldReads === 1
+          ? Promise.resolve({
+              extraction: attempt(),
+              pendingReviewDecisions: pendingDecisions,
+            })
+          : staleRetry.promise
+      }
+      return Promise.resolve({
+        extraction: attempt({ extractionId: newerExtractionId }),
+        pendingReviewDecisions: pendingDecisions,
+      })
+    })
+    const { result, rerender } = renderHook(
+      ({ currentBatch }) =>
+        useBatchExtractionReviewGrid(currentBatch, schemaNodes),
+      { initialProps: { currentBatch: batch() } },
+    )
+    await waitFor(() =>
+      expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'),
+    )
+
+    act(() => result.current.retryMember(reviewableDocumentId))
+    rerender({
+      currentBatch: batch({
+        members: [{
+          ...batch().members[0],
+          latestExtraction: {
+            ...batch().members[0]!.latestExtraction!,
+            extractionId: newerExtractionId,
+          },
+        }],
+      }),
+    })
+    await waitFor(() => {
+      const state = result.current.members.get(reviewableDocumentId)
+      expect(state?.status).toBe('ready')
+      if (state?.status === 'ready')
+        expect(state.attempt.extractionId).toBe(newerExtractionId)
+    })
+
+    await act(async () => {
+      staleRetry.resolve({
+        extraction: attempt(),
+        pendingReviewDecisions: pendingDecisions,
+      })
+      await staleRetry.promise
+    })
+    const state = result.current.members.get(reviewableDocumentId)
+    expect(state?.status).toBe('ready')
+    if (state?.status === 'ready')
+      expect(state.attempt.extractionId).toBe(newerExtractionId)
+  })
+
+  it('aborts an explicit retry when the grid unmounts', async () => {
+    const retry = Promise.withResolvers<{
+      extraction: ExtractionAttempt
+      pendingReviewDecisions: typeof pendingDecisions
+    }>()
+    let reads = 0
+    let retrySignal: AbortSignal | undefined
+    vi.mocked(api.readExtraction).mockImplementation((_id, signal) => {
+      reads += 1
+      if (reads === 1)
+        return Promise.resolve({
+          extraction: attempt(),
+          pendingReviewDecisions: pendingDecisions,
+        })
+      retrySignal = signal
+      return retry.promise
+    })
+    const { result, unmount } = renderHook(() =>
+      useBatchExtractionReviewGrid(batch(), schemaNodes),
+    )
+    await waitFor(() =>
+      expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'),
+    )
+
+    act(() => result.current.retryMember(reviewableDocumentId))
+    unmount()
+
+    expect(retrySignal?.aborted).toBe(true)
+    retry.resolve({
+      extraction: attempt(),
+      pendingReviewDecisions: pendingDecisions,
+    })
+  })
+
+  it('drops dirty members when the Batch Extraction changes', async () => {
+    vi.mocked(api.finalizeExtractionReview).mockResolvedValue(attempt())
+    const { result, rerender } = renderHook(
+      ({ currentBatch }) =>
+        useBatchExtractionReviewGrid(currentBatch, schemaNodes),
+      { initialProps: { currentBatch: batch() } },
+    )
+    await waitFor(() =>
+      expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'),
+    )
+    act(() =>
+      result.current.setDecision(
+        reviewableDocumentId,
+        ['records', 0, 'title'],
+        'REJECTED',
+      ),
+    )
+    expect(result.current.dirtyCount).toBe(1)
+
+    rerender({
+      currentBatch: batch({
+        batchExtractionId: '51000000-0000-4000-8007-000000000099',
+        members: [batch().members[1]!],
+      }),
+    })
+    await act(async () => {})
+    await act(() => result.current.saveAll())
+
+    expect(result.current.members.has(reviewableDocumentId)).toBe(false)
+    expect(result.current.dirtyCount).toBe(0)
+    expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  })
 })
 
 describe('projectedRecords', () => {

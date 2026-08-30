@@ -1368,6 +1368,79 @@ describe('BatchExtractionsPanel', () => {
     expect(screen.queryByText(/provider secret/)).not.toBeInTheDocument()
   })
 
+  it('keeps a created suggestion when an older list response resolves last', async () => {
+    const listedBody = Promise.withResolvers<unknown>()
+    const listedStarted = Promise.withResolvers<void>()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.startsWith('/api/batch-extractions?'))
+          return Promise.resolve(response({ batchExtractions: [] }))
+        if (url.startsWith('/api/batch-schema-suggestions?'))
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => {
+              listedStarted.resolve()
+              return listedBody.promise
+            },
+          } as Response)
+        if (url.startsWith('/api/extraction-schemas?'))
+          return Promise.resolve(response({ extractionSchemas: [] }))
+        if (
+          url === '/api/batch-schema-suggestions' &&
+          init?.method === 'POST'
+        )
+          return Promise.resolve(
+            response({ batchSchemaSuggestion: readySuggestion() }),
+          )
+        throw new Error(`Unexpected request: ${url}`)
+      }),
+    )
+    renderPanel()
+    await act(async () => listedStarted.promise)
+
+    const openSuggestion = async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'New Batch Extraction' }),
+      )
+      await waitFor(() =>
+        expect(screen.getAllByRole('checkbox')).toHaveLength(2),
+      )
+      fireEvent.change(screen.getByLabelText('Extraction Schema'), {
+        target: { value: '__suggest_common_fields__' },
+      })
+    }
+
+    await openSuggestion()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Suggest common fields' }),
+    )
+    expect(await screen.findByText('place')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /Back to history/ }))
+
+    await openSuggestion()
+    expect(
+      within(screen.getByLabelText('Suggested common fields')).getByText(
+        'place',
+      ),
+    ).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /Back to history/ }))
+
+    await act(async () => {
+      listedBody.resolve({ batchSchemaSuggestions: [] })
+      await listedBody.promise
+    })
+    await openSuggestion()
+
+    expect(
+      within(screen.getByLabelText('Suggested common fields')).getByText(
+        'place',
+      ),
+    ).toBeVisible()
+  })
+
   it('shows suggested fields in the schema slot and regenerates them', async () => {
     let suggestions: unknown[] = []
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

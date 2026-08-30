@@ -1565,6 +1565,46 @@ describe('Project Context navigation', () => {
     expect(separator).toHaveAttribute('aria-valuenow', '222')
   })
 
+  it('clears a Project Context rail drag when AppFrame unmounts', async () => {
+    renderRoutes()
+    await home().findByRole('heading', { name: 'Projects' })
+    fireEvent.mouseDown(
+      screen.getByRole('separator', {
+        name: 'Resize Project Context rail',
+      }),
+      { clientX: 100 },
+    )
+    expect(document.body.style.cursor).toBe('col-resize')
+
+    cleanup()
+    try {
+      expect(document.body.style.cursor).toBe('')
+    } finally {
+      window.dispatchEvent(new MouseEvent('mouseup'))
+      document.body.style.cursor = ''
+    }
+  })
+
+  it('hides per-project marks when the Project Context rail is collapsed', async () => {
+    renderRoutes(lifecycleFetch({ projects: [project, secondProject] }))
+    await screen.findByRole('button', { name: railRow() })
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Collapse Project Contexts' }),
+    )
+
+    const projectNavigation = screen.getByRole('complementary', {
+      name: 'Project navigation',
+    })
+    expect(
+      within(projectNavigation).getByRole('button', {
+        name: 'Expand Project Contexts',
+      }),
+    ).toBeInTheDocument()
+    expect(projectNavigation.querySelector('ul')).toBeNull()
+    expect(projectNavigation.querySelectorAll('li')).toHaveLength(0)
+  })
+
   it('ignores a Project Context list read abandoned by the StrictMode remount', async () => {
     vi.stubGlobal(
       'fetch',
@@ -2304,6 +2344,31 @@ describe('routed Source Document reopening', () => {
       screen.queryByText('Loading Source Document…'),
     ).not.toBeInTheDocument()
     expect(reads).toBe(2)
+  })
+
+  it('places the narrow navigation toggle beside the Source Document tabs', async () => {
+    vi.stubGlobal('innerWidth', 774)
+    history.replaceState(null, '', documentPath())
+    renderRoutes(
+      studioFetch(
+        () => Response.json(snapshot(beretning)),
+        {
+          projectContext: project,
+          sourceDocuments: [{ ...beretning, pageCount: 6 }],
+        },
+      ),
+    )
+    await screen.findByText(/Opened Beretning.pdf/)
+
+    const toggle = screen.getByRole('button', {
+      name: 'Open project navigation',
+    })
+    const tablist = screen.getByRole('tablist', {
+      name: 'Open Source Documents',
+    })
+
+    expect(toggle).not.toHaveClass('fixed')
+    expect(tablist.previousElementSibling).toBe(toggle)
   })
 
   it('closes inactive, active, and final Source Document tabs without losing route intent', async () => {

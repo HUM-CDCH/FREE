@@ -251,12 +251,14 @@ export default function BatchExtractionsPanel({
   // can wait for the chosen schema's pending save.
   const savedSchemaFlush = useRef<(() => Promise<AcknowledgedSchemaRevision | null>) | null>(null)
   const historyGeneration = useRef(0)
+  const suggestionGeneration = useRef(0)
   const pendingRefreshes = useRef(0)
   const [suggestions, setSuggestions] = useState<Read<BatchSchemaSuggestion[]>>({
     value: null,
     failure: null,
   })
   const replaceSuggestion = useCallback((next: BatchSchemaSuggestion) => {
+    suggestionGeneration.current += 1
     setSuggestions((current) => ({
       value: [
         next,
@@ -340,14 +342,21 @@ export default function BatchExtractionsPanel({
 
   useEffect(() => {
     const controller = new AbortController()
+    const requestGeneration = ++suggestionGeneration.current
     pendingRefreshes.current += 1
     void listBatchSchemaSuggestions(projectContextId, controller.signal).then(
       (listed) => {
-        if (!controller.signal.aborted)
+        if (
+          !controller.signal.aborted &&
+          requestGeneration === suggestionGeneration.current
+        )
           setSuggestions({ value: listed, failure: null })
       },
       (error: unknown) => {
-        if (!controller.signal.aborted)
+        if (
+          !controller.signal.aborted &&
+          requestGeneration === suggestionGeneration.current
+        )
           setSuggestions({
             value: null,
             failure: failureText(

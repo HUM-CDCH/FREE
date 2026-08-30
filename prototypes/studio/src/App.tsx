@@ -218,11 +218,14 @@ export function DocumentWorkspace({
       : null
   const [latestAttemptSchema, setLatestAttemptSchema] =
     useState(persistedAttemptSchema)
-  const pdfSource = useMemo(
-    () => ({ url: pdfUrl, filename }),
-    [filename, pdfUrl],
-  )
   const [docIndex, setDocIndex] = useState<DocIndex>({ status: 'parsing' })
+  const resizeControllerRef = useRef<AbortController | null>(null)
+
+  useEffect(() => () => {
+    if (!resizeControllerRef.current) return
+    resizeControllerRef.current.abort()
+    document.body.style.cursor = ''
+  }, [])
 
   // Reset before children render so the previous document never flashes while
   // the effects below tear down its viewer and start the next reads.
@@ -403,7 +406,7 @@ export function DocumentWorkspace({
 
     async function loadPdf() {
       try {
-        const response = await authenticatedFetch(pdfSource.url, {
+        const response = await authenticatedFetch(pdfUrl, {
           signal: abortController.signal,
         })
         if (!response.ok)
@@ -461,7 +464,7 @@ export function DocumentWorkspace({
       abortController.abort()
       if (loadingTask) void loadingTask.destroy()
     }
-  }, [onInitialResourceLoadFailure, pdfSource])
+  }, [onInitialResourceLoadFailure, pdfUrl])
 
   // Read the retained canonical index separately from the viewer so it never
   // reloads the PDF or clears annotations.
@@ -489,7 +492,7 @@ export function DocumentWorkspace({
     })()
 
     return () => abortController.abort()
-  }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl, pdfSource])
+  }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl])
 
 
   // Retired along with the Annotation tab. Left in place, commented out,
@@ -595,6 +598,9 @@ export function DocumentWorkspace({
 
   function startResize(event: React.MouseEvent) {
     event.preventDefault()
+    resizeControllerRef.current?.abort()
+    const controller = new AbortController()
+    resizeControllerRef.current = controller
     const startX = event.clientX
     const startWidth = railWidth
     const onMove = (moveEvent: MouseEvent) => {
@@ -602,13 +608,14 @@ export function DocumentWorkspace({
       setRailWidth(Math.min(RAIL_MAX, Math.max(RAIL_MIN, startWidth - dx)))
     }
     const onUp = () => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      controller.abort()
+      if (resizeControllerRef.current === controller)
+        resizeControllerRef.current = null
       document.body.style.cursor = ''
     }
     document.body.style.cursor = 'col-resize'
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    window.addEventListener('mousemove', onMove, { signal: controller.signal })
+    window.addEventListener('mouseup', onUp, { signal: controller.signal })
   }
 
   const statusStyles: Record<LoadState['status'], { dot: string; text?: string }> = {
@@ -937,7 +944,7 @@ export function DocumentWorkspace({
                 pinnedSchema: inspectedAttemptSchema,
                 exportSchema: inspectedAttemptSchema,
               }}
-              sourceDocumentName={pdfSource.filename}
+              sourceDocumentName={filename}
               schemaName={schemaName}
               onRenameSchema={async (name) => {
                 const extractionSchemaId = schemaSnap.extractionSchemaId

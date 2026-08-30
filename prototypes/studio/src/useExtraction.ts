@@ -255,6 +255,7 @@ export function useExtraction({
   }, [attempt, reviewAvailable, reviewDecisions, touchedPaths])
 
   useEffect(() => {
+    const controller = new AbortController()
     const load = ++reviewLoadRef.current
     void Promise.resolve().then(async () => {
       if (reviewLoadRef.current !== load) return
@@ -285,7 +286,10 @@ export function useExtraction({
       setReviewDecisions([])
       setTouchedPaths(new Set())
       try {
-        const prepared = await readExtraction(attempt.extractionId)
+        const prepared = await readExtraction(
+          attempt.extractionId,
+          controller.signal,
+        )
         if (reviewLoadRef.current !== load) return
         if (prepared.extraction.reviewedAt) {
           removeSessionRecovery('extraction-review', attempt.extractionId)
@@ -319,6 +323,10 @@ export function useExtraction({
         if (reviewLoadRef.current === load) setReviewLoading(false)
       }
     })
+    return () => {
+      controller.abort()
+      reviewLoadRef.current += 1
+    }
   }, [attempt, reviewAvailable])
 
   async function requestCancellation() {

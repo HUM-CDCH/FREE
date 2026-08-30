@@ -98,6 +98,7 @@ export function useBatchExtractionReviewGrid(
     new Map(),
   )
   const membersRef = useRef(members)
+  const loadControllerRef = useRef<AbortController | null>(null)
   useEffect(() => {
     membersRef.current = members
   }, [members])
@@ -145,6 +146,8 @@ export function useBatchExtractionReviewGrid(
 
   useEffect(() => {
     const controller = new AbortController()
+    loadControllerRef.current = controller
+    setMembers(new Map())
     for (const member of batch.members) {
       if (member.latestExtraction?.outcome === 'SUCCEEDED')
         loadMember(member.sourceDocumentId, member.latestExtraction.extractionId, controller.signal)
@@ -158,8 +161,9 @@ export function useBatchExtractionReviewGrid(
 
   function retryMember(sourceDocumentId: string) {
     const member = batch.members.find((item) => item.sourceDocumentId === sourceDocumentId)
-    if (member?.latestExtraction?.outcome === 'SUCCEEDED')
-      loadMember(sourceDocumentId, member.latestExtraction.extractionId, new AbortController().signal)
+    const signal = loadControllerRef.current?.signal
+    if (member?.latestExtraction?.outcome === 'SUCCEEDED' && signal)
+      loadMember(sourceDocumentId, member.latestExtraction.extractionId, signal)
   }
 
   function setDecision(

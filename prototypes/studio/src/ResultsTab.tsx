@@ -399,9 +399,12 @@ function getAtPath(obj: unknown, path: string[]): unknown {
 
 function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schemaReady, documentMarkdown, sourceDocumentName, pinnedSchema = null, exportSchema = null, inspectedAttempt, readOnly = false, onSelectEvidence, onResultPathChange }: ResultsTabProps) {
   const attempt = inspectedAttempt ?? controller.attempt
-  const state = inspectedAttempt
-    ? extractionStateFromAttempt(inspectedAttempt)
-    : controller.state
+  const state = useMemo(
+    () => inspectedAttempt
+      ? extractionStateFromAttempt(inspectedAttempt)
+      : controller.state,
+    [controller.state, inspectedAttempt],
+  )
   const visibleReviewDecisions = inspectedAttempt?.reviewDecisions ??
     (attempt?.reviewedAt ? attempt.reviewDecisions : controller.review.decisions)
   const reviewedResult = useMemo(

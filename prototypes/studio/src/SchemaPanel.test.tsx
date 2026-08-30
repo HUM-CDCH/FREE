@@ -1106,6 +1106,25 @@ describe.sequential('SchemaPanel schema proposal review', () => {
     expect(await screen.findByText('Cancelled.')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Describe a change to the schema…')).toBeEnabled()
   })
+
+  it('cancels a schema edit request when the panel unmounts', async () => {
+    requestSchemaEdit.mockImplementationOnce(() =>
+      new Promise<SchemaEditResponse>(() => undefined),
+    )
+    renderPanel()
+    const input = screen.getByPlaceholderText(
+      'Describe a change to the schema…',
+    )
+    fireEvent.change(input, { target: { value: 'Check fields' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(requestSchemaEdit).toHaveBeenCalledOnce())
+    const signal = requestSchemaEdit.mock.calls[0]![2] as AbortSignal
+    expect(signal.aborted).toBe(false)
+
+    cleanup()
+
+    expect(signal.aborted).toBe(true)
+  })
   it.each([
     [{ status: 'refused', message: 'Duplicate field paths: title' } as const, 'Request refused: Duplicate field paths: title'],
     [{ status: 'failed', message: 'Schema edit generation failed.' } as const, 'Request failed: Schema edit generation failed.'],

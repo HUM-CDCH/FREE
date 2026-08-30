@@ -234,18 +234,6 @@ export function ProjectContextRail({
         >
           <PanelToggleIcon side="left" />
         </button>
-        <ul className="mt-3 flex flex-col gap-2" aria-hidden="true">
-          {projects.map((project) => (
-            <li
-              key={project.projectContextId}
-              className={`h-4 w-px ${
-                project.projectContextId === activeProjectContextId
-                  ? 'bg-accent'
-                  : 'bg-line-strong'
-              }`}
-            />
-          ))}
-        </ul>
       </div>
     )
 
