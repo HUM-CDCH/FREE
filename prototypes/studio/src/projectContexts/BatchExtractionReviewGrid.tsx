@@ -201,7 +201,7 @@ function qualityTone(share: number): 'success' | 'accent' | 'danger' {
   return 'danger'
 }
 
-/** A compact "N% unchanged" quality signal for one document's Extraction. */
+/** A compact "N% no changes needed" quality signal for one document's Extraction. */
 function QualityScoreBadge({ decisions }: { decisions: readonly ReviewDecisionInput[] }) {
   const share = unchangedShare(decisions)
   if (share === null) return null
@@ -209,9 +209,9 @@ function QualityScoreBadge({ decisions }: { decisions: readonly ReviewDecisionIn
   return (
     <span
       className={`text-[10.5px] font-semibold ${qualityToneClass[qualityTone(share)]}`}
-      title={`${percent}% of fields approved unchanged`}
+      title={`${percent}% of fields needed no changes from the researcher`}
     >
-      {percent}% unchanged
+      {percent}% no changes needed
     </span>
   )
 }
@@ -361,7 +361,7 @@ export default function BatchExtractionReviewGrid({
     filter === 'needs-review'
       ? allRows.filter((row) => {
           const member = batch.members.find((item) => item.sourceDocumentId === row.sourceDocumentId)
-          return member ? memberStatus(member).label === 'Needs review' : false
+          return member ? needsReviewLocally(member) : false
         })
       : allRows
   const savingAny = [...grid.members.values()].some(
@@ -400,6 +400,28 @@ export default function BatchExtractionReviewGrid({
     ).length
   }
 
+  /** Untouched (still-pending) decisions across every record of one member —
+   *  once this reaches zero, "Needs review" no longer describes it, even
+   *  before the review is saved. */
+  function memberPendingCount(state: MemberReviewState): number {
+    if (state.status !== 'ready') return 0
+    return state.decisions.filter(
+      (decision) => !state.touched.has(resultPathKey(decision.resultPath)),
+    ).length
+  }
+
+  /** Whether "Needs review" still accurately describes this member — false
+   *  once every field's been approved locally (Approve all/row/column), even
+   *  before saving, so the header count, the filter tab, and the per-row
+   *  pill all move together. */
+  function needsReviewLocally(member: BatchExtraction['members'][number]): boolean {
+    if (memberStatus(member).label !== 'Needs review') return false
+    const state = grid.members.get(member.sourceDocumentId)
+    return !(state?.status === 'ready' && state.editable && memberPendingCount(state) === 0)
+  }
+
+  const needsReviewCount = batch.members.filter(needsReviewLocally).length
+
   if (!schemaNodes)
     return (
       <div className="flex justify-center py-16">
@@ -420,16 +442,14 @@ export default function BatchExtractionReviewGrid({
           </button>
           <div
             className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-ink-faint"
-            aria-label={`${progress.total} Source Document${progress.total === 1 ? '' : 's'}, ${progress.reviewed} reviewed, ${progress.needsReview} need review${progress.unreviewable ? `, ${progress.unreviewable} with no reviewable result` : ''}${progress.failed ? `, ${progress.failed} failed` : ''}`}
+            aria-label={`${progress.total} Source Document${progress.total === 1 ? '' : 's'}, ${progress.reviewed} reviewed, ${needsReviewCount} need review${progress.unreviewable ? `, ${progress.unreviewable} with no reviewable result` : ''}${progress.failed ? `, ${progress.failed} failed` : ''}`}
           >
             <span className="min-w-0 shrink-0 truncate">
               {progress.total} Source Document{progress.total === 1 ? '' : 's'}
             </span>
             <span className="flex shrink-0 flex-wrap items-center gap-1.5" aria-hidden="true">
               {progress.reviewed > 0 && <Pill tone="success">{progress.reviewed} reviewed</Pill>}
-              {progress.needsReview > 0 && (
-                <Pill tone="accent">{progress.needsReview} need review</Pill>
-              )}
+              {needsReviewCount > 0 && <Pill tone="accent">{needsReviewCount} need review</Pill>}
               {progress.unreviewable > 0 && (
                 <span className="text-ink-faint">{progress.unreviewable} no reviewable result</span>
               )}
@@ -446,7 +466,7 @@ export default function BatchExtractionReviewGrid({
               { value: 'all', label: `All (${progress.total})` },
               {
                 value: 'needs-review',
-                label: `Needs review (${progress.needsReview})`,
+                label: `Needs review (${needsReviewCount})`,
                 title: 'Show only Source Documents that still need review',
               },
             ]}
@@ -616,7 +636,9 @@ export default function BatchExtractionReviewGrid({
                     </div>
                     {isFirstRecordRow && (
                       <div className="mt-1 flex flex-wrap items-center gap-1">
-                        <StatusPill tone={status.tone} label={status.label} />
+                        {(status.label !== 'Needs review' || needsReviewLocally(member)) && (
+                          <StatusPill tone={status.tone} label={status.label} />
+                        )}
                         {state?.status === 'ready' && (
                           <QualityScoreBadge decisions={state.decisions} />
                         )}
