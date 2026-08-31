@@ -118,9 +118,9 @@ export function XIcon({ size = 13 }: { size?: number }) {
   )
 }
 
-function UndoIcon() {
+export function UndoIcon({ size = 13 }: { size?: number }) {
   return (
-    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4.5 8.5a6 6 0 1 1 1.3 6.2" />
       <polyline points="4.5,4.5 4.5,8.5 8.5,8.5" />
     </svg>

@@ -431,6 +431,103 @@ describe('useBatchExtractionReviewGrid', () => {
     if (state?.status !== 'ready') throw new Error('expected ready state')
     expect(state.decisions.find((d) => d.resultPath[2] === 'title')?.action).toBe('REJECTED')
   })
+
+  it('revertDecision restores one touched field to its untouched APPROVED default', async () => {
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: attempt(),
+      pendingReviewDecisions: twoFieldDecisions,
+    })
+    const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+
+    act(() => result.current.setDecision(reviewableDocumentId, ['records', 0, 'title'], 'REJECTED'))
+    expect(result.current.dirtyCount).toBe(1)
+
+    act(() => result.current.revertDecision(reviewableDocumentId, ['records', 0, 'title']))
+
+    const state = result.current.members.get(reviewableDocumentId)
+    if (state?.status !== 'ready') throw new Error('expected ready state')
+    expect(state.decisions.find((d) => d.resultPath[2] === 'title')?.action).toBe('APPROVED')
+    expect(state.touched.has(resultPathKey(['records', 0, 'title']))).toBe(false)
+    expect(result.current.dirtyCount).toBe(0)
+  })
+
+  it('revertRow restores only the touched decisions of that row, leaving other rows alone', async () => {
+    const secondDocumentId = '51000000-0000-4000-8001-000000000004'
+    const secondExtractionId = '51000000-0000-4000-8006-000000000004'
+    vi.mocked(api.readExtraction).mockImplementation(async (id) =>
+      id === extractionId
+        ? { extraction: attempt(), pendingReviewDecisions: twoFieldDecisions }
+        : {
+            extraction: attempt({ extractionId: secondExtractionId, sourceDocumentId: secondDocumentId }),
+            pendingReviewDecisions: twoFieldDecisions,
+          },
+    )
+    const twoMemberBatch = batch({
+      members: [
+        ...batch().members.slice(0, 1),
+        {
+          sourceDocumentId: secondDocumentId,
+          sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000004',
+          latestExtraction: {
+            extractionId: secondExtractionId,
+            outcome: 'SUCCEEDED',
+            complete: true,
+            reviewable: true,
+            createdAt: '2026-08-14T10:43:00.000Z',
+            reviewedAt: null,
+            failureMessage: null,
+          },
+        },
+      ],
+    })
+    const { result } = renderHook(() => useBatchExtractionReviewGrid(twoMemberBatch, schemaNodes))
+    await waitFor(() => {
+      expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready')
+      expect(result.current.members.get(secondDocumentId)?.status).toBe('ready')
+    })
+
+    act(() => {
+      result.current.setDecision(reviewableDocumentId, ['records', 0, 'title'], 'REJECTED')
+      result.current.setDecision(secondDocumentId, ['records', 0, 'title'], 'REJECTED')
+    })
+    expect(result.current.dirtyCount).toBe(2)
+
+    act(() => result.current.revertRow(reviewableDocumentId, 0))
+
+    const revertedState = result.current.members.get(reviewableDocumentId)
+    if (revertedState?.status !== 'ready') throw new Error('expected ready state')
+    expect(revertedState.touched.size).toBe(0)
+    expect(revertedState.decisions.find((d) => d.resultPath[2] === 'title')?.action).toBe('APPROVED')
+
+    const otherState = result.current.members.get(secondDocumentId)
+    if (otherState?.status !== 'ready') throw new Error('expected ready state')
+    expect(otherState.decisions.find((d) => d.resultPath[2] === 'title')?.action).toBe('REJECTED')
+    expect(result.current.dirtyCount).toBe(1)
+  })
+
+  it('revertAll restores every member back to its untouched, unreviewed default', async () => {
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: attempt(),
+      pendingReviewDecisions: twoFieldDecisions,
+    })
+    const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+
+    act(() => {
+      result.current.setDecision(reviewableDocumentId, ['records', 0, 'title'], 'EDITED', 'Changed')
+      result.current.approveAll()
+    })
+    expect(result.current.dirtyCount).toBe(1)
+
+    act(() => result.current.revertAll())
+
+    const state = result.current.members.get(reviewableDocumentId)
+    if (state?.status !== 'ready') throw new Error('expected ready state')
+    expect(state.touched.size).toBe(0)
+    expect(state.decisions.every((d) => d.action === 'APPROVED' && d.reviewedValue === null)).toBe(true)
+    expect(result.current.dirtyCount).toBe(0)
+  })
 })
 
 describe('projectedRecords', () => {
