@@ -13,7 +13,7 @@ import type { ProjectContextRouteState } from './projectContexts/useProjectConte
 import type { projectContextErrorSchema } from '../shared/projectContext.contract'
 import type { z } from 'zod'
 import RouteLoadBoundary from './RouteLoadBoundary.tsx'
-import { Button, EmptyState, ModalDialog } from './ui'
+import { Button, EmptyState, ModalDialog, Spinner } from './ui'
 import { browserStudioPath } from './studioUrl.js'
 
 const collapsedWidth = 46
@@ -21,6 +21,17 @@ const navMin = 150
 const navMax = 400
 const clampNavWidth = (width: number) =>
   Math.min(navMax, Math.max(navMin, width))
+
+/** A lazy-route Suspense fallback, centered in the section it replaces —
+ *  an unstyled text node here would inherit the browser default font size,
+ *  which reads oddly large next to the rest of the app's small type scale. */
+function RouteLoadingFallback({ label }: { label: string }) {
+  return (
+    <div className="flex h-full items-center justify-center" aria-busy="true">
+      <Spinner label={label} />
+    </div>
+  )
+}
 
 type Failure = z.output<typeof projectContextErrorSchema>
 
@@ -470,7 +481,7 @@ export default function AppFrame({
               resource="The Source Document workspace"
             >
               <Suspense
-                fallback={<div aria-busy="true">Loading Source Document…</div>}
+                fallback={<RouteLoadingFallback label="Loading Source Document…" />}
               >
                 {/* Keyed to the Project Context, not the Source Document: the
                     Schema panel is a Project Context resource and must survive
@@ -489,7 +500,7 @@ export default function AppFrame({
               resource="The Project Context page"
             >
               <Suspense
-                fallback={<div aria-busy="true">Loading Project Context…</div>}
+                fallback={<RouteLoadingFallback label="Loading Project Context…" />}
               >
                 {/* Keyed to the Project Context only: switching resource tabs
                     is a route change within one page, not a new page. */}

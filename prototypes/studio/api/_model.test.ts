@@ -62,6 +62,14 @@ function schemaRecord(schema: unknown): Record<string, unknown> {
   return schema as Record<string, unknown>
 }
 
+type JsonSchemaLike = { anyOf?: JsonSchemaLike[]; type?: string; [key: string]: unknown }
+
+// Every derived field is `.nullable().optional()`, which Zod renders as
+// `anyOf: [<actual schema>, {type: "null"}]` in JSON Schema output.
+function unwrapNullable(schema: JsonSchemaLike | undefined): JsonSchemaLike | undefined {
+  return schema?.anyOf?.find((branch) => branch.type !== 'null') ?? schema
+}
+
 function stubOllamaResponses(...generations: readonly {
   readonly response: string
   readonly doneReason?: string
@@ -277,9 +285,10 @@ describe('extractWithModel', () => {
 
     const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
       type?: string
-      schema?: unknown
+      schema?: { properties?: Record<string, unknown> }
     } | undefined
-    expect(responseFormat).toEqual({ type: 'json' })
+    expect(responseFormat?.type).toBe('json')
+    expect(responseFormat?.schema?.properties).toHaveProperty('records')
     expect(result.result).toMatchObject({ records: [{ grave_number: 8 }] })
     expect(result).not.toHaveProperty('raw')
     expect(result).not.toHaveProperty('evidence')
@@ -309,7 +318,7 @@ describe('extractWithModel', () => {
     expect(doGenerate).toHaveBeenCalledOnce()
   })
 
-  it('does not send a response schema to prompt-only providers', async () => {
+  it('sends a derived response schema to prompt-only providers too, so the model cannot invent extra fields', async () => {
     const { generateText } = await vi.importActual<typeof import('ai')>('ai')
     generateTextMock.mockImplementation(generateText)
     const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
@@ -322,7 +331,102 @@ describe('extractWithModel', () => {
       { ...generalTarget, model: new MockLanguageModelV4({ doGenerate }) },
     )
 
+    const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
+      type?: string
+      schema?: JsonSchemaLike & { properties?: Record<string, JsonSchemaLike> }
+    } | undefined
+    expect(responseFormat?.type).toBe('json')
+    expect(responseFormat?.schema?.additionalProperties).toBe(false)
+    const graveField = unwrapNullable(responseFormat?.schema?.properties?.grave)
+    const graveItemSchema = graveField?.items as JsonSchemaLike & { properties?: Record<string, unknown> } | undefined
+    expect(graveItemSchema?.additionalProperties).toBe(false)
+    expect(Object.keys(graveItemSchema?.properties ?? {})).toEqual(['name'])
+  })
+
+  it('excludes a model-invented field from the derived schema, closing the gap that let it slip past restoreSchemaNodeOrder', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    // Regression for a real Claude Haiku failure: the model echoed the schema's own
+    // description text back as an extra "description" key, which restoreSchemaNodeOrder
+    // only caught after the fact ("Unexpected model key: description"), failing the
+    // whole record. A schema-constrained request must not offer that key at all.
+    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
+      async () => mockGeneration(
+        '{"grave":[{"name":"Grave 1","description":"A grave record."}]}',
+      ),
+    )
+    await extractWithModel(
+      { document, template: { grave: [{ name: 'verbatim-string' }] } },
+      { ...generalTarget, model: new MockLanguageModelV4({ doGenerate }) },
+    )
+
+    const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
+      schema?: { properties?: Record<string, JsonSchemaLike> }
+    } | undefined
+    const graveField = unwrapNullable(responseFormat?.schema?.properties?.grave)
+    const graveItemProperties = (graveField?.items as { properties?: Record<string, unknown> } | undefined)?.properties ?? {}
+    expect(Object.keys(graveItemProperties)).toEqual(['name'])
+    expect(graveItemProperties).not.toHaveProperty('description')
+  })
+
+  it('derives and sends a response schema for the grounding call template shape', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
+      async () => mockGeneration('{"links":{"C1":"E3","C2":"NONE"}}'),
+    )
+    const result = await extractWithModel(
+      {
+        document: { file: null, markdown: '### Canonical Evidence\n[E3] Grave 1', pages: null },
+        template: { links: { C1: 'verbatim-string', C2: 'verbatim-string' } },
+      },
+      { ...generalTarget, model: new MockLanguageModelV4({ doGenerate }) },
+    )
+
+    const responseFormat = schemaRecord(doGenerate.mock.calls[0][0]).responseFormat as {
+      schema?: { properties?: Record<string, JsonSchemaLike> }
+    } | undefined
+    const linksField = unwrapNullable(responseFormat?.schema?.properties?.links) as { properties?: Record<string, unknown> } | undefined
+    expect(Object.keys(linksField?.properties ?? {})).toEqual(['C1', 'C2'])
+    expect(result.result).toEqual({ links: { C1: 'E3', C2: 'NONE' } })
+  })
+
+  it('falls back to unconstrained generation when schema derivation fails', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
+      async () => mockGeneration('{"grave":[{"name":"Grave 1"}]}'),
+    )
+    // An array at the template root is not a shape templateToNodes can convert
+    // (it only walks plain records); derivation must fail closed, not throw.
+    await extractWithModel(
+      { document, template: ['not', 'a', 'record'] },
+      { ...generalTarget, model: new MockLanguageModelV4({ doGenerate }) },
+    )
+
     expect(schemaRecord(doGenerate.mock.calls[0][0]).responseFormat).toBeUndefined()
+  })
+
+  it('degrades a schema-constrained prompt-only call to raw text instead of throwing on unparseable output', async () => {
+    const { generateText } = await vi.importActual<typeof import('ai')>('ai')
+    generateTextMock.mockImplementation(generateText)
+    const doGenerate = vi.fn<(options: unknown) => Promise<ReturnType<typeof mockGeneration>>>(
+      async () => mockGeneration('{"records":[{"grave_number":8}]} trailing'),
+    )
+    // Before this change, only jsonOutput: 'native' targets reached the
+    // NoObjectGeneratedError fallback; a schema-constrained prompt-only
+    // target must degrade the same way, not throw.
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const result = await extractWithModel(
+      { document, template: { records: [{ grave_number: 'integer', note: 'string' }] } },
+      { ...generalTarget, model: new MockLanguageModelV4({ doGenerate }) },
+    )
+
+    expect(schemaRecord(doGenerate.mock.calls[0][0]).responseFormat).toBeDefined()
+    expect(result.result).toEqual({ records: [{ grave_number: 8 }] })
+    expect(warning).toHaveBeenCalled()
+    warning.mockRestore()
   })
 })
 

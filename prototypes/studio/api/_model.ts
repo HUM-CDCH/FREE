@@ -17,6 +17,7 @@ import {
   asModelOperationError,
 } from './_http.js'
 import { applyAllowedValues } from 'extraction/allowed-values'
+import { isRecord, schemaNodesToZod, templateToNodes } from 'extraction/schema'
 import { parseExtractionResult, parseTemplate } from './_model_output.js'
 import { readModelConfig } from './_model_config.js'
 import { inspectHttpExchange, inspectTarget } from './_llm_inspector.js'
@@ -140,6 +141,22 @@ export async function streamChatWithModel(
   }
 }
 
+/**
+ * `templateToNodes` degrades a non-record template to zero nodes rather than
+ * throwing, which would otherwise derive a spuriously empty `.strict()`
+ * schema that rejects every field. Guard on the input actually being a
+ * record so an unconvertible template shape falls back to unconstrained
+ * generation instead of over-constraining it.
+ */
+function deriveExtractionSchema(template: unknown): z.ZodType | undefined {
+  if (!isRecord(template)) return undefined
+  try {
+    return schemaNodesToZod(templateToNodes(template))
+  } catch {
+    return undefined
+  }
+}
+
 export async function extractWithModel(
   { document, template, instruction, temperature, signal }: ExtractModelInput,
   target?: ExecutionTarget,
@@ -164,6 +181,7 @@ export async function extractWithModel(
         ? [`Additional extraction instruction:\n${callerInstruction}`]
         : []),
     ].join('\n\n')
+    const schema = deriveExtractionSchema(extractionTemplate)
     generated = await generateWithGenericJsonPrompt(resolved, {
       instructions:
         'Produce a FREE Extraction Result. Follow the supplied Extraction Schema exactly. ' +
@@ -174,6 +192,7 @@ export async function extractWithModel(
       documentParts: documentParts.parts,
       temperature,
       signal,
+      schema,
     })
   } else {
     generated = await generateWithNuExtractRawPrompt('extraction', resolved, {
@@ -265,13 +284,23 @@ async function generateWithGenericJsonPrompt(
     readonly documentParts: readonly DocumentContentPart[]
     readonly temperature?: number
     readonly signal?: AbortSignal
+    readonly schema?: z.ZodType
   },
 ): Promise<GeneratedText> {
   const startedAt = performance.now()
+  // A derived schema constrains the model's key set at generation time
+  // (native structured output or forced tool-calling, depending on the
+  // provider); it supersedes the native/prompt `Output.json()` split, which
+  // only guarantees valid JSON syntax, not a specific field set.
+  const structuredOutput = input.schema
+    ? Output.object({ schema: input.schema })
+    : target.jsonOutput === 'native'
+      ? Output.json()
+      : undefined
   try {
     const generated = await generateText({
       model: target.model,
-      ...(target.jsonOutput === 'native' ? { output: Output.json() } : {}),
+      ...(structuredOutput ? { output: structuredOutput } : {}),
       instructions: input.instructions,
       messages: [
         {
@@ -297,7 +326,7 @@ async function generateWithGenericJsonPrompt(
       },
     }
   } catch (error) {
-    if (target.jsonOutput === 'native' && NoObjectGeneratedError.isInstance(error) && error.text) {
+    if (structuredOutput && NoObjectGeneratedError.isInstance(error) && error.text) {
       return {
         response: error.text,
         metadata: {

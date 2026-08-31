@@ -9,6 +9,7 @@ import {
   parseSchemaNodes,
   restoreSchemaNodeOrder,
   schemaDefinitionToTemplate,
+  schemaNodesToZod,
   templateToSchemaDefinition,
   templateToNodes,
   type SchemaNode,
@@ -201,5 +202,107 @@ describe('SchemaNode conversion', () => {
       [...partitionSchemaNodes(nodes).recordNodes, ...partitionSchemaNodes(nodes).documentNodes],
     )).toEqual({ title: 'A title', details: { year: 2026 } })
     expect(() => restoreSchemaNodeOrder({ title: 'A title', unknown: true }, nodes)).toThrow('Unexpected model key')
+  })
+})
+
+describe('schemaNodesToZod', () => {
+  it('accepts every scalar field type and rejects a type mismatch', () => {
+    const nodes: SchemaNode[] = [
+      { id: 'a', name: 'title', type: 'string' },
+      { id: 'b', name: 'quote', type: 'verbatim-string' },
+      { id: 'c', name: 'when', type: 'date' },
+      { id: 'd', name: 'count', type: 'number' },
+      { id: 'e', name: 'year', type: 'integer' },
+      { id: 'f', name: 'active', type: 'boolean' },
+    ]
+    const schema = schemaNodesToZod(nodes)
+
+    expect(schema.safeParse({
+      title: 'A title',
+      quote: 'Exact wording',
+      when: '1901-01-01',
+      count: 3.5,
+      year: 1901,
+      active: true,
+    }).success).toBe(true)
+    expect(schema.safeParse({ title: 42 }).success).toBe(false)
+    expect(schema.safeParse({ year: 'not a number' }).success).toBe(false)
+  })
+
+  it('maps allowedValues to a closed enum', () => {
+    const nodes: SchemaNode[] = [
+      { id: 'a', name: 'gender', type: 'string', allowedValues: ['woman', 'man', 'unknown'] },
+    ]
+    const schema = schemaNodesToZod(nodes)
+
+    expect(schema.safeParse({ gender: 'man' }).success).toBe(true)
+    expect(schema.safeParse({ gender: 'other' }).success).toBe(false)
+  })
+
+  it('rejects a model key that is not declared in the schema', () => {
+    const nodes: SchemaNode[] = [{ id: 'a', name: 'title', type: 'string' }]
+    const schema = schemaNodesToZod(nodes)
+
+    expect(schema.safeParse({ title: 'A title', description: 'Extra' }).success).toBe(false)
+  })
+
+  it('tolerates omitted and null values without forcing fabrication', () => {
+    const nodes: SchemaNode[] = [
+      { id: 'a', name: 'title', type: 'string' },
+      { id: 'b', name: 'subtitle', type: 'string' },
+    ]
+    const schema = schemaNodesToZod(nodes)
+
+    expect(schema.safeParse({ title: 'A title' }).success).toBe(true)
+    expect(schema.safeParse({ title: 'A title', subtitle: null }).success).toBe(true)
+    expect(schema.safeParse({}).success).toBe(true)
+  })
+
+  it('constrains a repeating scalar array by item type', () => {
+    const nodes: SchemaNode[] = [{ id: 'a', name: 'names', type: 'array', itemType: 'string' }]
+    const schema = schemaNodesToZod(nodes)
+
+    expect(schema.safeParse({ names: ['Alpha', 'Beta'] }).success).toBe(true)
+    expect(schema.safeParse({ names: [1, 2] }).success).toBe(false)
+  })
+
+  it('constrains a repeating group and rejects an unexpected key inside it', () => {
+    const nodes: SchemaNode[] = [
+      {
+        id: 'a',
+        name: 'graves',
+        type: 'array',
+        children: [{ id: 'b', name: 'material', type: 'string' }],
+      },
+    ]
+    const schema = schemaNodesToZod(nodes)
+
+    expect(schema.safeParse({ graves: [{ material: 'Stone' }] }).success).toBe(true)
+    expect(schema.safeParse({ graves: [{ material: 'Stone', description: 'Extra' }] }).success).toBe(false)
+  })
+
+  it('derives a schema that accepts any template produced by nodesToTemplate, round-tripped through templateToNodes', () => {
+    const template = {
+      names: ['string'],
+      gender: ['woman', 'man', 'unknown'],
+      graves: [{ material: 'string' }],
+      dates: ['date'],
+    }
+    const nodes = templateToNodes(template)
+    const schema = schemaNodesToZod(nodes)
+
+    expect(schema.safeParse({
+      names: ['Alpha'],
+      gender: 'woman',
+      graves: [{ material: 'Stone' }],
+      dates: ['1901-01-01'],
+    }).success).toBe(true)
+    expect(schema.safeParse({
+      names: ['Alpha'],
+      gender: 'woman',
+      graves: [{ material: 'Stone' }],
+      dates: ['1901-01-01'],
+      description: 'Extra',
+    }).success).toBe(false)
   })
 })
