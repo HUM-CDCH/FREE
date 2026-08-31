@@ -161,15 +161,17 @@ export function partitionSchemaNodes(nodes: readonly SchemaNode[]): SchemaNodePa
   return partition
 }
 
-/** Restore model values to schema order while rejecting unknown keys. */
+/** Restore model values to schema order while rejecting unknown keys by default. */
 export function restoreSchemaNodeOrder(
   value: unknown,
   nodes: readonly SchemaNode[],
+  options: Readonly<{ ignoreUnknownKeys?: boolean }> = {},
 ): Record<string, unknown> {
   if (!isRecord(value)) throw new Error('Model output records must be objects.')
   const byName = new Map(nodes.map((node) => [node.name, node]))
   for (const key of Object.keys(value))
-    if (!byName.has(key)) throw new Error(`Unexpected model key: ${key}`)
+    if (!options.ignoreUnknownKeys && !byName.has(key))
+      throw new Error(`Unexpected model key: ${key}`)
 
   const restored: Record<string, unknown> = {}
   for (const node of nodes) {
@@ -179,9 +181,11 @@ export function restoreSchemaNodeOrder(
     if (node.children && item !== null) {
       if (node.type === 'array') {
         if (!Array.isArray(item)) throw new Error(`Model output field ${node.name} must be an array.`)
-        restored[node.name] = item.map((entry) => restoreSchemaNodeOrder(entry, node.children))
+        restored[node.name] = item.map((entry) =>
+          restoreSchemaNodeOrder(entry, node.children, options),
+        )
       } else {
-        restored[node.name] = restoreSchemaNodeOrder(item, node.children)
+        restored[node.name] = restoreSchemaNodeOrder(item, node.children, options)
       }
     } else {
       restored[node.name] = item

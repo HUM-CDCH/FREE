@@ -43,6 +43,7 @@ const lifecycleSchemaNodes = [
 async function canonicalPackage(
   originalFilename: string,
   sourceDocument?: ParsedDocument,
+  pdfFilename = 'Beretning_Ellekilde_8_13.pdf',
 ) {
   const { strToU8, zipSync } = await import(
     createRequire(
@@ -50,7 +51,7 @@ async function canonicalPackage(
     ).resolve('fflate')
   )
   const pdf = await readFile(
-    resolve(import.meta.dirname, '../../../examples/Beretning_Ellekilde_8_13.pdf'),
+    resolve(import.meta.dirname, '../../../examples', pdfFilename),
   )
   const sourceHash = sha256(pdf)
   const document = structuredClone(
@@ -118,6 +119,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
 
   let delayNextResponse = false
   let omitGrounding = false
+  let addUnexpectedField = false
   const modelServer = createServer((request, response) => {
     let body = ''
     request.setEncoding('utf8')
@@ -144,6 +146,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
                 { kind: 'A', detail: 'First,\nline' },
                 { kind: 'B', detail: 'Second' },
               ],
+              ...(addUnexpectedField ? { surprise: 'not in schema' } : {}),
             }],
           })
       const send = () => {
@@ -192,8 +195,10 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   const researcherAccountId = randomUUID()
   const researcherObjectId = randomUUID()
   const sourceDocumentId = randomUUID()
+  const otherSourceDocumentId = randomUUID()
   const extractionSchemaId = randomUUID()
   const firstRepresentationId = randomUUID()
+  const otherRepresentationId = randomUUID()
   const secondRepresentationId = randomUUID()
   const firstSchemaRevisionId = randomUUID()
   const secondSchemaRevisionId = randomUUID()
@@ -260,6 +265,52 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     page.getByRole('button', { name: '▶ Run extraction' }),
   )
   await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible()
+
+  const otherPackage = await canonicalPackage(
+    'different-document.pdf',
+    undefined,
+    '1790-06-17-1.pdf',
+  )
+  const otherDescriptor = await packageStore.save(otherPackage.bytes)
+  await db.orm.public.SourceDocument.create({
+    id: otherSourceDocumentId,
+    projectContextId,
+    ingestionKey: otherSourceDocumentId,
+    contentSha256: otherPackage.sourceHash,
+    mediaType: 'application/pdf',
+    originalName: 'different-document.pdf',
+  })
+  await db.orm.public.SourceRepresentationRevision.create({
+    id: otherRepresentationId,
+    sourceDocumentId: otherSourceDocumentId,
+    revisionNumber: 1,
+    artifactReference: otherDescriptor.artifactReference,
+    artifactSha256: otherDescriptor.artifactSha256,
+    contractVersion: 'parsed_document.v2',
+    preprocessId: 'bundled-fixture',
+    parserName: 'fixture',
+    parserVersion: '1',
+  })
+
+  addUnexpectedField = true
+  await page.goto(
+    e2eStudioPath(
+      `/projects/${projectContextId}/documents/${otherSourceDocumentId}`,
+    ),
+  )
+  await activateWithKeyboard(
+    page,
+    page.getByRole('button', { name: '▶ Run extraction' }),
+  )
+  await expect(
+    page.getByText('Unexpected model key: surprise', { exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'View Evidence for title' }),
+  ).toBeVisible()
+
+  addUnexpectedField = false
+  await page.goto(url)
   await activateWithKeyboard(page, page.getByRole('tab', { name: /Results/ }))
   await expect(
     page.getByRole('button', { name: 'View Evidence for title' }),

@@ -201,5 +201,10 @@ describe('SchemaNode conversion', () => {
       [...partitionSchemaNodes(nodes).recordNodes, ...partitionSchemaNodes(nodes).documentNodes],
     )).toEqual({ title: 'A title', details: { year: 2026 } })
     expect(() => restoreSchemaNodeOrder({ title: 'A title', unknown: true }, nodes)).toThrow('Unexpected model key')
+    expect(restoreSchemaNodeOrder(
+      { title: 'A title', details: { year: 2026, unknown: true } },
+      nodes,
+      { ignoreUnknownKeys: true },
+    )).toEqual({ title: 'A title', details: { year: 2026 } })
   })
 })

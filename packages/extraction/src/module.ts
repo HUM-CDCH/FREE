@@ -498,7 +498,11 @@ export function createExtractionModule(
     return {
       result: {
         records: records.map((record) =>
-          restoreSchemaNodeOrder({ ...record, ...packageValues }, definition.schemaNodes),
+          restoreSchemaNodeOrder(
+            { ...record, ...packageValues },
+            definition.schemaNodes,
+            { ignoreUnknownKeys: true },
+          ),
         ),
       },
       complete: generated.metadata.finishReason !== 'length',
@@ -556,7 +560,9 @@ export function createExtractionModule(
         const extracted = extractionRecords(generated.result)
         if (!extracted || extracted.length !== 1)
           throw new ExtractionError('invalid_model_output', 'Catalog document extraction must return one record.')
-        documentValues = restoreSchemaNodeOrder(extracted[0], documentNodes)
+        documentValues = restoreSchemaNodeOrder(extracted[0], documentNodes, {
+          ignoreUnknownKeys: true,
+        })
         catalog.documentValues = documentValues
         setCatalogStage(catalog, 'document-values', callDiagnostic('succeeded', documentStartedAt, generated.metadata))
         if (generated.metadata.finishReason === 'length') complete = false
@@ -715,7 +721,11 @@ export function createExtractionModule(
         const extracted = extractionRecords(generated.result)
         if (!extracted || extracted.length !== 1)
           throw new ExtractionError('invalid_model_output', 'Catalog record extraction must return one record.')
-        successfulRecords.push(restoreSchemaNodeOrder(extracted[0], recordNodes))
+        successfulRecords.push(
+          restoreSchemaNodeOrder(extracted[0], recordNodes, {
+            ignoreUnknownKeys: true,
+          }),
+        )
         catalog.records.push({ ordinal, boundary, ...callDiagnostic('succeeded', callStartedAt, generated.metadata) })
         if (generated.metadata.finishReason === 'length') complete = false
       } catch (error) {
