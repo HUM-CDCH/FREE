@@ -29,7 +29,8 @@ before starting because the production network selection uses `gw_priority`.
 
 The Parsing Service defaults to `DOCLING_DEVICE=cpu` so the stack stays
 portable. A GPU deployment must explicitly provide its NVIDIA runtime/device
-configuration and select CUDA; `compose.prod.yaml` carries a commented example.
+configuration and select CUDA. See [NVIDIA DGX Spark GPU](#nvidia-dgx-spark-gpu)
+for the deployment host's exact setup.
 The initial image build and the first start's Docling layout and table model
 download can take several minutes and substantial disk space. Later builds and
 starts reuse the named model cache.
@@ -80,6 +81,64 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   `DATABASE_URL`; restricting it to hexadecimal avoids URI-encoding and
   Compose-interpolation ambiguity. Changing it does not update an existing
   PostgreSQL volume's password, so retain it with that volume.
+
+### NVIDIA DGX Spark GPU
+
+DGX Spark is ARM64, and its NVIDIA Container Toolkit and Docker integration are
+preinstalled. First prove the host runtime can expose the GPU, using NVIDIA's
+[documented validation command](https://docs.nvidia.com/dgx/dgx-spark/nvidia-container-runtime-for-docker.html#test-gpu-access):
+
+```bash
+docker run --rm --gpus=all \
+  nvcr.io/nvidia/cuda:13.0.1-devel-ubuntu24.04 nvidia-smi
+```
+
+Do not continue if that fails. Fix the host runtime before changing FREE.
+
+For FREE, add this line to the root `.env`:
+
+```dotenv
+DOCLING_DEVICE=cuda
+```
+
+Then uncomment the `parsing_service.deploy` block already present in
+`compose.prod.yaml`, leaving it as:
+
+```yaml
+services:
+  parsing_service:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+```
+
+`capabilities` is required by Docker Compose; `count: all` is appropriate for
+Spark's integrated GPU. This is the standard
+[Compose GPU reservation](https://docs.docker.com/compose/how-tos/gpu-support/).
+Start production normally:
+
+```bash
+node scripts/free.mjs production
+```
+
+After the service is healthy, verify both the selected Docling device and
+PyTorch CUDA access inside the actual Parsing Service container:
+
+```bash
+docker compose -f compose.yaml -f compose.prod.yaml exec parsing_service \
+  uv run --no-sync python -c \
+  "import os, torch; assert os.environ['DOCLING_DEVICE'] == 'cuda'; assert torch.cuda.is_available(); print(torch.ones(1, device='cuda'), torch.cuda.get_device_name(0))"
+```
+
+The command must print the GPU name and exit successfully. Docling documents
+`DOCLING_DEVICE=cuda` as its NVIDIA inference selector in its
+[accelerator options](https://docling-project.github.io/docling/reference/pipeline_options/#docling.datamodel.accelerator_options.AcceleratorOptions).
+Do not use `/status` as GPU proof: its GPU fields are currently static service
+metadata rather than runtime probes.
 
 Before installing a certificate, inspect the subject alternative names and
 validity period and confirm that the certificate and key produce the same

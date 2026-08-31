@@ -57,7 +57,8 @@ The container runs a single Uvicorn process for the same reason the host command
 does: the FIFO queue and the reusable `DocumentConverter` are in-process state.
 The root Compose service selects `DOCLING_DEVICE=cpu` so the default local stack
 works without GPU passthrough. GPU deployments must explicitly provide their
-NVIDIA runtime/device configuration and select `DOCLING_DEVICE=cuda`.
+NVIDIA runtime/device configuration and select `DOCLING_DEVICE=cuda`; follow
+the production [DGX Spark GPU procedure](../../docs/operations/deployment.md#nvidia-dgx-spark-gpu).
 
 The first build is long and the image is large because `uv.lock` resolves the
 CUDA build of torch: `uv sync --frozen` downloads the whole `nvidia-*` wheel set.
