@@ -274,6 +274,48 @@ export function nodesToTemplate(nodes: readonly SchemaNode[]): Record<string, un
   return out
 }
 
+function scalarNodeZod(type: ScalarFieldType): z.ZodType {
+  switch (type) {
+    case 'number':
+      return z.number()
+    case 'integer':
+      return z.number().int()
+    case 'boolean':
+      return z.boolean()
+    case 'verbatim-string':
+    case 'date':
+    case 'string':
+      return z.string()
+  }
+}
+
+function schemaNodeToZod(node: SchemaNode): z.ZodType {
+  if (node.children !== undefined) {
+    const shape = Object.fromEntries(
+      node.children.map((child) => [child.name, schemaNodeToZod(child).nullable().optional()]),
+    )
+    const object = z.object(shape).strict()
+    return node.type === 'array' ? z.array(object) : object
+  }
+  if (node.allowedValues) return z.enum(node.allowedValues as [string, ...string[]])
+  if (node.type === 'array') return z.array(scalarNodeZod(node.itemType))
+  return scalarNodeZod(node.type)
+}
+
+/**
+ * A schema-constrained-generation counterpart to `nodesToTemplate`: every
+ * object level is `.strict()` so an extra model-generated key (the failure
+ * mode `restoreSchemaNodeOrder` rejects post-hoc) is instead excluded by the
+ * generation contract itself. Fields stay nullable/optional — a value the
+ * model can't find in the source must remain omissible, not fabricated.
+ */
+export function schemaNodesToZod(nodes: readonly SchemaNode[]): z.ZodType {
+  const shape = Object.fromEntries(
+    nodes.map((node) => [node.name, schemaNodeToZod(node).nullable().optional()]),
+  )
+  return z.object(shape).strict()
+}
+
 export function enumerateFieldPaths(nodes: readonly SchemaNode[]): EnumeratedField[] {
   const fields: EnumeratedField[] = []
   const visit = (level: readonly SchemaNode[], parentPath: readonly string[]) => {

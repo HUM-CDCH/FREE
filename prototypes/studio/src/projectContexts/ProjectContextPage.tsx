@@ -334,7 +334,13 @@ export default function ProjectContextPage({
 
   return (
     <div className="scrollbar-subtle flex h-full flex-col overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-6 px-4 pt-6 sm:p-8 sm:pb-0">
+      <div
+        className={
+          isGridScreen
+            ? 'flex w-full shrink-0 flex-col gap-6 px-4 pt-6 sm:px-8 sm:pt-8'
+            : 'mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-6 px-4 pt-6 sm:p-8 sm:pb-0'
+        }
+      >
         <header>
           {renaming && project ? (
             <RenameForm

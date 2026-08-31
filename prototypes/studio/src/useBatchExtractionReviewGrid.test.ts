@@ -6,6 +6,7 @@ import {
   projectedRecords,
   useBatchExtractionReviewGrid,
 } from './useBatchExtractionReviewGrid'
+import { resultPathKey } from './reviewDecisions'
 import * as api from './api'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
@@ -373,6 +374,62 @@ describe('useBatchExtractionReviewGrid', () => {
     expect(result.current.members.has(reviewableDocumentId)).toBe(false)
     expect(result.current.dirtyCount).toBe(0)
     expect(api.finalizeExtractionReview).not.toHaveBeenCalled()
+  })
+
+  const twoFieldDecisions = [
+    pendingDecisions[0],
+    {
+      resultPath: ['records', 0, 'year'],
+      evidenceAnchorId: 'anchor-2',
+      reviewedOccurrenceIds: ['occurrence-2'],
+      action: 'APPROVED' as const,
+      reviewedValue: null,
+    },
+  ]
+
+  it('approveAll marks untouched decisions touched without changing an already-rejected decision', async () => {
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: attempt(),
+      pendingReviewDecisions: twoFieldDecisions,
+    })
+    const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+
+    act(() => result.current.setDecision(reviewableDocumentId, ['records', 0, 'title'], 'REJECTED'))
+    expect(result.current.dirtyCount).toBe(1)
+
+    act(() => result.current.approveAll())
+
+    const state = result.current.members.get(reviewableDocumentId)
+    if (state?.status !== 'ready') throw new Error('expected ready state')
+    // The explicitly-rejected field keeps its action — bulk approve never
+    // overwrites a decision the researcher already acted on.
+    expect(state.decisions.find((d) => d.resultPath[2] === 'title')?.action).toBe('REJECTED')
+    // The still-pending field is now marked touched (and stays APPROVED,
+    // its untouched default), which is what makes it count as reviewed.
+    expect(state.touched.has(resultPathKey(['records', 0, 'year']))).toBe(true)
+    expect(state.decisions.find((d) => d.resultPath[2] === 'year')?.action).toBe('APPROVED')
+  })
+
+  it('approveRow and approveColumn also leave an already-rejected decision unchanged', async () => {
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: attempt(),
+      pendingReviewDecisions: twoFieldDecisions,
+    })
+    const { result } = renderHook(() => useBatchExtractionReviewGrid(batch(), schemaNodes))
+    await waitFor(() => expect(result.current.members.get(reviewableDocumentId)?.status).toBe('ready'))
+
+    act(() => result.current.setDecision(reviewableDocumentId, ['records', 0, 'title'], 'REJECTED'))
+    act(() => result.current.approveRow(reviewableDocumentId, 0))
+    let state = result.current.members.get(reviewableDocumentId)
+    if (state?.status !== 'ready') throw new Error('expected ready state')
+    expect(state.decisions.find((d) => d.resultPath[2] === 'title')?.action).toBe('REJECTED')
+    expect(state.touched.has(resultPathKey(['records', 0, 'year']))).toBe(true)
+
+    act(() => result.current.approveColumn(result.current.columns[0]))
+    state = result.current.members.get(reviewableDocumentId)
+    if (state?.status !== 'ready') throw new Error('expected ready state')
+    expect(state.decisions.find((d) => d.resultPath[2] === 'title')?.action).toBe('REJECTED')
   })
 })
 

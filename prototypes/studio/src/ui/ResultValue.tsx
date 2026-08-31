@@ -93,7 +93,7 @@ function EnterChevron() {
   )
 }
 
-function PencilIcon({ size = 13 }: { size?: number }) {
+export function PencilIcon({ size = 13 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor">
       <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -101,7 +101,7 @@ function PencilIcon({ size = 13 }: { size?: number }) {
   )
 }
 
-function CheckIcon({ size = 13 }: { size?: number }) {
+export function CheckIcon({ size = 13 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="4,10.5 8,15 16,5" />
@@ -109,7 +109,7 @@ function CheckIcon({ size = 13 }: { size?: number }) {
   )
 }
 
-function XIcon({ size = 13 }: { size?: number }) {
+export function XIcon({ size = 13 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
       <line x1="5" y1="5" x2="15" y2="15" />
@@ -349,7 +349,7 @@ function PrimitiveRow({
 // field, or a solid dot colored/shaped by outcome once the researcher has
 // acted. Hovering reveals the outcome and, once saved, when it happened —
 // the row itself stays quiet instead of carrying a trailing text badge.
-function StatusDot({ decision, touched, label, tone }: { decision: VisibleReviewDecision | undefined; touched: boolean; label: string; tone: 'success' | 'stale' | 'danger' }) {
+export function StatusDot({ decision, touched, label, tone }: { decision: VisibleReviewDecision | undefined; touched: boolean; label: string; tone: 'success' | 'stale' | 'danger' }) {
   if (!decision) return <span className="w-3.5 shrink-0" />
   if (!touched) {
     return (

@@ -118,14 +118,18 @@ export function useBatchExtractionReviewGrid(
     readExtraction(extractionId, signal).then(
       ({ extraction, pendingReviewDecisions }) => {
         if (signal.aborted) return
+        const decisions = extraction.reviewedAt ? extraction.reviewDecisions : pendingReviewDecisions
         setMembers((current) =>
           new Map(current).set(sourceDocumentId, {
             status: 'ready',
             attempt: extraction,
-            decisions: extraction.reviewedAt
-              ? extraction.reviewDecisions
-              : pendingReviewDecisions,
-            touched: new Set(),
+            decisions,
+            // Already-saved decisions were all explicitly made, not
+            // defaulted — this is a read of a finalized review, so every
+            // field is "touched" (mirrors useExtraction.ts).
+            touched: extraction.reviewedAt
+              ? new Set(decisions.map((decision) => resultPathKey(decision.resultPath)))
+              : new Set(),
             editable: extraction.reviewable && extraction.reviewedAt === null,
             saving: false,
             saveError: null,
@@ -190,6 +194,10 @@ export function useBatchExtractionReviewGrid(
     })
   }
 
+  // Marks every field of this member's decisions as touched, without
+  // changing its recorded action — every field already defaults to
+  // 'APPROVED', so this only affects what the review UI displays. Mirrors
+  // useExtraction.ts's approveAllRemaining.
   function approveAllForMember(sourceDocumentId: string) {
     setMembers((current) => {
       const state = current.get(sourceDocumentId)
@@ -206,9 +214,57 @@ export function useBatchExtractionReviewGrid(
     })
   }
 
-  function approveAllVisible() {
+  function approveAll() {
     for (const sourceDocumentId of membersRef.current.keys())
       approveAllForMember(sourceDocumentId)
+  }
+
+  /** Approves every field of one displayed grid row: one record of one member. */
+  function approveRow(sourceDocumentId: string, recordIndex: number) {
+    setMembers((current) => {
+      const state = current.get(sourceDocumentId)
+      if (!state || state.status !== 'ready' || !state.editable) return current
+      const matching = state.decisions.filter(
+        (decision) => decision.resultPath[0] === 'records' && decision.resultPath[1] === recordIndex,
+      )
+      if (matching.length === 0) return current
+      const next = new Map(current)
+      next.set(sourceDocumentId, {
+        ...state,
+        touched: new Set([
+          ...state.touched,
+          ...matching.map((decision) => resultPathKey(decision.resultPath)),
+        ]),
+      })
+      return next
+    })
+  }
+
+  /** Approves one field across every record of every member: one grid column. */
+  function approveColumn(column: GridColumn) {
+    setMembers((current) => {
+      const next = new Map(current)
+      let changed = false
+      for (const [sourceDocumentId, state] of current) {
+        if (state.status !== 'ready' || !state.editable) continue
+        const matching = state.decisions.filter(
+          (decision) =>
+            decision.resultPath[0] === 'records' &&
+            decision.resultPath.length === column.path.length + 2 &&
+            column.path.every((segment, index) => decision.resultPath[index + 2] === segment),
+        )
+        if (matching.length === 0) continue
+        changed = true
+        next.set(sourceDocumentId, {
+          ...state,
+          touched: new Set([
+            ...state.touched,
+            ...matching.map((decision) => resultPathKey(decision.resultPath)),
+          ]),
+        })
+      }
+      return changed ? next : current
+    })
   }
 
   async function saveMember(sourceDocumentId: string) {
@@ -226,7 +282,11 @@ export function useBatchExtractionReviewGrid(
           status: 'ready',
           attempt: updated,
           decisions: updated.reviewDecisions,
-          touched: new Set(),
+          // Now finalized — every field was explicitly decided, not
+          // defaulted, so every field reads as "touched" from here on.
+          touched: new Set(
+            updated.reviewDecisions.map((decision) => resultPathKey(decision.resultPath)),
+          ),
           editable: false,
           saving: false,
           saveError: null,
@@ -262,7 +322,9 @@ export function useBatchExtractionReviewGrid(
     dirtyCount: dirtyMemberIds.length,
     setDecision,
     approveAllForMember,
-    approveAllVisible,
+    approveAll,
+    approveRow,
+    approveColumn,
     saveMember,
     saveAll,
     retryMember,
