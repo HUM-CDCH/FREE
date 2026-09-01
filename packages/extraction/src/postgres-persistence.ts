@@ -31,6 +31,8 @@ import type {
   ExtractionStrategy,
   ReadBatchInput,
   ReadDocumentExtractionsInput,
+  ResultPath,
+  ReviewDecisionAction,
   RunSingleInput,
   RunSingleResult,
   ScheduleBatchInput,
@@ -633,6 +635,68 @@ export async function loadBatch(
   }
 }
 
+type ResultDecision = Readonly<{
+  resultPath: ResultPath
+  action: ReviewDecisionAction
+  reviewedValue: unknown
+}>
+
+/** Mirrors the client-side projection in `reviewDecisions.ts` (`applyReviewDecisions`),
+ *  so an exported Batch result reflects a saved review the same way the Studio UI does:
+ *  REJECTED clears the value, EDITED overwrites it, APPROVED leaves the raw value alone. */
+function applyReviewDecisionsToResult(result: unknown, decisions: readonly ResultDecision[]): unknown {
+  const copy = structuredClone(result)
+  for (const decision of decisions) {
+    if (decision.action === 'APPROVED') continue
+    setAtPath(copy, decision.resultPath, decision.action === 'EDITED' ? decision.reviewedValue : null)
+  }
+  return copy
+}
+
+function setAtPath(root: unknown, path: readonly (string | number)[], value: unknown) {
+  if (path.length === 0) return
+  let parent = root
+  for (const segment of path.slice(0, -1)) {
+    if (parent === null || typeof parent !== 'object') return
+    parent = (parent as Record<string | number, unknown>)[segment]
+  }
+  if (parent !== null && typeof parent === 'object')
+    (parent as Record<string | number, unknown>)[path[path.length - 1]] = value
+}
+
+/** Batch-loads the finalized Review Decisions for several Extractions at once, keyed
+ *  by extractionId. `finalizeReview` only ever writes one `ExtractionReview` revision
+ *  per Extraction — a second submission is rejected as 'conflict'/'replayed' before a
+ *  second revision is created — so there is at most one review per id here. */
+async function loadFinalizedDecisions(
+  orm: DatabaseOrm,
+  extractionIds: readonly string[],
+): Promise<Map<string, readonly ResultDecision[]>> {
+  const reviews = await orm.public.ExtractionReview
+    .where((review) => review.extractionId.in([...extractionIds]))
+    .select('id', 'extractionId')
+    .all()
+  const byExtractionId = new Map<string, ResultDecision[]>()
+  if (reviews.length === 0) return byExtractionId
+  const extractionIdByReviewId = new Map(reviews.map((review) => [review.id, review.extractionId]))
+  const decisionRows = await orm.public.ReviewDecision
+    .where((decision) => decision.extractionReviewId.in(reviews.map((review) => review.id)))
+    .select('extractionReviewId', 'resultPath', 'action', 'reviewedValue')
+    .all()
+  for (const row of decisionRows) {
+    const extractionId = extractionIdByReviewId.get(row.extractionReviewId)
+    if (!extractionId) continue
+    const bucket = byExtractionId.get(extractionId) ?? []
+    bucket.push({
+      resultPath: row.resultPath as ResultPath,
+      action: row.action as ReviewDecisionAction,
+      reviewedValue: decodeReviewedValue(row.reviewedValue),
+    })
+    byExtractionId.set(extractionId, bucket)
+  }
+  return byExtractionId
+}
+
 async function loadResults(
   orm: DatabaseOrm,
   input: ReadBatchInput,
@@ -647,7 +711,7 @@ async function loadResults(
     batchExtractionId: input.batchExtractionId,
   }).select(
     'id', 'sourceDocumentId', 'sourceRepresentationRevisionId',
-    'outcome', 'resultPayload', 'createdAt',
+    'outcome', 'resultPayload', 'reviewedAt', 'createdAt',
   ).orderBy([
     (attempt) => attempt.createdAt.desc(),
     (attempt) => attempt.id.desc(),
@@ -657,6 +721,14 @@ async function loadResults(
     const key = `${extraction.sourceDocumentId}:${extraction.sourceRepresentationRevisionId}`
     if (!latest.has(key)) latest.set(key, extraction)
   }
+  const reviewedExtractionIds = [...latest.values()]
+    .filter((extraction) =>
+      extraction.outcome === 'SUCCEEDED' && extraction.resultPayload !== null && extraction.reviewedAt !== null,
+    )
+    .map((extraction) => extraction.id)
+  const decisionsByExtractionId = reviewedExtractionIds.length > 0
+    ? await loadFinalizedDecisions(orm, reviewedExtractionIds)
+    : new Map<string, readonly ResultDecision[]>()
   const results: Array<BatchExtractionResults['results'][number]> = []
   let pending = 0
   let failed = 0
@@ -677,10 +749,13 @@ async function loadResults(
     if (extraction.outcome === 'FAILED') { failed += 1; continue }
     if (extraction.outcome === 'CANCELLED') { cancelled += 1; continue }
     if (extraction.outcome !== 'SUCCEEDED' || extraction.resultPayload === null) continue
+    const decisions = decisionsByExtractionId.get(extraction.id)
     results.push({
       sourceDocumentId: member.sourceDocumentId,
       extractionId: extraction.id,
-      result: extraction.resultPayload as Record<string, unknown>,
+      result: (decisions
+        ? applyReviewDecisionsToResult(extraction.resultPayload, decisions)
+        : extraction.resultPayload) as Record<string, unknown>,
     })
   }
   return {
