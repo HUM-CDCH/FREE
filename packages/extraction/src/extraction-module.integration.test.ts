@@ -448,38 +448,6 @@ if (!disposableDatabaseUrl) {
     return { ...base, model }
   }
 
-  function synchronizedCatalogAdapters(): readonly [
-    DeterministicAdapters,
-    DeterministicAdapters,
-  ] {
-    let arrivals = 0
-    let release: (() => void) | undefined
-    const ready = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    const rendezvous = async () => {
-      arrivals += 1
-      if (arrivals === 2) release?.()
-      await ready
-    }
-    const wrap = (): DeterministicAdapters => {
-      const base = catalogAdapters(0)
-      let groundingCalls = 0
-      return {
-        ...base,
-        groundingModel: {
-          async ground(request) {
-            const response = await base.groundingModel.ground(request)
-            groundingCalls += 1
-            if (groundingCalls === 2) await rendezvous()
-            return response
-          },
-        },
-      }
-    }
-    return [wrap(), wrap()]
-  }
-
   function createRuntime(
     researcherAccountId: string,
     adapters: DeterministicAdapters = deterministicAdapters(),
@@ -811,7 +779,7 @@ if (!disposableDatabaseUrl) {
         'failed',
       )
 
-      const differentAdapters = synchronizedCatalogAdapters()
+      const differentAdapters = [catalogAdapters(0), catalogAdapters(0)]
       const differentModules = differentAdapters.map(
         (adapters) =>
           createRuntime(project.researcherAccountId, adapters).module,
@@ -851,7 +819,7 @@ if (!disposableDatabaseUrl) {
         'extraction_id_conflict',
       )
 
-      const identicalAdapters = synchronizedCatalogAdapters()
+      const identicalAdapters = [catalogAdapters(0), catalogAdapters(0)]
       const identicalModules = identicalAdapters.map(
         (adapters) =>
           createRuntime(project.researcherAccountId, adapters).module,
