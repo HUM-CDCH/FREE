@@ -1,4 +1,7 @@
-import { authenticatedFetch } from './auth/authenticatedFetch.ts'
+import {
+  authenticatedFetch,
+  reportAuthenticationRequired,
+} from './auth/authenticatedFetch.ts'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -21,6 +24,7 @@ import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { renameExtractionSchema } from './schemaRevisions'
 import type { SchemaDefinition } from 'extraction/schema'
+import { browserStudioPath } from './studioUrl.js'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -303,16 +307,7 @@ export function DocumentWorkspace({
 
     async function loadPdf() {
       try {
-        const response = await authenticatedFetch(pdfUrl, {
-          signal: abortController.signal,
-        })
-        if (!response.ok)
-          throw new Error(
-            `Could not fetch Source Document PDF (HTTP ${response.status}).`,
-          )
-        const data = await response.arrayBuffer()
-        if (abortController.signal.aborted) return
-        loadingTask = pdfjsLib.getDocument({ data })
+        loadingTask = pdfjsLib.getDocument({ url: browserStudioPath(pdfUrl) })
         const pdf = await loadingTask.promise
         if (abortController.signal.aborted) {
           return
@@ -339,6 +334,8 @@ export function DocumentWorkspace({
           return
         }
 
+        if (error instanceof pdfjsLib.ResponseException && error.status === 401)
+          reportAuthenticationRequired()
         setLoadState({
           status: 'error',
           message: error instanceof Error ? error.message : 'Unable to load the PDF.',

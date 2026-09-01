@@ -5,21 +5,41 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import DocumentWorkspace, { type DocumentWorkspaceProps } from './App'
+import { subscribeToAuthenticationRequired } from './auth/authenticatedFetch.ts'
 import parsedDocument from './assets/parsed_document.v2.json'
 import type { SchemaNode } from 'extraction/schema'
 
-const { getDocument, scrollPageIntoView } = vi.hoisted(() => ({
-  getDocument: vi.fn(() => ({
-    promise: Promise.resolve({ numPages: 3 }),
-    destroy: () => {},
-  })),
-  scrollPageIntoView: vi.fn(),
-}))
+const {
+  destroyLoadingTask,
+  getDocument,
+  ResponseException,
+  scrollPageIntoView,
+} = vi.hoisted(() => {
+  class ResponseException extends Error {
+    readonly status: number
+
+    constructor(message: string, status: number) {
+      super(message)
+      this.status = status
+    }
+  }
+  const destroyLoadingTask = vi.fn()
+  return {
+    destroyLoadingTask,
+    getDocument: vi.fn(() => ({
+      promise: Promise.resolve({ numPages: 3 }),
+      destroy: destroyLoadingTask,
+    })),
+    ResponseException,
+    scrollPageIntoView: vi.fn(),
+  }
+})
 
 vi.mock('pdfjs-dist/build/pdf.worker.mjs?url', () => ({ default: 'pdf.worker.mjs' }))
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: {},
   getDocument,
+  ResponseException,
   AnnotationEditorType: { HIGHLIGHT: 9 },
   AnnotationMode: { ENABLE: 2 },
 }))
@@ -170,8 +190,10 @@ const reopened: DocumentWorkspaceProps = {
 
 afterEach(() => {
   cleanup()
+  document.querySelector('base')?.remove()
   vi.unstubAllGlobals()
   getDocument.mockClear()
+  destroyLoadingTask.mockClear()
   scrollPageIntoView.mockClear()
 })
 
@@ -222,7 +244,7 @@ describe('reopened Source Document workspace', () => {
       return Promise.resolve(
         url.endsWith('/source')
           ? Response.json(parsedDocument)
-          : new Response(url.endsWith('/pdf') ? 'pdf' : '# Beretning'),
+          : new Response('# Beretning'),
       )
     })
     vi.stubGlobal('fetch', fetch)
@@ -233,7 +255,7 @@ describe('reopened Source Document workspace', () => {
     await waitFor(() => expect(getDocument).toHaveBeenCalledOnce())
     const callsEndingWith = (suffix: string) =>
       fetch.mock.calls.filter(([input]) => String(input).endsWith(suffix)).length
-    expect(callsEndingWith('/pdf')).toBe(1)
+    expect(callsEndingWith('/pdf')).toBe(0)
     expect(callsEndingWith('/markdown')).toBe(1)
     expect(callsEndingWith('/source')).toBe(1)
 
@@ -243,7 +265,7 @@ describe('reopened Source Document workspace', () => {
     )
 
     expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument()
-    expect(callsEndingWith('/pdf')).toBe(1)
+    expect(callsEndingWith('/pdf')).toBe(0)
     expect(callsEndingWith('/markdown')).toBe(1)
     expect(callsEndingWith('/source')).toBe(1)
     expect(getDocument).toHaveBeenCalledOnce()
@@ -251,6 +273,7 @@ describe('reopened Source Document workspace', () => {
 
   it('conceals the previous Source Document while switched resources load', async () => {
     const mounted = await renderReopened()
+    await waitFor(() => expect(getDocument).toHaveBeenCalledOnce())
     fireEvent.click(screen.getByRole('tab', { name: /^Results/ }))
     expect(screen.getByText('Ellekilde')).toBeVisible()
 
@@ -262,7 +285,6 @@ describe('reopened Source Document workspace', () => {
       vi.fn((input: string | URL | Request) => {
         const url = String(input)
         if (url.includes(nextSourceRepresentationId)) {
-          if (url.endsWith('/pdf')) return Promise.resolve(new Response('pdf'))
           return pendingIndex.promise
         }
         return Promise.resolve(
@@ -272,6 +294,11 @@ describe('reopened Source Document workspace', () => {
         )
       }),
     )
+    const pendingPdf = Promise.withResolvers<{ numPages: number }>()
+    getDocument.mockReturnValueOnce({
+      promise: pendingPdf.promise,
+      destroy: destroyLoadingTask,
+    })
 
     mounted.rerender(
       <DocumentWorkspace
@@ -284,6 +311,11 @@ describe('reopened Source Document workspace', () => {
       />,
     )
 
+    await waitFor(() => expect(getDocument).toHaveBeenCalledTimes(2))
+    expect(destroyLoadingTask).toHaveBeenCalledOnce()
+    expect(getDocument).toHaveBeenNthCalledWith(2, {
+      url: `/sources/${nextSourceRepresentationId}/pdf`,
+    })
     expect(
       screen.getByRole('status', { name: 'Loading Source Document' }),
     ).toBeVisible()
@@ -311,18 +343,22 @@ describe('reopened Source Document workspace', () => {
 
   it('initializes PDF zoom only after the first page is available', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const base = document.createElement('base')
+    base.href = '/free/'
+    document.head.prepend(base)
 
     try {
       await renderReopened()
       await waitFor(() =>
         expect(getDocument).toHaveBeenCalledWith({
-          data: expect.any(ArrayBuffer),
+          url: `/free${reopened.pdfUrl}`,
         }),
       )
-      expect(fetch).toHaveBeenCalledWith(
-        reopened.pdfUrl,
-        expect.objectContaining({ credentials: 'same-origin' }),
-      )
+      expect(
+        vi
+          .mocked(fetch)
+          .mock.calls.some(([input]) => String(input).endsWith('/pdf')),
+      ).toBe(false)
       expect(
         vi
           .mocked(fetch)
@@ -336,6 +372,24 @@ describe('reopened Source Document workspace', () => {
       )
     } finally {
       consoleError.mockRestore()
+    }
+  })
+
+  it('reports a PDF.js 401 to the application authentication state', async () => {
+    const authenticationRequired = vi.fn()
+    const unsubscribe = subscribeToAuthenticationRequired(authenticationRequired)
+    getDocument.mockReturnValueOnce({
+      promise: Promise.reject(
+        new ResponseException('Unexpected server response (401).', 401),
+      ),
+      destroy: destroyLoadingTask,
+    })
+
+    try {
+      await renderReopened()
+      await waitFor(() => expect(authenticationRequired).toHaveBeenCalledOnce())
+    } finally {
+      unsubscribe()
     }
   })
 
