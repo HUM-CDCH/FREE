@@ -1,11 +1,11 @@
 import type {
-  BatchMemberExtractionInput,
-  ExtractionExecutionModule,
+  ExtractionJobInput,
+  ExtractionJobExecutor,
   ExtractionModel,
   ExtractionModelResponse,
   ExtractionModuleDependencies,
-  LoadedExtractionInputs,
   TerminalExtraction,
+  ExtractionValueCheckpoint,
 } from './dependencies.js'
 import {
   CatalogBoundaryResolutionError,
@@ -17,7 +17,6 @@ import {
   CATALOG_RECORD_LIMIT,
   reuseCall,
   seedCatalogDiagnostics,
-  sameRetrySelection,
   setCatalogStage,
   validateCatalogRetry,
   type CatalogRetryContext,
@@ -43,51 +42,21 @@ import {
 } from './source-context.js'
 import type {
   CatalogStageDiagnostics,
-  EvidenceLink,
   ExtractionDiagnostics,
+  ExtractionModule,
   ExtractionRetrySelection,
   ExtractionStrategy,
   CancellationResult,
   FinalizeReviewResult,
-  ExtractionSnapshot,
   ExtractionSchemaNode,
   ModelAttribution,
   ModelGenerationMetadata,
   ReviewDecisionInput,
   ResultPath,
   RunSingleInput,
-  RunSingleResult,
 } from './types.js'
 
 const DEFAULT_LIMIT = 50
-type InternalRunSingleInput =
-  | RunSingleInput
-  | (BatchMemberExtractionInput & Readonly<{ kind: 'batch-member' }>)
-
-
-type ActiveOperation = {
-  scope: string
-  input: InternalRunSingleInput
-  controller: AbortController
-  persisting: boolean
-  promise: Promise<RunSingleResult>
-}
-export class ExtractionOperationRegistry {
-  private readonly active = new Map<string, ActiveOperation>()
-
-  get(extractionId: string): ActiveOperation | undefined {
-    return this.active.get(extractionId)
-  }
-
-  set(extractionId: string, operation: ActiveOperation): void {
-    this.active.set(extractionId, operation)
-  }
-
-  delete(extractionId: string, operation: ActiveOperation): void {
-    if (this.active.get(extractionId) === operation)
-      this.active.delete(extractionId)
-  }
-}
 
 
 type ExecutionState = {
@@ -101,11 +70,12 @@ type ExecutionState = {
   groundingBatches: ExtractionDiagnostics['groundingBatches']
   catalog: MutableCatalogDiagnostics | null
   retry: ExtractionRetrySelection | null
+  checkpointDiagnostics: ExtractionDiagnostics | null
 }
 
 /** One run's durable identity after retry inputs are resolved against their parent. */
 type ResolvedRun = Readonly<{
-  input: InternalRunSingleInput
+  input: ExtractionJobInput
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
   strategy: ExtractionStrategy
@@ -116,87 +86,16 @@ type ResolvedRun = Readonly<{
 
 export function createExtractionModule(
   dependencies: ExtractionModuleDependencies,
-  options: Readonly<{
-    operations?: ExtractionOperationRegistry
-    operationScope?: string
-  }> = {},
-): ExtractionExecutionModule {
+): ExtractionModule & Readonly<{ executeJob: ExtractionJobExecutor }> {
   const now = dependencies.now ?? performance.now.bind(performance)
-  const operations = options.operations ?? new ExtractionOperationRegistry()
-  const operationScope = options.operationScope ?? ''
-
-  const runInternal = async (input: InternalRunSingleInput, signal?: AbortSignal): Promise<RunSingleResult> => {
-    const concurrent = operations.get(input.extractionId)
-    if (concurrent) {
-      if (concurrent.scope !== operationScope)
-        throw new ExtractionError('not_found', 'That Extraction was not found.')
-      if (!sameInput(concurrent.input, input))
-        throw new ExtractionError(
-          'extraction_id_conflict',
-          'That Extraction ID is already bound to different inputs.',
-        )
-      return concurrent.promise
-    }
-
-    const controller = new AbortController()
-    const abort = () => controller.abort(signal?.reason)
-    if (signal?.aborted) abort()
-    else signal?.addEventListener('abort', abort, { once: true })
-    const operation: ActiveOperation = {
-      scope: operationScope,
-      input,
-      controller,
-      persisting: false,
-      promise: Promise.resolve(null as never),
-    }
-    operations.set(input.extractionId, operation)
-    operation.promise = (async () => {
-      const stored = await dependencies.persistence.readExtraction(
-        input.extractionId,
-      )
-      if (stored) {
-        if (!sameExtractionIdentity(stored, input))
-          throw new ExtractionError(
-            'extraction_id_conflict',
-            'That Extraction ID is already bound to different inputs.',
-          )
-        return { disposition: 'replayed' as const, extraction: stored }
-      }
-      if (
-        !(await dependencies.persistence.isExtractionIdAvailable(
-          input.extractionId,
-        ))
-      )
-        throw new ExtractionError(
-          'not_found',
-          'That Extraction was not found.',
-        )
-      return execute(input, controller.signal, () => {
-        operation.persisting = true
-      })
-    })().finally(() => {
-      signal?.removeEventListener('abort', abort)
-      operations.delete(input.extractionId, operation)
-    })
-    return operation.promise
+  const runSingle = async (input: RunSingleInput) => {
+    const result = await dependencies.persistence.scheduleExtraction(input)
+    if (!result) throw new ExtractionError('not_found', 'That Extraction was not found.')
+    return result
   }
-  const runSingle = (input: RunSingleInput, signal?: AbortSignal) => runInternal(input, signal)
-  const runBatchMember = (input: BatchMemberExtractionInput, signal: AbortSignal) =>
-    runInternal({ kind: 'batch-member', ...input }, signal)
 
-
-  const cancelSingle = async (extractionId: string): Promise<CancellationResult> => {
-    const active = operations.get(extractionId)
-    const operation = active?.scope === operationScope ? active : undefined
-    if (operation && !operation.persisting) {
-      operation.controller.abort()
-      return 'cancellation-requested'
-    }
-    if (operation?.persisting) return 'already-terminal'
-    return await dependencies.persistence.readExtraction(extractionId)
-      ? 'already-terminal'
-      : 'not-found'
-  }
+  const cancelSingle = (extractionId: string): Promise<CancellationResult> =>
+    dependencies.persistence.cancelExtraction(extractionId)
 
   const prepareReview = async (extractionId: string) => {
     const extraction = await dependencies.persistence.readExtraction(extractionId)
@@ -301,8 +200,10 @@ export function createExtractionModule(
 
   return {
     runSingle,
-    runBatchMember,
+    executeJob,
     cancelSingle,
+    readExtractionAttempt: (extractionId) =>
+      dependencies.persistence.readExtractionAttempt(extractionId),
     prepareReview,
     finalizeReview,
     readDocumentExtractions: (input) =>
@@ -335,9 +236,9 @@ export function createExtractionModule(
     },
   }
 
-  async function resolveRun(input: InternalRunSingleInput): Promise<ResolvedRun> {
+  async function resolveRun(input: ExtractionJobInput): Promise<ResolvedRun> {
     if (input.kind === 'retry') {
-      const parent = await dependencies.persistence.readExtraction(input.retryOfId)
+      const parent = await dependencies.persistence.readExtractionAttempt(input.retryOfId)
       const retry = validateCatalogRetry(parent, input)
       return {
         input,
@@ -361,8 +262,12 @@ export function createExtractionModule(
     }
   }
 
-  async function execute(input: InternalRunSingleInput, signal: AbortSignal, beginPersist: () => void): Promise<RunSingleResult> {
-    const startedAt = now()
+  async function executeJob(
+    input: ExtractionJobInput,
+    checkpoint: ExtractionValueCheckpoint | null,
+    saveCheckpoint: (checkpoint: ExtractionValueCheckpoint) => Promise<void>,
+    signal: AbortSignal,
+  ): Promise<TerminalExtraction> {
     const resolved = await resolveRun(input)
     const inputs = await dependencies.persistence.loadExtractionInputs(
       resolved.sourceRepresentationRevisionId,
@@ -370,20 +275,25 @@ export function createExtractionModule(
     )
     if (!inputs) throw new ExtractionError('invalid_extraction_pins', 'The Source Representation Revision and Schema Revision do not share one Project Context.')
     const state: ExecutionState = {
-      phase: 'loading', startedAt, modelCalls: 0, metadata: [], valuesAttribution: null,
+      phase: checkpoint ? 'grounding' : 'loading', startedAt: now(), modelCalls: 0, metadata: [],
+      valuesAttribution: checkpoint?.modelAttribution ?? null,
       ungroundedPaths: [], groundingIssues: [], groundingBatches: [],
-      catalog: resolved.strategy === 'CATALOG' ? seedCatalogDiagnostics() : null,
-      retry: resolved.retry?.selection ?? null,
+      catalog: checkpoint?.diagnostics.catalog
+        ? structuredClone(checkpoint.diagnostics.catalog) as MutableCatalogDiagnostics
+        : resolved.strategy === 'CATALOG' ? seedCatalogDiagnostics() : null,
+      retry: checkpoint?.diagnostics.retry ?? resolved.retry?.selection ?? null,
+      checkpointDiagnostics: checkpoint?.diagnostics ?? null,
     }
-    let document: ParsedDocument
-    let result: Record<string, unknown> | null = null
-    let evidence: readonly EvidenceLink[] | null = null
-    let complete: boolean | null = null
-    try {
-      const models = await dependencies.models.open()
+    const models = await dependencies.models.open()
+    const document = decodeCanonical(inputs.parsedDocument)
+    const definition = parsePinnedSchema(inputs.schemaTree)
+    let result: Readonly<Record<string, unknown>>
+    let complete: boolean
+    if (checkpoint) {
+      result = checkpoint.result
+      complete = checkpoint.complete
+    } else {
       state.valuesAttribution = models.attribution
-      document = decodeCanonical(inputs.parsedDocument)
-      const definition = parsePinnedSchema(inputs.schemaTree)
       const generated = resolved.strategy === 'CATALOG'
         ? await executeCatalog(
             document,
@@ -403,34 +313,47 @@ export function createExtractionModule(
       result = generated.result
       complete = generated.complete
       state.phase = 'grounding'
-      const packageFields = new Set(partitionSchemaNodes(definition.schemaNodes).packageNodes.map((node) => node.name))
-      const grounding = await groundExtraction(document, result, models.groundingModel, signal, {
-        excludedRootFields: packageFields,
-        now,
-      })
-      evidence = grounding.evidence
-      state.ungroundedPaths = grounding.ungroundedPaths
-      state.groundingIssues = grounding.issues
-      state.groundingBatches = grounding.batches
-      state.metadata.push(...grounding.metadata)
-      if (state.catalog) setGroundingStage(state.catalog, grounding.batches, grounding.issues)
-      if (grounding.ungroundedPaths.length > 0 || grounding.issues.length > 0)
-        complete = false
-      beginPersist()
-      state.phase = 'persisting'
-      return await persistTerminal(resolved, inputs, state, { outcome: 'SUCCEEDED', complete, result, evidence, failure: null })
-    } catch (error) {
-      const mapped = extractionError(error)
-      const failurePhase = state.phase
-      beginPersist()
-      state.phase = 'persisting'
-      return await persistTerminal(resolved, inputs, state, {
-        outcome: mapped.code === 'cancelled' || signal.aborted ? 'CANCELLED' : 'FAILED',
-        complete: null,
-        result: null,
-        evidence: null,
-        failure: { code: mapped.code, message: mapped.message, phase: failurePhase },
-      })
+      const valueCheckpoint: ExtractionValueCheckpoint = {
+        complete,
+        modelAttribution: models.attribution,
+        diagnostics: diagnostics(state, 'grounding'),
+        result,
+      }
+      await saveCheckpoint(valueCheckpoint)
+      state.checkpointDiagnostics = valueCheckpoint.diagnostics
+      state.startedAt = now()
+      state.modelCalls = 0
+      state.metadata = []
+    }
+    signal.throwIfAborted()
+    const packageFields = new Set(partitionSchemaNodes(definition.schemaNodes).packageNodes.map((node) => node.name))
+    const grounding = await groundExtraction(document, result, models.groundingModel, signal, {
+      excludedRootFields: packageFields,
+      now,
+    })
+    state.ungroundedPaths = grounding.ungroundedPaths
+    state.groundingIssues = grounding.issues
+    state.groundingBatches = grounding.batches
+    state.metadata.push(...grounding.metadata)
+    if (state.catalog) setGroundingStage(state.catalog, grounding.batches, grounding.issues)
+    if (grounding.ungroundedPaths.length > 0 || grounding.issues.length > 0)
+      complete = false
+    return {
+      extractionId: resolved.input.extractionId,
+      sourceDocumentId: inputs.sourceDocumentId,
+      sourceRepresentationRevisionId: inputs.sourceRepresentationRevisionId,
+      schemaRevisionId: inputs.schemaRevisionId,
+      strategy: resolved.strategy,
+      outcome: 'SUCCEEDED',
+      complete,
+      modelAttribution: state.valuesAttribution,
+      diagnostics: diagnostics(state, 'grounding'),
+      result,
+      evidence: grounding.evidence,
+      failure: null,
+      reviewable: true,
+      retryOfId: resolved.retryOfId,
+      batchExtractionId: resolved.batchExtractionId,
     }
   }
 
@@ -804,40 +727,36 @@ export function createExtractionModule(
     }
   }
 
-  async function persistTerminal(resolved: ResolvedRun, inputs: LoadedExtractionInputs, state: ExecutionState, terminal: Pick<TerminalExtraction, 'outcome' | 'complete' | 'result' | 'evidence' | 'failure'>): Promise<RunSingleResult> {
+  function diagnostics(
+    state: ExecutionState,
+    phase: ExtractionDiagnostics['phase'],
+  ): ExtractionDiagnostics {
     const metadata = state.metadata
-    const diagnostics: ExtractionDiagnostics = {
-      phase: state.phase,
-      durationMs: Math.max(0, Math.round(now() - state.startedAt)),
-      modelCalls: state.modelCalls,
-      finishReason: metadata.some((entry) => entry.finishReason === 'length') ? 'length' : metadata.at(-1)?.finishReason ?? null,
-      inputTokens: sumNullable(metadata.map((entry) => entry.inputTokens)),
-      outputTokens: sumNullable(metadata.map((entry) => entry.outputTokens)),
+    const checkpoint = state.checkpointDiagnostics
+    const finishReason = metadata.some((entry) => entry.finishReason === 'length')
+      ? 'length'
+      : metadata.at(-1)?.finishReason ?? checkpoint?.finishReason ?? null
+    return {
+      phase,
+      durationMs:
+        (checkpoint?.durationMs ?? 0) +
+        Math.max(0, Math.round(now() - state.startedAt)),
+      modelCalls: (checkpoint?.modelCalls ?? 0) + state.modelCalls,
+      finishReason,
+      inputTokens: sumNullable([
+        checkpoint?.inputTokens ?? null,
+        sumNullable(metadata.map((entry) => entry.inputTokens)),
+      ]),
+      outputTokens: sumNullable([
+        checkpoint?.outputTokens ?? null,
+        sumNullable(metadata.map((entry) => entry.outputTokens)),
+      ]),
       ungroundedPaths: state.ungroundedPaths,
       groundingIssues: state.groundingIssues,
       groundingBatches: state.groundingBatches,
       catalog: state.catalog,
       retry: state.retry,
     }
-    const persisted = await dependencies.persistence.persistExtraction({
-      extractionId: resolved.input.extractionId,
-      sourceDocumentId: inputs.sourceDocumentId,
-      sourceRepresentationRevisionId: inputs.sourceRepresentationRevisionId,
-      schemaRevisionId: inputs.schemaRevisionId,
-      strategy: resolved.strategy,
-      ...terminal,
-      modelAttribution: state.valuesAttribution,
-      diagnostics,
-      reviewable:
-        terminal.outcome === 'SUCCEEDED' &&
-        terminal.result !== null &&
-        terminal.evidence !== null,
-      retryOfId: resolved.retryOfId,
-      batchExtractionId: resolved.batchExtractionId,
-    })
-    if (persisted.status === 'invalid') throw new ExtractionError('invalid_extraction_pins', 'The pinned Extraction inputs are no longer valid.')
-    if (persisted.status === 'conflict') throw new ExtractionError('extraction_id_conflict', 'That Extraction ID is already bound to different inputs.')
-    return { disposition: persisted.status === 'created' ? 'created' : 'replayed', extraction: persisted.extraction }
   }
 }
 
@@ -906,27 +825,6 @@ function reviewDecisionMatchesSchema(
   ) && typeof value === 'string'
 }
 
-
-function sameExtractionIdentity(stored: ExtractionSnapshot, input: InternalRunSingleInput): boolean {
-  if (input.kind === 'retry')
-    return stored.extractionId === input.extractionId &&
-      stored.retryOfId === input.retryOfId &&
-      sameRetrySelection(stored.diagnostics.retry, input)
-  return stored.extractionId === input.extractionId &&
-    stored.retryOfId === null &&
-    stored.sourceRepresentationRevisionId === input.sourceRepresentationRevisionId &&
-    stored.schemaRevisionId === input.schemaRevisionId &&
-    stored.strategy === input.strategy &&
-    stored.batchExtractionId === (input.kind === 'batch-member' ? input.batchExtractionId : null)
-}
-
-function sameInput(left: InternalRunSingleInput, right: InternalRunSingleInput): boolean {
-  if (left.kind !== right.kind || left.extractionId !== right.extractionId) return false
-  if (left.kind === 'retry' && right.kind === 'retry')
-    return left.retryOfId === right.retryOfId && sameRetrySelection(left, right)
-  if (left.kind === 'batch-member' && right.kind === 'batch-member') return left.sourceRepresentationRevisionId === right.sourceRepresentationRevisionId && left.schemaRevisionId === right.schemaRevisionId && left.strategy === right.strategy && left.batchExtractionId === right.batchExtractionId
-  return left.kind === 'fresh' && right.kind === 'fresh' && left.sourceRepresentationRevisionId === right.sourceRepresentationRevisionId && left.schemaRevisionId === right.schemaRevisionId && left.strategy === right.strategy
-}
 
 function sumNullable(values: readonly (number | null)[]): number | null {
   const present = values.filter((value): value is number => value !== null)

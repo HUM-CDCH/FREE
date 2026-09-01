@@ -5,6 +5,7 @@ import type {
   CatalogStage,
   CatalogStageDiagnostics,
   ExtractionRetrySelection,
+  ExtractionAttemptSnapshot,
   ExtractionSnapshot,
   RetryExtractionInput,
 } from './types.js'
@@ -101,31 +102,40 @@ export function sameRetrySelection(
 }
 
 export type CatalogRetryContext = Readonly<{
-  parent: ExtractionSnapshot
+  parent: ExtractionAttemptSnapshot | ExtractionSnapshot
   parentCatalog: CatalogDiagnostics
   selection: ExtractionRetrySelection
 }>
 
 /** Validate a targeted Catalog retry against its immediate parent before any model work. */
 export function validateCatalogRetry(
-  parent: ExtractionSnapshot | null,
+  parent: ExtractionAttemptSnapshot | ExtractionSnapshot | null,
   input: RetryExtractionInput,
 ): CatalogRetryContext {
   if (!parent)
     throw new ExtractionError('not_found', 'The retry parent was not found.')
+  if (
+    'executionStatus' in parent &&
+    parent.executionStatus !== 'COMPLETED' &&
+    parent.executionStatus !== 'FAILED'
+  )
+    throw new ExtractionError('invalid_retry', 'The Catalog parent is still running.')
   if (parent.strategy !== 'CATALOG')
     throw new ExtractionError(
       'invalid_retry',
       'Targeted retry is available only for Catalog attempts.',
     )
-  if (parent.outcome === 'CANCELLED')
+  if (
+    parent.outcome === 'CANCELLED' ||
+    ('executionStatus' in parent && parent.failure?.code === 'cancelled')
+  )
     throw new ExtractionError('invalid_retry', 'The Catalog parent is not retryable.')
   if (input.retryRecordStartBlockIds.length > CATALOG_RECORD_LIMIT)
     throw new ExtractionError(
       'invalid_retry',
       `A retry may select at most ${CATALOG_RECORD_LIMIT} records.`,
     )
-  const parentCatalog = parent.diagnostics.catalog ?? null
+  const parentCatalog = parent.diagnostics?.catalog ?? null
   if (!parentCatalog)
     throw new ExtractionError('invalid_retry', 'The Catalog parent has no valid diagnostics.')
   const discovery = parentCatalog.stages.find((stage) => stage.stage === 'discovery')
@@ -171,7 +181,10 @@ export function validateCatalogRetry(
     !input.rediscover &&
     !input.retryDocument &&
     selected.size === 0 &&
-    (parent.outcome !== 'SUCCEEDED' || !parent.result)
+    (!parent.result || (
+      parent.outcome !== 'SUCCEEDED' &&
+      (!('executionStatus' in parent) || parent.executionStatus !== 'FAILED')
+    ))
   )
     throw new ExtractionError(
       'invalid_retry',

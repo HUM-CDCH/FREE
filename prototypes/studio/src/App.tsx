@@ -5,9 +5,6 @@ import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
 import { PDFViewer, EventBus } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type { PDFViewerOptions } from 'pdfjs-dist/types/web/pdf_viewer'
-// The Annotation-set sidebar/type was retired along with the Annotation tab —
-// see RightRail.tsx. Left in place, commented out, rather than deleted.
-// import type { AnnotationSetItem } from './AnnotationSidebar'
 import RightRail from './RightRail'
 import type { RailTab } from './RightRail'
 import { useDurableCurrentSchemaRevision } from './useCurrentSchemaRevision'
@@ -17,15 +14,10 @@ import {
   type ParsedDocument,
 } from 'extraction/parsed-document'
 import { useEvidenceOverlays } from './useEvidenceOverlays'
-// import type { AnnotationsMode } from './api' — retired with the Annotation tab
 import { useExtraction } from './useExtraction'
 import type { ExtractionStrategy } from '../shared/extraction.contract'
 import { Button, Spinner } from './ui'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
-// Only used by the highlight-editor sync wiring retired below, alongside the
-// Annotation tab. Left in place, commented out, rather than deleted.
-// import type { AnnotationEditorUIManager } from 'pdfjs-dist'
-// import type { AnnotationEditor } from 'pdfjs-dist/types/src/display/editor/editor'
 import type { DocumentSnapshot } from './projectContexts/transport'
 import { renameExtractionSchema } from './schemaRevisions'
 import type { SchemaDefinition } from 'extraction/schema'
@@ -106,26 +98,6 @@ async function readParsedDocument(
   return decodeParsedDocument(await response.json())
 }
 
-// Retired along with the Annotation tab and its pdf.js highlight-editor sync.
-// Left in place, commented out, rather than deleted.
-//
-// function getHighlightLabel(editor: AnnotationEditor) {
-//   return editor.div?.getAttribute('aria-label')?.replace(/\s+/g, ' ').trim() ?? ''
-// }
-//
-// function isHighlightEditor(editor: AnnotationEditor) {
-//   return editor.editorType === 'highlight' || editor.div?.getAttribute('role') === 'mark'
-// }
-//
-// // Mode only shapes the request when annotations are sent (see requestSchema),
-// // so an empty set keys to '' regardless of mode.
-// function annotationInputsKey(items: AnnotationSetItem[], mode: AnnotationsMode) {
-//   if (items.length === 0) {
-//     return ''
-//   }
-//   return [mode, ...items.map((item) => item.id).sort()].join('\n')
-// }
-
 export type DocumentWorkspaceProps = {
   pdfUrl: string
   filename: string
@@ -133,11 +105,6 @@ export type DocumentWorkspaceProps = {
   sourceRepresentationId: string
   markdownUrl: string
   parsedDocumentUrl: string
-  // The persisted annotationSet is no longer threaded into the UI — the
-  // Annotation tab was retired in favor of SchemaPanel's own doc chat. The DB
-  // layer and AppFrame's fetch of it are untouched; only this prop pass-through
-  // stopped. Left in place, commented out, rather than deleted.
-  // annotationSet: DocumentSnapshot['annotationSet']
   extractionSchema: DocumentSnapshot['extractionSchema']
   persistedExtraction: DocumentSnapshot['latestAttempt']
   latestReviewedExtraction?: DocumentSnapshot['latestReviewed']
@@ -175,16 +142,6 @@ export function DocumentWorkspace({
     activeSourceRepresentationIdRef.current = sourceRepresentationId
   }, [sourceRepresentationId])
 
-  // const restoredAnnotations = (annotationSet?.annotations ?? []).map(
-  //   ({ annotationId, text, pageNumber }) => ({
-  //     id: annotationId,
-  //     label: text,
-  //     pageNumber,
-  //   }),
-  // )
-  // const [annotationItems, setAnnotationItems] = useState<AnnotationSetItem[]>(
-  //   restoredAnnotations,
-  // )
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' })
   const [zoomPercent, setZoomPercent] = useState(100)
   const schema = useDurableCurrentSchemaRevision({
@@ -342,67 +299,7 @@ export function DocumentWorkspace({
 
     let loadingTask: pdfjsLib.PDFDocumentLoadingTask | null = null
     pdfViewerRef.current = pdfViewer
-    // annotationManagerRef.current = null
     setLoadState({ status: 'loading' })
-
-    // The highlight-editor sync (keeping a created/removed pdf.js highlight in
-    // step with the Annotation tab's list) was retired along with that tab.
-    // Left in place, commented out, rather than deleted.
-    //
-    // const syncHighlightEditor = (editor: AnnotationEditor) => {
-    //   if (!isHighlightEditor(editor)) {
-    //     return
-    //   }
-    //
-    //   const label = getHighlightLabel(editor)
-    //   if (!label) {
-    //     editor.remove()
-    //     return
-    //   }
-    //
-    //   setAnnotationItems((items) => {
-    //     const existingIndex = items.findIndex((item) => item.id === editor.id)
-    //     const nextItem: AnnotationSetItem = {
-    //       id: editor.id,
-    //       label,
-    //       pageNumber: editor.pageIndex + 1,
-    //     }
-    //
-    //     if (existingIndex === -1) {
-    //       return [...items, nextItem].sort((left, right) => left.pageNumber - right.pageNumber)
-    //     }
-    //
-    //     const nextItems = [...items]
-    //     nextItems[existingIndex] = nextItem
-    //     return nextItems
-    //   })
-    // }
-    //
-    // const removeHighlightEditor = (editor: AnnotationEditor) => {
-    //   setAnnotationItems((items) => items.filter((item) => item.id !== editor.id))
-    // }
-    //
-    // // pdf.js has no public event for editor add/remove (annotationStorage's
-    // // onAnnotationEditor only reports the type string), so wrap the manager's
-    // // methods to keep the sidebar in sync.
-    // const onAnnotationEditorUIManager = ({ uiManager }: { uiManager: AnnotationEditorUIManager }) => {
-    //   annotationManagerRef.current = uiManager
-    //
-    //   const { addEditor, removeEditor } = uiManager
-    //
-    //   uiManager.addEditor = (editor) => {
-    //     addEditor.call(uiManager, editor)
-    //     // The editor's div and aria-label are populated after addEditor returns.
-    //     queueMicrotask(() => syncHighlightEditor(editor))
-    //   }
-    //
-    //   uiManager.removeEditor = (editor) => {
-    //     removeEditor.call(uiManager, editor)
-    //     removeHighlightEditor(editor)
-    //   }
-    // }
-    //
-    // eventBus.on('annotationeditoruimanager', onAnnotationEditorUIManager)
 
     async function loadPdf() {
       try {
@@ -453,9 +350,7 @@ export function DocumentWorkspace({
     void loadPdf()
 
     return () => {
-      // eventBus.off('annotationeditoruimanager', onAnnotationEditorUIManager)
       pdfViewerRef.current = null
-      // annotationManagerRef.current = null
       // Runtime setDocument(null) clears viewer state, but the shipped type omits null.
       ;(pdfViewer.setDocument as (pdfDocument: pdfjsLib.PDFDocumentProxy | null) => void).call(
         pdfViewer,
@@ -494,35 +389,6 @@ export function DocumentWorkspace({
     return () => abortController.abort()
   }, [markdownUrl, onInitialResourceLoadFailure, parsedDocumentUrl])
 
-
-  // Retired along with the Annotation tab. Left in place, commented out,
-  // rather than deleted.
-  //
-  // function selectAnnotationItem(id: string) {
-  //   const manager = annotationManagerRef.current
-  //   const editor = manager?.getEditor(id)
-  //   if (!manager || !editor) {
-  //     const pageNumber = annotationItems.find((item) => item.id === id)?.pageNumber
-  //     if (pageNumber) pdfViewerRef.current?.scrollPageIntoView({ pageNumber })
-  //     return
-  //   }
-  //
-  //   manager.setSelected(editor)
-  //
-  //   if (editor.div) {
-  //     editor.div.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-  //     return
-  //   }
-  //
-  //   pdfViewerRef.current?.scrollPageIntoView({ pageNumber: editor.pageIndex + 1 })
-  // }
-  //
-  // function removeAnnotationItem(id: string) {
-  //   const editor = annotationManagerRef.current?.getEditor(id)
-  //   // Removing an editor prunes the set through the patched `removeEditor`.
-  //   if (editor) editor.remove()
-  //   else setAnnotationItems((items) => items.filter((item) => item.id !== id))
-  // }
 
   useEffect(
     () => () => {
@@ -647,7 +513,7 @@ export function DocumentWorkspace({
     onTerminal: (attempt, isRerun) => {
       setSelectedInspectionId(attempt.extractionId)
       setRailTab('results')
-      if (attempt.outcome === 'FAILED')
+      if (attempt.executionStatus === 'FAILED')
         showToast('Extraction failed — see details in Results')
       else if (attempt.outcome === 'CANCELLED')
         showToast('Extraction cancelled — no result was saved')
@@ -665,6 +531,9 @@ export function DocumentWorkspace({
   })
 
   const latestAttempt = extraction.attempt
+  const running =
+    latestAttempt?.executionStatus === 'QUEUED' ||
+    latestAttempt?.executionStatus === 'RUNNING'
   const inspectionChoices = latestAttempt && latestReviewedExtraction && latestAttempt.extractionId !== latestReviewedExtraction.extractionId
     ? [
         { extractionId: latestAttempt.extractionId, label: 'Latest attempt' },
@@ -704,7 +573,7 @@ export function DocumentWorkspace({
   })
 
   async function runExtraction() {
-    if (savingForRun) return
+    if (savingForRun || running) return
     setSavingForRun(true)
     const targetSourceRepresentationId = sourceRepresentationId
     try {
@@ -743,9 +612,9 @@ export function DocumentWorkspace({
     }
   }
 
-  const running = extraction.state.status === 'running'
   const runExtractionUnavailable =
     savingForRun ||
+    running ||
     !sourceRepresentationId ||
     !schemaReady ||
     indexing ||

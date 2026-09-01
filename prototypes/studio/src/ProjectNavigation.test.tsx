@@ -145,6 +145,7 @@ function hydratedSnapshot() {
       createdAt: '2026-07-31T12:03:00.000Z',
       reviewedAt: null,
       strategy: 'ARTICLE',
+      executionStatus: 'COMPLETED',
       outcome: 'SUCCEEDED',
       complete: true,
       diagnostics: {

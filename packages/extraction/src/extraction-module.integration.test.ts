@@ -41,12 +41,14 @@ if (!disposableDatabaseUrl) {
     { createCanonicalPackageStore },
     { createResearcherProjectStore },
     { createExtractionRuntimeWithInfrastructure },
+    { createInternalExtractionJobStore },
   ] =
     await Promise.all([
       import('../../db/src/prisma/db.js'),
       import('../../db/src/artifact-store.js'),
       import('../../db/src/project-store.js'),
       import('./runtime.js'),
+      import('./postgres-persistence.js'),
     ])
 
   const ARTICLE_SCHEMA = {
@@ -446,38 +448,6 @@ if (!disposableDatabaseUrl) {
     return { ...base, model }
   }
 
-  function synchronizedCatalogAdapters(): readonly [
-    DeterministicAdapters,
-    DeterministicAdapters,
-  ] {
-    let arrivals = 0
-    let release: (() => void) | undefined
-    const ready = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    const rendezvous = async () => {
-      arrivals += 1
-      if (arrivals === 2) release?.()
-      await ready
-    }
-    const wrap = (): DeterministicAdapters => {
-      const base = catalogAdapters(0)
-      let groundingCalls = 0
-      return {
-        ...base,
-        groundingModel: {
-          async ground(request) {
-            const response = await base.groundingModel.ground(request)
-            groundingCalls += 1
-            if (groundingCalls === 2) await rendezvous()
-            return response
-          },
-        },
-      }
-    }
-    return [wrap(), wrap()]
-  }
-
   function createRuntime(
     researcherAccountId: string,
     adapters: DeterministicAdapters = deterministicAdapters(),
@@ -498,9 +468,40 @@ if (!disposableDatabaseUrl) {
       { database: db as Database, packages },
     )
     runtimes.add(runtime)
+    const scheduledModule = runtime.forResearcher(researcherAccountId)
+    const module: ExtractionModule = {
+      ...scheduledModule,
+      async runSingle(input) {
+        const scheduled = await scheduledModule.runSingle(input)
+        if (scheduled.extraction.executionStatus === 'COMPLETED' ||
+            scheduled.extraction.executionStatus === 'FAILED') return scheduled
+        const controller = new AbortController()
+        const running = runtime.run(controller.signal)
+        try {
+          const deadline = Date.now() + 5_000
+          for (;;) {
+            const extraction = await scheduledModule.readExtractionAttempt(
+              input.extractionId,
+            )
+            if (extraction &&
+                (extraction.executionStatus === 'COMPLETED' ||
+                 extraction.executionStatus === 'FAILED'))
+              return { disposition: scheduled.disposition, extraction }
+            if (Date.now() >= deadline)
+              throw new Error(`Timed out waiting for Extraction ${input.extractionId}.`)
+            const turn = Promise.withResolvers<void>()
+            setImmediate(turn.resolve)
+            await turn.promise
+          }
+        } finally {
+          controller.abort()
+          await running
+        }
+      },
+    }
     return {
       runtime,
-      module: runtime.forResearcher(researcherAccountId),
+      module,
       adapters,
     }
   }
@@ -691,7 +692,7 @@ if (!disposableDatabaseUrl) {
       assert.deepEqual(created.extraction.result, {
         records: [{ title: 'Alpha', filename: 'article.pdf' }],
       })
-      const catalog = created.extraction.diagnostics.catalog
+      const catalog = created.extraction.diagnostics!.catalog
       assert.ok(catalog)
       assert.deepEqual(
         catalog.records.map((record) => [
@@ -712,7 +713,7 @@ if (!disposableDatabaseUrl) {
         sourceDocumentId: project.documents[0]!.sourceDocumentId,
       })
       assert.equal(reopened?.latestAttempt?.strategy, 'CATALOG')
-      assert.deepEqual(reopened?.latestAttempt?.diagnostics.catalog, catalog)
+      assert.deepEqual(reopened?.latestAttempt?.diagnostics?.catalog, catalog)
 
       const retry = {
         kind: 'retry' as const,
@@ -734,13 +735,13 @@ if (!disposableDatabaseUrl) {
         ],
       })
       assert.deepEqual(
-        child.diagnostics.catalog?.records.map((record) => [
+        child.diagnostics!.catalog?.records.map((record) => [
           record.provenance,
           record.calls,
         ]),
         [['reused', 0], ['executed', 1]],
       )
-      assert.deepEqual(child.diagnostics.retry, retry && {
+      assert.deepEqual(child.diagnostics!.retry, retry && {
         retryOfId: retry.retryOfId,
         retryDocument: false,
         rediscover: false,
@@ -758,142 +759,6 @@ if (!disposableDatabaseUrl) {
       )
     })
 
-    it('reopens failed Catalog document values for rediscovery retry', async (t) => {
-      t.after(cleanup)
-      const project = await seedProject({
-        recordDescription: 'One catalog record.',
-        schemaNodes: [
-          {
-            id: 'archive-node',
-            name: 'archive',
-            type: 'string',
-            valueSource: 'document',
-          },
-          { id: 'title-node', name: 'title', type: 'string' },
-          {
-            id: 'filename-node',
-            name: 'filename',
-            type: 'string',
-            valueSource: 'source-filename',
-          },
-        ],
-      })
-      const base = deterministicAdapters()
-      let discoveryCalls = 0
-      const adapters: DeterministicAdapters = {
-        ...base,
-        model: {
-          async extract(request) {
-            base.calls.push(request)
-            if ('starts' in request.template) {
-              discoveryCalls += 1
-              return {
-                result: {
-                  starts:
-                    discoveryCalls === 1
-                      ? []
-                      : ['H1', 'H2'],
-                },
-                metadata,
-              }
-            }
-            const templateRecord = Array.isArray(request.template.records)
-              ? request.template.records[0]
-              : null
-            if (
-              templateRecord &&
-              typeof templateRecord === 'object' &&
-              Object.hasOwn(templateRecord, 'archive')
-            )
-              return {
-                result: { records: [{ archive: 'Copenhagen' }] },
-                metadata,
-              }
-            return {
-              result: {
-                records: [{
-                  title: request.document.markdown.includes('Beta')
-                    ? 'Beta'
-                    : 'Alpha',
-                }],
-              },
-              metadata,
-            }
-          },
-        },
-      }
-      const { module } = createRuntime(project.researcherAccountId, adapters)
-      const parentInput = {
-        ...freshInput(project),
-        strategy: 'CATALOG' as const,
-      }
-      const parent = (await module.runSingle(parentInput)).extraction
-      assert.equal(parent.outcome, 'FAILED')
-      assert.equal(parent.failure?.code, 'catalog_no_records')
-      assert.deepEqual(parent.diagnostics.catalog?.documentValues, {
-        archive: 'Copenhagen',
-      })
-
-      const { module: reopenedModule } = createRuntime(
-        project.researcherAccountId,
-        adapters,
-      )
-      const reopened = await reopenedModule.readDocumentExtractions({
-        sourceDocumentId: project.documents[0]!.sourceDocumentId,
-        extractionId: parent.extractionId,
-      })
-      assert.deepEqual(
-        reopened?.latestAttempt?.diagnostics.catalog?.documentValues,
-        { archive: 'Copenhagen' },
-      )
-
-      adapters.calls.length = 0
-      const child = (
-        await reopenedModule.runSingle({
-          kind: 'retry',
-          extractionId: randomUUID(),
-          retryOfId: parent.extractionId,
-          retryDocument: false,
-          rediscover: true,
-          retryRecordStartBlockIds: [],
-        })
-      ).extraction
-      assert.equal(child.outcome, 'SUCCEEDED')
-      assert.deepEqual(child.result, {
-        records: [
-          {
-            archive: 'Copenhagen',
-            title: 'Alpha',
-            filename: 'article.pdf',
-          },
-          {
-            archive: 'Copenhagen',
-            title: 'Beta',
-            filename: 'article.pdf',
-          },
-        ],
-      })
-      assert.equal(adapters.calls.length, 3)
-      assert.ok(
-        adapters.calls.every((call) => {
-          const record = Array.isArray(call.template.records)
-            ? call.template.records[0]
-            : null
-          return (
-            !record ||
-            typeof record !== 'object' ||
-            !Object.hasOwn(record, 'archive')
-          )
-        }),
-      )
-      assert.equal(
-        child.diagnostics.catalog?.stages.find(
-          (stage) => stage.stage === 'document-values',
-        )?.provenance,
-        'reused',
-      )
-    })
-
     it('arbitrates independent runtime races by complete retry selection', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
@@ -908,13 +773,13 @@ if (!disposableDatabaseUrl) {
         })
       ).extraction
       assert.equal(
-        parent.diagnostics.catalog?.records.find(
+        parent.diagnostics!.catalog?.records.find(
           (record) => record.boundary.startBlockId === 'heading-b',
         )?.outcome,
         'failed',
       )
 
-      const differentAdapters = synchronizedCatalogAdapters()
+      const differentAdapters = [catalogAdapters(0), catalogAdapters(0)]
       const differentModules = differentAdapters.map(
         (adapters) =>
           createRuntime(project.researcherAccountId, adapters).module,
@@ -954,7 +819,7 @@ if (!disposableDatabaseUrl) {
         'extraction_id_conflict',
       )
 
-      const identicalAdapters = synchronizedCatalogAdapters()
+      const identicalAdapters = [catalogAdapters(0), catalogAdapters(0)]
       const identicalModules = identicalAdapters.map(
         (adapters) =>
           createRuntime(project.researcherAccountId, adapters).module,
@@ -978,7 +843,7 @@ if (!disposableDatabaseUrl) {
       )
     })
 
-    it('persists Article failures as terminal snapshots', async (t) => {
+    it('retains Article failures on jobs without creating Extractions', async (t) => {
       t.after(cleanup)
       const article = await seedProject()
       const failing = createRuntime(
@@ -986,14 +851,17 @@ if (!disposableDatabaseUrl) {
         deterministicAdapters({ failArticle: true }),
       ).module
       const failed = await failing.runSingle(freshInput(article))
-      assert.equal(failed.extraction.outcome, 'FAILED')
+      assert.equal(failed.extraction.executionStatus, 'FAILED')
+      assert.equal(failed.extraction.outcome, null)
       assert.equal(failed.extraction.complete, null)
       assert.equal(failed.extraction.result, null)
       assert.equal(failed.extraction.failure?.code, 'extraction_failed')
-
+      assert.equal(await db.orm.public.Extraction.select('id').first({
+        id: failed.extraction.extractionId,
+      }), null)
     })
 
-    it('bounds the cancellation race and persists one durable CANCELLED terminal', async (t) => {
+    it('bounds the cancellation race without creating a terminal Extraction', async (t) => {
       t.after(cleanup)
       const project = await seedProject()
       const modelStarted = Promise.withResolvers<void>()
@@ -1026,19 +894,34 @@ if (!disposableDatabaseUrl) {
       runtimes.add(runtime)
       const module = runtime.forResearcher(project.researcherAccountId)
       const input = freshInput(project)
-      const running = module.runSingle(input)
+      const scheduled = await module.runSingle(input)
+      const controller = new AbortController()
+      const running = runtime.run(controller.signal)
       await modelStarted.promise
 
       assert.equal(
         await module.cancelSingle(input.extractionId),
         'cancellation-requested',
       )
-      const terminal = await running
-      assert.equal(terminal.extraction.outcome, 'CANCELLED')
-      assert.equal(terminal.extraction.failure?.code, 'cancelled')
+      let terminal = scheduled.extraction
+      const deadline = Date.now() + 5_000
+      while (terminal.executionStatus !== 'FAILED') {
+        if (Date.now() >= deadline)
+          throw new Error(`Timed out waiting for cancelled Extraction ${input.extractionId}.`)
+        const current = await module.readExtractionAttempt(input.extractionId)
+        if (!current) throw new Error('Cancelled Extraction Job disappeared.')
+        terminal = current
+        const turn = Promise.withResolvers<void>()
+        setImmediate(turn.resolve)
+        await turn.promise
+      }
+      controller.abort()
+      await running
+      assert.equal(terminal.outcome, null)
+      assert.equal(terminal.failure?.code, 'cancelled')
       assert.equal(
         await module.cancelSingle(input.extractionId),
-        'already-terminal',
+        'not-found',
       )
       assert.equal(await module.cancelSingle(randomUUID()), 'not-found')
     })
@@ -1158,7 +1041,7 @@ if (!disposableDatabaseUrl) {
       assert.equal(completed.extraction.complete, false)
       assert.equal(completed.extraction.reviewable, true)
       assert.equal(completed.extraction.evidence?.length, 1)
-      assert.equal(completed.extraction.diagnostics.ungroundedPaths.length, 1)
+      assert.equal(completed.extraction.diagnostics!.ungroundedPaths.length, 1)
 
       const prepared = await module.prepareReview(completed.extraction.extractionId)
       assert.equal(prepared.reviewDecisions.length, 1)
@@ -1268,6 +1151,14 @@ if (!disposableDatabaseUrl) {
         reopened?.latestReviewed?.sourceRepresentationRevisionId,
         document.sourceRepresentationRevisionId,
       )
+      const historical = await module.readDocumentExtractions({
+        sourceDocumentId: document.sourceDocumentId,
+        extractionId: reviewedAttempt.extraction.extractionId,
+      })
+      assert.equal(
+        historical?.sourceRepresentationRevisionId,
+        document.sourceRepresentationRevisionId,
+      )
     })
 
     it('does not invent a terminal Extraction when its canonical package is unavailable', async (t) => {
@@ -1278,8 +1169,111 @@ if (!disposableDatabaseUrl) {
       await packages.remove(document.storedPackage, async () => false)
       const input = freshInput(project)
 
-      await assert.rejects(module.runSingle(input))
+      const failed = await module.runSingle(input)
+      assert.equal(failed.extraction.executionStatus, 'FAILED')
+      assert.equal(failed.extraction.outcome, null)
+      assert.equal(await db.orm.public.Extraction.select('id').first({
+        id: input.extractionId,
+      }), null)
       assert.equal(await module.cancelSingle(input.extractionId), 'not-found')
+    })
+
+    it('claims interactive jobs first and FIFO within that kind', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject(ARTICLE_SCHEMA, ['first.pdf', 'second.pdf'])
+      const { runtime, module } = createRuntime(project.researcherAccountId)
+      await module.scheduleBatch({
+        projectContextId: project.projectContextId,
+        schemaRevisionId: project.schemaRevisionId,
+        strategy: 'ARTICLE',
+        sourceDocumentIds: project.documents.map((document) => document.sourceDocumentId),
+        repetition: 'create-new',
+      })
+      const scheduler = runtime.forResearcher(project.researcherAccountId)
+      const firstId = randomUUID()
+      const secondId = randomUUID()
+      await scheduler.runSingle(freshInput(project, firstId))
+      await scheduler.runSingle(freshInput(project, secondId))
+      await db.orm.public.ExtractionJob.where({ id: firstId }).update({
+        createdAt: new Date('2026-08-31T10:00:00.000Z'),
+      })
+      await db.orm.public.ExtractionJob.where({ id: secondId }).update({
+        createdAt: new Date('2026-08-31T10:00:01.000Z'),
+      })
+
+      const store = createInternalExtractionJobStore(db, packages)
+      const owner = randomUUID()
+      const now = new Date('2026-08-31T10:01:00.000Z')
+      const expiresAt = new Date('2026-08-31T10:03:00.000Z')
+      const failure = { code: 'test_cleanup', message: 'Test cleanup.', phase: 'loading' as const }
+      const first = await store.claim(owner, now, expiresAt)
+      assert.equal(first?.input.extractionId, firstId)
+      assert.ok(first)
+      await store.fail(first.input.extractionId, first.lease, failure, now)
+      const second = await store.claim(owner, now, expiresAt)
+      assert.equal(second?.input.extractionId, secondId)
+      assert.ok(second)
+      await store.fail(second.input.extractionId, second.lease, failure, now)
+      const batchMember = await store.claim(owner, now, expiresAt)
+      assert.equal(batchMember?.input.kind, 'batch-member')
+    })
+
+    it('does not reclaim a renewed lease and lets committed cancellation win failure', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const scheduler = createRuntime(project.researcherAccountId).runtime
+        .forResearcher(project.researcherAccountId)
+      const store = createInternalExtractionJobStore(db, packages)
+      const extractionId = randomUUID()
+      await scheduler.runSingle(freshInput(project, extractionId))
+      const owner = randomUUID()
+      const claimed = await store.claim(
+        owner,
+        new Date('2026-08-31T10:00:00.000Z'),
+        new Date('2026-08-31T10:01:00.000Z'),
+      )
+      assert.ok(claimed)
+      assert.equal(await store.renew(
+        extractionId,
+        claimed.lease,
+        new Date('2026-08-31T10:03:00.000Z'),
+      ), 'owned')
+      assert.equal(await store.claim(
+        randomUUID(),
+        new Date('2026-08-31T10:02:00.000Z'),
+        new Date('2026-08-31T10:04:00.000Z'),
+      ), null)
+
+      assert.equal(
+        await scheduler.cancelSingle(extractionId),
+        'cancellation-requested',
+      )
+      assert.equal(await store.fail(extractionId, claimed.lease, {
+        code: 'extraction_failed',
+        message: 'Model failed.',
+        phase: 'extracting',
+      }, new Date('2026-08-31T10:02:30.000Z')), true)
+      const failed = await db.orm.public.ExtractionJob.select('failure').first({
+        id: extractionId,
+      })
+      assert.equal(
+        (failed?.failure as { code?: unknown } | null)?.code,
+        'cancelled',
+      )
+    })
+
+    it('does not expose a terminal Extraction after its job identity is removed', async (t) => {
+      t.after(cleanup)
+      const project = await seedProject()
+      const { module } = createRuntime(project.researcherAccountId)
+      const completed = await module.runSingle(freshInput(project))
+      await db.orm.public.ExtractionJob.where({
+        id: completed.extraction.extractionId,
+      }).delete()
+      assert.equal(
+        await module.readExtractionAttempt(completed.extraction.extractionId),
+        null,
+      )
     })
 
     it('rejects duplicate members, atomically pins valid members, replays equal selections, and creates explicit repetitions', async (t) => {

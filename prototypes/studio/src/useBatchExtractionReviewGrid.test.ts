@@ -32,6 +32,7 @@ function attempt(overrides: Partial<ExtractionAttempt> = {}): ExtractionAttempt 
     sourceRepresentationRevisionId: '51000000-0000-4000-8002-000000000001',
     schemaRevisionId: '51000000-0000-4000-8004-000000000001',
     strategy: 'ARTICLE',
+    executionStatus: 'COMPLETED',
     outcome: 'SUCCEEDED',
     complete: true,
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },

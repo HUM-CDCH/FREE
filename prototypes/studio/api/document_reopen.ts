@@ -1,4 +1,7 @@
-import type { ExtractionModule, ExtractionSnapshot } from 'extraction'
+import type {
+  ExtractionAttemptSnapshot,
+  ExtractionModule,
+} from 'extraction'
 import type {
   DocumentReopenSnapshot,
   ResearcherProjectStore,
@@ -55,7 +58,7 @@ function representationResources(
 }
 
 function extractionDto(
-  extraction: ExtractionSnapshot | null,
+  extraction: ExtractionAttemptSnapshot | null,
   projectContextId: string,
   resourceVersion: string,
   schema: DocumentReopenSnapshot['extractionSchema'],
@@ -92,11 +95,11 @@ function extractionDto(
 async function reopenResponse(
   snapshot: DocumentReopenSnapshot,
   documentExtractions: {
-    latestAttempt: ExtractionSnapshot | null
-    latestReviewed: ExtractionSnapshot | null
+    latestAttempt: ExtractionAttemptSnapshot | null
+    latestReviewed: ExtractionAttemptSnapshot | null
   },
   schemaFor: (
-    extraction: ExtractionSnapshot | null,
+    extraction: ExtractionAttemptSnapshot | null,
   ) => Promise<DocumentReopenSnapshot['extractionSchema']>,
 ) {
   const { sourceRepresentation: representation } = snapshot
@@ -214,7 +217,7 @@ export function createGetDocumentReopen(
           'not_found',
           'That Source Document has no durable snapshot in this Project Context.',
         )
-      const selected = extractionId ? await readExtractions() : null
+      const selected = await readExtractions()
       if (extractionId && !selected?.latestAttempt)
         throw new ApiError(
           404,
@@ -256,7 +259,9 @@ export function createGetDocumentReopen(
         string,
         Promise<DocumentReopenSnapshot['extractionSchema']>
       >()
-      const schemaFor = (extraction: ExtractionSnapshot | null) => {
+      const schemaFor = (
+        extraction: ExtractionAttemptSnapshot | null,
+      ) => {
         if (!extraction) return Promise.resolve(null)
         if (
           snapshot.sourceRepresentation.sourceRepresentationId ===

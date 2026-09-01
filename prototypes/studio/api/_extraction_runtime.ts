@@ -1,11 +1,10 @@
 import {
   createExtractionRuntime,
   ExtractionError,
-  type ExtractionDiagnostics,
+  type ExtractionAttemptSnapshot,
   type ExtractionModel,
   type ExtractionModelSessions,
   type ExtractionModule,
-  type ExtractionSnapshot,
   type GroundingModel,
   type ModelAttribution,
 } from 'extraction'
@@ -28,27 +27,10 @@ const GROUNDING_ISSUE_CODES: Readonly<Record<string, true>> = {
 }
 
 function transportDiagnostics(
-  extraction: ExtractionSnapshot,
-): {
-  phase: ExtractionDiagnostics['phase']
-  durationMs: number
-  modelCalls: number
-  finishReason: string | null
-  inputTokens: number | null
-  outputTokens: number | null
-  grounding: {
-    groundedPaths: readonly (readonly (string | number)[])[]
-    ungroundedPaths: readonly (readonly (string | number)[])[]
-    issueCodes: string[]
-    batches: ExtractionDiagnostics['groundingBatches']
-  } | null
-  catalog: Pick<
-    NonNullable<ExtractionDiagnostics['catalog']>,
-    'stages' | 'records'
-  > | null
-  retry: ExtractionDiagnostics['retry']
-} {
+  extraction: ExtractionAttemptSnapshot,
+) {
   const diagnostics = extraction.diagnostics
+  if (!diagnostics) return null
   const phase = extraction.failure?.phase ?? diagnostics.phase
   const groundingReached =
     extraction.result !== null ||
@@ -86,7 +68,7 @@ function transportDiagnostics(
   }
 }
 
-export function extractionAttemptDto(extraction: ExtractionSnapshot) {
+export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
   return extractionAttemptSchema.parse({
     extractionId: extraction.extractionId,
     sourceDocumentId: extraction.sourceDocumentId,
@@ -94,12 +76,13 @@ export function extractionAttemptDto(extraction: ExtractionSnapshot) {
       extraction.sourceRepresentationRevisionId,
     schemaRevisionId: extraction.schemaRevisionId,
     strategy: extraction.strategy,
+    executionStatus: extraction.executionStatus,
     outcome: extraction.outcome,
     complete: extraction.complete,
     modelAttribution: extraction.modelAttribution,
     diagnostics: transportDiagnostics(extraction),
     failure:
-      extraction.outcome === 'FAILED' && extraction.failure
+      extraction.failure
         ? {
             code: extraction.failure.code,
             message: extraction.failure.message.slice(0, 512),

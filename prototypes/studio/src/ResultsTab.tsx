@@ -101,7 +101,7 @@ function DiagnosticDetails({
 function GroundingDiagnostics({
   diagnostics,
 }: {
-  diagnostics: NonNullable<ExtractionAttempt['diagnostics']['grounding']>
+  diagnostics: NonNullable<NonNullable<ExtractionAttempt['diagnostics']>['grounding']>
 }) {
   return (
     <section className="mt-3 border-t border-line pt-2.5" aria-label="Grounding diagnostics">
@@ -124,6 +124,8 @@ function GroundingDiagnostics({
 
 function ExtractionDiagnostics({ attempt }: { attempt: ExtractionAttempt }) {
   const diagnostics = attempt.diagnostics
+  if (!diagnostics)
+    return <p className="text-[11.5px] text-ink-muted">Diagnostics are not available yet.</p>
   const catalog = diagnostics.catalog
   return (
     <section aria-label="Extraction diagnostics">
@@ -209,10 +211,14 @@ function CatalogRetryControls({
   controller: ExtractionController
   attempt: ExtractionAttempt
 }) {
-  const catalog = attempt.strategy === 'CATALOG' ? attempt.diagnostics.catalog : null
+  const catalog = attempt.strategy === 'CATALOG'
+    ? attempt.diagnostics?.catalog ?? null
+    : null
   const [selection, setSelection] = useState<ExtractionRetryInput>(emptyRetrySelection)
+  const active =
+    attempt.executionStatus === 'QUEUED' || attempt.executionStatus === 'RUNNING'
 
-  if (!catalog || attempt.outcome === 'CANCELLED') return null
+  if (!catalog || active || attempt.outcome === 'CANCELLED') return null
   const documentStage = catalog.stages.find((stage) => stage.stage === 'document-values')
   const discoveryStage = catalog.stages.find((stage) => stage.stage === 'discovery')
   // The server accepts document retries only for a failed document-values stage.
@@ -226,7 +232,6 @@ function CatalogRetryControls({
   const canGroundOnly = attempt.outcome === 'SUCCEEDED' && attempt.resultPayload !== null
   if (!retryDocument && !rediscover && records.length === 0 && !canGroundOnly) return null
 
-  const active = controller.state.status === 'running'
   const selectedCount = selection.retryRecordStartBlockIds.length
   const canRetrySelected = selection.retryDocument || selection.rediscover || selectedCount > 0
   const submit = (next: ExtractionRetryInput) => {
@@ -441,6 +446,9 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
     articleRecords?.length === 1
       ? articleRecords[0]
       : articleRecords ?? reviewedResult
+  const provisional = attempt !== null && attempt.executionStatus !== 'COMPLETED'
+  const activeAttempt =
+    attempt?.executionStatus === 'QUEUED' || attempt?.executionStatus === 'RUNNING'
   const stats = useMemo(
     () => (displayResult !== null ? resultStats(displayResult) : null),
     [displayResult],
@@ -540,6 +548,13 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
       {state.status === 'ready' && stats && (
         <>
           <div className="shrink-0 border-b border-line bg-surface px-3 py-2">
+            {provisional && (
+              <p className="mb-2 text-[11.5px] font-semibold text-ink-muted" role="status">
+                {attempt?.executionStatus === 'FAILED'
+                  ? `Evidence linking stopped: ${attempt.failure?.message ?? 'the Extraction failed.'}`
+                  : 'Values extracted · linking Evidence…'}
+              </p>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {/* {summaryItem(
                 'Status',
@@ -563,7 +578,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
               <div className="flex gap-1.5">
                 <ExtractionResultExportControl
                   schema={exportSchema}
-                  disabled={displayResult === null}
+                  disabled={displayResult === null || provisional}
                   onExport={async (format, choices) => {
                     if (displayResult === null || exportSchema === null) return
                     await exportExtractionResult(displayResult, {
@@ -609,7 +624,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                   </Button>
                 )}
                 {!readOnly && attempt?.strategy !== 'CATALOG' && (
-                  <Button variant="secondary" size="sm" disabled={runExtractionDisabled} onClick={() => void onRunExtraction()}>
+                  <Button variant="secondary" size="sm" disabled={runExtractionDisabled || activeAttempt} onClick={() => void onRunExtraction()}>
                     Rerun
                   </Button>
                 )}
@@ -647,7 +662,7 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
                   variant="secondary"
                   size="sm"
                   className="mt-1.5"
-                  disabled={runExtractionDisabled}
+                  disabled={runExtractionDisabled || activeAttempt}
                   onClick={() => void onRunExtraction()}
                 >
                   Re-run extraction
@@ -831,8 +846,10 @@ function ResultsTab({ controller, onRunExtraction, runExtractionDisabled, schema
       {state.status === 'running' && (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
           <Spinner
-            label="Running extraction…"
-            hint="The server is extracting values, grounding Evidence, and saving the terminal attempt."
+            label={attempt?.executionStatus === 'QUEUED' ? 'Queued extraction…' : 'Running extraction…'}
+            hint={attempt?.executionStatus === 'QUEUED'
+              ? 'Waiting for the extraction worker to start this attempt.'
+              : 'The server is extracting values, grounding Evidence, and saving the terminal attempt.'}
           />
         </div>
       )}
