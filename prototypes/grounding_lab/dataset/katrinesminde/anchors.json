@@ -1,0 +1,936 @@
+[
+  {
+    "anchorId": "anchor_936759daa7ad82515d083eb87d0ab200f84d8330386ee05d4d1171b1950e077f",
+    "text": "SBM1116 Katrinesminde",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_502c663ea5f978bee5c31dc6da3d524cd1d0b30f10e1bf0642d262bb9fcdc5c1",
+    "text": "Beretning",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e6272a08c42078bd5167955005d2328a673103c320a0941d6f88e01a3af8463c",
+    "text": "Gl.Rye(Rye) sogn, Tyrsting herred, tidl. Skanderborg amt. Sted nr. 16.04.05.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f4cec97caf0cc1b22767249c673c2147aca508dfa05ec65d83d19ec6438ae881",
+    "text": "Beretning for udgravning af dyrkningstruet gravplads fra ældre romertid mellem Ry og Gl. Rye. Der dukkede 11 grave op fra ældre romertid samt to mulige grave fra enkeltgravskulturen. Desuden blev der afdækket vestenden af et hus fra ældre bronzealder samt flere anlægsspor der muligvis kan dateres til bronzealder. Daglig leder Merethe Schifter Christensen, Skanderborg Museum i september-oktober 2009.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_71be3558648061ebc45a7fd1033d4772b61f2b13a452b19e94a6033c193359c7",
+    "text": "Indhold",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Indhold — Indhold"
+  },
+  {
+    "anchorId": "anchor_b5a2ce34e64c78b1dec51ba16540325ccc69d17f559448ad02fa0b9b56d06cba",
+    "text": "Abstract ................................................................................................................................. 3",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Abstract ................................................................................................................................. 3 — Abstract ................................................................................................................................. 3"
+  },
+  {
+    "anchorId": "anchor_6c090720cca2b6eb5874fafbc0f82981191d84c6a155a6e4344fb4643c07ff19",
+    "text": "Undersøgelsens forhistorie ...................................................................................................... 4",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Undersøgelsens forhistorie ...................................................................................................... 4 — Undersøgelsens forhistorie ...................................................................................................... 4"
+  },
+  {
+    "anchorId": "anchor_4009bd1e303d353512c1c2eca488eaaad1dd2f81b1544c742fd5528ebcfc38a0",
+    "text": "Administrative data ................................................................................................................. 5",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Administrative data ................................................................................................................. 5 — Administrative data ................................................................................................................. 5"
+  },
+  {
+    "anchorId": "anchor_a03f0c6e3c5ab4f8e1cbd27908475c82801a4e3f1da4e5ac93021db3e546577e",
+    "text": "Topografi, terræn og undergrund............................................................................................. 5",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Topografi, terræn og undergrund............................................................................................. 5 — Topografi, terræn og undergrund............................................................................................. 5"
+  },
+  {
+    "anchorId": "anchor_d56b3f6b33141d6a6a0f5ca7071111c9f4b46565b31dbb45eecb7feb892f3022",
+    "text": "Målesystem ............................................................................................................................ 5",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Målesystem ............................................................................................................................ 5 — Målesystem ............................................................................................................................ 5"
+  },
+  {
+    "anchorId": "anchor_fc51f1d3acb33479ded2576ba01b3a8b7b915a2878be367eb34b08e2fb555fc3",
+    "text": "Øvrige data ............................................................................................................................ 5",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Øvrige data ............................................................................................................................ 5 — Øvrige data ............................................................................................................................ 5"
+  },
+  {
+    "anchorId": "anchor_469540c05ffb92c08da58a3b1a24e6c9e20d214083989f56d269e8c35f128ddd",
+    "text": "Udgravningsmetode ................................................................................................................ 6",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Udgravningsmetode ................................................................................................................ 6 — Udgravningsmetode ................................................................................................................ 6"
+  },
+  {
+    "anchorId": "anchor_7eac9ad36ad289594e7fd1936a4927e8d11525305d05fe3eea62c8697d1c4040",
+    "text": "Undersøgelsens resultater ....................................................................................................... 7",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Undersøgelsens resultater ....................................................................................................... 7 — Undersøgelsens resultater ....................................................................................................... 7"
+  },
+  {
+    "anchorId": "anchor_df64b81d1d80a3889be99fbe04af825d1a61a32e5153bf6532ca77703ab770a6",
+    "text": "Ældre enkeltgravskultur: ...................................................................................................... 8",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Ældre enkeltgravskultur: ...................................................................................................... 8 — Ældre enkeltgravskultur: ...................................................................................................... 8"
+  },
+  {
+    "anchorId": "anchor_91029a17a616b6915440972ab114a3de49e9fa2b907eda40870b5a5d3cea3427",
+    "text": "Ældre bronzealder: ............................................................................................................ 10",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Ældre bronzealder: ............................................................................................................ 10 — Ældre bronzealder: ............................................................................................................ 10"
+  },
+  {
+    "anchorId": "anchor_98c0f1a994f0af835f75de952038ba884df1bbe9d12d36601c65ffe28e6fea3e",
+    "text": "Ældre romertid: ................................................................................................................ 11",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Ældre romertid: ................................................................................................................ 11 — Ældre romertid: ................................................................................................................ 11"
+  },
+  {
+    "anchorId": "anchor_3d7f96f01e5f7a353aa5c368bad1229b891ae96a27048ac6a8c06f03336f7f99",
+    "text": "Jordfæstegravenes placering på pladsen: ......................................................................... 11",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Jordfæstegravenes placering på pladsen: ......................................................................... 11 — Jordfæstegravenes placering på pladsen: ......................................................................... 11"
+  },
+  {
+    "anchorId": "anchor_b6fdf23cd93a6ffc0f6053c6f9a075373c4b32fdc0435ed6052123af306f3bff",
+    "text": "Jordfæstegravenes dimensioner: ..................................................................................... 11",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Jordfæstegravenes dimensioner: ..................................................................................... 11 — Jordfæstegravenes dimensioner: ..................................................................................... 11"
+  },
+  {
+    "anchorId": "anchor_856fbacfbad87835b9ec8b2e15a01e45d3e8a3407da7b9ec28a8a0a0ed17a40f",
+    "text": "Jordfæstegravenes orientering: ....................................................................................... 11",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Jordfæstegravenes orientering: ....................................................................................... 11 — Jordfæstegravenes orientering: ....................................................................................... 11"
+  },
+  {
+    "anchorId": "anchor_c5182515aaccf8b0ec5f9913878deecbddf1ab6b5272ec2e2260c17d5b075c62",
+    "text": "Jordfæstegravenes opbygning: ....................................................................................... 11",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Jordfæstegravenes opbygning: ....................................................................................... 11 — Jordfæstegravenes opbygning: ....................................................................................... 11"
+  },
+  {
+    "anchorId": "anchor_ffdbdaf94c702b7434ba53de4fdc5d7ccecbb860aa03629da2ec6c717fcc05e4",
+    "text": "Jordfæstegravenes indhold: ............................................................................................ 12",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Jordfæstegravenes indhold: ............................................................................................ 12 — Jordfæstegravenes indhold: ............................................................................................ 12"
+  },
+  {
+    "anchorId": "anchor_c2463baa44bb159d9de55e430b087a29a3381ecb90e2917c6877edef4ecefe89",
+    "text": "Køn, alder og social plads i samfundet ............................................................................. 18",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Køn, alder og social plads i samfundet ............................................................................. 18 — Køn, alder og social plads i samfundet ............................................................................. 18"
+  },
+  {
+    "anchorId": "anchor_f0741e563bd1aa5ee1d9046f5b56fc74b80c56c8edb941d6a265497389d9d38c",
+    "text": "Gravpladsen i perspektiv ................................................................................................. 20",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Gravpladsen i perspektiv ................................................................................................. 20 — Gravpladsen i perspektiv ................................................................................................. 20"
+  },
+  {
+    "anchorId": "anchor_acffb4a8ab59be23064f95eb681c40e5088e93734f8b40a79cbfb385d57adc26",
+    "text": "Datering: ....................................................................................................................... 21",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Datering: ....................................................................................................................... 21 — Datering: ....................................................................................................................... 21"
+  },
+  {
+    "anchorId": "anchor_ccccba6869afe21507a00400b2301176ccf3b9bee7ef2a20b092e45963b99d86",
+    "text": "Litteratur: ...................................................................................................................... 21",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Litteratur: ...................................................................................................................... 21 — Litteratur: ...................................................................................................................... 21"
+  },
+  {
+    "anchorId": "anchor_6ac8f856b4373301ed28f4a46bce65c2ce02b701d76b5dcf2c91e7f155993918",
+    "text": "Fremtidigt arbejde på stedet .................................................................................................. 21",
+    "page": 2,
+    "kind": "table_cell",
+    "context": "Fremtidigt arbejde på stedet .................................................................................................. 21 — Fremtidigt arbejde på stedet .................................................................................................. 21"
+  },
+  {
+    "anchorId": "anchor_d41c1ffaeaed7b435090eed4acdcb7c7f2bbf16ab92bcb707fb8e4309dcc36e3",
+    "text": "Abstract",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ccffc03404ff6eb6695e33d14c353af81b7d771a3b17ee5d8d091dae3c5f6ea9",
+    "text": "Den primære undersøgelse foregik omkring den dyrkningstruede ældre romertidsgravplads. Der blev i alt fundet 11 jordfæstegrave, hvoraf de fire var bygget med stenrammer og stentæpper. Der var mellem 1 og 10 kar i gravene. Derudover blev der fundet mellem 50 og 80 glasperler, heraf en del guldfolieperler på stang. Yderligere fremkom en del metalsager i form af bronze og jern. Genstandene af bronze bestod af fibler, spænder, remendedop, nitter og beslag. Genstandene af jern bestod af remspænder, ringspænder, knive og nåle. Enkelte ravperler dukkede også op, hvoraf den ene tolkes som tenvægt.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5e4249ef5a9e34eee8eeb58b43b03efb4ce87c3418da85069c5f7db085eaf6d2",
+    "text": "På den sydlige del af feltet tæt op ad de sydligste romertidsgrave, befandt sig to jordfæstegrave fra ældre enkeltgravskultur. Disse blev ligeledes undersøgt. Den ene indeholdte et svajet bæger, mens den anden var fundtom. Den fundtomme grav tolkes til at være en skibsgrav, hvor resterne af en sveden båd kunne observeres på bunden.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c3559fb79758c8e6bc6057d5a102d53d9d977781d255ddf4943b64b754d96038",
+    "text": "Figur 1 Gravene A5 og A115 som de fremstod i fladen. Set fra S",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6f474552260a8ca67789bd59464e74a142a989b1d64cfc2fd95eea2f897da209",
+    "text": "Undersøgelsens forhistorie",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2d9b3be5436bcc23b550ba40721cf24dde4df2d7ebf6e27039356c0e25b1c888",
+    "text": "I år 2008 blev der forud for planlagt råstofudvinding på stedet foretaget en prøvegravning. Prøvegravningen viste bl.a. spor af to bronzealderhuse og 6-7 grave fra ældre romertid. Gravene var kun dækket af 15-20 cm muld og flere steder dukkede karrene op lige under muldlaget. Der blev yderligere foretaget en magnetometrisk undersøgelse, som viste at der i hvert fald kunne regnes en større stenfyldt grav med beliggende på det højeste punkt i arealet. Forundersøgelsen blev betalt af Morten Holl, KM Maskiner.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ade1d444c77d029180d95b8c4c213ea474640c6988d7a54d676ddca7ec62e02d",
+    "text": "Planerne om råstofudvinding blev alligevel ikke til noget og arealet blev i stedet solgt fra til juletræskultur. Inden juletræerne skulle plantes var det meningen at der skulle dyrkes yderligere 4-5 år. Pladsen var derfor dyrkningstruet og er udgravet af samme årsag.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a628419c49e0e22819730f2127a5711fb0e754c1578e0422da7f100c87d749cb",
+    "text": "I området nord, vest og øst for det udpegede areal er der tidligere registreret oldtid i form af overpløjede høje. De overpløjede høje ligger i en radius af 200-500 meter. Desuden er der ved rekognoscering fundet spor af fyldskifter og lerkarskår, mulig jernalder, i to læhegn (sb.179 og sb.181). Et fund fra ca. 1880 viser at der ca. 300 meter vest for Katrinesminde ligger en mulig gravplads, sb. 73, fra ældre romertid. Der er i hvert fald fundet et stensat kammer med 5-6 lerkar fra ældre romertid.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2611f8f6d6570d99671410fd843c36e7dbcdacd6109c87f2b46893de08e1a7fc",
+    "text": "Derudover er der løsfund, sb. 154, fra ældre jernalder kun ca. 150 meter NV for gravpladsen.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b54390b8ac423bcb1339f88d29b413f5f2c478ff5d5930c68dfd93307900beef",
+    "text": "Beretningen dækker over den systematiske undersøgelse af gravpladsen fra ældre romertid samt de to grave fra enkeltgravskultur.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_718760e55a8d98749653959a1674b54c113c0cbe6b3ec1138e168d1f38300605",
+    "text": "Figur 2 Kort over området med Sb. numre plottet ind",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_161ff5d444bab62471d98aef7306959a678efccee2e9eb796529307bf233f93b",
+    "text": "Administrative data",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bb29b56c9ead3ac48cbbc785e90c2bf5a6d11300113bf36853bfa7811fd3b9e3",
+    "text": "Skanderborg Museum indstillede pladsen som dyrkningstruet og ansøgte KUAS om en bevilling til udgravning af pladsen. KUAS betaler udgravningen.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f6cfd3b8c2c2849816e190252bfac19cb9c6217c56d6c768f291aba6980e455a",
+    "text": "Dokumentationsmateriale bestående af fund, fotos, tegninger og beretning opbevares på Skanderborg Museum, Adelgade 5, 8660 Skanderborg",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6dfdda0bde1c56b4c87532ca337dfce42c4afe9007cac59ac5636a30f34e4e76",
+    "text": "Topografi, terræn og undergrund",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_33ab95ba6ed9224fdf46a9493af2c92d9dc4a9c771c2a8281dc24d9fee2e074a",
+    "text": "Gravpladsen ligger i et bakket morænelandskab med en lavning mod syd og jævnt plateau mod nord og øst. Selve gravpladsen er placeret på en naturlig forhøjning i landskabet ca. 75 m over DNN.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1c38047f4da3a7fa0568d4f66b079ef5c99a2c62b862538d7e38deaffb8d163b",
+    "text": "Undergrunden består hovedsageligt af mellemgroft sand, men i det nordøstlige og sydøstlige hjørne er det noget leret og gruset.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c6ec6fe6c91da9b74501528a841884233d762b324546c9136f1dd9b4bbb3308c",
+    "text": "Målesystem",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f98faaa12701b420e21509de2567f56c9274402d24ab3f70c51dca8081310ee1",
+    "text": "Alle anlæg blev opmålt med GPS i projektionen zone 32, ED50. Dataene blev efterfølgende digitaliseret i gisprogrammet Mapinfo.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_72067cc3dd2617c98fe3eeca4962066dbc310c7971d4901d6f0c607d55fc6340",
+    "text": "Derudover blev der opsat lokale målesystemer omkring hver grav. De fire målepunkter tilhørende målesystemet er ligeledes målt op med GPS. Alle grave er efterfølgende tegnet i hånden i 1:10 ud fra deres fire målepunkter. Siden er tegningerne digitaliseret i Mapinfo.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7bb2600dce81b47e35f1e137ee43ae12c6f27d63c59a7c5f3c5dc51d83af83bb",
+    "text": "Det vertikale målesystem bestod af ét fixpunkt på Målepunkt 9 med en daglig aflæsning på 180. Målepunkt 9 ligger på 75,5 m o. DNN.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fa2ddffdafb28c0a0c622c054137be16cd0fce300f31f2a0d1a54fcd0c6c5859",
+    "text": "Øvrige data",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4d990a5f52f923968b8e3d99f312bacb0e82f2ec3c9131417b213b79e98e9ece",
+    "text": "Muldafrømningen fandt sted fra den 1.-3. september 2009 og blev udført af KM Maskiner. Der blev anvendt en gravemaskine på larvebånd med to meter bred skovl. Maskinen blev ført af René D. Jensen. Tildækning af arealet fandt sted primo november og udført af KM Maskiner ved brug af en dozer.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_868bd0498cb00cc414569ad5e395c1150ee03ccd6f7f7b15b6a20518cca61b5c",
+    "text": "Den systematiske udgravning sluttede den 13. oktober 2009. Feltarbejdet blev udført af arkæolog Merethe Schifter Christensen (daglig udgravningsleder) , arkæolog Louise Søndergaard og arkæolog Anja Vegebjerg Jensen. Alle ansat ved Skanderborg Museum. Den øvrige sagsbehandling blev foretaget af museumsinspektør Helle Reinholdt og arkæolog Ejvind Hertz, Skanderborg Museum.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e678230c87bd2ed8e8d43eb47d959e49f4c53ab44c822f4e7f2e2062d67fb6ef",
+    "text": "Vejrforholdene var ualmindeligt gode i forhold til sæsonen. Mange solskinsdage med jævnt skydække og kun få regnbyger. Optimalt vejr til udgravning af gravplads.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e4405369f2babadf27f5043cd76e6caa84d778843b56dc14bc905379a7f6ca47",
+    "text": "I øvrigt blev der eksperimenteret lidt med 3Dvisning af en grav, A24. Peter Jensen fra Moesgård Museum stod for dette.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e8e8bbc23e7b7e1b607093af8a6cc407d217838a594d3f7b01e9a19ff49087cd",
+    "text": "Figur 3 Her muldafrømmes den vestlige del af feltet. Bemærk traktorsporene i undergrunden. Set fra S",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_930e3a7ef9813b0ce0d184a827117bc1a457720990d8dfa8b3531f9082fa9d42",
+    "text": "Udgravningsmetode",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fc09b7c7750d387bfc5f57bc2ce9295e5ff43056b55a8c6a380b74124dd30bbe",
+    "text": "Da vi via forundersøgelsen vidste at gravene var ringe nedgravet, blev der gået forsigtigt til med maskinen. Yderligere havde vi med GPS afsat de allerede kendte grave, således at vi var forberedte på deres opdukken. Desuden blev de kendte grave belagt med fibertex inden de blev tildækket med muld efter forundersøgelsen. Dette viste sig at være en rigtig god idé, idet det havde beskyttet de synlige karrene for yderligere destruktion.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_12fec9e5239187648550a581ca93efce43ec5d15be1d290e10cb971865be5625",
+    "text": "Når gravene dukkede frem blev det sidste muld fjernet med håndskovl og efterfølgende blev de afrenset med ske og fotograferet. Grave der indeholdte sten i fladen blev tildækket med fibertex for at blive renset frem senere.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_01ce849855045a1f25e4cbf63fcbea6c8005b0647c59f924589f8360114e56ce",
+    "text": "Alle anlæg blev målt ind med GPS og efterfølgende digitaliseret samt tildelt et A-nr.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2c7935cc740b3922434efb2c78ea05adde419846df531395753b4020cc293eff",
+    "text": "Gravene blev tegnet i hånden i 1:10 i fladen. Som regel blev gravene tegnet i flade- og bundniveau. I de grave hvor der skete væsentlige ændringer i opbygning, er der tegnet i mere end to niveauer. For hvert tegnet niveau er der taget foto og nivelleret. Der er hovedsageligt gravet med ske. Ved de få dybe grave er der dog anvendt skovl i den ene halvdel af graven. I alle grave er der anlagt en balk i midten. Grundet gravenes noget diffuse afgrænsning er balken flere steder lagt skævt på. Ved bundniveau blev den ene side af balken frilagt og afrenset til foto. Profilen er derefter tegnet i 1:10. Efter endt registrering blev balken fjernet for at få en samlet helhed i graven. Ved bundniveau blev samtlige gravgaver afrenset så vidt muligt og derefter fotograferet, tegnet og nivelleret. De sidste 5 cm inden bundniveau blev taget fra til soldning. Vandsoldningen foregik på stedet med et 4 mm maskenet. Soldningen havde hovedsageligt til formål at sikre de små glasperler. Efter registrering af gravgaver blev alle metaller taget op i mindre præparater hvor det var muligt. I to af",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_92e564da97e638f9db0c439253e9faf40e21ca03e5f1e92d3264e7254a10ce79",
+    "text": "gravene lå metallerne så koncentreret at vi måtte have Moesgårds konserveringsafdeling til at tage dem op. Karrene omviklede vi med gazebånd eller vitavrap får at holde lidt styr på karrene. Dog var der mange der lå i skår og disse blev blot pillet op og lagt i kasser.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_125862d1995858acaf18485f8121ee5592eb2aca306ba9277e0b7ec88ff47624",
+    "text": "Fund blev løbende nummeret i feltet. Tegningsark og fotos blev nummeret efter udgravningens slutning.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_22f674654c0d4dfb1b7bc581532a2ab8b6c72c6557ea265f2bbbc972ff923f95",
+    "text": "Figur 4 Louise graver i A3, set fra S",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_926c28d98dbb68d28d2fafdd9f6929e4f06eb5e55eb0d1ff06c9eee39e41a0c9",
+    "text": "Undersøgelsens resultater",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2c90234c21be5405cb6d61aebf7b248863a2076436f227a4cf69a55345263987",
+    "text": "Der er i forbindelse med undersøgelsen af gravpladsen åbnet et felt på 2529 m2. Feltets udbredelse og størrelse er vurderet ud fra forundersøgelsen, terrænforhold og de magnetometriske opmålinger. Ved afrømningen søgtes gravpladsen afgrænset så der min. var 10 meter fra den yderste grav og ud til feltgrænsen. Dette er opfyldt med undtagelse mod vest, hvor det havde været bedre om der var trukket et par meter længere ud for at være helt sikker. Dog falder terrænet noget deromkring, så det antages at gravpladsen alligevel er afgrænset. Gravpladsen synes at befinde sig på en naturlig højning i landskabet. Selvom det kun drejer sig om en halv meter i forhold til øvrig plateau, ses den tydeligt i landskabet.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5560879bdef061a00822a649fc4cb618db6474ea708d632dc2703ce43c059142",
+    "text": "Der fremkom i alt 116 anlæg, heraf 11 grave fra ældre romertid, 2 grave fra ældre enkeltgravskultur, 88 stolpehuller, 3 gruber, 5 kogestensgruber, 3 anlæg som ikke var tolkbare og 3 der udgik. Heraf blev kun de dyrkningstruede grave undersøgt, samt enkelte gravlignende anlæg.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f73c5b92403786e2a035fb9d59931d570359b0b8191ae1839fb50a47da5fc221",
+    "text": "Figur 5 Digitaliseret plan over udgravningsfeltet sammenholdt med forundersøgelsens resultater. Gravene fra ældre romertid og ældre enkeltgravskultur er markeret med et A-nr.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_aa895e35e769f52de601d4b5af91fa9609a811acfc15fb9a00a4979e4381dfe3",
+    "text": "Ældre enkeltgravskultur:",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6e4bb2dd84b61c8aae08f72ac34ec5eda5015dee98fe3305d04a08bc891fce07",
+    "text": "To anlæg, A18 og A22, havde karakter af jordfæstegrave i fladen. De adskilte sig dog på to væsentlige punkter fra romertidsgravene. For det første havde de en anden orientering og for det andet var deres fyld en del anderledes end i de øvrige grave. De to grave lå omtrent N-S og i fladen var fyldet lagdelt med lyse fyldskifter. Fyldet var sterilt med kun meget få uregelmæssigheder. De to grave var ens i opbygning, men dog alligevel på visse punkter forskellige. Kun den ene kan med sikkerhed dateres til ældre enkeltgravskultur, men grundet deres ens opbygning, må de være fra samme periode. Begge grave var ca. 110 cm dybe og spidser til nedefter. A18 var med sit flademål på 340x220 cm noget større end A22 som kun målte 206x118 cm.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8e310c1ff1c8711cf2d7d3f84105aa572a27f60ca67359a0c7e6f16bedcde2a8",
+    "text": "Udover enkelte skår og afslag, var der stort set ingen uregelmæssigheder i fylden. Dog tre ca. 20x10 cm store sten blev fundet i A18. Disse sten blev fundet tæt på det nederste lag og under den ene var der tæt pakket med ca. 30 små flintafslag, X157, hvoraf minimum to kan refittes og et enkelt stammer fra en sleben flintgenstand, X156. A22 indeholdte til gengæld et helt svajet bæger, X44, som lå væltet på bunden af det øverste lag, altså ca. 60 cm over bundniveau. Bægeret kan dateres til ældre enkeltgravskultur. På grundlag af det hele bæger og anlæggets form formodes der at der er tale om en grav eller alternativt, en offergrube. Karrets høje placering over bunden kan tyde på at det er en ofring der først er sket på gravens overflade og som så siden er fulgt med ned ved gravsænkningen. Spørgsmålet er så hvorfor nedgravningen er så dyb, tilspidset og smal. En mulighed er at der i denne har ligget dele af en båd tilsvarende den som findes i A18 (jvf. nedenstående).",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ae8ba8e09dadfa3860edb4c6bc37382fd83dd333010c38c4be0664e187498bda",
+    "text": "Figur 6 Det svajede bæger, X44, efter optagning.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ac83f4402e478fbc27910f7408e95080dfeaeacb3df1f173004f2c51c697895e",
+    "text": "A18 adskiller sig fra A22 ved sine trækulslag i bunden af graven. Trækulslagene er kontinuerlige og sine steder meget bastante. Lagene ses at spidse til mod bunden og den får således en bådform. De 20x10 cm store sten skal måske ses som ballast. Derimod er den koncentrerede mængde afslag under en af stenene et kuriosum. De lå så tæt at de muligvis har været indpakket i en form for beholder. Fundet kan måske betragtes som en symbolsk gravgave. Der er ikke tegn på at der har været ild nede i selve nedgravningen, så båden må være svedet af inden nedlæggelse i hullet. Båden har været knap 2 meter lang. Den virkede afsluttet/tilspidset i den nordlige ende, mens den mod syd godt kunne være afskåret, således at det ikke var den reelle bådslængde der var nedlagt.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0489c13bacb8b4b38785a1f9bdf82062806e05914d359093b5061321fe95b818",
+    "text": "Figur 7 Den nordlige profil af A18, Set fra N",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d37ffbbdcae5fd82dd5ef669c2479bde6be15b7a70e14688e4827d31f22aba68",
+    "text": "Udover de to anlæg, dukkede der enkelte løsfundne afslag op samt en fin skraber. I romertidsgravenes fyld, lå der ligeledes flintaffald og enkelte stenalderlignende skår som sandsynligvis stammer fra stenalderpladsens brugstid. Lidt øst for gravene blev der i forundersøgelsen ligeledes fundet enkelte stolpehuller med flint og stenalder keramik, så det er muligt at bopladsen til gravene skal findes i dette område.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a3eed1374f24d7ff25197eb8f5a9a5be593dcf7a812d89acec8a2cd5dd0c2eb3",
+    "text": "Ældre bronzealder:",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7be26d9da9a9e43a97e701a485121200345ebad572f9239462e7435d9a28a611",
+    "text": "En enkelt huskonstruktion fra ældre bronzealder dukkede delvist frem i det sydøstlige hjørne af feltet. Bronzealderhuset blev kun registreret i fladen ligesom de fleste anlæg på pladsen. En enkelt større grube vest på pladsen dateres ligeledes til bronzealder ud fra et par enkelte skår der lå i fladen. Sammenholdt med det andet fundne bronzealderhus fra forundersøgelsen vidner pladsen om, at der enten har ligget et par samtidige huse i ældre bronzealder eller det drejer sig om et enkelt hus der er flyttet lidt rundt i landskabet. Det fremdragne hus kan ses i ialt 17 meter, hvorefter den fortsætter mod øst ud i traceet. Vægstolperne er mellem 50 og 80 cm i bredden og ved flere af stolperne kunne der observeres to stolpespor. Vægstolperne ligger med en indbyrdes afstand på mellem 2 og 2,9 meter med en pæn afrundet gavl i vestenden. Tagstolperne er mellem 50 og 110 cm i diameter og let ovale i fladen. Der er i alt tre tagbærende sæt, hvor det vestligste sæt ligger ca. 2,5 meter fra gavlen. Der er ca. 6,3 meter til det næste sæt og derfra er der knap 5 meter til det sidste synlige sæt. I forundersøgelsen blev dette hus også erkendt og der kan man se et fjerde sæt som ligger knap 5 meter fra det vestligste sæt.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3eed6a6fa2d09c78dc5cb022941492a59d86804069ffa01e6784507189b8f12c",
+    "text": "De overpløjede høje i området tyder på at gravpladsen tilhørende bronzealderhusene kan have været tæt på. Kogestensgruberne nordøstligt i feltet er ikke dateret og kan i teorien stamme fra både stenalder og romertid, men det er nok mere sandsynligt at der er tale om jordovne tilhørende bronzealderbebyggelsen.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e2c134019423c953dcd1a1aa30274bc088cb102cb31665c0598fd8c2de89336e",
+    "text": "Ældre romertid:",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e80ca32694fd0f58a33fa53cee069d31e5d14d56de70e8b38979b70337336871",
+    "text": "Tolkning af resultaterne fra udgravningen af ældre romertidsgravene kan ikke blive fyldestgørende før genstandene er bearbejdet på konserveringen. Foreløbige tolkningsresultater vil blive fremlagt her.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_735c13b68103125d9907c3d77028fefa3a8fe934c7c4b939dc1e375207475188",
+    "text": "Der dukkede i alt 11 jordfæstegrave op fra ældre romertid. I det følgende vil de blive beskrevet i en overordnet sammenhæng. For yderligere detaljer fra de enkelte grave; se anlægsbeskrivelsen.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5969363d5103396e2b8f6a41853264afee1aa91e55a6dc85ae85526e9c8454f0",
+    "text": "Jordfæstegravenes placering på pladsen:",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6ab24918c81f6aa7c166be9242efee3edbf95aee99d479d4d214997bbb1265c9",
+    "text": "På den nordlige del af pladsen ligger der fire grave, A2, A1, A24 og A23, i et øst-vest gående strøg på knap 24 meter. De ligger på en let bølgende linje. Knap 12 meter syd for disse ligger der en enlig grav, A5. Ca. 7 meter sydvest for denne befinder sig den yderste af fire grave A3, A4, A20 og A21, der ligger i 'harlekin'formation, med en indbyrdes afstand på ca. 5 meter i den ydre kreds. Lige stik syd for disse, ca. 3,5 meter væk, ligger to delvist sammengravede grave, A5 og A115.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a055e2f8e3b688d5885dc594b589abdac4caf5e615f8e1c0dd8ec0c0a258079b",
+    "text": "A5 ligger omtrent på pladsens højeste punkt og de øvrige grave synes at kredse om den. Det er muligt at denne er den ældste grav. Der er ikke fundet spor af brandgrave eller urnegrave på pladsen. Sådanne er som regel ringe nedgravet, og taget pladsen ringe muldlag i betragtning, er det meget sandsynligt, hvis de har eksisteret, at de er nedpløjet.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_44202c6f055d1f7462aadc07e7419dfb00b2b95d414fa05b1f4d9eda5eb273b1",
+    "text": "Jordfæstegravenes dimensioner:",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_102dc778d5b9fbb1a76682b4afe1243bf576ca36bbaa4972ef2b6b0f57a92099",
+    "text": "Gravenes længde varierer mellem 186 og 350 cm med et gennemsnit på 240 cm. Gravenes bredde ligger mellem 108 og 226 med et gennemsnit på 145 cm. Gravenes dybde ligger mellem 10 og 77 cm med et gennemsnit på 34 cm. Ved nogle af gravene ses en sammenhæng mellem anlæggenes fladedimensioner og deres dybde. Dog skiller flere sig ud, eks. A5 som er 300 x 160 cm i fladen, men kun har en ringe dybde på 14 cm. Det kan derfor ikke fastsættes en standard der hævder at omfangsrige grave i fladen er lig med en stor dybde eller omvendt for de mindre grave.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e744a800b3e30c5d112c3a656ca04fdd19d919d9a42be522c082f1246eaca85e",
+    "text": "Jordfæstegravenes orientering:",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c8943f9b55969673ebe7f64d060f899613bbcd789a8bfa0b20008b6b4a74d13a",
+    "text": "Ni af gravene vender omtrent Ø-V med en lille drejning mod ØSØ-VNV. To grave, A4 og A115, vender NØSV.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f3c95817254556a5ad1c66e7f6aa792b9012c1fcd3df8e353266bda96a2cc15f",
+    "text": "Jordfæstegravenes opbygning:",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3dfd02ceaf9152c25156169a2e474db295d3ad26bf7e8a4393590fa0540d0ce0",
+    "text": "Der er tre standard opbygninger af gravene på Katrinesminde. Den første er gravene med stenramme og stentæppe. Denne type forekommer i fire tilfælde, A5, A24, A25 og A115. I flere af dem ses antydninger af en sveden trækiste. Den anden type er grave uden stenramme, men med et stentæppe. Dette findes ved A2 og A23, hvorved der i A2 ses spor af en sveden trækiste. Den tredje type er forholdsvist små grave uden spor stenramme eller stentæppe. Dette forekommer ved A1, A3, A4, A20 og A21. A1 har spor af en sveden trækiste, mens A21 og A4 har et lidt mørkere organisk spor på bunden, som sandsynligvis stammer fra en trækiste. Ved A3 og A20 kan der have været tale om en trækiste, som blot ikke har sat spor.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_dde7cafa318df7ac61e1a2ac5e44c7739a664af4b2d4c3c976b5ce498d9f3e5d",
+    "text": "Figur 8 Eksempel på en af stenrammerne. Her er det A115, set fra N.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_07e1156cfbb88bfa5173aa23c1d2bf810d427abb5eeca325a3c939da95a6508d",
+    "text": "Jordfæstegravenes indhold:",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7f952531d7004e017f779fd6d952686fe21f5c66e830efbc892525127de4000b",
+    "text": "Som tidligere nævnt kan det ikke blive en fyldestgørende beskrivelse af fundene før genstandene er ordnet på konserveringen. Til trods vil der alligevel blive gennemgået samtlige erkendte genstandsgrupper på gravpladsen.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d9e789fc92854d0e33cdb1223f2467d80020615a88cc32bc9bc09998b93dbe4b",
+    "text": "Jerngenstande : De to typiske jernfund i gravene er knive og remspænder. Knivene er repræsenteret i fem grave (A2, A5, A20, A24 og A25). I A5, A20 og A25 er kniven placeret i det sydvestlige hjørne af graven, mellem lerkar eller som i A20's tilfælde op ad et lerkar. I A2 ligger kniven i den nordøstlige halvdel. Her må man formode at den enten har siddet i et bælte eller den har været anvendt som forskærerkniv for et nu forsvundet måltid mad, som kan være placeret bag den afdødes ryg. I A24 er jernkniven placeret i det sydøstligste hjørne. Knive findes generelt i både mands- og kvindegrave, og dette er også gældende på denne gravplads. Remspænderne omfatter to ringspænder fra A2 og A23, samt tre ovale remspænder fra A1, A3 og A115. Samtlige spænder ligger omtrent centralt i graven på længderetningens midterakse. I A1 er den trukket lidt",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1157c1fbabb18981a56da6b06d0b54dd874a16fba5069267b54db097faa6bc42",
+    "text": "mod vest, mens den i A3 er trukket lidt mod øst.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7a348f68058361fc1a40c913809923204a89cc62fa95ae5343d2d7e348940668",
+    "text": "Der er dukket en enkelt jernnål op fra A21. Det vides ikke med sikker hed hvor i graven den lå, da den blev fundet i soldet. Derforuden er der ca. 6 genstande som ikke er identificeret.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4ba719e2a860bb877dddb67f9de583ab059bc9040c6dcdaf598db55d8e008146",
+    "text": "Bronzegenstande : Der er fundet bronze i tre af gravene, A2, A24 og A115. En af de hyppigste bronzegenstande er fiblen, som optræder mellem 7 og 8 gange på gravpladsen. Fiblen findes i alle tre ovennævnte grave med tre eksemplarer i A115, to i A2 og mellem 2 og 3 i A24. Der er desværre ikke muligt at sige noget om typerne før præparaterne er udgravet. Fiblerne er alle placeret i den vestlige halvdel i gravene ved der hvor man må formode brystregionen har befundet sig.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d388ccc1412fe16c7811e8ce47b2a72c2a34e0400072137220804babbcc6e7d9",
+    "text": "En bronzegenstand som optræder flere gange end fiblen er nitten. I A24 er der på røntgenfotoet observeret mere end 10 nitter, som er en del af et større bælteudstyr bestående af et bronzebæltespænde, bronzerembeslag og en bronzeremendedop. Bronzebæltespændet er D-formet. Disse ses sjældent i B1 og de to fundne tilfælde i østjylland stammer fra mandsgrave. Her skal lige nævnes at A24 er tolket som kvindegrav udfra de mange perler, en tenvægt og de tre fibler. Bæltesættet anses for et fornemt udstyrsstykke. Remendedoppen er begrænset til B2, men er sjældne i det østjyllandske område, hvor kun 6 er påvist, heraf 5 i bronze (jvf. Madsen, O, 1984:160f., bind 1). I B2 er D-formede bæltespænder repræsenteret i både mands- og kvindegrave. Der er selvfølgelig mulighed for at A24 skal dateres til B2, dog synes keramikken at trække den ned i B1.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a5780a6d67d39e93f20a4dc1f51dbffb0c524756654a9f7d8ad797aba909866d",
+    "text": "Med hensyn til bronzegenstande er det således A24 som skiller sig ud idet bæltesættet er en sjælden personlig ejendel.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_09107980a70ad2c07b4bd72f526da191788c8da56abc6a7fcb18a43d0dced4a8",
+    "text": "Glas : Der er fundet mellem 50 og 80 glasperler fordelt på 6 grave, A1, A2, A21, A23, A24, og A115. Glasperlerne er i samtlige grave placeret tæt/mellem fiblerne hvis sådanne forefindes, eller på samme sted, nemlig i brystregionen i den vestlige del af graven. En enkelt undtagelse er i A24. Her er der bevaret tandemalje og derved en dokumentation af hovedets placering. Bag tænderne, der hvor håret må formodes at være, er der placeret guldfolieperler på stang. Her må perlerne have været anbragt som pynt i håret, eller de har været påsyet en form for hovedbeklædning. Der forekommer dog også spredte glasperler ved fiblerne, og disse skal sandsynligvis betragtes som værende påsyet tøjet, netop fordi de ligger så sporadisk.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bb862375d8df695a95cd9d5cc9fdad2cf3908910bee5bf81c909b3505d6b7c45",
+    "text": "I A2 ligger der perler mellem fiblerne. Det må formodes at der kan være tale om en kæde. I A1, A23 og A115 er perlerne placeret lidt vest for et ringspænde eller remspænde. Særligt i A115 er det tydeligt at der er tale om en perlekæde, mens det er mere usikkert i de to andre grave. I A21 er der fundet to glasperler, men begge fra sold. Det kan fastslås at de er fra den vestlige del af graven.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a6136b4ef58475a8690610b5ed29ba944d560736d929919d7a40baade1ca7b7b",
+    "text": "Figur 9 Glasperlekæden fra A115, set fra V.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c58dcce1c4d745d50ee279b2564b29e420b51d251d83af6873f36463892892a0",
+    "text": "Der er flere typer glasperler i gravene. Nogle er runde og let flade med ca. 1 cm i diameter. Farverne varierer mellem blå, grøn og lys/gennemsigtig. Andre og den hyppigst forekommende type er aflang og nogle udstyret med en vulstring i enderne. Disse er ligeledes under 1 cm i længden. Farverne er her i brunlige nuancer. Ligeledes findes der en del guldfolieperler. Disse har samme udformning som foregående type. Flere guldfolieperler sidder på stang og ligner derfor dobbelt- og tredobbelte perler. Guldfolieperlerne findes i A1, A24 og A115. En fjerde type findes i A23. Det drejer sig om tre ens buttede mælkehvideperler på ca. 1 cm i diameter. Til slut skal lige nævnes perlerne fra A21. To små perler, hvor den ene på ca. 0,5 cm i diameter, var rund og brun, mens den anden var en lille blå dobbeltperle.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4de1bf1825695522e3f694fa1cc66ae027704e8fec12fa1bf49b27e93b6a0f8e",
+    "text": "Glasperler findes typisk i kvindegrave, men er før i enkeltstående tilfælde erkendt i mandsgrave.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_505b0f53d309beeb8e86d402dc9719ba24d7a1906d9ab6dd7a44f8c9c0c0a961",
+    "text": "Rav : Der er erkendt tre ravperler i forbindelse med udgravningen, men der kan sandsynligvis tillægges yderligere 2-3 perler, som er taget op i præparat. Her gennemgås kun de optagne perler. Perlerne er fundet enkeltvis i henholdsvis A1, A21 og A24.  Perlerne fra A1 og A24 har begge en diameter på ca. 3,5 cm og en tykkelse på knap 2 cm. De er udstyret med et fint gennemboret hul. Perlen fra A1 ligger ikke på gravbunden, og der kan være tale om en senere ofring eller perlen kan være henlagt på kistelåget. Perlen fra A24 ligger tæt opad bronzebæltespændet. Det er derfor muligt at perlen har hængt fra bæltet. Perlens placering samt størrelse gør at vi desuden må antage at den kan have været brugt som tenvægt. Sådanne tenvægte findes normalt kun i meget rige grave og er sjældne (jvf. Madsen, O., 1984:135f).",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_917695ffd04b3fda68f0344f7a2d393ca3f813f6a60c8be372138b09d432d86f",
+    "text": "Figur 10 Den store ravperle, X55 fra A1 til venstre og til højre ses den mulig tenvægt af rav, X117 fra A24.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e7a8c05a9c4dbde34b972ad739e0a9b94669fab93c8225bb693b0485385eaca5",
+    "text": "Den sidste perle er fra A21. Perlen er flad og rund med en lille øsken. Den er omkring et par cm i længden. Den lå i den vestlige del i gravens midterakse.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_61604d00261c56d3f75d8aa20c7d440fc088998eef78b9a23c9dfc559aa7490e",
+    "text": "Lerkar : Da lerkarrene endnu ikke er frempræpareret vil dette være en kortfattet gennemgang af de kar som allerede i udgravningen kunne identificeres. Foreløbig er der i alt 47 kar. Der er mellem 1 og 10 kar i hver grav. Ser vi på typerne fordeler de sig således: 9 vaser, 1-2 fodbægre, 14 skåle, 6 hankekopper, 7 hankekar og 2 fade. Derudover kan der muligvis udskilles et drikkebæger, X127. 6 kar kan ikke endnu identificeres grundet deres fragmenterede tilstand.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d4069b618647e1c000742750e64b32b21efd4bd448520a388ede85fa3c2db83a",
+    "text": "Figur 11 Eksempel på karrenes fragmenterede tilstand. Her fra A5's sydvestlige hjørne. Set fra S",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7aea2193d9c5e9e369555df0fa013d395aabb28b6c8bea43275137ae00476561",
+    "text": "Alle kar befinder sig på den sydlige langside samt nogle få i den østlige og vestlige kortside. Nordsiden er således tom for kar. I alle grave der er udstyret med en eller to vaser er der ligeledes mindst en skål samt en hankekop. Dette mens vaserne kun findes i den vestlige del. Skålene findes typisk mod vest, men enkelte er placeret sammen",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_09e1d600762af42c3234bff7070486bd1e578e5d33c47c9b220a8ae3397721c2",
+    "text": "må derfor betragtes som et sammenhørende sæt. Hankekoppen er som regel placeret i den østlige ende, med koppen i østdelen.",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c119e5939cd4555165ec3c8b44024d14ecc7740029e4e6409b50c423e4c5f186",
+    "text": "Figur 12 Eksempel på det sammenhørende sæt: vase, hankekop og skål. Her fra A1, set fra N",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2ab463f7d8ceed621b616daea55a280e58410fd2466d1c36e08cfda17a852410",
+    "text": "Ved tre grave er der, ved en senere lejlighed eller som et ritual ved begravelsen, sat et lerkar ovenpå graven. Det drejer sig om A2, A24 og A115. Ved A2 og A24 er karret placeret i den østlige ende af graven ca. 30 cm over bunden. I A24 ligger den således i stenrammen, væltet. Inden i den ligger flere knytnævestore sten, som kunne indikere at karret bevidst er smadret. Ved A115 er karret placeret omtrent midt på graven let trukket mod syd. Alle tre lerkar er svære at identificere typemæssigt, da de enten er stærkt fragmenteret eller også mangler toppen af karret, grundet pløjning og afrømning med maskinen. Umiddelbart ser det dog ikke ud til at det er samme type kar der er anvendt. Det er ikke ualmindeligt at finde den slags ofre og man må formode at der har været offerkar ved flere af gravene på Katrinesminde, blot de er forsvundet grundet nedpløjning (jvf. Madsen, O., 1984:35). Ornamentikken generelt: I det følgende vil der blive opremset hvilke former for ornamentik der indtil videre er erkendt. Tolinet omløbende bånd, trelinet omløbende bånd, omløbende furer, mæanderbånd med skråskravering eller punkter, tolinet vinkelbånd, tolinet vinkelbånd med skråskravering, omløbende vulst, vertikale tolinede bånd og omløbende hængende tolinede buer, Alle disse typer ornamentik er på flere af",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_55ac6cc0fcb690663a8107617607f4af057d1c6fd35ff378a9f1c17fa4c84db8",
+    "text": "krukkerne kombineret med hinanden.",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3796fefda12d0962e30b6d6fd9599be07b96f05dcd56be4d62aa17365c3a1bf5",
+    "text": "Figur 13 De 7 kar i det sydvestlige hjørne af A24, set fra Ø",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8c038f6038bd2ba4abe439aa8a2dc121e2e994dfb2e03b0bf9831c02ef7c0b88",
+    "text": "Organisk materiale : Der er generelt dårlige bevaringsforhold på gravpladsen. Kun i A24 er der fundet tandemalje. Udover det er der hverken fremkommet skeletdele eller ligaftryk. På et røntgenbillede fra A24 kan man dog ane en ringe bevaret rem som sidder i forlængelse af bæltespændet. Remmen er sandsynligvis kun bevaret grundet metallerne der ligger omkring den. Det vil i samme ombæring være sandsynligt, at der ved fremgravning af de øvrige metalgenstandene i",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8e8fbb8b247a68b032f3f7489738505d33f96a9b781c8c0206c83c31d70d30b3",
+    "text": "præparaterne kan forekomme tekstil og læder rester i flere af gravene.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ad6c01b6a27714cd29623fa67a69a6f46c6fd1278e8e7596d307c52c3873e993",
+    "text": "Zoologisk materiale og småsten : En musling, X118, lå ved siden af den store ravperle i A24. Muslingen er endnu ikke undersøgt, men det formodes at der er tale om en lille amulet som sammen med ravperlen har været fastspændt bæltet. Lidt øst for muslingen og perlen lå to mindre sten som var glatte. Stenene er desværre ikke hjemtaget. Det anses som sandsynligt at stenene, muslingen og ravperlen kan have ligget i en skindpose eller lignende, som var fastspændt bæltet. Diverse genstande fra gravfylden : I gravenes fyld dukkede der ind imellem genstande op, som for størsteparten stammer fra romertiden. Dog er der i enkelte grave fundet bopladsaffald fra stenalderpladsen",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d9e4ce34853c7f0353eb62858c332975210fb414519695dfc83d80dcc76b6960",
+    "text": "som formodes at have ligget lidt øst for gravene. I de stenfyldte grave har man brugt en del kværnsten, slibesten og mortersten som fyld. Størstedelen er fragmenter. I A2 er der fundet en ligger i tre dele, hvor delene lå lige op ad hinanden, som om man havde smadret liggeren eller tabt den derned i. Der er yderligere fundet 3 fragmenter af kværnsten samt en slibesten i A2, som er den grav med flest bearbejdede sten i fylden. I A24 lå der to morter sten, hvor den ene var en del af stenrammen.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6b6d1414f146d1b57cc8d77d2aeeaa2b77ef562f0309b75ea166955b393ef305",
+    "text": "I A25 havde man åbenbart problemer med at få sten nok, da man yderligere havde smidt en del slaggerester, X65, i. I alt seks spande af 10 liter lå i graven. De vejede tilsammen ca. 83 kg.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c74658757877c4bb166cb735e35502b6c74079790b32e73587929c024508d8bb",
+    "text": "Øvrige løse genstande fra gravene bestod af skår og flintafslag og flækker samt en enkelt blok, X41. Blokken og flækkerne stammer nok fra stenalderbopladsen, mens de løse skår både er fra jernalder og stenalder/bronzealder.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_da6be3d14874898ccec4069c0f2e613a0e4ada0354dd51957fc1aef2084b7780",
+    "text": "Køn, alder og social plads i samfundet",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c7356bda40942d5f904383d81ef6f6075c279bc92be0f78fa3fd136f1209fe28",
+    "text": "Som sagt er det eneste jordiske levn af de afdøde et enkelt tandsæt i A24. Det har af samme årsag ikke være muligt at kønsbestemme gravene på osteologis vis. Det må derfor være op til gravgodset at pege på hvilket køn der er tale om. Desværre er der ikke dukket genstandene op der udelukkende peger på at det kunne være en mand der lå begravet. Derimod er der i A1, A2, A21, A23, A24 og A115 dukket perler eller perlekæder op som normalt relateres til kvinder. I A24 er der vedlagt en mulig tenvægt i rav som kun relateres til kvinder. Desuden er der i de tre af perlegravene, bortset fra A1, ligeledes fundet mellem 2-3 fibler i hver. Fiblerne findes hyppigst i kvindegrave, men ses også i mandsgrave. I mandsgravene er der blot oftest tale om en enkelt fibel. Det synes derfor sandsynligt at disse seks grave tilhører kvinder.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_35ec5bf716aa8d18a189650cc2f5eb101a106ea9c6490bad88d115184bab3186",
+    "text": "Ser vi på gravenes størrelse og opbygning er der en tydelig opdeling i arbejdsbyrde ved anlæggelsen af gravene. Omfanget af det nedgravede hul, de massive stenrammer og stentæpper indikerer at der i de fleste tilfælde har været tale om en person af højere rang end almindelig bonde (jvf. Madsen, O., 1984:66ff). Det er alligevel kun i to på Katrinesminde; A24 og A115, af de fire grave med stenramme, som har rige gravgaver i form af bronzer og perler. De to andre, A5 og A25, indeholder kun jernknive og mellem 5-6 kar. Kan man ud fra manglen på smykker konkludere at der har været tale om gravlæggelse af mænd, som stadig, grundet deres massive gravanlæggelse, kunne være placeret højt i hierarkiet? A5 understøtter denne teori, da denne er placeret sammen med A115. Det er meget sandsynligt at disse to grave har tilhørt mand og kone og derfor må de også være af samme rang. A25, der med sine 6,1 m3 er den største og absolut mest tidskrævende gravanlæggelse på pladsen, må også have rummet en person med tilknytning til eliten i det lokale samfund.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a4c2cddaf69a32ff5ce51d1d579a68601a7357c7e6f0e4157faccad1277c45c6",
+    "text": "De relativt små grave (under 0,7 m3) uden stenramme og stentæppe, A3, A4, A20 og A21, er ligeledes dem der er investeret mindst tid i. Disse kan kun i et tilfælde, A21, betegnes som barnegrav.  Gravene indeholder mellem 1 og 3 kar. I A20 har man vedlagt en kniv og et kar. I A3 er der rester af et bæltespænde, vase, skål og hankekop, mens der i A21 er medbragt tre miniature perler i rav og glas, en jernnål samt en miniature vase. I A4 er der sat en skål og en hankekop. Gravgaverne er få i forhold til de øvrige grave på pladsen. Dette gælder dog ikke A1, som med sine perler og fire kar hører til de mere fundrige på pladsen. Det synes heller ikke tilfældigt at de fire fattigste ligger i en samlet klynge med ca. 5 meter mellem alle grave i en \"harlekin\"-firkant. A21 tolkes med dens små miniature-genstande som en sikker børnegrav. De tre øvrige grave har alle genstande med i normal størrelse. Dette kan tolkes til at det måske nærmere er unge personer der er gravlagt. Der er selvfølgelig stadig den mulighed at det var de laveste i hierarkiet der havde fået denne plads.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4720a4e4b88bbeff63047bf5030769cac686e380973b0fe4f62e1736016d591b",
+    "text": "Figur 14 Barnegraven, A21, med miniaturevasen. Set fra N",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_108333946dfea6b26d021c3e85de61768b8120312526a8a8ad24ec67156d69b3",
+    "text": "A1 hører også til de små grave med sine 0,8 m3 og næsten stenfri grav. Denne rummer dog lidt flere gravgaver end ovennævnte, i form af 4 kar, bestående af en vase, hankekop, skål og et ubestemt kar. Desuden forefindes der mere end ti glasperler, heraf mindst 1 med guldfolie, samt en stor ravperle. Graven ligger i den nordligste række af fire grave, hvor alle rummer glasperler. Gravene i dette strøg peger på, grundet den store mængde perler samt bronzer i A2 og A24, at der kan være tale om gravlæggelse af kvinder som var placeret højt i hierarkiet. Dette gælder i sær for den gravlagte i A24, hvor man må formode hun har været en del af eliten. Hun var, som før nævnt, udstyret med et bælte med bronzespænde samt bronzeremendedop. Disse ses sjældent i B2 (kun 6 kendte tilfælde i 1984, jvf. Madsen, O.) og er endnu ikke bekræftet i B1. Hvis graven skal dateres til B1, som keramikken antyder, ja så må det betyde at hun har været på forkant med tiden og man har sandsynligvis dengang vidst at en sådan genstand var noget særligt, hvilket har givet personen der bar den en særlig status. Derforuden var kvinden i A24 ligeledes udstyret med en tenvægt af rav. Disse forekommer også sjældent og optræder kun i forbindelse med ekstraordinært rige grave. Guldfolie-perlerne optræder i tre grave i kombination med andre glasperler. Yderligere tre grave rummer glasperler. På nuværende tidspunkt er perlerne det eneste som vi er sikre på er importeret. Frempræpareringen af de øvrige metaller på konserveringen kan selvfølgelig vise andre resultater. Det kan dermed konkluderes at der på gravpladsen er gravlagt 1 kvinde (A24) som har haft forbindelserne i ved deres gravgaver eller gravens opbygning, viser at de kunne befinde sig i det mellemste lag af rangstigen har befundet sig på samme niveau som kvinden fra A24. De sidste 4 grave er ydmyge grave, hvoraf den ene",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c26fe7497771290aa8f162122d72589cadfc60d6ae8cbbde7ac7e51ee338c85e",
+    "text": "orden og befundet sig i de øverste lag i samfundet. Manglen på importvarer, guld og sølv i graven, gør dog, at det kun har været i det lokale samfund, hun har haft indflydelse. Derforuden er der 6 grave, som enten i det lokale samfund. Muligvis skal A5 nok tolkes til at være en grav bygget til en mægtig mand, som måske er en sikker barnegrav. Spørgsmålet er om de skal tolkes som barne/unge grave eller det er et spørgsmål om hierarki. Der findes 6 omtrent sikre kvindegrave, hvorimod mandsgravene er svære at dokumentere.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9dc15fe49e226f885b18b24044c65f16ef69b7ed5b5ff47ebb57ca8b4a4ecc35",
+    "text": "Figur 15 A24 med dens gravgods, set fra N",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_34170b5bc612898ab6fb45927aee9b50860f971738f810cfb7c40acd1a3d5e3d",
+    "text": "Gravpladsen i perspektiv",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3cf92470f25624ad6eaaaefb9983a9c31bc9426fefffdde31777ab850dce46a3",
+    "text": "Katrinesminde afspejler meget vel de øvrige grave fra ældre romersk jernalder med troen på at det var vigtigt at få gravgaver med ind i den næste verden. Vi må formode at der også på Katrinesminde er medgivet mad og drikkevarer i alle lerkarrene.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e0baa9c1b45161358f87fb4f60e096e5a987086bce64c210811cf087d2efe80d",
+    "text": "Antallet af lerkar i B1 ligger i Århus og Skanderborg gl. amter ifølge Orla Madsen på ca. 7 lerkar pr grav og der er ingen grave med over 11 kar (Madsen, O. 1984:49). Her ligger Katrinesminde lidt under det almindelige antal med kun 4,2 kar pr. grav i gennemsnit og med et maksimum på 10 lerkar i en grav.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1697f756335cbe5374cfa622c17eefd7c9cdf2473791b6fd339d31c1e193596d",
+    "text": "Ligets placering må ligeledes formodes at afspejle den øvrige trend i denne periode, hvor hovedet er mod vest, kroppen i hockerstilling og kiggende mod syd. Dette bekræftes af det ene sæt tænder i A24 samt gravgavernes placering i gravene.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_797362f97eb0f66df7ec80207bb51519ab793a6a47e335a3307c794041965039",
+    "text": "I Århus og Skanderborg gl. amter er der fundet glasperler i 7,73 % af gravene (for både B1 og B2). På Katrinesminde findes perlerne i 55 % af gravene. Dette kan selvfølgelig skyldes at der er forskelle på anvendelse af sold på de forskellige gravninger. Dog er det svært at se bort fra den store procentstigning af perler på Katrinesminde, hvilket ikke udelukkende kan skyldes manglen på erkendelse af perlerne i felten.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_dd536610491e56bf794249155a3a50756d1fbca361c4e630191dcfde0603a739",
+    "text": "Bælteudstyret i A24 som sandsynligvis skal dateres til B2, men hvor keramikken i graven dateres til B1, er også et mere usædvanligt fund. Det bliver spændende at få en mere nøjagtig datering på graven. Muligt skal remendedoppen efterfølgende omdateres.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8084b07efd83251f9bf11359b1fca0aba4acea9b370e008799aa748148f43a43",
+    "text": "Ca. 300 meter vest for pladsen er der i 1800 tallet gravet en ældre romertidsgrav, og ca. midt mellem den og Katrinesminde er der fundet løsfund fra ældre jernalder. Kan der have været to bopladser tæt på hinanden med hver sin gravplads, eller er det bebyggelsen samt gravpladsen der er flyttet i løbet af ældre romertid? Der er i hvert fald potentiale for yderligere undersøgelser i området.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a0a4e3be34abc6c4f0f8946e8ea02bbd29a825f8fc277070b7ba3c9fbdeba131",
+    "text": "Datering:",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_73e6de0adce51f334ba6f13e54a228997ecc3a52badf88542b1377f5b26e1eb5",
+    "text": "Gravene er endnu udelukkende dateret ud fra lerkar og ornamentik, indtil fiblerne foreligger. Hovedparten af gravene stammer formodentlig fra B1. Dateringen vanskeliggøres af de mange uornamenterede kar og de mange stærkt fragmenterede kar.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_de0901c1c2d857595fb26b08daa934821035792f65e2538945cba4e512d6561f",
+    "text": "Enkelte genstande peger på B2. Dette er bl.a. bælteudstyret i A24.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8d3d6d2d23705740ede2a0a63136403cde5e38c6e6252e191c0b9d0f7609d764",
+    "text": "Litteratur:",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3c9af2e02d50f6acb838adac4e38aabe96851e66675458ee5df143493b7abb82",
+    "text": "Glob, P.V., 1945: Studier over den jyske enkeltgravskultur. I Aarbøger 1944",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_da7f3e600ef281a45189341590c228a4902b629b07b38417c2a393cd0078f667",
+    "text": "Henriksen, M.B., 2009: Brudager Mark - en romertidsgravplads nær Gudme på Sydøstfyn. I og II. Odense Bys Museer",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ee96e6b108848f6e19e72b3b1d91408fb19428d16dfc049781b739719b006645",
+    "text": "Høj, M., 1984: Bulbjerggravpladsen. I HIKUIN 10",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4fd40ccd303ca1f332fcffa159751a6c11a63cb42396177299885ca50e0b92cc",
+    "text": "Jensen, S., 1976: Fynsk keramik. I gravfund fra sen romersk jernalder. I KUML 1976",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d84fa06cc10d428614d79ff12eb4cbda5a56db34f9bd249c72bbefb049023879",
+    "text": "Madsen, O. 1984: Upubliceret konferensspeciale; Sociale strukturer i ældre romersk jernalder - belyst ved et primært gravmateriale fra Skanderborg og Århus Amter.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5e9cf98990924c9ded1e127880c4e206d8266a543ffaabb2349a73d380af671f",
+    "text": "Norling-Christensen, H., 1954: Katalog over ældre romersk jærnalders grave i Århus Amt. København",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_901e11674526ac3c37803d8de4e8f5b41456f78c198b7a03b783556c920e738a",
+    "text": "Fremtidigt arbejde på stedet",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bde96638b918cba7050709563365bdaff8e39ff83252f5ea340a01edb29a407f",
+    "text": "Det vil være lønsomt at foretage yderligere udgravninger på stedet. De to huse fra bronzealderen, samt spredte stenalder anlæg, viser med al tydelighed, at der er et spændende område med bopladser fra flere perioder. Det er sandsynligt at gravene fra enkeltgravskulturen har deres tilhørende boplads i området øst for romertidsgravpladsen. Desuden er der ikke fundet særlig mange ældre bronzealder huse indenfor Skanderborg Museums ansvarsområde.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_00abdb9f02a49a57598544d19e1414e5ff7c0a14c453da1b28fa5fcc5424732e",
+    "text": "Selve romertidsgravpladsen menes at være udgravet i dens totale omfang.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a6347cbdf88d30f69974c0c28bd48da44be1a9bc937ed9335afa00f1a9f6278b",
+    "text": "Af naturvidenskabelige undersøgelser kunne det være spændende at inddrage metallurgi for en proviniensbestemmelse af bronzerne. Det kunne desuden være spændende at gøre mere ud af trækulsprøverne fra enkeltgravene. Bl.a. en C14 datering samt vedbestemmelse af den forkullede båd.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1130d74e8fd4ef4ba5610131e8aa0911168f61b865febf887fb3d2ddf6cb0938",
+    "text": "Der er bestemt potentiale for en publicering af pladsen.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_08f78707229f8653db5069ef9c159f847808fca3a0ad36ce3fef3fbc903be7af",
+    "text": "Pladsen er givet fri til dyrkning af jorden.",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e9d0192943573351c90e53a03f3e5062fb604a7b127e7d191e8c333e59c84679",
+    "text": "Skanderborg Museum d. 26-11-2009",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6b44939200144fb9dbae4a5f7bf968b1249b92daa6d8c3fc1074c92c90f191af",
+    "text": "________________________________________________________",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3fc8047eb8678c82dd8762dfb9a7b2697e49da9bb96ff4cebdb2cd846a793656",
+    "text": "Figur 16 Udgravningen er afsluttet og de tomme grave står tilbage. Set fra NV",
+    "page": 22,
+    "kind": "text"
+  }
+]

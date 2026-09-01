@@ -1,0 +1,192 @@
+[
+  {
+    "value": "Age-related disease or disease-related age? Perspectives for paleopathological research",
+    "resultPath": [
+      "title"
+    ],
+    "note": "title anchor",
+    "goldAnchorId": "anchor_de57395d0c40d2970bc63268b9899e3a1c099a2d31f23718d7e47c4a44d61c8e"
+  },
+  {
+    "value": "Katharina Fuchs",
+    "resultPath": [
+      "authors",
+      0
+    ],
+    "note": "REVIEW multi-gold: author list + first-authorship note + CRediT statement",
+    "goldAnchorIds": [
+      "anchor_233d1ab87aa9e30091e765d72789fb3d7690ec783702d2410a70a694f711c40c",
+      "anchor_81a0115d030bca65bd8ec7c84a675a577b743e23e9f321340413a91f35af9890",
+      "anchor_d8215394f36fbbea1e4e1e5358f52df4a20d9f049dabe80300e7ee222323bc40"
+    ]
+  },
+  {
+    "value": "Jo Appleby",
+    "resultPath": [
+      "authors",
+      1
+    ],
+    "note": "REVIEW multi-gold: author list + first-authorship note + CRediT statement",
+    "goldAnchorIds": [
+      "anchor_233d1ab87aa9e30091e765d72789fb3d7690ec783702d2410a70a694f711c40c",
+      "anchor_81a0115d030bca65bd8ec7c84a675a577b743e23e9f321340413a91f35af9890",
+      "anchor_d8215394f36fbbea1e4e1e5358f52df4a20d9f049dabe80300e7ee222323bc40"
+    ]
+  },
+  {
+    "value": "10.1016/j.ijpp.2026.02.003",
+    "resultPath": [
+      "doi"
+    ],
+    "note": "unique, doi line p1",
+    "goldAnchorId": "anchor_6adfba012ee3b67ffc47df682be138c241dfdaafc1fe6a4722b212be89662573"
+  },
+  {
+    "value": "k.fuchs@ufg.uni-kiel.de",
+    "resultPath": [
+      "corresponding_email"
+    ],
+    "note": "unique p1",
+    "goldAnchorId": "anchor_fdffe17370029495709d50d198d9ff7783a9ffdf3b24e9d7fcb0b499b98c44d3"
+  },
+  {
+    "value": "University of Leicester",
+    "resultPath": [
+      "affiliations",
+      0
+    ],
+    "note": "affiliation b",
+    "goldAnchorId": "anchor_028b35c685595b705107ee424857fcd95c265ba100398179f4e5d29b5c3daea9"
+  },
+  {
+    "value": "Kiel University",
+    "resultPath": [
+      "affiliations",
+      1
+    ],
+    "note": "affiliation a; acknowledgments also mention Kiel University (anchor_c3eb2c0cdf3) but as funding host, not an author affiliation",
+    "goldAnchorId": "anchor_1eeb7fa3207c51ff075f720978898ef3551deb135dff769b27bbf8c9450593c2"
+  },
+  {
+    "value": "Vanderbilt University Medical Center",
+    "resultPath": [
+      "affiliations",
+      2
+    ],
+    "note": "affiliation f",
+    "goldAnchorId": "anchor_f51c592e3bde15a093eec1a9915cdda1e369a2900edca045ce81d69497fad5f2"
+  },
+  {
+    "value": "Mississippi State University",
+    "resultPath": [
+      "affiliations",
+      3
+    ],
+    "note": "REVIEW multi-gold: affiliations k and l",
+    "goldAnchorIds": [
+      "anchor_78e15c3560d575d5a24c5187b2787bc00035b8114de4856e47909c09790ff110",
+      "anchor_60e37591ea7437e22d42408871e424cca0929b47fcb822793e487884139e1cab"
+    ]
+  },
+  {
+    "value": "60 %",
+    "resultPath": [
+      "mays_variation_share"
+    ],
+    "note": "Mays 2015 figure p3",
+    "goldAnchorId": "anchor_4ab699d3e12b296d83f287c4e69ffbe99f713d0ff8ffb1f80a414241ec281efa"
+  },
+  {
+    "value": "TA3",
+    "resultPath": [
+      "age_estimation_technique"
+    ],
+    "note": "REVIEW multi-gold: recommendation section + entheses paragraph + TA3 trait-manual reference",
+    "goldAnchorIds": [
+      "anchor_efadde47e8997234c8eae85a3435bc9971bdc8c40d3a56902ec2e3670696b21f",
+      "anchor_4ab699d3e12b296d83f287c4e69ffbe99f713d0ff8ffb1f80a414241ec281efa",
+      "anchor_e55003c01d7b6e4b5ce2372be42b39ee1aba98234fc29cf1be742f649d1df36c"
+    ]
+  },
+  {
+    "value": "Kathryn E. Marklein",
+    "resultPath": [
+      "credit_authors",
+      0
+    ],
+    "note": "REVIEW multi-gold: CRediT statement + author list",
+    "goldAnchorIds": [
+      "anchor_d8215394f36fbbea1e4e1e5358f52df4a20d9f049dabe80300e7ee222323bc40",
+      "anchor_233d1ab87aa9e30091e765d72789fb3d7690ec783702d2410a70a694f711c40c"
+    ]
+  },
+  {
+    "value": "progeria",
+    "resultPath": [
+      "accelerated_aging_syndrome"
+    ],
+    "note": "p5",
+    "goldAnchorId": "anchor_f0fb6b5010c2cbd3c9c6128ce0b031357b9fd8b0833db68060e02b7ffdaabbce"
+  },
+  {
+    "value": "International Journal of Paleopathology",
+    "resultPath": [
+      "journal"
+    ],
+    "note": "header p1",
+    "goldAnchorId": "anchor_dcaf435b4d3f8c0e7537102d40727359754907e72514c214caee66337c2b9f6f"
+  },
+  {
+    "value": "Im Dol 2-6",
+    "resultPath": [
+      "affiliations",
+      4,
+      "street"
+    ],
+    "note": "gold text reads 'Im Dol 2 -6' (spaced dash) — deliberate paraphrase case, lexical must miss",
+    "goldAnchorId": "anchor_773ccee8569872b478d5031751fc6baca0c6e2a97e47dd89c90f4f8c223dc8c9"
+  },
+  {
+    "value": "10.1016/j.ijpp.2026.02.004",
+    "resultPath": [
+      "doi"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL near-variant DOI; verified absent"
+  },
+  {
+    "value": "Katherine Fuchs",
+    "resultPath": [
+      "authors",
+      0
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL blend of Katharina Fuchs and Katherine D. van Schaik; verified absent"
+  },
+  {
+    "value": "TA4",
+    "resultPath": [
+      "age_estimation_technique"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL near-variant of TA3; verified absent"
+  },
+  {
+    "value": "University of Oxford",
+    "resultPath": [
+      "affiliations",
+      5
+    ],
+    "goldAnchorId": null,
+    "note": "plain absent affiliation"
+  },
+  {
+    "value": "Aarhus University",
+    "resultPath": [
+      "affiliations",
+      5
+    ],
+    "goldAnchorId": null,
+    "note": "plain absent affiliation"
+  }
+]

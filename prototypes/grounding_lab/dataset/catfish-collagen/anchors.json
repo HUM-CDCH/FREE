@@ -1,0 +1,1526 @@
+[
+  {
+    "anchorId": "anchor_8b10e0b6fdbc5bfa1253a2d80e8db8ba65317b40b40ed0714511355cef58185b",
+    "text": "Article",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4b6b6143a77baa7647e95c67ea7cfe67f8519984cca750471c84e695dc70114a",
+    "text": "Properties of Skin Collagen from Southern Catfish ( Silurus meridionalis ) Fed with Raw and Cooked Food",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8ed4a585133a3022bfb2325dd956234141bd8d6903d1902b63086f096682cf1f",
+    "text": "Qi Zhang 1,† , Shufang Hou 1,† , Yanmei Liu 1 , Jia Du 1 , Yongkang Jia 1 , Qiushi Yang 1 , Tingting Xu 1 , Yasuaki Takagi 2 , Dapeng Li 1 and Xi Zhang 1,2, *",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fe0f360609e561feec4b05d8fc9b5384cc44a2c5b34864e40f4216be8b646eb3",
+    "text": "1 College of Fisheries, National Demonstration Center for Experimental Aquaculture Education, Engineering Research Center of Green Development for Conventional Aquatic Biological Industry in the Yangtze River Economic Belt, Ministry of Education, Hubei Provincial Engineering Laboratory for Pond Aquaculture, Huazhong Agricultural University, Wuhan 430070, China; zhang929@webmail.hazu.edu.cn (Q.Z.); houshufang@webmail.hazu.edu.cn (S.H.); 311621lym@webmail.hzau.edu.cn (Y.L.); 2023308110056@webmail.hazu.edu.cn (J.D.); jiayongkang@webmail.hzau.edu.cn (Y.J.); y357446@webmail.hzau.edu.cn (Q.Y.); 2021308110042@webmail.hzau.edu.cn (T.X.); ldp@mail.hzau.edu.cn (D.L.)",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_156d421e102a74b21c6122c06fa8cd3384662bd749f770a4a67a77cb4f4bf0f2",
+    "text": "2 Faculty of Fisheries Sciences, Hokkaido University, 3-1-1 Minato-cho, Hakodate 041-8611, Hokkaido, Japan; takagi@fish.hokudai.ac.jp",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cd670a8ada5847554dce941f98e9d817f501889317f548b7bf1fbe1150bf5976",
+    "text": "Correspondence: zhangxi@mail.hzau.edu.cn; Tel.: +86-18672306015; Fax: +86-027-87282113",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_808b026aaf303ae37f924fd0c2753433ed28ebc8a67d43b943842a39b19dec35",
+    "text": "† These authors contributed equally to this work.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8aa3365415508b6f470500b250b41154d67e62ea553cbdbe1cfe0047cd590af0",
+    "text": "Abstract: The southern catfish ( Silurus meridionalis ) is an economically important carnivorous freshwater fish in China. In this study, we compared the properties of skin collagen from southern catfish fed with raw food (RF) and cooked food (CF). The skin collagen yield in the RF group (8.66 ± 0.11%) was significantly higher than that of the CF group (8.00 ± 0.27%). SDS-PAGE, circular dichroism spectroscopy, and FTIR analyses revealed that the collagen extracted from southern catfish skin in both groups was type I collagen, with a unique triple helix structure and high purity. The thermal denaturation temperature of collagen in the RF group (35.20 ± 0.11 ◦ C) was significantly higher than that of the CF group (34.51 ± 0.25 ◦ C). The DPPH free radical scavenging rates were 68.30 ± 2.41% in the RF collagen and 61.78 ± 3.91% in the CF collagen, which was higher than that found in most fish collagen. Both the RF and CF groups had high ability to form fibrils in vitro. Under the same conditions, the CF group exhibited faster fibril formation and a thicker fibril diameter ( p < 0.05). In addition, the RF group exhibited significantly higher expression of col1a1 compared to the CF group. These results indicated that feeding southern catfish raw food contributed to collagen production, and the collagen from these fish may have potential in biomaterial applications.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_42baaf1580a67afee57afdfd7018e8e7410e2733af759f42ffa4ee3ee76d76e3",
+    "text": "Keywords: southern catfish; type I collagen; biochemical properties; fibril formation; gene expression",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_35c27cbd174da1a402a35496eafa1438ea2eb7db70653ef3435e91327ab920be",
+    "text": "1. Introduction",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8f55e2b109f0be99de30cc27f76507c0f6a382235822f8d87670138241e3db19",
+    "text": "The southern catfish ( Silurus meridionalis ) is a typical carnivorous freshwater fish, and it is also one of the fastest-growing freshwater fish in China. Southern catfish require feed with a high protein content, especially from animal sources, so cultured fish are mainly fed with living feed. However, fresh feed is costly, limited in quantity, and prone to inducing various diseases and environmental pollution [1]. After a long period of artificial domestication, it became possible to feed this species with compound feeds [2,3]. However, high temperature treatment during feed processing can damage the feed by denaturing protein structures and causing lipid oxidation and loss of amino acids and fatty acids, which ultimately leads to impaired growth performance and health of fish [4]. Therefore, the selection of feeds is particularly important in the culture of southern catfish, as the feed is directly related to the nutritional value and health of the fish, which in turn affects aquaculture efficiency.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ac8808d5fad978f97af52f59ab2b75259993e0e633ec078d6df109379bcb46c2",
+    "text": "Citation: Zhang, Q.; Hou, S.; Liu, Y.; Du, J.; Jia, Y.; Yang, Q.; Xu, T.; Takagi, Y.; Li, D.; Zhang, X. Properties of Skin Collagen from Southern Catfish ( Silurus meridionalis ) Fed with Raw and Cooked Food. Foods 2024 , 13 , 2901. https://doi.org/10.3390/ foods13182901",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_281439a9f9613360f6a8b3381ad7a03b06ad634700e1976a31930f5375a5fb0a",
+    "text": "Academic Editor: Carlos Jos é Dias Pereira",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f781e0cbbe10f99369f0a3e664041ff5a98162a4e7aa093032950c2c9780fa90",
+    "text": "Received: 1 August 2024",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_153ca6969d31afdbc46cb9212f9a39c157d1a090b73d41cb3014a98bbb82a0ce",
+    "text": "Revised: 30 August 2024",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9b62889696e5baac3933f7a3a9b06c79a1b8e30e0e0265c0517e9472a0950d22",
+    "text": "Accepted: 1 September 2024",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2c556afc880a0c8b114572dfcb1619e0de71abc6a36238ae0afc7b4dd2f077cb",
+    "text": "Published: 13 September 2024",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_54074b9e9377b1178a2e80211f7605c213b89239c9485d65898ae08f50ef0751",
+    "text": "Copyright: © 2024 by the authors. Licensee MDPI, Basel, Switzerland. This article is an open access article distributed under the terms and conditions of the Creative Commons Attribution (CC BY) license (https:// creativecommons.org/licenses/by/ 4.0/).",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_375f3950a0ca5dfe9e1d4c4674773cb6a53108b4026461554573b8092decec30",
+    "text": "To date, studies of southern catfish have focused mainly on culture modes, disease control, and culture efficiency. Little is known about the effects of raw food (RF) and cooked food (CF) on the nutritional structure of this species, and the few existing studies were limited to analyses of the muscle quality and gut microbiological orientation of the fish [4,5]. However, in a study of cuttlefish ( Sepia officianalis ), Domingues et al. [6]. found that specimens fed with high temperature-treated algal shrimp exhibited 13% reduced energy conversion, decreased trypsin activity, and slower growth than those fed raw food. These results suggest that feeding methods can have a significant effect on growth performance, quality, and physiological characteristics of fish. However, the effect of feed type on collagen content has not been reported.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c3a955af378f85137e39e65db4aeaf1a150b05a8c44c5c0db96c6f79482629bc",
+    "text": "Collagen is one of the most abundant functional proteins in living organisms, accounting for about 30% of total proteins, and it plays an important role in maintaining the structure and function of living organisms [7]. Currently, at least 29 different types of collagens have been identified, of which type I collagen is the most abundant, accounting for >90%. The collagen molecule is a triple helix structure consisting of three polypeptide chains (called alpha chains), the stability of which depends on the hydrogen bonds formed between the polypeptide chains. Proline and hydroxyproline also cause dramatic distortions in the triple helix structure, thus increasing the structural stability of collagen [8].",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b262061cae0674135716688554ecc4a9448e4522c218bcdd627e7af5aa8dfb7c",
+    "text": "Collagen fibril formation in vitro is one of the important molecular behavioral features of natural collagen molecules. The in vitro fibril reassembly of collagen is affected by a number of factors, the most important of which are pH and ionic strength [9,10]. The pH affects the rate of assembly of collagen fibrils mainly by changing the charged nature of collagen and its charge size. Ionic strength is due to the role of hydrogen bonding and ionic bonding in the process of collagen fibril reorganization. The effect of ionic strength on collagen fibrils is species-dependent. For example, the rate of fibril formation in sturgeon collagen gradually increased with increasing NaCl concentration. In contrast, the rates of fibril formation of red stingray skin type I collagen and salmon skin type I collagen were suppressed by high NaCl concentrations [11,12]. Understanding the factors that influence collagen fibril self-assembly is necessary for choosing the optimal aggregation conditions when studying different species so that the collagen fibrils can perform optimally.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a893ff0a341cb2a716ab4439da27640268fb98951719e8f35b642e2f31832d69",
+    "text": "China is rich in fishery resources and ranks first in the world in terms of fishery production and export. With the export of large quantities of aquatic products, we are also faced with the generation of aquatic waste, including offal, fish skin, fish bones, etc. [13]. Therefore, further processing of aquatic by-products and enhancing the added value of aquatic waste has become an important research topic. Currently, there have been studies to successfully extract trypsin from the intestines of Coryphaena hippurus , Luphiosilurus alexandri, etc., which is not only easy to extract but also highly profitable [14,15]. Fish skin is an ideal source of collagen as it is a waste product of aquatic products, but its collagen content can be more than 70% of the total protein, which can be used as a natural detergent or applied to many fields such as food, cosmetics, and biomedical industries [16]. Collagen has received increasing attention due to its good biocompatibility, low antigenicity, and high cell adhesion. Especially in tissue engineering, type I collagen is considered one of the best biomaterials for manufacturing scaffolds [17]. In addition, type I collagen has good hygroscopicity, humectancy, emulsification, and emulsion stability, making it suitable for use in the field of skin tissue engineering [18]. Fish-derived collagen is more widely available, less costly, easier to extract, and avoids possible zoonotic diseases and food regulations based on religious beliefs than collagen extracted from mammals [19]. Therefore, fish-derived collagen is expected to be an important alternative source to traditional collagen, and its extraction may be gradually industrialized.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4f384807541c3cd8bea3628f8aedfb69f397200f418178032039725d9e80f745",
+    "text": "On this basis, the goal of this study was to analyze properties and gene expression levels of collagen from the skin of southern catfish fed either RF or CF and then to compare the results. Our findings can be used to obtain high-quality fish-derived collagen and provide theoretical support for collagen development and application.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bb3a16d07c24f84955fc1b34ee7d5270b2be0dff58c209e45da56844ab7692f3",
+    "text": "2. Materials and Methods",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cd46424dab995ff0339ce2c8fbf21d6c4ed0cec7248f26fb92b443b55c3efd56",
+    "text": "2.1. Sample Collection and Processing",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7d5aa15172d255938426326f03387e8b9dcb75be9abe7f0d3fd3484499c0f218",
+    "text": "Southern catfish were cultivated in the indoor recirculating aquaculture experimental system in the College of Aquaculture, Huazhong Agricultural University, China, with a culture period of 6 weeks. During the culture period, southern catfish (6.18 ± 0.52 g, 9.30 ± 0.15 cm) were randomly divided into RF and CF groups, and 10 fish were set up in each group, and each group has 3 replicates. They were separately fed at 10% of their total weight with fresh grass carp ( Ctenopharyngodon idella ) meat or high temperature cooked grass carp meat, respectively, at 07:30 and 19:00.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a986c2a37ab41a78a83088f3d079b645e86cf61e12598bc3e9dbc8b1bf4e79e8",
+    "text": "After completing the cultivation experiment, we randomly selected five fish from each group for analysis. The average body weights and lengths of the fish in the RF group were 27.09 ± 0.89 g and 14.42 ± 0.22 cm, and those of the fish in the CF group were 20.74 ± 0.48 g and 13.58 ± 0.25 cm. We anesthetized the fish using MS-222 (140 mg/L), collected skin samples, and temporarily stored them in liquid nitrogen. After all sampling was complete, we stored the samples at -20 ◦ C until used in subsequent experiments.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0ea03f961f2deb3b2e53fecaad4b4bb18a69e5780af36791eebe2b2b674c930d",
+    "text": "2.2. Isolation and Purification of Collagen",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d570a1853ab0f045f6df59d52b31b26a9f7944194a90f73ec4d53ed800285ad6",
+    "text": "We used the acid-enzyme method to extract collagen from the southern catfish skin samples. The fish skin was thawed in a thermostat at 4 ◦ C and then weighed to obtain the initial weight of fresh fish skin (m0). The fresh fish skin was placed in a freeze dryer for 24 h to obtain the dry weight of the skin (m1). After cutting the skin into small pieces (0.5 cm × 0.5 cm), we treated the samples with 0.1 M NaOH (Sinopharm Chemical Reagent Co., Ltd., Shanghai, China) for 24 h ( w / v = 1:20) to remove the pigments and heteroproteins. After washing away the NaOH, the fish skin was treated with 99.5% anhydrous ethanol for 24 h ( w / v = 1:30) to remove fat, and then the sample was washed with distilled water. The pretreated fish skin was treated with 0.5 M acetic acid (Sinopharm Chemical Reagent Co., Ltd., Shanghai, China) containing 0.2% porcine pepsin (EC 3.4.23.1, 1:10,000; Sigma-Aldrich, St. Louis, MO, USA) for 72 h ( w / v = 1:30) to obtain the collagen crude extract. We centrifuged the crude extract at 8000 × g for 20 min and then recovered the supernatant. We added NaCl to the supernatant to bring the concentration of the solution to 1 M for salting out and then centrifuged the mixture at 8000 × g for 40 min. The precipitate was dissolved in 0.5 M acetic acid ( w / v = 1:30). The salting-out process was repeated three times to obtain the refined collagen extract. All experimental procedures were carried out at 4 ◦ C. Each extract was dialyzed in 50 times the volume of distilled water for 2 days and then placed in a freeze dryer to obtain solid collagen, which was weighed to obtain the final weight (m2). The extraction rate (y) was calculated using the formula:",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5f7bc6bb58d185c1dc0a0af366feb3c0d5cbdf44363631dbbbe9b30f601746b6",
+    "text": "2.3. Sodium Dodecyl Sulfate Polyacrylamide Gel Electrophoresis (SDS-PAGE)",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1234141b5d8d3badfd4b0e0414b72348a6829c50b2ff43abe128fb309aecea76",
+    "text": "Analiquot of the freeze-dried collagen from each sample was dissolved in HCl solution (pH = 3.0, 3 mg/mL), mixed with the sample buffer (5 × ) (Guangzhou Jefass Biotechnology Co., Ltd., Guangzhou, China) in a ratio of 4:1, and heated at 95 ◦ C for 15 min. Electrophoresis was carried out on a 5% concentrate gel and 7.5% separator gel. After electrophoresis, the samples were stained with Coomassie Brilliant Blue R250 solution (Thermo Fisher Scientific, Waltham, MA, USA) staining solution for 30 min, then decolorized with Kaomas Brilliant Blue decolorizing solution, and the results of the bands were observed. The relative band density of the α 1 chain and α 2 chain were analyzed using Image J software (Version 1.8.0).",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_612ae5303afd37196060a72b2c6338febe2b6a3526ab67265fe509594fb48a5b",
+    "text": "2.4. Circular Dichroism (CD) Measurement",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_de99704c0ee8aa338cbfefecdbdce771b734619172ee5588f8c91c32039790a5",
+    "text": "Another portion of the lyophilized collagen from each sample was dissolved in HCl solution (pH = 3.0, 1 mg/mL) and placed in a 0.1 cm optical diameter quartz cuvette.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9596dc6b4695d25f4ba741894037ea1887bbacf3a4ac7ea49df92539a14e60fb",
+    "text": "At 25 ◦ C, the CD spectra were measured at a scanning speed of 50 nm/min and 0.1 nm intervals at a wavelength range of 190 to 250 nm. The 221 nm CD spectrum was measured as the temperature increased from 25 to 45 ◦ C at 1 ◦ C/min. The temperature at the point of maximum slope of CD change was determined as the denaturation temperature of collagen.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d4978f65786b9f685fdd7c144b0478ec626b6fd6869a3c45d8cae11bced1fec6",
+    "text": "2.5. Attenuated Total Reflectance Fourier Transform Infrared (ATF-FTIR) Spectroscopy",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_32cca9ee8babfefef8fc8c58e1c062bb5c8a16ed446da1f7646b431c3af100c2",
+    "text": "ATR-FTIR spectroscopy analysis of portions of the lyophilized collagen samples was conducted using a Fourier Transform Infrared Spectrometer (Nicolet IS50; Thermo Fisher Scientific). The scanning range was 600 to 4000 cm -1 with a resolution of 4 cm -1 , and the number of scans was 16 for both background and sample after atmospheric background deduction.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c62fc35d30e5fb8c97d4c13c7ee1e04d66aebec3d0db4ffffc9e2a85ab4374d2",
+    "text": "2.6. Antioxidant Activity",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_91e1f5add033323b892b1a54cf89472001305ee42d16d03c1e6d324b274017a3",
+    "text": "Lyophilized collagen samples were dissolved in HCl solution (pH = 3.0) to reach a final concentration of 3 mg/mL. We then measured the antioxidant capacity of collagen from southern catfish skin using the 2,2-diphenyl-1-picrylhydrazyl (DPPH) free radical scavenging capacity kit (Nanjing Construction Institute of Biological Engineering Co., Ltd., Nanjing, China).",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cc3e5da8d90b3901b25ca161485a60058fc457df9ea511d5961b660c7db3bbee",
+    "text": "2.7. Collagen Fibril Formation In Vitro",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6a0cabadc17d15a97962c3f34b24641c7f93260c21c3a5eeca3ca32376152277",
+    "text": "Aliquots of the lyophilized collagen from each sample were dissolved in HCl solution (pH = 3.0) to obtain a 3 mg/mL solution. After the samples were completely dissolved, the collagen solutions were mixed with 0.1 M phosphate buffered saline (PBS) at pH 7.0 and different salinities (NaCl = 0, 140, or 280 mM) (sample solution ratio = 1:2). Subsequently, a small amount of the mixed solution was placed in an ultraviolet spectrophotometer (Shanghai Meitu Instrument Co., Ltd., Shanghai, China), and the absorbance values were recorded every 3 min. The rate of collagen formation at different NaCl concentrations was compared based on the changes in absorbance value at 321 nm.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e305f2c71d0f41282e821825d77e00ffa7c3823a8532a72b6fa90e95114c8089",
+    "text": "2.8. Determination of Collagen Fibrils Formed In Vitro",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_161b1292bbdfef9e7a8322e34784c4157036438d185ac56a1ee4d5ea4feb19e1",
+    "text": "Twenty-four hours after collagen fibrils were formed, each mixture was centrifuged at 12,000 × g for 20 min using a micro cryo-centrifuge (model D3024R; Scilogex, Rocky Hill, CT, USA), and the precipitate was collected. At room temperature, 1 mL of electron microscope fixative containing 2.5% glutaraldehyde (No. G1102; Wuhan Xavier Biotechnology Co., Ltd., Wuhan, China) was added to the centrifuge tube, and the sample was fixed for 4 h. We washed each precipitate with PBS buffer and then sequentially treated it with ethanol solutions with volume fractions of 30%, 50%, 70%, and 100%. After gradient dehydration, each collagen fibril precipitate was treated with 1 mL tert-butanol, and the treatment was repeated twice. After removing the tert-butanol solution, the centrifuge tubes were placed in a freezer overnight at -80 ◦ C, and then they were dried in a vacuum-drying freezer.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_35cdbaf4bc11268358fefd7cc04bf977fae97e981666163baa1ca8ca28a354e3",
+    "text": "For analysis, we tore a small piece of fibrous film from the collagen fibrils using pointed tweezers, placed it on conductive adhesive, and then plated the surface using an ion sputtering apparatus (MC1000; Hitachi, Tokyo, Japan). The plated collagen fibrils were observed using a field emission scanning electron microscope (model SU8010; Tianmei Scientific Instruments Co., Ltd., Shanghai, China) at 20,000 times magnification. The diameters of 150 of the reassembled collagen fibrils from each sample were manually calculated using Image-Pro Plus software (Version 6.0, Media Cybernetics, Silver Spring, MD, USA), and the average value was calculated.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1b6b768cd2a731986ac786c505167b684c291efb0fb49205c4c39dad312cecf5",
+    "text": "2.9. Analysis of the Expression of Genes Related to Collagen Synthesis",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_56b10df7f14c8c7e9c3e98c906d2cff744e1b7310287e4580ae3f3f5c1006564",
+    "text": "2.9.1. Total RNA Extraction, Purification, and Complementary DNA (cDNA) Synthesis",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_aee96faf50c3d7f615b988a8fbae12c4f6e7f58ed2e9ccf67b7ff0db89e68427",
+    "text": "Total RNA was extracted from southern catfish skin using TRIzol ® RNAExtraction Solution (Thermo Fisher Science) following the manufacturer's instructions. Fish skin tissue was cut into small pieces and placed into 1.5 mL enzyme-free centrifuge tubes. To determine the RNA integrity, samples were separated on 0.8% nondenaturing agarose gel. The total RNA concentration was determined using a micro-volume spectrophotometer (NanoDrop™ 2000; Thermo Fisher Scientific Inc.). Subsequently, the concentration was adjusted to 200 ng/ µ L using nuclease-free water for cDNA synthesis. The cDNA was synthesized from the RNA using a reverse transcription kit (Hifair ® III 1st Strand cDNA Synthesis SuperMix for qPCR; YEASEN, Shanghai, China). The reaction was performed in a T100 PCR thermocycler (Bio-Rad Laboratories; Hercules, CA, USA) with incubation at 25 ◦ C for 5 min, 55 ◦ C for 15 min, and 98 ◦ C for 5 min.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f85c141328d84461b613fdb98fbc841c25c34c9aa7ba66be0998041fae4becba",
+    "text": "2.9.2. Real-Time PCR (RT-PCR) Expression Assay",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_57c9e0999a3780e863dd65d96e74f8a20964eb5cf7ecbc8dc18d56d894dd812c",
+    "text": "The cDNA obtained above was diluted 5-fold and used as a template for RT-PCR. Table 1 lists the primers used in the analysis. The 20 µ L reaction system was prepared in a 96-well plate according to the instructions of the Hieff ® qPCR SYBR ® Green Master Mix (Low Rox Plus) kit (YEASEN, Shanghai, China). After sufficient mixing, the amplification program was performed. The relative expression of target genes was analyzed and calculated using the 2 -∆∆ ct method.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_989cb8f632e7e35261a1cb50f009c61c782d7a6b8f3368977c498b51e180a516",
+    "text": "Gene",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "Gene | Primer Sequence (5 ′ -3 ′ ) — Gene"
+  },
+  {
+    "anchorId": "anchor_4c519a20b325dadbef7bb0c20289cdb6ac1544d0a7f8d1ec915ea29bd3fb8d23",
+    "text": "Primer Sequence (5 ′ -3 ′ )",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "Gene | Primer Sequence (5 ′ -3 ′ ) — Primer Sequence (5 ′ -3 ′ )"
+  },
+  {
+    "anchorId": "anchor_2cbffc2c6ba710182e728faf0397a14916443cb0965ee9a5acb2dbcfbd404301",
+    "text": "β -actin-F β",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "β -actin-F β | GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT — β -actin-F β"
+  },
+  {
+    "anchorId": "anchor_e4786b81b3af091188d96e4d594b95df5c0cd4de2d9a767cb9f47c0f66f30a38",
+    "text": "GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "β -actin-F β | GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT — GATCCGGTATGTGCAAGGCT TGCCAGATCTTCTCCATATCA AGCTTACCTTCTTGCGCCTT"
+  },
+  {
+    "anchorId": "anchor_34fa4e0714a3666e59e3016c61e5ad3b82a24a17ace73268107f21991ad160a7",
+    "text": "-actin-R",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "-actin-R — -actin-R"
+  },
+  {
+    "anchorId": "anchor_f8bd933dd5b63ea4c4a7d20fc163fb27d1e0fc7dd7f6ad3ac756c73d112b4323",
+    "text": "col1a1-F",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "col1a1-F — col1a1-F"
+  },
+  {
+    "anchorId": "anchor_8d86be60f2f94ba44e9b28a7c3957318b026f2d30a32438c7954bdddcaf750d0",
+    "text": "col1a1-R",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "col1a1-R | GACGCTGTATGTGAAACGGC — col1a1-R"
+  },
+  {
+    "anchorId": "anchor_c850e50e68a66bcc4c607b45dd8a66d54533dd2206f80a1501f9cc7b2bf785db",
+    "text": "GACGCTGTATGTGAAACGGC",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "col1a1-R | GACGCTGTATGTGAAACGGC — GACGCTGTATGTGAAACGGC"
+  },
+  {
+    "anchorId": "anchor_039628b6dc2812c0f1d832041fa436ca06f86bea90ce7abf3da91a17341e0b7f",
+    "text": "col1a2-F",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "col1a2-F | ACAAGGAGTCTGCATGTCGG — col1a2-F"
+  },
+  {
+    "anchorId": "anchor_38034e6301d00b09f21ed9791eb3c3d0fa5c2d16a2d99b5b2b962c14dea5c8e5",
+    "text": "ACAAGGAGTCTGCATGTCGG",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "col1a2-F | ACAAGGAGTCTGCATGTCGG — ACAAGGAGTCTGCATGTCGG"
+  },
+  {
+    "anchorId": "anchor_4faa09e9a4856ecb9da07e5d49ff04ef0fb46bafe6da9306542f51770245ec40",
+    "text": "col1a2-R",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "col1a2-R | TATCTCCCCTTGGTCCCGAT — col1a2-R"
+  },
+  {
+    "anchorId": "anchor_223d719df9928a3ffacf507b5c9a2eb5e372c75bb76ce9e584cbb6299b3185d3",
+    "text": "TATCTCCCCTTGGTCCCGAT",
+    "page": 5,
+    "kind": "table_cell",
+    "context": "col1a2-R | TATCTCCCCTTGGTCCCGAT — TATCTCCCCTTGGTCCCGAT"
+  },
+  {
+    "anchorId": "anchor_77962c8fb08194fcea04df617ac15e6da6e81f52aeb5c11d7469116da32de018",
+    "text": "Table 1. Primers sequence of real-time PCR.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0d34ed10397d83df22e28f8cc4fe5a9829b1150304ab8804a80e1f16163f8bac",
+    "text": "2.10. Statistical Analysis",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_58009cbd2db5436a0aa1ec7876786f714a7b854faef7b05863ac4f8e667aaead",
+    "text": "Data are presented as the mean ± standard error (SE). Statistical analyses were performed using SPSS Base 25 statistical software (IBM, Armonk, NY, USA). After testing fornormal distribution and homogeneity of variance of the trial data, comparison among data within groups was conducted using one-way analysis of variance followed by Duncan's tests. p < 0.05 was considered to be statistically significant. In all graphs, SC means collagen, RF is collagen in the raw food group, and CF is collagen in the cooked food group.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_72b119fde833237b5678281d3696aaac624dfd6e74c45120113c95f42ea8c1f4",
+    "text": "3. Results and Discussion",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8dc5cd25cccb8679bb192b666f8e0441aebe8f9cc2258dbe882a32658561cc58",
+    "text": "3.1. Yields of Collagen",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b73a9b0ba0d660b5d20b3b504e5186815fd9b89a13bbcc1384305954bb3bd06f",
+    "text": "The yields of collagen from fish skin in the RF and CF groups are shown in Figure 1. The extraction rate based on wet tissue was 8.66 ± 0.11% in the RF group and 8.00 ± 0.27% in the CF group. The extraction rate based on dry weight was 20.53 ± 0.03% in the RF group and 18.68 ± 0.23% in the CF group. The RF group had a higher yield than that of the CF group in both cases. The wet weight extraction rate of southern catfish skin collagen was slightly lower than that of grass carp skin collagen (10.61 ± 0.67%), snapper skin collagen (13%), and tilapia ( Oreochromis niloticus ) skin collagen (27.2%), but higher than that of bigeye snapper skin (7.5%) [20-23]. The dry weight extraction rate was similar to that of black drum fish (18.1%), but lower than that of ocellate puffer fish skin (55.4%) and largefin longbarbel catfish skin (44.8%) [24,25].",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_84d99d9974d1300c1e3e9eb9ae576bb2bb3c3c227b818d1de0e3c8e7e65cbb41",
+    "text": "The yield of collagen is related to factors such as the species and size of fish, the extraction method, and the method of yield calculation. The relatively low collagen Foods",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0c5fb3a64408f5c4af9839a9d996b593e5e3e37cb9de74ea2608e982d7aff210",
+    "text": "2024",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b77642ef2b14376fe4705b145088f84a9130a504a06e8cf2cd7f1b31acf94aa4",
+    "text": ",",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_82db5306cbd092082b618815c72b7e547ff4219ee457a8d9e7f18b44bc112f44",
+    "text": "13",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d86009ee0a76e4851e44804cf2005a63b37f018b231abc962a967d1423262e45",
+    "text": ", x FOR PEER REVIEW",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_64fc06cecf41387a2d0b1e93dd009437af972ce0624263ce039e3a73375e6520",
+    "text": "extraction yield in this study may be related to the small size of the fish and its thin skin. In addition, the solubility and yield of collagen are also related to interchain crosslinks in its terminal peptide region. These crosslinks undergo vibrational cleavage in the presence of acids or enzymes, leading to an increase in collagen yield [26]. Ultrasoundassisted enzymatic extraction of skin collagen from Alaskan pollock ( Theragra chalcogramma ) gave a yield of 65.30%, and skipjack tuna ( Katsuwonus pelamis ) gave a final stable yield of 38.11% of skin collagen [27,28]. These studies suggest that the use of novel collagen extraction methods in combination with traditional extraction methods can greatly increase collagen yield and is an important way to industrialize collagen. However, the effect of new applications such as ultrasound on collagen biological activity properties, including fibril formation, is not known. In the future, it is possible to optimize the extraction method to increase the collagen extraction rate without affecting the collagen properties of southern catfish.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_668f61fe13be5b08385972861a7e75999aae9c648bf6dfbe8107e9fa8b0d881e",
+    "text": "6",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8b19c1b7bf22b0f2e8c8274f4b9c07f91cdfb208505331f7437be06d07487e60",
+    "text": "Figure 1. ( A ) Wet weight extraction rates of collagen from southern catfish skin under raw (RF) cooked (CF) conditions. ( B ) Dry weight extraction rates of collagen from southern catfish skin u raw (RF) and cooked (CF) conditions. * denotes a significant difference between RF and CF ( p < 0 ** indicates highly significant differences ( p < 0.01). Figure 1. ( A ) Wet weight extraction rates of collagen from southern catfish skin under raw (RF) and cooked (CF) conditions. ( B ) Dry weight extraction rates of collagen from southern catfish skin under raw (RF) and cooked (CF) conditions. * denotes a significant difference between RF and CF ( p < 0.05). ** indicates highly significant differences ( p < 0.01).",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d3eb233de56a8db73fe55d797888c3e9b7d9f000c1fc821899429b102d8bc63d",
+    "text": "3.2. SDS-PAGE",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_58f6dae9348d1bc66b0223213efdd23cc1d239ec0727c1b1a951aeedbcac4d7f",
+    "text": "The yield of collagen is related to factors such as the species and size of fish, the ext tion method, and the method of yield calculation. The relatively low collagen extrac yield in this study may be related to the small size of the fish and its thin skin. In addit the solubility and yield of collagen are also related to interchain cross-links in its term peptide region. These crosslinks undergo vibrational cleavage in the presence of acid enzymes, leading to an increase in collagen yield [26]. Ultrasound-assisted enzymatic traction  of  skin  collagen  from  Alaskan  pollock  ( Theragra  chalcogramma )  gave  a  yiel 65.30%, and skipjack tuna ( Katsuwonus pelamis ) gave a final stable yield of 38.11% of collagen [27,28]. These studies suggest that the use of novel collagen extraction method combination with traditional extraction methods can greatly increase collagen yield an an important way to industrialize collagen. However, the effect of new applications suc ultrasound  on  collagen  biological  activity  properties,  including  fibril  formation,  is known. In the future, it is possible to optimize the extraction method to increase the colla extraction rate without affecting the collagen properties of southern catfish. The SDS-PAGE results showed that the collagen of southern catfish skin mainly consisted of two α -bands (~130 kDa and ~120 kDa) and a β -band with a molecular weight of more than 250 kDa, with no additional heterogeneous bands (Figure 2A). According to the molecular weight and its morphology, the about 130 kDa band was the α 1 chain, and the about 120 kDa band was the α 2 chain. This is consistent with the electrophoretic properties of type I collagen, and it was consistent with the structure of the electropherogram of collagen purified from southern catfish skin in a previous study [29]. These results indicate that the collagen from southern catfish skin belongs to type I collagen. The extracted collagen was free from impurities and had high purity. The relative levels of the α 1 chain and α 2 chain were similar between the RF and CF groups (Figure 2B). In this study, there was no significant difference in the molecular weights and relative levels of the α 1 and α 2 chains of southern catfish skin collagen between the RF and CF groups, but both of them had complete triple-helical structures, which had the potential value of being applied as a source of collagen or gelatin. In addition, they have the advantage of being extractable from the epidermis of aquatic by-products. Although most of the resources are currently derived from mammals, increasing attention is being paid to non-mammalian resources, such as fish, suggesting the potential for wider utilization in the future [30].",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5eeaaa2ef5bad914e4d97dad914cdb4492d4fee19a14fb0b0134ba4a0c58aa99",
+    "text": "3.2. SDS-PAGE",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_618e8a9783e68ef2ed3a51743d13cb4fe6fbcbd0a988d5f988a11aa81ba7fcd1",
+    "text": "The SDS-PAGE results showed that the collagen of southern catfish skin mainly",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f9b34d8e9e753b952e78f043619700ab04c7ab2bdddb60deeb05c16fc172dfab",
+    "text": "sisted of two",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9f8ed602444bb3eae63e892e855fac8eb3549125623da3fb773fc8bd59bc44a6",
+    "text": "α",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3ef5a4886cfde249fe3eb1747e46496f0c321ebb38b76bcb6195415966660980",
+    "text": "-bands (~130 kDa and ~120 kDa) and a",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_404e575daf932d9b4a5df93fd7a170dccf50fafcc6c62e930297e1c766d9503b",
+    "text": "β",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b3e8b48fd19a760fcc0c2f3c8b664a1883c1d00b6b6312005b7132935c026acb",
+    "text": "-band with a molecular weig",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b6ad7944b8a016c424f35af334d114615664dec1de225c6272106f23fe026e32",
+    "text": "more than 250 kDa, with no additional heterogeneous bands (Figure 2A). According to",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a967a1f136c451b333f1fbf8d150d8ebe48b9085d389e7e46492ca2f51efc283",
+    "text": "molecular weight and its morphology, the about 130 kDa band was the",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_980494560f6dddc1118f27a7f48b2cfd7a49de463ae688a9e9ca3853b5184c0f",
+    "text": "about 120 kDa band was the",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d4a7699764f269a5e13bd3fb1642b5d4ea683b19add0a7ab9953e089df06286a",
+    "text": "α",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ceb9171a93b8aab0928bb74be73cd3f7068ddebf6b91e3d4c63274db4092f95e",
+    "text": "α",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c7269f506dc15997875d1326c277c1857d6aa6710d99bde561909d3378e0d00d",
+    "text": "1 chain, and",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d97d3edd13d898b6c2e07a901f4c9fd204028a9b2b4205d2ab11e20112fd67e3",
+    "text": "2 chain. This is consistent with the electrophoretic proper",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_59b68ac5af1543256427ddecd06c6d5432eadf89d1fab73090246ac7b9aa3656",
+    "text": "of type I collagen, and it was consistent with the structure of the electropherogram of Foods",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_65134bfda0524674027c3ed8145c7a15abb94410cfe875d1507f4ef7af323146",
+    "text": "2024",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f12d07ed6a235a9fe070d3352c101e78ef39a358904a6ee2745884a3b3849ccc",
+    "text": ",",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_19c47a3292657a808f08b7f5cf905a504de12eeefee96df41344d9134dedf5b0",
+    "text": "13",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c53c24cae1410edaa712d6f881829a5de19a65365fd1db17b43d927662042771",
+    "text": ", x FOR PEER REVIEW",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_17abb797aecb580abf3a65bf24936ae4d43d1822203ac698b2be07a2bf790df5",
+    "text": ", x FOR PEER REVIEW",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f64756bbb2c680962ce942c32bec1d1392ec7e1bf00a5590e3b2e0ba0ab0343d",
+    "text": "Figure 2. ( A ) SDS-PAGE results of skin collagen from southern catfish skin under raw food (RF) and cooked food (CF) feeding. M: Marker; 1-3: RF feeding; 4-6: CF feeding. ( B ) Relative band density levels of α 1 and α 2 chains. Figure 2. ( A ) SDS-PAGE results of skin collagen from southern catfish skin under raw food (RF) and cooked food (CF) feeding. M: Marker; 1-3: RF feeding; 4-6: CF feeding. ( B ) Relative band density levels of α 1 and α 2 chains. Figure 2. ( A ) SDS-PAGE results of skin collagen from southern catfish skin under raw food (RF) and cooked food (CF) feeding. M: Marker; 1-3: RF feeding; 4-6: CF feeding. ( B ) Relative band density levels of α 1 and α 2 chains.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d91606fc2c4266726cccdc32a5d308ab1c2bcf8b9a95316b74bff740199f70bd",
+    "text": "3.3. ATR-FTIR 3.3. ATR-FTIR",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8e80d2c214d5003bb4f3a2bf37117a638131860b336e4588c7b95d94223e63eb",
+    "text": "for collagen from grass carp [20].",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5b0210cea9f4981d46cfb36f97a5dc035521a1021051079f72f7d24533bac90f",
+    "text": "3.3. ATR-FTIR ATR-FTIR is used to analyze the molecular structure by detecting changes in the chemical bonds in the molecule. Fish skin collagen from RF and CF groups had similar infrared spectra, but subtle differences in the collagen could be detected (Figure 3). The IR spectra contained five characteristic peaks of type I collagen, amide A and B bands, and amide I, II, and III bands. The presence of absorption peaks in the amide I, II, and III bands indicates that the triple helical structure of type I collagen we extracted from the skin of southern catfish is intact, which is similar to the results of infrared spectroscopy reported ATR-FTIR is used to analyze the molecular structure by detecting changes in the chemical bonds in the molecule. Fish skin collagen from RF and CF groups had similar infrared spectra, but subtle differences in the collagen could be detected (Figure 3). The IR spectra contained five characteristic peaks of type I collagen, amide A and B bands, and amide I, II, and III bands. The presence of absorption peaks in the amide I, II, and III bands indicates that the triple helical structure of type I collagen we extracted from the skin of southern catfish is intact, which is similar to the results of infrared spectroscopy reported for collagen from grass carp [20]. ATR-FTIR is used to analyze the molecular structure by detecting changes in the chemical bonds in the molecule. Fish skin collagen from RF and CF groups had similar infrared spectra, but subtle differences in the collagen could be detected (Figure 3). The IR spectra contained five characteristic peaks of type I collagen, amide A and B bands, and amide I, II, and III bands. The presence of absorption peaks in the amide I, II, and III bands indicates that the triple helical structure of type I collagen we extracted from the skin of southern catfish is intact, which is similar to the results of infrared spectroscopy reported for collagen from grass carp [20].",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3ac592aabfb20084ed54418dc81f5daeeaa404f935e1494f65f1749367b4c6bf",
+    "text": "Figure 3. Infrared spectra of skin collagen from southern catfish skin under raw food (RF) and cooked food (CF) feeding.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_78ef9b32b903e33d1407ba9944be1af64fbe99db7846a6e78a306c5eee0df49e",
+    "text": "7  of  16",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1fab38076d8f8866bea24b3e5312d872cc3b8d5d2977ebd79d887dbc77aa4eac",
+    "text": "7  of  16",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ebdd000e11af38b3e4e2e80fb73d1cee6b0591ea893fe7ffe82d21a3ac2963f6",
+    "text": "Foods",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a06fefde8a827a7e1a2ab502ccd4ab931681749b8d818ab986ce478a3100ba69",
+    "text": "2024",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_397bc40249a74b568556aaaffed772d5acd674cfb8f86ca442dc928fa436a8f5",
+    "text": ",",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fa6daf960a531771d7022624fece1de05435fa155622236e7cb5d6f1a4803fa2",
+    "text": "13",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b02fc57a0b71d045d558de862f05aebf7490b61ed849c2cdd7386fb545414ec6",
+    "text": ", x FOR PEER REVIEW",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_307afa940561a59577b17f2367c52344f41477fb648cca26ef6d4f4e50777cf6",
+    "text": "Figure 3.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8c39995dfffcd346e1009091950ff214efb506599ed3349a7caa6018df034e3f",
+    "text": "8  of  16",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f699244ba3277acae9dd4f0f73152c6397beebae47d230ca6c869b5867d4afe0",
+    "text": "Infrared  spectra  of  skin  collagen  from  southern  catfish  skin  under  raw  food  (RF)  and",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7c074c46b634365ae9a88f44098043f190351589c0fe39b0589e43aa3d77cc53",
+    "text": "cooked food (CF) feeding.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e3631b586419a8a419c8f88cdd5b173eba16525f7a5481aa259b6156b4134e34",
+    "text": "The absorption peaks in the amide A band are caused by N-H stretching, and the free",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e7c11dd5cf7ac580aeb0bfeacc794fbfc16abe5b1a48a6a45a75ecd99ededa7e",
+    "text": "The absorption peaks in the amide A band are caused by N-H stretching, and the free N-H stretching vibration range is usually 3400-3440 cm -1 [31]. In our experiments, the stretching vibration of the amide A band of southern catfish skin collagen in the RF group appeared at 3310 cm -1 , while that of the amide A band in the CF group appeared at 3300 cm -1 , and both values were shifted to shorter wavelengths compared with the free N-H stretching vibration range, a phenomenon known as the blue shift [32]. A blueshift in FTIR spectra can occur due to the reduction of hydrogen bonding, which alters internal vibration and rotation of the molecules and causes absorption peaks to shift to shorter wavelengths. The greater blueshift of the CF group compared to the RF group suggested that fewer hydrogen bonds are present in the skin collagen under CF conditions. The amide I and amide II bands appeared at 1640 cm -1 and 1544.4 cm -1 in the RF group and 1638 cm -1 and 1540.7 cm -1 in the CF group, respectively. The absorption waves of the amide I and II bands were higher in the RF group than in the CF group, which suggests that the degree of ordering and cross-linking of the fish skin collagen was higher in the RF group than in the CF group [33]. N-H stretching vibration range is usually 3400-3440 cm -1   [31].  In  our  experiments, the stretching vibration of the amide A band of southern catfish skin collagen in the RF group appeared at 3310 cm -1 , while that of the amide A band in the CF group appeared at 3300 cm -1 , and both values were shifted to shorter wavelengths compared with the free N-H stretching vibration range, a phenomenon known as the blue shift [32]. A blueshift in FTIR spectra can occur due to the reduction of hydrogen bonding, which alters internal vibration and rotation of the molecules and causes absorption peaks to shift to shorter wavelengths. The greater blueshift of the CF group compared to the RF group suggested that fewer hydrogen bonds are present in the skin collagen under CF conditions. The amide I and amide II bands appeared at 1640 cm -1  and 1544.4 cm -1  in the RF group and 1638 cm -1 and 1540.7 cm -1  in the CF group, respectively. The absorption waves of the amide I and II bands were higher in the RF group than in the CF group, which suggests that the degree of ordering and cross-linking of the fish skin collagen was higher in the RF group than in the CF group [33].",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_68aafbb266442142d3614ce64e0b229356d1826f7f260a8f9f7aad124c894cb0",
+    "text": "3.4. Thermal Stability 3.4. Thermal Stability",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a5b1e79d0f52c7a6b301a7140466ccd18d1ddd2c2b3a94f6961bf0f289b7c12b",
+    "text": "Figure 4 shows the results of CD spectra analysis of southern catfish skin collagen. CD spectra provide information on the secondary structure of collagen [34]. All collagens showed a rotatory maximum at 221 nm and a crossover point (zero rotation) at about 212 nm, which are typical characteristics of the collagen triple helical conformation [35,36]. The single negative absorption peak indicated a predominantly β -folding, which is consistent with the typical characteristics of type I collagens [37], which have a complete triple helical structure. These peaks are important markers for determining collagen type. The maximum positive UV absorption peak of southern catfish skin collagen was 221 nm in both RF and CF groups, indicating a standard collagen triple helix structure with biological activity in both groups, which were suitable for denaturation temperature measurements and fibril formation experiments, yet there was no significant difference between the CF and RF groups. Previous studies reported a maximum UV absorption peak of 235 nm for collagen extracted from pufferfish ( Lagocephalus inermis ) skin and 220 nm for jellyfish ( Acromitus hardenbergi ) [38,39]. These varying results suggested that collagen raw materials and extraction methods affected the UV absorption peaks of collagen, which may be related to the exposure of the chromogenic modes in the collagen peptide chain [40]. Figure 4 shows the results of CD spectra analysis of southern catfish skin collagen. CD spectra provide information on the secondary structure of collagen [34]. All collagens showed a rotatory maximum at 221 nm and a crossover point (zero rotation) at about 212 nm, which are typical characteristics of the collagen triple helical conformation [35,36]. The single negative absorption peak indicated a predominantly β -folding, which is consistent with the typical characteristics of type I collagens [37], which have a complete triple helical structure. These peaks are important markers for determining collagen type. The maximum positive UV absorption peak of southern catfish skin collagen was 221 nm in both RF and CF groups, indicating a standard collagen triple helix structure with biological activity in both groups, which were suitable for denaturation temperature measurements and fibril formation experiments, yet there was no significant difference between the CF and RF groups. Previous studies reported a maximum UV absorption peak of 235 nm for collagen extracted from pufferfish ( Lagocephalus inermis ) skin and 220 nm for jellyfish ( Acromitus hardenbergi ) [38,39]. These varying results suggested that collagen raw materials and extraction methods affected the UV absorption peaks of collagen, which may be related to the exposure of the chromogenic modes in the collagen peptide chain [40].",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_857734ffdce3bbb32a29a5f333279d3226d1b516b676249eee3134e06bbfffaf",
+    "text": "Figure 4. Collagen CD spectra of southern catfish skin under raw food (RF) and cooked food (CF) feeding. Figure 4. Collagen CD spectra of southern catfish skin under raw food (RF) and cooked food (CF) feeding.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4a9aecde87801b0ba5c9a448b028ec52b7ff235f5302fcecc4f3f16819d755d1",
+    "text": "The thermal denaturation temperature of collagen is an important index for evaluating its thermal stability. When heated, the triple helix structure of collagen begins to unravel to form a single chain due to the breaking of hydrogen bonds. The thermal denaturation temperature is the temperature at which the rate of unraveling is 50% [41]. In our study, the thermal denaturation temperature of collagen in the RF group (35.20 ± 0.11 ◦ C) was signifi- The thermal denaturation temperature of collagen is an important index for evaluating its thermal stability. When heated, the triple helix structure of collagen begins to unravel to form a single chain due to the breaking of hydrogen bonds. The thermal denaturation temperature is the temperature at which the rate of unraveling is 50% [41]. In our study, the thermal denaturation temperature of collagen in the RF group (35.20 ± 0.11 °C)",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b466141c206c6623b1458f166e95ba4066e49f579a675646963ab6542b42fbbd",
+    "text": "cantly higher than that in the CF group (34.51 ± 0.25 ◦ C) ( p < 0.05), which may be related to the high content of imino groups (proline and hydroxyproline) and hydrogen bonding in the southern catfish fed RF [42]. The FTIR analysis revealed that fish skin collagen under the RF feeding condition had more hydrogen bonding content, a higher cross-linking ratio, and a more stable triple helical structure, which was consistent with the result of higher denaturation temperature and a better thermal stability capacity in RF collagen (Figure 5). The thermal stability of collagen is also related to the solution environment, raw material source, season, and living environment, and usually the denaturation temperature of collagen from cold-water fish is lower [43]. We found that southern catfish skin collagen was thermally more stable than skin collagen from tilapia (denaturation temperature of 31 ◦ C), Atlantic cod ( Gadus morhua ) (denaturation temperature of 29.6 ◦ C), and sturgeon ( Acipenser schrenckii ) (denaturation temperature of 28.5 ◦ C) [22,44,45]. However, the denaturation temperature of fish-derived collagen is usually lower than that of mammalian collagen, which is a substantial limiting factor for collagen applications [46]. Currently, collagen thermal stability can be improved by modification. Tian et al. [47] reported that the denaturation temperature of collagen could be increased by 27 ◦ C when it was cross-linked with glutaraldehyde, which greatly enhanced the thermal stabilization ability of collagen and provided a possibility for fish-derived collagen to replace mammalian collagen in biomedical and other fields. was significantly higher than that in the CF group (34.51 ± 0.25 °C) ( p < 0.05), which may be related to the high content of imino groups (proline and hydroxyproline) and hydrogen bonding in the southern catfish fed RF [42]. The FTIR analysis revealed that fish skin collagen under the RF feeding condition had more hydrogen bonding content, a higher crosslinking ratio, and a more stable triple helical structure, which was consistent with the result of higher denaturation temperature and a be tt er thermal stability capacity in RF collagen (Figure 5). The thermal stability of collagen is also related to the solution environment, raw material source, season, and living environment, and usually the denaturation temperature of collagen from cold-water fish is lower [43]. We found that southern catfish skin  collagen  was  thermally  more stable than skin collagen from tilapia (denaturation temperature of 31 °C), Atlantic cod ( Gadus morhua ) (denaturation temperature of 29.6 °C), and sturgeon ( Acipenser schrenckii ) (denaturation temperature of 28.5 °C) [22,44,45]. However, the denaturation temperature of fish-derived collagen is usually lower than that of mammalian collagen, which is a substantial limiting factor for collagen applications [46]. Currently, collagen thermal stability can be improved by modification. Tian et al. [47] reported that the denaturation temperature of collagen could be increased by 27 °C when it was cross-linked with glutaraldehyde, which greatly enhanced the thermal stabilization ability of collagen and provided a possibility for fish-derived collagen to replace mammalian collagen in biomedical and other fields.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_29a0d49b1853d86f8115ae79b3c28dfe1b06efd5a63b95c24626474c609bb2d1",
+    "text": "Figure 5. ( A ) Effects of temperature on collagen CD of catfish skin at 221 nm; ( B ) Collagen denaturation temperature of southern catfish skin. * Indicates significant differences between RF and CF ( p < 0.05). Figure 5. ( A ) Effects of temperature on collagen CD of catfish skin at 221 nm; ( B ) Collagen denaturation temperature of southern catfish skin. * Indicates significant differences between RF and CF ( p < 0.05).",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0bee440100edf4713ea05e82cecb1398e23b285edeb92563896289cc3cdb18f3",
+    "text": "3.5. DPPH Free Radical Scavenging Capacity 3.5. DPPH Free Radical Scavenging Capacity",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_29223a9d63a6612ea435d6ecb14de92eabc858e5bb048b0e2755b3c9c98e5af4",
+    "text": "Superior antioxidant properties are one of the main reasons why collagen is widely used in cosmetics, functional food ingredients, and additives [38]. The DPPH free radical scavenging rate of southern catfish skin collagen was higher in the RF group (68.30 ± 2.41%) than that of the CF group (61.78 ± 3.91%), but the difference between the two was not statistically significant (Figure 6). The antioxidant activity of collagen from the skin of southern catfish was higher than that of crimson snapper collagen (39.57 ± 0.99%), silver used in cosmetics, functional food ingredients, and additives [38]. The DPPH free radical scavenging rate of southern catfish skin collagen was higher in the RF group (68.30 ±",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_eb71e1b5f9ac6db0184297f448ed98a84f572ec8d5d083913400cc0ceecd904e",
+    "text": "2.41%) than that of the CF group (61.78 ± 3.91%), but the difference between the two was",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3fd631f4c1f8d8af752abe1965d0ca580eabc1aefa0ff4b9466fe07cd09be0c5",
+    "text": "10 of 16 not statistically significant (Figure 6). The antioxidant activity of collagen from the skin of",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_943de1336f41a5900429327cfc21880b3f509afd1d05ec37256f0fe8948517f2",
+    "text": "southern catfish was higher than that of crimson snapper collagen (39.57 ± 0.99%), silver",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5514fd504a7bf070dd179a176603e6d72e7ce9591f12ddfec6779df6d1e12526",
+    "text": "pomfret collagen (40.89 ± 0.22) and Malabar sole (31.4 ± 0.96%). [48]. The collagen extracted",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0d4c884b3ccbcb0053dce03198d38e08f845e749aded2720df06680c8ff84a8f",
+    "text": "pomfret collagen (40.89 ± 0.22) and Malabar sole (31.4 ± 0.96%). [48]. The collagen extracted in this study showed excellent in vitro antioxidant capacity compared to the antioxidant properties of commercially available collagen (DPPH free radical scavenging rate of about 30-40%) [38]. The subtle difference in antioxidant capacity of collagen between RF and CF groups may be related to the amino acid composition, structure, hydrophobicity, and molecular weight of collagen [49]. Chen et al. [50] reported that the excellent antioxidant properties of collagen could be helpful in the development of wound dressings that could prevent oxidative stress induced by excess free oxygen at the wound site, thereby promoting wound healing. in this study showed excellent in vitro antioxidant capacity compared to the antioxidant properties of commercially available collagen (DPPH free radical scavenging rate of about 30-40%) [38]. The subtle difference in antioxidant capacity of collagen between RF and CF groups may be related to the amino acid composition, structure, hydrophobicity, and molecular weight of collagen [49]. Chen et al. [50] reported that the excellent antioxidant properties of collagen could be helpful in the development of wound dressings that could prevent oxidative stress induced by excess free oxygen at the wound site, thereby promoting wound healing.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0bc6609454d5af92a386298687dca2efc2d2420af75522b7bfe7e5155dbe9676",
+    "text": "Figure 6. DPPH radical scavenging rate of skin collagen from southern catfish skin under raw food (RF) and cooked food (CF) feeding. Figure 6. DPPH radical scavenging rate of skin collagen from southern catfish skin under raw food (RF) and cooked food (CF) feeding.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_151764640143434f2a81841335b1540e2471787b05c044329e5e94a3d3f82ec7",
+    "text": "3.6. Collagen In Vitro Fibril Formation",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f255d3d5ee52df4a5199c38d5d81ce19a45a2a68ad94c34af1c7b5e61b35dc3c",
+    "text": "3.6. Collagen In Vitro Fibril Formation In vitro self-assembly capacity is one of the important molecular behavioral features of natural collagen molecules. In this study, collagen self-assembly in vitro was investigated by the turbidimetric method. The slope of the turbidity curve reflects the rate of lateral aggregation, while the final turbidity reflects the fibril diameter [51]. Usually, the turbidity curve of collagen fibrils is typically S-shaped and is divided into three periods: the hysteresis period, the growth period, and the stability period. Among them, the hysteresis period is the stage of collagen fibril nucleation, with no absorbance change; the absorbance increases rapidly during the growth period, and collagen self-assembles into fibrils; and the maximum absorbance value is reached during the stabilization period, and the collagen fibril mesh structure is formed [52]. In this study, the experimental results are shown in Figure 7, and the turbidity curves do not show any significant lag period, which indicates that collagen nucleation in southern catfish is extremely fast and can be rapidly nucleated in a short period of time. In contrast, in the  porcine  collagen  fibrillogenesis study, the collagen turbidity curve had an obvious nucleation period, and the assembly rate during the growth period was significantly smaller than that of fish-derived collagen, which showed a be tt er fibrillogenic capacity of fish compared with mammalian collagen [53,54]. This result is consistent with the inference from SDS-PAGE that low molecular In vitro self-assembly capacity is one of the important molecular behavioral features of natural collagen molecules. In this study, collagen self-assembly in vitro was investigated by the turbidimetric method. The slope of the turbidity curve reflects the rate of lateral aggregation, while the final turbidity reflects the fibril diameter [51]. Usually, the turbidity curve of collagen fibrils is typically S-shaped and is divided into three periods: the hysteresis period, the growth period, and the stability period. Among them, the hysteresis period is the stage of collagen fibril nucleation, with no absorbance change; the absorbance increases rapidly during the growth period, and collagen self-assembles into fibrils; and the maximum absorbance value is reached during the stabilization period, and the collagen fibril mesh structure is formed [52]. In this study, the experimental results are shown in Figure 7, and the turbidity curves do not show any significant lag period, which indicates that collagen nucleation in southern catfish is extremely fast and can be rapidly nucleated in a short period of time. In contrast, in the porcine collagen fibrillogenesis study, the collagen turbidity curve had an obvious nucleation period, and the assembly rate during the growth period was significantly smaller than that of fish-derived collagen, which showed a better fibrillogenic capacity of fish compared with mammalian collagen [53,54]. This result is consistent with the inference from SDS-PAGE that low molecular weight components contribute to promoting fiber formation.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d2e4b09863b16ef0249c9593d7450f74685c13233e6c99416dfcec663001ed33",
+    "text": "weight components contribute to promoting fiber formation. The slope of the turbidity curve reflects the rate of fibril formation, while the final turbidity reflects the fibril diameter to some extent [51]. In the present study, the growth period of collagen fibril formation appeared to be faster, with higher final turbidity and coarser fibril diameters in CF than in RF under the same salinity conditions. Different NaCl concentrations lead to different ionic strengths of the solution, which affect the assembly process of collagen molecules [54]. The slope of collagen fibril formation was minimum at a salinity of 0 mM and maximum at a salinity of 280 mM. This suggests that increasing NaCl concentration within a certain range promotes collagen fibril formation of both RF and CF groups. We speculate that the possible reason is that increased NaCl concentration results in enhancing ionic interactions, which may promote more effective fibril assembly and cross-linking. The result that increased salinity accelerates collagen Foods",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0bacf2a5f9c14a8e8cb1cab6809a5bbbc8914c0d00e7d720d289f2a64af9bd55",
+    "text": "2024",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c42e8ae2f72c0b0a376e41ef1b3d80ea5a42bf1efca93e958df4d21756915f4f",
+    "text": ",",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e75d33749ae1994757863c0930660865f6cf20b0a19532303c689dd20349684c",
+    "text": "13",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b844ac81f034d5a46c4d52254368b8604cbd832df2c9ed8b227e0c118777aa2c",
+    "text": "Foods",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3bcabeb12402844a6d20479e1d9bd2a71d971a26fd0ce7c80f26e1d547258262",
+    "text": "2024",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3d625cbaa709d6c4f6a918c75899061ac453d78d6be921b8e43d9889ad8864cb",
+    "text": ", x FOR PEER REVIEW",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_324304e77a75fee55d179dd87cfdfd98e90b94647b99bb4a1f0baf477631a811",
+    "text": "fibril formation in southern catfish is similar to our previous findings in sturgeon and grass carp collagen [20,44,54]. The general principles of collagen fibril formation are accepted, but the molecular mechanism of the assembly process is less known. 11  of  16",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5ac7fedc48baa3081570bce2f19e0d099046283975a48557e06730a49024382f",
+    "text": "Figure 7. Effect of salinity on collagen fibril formation rate of skin collagen from southern catfish skin under raw food (RF) and cooked food (CF) feeding. Figure 7. Effect of salinity on collagen fibril formation rate of skin collagen from southern catfish skin under raw food (RF) and cooked food (CF) feeding.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c6e069742f673a4c1fa745689568c352ec7a46d5baf3ccd867d5e9083d3f912f",
+    "text": "3.7. Morphology of Collagen Fibrils Formed In Vitro",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a7bdc1f59435702d7e97ddd417a63a9fc3cbae4a457e7166da7eb7be53a7d522",
+    "text": ", x FOR PEER REVIEW",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0e449fa85379ca09982d21fbcdf9ab725d547ca9955f3e3cb0f77d9ae32cbca7",
+    "text": "The slope of the turbidity curve reflects the rate of fibril formation, while the final turbidity reflects the fibril diameter to some extent [51]. In the present study, the growth period of collagen fibril formation appeared to be faster, with higher final turbidity and coarser fibril diameters in CF than in RF under the same salinity conditions. Different NaCl concentrations lead to different ionic strengths of the solution, which affect the assembly process of collagen molecules [54]. The slope of collagen fibril formation was minimum at a salinity of 0 mM and maximum at a salinity of 280 mM. This suggests that Figure 8 shows the morphology of the reconstituted collagen fibrils of CF and RF observed by scanning electron microscopy. The reconstituted collagen fibrils showed clear fibrous aggregated structures at 0, 140, and 280 mM salinity. The average diameter of self-assembled collagen fibrils was the smallest at 0 mM salinity and the largest at 280 mM salinity in both RF and CF groups (Figure 9), and the effect was more pronounced in the CF group. 12  of  16",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_362e377c299f002b5ddb8cc190c9f286aadb6979ef62e8489399a5c73a1903c5",
+    "text": "increasing NaCl concentration within a certain range promotes collagen fibril formation",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_63e665091d7e588f1c8bb2109d5edd1b6c5b50127fd483bd7917afac354f5d40",
+    "text": "of both RF and CF groups. We speculate that the possible reason is that increased NaCl",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1f6645a41ff8c8edb05ad77039f3140b13a49791c68ee6a72a3e62c22de84c9d",
+    "text": "concentration results in enhancing ionic interactions, which may promote more effective",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c14b7705c33b97e248792518545b630e861c2abc92bfb880a14a3fa8155688da",
+    "text": "fibril assembly and cross-linking. The result that increased salinity accelerates collagen",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f6ed233caeb27ad4e17d9f08521bf55f585935bd3d7da5b3bdb82e5e54b00b73",
+    "text": "fibril  formation in southern catfish is similar to our previous findings in sturgeon and",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8303936bb4ba3796d41884394aca06f3669c7de7cfa9089e15c4a935e7dd9dff",
+    "text": "grass carp collagen [20,44,54]. The general principles of collagen fibril formation are ac-",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ba8feb1554f8d516476188c1fb5184d272036eb1280b3085852af1ec7f7d6fb7",
+    "text": "Figure 8 shows the morphology of the reconstituted collagen fibrils of CF and RF",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_80d5d9a3cf5e784e8a7f3983603a13d391a317b0a116b47ef41c9d3f4a53178a",
+    "text": "observed by scanning electron microscopy. The reconstituted collagen fibrils showed clear",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3440439d8e423b9d0771938656bc2025af23779b0afbc0753c9ca5945f076308",
+    "text": "fibrous aggregated structures at 0, 140, and 280 mM salinity. The average diameter of self-",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3308bab70915ac4219bdfc95aa4f80954b1ed056e61748fd9c9cb5580c798a50",
+    "text": "assembled collagen fibrils was the smallest at 0 mM salinity and the largest at 280 mM",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_51daf784f25c47a086bd2ce45c8ba0393fe68e89fb483db077730a5446c07844",
+    "text": "salinity in both RF and CF groups (Figure 9), and the effect was more pronounced in the",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a33e028d2f406d09346fda8b87573b62143d07456d2703eff6278ae96d8095da",
+    "text": "Figure 8. Scanning electron microscope images of collagen fibrils obtained from the skin of southern catfish. ( A -C ): raw food (RF) feeding, NaCl concentration was 0 mM, 140 mM, and 280 mM, respectively; ( D -F ): cooked food (CF) feeding, NaCl concentration was 0 mM, 140 mM, and 280 mM, respectively. Figure 8. Scanning electron microscope images of collagen fibrils obtained from the skin of southern catfish. ( A -C ): raw food (RF) feeding, NaCl concentration was 0 mM, 140 mM, and 280 mM, respectively; ( D -F ): cooked food (CF) feeding, NaCl concentration was 0 mM, 140 mM, and 280 mM, respectively.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4c2a4a0209bbb849547a2964e9758089286ec1008ab01c0d54f5c8b380553548",
+    "text": ",",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b2911289abc843abb86f3c9aa2ab806b41fd9f2471a7a01ab1f30327ffa1b5ec",
+    "text": "13",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ad8fa66a8893c178aab7ebfa58d320250049ff4cd2a62fc053050da37385132e",
+    "text": "Figure 8.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8f643f73a7782192c853751fc785a11717b90a210fa2bdf82e0e2dc30d53ddf1",
+    "text": "Scanning electron microscope images of collagen fibrils obtained from the skin of southern",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6698326789b43ff8323df9934b8c337148b47007d4eea5f8f17f14b9d99ee155",
+    "text": "catfish. (",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_782610ca20c2eb5c9730c0d82cf330549c747fff6fbf5360db89ee362771eb2b",
+    "text": "A",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8d8cbc845c7ab34a039f11e5a760c3a3258565dc871ae404a36c98b8f2bd3036",
+    "text": "-",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cc6f898c36520f9e000beecb38bc5e0efeff2cf4415623d4bfe53ec3f13bec75",
+    "text": "): raw food (RF) feeding, NaCl concentration was 0 mM, 140 mM, and 280 mM, respec-",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1184b0af76a58378cbe66538a9f432c6c3252b2342697fcc155936cc2f9f09b9",
+    "text": "tively; (",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8af3a310641c9183795a311cc6218556c4b0c2d38ec033348112d371552ace1a",
+    "text": "D",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c73a8a190cf1ac1c0203f15345470f193d2dc4c8cc125076e25a481d13dc7786",
+    "text": "-",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a8f992774275a17f357eee6eef7e2972f32ddddc3089f2e16df892ebdab39f5e",
+    "text": "C",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4436346a888f3490ffeb97d8638cf4d2869b29ff2d08e4769a6d5be61caeeaee",
+    "text": "F",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8d2da3e82649068730e9335aee8a6d57d92f272f828d54f6cfde557882fbbee9",
+    "text": "spectively.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6f83e0b504dbe1bc6cf4f9260178d4884e2c0650c932b069cd672b9448e8537c",
+    "text": "Figure 9. Effect of salinity on the diameter of skin collagen fibrils from southern catfish skin under raw food (RF) and cooked food (CF) feeding ( n = 150, unit in nm). Different lowercase le tt ers indicate differences among different salinities and groups ( p < 0.05). Figure 9. Effect of salinity on the diameter of skin collagen fibrils from southern catfish skin under raw food (RF) and cooked food (CF) feeding ( n = 150, unit in nm). Different lowercase letters indicate differences among different salinities and groups ( p < 0.05).",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a3f5fd09a9faac155933c5733f0acfcd915a10886ddaf54e58140ea6a45fb5dd",
+    "text": "The effects of NaCl concentration on collagen-forming fibrils in fish skin from both RF and CF groups were basically the same; increasing the NaCl concentration resulted in an increase in the diameter of collagen fibrils, which is consistent with the results of the collagen fibril formation process. This result suggests that the overall trend of the effect of NaCl concentration on collagen fibril formation in both groups is consistent, but the impact is more pronounced in CF groups. At the same NaCl concentration, the collagen fibril formation rate in the CF group was faster than that in the RF group, and the final collagen The effects of NaCl concentration on collagen-forming fibrils in fish skin from both RF and CF groups were basically the same; increasing the NaCl concentration resulted in an increase in the diameter of collagen fibrils, which is consistent with the results of the collagen fibril formation process. This result suggests that the overall trend of the effect of NaCl concentration on collagen fibril formation in both groups is consistent, but the impact is more pronounced in CF groups. At the same NaCl concentration, the collagen fibril formation rate in the CF group was faster than that in the RF group, and the final collagen fibrils formed were thicker in diameter; thus, CF groups had a better fibril-forming ability than RF groups. In addition, the aforementioned ATR-FTIR results showed that the collagen of southern catfish skin under CF modes had less hydrogen bonding, which may also allow collagen to have better nucleation and assembly capacity during fibril formation. Our findings suggest that southern catfish collagen has a rapid fibrillogenic capacity and a very distinct network structure. These findings highlight the importance of studying the fibrillar behavior of collagen for collagen development and application, especially in the fields of tissue engineering and biomaterials.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c29408257c594cf502e47259839e17c80df862a3416e7d74fcbca81fccb6955d",
+    "text": "3.8. Collagen Synthesis-Related Gene Expression",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9087b16901efd7d5b5e5561b086f4a5284381a9fa545c410656fb06de5339b07",
+    "text": "The mRNA expression levels of the col1a1 genes in the fish skin of the RF group were significantly higher than those of the CF group ( p < 0.05), but the mRNA expression level of the col1a2 gene did not differ significantly between the two groups (Figure 10). The synthesis of collagen peptide chains is mainly encoded by the col1a1 and col1a2 genes. After these genes are expressed, the corresponding polypeptide chains α 1 and α 2 form, and two α 1 chains and one α 2 chain together form type I collagen with a three-stranded helical structure [55]. Therefore, the mechanism responsible for enhanced collagen content in the RF group may be through inducing the up regulation of col1a1 and col1a2 expression, thereby increasing the production of peptide chains α 1 and α 2. The higher expression levels of col1a1 mRNAin the RF group could promote the synthesis of collagen, which is consistent with the collagen yield results. However, the stimulation of col1a1 expression alone in the RF group suggests that the dietary difference induced a difference in the ratio of peptide chains α 1 and α 2. Such compositional changes in collagen peptide chains may relate to the differences in the nature of collagen molecules reported above. Along with the expression studies on col1a3 , which could not be studied in the present study, the effects of the diet on the composition of collagen peptide chains should be studied in the future.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_18ef6f081e68dc64a3c263b194cb1c7bbc03cf82a3478805db82212940e029e7",
+    "text": "): cooked food (CF) feeding, NaCl concentration was 0 mM, 140 mM, and 280 mM, reof peptide chains",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d119364fe804642ed15898e681711eacfd660bcaa7e76b70b1693860b5ea40e0",
+    "text": "α",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9b96827864b7bdeb7f4cc048ecd76c2de633b33b51a87e4d0a9b14f5d0a3b3c5",
+    "text": "1 and",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0d95cc59791aebf3687755dff665a3b8c8d408f3e8651aa8ef084789ed1ceefc",
+    "text": "α",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5824a8bc846a7bbc4c3ce561519fd8ab6c0908914d7d145f230017d94b44285e",
+    "text": "2. Such compositional changes in collagen peptide chains may",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a19907831e7f3c0651966a5ef63d8600549a4ac628bf8808f2f1460bc9f73435",
+    "text": "relate to the differences in the nature of collagen molecules reported above. Along with",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6ddcdb9f480d7b5c35c27205d4908062aec7cb54ebedc6a6d8e6a1af5f32f629",
+    "text": "the expression studies on col1a3",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1586b632750ea678bdcb2ace4d337b080ca0701a263e4954f76221f88ae697b7",
+    "text": ", which could not be studied in the present study, the ef-",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4795e4e6564c32614736c77415167dd921fd83c7f88d7bb97d03ec0af5a95fe4",
+    "text": "fects of the diet on the composition of collagen peptide chains should be studied in the",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bdb914d69741d0712cf550e27120b61f0f243059f35f7cb4021a28ee2af85716",
+    "text": "future.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_12406e119cd242aac11513d40b2608fc583c36fd409a9b5ac1966f07b09a6af6",
+    "text": "Figure 10. Effects of different feeding modes on gene expression of type I collagen in southern catfish skin. RF, raw food feeding; CF, cooked food feeding. * Indicates significant differences among difFigure 10. Effects of different feeding modes on gene expression of type I collagen in southern catfish skin. RF, raw food feeding; CF, cooked food feeding. * Indicates significant differences among different salinities ( p < 0.05).",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0eb07246ae293376ed68d491eb5aacdd15bd7aef14f72254e78df69c129f22b4",
+    "text": "ferent salinities (",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_940ac300facb242d916e37178e0efa3c1c7957dc41e2feca74db39876a8f1096",
+    "text": "p",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_17a892ff17c3c83b0c0d4f6bf27880fef3de1f8a897ae67dc2390f85898b6619",
+    "text": "4. Conclusions",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_77ca79b7a3500358d438c3d27e9180f4f470461cefae75ff805afa612ddd362a",
+    "text": "4. Conclusions In this study, we investigated the properties and fibril-forming ability of skin collagen from southern catfish fed with raw and cooked food and assessed the synthesis of collagen at the gene level. Our results suggested that southern catfish skin collagen was type I collagen with a unique triple helix structure. The relative expression of col1a1 was higher in the RF group than in the CF group, which resulted in higher collagen synthesis In this study, we investigated the properties and fibril-forming ability of skin collagen from southern catfish fed with raw and cooked food and assessed the synthesis of collagen at the gene level. Our results suggested that southern catfish skin collagen was type I collagen with a unique triple helix structure. The relative expression of col1a1 was higher in the RF group than in the CF group, which resulted in higher collagen synthesis and higher collagen yield as well as certain advantages in denaturation temperature and antioxidant capacity. Collagen in both groups showed good fibril-forming ability, and the self-assembling behavior of collagen could be regulated by NaCl concentration. The CF group had a faster assembly rate of collagen and higher fibril-forming ability compared with the RF group, illustrating that feeding fish-cooked food might produce collagen with higher potential applications in biomaterials. In conclusion, the collagen of southern catfish skin had high thermal stability, antioxidant effects, and fibril-forming abilities, which suggested the broad application potential of this material in cosmetics, biomedicine, and tissue engineering. Additionally, RF and CF had certain effects on collagen properties. Our results provided an important basis for the development and utilization of by-products from southern catfish. Furthermore, this study is the first to explore the effects of different processing methods of food on southern catfish collagen, and the results suggest that raw food is more beneficial for collagen production and some properties. This provides essential data for the future development of food and feed products for southern catfish.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_78fa5c1536f985ed191d507cbf0a5c8aafc2ab64127cd88887addc2661568189",
+    "text": "Author Contributions: Q.Z. and S.H.: investigation, data curation, writing-original draft; Y.L.: methodology, data curation, investigation; J.D. and Y.J.: data curation, investigation; Q.Y. and T.X.: data curation; Y.T.: writing-review and editing; D.L.: writing-review and editing; X.Z.: conceptualization, methodology, funding acquisition, writing-review and editing, supervision. All authors have read and agreed to the published version of the manuscript.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0deb8c72e1234048afbe6e01443cdec324299fb956f965ca5b89799cc60782b3",
+    "text": "Funding: This work was financially supported by the Fundamental Research Funds for the Central Universities of China (20062023SCYJ006).",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ef0518e341c99cc4fc48a81f8736000c6232d40247e00c53c252ae361a3ca1d8",
+    "text": "Institutional Review Board Statement: In the present study, all procedures were performed in accordance with the 'Guidelines for Experimental Animals' of the Ministry of Science and Technol-ogy (Beijing, China), and the animal study protocol was approved by the Institutional Animal Care and Use Committee of Huazhong Agricultural University.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_af791cb45d3a650c8a7bb49a723242cdb072eaaec4d64305d53a48c91445f346",
+    "text": "Informed Consent Statement: Informed consent was obtained from all subjects involved in the study.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_793e668aaf6b5f4bfb20aca3da6716eb59ce766dcfc84c1ac90f0c58f20607df",
+    "text": "Data Availability Statement: The original contributions presented in the study are included in the article, further inquiries can be directed to the corresponding author.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d34aeaceb9926990664b257547c37a8ac2323697af624ca44eb65b65124f173b",
+    "text": "< 0.05).",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5df3f942f50c6f2bd57d3b42dadb1db64a3868b11778b5dec79f78513d413bf1",
+    "text": "References",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ccbf627b63b9bca07f3289ae4078a56cb963d2458b26a2f9f55d813047325896",
+    "text": "N ó brega, C.T.; Guimar ã es, C.C.; Barai, A.A.; Mour ã o, L.S.; Oliveira, P.R.; Inhamuns, A.J.; Oliveira, A.T. Yield and centesimal characterization of collagen extracted from the skin of peacock bass Cichla monoculus . Braz. J. Biol. Rev. Brasleira Biol. 2024 , 84 , e277637. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1a5906a7b0b6bd7852084ead46b390e9016dbafd21bc8d2fc1f9375f5433165a",
+    "text": "Geng, Y.; Wang, Y.-K.; Li, W.-C.; Ren, Y.-S.; Zhou, Y.-Z.; Liu, X.-X.; Liu, F.-X.; Lai, M.-W.; Huang, L.-X.; Chen, F.-D. Isolation and Characterization of Edwardsiella ictaluri from Southern Catfish, Silurus soldatovi meridionalis , ( Chen ) Cultured in China. J. World Aquac. Soc. 2013 , 44 , 273-281. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9e9427de38d4e08503f1b30ea028144c64020c2fba966700d38c7f9725d9452a",
+    "text": "He, C.-Q.; Geng, H.-Y.; Qin, Y.-W.; Yang, P.; Wang, W.-Q.; Mai, K.-S.; Song, F. Dietary xanthophyll improved growth, antioxidant, pigmentation and meat quality in the southern catfish ( Silurus soldatovi meridionalis Chen ). Anim. Nutr. 2023 , 13 , 101-115. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c193dfbdc852f93f0d16c131a3fa6e761a0701f8dae471c71b574f2c45d5d3cf",
+    "text": "Zhang, Z.; Li, D. Thermal processing of food reduces gut microbiota diversity of the host and triggers adaptation of the microbiota: Evidence from two vertebrates. Microbiome 2018 , 6 , 99. [CrossRef] [PubMed]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_42af339357637f140c8db0154c9e497d71cb01ba0a34973a188840d8ddc6dacd",
+    "text": "Zhang, Z.; Xu, W.; Tang, R.; Li, L.; Refaey, M.M.; Li, D. Thermally processed diet greatly affects profiles of amino acids rather than fatty acids in the muscle of carnivorous Silurus meridionalis . Food Chem. 2018 , 256 , 244-251. [CrossRef] [PubMed]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_eae780f39c873a59acb1a14812374435fb72cedd1f3e3519da2cb17762457d2f",
+    "text": "Domingues, P.M.; Marquez, L.; L ó pez, N.; Rosas, C. Effects of food thermal treatment on growth, absorption, and assimilation efficiency of juvenile cuttlefish ( Sepia officinalis ). Aquac. Int. 2008 , 17 , 283-299. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c989da0d4dcbb489f0b049d27f94384b224db7df1db4052e876332a866d947d0",
+    "text": "Muyonga, J.H.; Cole, C.G.B.; Duodu, K.G. Characterisation of acid soluble collagen from skins of young and adult Nile perch (Lates niloticus). Food Chem. 2003 , 85 , 81-89.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c84e1abf80c1e3d9f6049941b4cb3ff45ce7a9df9cda86dd60e985f988b56cd2",
+    "text": "Mouw, J.K.; Ou, G.; Weaver, V.M. Extracellular matrix assembly: A multiscale deconstruction. Nat. Rev. Mol. Cell Bio 2014 , 15 , 771-785. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5e5e76af3cb8d48b3fcac3cc95a778b193acaff0d27a85b97e42a568e19ac0a0",
+    "text": "Darvish, D.M. Collagen fibril formation in vitro: From origin to opportunities. J. Mater. Today Bio. 2022 , 15",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_67e35b64b9ca685636729483a6077720e5dd35c1422b02f2efef01926fd61a0b",
+    "text": ", 100322. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_375612ca9f48a8a5053f78c798666e35c9b341c92bab7a63ec7207bb7490fc39",
+    "text": "Yan, M.; Wang, X. Study on the kinetic self-assembly of type I collagen from tilapia ( Oreochromis niloticus ) skin using the fluorescence probe thioflavin T. Spectrochim. Acta Part A Mol. Biomol. Spectrosc. 2018 , 203 , 342-347. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5d097a6f95daa263bc747a134cf38bf1a92ccaea78c236a7a59baa354ef6fac2",
+    "text": "Bae, I.; Osatomi, K.; Yoshida, A.; Yamaguchi, A.; Tachibana, K.; Oda, T.; Hara, K. Characteristics of a self-assembled fibrillar gel prepared from red stingray collagen. Fish. Sci. 2009 , 75 , 765-770. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_31a99db6d406fc78be16e60ad26ca817dbfe4ed2bac79a4134f55b2960e9d56f",
+    "text": "Yunoki, S.; Nagai, N.; Suzuki, T.; Munekata, M. Novel biomaterial from reinforced salmon collagen gel prepared by fibril formation and cross-linking. J. Biosci. Bioeng. 2004 , 98 , 40-47. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_43bd69fb296834e13b1e983edde85e907c9fd2cc35f7f13e3b30dbfb8908cf6c",
+    "text": "Hafez, J.; Alberto, L.; Mafosso, M.S.; Pejman, G.; Lei, N.; Houman, A.; Amin, S. Fish Collagen: Extraction, Characterization, and Applications for Biomaterials Engineering. Polymers 2020 , 12 , 2230. [CrossRef] [PubMed]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_58c8fa42a1f10c768b5c3f40e96acb01a8591fdc3c980ec464b6dff3b8cb29f8",
+    "text": "Santos, D.V.W.C.; Marques, C.D.E.M.; Ten ó rio, A.D.H.; Miranda, D.C.E.; Pereira, V.J.H. Purification and characterization of trypsin from Luphiosilurus alexandri pyloric cecum. Biochem. Biophys. Rep. 2016 , 8 , 29-33. [CrossRef] [PubMed]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4122e44519e678d923fd06277b1f44e46126a99794a1a15f243c93974aca4caa",
+    "text": "dos Santos, D.M.R.C.; dos Santos, C.W.V.; de Souza, C.B.; de Albuquerque, F.S.; dos Santos Oliveira, J.M.; Pereira, H.J.V. Trypsin purified from Coryphaena hippurus (common dolphinfish): Purification, characterization, and application in commercial detergents. J. Biocatal. Agric. Biotechnol. 2020 , 25 , 101584.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f31a07393ea2702366ce684c9db2bbd885550d011e544086d6e1adbbdf4a380a",
+    "text": "Fiala, T.; Barros, E.P.; Heeb, R.; Riniker, S.; Wennemers, H. Predicting Collagen Triple Helix Stability through Additive Effects of Terminal Residues and Caps. Angew. Chem. 2022 , 62 , e202214728. [CrossRef] [PubMed]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cc19dad544383d2ecc6c57db613b84b36d49481949d88de1012aa9b909ad0119",
+    "text": "Terzi, A.; Gallo, N.; Bettini, S.; Sibillano, T.; Altamura, D.; Madaghiele, M.; De Caro, L.; Valli, L.; Salvatore, L.; Sannino, A.; et al. Sub- and Supramolecular X-ray Characterization of Engineered Tissues from Equine Tendon, Bovine Dermis, and Fish Skin Type-I Collagen. Macromol. Biosci. 2020 , 20 , e2000017. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ec59399833f08b50698959d2acf9906fd0d724d9e9a6de1346bed0706938583a",
+    "text": "Zahra, K.; Baharifar, H.; Asefnejad, A.; Khoshnevisan, K. Collagen type I cross-linked to gelatin/chitosan electrospun mats: Application for skin tissue engineering. J. Mater. Today Commun. 2023 , 35 , 105889.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d39c94a19f2a3a9193707a9d7f2a20425b9e0ad593d6065a945c8ead37750ccc",
+    "text": "Jakub, H.; Paweł, K.R.; Christiane, K.K.; Kamil, J.; Izabela, N.H.; Marzena, D.; Gedrange, T. A silver carp skin derived collagen in bone defect treatment-A histological study in a rat mode. J. Ann. Anat. 2016 , 208 , 123-128.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3080bf8e6caf84b2c239abad8f4130ef33f601fe531e1d7167a628493b2df2ed",
+    "text": "Shen, Z.; Zhang, Q.; Li, L.; Li, D.; Takagi, Y.; Zhang, X. Properties of Grass Carp ( Ctenopharyngodon idella ) Collagen and Gel for Application in Biomaterials. Gels 2022 , 8 , 699. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c58d2d59d55c42833fa79cc521749cc8c6a55ced80944ea05de132380c346e8e",
+    "text": "Ogawa, M.; Moody, M.W.; Portier, R.J.; Bell, J.; Schexnayder, M.A.; Losso, J.N. Biochemical properties of black drum and sheepshead seabream skin collagen. J. Agric. Food Chem. 2003 , 51 , 8088-8092. [CrossRef] [PubMed]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f33d0c3b8af0acc2666b742f49a7e0b41b19b681e336519df2d07230beaa0319",
+    "text": "Chen, J.; Li, L.; Yi, R.; Xu, N.; Gao, R.; Hong, B. Extraction and characterization of acid-soluble collagen from scales and skin of tilapia ( Oreochromis niloticus ). LWT-Food Sci. Technol. 2016 , 66 , 453-459. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_431b5c8594c51143069f195927616552a837db7a7146ecff04eb62315897187a",
+    "text": "Jongjareonrak, A.; Benjakul, S.; Visessanguan, W. Isolation and characterisation of acid and pepsin-solubilised collagens from the skin of Brownstripe red snapper ( Lutjanus vitta ). Food Chem. 2004 , 93 , 475-484. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4af674cef1d20511ba92a51db2d7452708a7c25f7fc0b70cd9f35dde24964700",
+    "text": "Nagai, T.; Araki, Y.; Suzuki, N. Collagen of the skin of ocellate puffer fish ( Takifugu rubripes ). Food Chem. 2002 , 78 , 173-177. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cd4ac08c0a92e85a8f409e72b67ce4cb4cfc58d4caebadc7e686eb3689ae0c32",
+    "text": "Zhang, M.; Liu, W.; Li, G. Isolation and characterisation of collagens from the skin of largefin longbarbel catfish ( Mystus macropterus ). Food Chem. 2009 , 115 , 826-831. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8b498bc83bb65a59c08d99bf96f0e8d283ce18d63ad032762fd8c9719c6b1c50",
+    "text": "Nagai, T.; Tanoue, Y.; Kai, N.; Suzuki, N. Characterization of collagen from emu ( Dromaius novaehollandiae ) skins. J. Food Sci. Technol. 2014 , 52 , 2344-2351. [CrossRef]",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3dcad6d733bec22805a0e638c899d2da6afefa6f5f6320e24925f256da81de55",
+    "text": "Conflicts of Interest: The authors declare no conflicts of interest.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5f6529b37b92746a41b3762b348a798c6d5638728f3cb8e255f602fd262cb842",
+    "text": "Eun, J.L.; SangKyu, N.; Jeong, M.K. Effects of Enzymatic- and Ultrasound-Assisted Extraction on Physicochemical and Antioxidant Properties of Collagen Hydrolysate Fractions from Alaska Pollack ( Theragra chalcogramma ) Skin. J. Antioxid. 2022 , 11 , 2112.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1d6c7357a25f21651bfcb19124cc09073b6d1b98ca003b229556b137030f0aaa",
+    "text": "Samaneh, P.; Masoud, R.; Mehdi, A. Impact of ultrasound on extractability of native collagen from tuna by-product and its ultrastructure and physicochemical attributes. J. Ultrason. Sonochem. 2022 , 86 , 89106129.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ed6cd8c0e591ef8f66bafe5a865c224b55abd00c2c2f07786aedfb16d9d68089",
+    "text": "Xu, S.; Yang, H.; Shen, L.; Li, G. Purity and yield of collagen extracted from southern catfish ( Silurus meridionalis Chen ) skin through improved pretreatment methods. Int. J. Food Prop. 2017 , 20 , S141-S153. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_67097ac50b0958bee5f0bab1ef2310ecb1478892df8e1523d1a2b300d6cc172b",
+    "text": "G ó mez-Guill é n, M.C.; Gim é nez, B.; L ó pez-Caballero, M.E.; Montero, M.P. Functional and bioactive properties of collagen and gelatine from alternative sources: A review. Food Hydrocoll. 2011 , 25 , 1813-1827. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e965fa341bd199518202b5983d0c575d1e93ec5abb9bbbf56a6ed1c219839f55",
+    "text": "Li, P.H.; Lu, W.C.; Chan, Y.J.; Ko, W.C.; Jung, C.C.; Le Huynh, D.T.; Ji, Y.X. Extraction and characterization of collagen from sea cucumber ( Holothuria cinerascens ) and its potential application in moisturizing cosmetics. Aquaculture 2020 , 515 , 734590. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e163b9348f3d669f00ae5def867e7492c3e4e4da666f63f46feb1391fbcdf424",
+    "text": "Ge, B.L.; Hou, C.Y.; Bao, B.; Pan, Z.L.; Elango, J.; Wu, W.H. Comparison of Physicochemical and Structural Properties of Acid-Soluble and Pepsin-Soluble Collagens from Blacktip Reef Shark Skin. Mar. Drugs 2022 , 20 , 376. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7955747df0a5f06ad4747d12e3c83fc5ca4d46b7a453d7d67f617c7fe54fa15e",
+    "text": "Payne, K.J.; Veis, A. Fourier transform IR spectroscopy of collagen and gelatin solutions: Deconvolution of the amide I band for conformational studies. Biopolymers 1988 , 27 , 1749. [CrossRef] [PubMed]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4466a93c09f82ca0239508c89d5936cd868acf19e6f1c3590e0e2ef3cd4f7579",
+    "text": "Kelly, S.M.; Price, N.C. The application of circular dichroism to studies of protein folding and unfolding. Biochim. Biophys. Acta 1997 , 1338 , 161-185. [CrossRef] [PubMed]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a026dcc947770679dd93f8299b3ecf1f325f4b0b01063906eeb1c43c0391565c",
+    "text": "Pornpimol, S.; Chompoonuch, K.; Jirawat, Y. Physicochemical Properties and Angiotensin I Converting Enzyme Inhibitory Peptides of Freshwater Fish Skin Collagens. J. Aquat. Food Product. Technol. 2020 , 29 , 650-660.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_aeeb5e1c232056604efeb73fe3135405fd89abfbe7c86d71aa8f3625032588af",
+    "text": "Rodrigues Menezes, M.D.; Ribeiro, H.L.; da Silva Abreu, F.D.; de Andrade Feitosa, J.P.; Filho Men de Sa Moreira, S. Optimization of the collagen extraction from Nile tilapia skin ( Oreochromis niloticus ) and its hydrogel with hyaluronic acid. Colloids Surf. B Biointerfaces 2020 , 189 , 189110852.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_503f7d783d0da03d6138cfc38ab1e1bcdcdbf592a8827cc427e5ca9bf57e1696",
+    "text": "Usha, R.; Ramasami, T. Structure and conformation of intramolecularly cross-linked collagen. Colloids Surfaces B Biointerfaces 2005 , 41 , 21-24. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_851daac924430e4b68d6a805fd5c02d0565163ef5f4ff2921c85d2450527b13c",
+    "text": "Iswariya, S.; Velswamy, P.; Uma, S.T. Isolation and Characterization of Biocompatible Collagen from the Skin of Puffer Fish ( Lagocephalus inermis ). J. Polym. Environ. 2018 , 26 , 2086-2095. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2c4c3a74d7c6b46534616e03718f6a1545fbcbbabd4cb13b264e3f0ef834451d",
+    "text": "Khong, M.N.; Yusoff, M.F.; Jamilah, B.; Basri, M.; Maznah, I.; Chan, K.M.; Armania, N.; Nishikawa, J. Improved collagen extraction from jellyfish ( Acromitus hardenbergi ) with increased physical-induced solubilization processes. Food Chem. 2018 , 251 , 41-50. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d08094005a60c5d2e2cc689ff29bf50dba74c2be6a7e99e7f10a6768a74ac713",
+    "text": "Song, Z.-L.; Liu, H.-M.; Chen, L.-W.; Chen, L.-L.; Zhou, C.-X.; Hong, P.-Z.; Deng, C.-J. Characterization and comparison of collagen extracted from the skin of the Nile tilapia by fermentation and chemical pretreatment. Food Chem. 2021 , 340 , 128139. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_66c0cb51400f740dad877ace1e153d3e620e621b38561ff9511af9f005e4aa99",
+    "text": "Yoshida, K.; Fujita, S.; Matsusaki, M. Analysis of Homo- and Heterotriple Helix Formation of Collagen Model Peptides and Evaluation of Their Stability in a Biological Environment. Langmuir 2024 , 40 , 3823-3830. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_12fd081b93ba17711263343de16b4886b062cbaff4058f355a835b1cde587c51",
+    "text": "Pal, K.G.; Suresh, P. Comparative assessment of physico-chemical characteristics and fibril formation capacity of thermostable carp scales collagen. J. Mater. Sci. Eng. C 2017 , 70 Pt 1 , 32-40. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ef3e2ce7e0dbc10a0213c423f58109ceb6d3a7820f5d387afe64f539af9c92be",
+    "text": "Thongchai, K.; Chuysinuan, P.; Thanyacharoen, T.; Techasakul, S.; Ummartyotin, S. Integration of collagen into chitosan blend film composites: Physicochemical property aspects for pharmaceutical materials. SN Appl. Sci. 2020 , 2 , 172-188. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1b9a577de083019c33125f9aab28287ca3c79e88c3bda69e35975a21e358abda",
+    "text": "Zhang, X.; Adachi, S.; Ura, K.; Takagi, Y. Properties of collagen extracted from Amur sturgeon Acipenser schrenckii and assessment of collagen fibrils in vitro. Int. J. Biol. Macromol. 2019 , 137 , 809-837. [CrossRef] [PubMed]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_37ca3dba266715f6e8fd561a7e10cd43b98364fa01021df951ee9722e5ee2a6e",
+    "text": "Sousa, R.O.; Alves, A.L.; Carvalho, D.N.; Martins, E.; Oliveira, C.; Silva, T.H.; Reis, L. Acid and enzymatic extraction of collagen from Atlantic cod ( Gadus morhua ) swim bladders envisaging health-related applications. J. Biomater. Sci. Polym. Ed. 2020 , 31 , 20-37. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_913dde157a0444127e4170db7ce9937e054b0b47242456d9cc58ddeb373da153",
+    "text": "Coelho, C.R.; Marques, L.A.; Oliveira, M.S.; Diogo, S.G.; Pirraco, P.R.; Joana, M.-S.; Xavier, C.J.; Reis, L.R.; Silva, H.T.; Mano, F.J. Extraction and characterization of collagen from Antarctic and Sub-Antarctic squid and its potential application in hybrid scaffolds for tissue engineering. J. Mater. Sci. Eng. C 2017 , 787 , 87-95. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cbf894923fad1c529fba3bd103df81f4506f2f159db820f8638bf0ef28d88872",
+    "text": "Tian, Z.; Wu, K.; Liu, W.; Shen, L.; Li, G. Two-dimensional infrared spectroscopic study on the thermally induced structural changes of glutaraldehyde-crosslinked collagen. Spectrochim. Acta A Mol. Biomol. Spectrosc. 2015 , 140 , 356-363. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ddcc4bb7d8353634208097e6d49083b8f4052851d6c04acf89adcb3c55a4d044",
+    "text": "Mofieed, A.; Aashima, A.; Kumar, A.V. In-vitro self-assembly and antioxidant properties of collagen type I from Lutjanus erythropterus, and Pampus argenteus skin. J. Biocatal. Agric. Biotechnol. 2022 , 43 , 102412.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_88d3803e7e27298855d24c40fb27a11b91a8d3c7c42f31497c2a0a8da5f1458f",
+    "text": "Ardhani, F.; Safithri, M.; Tarman, K.; Husnawati; Setyaningsih, I.; Meydia. Antioxidant activity of collagen from skin of parangparang fish ( Chirocentrus dorab ) using DPPH and CUPRAC methods. IOP Conf. Ser. Earth Environ. Sci. 2019 , 241 , 012032. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d89783ac8c35e7c2ed976966fad26e9570957ad16f35171845de7ca39db6e19f",
+    "text": "Chen, Y.; Jin, H.; Yang, F.; Jin, S.; Liu, C.; Zhang, L.; Huang, J.; Wang, S.; Yan, Z.; Cai, X.; et al. Physicochemical, antioxidant properties of giant croaker ( Nibea japonica ) swim bladders collagen and wound healing evaluation. Int. J. Biol. Macromol. 2019 , 138 , 483-491. [CrossRef]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ed349272d9e2632121da8ae2de51227ef34f9c554ed760c05380c405968e6271",
+    "text": "Meng, C.; Li, W. Effects of phosphate ion concentration on in-vitro fibrillogenesis of sturgeon type I collagen. Int. J. Biol. Macromol. 2020 , 148 , 182-191. [CrossRef] [PubMed]",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_04c1489157d1cdb2dc91c54875ac9bd844de2e4b90a9f8eaad784dcd2c55c8cf",
+    "text": "Shen, L.; Tian, Z.; Liu, W.; Li, G. Influence on the physicochemical properties of fish collagen gels using self-assembly and simultaneous cross-linking with the N-hydroxysuccinimide adipic acid derivative. Connect. Tissue Res. 2015 , 56 , 244-252. [CrossRef]",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_90f2bdbf727537d36250a8f3a16e6cd38581ffd1673b71ad322ff6628d81ce94",
+    "text": "Ishi, K.; Hoshi, H.; Takahashi, M.; Kitagawa, K.; Hoshi, M.; Kawaguchi, N. Collagen of porcine auricle has unique biochemical and biophysical characteristics. Soft Mater. 2019 , 17 , 170-180. [CrossRef]",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a0a7e66df8099f404b4e4e907f639ae99a8d0196d32225cb3aee981a1569f074",
+    "text": "Zhang, X.; Ookawa, M.; Tan, Y.; Ura, K.; Adachi, S.; Takagi, Y. Biochemical characterisation and assessment of fibril-forming ability of collagens extracted from Bester sturgeon Huso huso × Acipenser ruthenus . Food Chem. 2014 , 160 , 305-312. [CrossRef] [PubMed]",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f60e6afd641733e769ac6ae5ac89671c1a401d78b5beb7a313605865675394bb",
+    "text": "Yu, E.M.; Liu, B.H.; Wang, G.J.; Yu, D.G.; Xie, J.; Xia, Y.; Wei, N. Molecular cloning of type I collagen cDNA and nutritional regulation of type I collagen mRNA expression in grass carp. J. Anim. Physiol. Anim. Nutr. 2013 , 98 , 755-765. [CrossRef] [PubMed]",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d1625debfe54a867bc76298d4581e6acb84974d5ce2ea8a5789cc2bbb18b35e7",
+    "text": "Disclaimer/Publisher's Note: The statements, opinions and data contained in all publications are solely those of the individual author(s) and contributor(s) and not of MDPI and/or the editor(s). MDPI and/or the editor(s) disclaim responsibility for any injury to people or property resulting from any ideas, methods, instructions or products referred to in the content.",
+    "page": 16,
+    "kind": "text"
+  }
+]

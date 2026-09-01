@@ -1,0 +1,213 @@
+[
+  {
+    "value": "SBM1694",
+    "resultPath": [
+      "journal_number"
+    ],
+    "note": "title page; NB SBM1194 (forundersogelse) is a different number",
+    "goldAnchorId": "anchor_fb53d73b0be94158c7a157de7b792e69ad0042f01dc245f998f43c7499b07cb9"
+  },
+  {
+    "value": "Merethe Schifter Bagge",
+    "resultPath": [
+      "excavation_leader"
+    ],
+    "note": "REVIEW multi-gold: front page + signature p24 + staff list p7",
+    "goldAnchorIds": [
+      "anchor_30e2ff5d0f82d466b7d0c2f8d10b323b6bb9610a2e9e5218f32fe43f3129812c",
+      "anchor_941fb6c38aa481c0b1c06cffb2e0184f53ae0d7479c4bbad7a7329447997f99d",
+      "anchor_d33917c2342bac762cb66f8f2cebb30fdf2acd055fafd324871fe763d3cf0c74"
+    ]
+  },
+  {
+    "value": "23-09-2019",
+    "resultPath": [
+      "campaign_start"
+    ],
+    "note": "REVIEW multi-gold: campaign line (numeric), sagsgang entry, period sentence",
+    "goldAnchorIds": [
+      "anchor_122c7838e359041b55d3b9b3ab98281c7511827da466a78a2e8a5e0875583fea",
+      "anchor_036fde44f39d78b22ce878add39261799419e28c483d2d3c3f1f243d070b3f6a",
+      "anchor_d33917c2342bac762cb66f8f2cebb30fdf2acd055fafd324871fe763d3cf0c74"
+    ]
+  },
+  {
+    "value": "20. november 2019",
+    "resultPath": [
+      "campaign_end"
+    ],
+    "note": "REVIEW multi-gold: sagsgang entry + period sentence",
+    "goldAnchorIds": [
+      "anchor_c20ee246bb99ed555c35b8bd15a5f229d042e227b87c2d8ff398fbec5d5f4f30",
+      "anchor_d33917c2342bac762cb66f8f2cebb30fdf2acd055fafd324871fe763d3cf0c74"
+    ]
+  },
+  {
+    "value": "19/06370",
+    "resultPath": [
+      "slks_number"
+    ],
+    "note": "unique, campaign line p1",
+    "goldAnchorId": "anchor_122c7838e359041b55d3b9b3ab98281c7511827da466a78a2e8a5e0875583fea"
+  },
+  {
+    "value": "576",
+    "resultPath": [
+      "total_feature_count"
+    ],
+    "note": "unique, results overview p8",
+    "goldAnchorId": "anchor_7227d5631572167a2c059b6fc8df1212e7705e2f842d22f2cb9c3de206c8dc19"
+  },
+  {
+    "value": "362",
+    "resultPath": [
+      "posthole_count"
+    ],
+    "note": "unique, results overview p8",
+    "goldAnchorId": "anchor_7227d5631572167a2c059b6fc8df1212e7705e2f842d22f2cb9c3de206c8dc19"
+  },
+  {
+    "value": "Poul Kragh",
+    "resultPath": [
+      "machine_operator"
+    ],
+    "note": "unique p7",
+    "goldAnchorId": "anchor_c0395884a7d20f69d50818a3b15aa42d0af9ddadf25a8949dd27082c7e6e512c"
+  },
+  {
+    "value": "Skanderborg Kommune, Teknik og Miljø",
+    "resultPath": [
+      "developer"
+    ],
+    "note": "unique, administrative data p5",
+    "goldAnchorId": "anchor_97f36f8b78fcb9f6425756afb0b4d1f64fde3aeba81a2994eedbc65d46fbf736"
+  },
+  {
+    "value": "Lars Lykke Jensen",
+    "resultPath": [
+      "developer_contact"
+    ],
+    "note": "unique p5",
+    "goldAnchorId": "anchor_97f36f8b78fcb9f6425756afb0b4d1f64fde3aeba81a2994eedbc65d46fbf736"
+  },
+  {
+    "value": "ca. 23 m",
+    "resultPath": [
+      "mound_diameter"
+    ],
+    "note": "unique p8",
+    "goldAnchorId": "anchor_e1d16a1197c85636967b798cfce1aded62d82bfc714b4db68384ed567b632cc0"
+  },
+  {
+    "value": "13,5 m",
+    "resultPath": [
+      "records",
+      0,
+      "house_length"
+    ],
+    "note": "K7 length, unique p18",
+    "goldAnchorId": "anchor_68f25e6d447e2a3ce696f42f7cdf7e7abe8325417d316eb254996b3b978cdf87"
+  },
+  {
+    "value": "X233",
+    "resultPath": [
+      "records",
+      1,
+      "find_number"
+    ],
+    "note": "REVIEW multi-gold: figure caption + find list + description",
+    "goldAnchorIds": [
+      "anchor_18313ce3b66843e7d97aed8493c3a2a11a9c40d03b2ce3ec2d9a06a820b29c7c",
+      "anchor_a4e5b2d0e6dde4f3cd4bf8908a499d87709333a55fdea4c6d03eac42e525795b",
+      "anchor_5d3db8876b9e9d2af32247306c49a21dfc28cdc89a7d27b0df1346adf1e0f44f"
+    ]
+  },
+  {
+    "value": "6 x 4 mm",
+    "resultPath": [
+      "records",
+      1,
+      "bead_size"
+    ],
+    "note": "unique p12",
+    "goldAnchorId": "anchor_5d3db8876b9e9d2af32247306c49a21dfc28cdc89a7d27b0df1346adf1e0f44f"
+  },
+  {
+    "value": "AAR 33273",
+    "resultPath": [
+      "records",
+      2,
+      "ams_lab_number"
+    ],
+    "note": "unique p12",
+    "goldAnchorId": "anchor_63fdd9a6f472254cdb6861d718a4f5e986bc62a835cb3a4eef3cfb36eda9f67c"
+  },
+  {
+    "value": "41 fragmenter",
+    "resultPath": [
+      "urn_fragment_count"
+    ],
+    "note": "unique p9; bare '41' also appears as cm depth elsewhere",
+    "goldAnchorId": "anchor_8b631316cef14907a8a7af8472d5fee23ffa0884649591eae7c1df78909b14fb"
+  },
+  {
+    "value": "5.853 m2",
+    "resultPath": [
+      "preinvestigation_area"
+    ],
+    "note": "unique p4, grouping separator",
+    "goldAnchorId": "anchor_5a1c177ea58610b3aabd65213f17fbaf04379ffedfdba477f21938da71dfe686"
+  },
+  {
+    "value": "1300 m2",
+    "resultPath": [
+      "zone_permit_area"
+    ],
+    "note": "written '1300m2' without space in the document — lexical should miss",
+    "goldAnchorId": "anchor_9f47ea13623ac8fec7e84aa8f9213765499e87b809765b26f48964f2e13d20ef"
+  },
+  {
+    "value": "SBM1695",
+    "resultPath": [
+      "journal_number"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL near-variant of SBM1694/SBM1194; verified absent"
+  },
+  {
+    "value": "AAR 33274",
+    "resultPath": [
+      "records",
+      2,
+      "ams_lab_number"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL near-variant of AAR 33273/33284; verified absent"
+  },
+  {
+    "value": "Merete Schifter Bagge",
+    "resultPath": [
+      "excavation_leader"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL misspelling (missing h); verified absent"
+  },
+  {
+    "value": "K14",
+    "resultPath": [
+      "records",
+      0,
+      "construction_id"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL: document uses K-numbers K1-K13 only; K14 verified absent"
+  },
+  {
+    "value": "Nationalmuseet",
+    "resultPath": [
+      "conservation_institution"
+    ],
+    "goldAnchorId": null,
+    "note": "plain absent value"
+  }
+]

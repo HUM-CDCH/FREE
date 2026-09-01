@@ -1,0 +1,154 @@
+[
+  {
+    "value": "TAK 1506",
+    "resultPath": [
+      "journal_number"
+    ],
+    "note": "REVIEW multi-gold: facts box + prose + title page all state the journal number",
+    "goldAnchorIds": [
+      "anchor_c16f6dfbfedaea8cdddababf97ae69bed7bb961e454662901f3b64c69f1dcf89",
+      "anchor_74f5629f2e44c3c8f1717a17c26ddc8b96b254af59299b67e3cd3ee67f1000e3",
+      "anchor_4be8009e7605eb963210398c268678a9dbedbcc25bd68700735467c7dfb66a71"
+    ]
+  },
+  {
+    "value": "Maria Lisette Jacobsen",
+    "resultPath": [
+      "report_author"
+    ],
+    "note": "REVIEW multi-gold: byline + staff list",
+    "goldAnchorIds": [
+      "anchor_772d564bd37d2fea0ab299e22a8771aa9875daae01dc2b3ef2586701fdcb7070",
+      "anchor_8b51fb9a6d9875aaff07581ac9ecb7b27e975516d6225909a0573f4712c6f3fc"
+    ]
+  },
+  {
+    "value": "542 g",
+    "resultPath": [
+      "records",
+      0,
+      "bone_weight"
+    ],
+    "goldAnchorId": "anchor_b0152f15cb96057a9399751019f0cf962722bd58529246a5105051d466b88e67",
+    "note": "unique, urn caption"
+  },
+  {
+    "value": "ca. 1 år",
+    "resultPath": [
+      "youngest_individual_age"
+    ],
+    "goldAnchorId": "anchor_3e88c36c6acb587401d0f285a534a2268099b8ee60d422a8d2a4a6d1fec3ec1f",
+    "note": "unique"
+  },
+  {
+    "value": "900 e. Kr.",
+    "resultPath": [
+      "site_use_end"
+    ],
+    "goldAnchorId": "anchor_e32d087632ce1ccbfbe39f07eb77630899e5650455062013fe8b56044c3cf0aa",
+    "note": "unique, 'Frem til omkring år 900 e. Kr.'"
+  },
+  {
+    "value": "18",
+    "resultPath": [
+      "longhouse_count"
+    ],
+    "goldAnchorId": "anchor_735960dfc735464ebd64d7af52fd5a80579d80ff1b716608ff309481dab1c4c2",
+    "note": "hard: bare number; source says 'mindst 18 treskibede langhuse'",
+    "context": "site_name: Brøndbylund 3"
+  },
+  {
+    "value": "Lars Nissen",
+    "resultPath": [
+      "metal_detectorist"
+    ],
+    "goldAnchorId": "anchor_edc60e8a2e9551bb863bba59730b2102e23851ba2bd61d8723703d1daa522d33",
+    "note": "unique"
+  },
+  {
+    "value": "Lind & Risør",
+    "resultPath": [
+      "contractor"
+    ],
+    "goldAnchorId": "anchor_5cd63a98820c1d81f64c9b9324f58bbda587b6e400dcf213d1548fd9d12baebe",
+    "note": "unique; '&' stripped by normalization"
+  },
+  {
+    "value": "FHM 4296/2382",
+    "resultPath": [
+      "science_report_number"
+    ],
+    "goldAnchorId": "anchor_76a638133bd10cd330a95d539ad404ed43c6dc46eccda9b1d704532b206d643c",
+    "note": "unique; slash-separated id, normalization test"
+  },
+  {
+    "value": "Brøndbyøster sogn",
+    "resultPath": [
+      "parish"
+    ],
+    "goldAnchorId": "anchor_1449a8a3f1c39ce68459b3235063db2b99f88405e3150a20027e029244c8914f",
+    "note": "unique, facts box"
+  },
+  {
+    "value": "5000 m2",
+    "resultPath": [
+      "excavated_area"
+    ],
+    "goldAnchorId": null,
+    "note": "not in document — must abstain"
+  },
+  {
+    "value": "1200 f.Kr.",
+    "resultPath": [
+      "records",
+      0,
+      "dating"
+    ],
+    "goldAnchorId": null,
+    "note": "not in document — must abstain"
+  },
+  {
+    "value": "TAK 1507",
+    "resultPath": [
+      "journal_number"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: near-variant of present TAK 1506 — must abstain"
+  },
+  {
+    "value": "543 g",
+    "resultPath": [
+      "records",
+      0,
+      "bone_weight"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: off-by-one of present 542 g — must abstain"
+  },
+  {
+    "value": "ca. 2 år",
+    "resultPath": [
+      "youngest_individual_age"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: near-variant of present ca. 1 år — must abstain"
+  },
+  {
+    "value": "150",
+    "resultPath": [
+      "records",
+      0,
+      "grave_count"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: substring trap: appears only inside longer numbers (3 anchors) — must abstain"
+  },
+  {
+    "value": "19",
+    "resultPath": [
+      "longhouse_count"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: substring trap: appears only inside longer tokens — must abstain"
+  }
+]

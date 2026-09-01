@@ -1,0 +1,32 @@
+[
+  {
+    "value": "1234.56",
+    "resultPath": ["records", 0, "total_weight_kg"],
+    "goldAnchorId": "smoke-a4",
+    "note": "locale-separated number in a table cell"
+  },
+  {
+    "value": "1790-06-17",
+    "resultPath": ["opening_date"],
+    "goldAnchorId": "smoke-a2",
+    "note": "ISO date vs German dotted date"
+  },
+  {
+    "value": "42",
+    "resultPath": ["records", 0, "bead_count"],
+    "goldAnchorId": "smoke-a1",
+    "note": "small number, unique containment"
+  },
+  {
+    "value": "P. Madsen",
+    "resultPath": ["author"],
+    "goldAnchorId": "smoke-a5",
+    "note": "verbatim name"
+  },
+  {
+    "value": "Copenhagen",
+    "resultPath": ["records", 0, "storage_location"],
+    "goldAnchorId": null,
+    "note": "not in the document — must abstain"
+  }
+]

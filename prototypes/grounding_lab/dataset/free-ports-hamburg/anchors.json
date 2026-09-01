@@ -1,0 +1,2576 @@
+[
+  {
+    "anchorId": "anchor_9f6f4c6730e3daec91e313be8e94f8f315cf94927d3ddf58cae7738f6d6bca51",
+    "text": "ARTICLE",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_715a690ae19e872c69bb9fedeb8c0d8d40caf7ba27732a917adad8ef80a48b55",
+    "text": "Free ports, political economy, and early globalization: Evidence from 1750s Hamburg",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_88f4fa65a5b0ca3d65d1898285f6c82ad3018e8d90ae626e4c8ff16020c3714e",
+    "text": "Esther Sahle 1, 2",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f526f6d7993cdd2f629675a7315351a7408c0c1eef749ea2e683ede13e3018b9",
+    "text": "1 Free University of Berlin, Berlin, Germany and 2 University of Copenhagen, Saxo Institute, Berlin, Germany Email: e.sahle@fu-berlin.de",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a87dfb9e3cccae19e3a5985dfbb1e54049cd3a6a9eca66ce1e0856554532e1a6",
+    "text": "Abstract",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1830a2c5f02652023c96d4885974035808c163c3c83037a34b8b6e1ce45159f8",
+    "text": "Recent scholarship locates the origins of modern free trade policies in the early modern free port movement. This historiography has focused on the intellectual and political history of free ports and emphasized the importance of local and regional factors in shaping trade liberalizations in different European countries and colonies. Based on evidence from eighteenth-century Hamburg, this article proposes a different reading: it argues that free trade policies emerged in response to Atlantic trade expansion. The sources suggest that merchants and magistrates were aware of the monumental change which the growth of the Atlantic trade presented and the economic opportunities it provided. The liberalization of individual ports aimed to capture a greater share of that commerce. Free ports therefore constitute an early example of global economic change driving local European policymaking.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ef1eda599024f3e548cd5b8207e4c50ea4dd7879a41c61262a9270d8d52df606",
+    "text": "Keywords: free trade; Atlantic trade; colonialism; Central Europe; free ports",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5a23f563cc252ee479b2a00363c5a8b277bbf965b3f9deb05742255aeb1ef9a0",
+    "text": "Historians have long connected the rise of the capitalist world order to the emergence of the Caribbean plantation complex. 1 From the mid-seventeenth century onwards, ever increasing numbers of enslaved Africans toiled on American sugar plantations. European merchants sold the fruit of their labour to the growing middling sorts back home, who liked to add it to their tea and coffee, in turn imported from Asia. 2 The growth of slavery in the Caribbean was mirrored by an expansion of serfdom in Eastern Europe. Here, feudal lords forced peasants to produce textiles for export into the Atlantic. 3 By the early eighteenth century, serf-produced linens had become the main product European merchants exchanged for captives on the West African coast. 4 Perhaps surprisingly, the expansion of forced labour regimes in East and West was accompanied by",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6982be468fcb874aae6283dc47c71dab02be7123714e16a4a2b66c59eece8ed1",
+    "text": "1 Eric Williams, Capitalism and Slavery (University of North Carolina Press, 1994); Ralph Davis, The Rise of the Atlantic Economies (Cornell University Press, 1973); Paul Bairoch, Cities and Economic Development: from the Dawn of History to the Present (University of Chicago Press, 1988); Fernand Braudel, Civilization and Capitalism, 15 th -18th century , vol. II: The Wheels of Commerce (University of California Press, 1992); Jan de Vries and Ad van der Woude, The First Modern Economy: Success, Failure, and Perseverance of the Dutch Economy, 1500 -1815 (Cambridge University Press, 1997).",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_114695ffd6322d370fdb0a48bc332d845c5f33b9694fb30a9203548927d35090",
+    "text": "2 Sidney W. Mintz, Sweetness and Power: The Place of Sugar in Modern History (Penguin, 1986): ch. 3, especially 109-10. 3 Anka Steffen, ' Silesia, Serfdom, and Slavery: A Relationship in History from the Seventeenth to the Twentieth Century ' , Journal of Global Slavery 8, nos. 2 -3 (2023): 237 -68.; Anka Steffen and Klaus Weber, ' Spinning and Weaving for the Slave Trade: Proto-Industry in Eighteenth-Century Silesia ' , in Slavery Hinterland: Transatlantic Slavery and Continental Europe, 1680 -1850 , ed. Felix Brahm and Eve Rosenhaft (Boydell & Brewer; 2016), 87 -108; Anka Steffen, ' A Fierce Competition! Silesian Linens and Indian Cottons on the West African Coast in the Late Seventeenth and Early Eighteenth Centuries ' , in Globalized Peripheries: Central Europe and the Atlantic World, 1680 -1860 , ed. Jutta Wimler and Klaus Weber (Boydell and Brewer, 2020), 37 -56.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c0e91ba233cbbc8d673072a90d032078d5d16f46fe48e7b5865a4378ddcfaaa2",
+    "text": "4 Steffen, ' A Fierce Competition ' .",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bf89e84c6f592a2912e18b7263d6e97f7a839434de5eec51df994dd1a6b02eee",
+    "text": "© The Author(s), 2026. Published by Cambridge University Press. This is an Open Access article, distributed under the terms of the Creative Commons Attribution licence (https://creativecommons.org/licenses/by/4.0/), which permits unrestricted re-use, distribution and reproduction, provided the original article is properly cited.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0818d48dc5cc4c4acf3c4a7150a89f0008300b843d1eb7a9625435edc5a344d5",
+    "text": "2 Esther Sahle",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9bc626a22cc5076b9dc0917b3072f16abd583718eb7205f0bb42a083ee903374",
+    "text": "growing efforts to liberalize the trade that connected them. Against the backdrop of protectionist mercantilist policies, European merchants lobbied for the relaxation and abolition of trade restrictions and customs duties. 5 Their efforts resulted in a growing number of ' free ports ' . Free ports thus stood at the heart of early modern globalization, and as such they constitute an important topic of global history.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_753f0f310cc543feebaf4eb7316c4a30a9321c2d28d61abd888943ac8fda753d",
+    "text": "Scholars like Corey Tazzara, Koen Stapelbroek, Grant Kleiser, and Pernille Røge have studied free ports ' intellectual and political history, tracing ideas and political debates on the merits and demerits of free trade and protectionism from the Enlightenment to the nineteenth century. 6 At the same time, they have paid little attention to free ports ' economic function. Given (free) ports ' unparalleled importance to the global economy, both past and present, such an investigation, however, seems warranted. Building upon research on the economic history of Atlantic trade, as well as the new history of free ports, this article for the first time offers an economic explanation for the spread of early modern free ports.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1420f749184f27fe05bc7ea23861a03745a74e2dc2275c2cd887f34c8c74b62c",
+    "text": "My argument is twofold: first, I present quantitative data demonstrating that the spread of free ports during the early modern period closely coincided with Atlantic trade expansion from c .1650; second, I show that free ports ' geographical focus began to shift at the same time. While early free ports clustered around the Mediterranean, from 1650, new free ports are found overwhelmingly on the Atlantic. They thus shadowed the shift of Europe ' s centre of economic gravity from the south to the north-west which Atlantic trade expansion ushered in. I then conduct a qualitative analysis of the debate surrounding the proposed introduction of a free port at Hamburg during the 1750s. Hamburg is an interesting case: not only did it constitute the main trading hub connecting Central and Eastern Europe to the Atlantic; as a city-republic, its government comprised representatives of different interest groups, whose views are clearly articulated in the sources. The Hamburg records show that arguments in favour of a free port all centred on the importance of Atlantic trade to that city. While further research on the economic history of free ports is needed, my findings suggest that the correlation between the spread of free ports and the unprecedented expansion of the Atlantic trade from the 1650s was not a mere coincidence. Rather, they indicate the likelihood of a causal relationship: European polities considered free ports a tool that enabled them to better benefit from the economic opportunities Atlantic trade expansion offered. I argue that princes and magistrates opened individual ports to foreign merchants and reduced duties in order to attract more commerce, support new industries based on colonial goods, as well as create jobs for the local population. The remainder of this article is structured as follows. The first section provides an overview of the literature on free ports and Atlantic trade expansion respectively, and presents the quantitative data. The second section discusses the historiography on Hamburg ' s economic history and the town ' s place within the genealogy of free ports, as well as the sources for the qualitative part of the study. Two analytical sections follow, which draw out the arguments for and against a free port in the Hamburg debate. A final section concludes that, while local circumstances mattered to the debates taking place in Hamburg, to fully understand early modern free ports, we need to also consider global economic developments.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9f4147aaf0fa90290e6354eea446b01129d39045eba1c92b4295fa90e3f56975",
+    "text": "5 R. Grant Kleiser and Pernille Røge term this contrast ' economic dualism ' : R. Grant Kleiser and Pernille Røge, ' Emulating Empires: Caribbean Free Ports, Economic Dualism, and European Imperial Rivalry, c. 1670s -1760s ' , Global Intellectual History 8, no. 6 (2023): 700 -26.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5ab1622aae4731021e594b2f9a565c9e955170f7e9f2b170db78c03249b9233a",
+    "text": "6 A great introduction to the literature on early modern free ports is Koen Stapelbroek and Corey Tazzara, ' The Global History of the Free Port ' , Global Intellectual History 8, no. 6 (2023): 661 -99. For recent literature on nineteenth-century free trade, see, for example, David Todd, Free Trade and its Enemies in France, 1814 -1851 (Cambridge University Press, 2015); Bernard Semmel, The Rise of Free Trade Imperialism: Classical Political Economy the Empire of Free Trade and Imperialism 1750-1850 (Cambridge University Press, 2004); Frank Trentmann, Free Trade Nation: Commerce, Consumption, and Civil Society in Modern Britain (Oxford University Press, 2008); Jennifer Pitts, A Turn to Empire: The Rise of Imperial Liberalism in Britain and France (Princeton University Press, 2009).",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_62c8ca51f22d6c3915c562ceb1ac91d8dde7613a7892d6816a59c13d15e2c038",
+    "text": "Atlantic trade expansion and the spread of free ports",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_514b94fff408b7ae343c2725b188f0759ced24c79319a8588df01f654bcd11e7",
+    "text": "Before the Industrial Revolution brought steam power and factory production, long-distance trade constituted the main driver of economic growth. 7 Over the course of the early modern period, economies in different parts of the globe grew increasingly connected, as well as dependent on maritime supply routes. Competition within the European state system led governments to favour economic policies of exclusion, often summed up under the term ' mercantilism ' , which aimed at reserving the profitable colonial trades for their own subjects, whilst excluding foreigners. Against this backdrop of protectionist economic policies, attempts to selectively liberalize trade gained traction. One approach to doing this were free ports. 8",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d55b6c1b8bab4d9f5b5d46cd67710149c07b570fafac974e214464750cdc2dea",
+    "text": "Approaches to understanding early modern free ports have led to two historiographies. The first one, beginning with Fernand Braudel ' s seminal study La Méditerranée in 1949, was developed further by Immanuel Wallerstein and followers of World Systems Theory. 9 This literature regarded free ports as a means by which Northern European states subjugated and exploited the Mediterranean. The second, more recent strand of literature rejects the notion of free ports as instruments of informal imperialism. In his seminal study of Livorno, the first free port, Corey Tazzara found that this port ' s ' meteoric rise was connected to that of the Atlantic economies ' . 10 By first accepting, then supporting trade liberalizations at Livorno, the Medicis ' aim was to ' facilitate commerce between the Atlantic and the Mediterranean ' . 11 Tazzara argued that the further spread of free ports in the Mediterranean constituted ' an adaptive response to changing patterns of longdistance trade and commercial competition among the small states of north-central Italy ' . 12 However, as he emphasized, this was not a symptom of encroaching northern imperialism. Contrary to Braudel ' s and Wallerstein ' s reading, Tazzara argued that northern European economies did not come to dominate the Mediterranean. Instead, regional economic ties remained more important to Livorno, and trade liberalizations in the region over the following century reflected local agency as well as political and economic competition. 13 Historians since have followed Tazzara ' s example and emphasized the distinctness of individual free ports and the importance of unique local or regional circumstances in their creation. 14 They have identified three motives for the introduction of early modern free ports.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_74b8e42f3e89b02bcc7c8613cdfc490cf52bfd3460b01e5b46aff847974da3d5",
+    "text": "7 The debate over the effects of the Atlantic trade on European economic development dates back at least to Eric Williams, Capitalism and Slavery (University of North Carolina, 1944). His reading has been challenged by many, including Patrick O ' Brien, ' European Economic Development: The Contribution of the Periphery ' , Economic History Review 35, no. 1 (1982): 1 -18; David Eltis and Stanley L. Engerman, ' The Importance of Slavery and the Slave Trade to Industrializing Britain ' , Journal of Economic History 60, no. 1 (2000): 123 -44. Most recently, the pendulum has swung back to a decisive, positive impact on European economic growth: Daron Acemoglu, Simon Johnson, and James Robinson. ' The Rise of Europe: Atlantic Trade, Institutional Change, and Economic Growth ' , American Economic Review 95, no. 3 (2005): 546 -79.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_76801226dae27ae2cd3f669df6b604fe4f9abc9ddedcf2f9d1f1d9b8dfc1ed7d",
+    "text": "8 The literature is discussed in detail below. On the relationship between free ports and protectionism, see especially Kleiser and Røge, ' Emulating Empires ' .",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8b0bd48adda47b8aa29b60ed175efe676251c4d4f9dd2d79ecf321f21584175a",
+    "text": "9 Immanuel Wallerstein, The Modern World-System I: Capitalist Agriculture and the Origins of the European WorldEconomy in the Sixteenth Century (University of California Press, 2011), 50, 146, 175 -6, 196 -8; Fernand Braudel, The Mediterranean and the Mediterranean World in the Age of Philip II , vol. 1 (University of California Press, 1995), 640; Alberto Caracciolo, Le Port franc d ' Ancône: Croissance et impasse d ' un milieu marchand au XVIIIe siècle (SEVPEN, 1965), 163 -4, 179 -80. Corey Tazzara discusses this early approach to free ports, and its limitations, in detail: Corey Tazzara, The Free Port of Livorno and the Transformation of the Mediterranean World (Oxford University Press, 2017).",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fee70e684268c3efe4e7f45f27ab2a1968c6492e67bc80e3b4de82cf7a8a6fb1",
+    "text": "10 Tazzara, The Free Port of Livorno , 5.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0ac2534294d89420500844fe8d8df857f94ae5e56e710a8d3ff2249fa36148cb",
+    "text": "11 Ibid., 183.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cd1613b2072162457249b2713a28f1181ad23a33908895e0c1b214d7e87cd5f1",
+    "text": "12 Ibid, 5.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_52b9c2f7d03af8507b1cb895b1d8322f6ee272f930256ce51b882813d86deb83",
+    "text": "13 Ibid, 183.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_13b73f19f3b8da4a0e9dcc06b59599356baf02c82123173db933634eb3569344",
+    "text": "14 Corey Tazzara, ' Managing Free Trade in Early Modern Europe: Institutions, Information, and the Free Port of Livorno ' , Journal of Modern History 86, no. 3 (2014): 493 -529, 501; Victor Wilson, ' Enclaves of Exception: Reaping the Advantages of Colonialism through Free Trade in the Scandinavian Caribbean, 1672 -1815 ' , Global Intellectual History 8, no. 6 (2023): 727 -46; Nadine Hunt, ' Contraband, Free Ports, and British Merchants in the Caribbean World, 1739 -1772 ' , Diacronie. Studi di Storia Contemporanea 13, no. 1 (2013); Grant R. Kleiser, ' An Empire of Free Ports: British Commercial Imperialism in the 1766 Free Port Act ' , Journal of British Studies 60, no. 2 (2021): 334 -61; Kleiser and Røge, ' Emulating Empires ' ; Han Jordaan",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5f4b01d8e7c2883d7197a60eaf3a5603536b182c1a958addaad1bdc6351e2c3f",
+    "text": "4 Esther Sahle",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c829a9e20d724894d82e977c4981470252d5eec5ba8f65ab5575b134a8f79596",
+    "text": "Early free ports were often established in order to secure food supply to struggling regions. For example, the series of commercial policies the Medici introduced in Livorno from the 1590s onwards aimed to attract grain shipments to the famine-struck region. 15 Asecond motive emerged from colonial expansion to the Americas during the seventeenth century. Historians have frequently pointed to the ubiquity of smuggling in the Atlantic. 16 Seated at desks in London, Paris, and Amsterdam, mercantilist bureaucrats devised protectionist trade policies in order to prevent the enemy from sharing in the gains from trade with one ' s colonies. However, enforcement of these policies proved difficult. Imperial governments who wished to steer colonial trade flows found that the protectionist barriers they erected failed to withstand the force with which markets expanded. Opening a port to free trade constituted one response to this. By conceding their inability to control economic borders, colonial governments hoped to benefit from trade at least indirectly. 17 Moreover, they hoped that by selectively opening individual colonial ports to all, they might outcompete and thereby economically weaken rival powers. 18",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_56397a220ac9f4b402d714d318ee7609803a3efae9558dda93d86a5df34c614a",
+    "text": "A final motive for free ports arose from the desire to ensure the continuation of trade in times of war. As the importance of the Atlantic trade to European economies grew, governments tried to control maritime trade routes. 19 By the eighteenth century, Europeans routinely went to war over trade. The great powers battled each other at sea, and belligerent navies and privateers targeted enemy merchants. To ensure that trade could continue despite ongoing conflict, European governments began implementing policies of maritime neutrality. During the mid-eighteenth century, a cluster of Scandinavian, French, British, and even Spanish ports were declared ' free ' , serving, in Leos Müller ' s words, to ' neutralize ' wares. 20 This allowed trade to continue despite ongoing conflict. Especially for France, Leos Müller argued that ' trade under neutral flags became essential ' . 21 As during free ports ' earlier spread in the Mediterranean, Grant Kleiser and Pernille Røge have shown that free ports in the Caribbean evolved in concert with each other, as European colonial powers paid close attention to their rivals ' policies and were keen ' to borrow their methods to achieve similar results ' . At the same time, Kleiser and Røge emphasized that ' emulation was not replication ' : Colonial powers ' incentives and aims for introducing free ports differed greatly from case to case. The literature thus maintains that motives for the introduction of free ports were highly localized and rooted in each port ' s particular circumstances. 22 This article challenges this view: it argues that to fully understand the spread of free ports, we need to take their global economic context into consideration.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_138aa5037e76e3fbe762e75dbbffef27d30b4ade58f01b93f6f5dcbded08b376",
+    "text": "and Victor Wilson, ' The Eighteenth-Century Danish, Dutch and Swedish Free Ports in the Northeastern Caribbean: Continuity and Change ' , in Dutch Atlantic Connections, 1680 -1800 , ed. Gert Oostindie and Jessica V. Roitman (Brill, 2014), 273 -308.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1631b6f6eedbe84f6ff4dcc35fd6c024d3ebb19453cba86c506b5dd943338c98",
+    "text": "15 Francesca Trivellato, The Familiarity of Strangers: The Sephardic Diaspora, Livorno, and Cross-Cultural Trade in the Early Modern Period (Yale University Press, 2009), 108.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0bc5dfd2cb549a34ce2bfeee31e87b9a48f4ca8c273683b1563dd2b89ed3a2d6",
+    "text": "16 For example, see Bernard Bailyn, ' Introduction: Reflections on Some Major Themes ' , in Soundings in Atlantic History: Latent Structures and Intellectual Currents, 1500 -1830 , ed. Bernard Bailyn and Patricia L. Denault (Harvard University Press, 2011), 1 -43; Wim Klooster, ' Inter-Imperial Smuggling in the Americas, 1600 -1800 ' , in Soundings in Atlantic History , 141 -80; Nuala Zahedieh, ' Defying Mercantilism: Illicit Trade, Trust, and the Jamaican Sephardim, 1660 -1730 ' , Historical Journal 61, no. 1 (2018): 77 -102.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_751b98da80c7c2e3f4fac1aec3a34040ded071bf7589cb61bab997b506ab9811",
+    "text": "17 Kleiser and Røge, ' Emulating Empires ' , 702, make this point for free ports in general. Kleiser, ' An Empire of Free Ports ' ; Hunt, ' Contraband, Free Ports, and British Merchants ' , 351, make it specifically for Great Britain; Jeppe Mulich, ' Microregionalism and Intercolonial Relations: The Case of the Danish West Indies, 1730 -1830 ' , Journal of Global History 8, no. 1 (2013): 72 -94, makes it for Denmark, albeit for the early nineteenth century.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_dc95eaff73abb9fcadccaa693ce2e72aedfc02c4addb96bdb5257289106ea9f4",
+    "text": "18 That is, free trade policies as a means of harming rivals. For example, see Wilson ' Enclaves of Exception ' ; Hunt, ' Contraband, Free Ports, and British Merchants ' ; Kleiser, ' An Empire of Free Ports ' ; Kleiser and Røge, ' Emulating Empires ' ; Jordaan and Wilson, ' The Eighteenth-Century Danish, Dutch and Swedish Free Ports ' ; Stapelbroek and Tazzara, ' The Global History of the Free Port ' ; Mulich ' Microregionalism and Intercolonial Relations ' .",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6c70b3fc2454e25cd1f8e98c45aea33fac9e20274140b4b37e45ca37d662515a",
+    "text": "19 See Leos Müller, Neutrality in World History (Routledge, 2019), for a discussion of the evolution of concepts of maritime neutrality in early modern Europe, especially chs. 2 and 3.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_faa17b2fc7353c986cf043d3780258f091c0a9ed1de02f1219cebc1f7590fdfe",
+    "text": "20 Ibid., 57.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9aad717a56faf948943157fa0752b751257a1d9c7de0c4344515d79a09a540d9",
+    "text": "21 Ibid. On France ' s neutrality policies in particular, see Pierrick Pourchasse, Le Commerce du nord: Les échanges commerciaux entre la France et l ' Europe septentrionale au XVIIIe siècle (PU Rennes, 2006), 200, 9, 74, 291 -327. For an interesting German study of trade with Caribbean free ports in the latter half of the eighteenth century, see Karl Heinz Schwebel, Bremer Kaufleute in den Freihäfen der Karibik: Von den Anfängen des Bremer Überseehandels bis 1815 (Selbstverlag des Staatsarchivs Bremen, 1995).",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d806f254890cadaee4540e2d747359a9178e57d7b778240fd53ff5a7db916b6a",
+    "text": "The new historiography has greatly improved our understanding of early modern free ports, especially by moving them out of the shadow of World Systems Theory. At the same time, its focus on political and intellectual developments has led to a neglect of economic aspects. These, however, are important: ports were and are economic institutions, which governments built and maintained primarily, if not exclusively, to facilitate trade. Economic historians working on the Atlantic, meanwhile, have so far not taken note of the new research on free ports. This article brings the two literatures into conversation with each other. While recognizing the political autonomy of sovereign states who introduced free ports which the recent historiography has emphasized, this article suggests that governments ' decisions to liberalize individual ports still constituted a response to global economic change.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3c1ad3ac3d84d5ce76a0eb1abce7ee64261536be13c6a8d51383aea7fc85e48a",
+    "text": "The early modern period ' s most important economic development was an unprecedented expansion of the Atlantic trade from c . 1650. An extensive literature testifies to the immense economic importance of the Atlantic trade, crediting it with facilitating the onset of sustained economic growth in Europe and thus constituting the root cause of present-day global inequality. 23 The literature on free ports has contextualized some of these within the context of European colonialism. However, while colonialism and trade were closely related phenomena, they were not synonymous and neither suffices to explain the other. 24 A glance at their respective timelines reveals that a distinction between the political history of colonialism and the economic history of trade may improve our understanding of free ports significantly. European colonialism in the Atlantic spans the entire early modern period and beyond. In contrast, economic historians have identified the mid-seventeenth century as a watershed in the region ' s commercial development. This was driven by the sugar revolution. In 1630, the Dutch conquered the Brazilian province of Pernambuco from Portugal, and colonists began growing sugar there. Portugal ' s reconquest of Pernambuco in 1654 sent colonial planters scattering across the Caribbean. They brought their technology and organizational skills with them -as well as their practice of relying on enslaved African labour, rather than indentured Europeans. The following decades witnessed the emergence of the ' plantation complex ' , the mass production of agricultural products through the combination of American land, African labour, and European capital. 25 Economic historians believe that the dramatic growth of trade in the Atlantic that followed this innovation transformed European economies and constituted the root cause of sustained economic growth in those European states that were situated on the Atlantic rim (see Figure 1). 26 Recently, Ulrich Pfister has shown that Atlantic trade expansion had the same effect on parts of Central Europe, including Hamburg. 27 At the same time, as Anka Steffen argued, it drove the expansion of bonded labour in Sources: Figures 1 and 2 are based mostly on Corey Tazzara ' s (2014) list of free ports. For ports not included in Tazzara, see: Tortola: Mulich, ' Microregionalism ' ; Hamburg, Amsterdam, Bremen: Pfister, ' Great Divergence ' ; Lucea (Jamaica) 1766: Hunt, ' Contraband; Barthelemy 1785: Han and Wilson, ' Eighteenth-Century ' ; St Eustacius 1663: Kleiser, ' Emulating Empires ' . For full references see footnotes throughout. Copyright with the author.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8013b7d9ab1854cbd41c63435c30776a9aa41c2ef1eb61b8fdc1bc933b821f99",
+    "text": "22 Kleiser and Røge, ' Emulating Empires ' , 701.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d9031215d133cc39709fa9553a8817af5cf2c32d136ee91ce61a3b1569ec763b",
+    "text": "23 Davis, The Rise of the Atlantic Economies ; Kenneth Morgan, Slavery, Atlantic Trade and the British Economy, 1660 -1800 (Cambridge University Press, 2001): 98; Acemoglu, Johnson, and Robinson, ' The Rise of Europe ' ; Williams, Capitalism and Slavery .",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2e482f1f38f77f1dae7f102cc2045a3ce72e2345f52b1800d572c7673672a4b9",
+    "text": "24 Not all colonial endeavours led to increases in trade, at the same time, much increase in trade took place between sovereign polities. Consider one of the period ' s most important commercial endeavours: the Euro-African trade in enslaved people. See Herbert S. Klein, The Atlantic Slave Trade (Cambridge University Press, 2010).",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6f1997430ce8cc50e91569395013aa2f1f37cb36a07ca3d2cbe5e10f0ba55426",
+    "text": "25 The term was coined by Philip Curtin, The Rise and Fall of the Plantation Complex: Essays in Atlantic History (Cambridge University Press, 1998). The historiography is vast. A good place to start is Stuart B. Schwartz, ' Introduction ' , in Tropical Babylons: Sugar and the Making of the Atlantic World, 1450 -1680 , ed. Stuart B. Schwartz (University of North Carolina Press, 2004), 1 -26. It offers an overview of the literature on the sugar-plantation complex, tracing it back to Marx and Williams and providing different takes on the debate on the concept and timing of a sugar revolution and its role in the development of capitalism.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8a58b0c1024560119476e47f6a30adc538c4c3a31778360796064b0e1f01ae17",
+    "text": "26 Acemoglu, Johnson, and Robinson, ' The Rise of Europe ' .",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a54e64e7eaa7b233e02253398b72c93182d8f03879a409f2118f18a32a83b3e9",
+    "text": "27 Ulrich Pfister, ' Economic Growth in Germany, 1500 -1850 ' , Journal of Economic History 82, no. 4 (2022): 1071 -107.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_de458808503373ab187b54cff7bb89d2a106847de8cf056ddc7257161fe2cd7b",
+    "text": "Figure 1. Caribbean free ports, 1500 -1800",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5ddf758b9a425ddba2490080de15c0a2320c6af8a1f3623cb017969f34ad0d9b",
+    "text": "Eastern Europe, where local serfs were forced into producing textiles for the Atlantic trade, likely retarding this region ' s economic development. 28 The mid-seventeenth century thus constituted a pivotal moment in the development of the Atlantic trade, as well as global economic history. 29",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7814dcf44bc78d5c46b85e6da7db853a37564019ac0a786795026085cdb7fbf9",
+    "text": "In order to explore the relationship between Atlantic trade expansion and free ports, I surveyed the secondary literature in five different languages and compiled a list of free ports. 30 I found a total of forty-six free ports for the early modern period, plus a further four ports that debated liberalization but did not implement it. A closer look at the dates of their liberalization reveals a close correlation between the growth of free ports and trade in the Atlantic. Between 1590 and 1650, European rulers founded only six free ports: Livorno, Genoa, Nice, Villefranche, Civitavecchia, and La Spezia. All of these were located on the Mediterranean. A significant change",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bfc00b76250c364df9f13cdfc514c55569e433818be544b78f6275b8d5963be5",
+    "text": "28 Steffen, ' Silesia, Serfdom, and Slavery ' .",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fafa63c9b66438a054bfd16f7ff14af054d50a22fb5b8f2ab9a06cfa9579393f",
+    "text": "29 Robin Blackburn, The Making of New World Slavery: From the Baroque to the Modern, 1492 -1800 (Verso, 1997), makes a convincing argument about the ' new plantations ' of the mid-seventeenth century. See also David Eltis, The Rise of African Slavery in the Americas (Cambridge University Press, 2000); Richard Dunn, Sugar and Slaves: The Rise of the Planter Class in the English West Indies, 1624 -1713 (University of North Carolina Press, 1972).",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3814c039331cbd497872ee77d9a6a83d039cd6375d3242d23b26b73952e23f1e",
+    "text": "30 Tazzara, The Free Port of Livorno ; Kleiser and Røge, ' Emulating Empires ' ; Ulrich Pfister, ' Great Divergence, Consumer Revolution and the Reorganization of Textile Markets: Evidence from Hamburg ' s Import Trade, Eighteenth Century ' , Department of Economic History Working Paper No. 266 (LSE, 2017); Hunt, ' Contraband, Free Ports, and British Merchants ' ; Jordaan and Wilson, ' The Eighteenth-Century Danish, Dutch and Swedish Free Ports ' .",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ee73aea4982607f4ee8d956d8c2c6050492ea9cd5eb1f32d6d139288c2941ca4",
+    "text": "Port",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Port | Region | Year — Port"
+  },
+  {
+    "anchorId": "anchor_40ec40138084da7ab8300bf75b8d6b17caf5b564b1f31b4f99f432c08b1569ce",
+    "text": "Region",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Port | Region | Year — Region"
+  },
+  {
+    "anchorId": "anchor_364afa34ab1a57ed95e811b990a8e2d948fcbcf106378f8203348f89df09d8a9",
+    "text": "Year",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Port | Region | Year — Year"
+  },
+  {
+    "anchorId": "anchor_b771fc1a9408f68d31e3c115e01fe47372532525cf6bcd0365bce5f169d7b6f2",
+    "text": "Livorno",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Livorno | Med | 1591 — Livorno"
+  },
+  {
+    "anchorId": "anchor_d102ccfec3046e6df47450b9c66c55c25daa0921cb9b47c71e0f68e274fd1b2b",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Livorno | Med | 1591 — Med"
+  },
+  {
+    "anchorId": "anchor_4d4f009f7ea2f9e4de73eb1ca64b806efb6a80ceabdd258e3db76d0f3f67e7a0",
+    "text": "1591",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Livorno | Med | 1591 — 1591"
+  },
+  {
+    "anchorId": "anchor_34403ee97caf58450dc2caac4ef811fd26d0af3e3c9d58f45577f9f7bdaa76bb",
+    "text": "Genoa",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Genoa | Med | 1595 — Genoa"
+  },
+  {
+    "anchorId": "anchor_7f293fba3a61d71ceb5f09e66c03da145ec1da8fa9efc70800de0acbaae93c47",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Genoa | Med | 1595 — Med"
+  },
+  {
+    "anchorId": "anchor_327a74a399e4684c9a7dd06d58a308ec9c44034b2be8c89a92fc02274ddf873c",
+    "text": "1595",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Genoa | Med | 1595 — 1595"
+  },
+  {
+    "anchorId": "anchor_d780b13653ae06c4f0c38d94f8e6f89ab7809e7df8e3ced9c8491ed9875d027d",
+    "text": "Nice",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Nice | Med | 1613 — Nice"
+  },
+  {
+    "anchorId": "anchor_9cfc140707d0c2cf5c761a3d75c0cdf0f8266dd0b133170c9d204c619a66cd44",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Nice | Med | 1613 — Med"
+  },
+  {
+    "anchorId": "anchor_7ff3edd4c55a196fa69cb8551e1e57bc71211dd33ed1331457cc90b00a38d7e0",
+    "text": "1613",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Nice | Med | 1613 — 1613"
+  },
+  {
+    "anchorId": "anchor_8f4983f21a592a8f889bd774620f1df24c12351ba1c4dcbfb5d86c0395f6a6a1",
+    "text": "Villefranche",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Villefranche | Med | 1613 — Villefranche"
+  },
+  {
+    "anchorId": "anchor_bd486ecb3d852e39ee5b670d1596354b3932b556f199dba54cbdcd1714a60ddd",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Villefranche | Med | 1613 — Med"
+  },
+  {
+    "anchorId": "anchor_f7839146cb5856ea1fb8a92c39b1be09810dbf8e6a6a4d92ffc5bc19b7109271",
+    "text": "1613",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Villefranche | Med | 1613 — 1613"
+  },
+  {
+    "anchorId": "anchor_b402cb804a9157aea91e9dd6d814e718dbf1a58981d34360a5d88aa6770d8cac",
+    "text": "Civitavecchia",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Civitavecchia | Med | 1630 — Civitavecchia"
+  },
+  {
+    "anchorId": "anchor_96e932287863f8029f87a3c6d57547d1a72350e897a80f43cc9073656e36a3ac",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Civitavecchia | Med | 1630 — Med"
+  },
+  {
+    "anchorId": "anchor_b95626111ddc463271f5e44df0a6e0937361fce109e29a83ca4dad55230b3a37",
+    "text": "1630",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Civitavecchia | Med | 1630 — 1630"
+  },
+  {
+    "anchorId": "anchor_ba3a007df7cd63fb2d1c9f64cb837124fe0dc594646af6f349ad4347c7476815",
+    "text": "La Spezia",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "La Spezia | Med | 1643 — La Spezia"
+  },
+  {
+    "anchorId": "anchor_7065050c47bd072e26e13d28abd32bb81f4ce246f2c4e9378a6ac434e88a4993",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "La Spezia | Med | 1643 — Med"
+  },
+  {
+    "anchorId": "anchor_24272c836c8d4f4ec1db7157d51d60a92709bee1f43124a9f4420438450514a5",
+    "text": "1643",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "La Spezia | Med | 1643 — 1643"
+  },
+  {
+    "anchorId": "anchor_11b0ab5cc72e1a821355ce6fc42d9243fe2ca04819d78be84c0b80792785fec8",
+    "text": "Tangier",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Tangier | Med | 1662 — Tangier"
+  },
+  {
+    "anchorId": "anchor_00c637e204f30b4eb94fb643651778ba78f77f5d21c38bcd2955eca1d742d689",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Tangier | Med | 1662 — Med"
+  },
+  {
+    "anchorId": "anchor_3e14ef6cd048b11533eeb99e95e95cd2cb66f957e159acf48672012f2bdc5e4d",
+    "text": "1662",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Tangier | Med | 1662 — 1662"
+  },
+  {
+    "anchorId": "anchor_a4f9852e4b6ff6f64e74eec7fa971e36786636cebf28026ad5df33bf572565e0",
+    "text": "Venice",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Venice | Med | 1662 — Venice"
+  },
+  {
+    "anchorId": "anchor_25908b2f658e06399a648da282d6f1c66beef1b906e5acef7bb18b307374049e",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Venice | Med | 1662 — Med"
+  },
+  {
+    "anchorId": "anchor_c92f9e555cd8bcbc3ec4e26ef9d96b96510ed7483e8c18830cfb1b05e95b59a6",
+    "text": "1662",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Venice | Med | 1662 — 1662"
+  },
+  {
+    "anchorId": "anchor_ad698f0b6a43e2e672202773c16d93bb72acc5e78279f99260fcd3baed0f5025",
+    "text": "Altona",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Altona | Atlantic | 1664 — Altona"
+  },
+  {
+    "anchorId": "anchor_265a13b00bcab6b6a4311abd5ca84b7e56a5f442cbbd0467e0d5fdb106f294d1",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Altona | Atlantic | 1664 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_e6b6e28c6209c2613b2f303cbedc01bc7c15418e740c27fd01953a3ecc833d5e",
+    "text": "1664",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Altona | Atlantic | 1664 — 1664"
+  },
+  {
+    "anchorId": "anchor_918f832507d20cdf98f7c10f72a0668a890d777d9d6259e2fadf2b3b86c21059",
+    "text": "Marseilles",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Marseilles | Med | 1669 — Marseilles"
+  },
+  {
+    "anchorId": "anchor_d781eb965f85ac35da966a443ec38399f7215d3737ddd7a0c5a921c39b6549ef",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Marseilles | Med | 1669 — Med"
+  },
+  {
+    "anchorId": "anchor_aa417cc1f2e3df5574a6739d824935546a93d6d2b613c1cbee0e35578b7050de",
+    "text": "1669",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Marseilles | Med | 1669 — 1669"
+  },
+  {
+    "anchorId": "anchor_74c9d5425a50b9dfdb80ccf1110a275be06dcb32364a5c5931f2e497d6fb0060",
+    "text": "St Eustacius",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "St Eustacius | Atlantic | 1683 — St Eustacius"
+  },
+  {
+    "anchorId": "anchor_98b3eb70332d0d6c5e5d962d1a3d85315ddb1b91269244409d89da8e3ed325a8",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "St Eustacius | Atlantic | 1683 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_bb9bad672f484e52cd9510a8a11027be8f45baaed20d3e98287affe04a40bafb",
+    "text": "1683",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "St Eustacius | Atlantic | 1683 — 1683"
+  },
+  {
+    "anchorId": "anchor_846be72584d44f29631a93d3fb9036022ff397ef2cceafb06f9cf4c91d49ef24",
+    "text": "Curaçao",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Curaçao | Atlantic | 1675 — Curaçao"
+  },
+  {
+    "anchorId": "anchor_98faca03ba3971d3903f495db3c3d729f5275193925c538e6b9d31d527080068",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Curaçao | Atlantic | 1675 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_3d23e4c959e97a04ecb0658afc0ffb70ec55bd312b476dacac7cc5096c90052b",
+    "text": "1675",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Curaçao | Atlantic | 1675 — 1675"
+  },
+  {
+    "anchorId": "anchor_e1eee3992793c155660586c95362d2fedfe90591d954a441f612c171d816a182",
+    "text": "Gibraltar",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Gibraltar | Med/Atlantic | 1706 — Gibraltar"
+  },
+  {
+    "anchorId": "anchor_46e213aabd9a379ac9b7b552adbf3d067d47d94f235fd5c59d8431a29aa97007",
+    "text": "Med/Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Gibraltar | Med/Atlantic | 1706 — Med/Atlantic"
+  },
+  {
+    "anchorId": "anchor_1215213c04a718d3aeacc6db21fe1c7d1b75b8256e476b20a114775b2c6f42a8",
+    "text": "1706",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Gibraltar | Med/Atlantic | 1706 — 1706"
+  },
+  {
+    "anchorId": "anchor_08ad95b690886486a14552959c14cfad33c79d605df3ae2732b128b20ee22aa0",
+    "text": "Trieste",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Trieste | Med | 1740 — Trieste"
+  },
+  {
+    "anchorId": "anchor_781f9d60024c46058fec5df07cecc9bb4fd9fa42e4664a36e28b56adeccb5a2d",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Trieste | Med | 1740 — Med"
+  },
+  {
+    "anchorId": "anchor_a2c36faa1df4f2e0164b0f4dd65224de31f478dd68a879cb47342e9492d7e5b6",
+    "text": "1740",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Trieste | Med | 1740 — 1740"
+  },
+  {
+    "anchorId": "anchor_c678b18dfa3a69b693970cf453cf79665ddf5b612c5014f1b6b72813752bf2ee",
+    "text": "Fiume",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Fiume | Med | 1719 — Fiume"
+  },
+  {
+    "anchorId": "anchor_19dea42f5e288f170ca8de78057441e9b6d8eae53844d5a9b8c1ae6802d9d407",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Fiume | Med | 1719 — Med"
+  },
+  {
+    "anchorId": "anchor_e9e75ff3c67f883c45f59706972217da2d8e21ad624d66273e780d9016d47a76",
+    "text": "1719",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Fiume | Med | 1719 — 1719"
+  },
+  {
+    "anchorId": "anchor_15c3f0612ebe954785bd0264a68830656fe315456a8d495f76e5e8c52c5b228c",
+    "text": "Dunkirk",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Dunkirk | Atlantic | 1731 — Dunkirk"
+  },
+  {
+    "anchorId": "anchor_e32a2807bd0b3f4bc7009b48459a609a380f9b5772756e633fcd2fe0735dd4de",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Dunkirk | Atlantic | 1731 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_e2978750fadb5dffe98e5e29d497f5ee6c9c6f710a1db8d8d2563cbc8d426f62",
+    "text": "1731",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Dunkirk | Atlantic | 1731 — 1731"
+  },
+  {
+    "anchorId": "anchor_4960f106979c4ff66466e5e91ded0b5fd63a723c7074ad6b60b8981e633f80f6",
+    "text": "Ancona",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Ancona | Med | 1731 — Ancona"
+  },
+  {
+    "anchorId": "anchor_64f4a8f463fc932ea11de3acb02e20723f9b98d49f386ed54a910306b9b2b5a6",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Ancona | Med | 1731 — Med"
+  },
+  {
+    "anchorId": "anchor_789d90793e9ef94fc770a0bb92dc39400f273ef9373ba06535705be01145b95b",
+    "text": "1731",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Ancona | Med | 1731 — 1731"
+  },
+  {
+    "anchorId": "anchor_ad4a946a18adeb2f253ad48efdda8b5547c226c60f7c798602e65912c74a8439",
+    "text": "Naples",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Naples | Med | 1739 — Naples"
+  },
+  {
+    "anchorId": "anchor_645f87ec6e3b39bc6b19514ace8b32ede60c110e6b9ce6f665a1c9654b86d793",
+    "text": "Med",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Naples | Med | 1739 — Med"
+  },
+  {
+    "anchorId": "anchor_95752f324360ebfbbcf9e83314587c5ad4b899a7ca1e69f64da1ab2ef7ed38f0",
+    "text": "1739",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Naples | Med | 1739 — 1739"
+  },
+  {
+    "anchorId": "anchor_b8e320f4b4c4282fcac7ec7c308ef1ecd4ea565ce2999da9e74241b740bf5517",
+    "text": "Amsterdam*",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Amsterdam* | Atlantic | 1750s — Amsterdam*"
+  },
+  {
+    "anchorId": "anchor_99a4caf044181bf8d118750dd97771a9db36ea46b5f6c5a6ddda9b53d5dc6f11",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Amsterdam* | Atlantic | 1750s — Atlantic"
+  },
+  {
+    "anchorId": "anchor_6f69b0dc23ceb7c627d34f7fd0e91dd377e3a0378bc6692e8273919ac2b6d7cd",
+    "text": "1750s",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Amsterdam* | Atlantic | 1750s — 1750s"
+  },
+  {
+    "anchorId": "anchor_62fb02a86a3c42fe79b749ebfe85c88279b0a47e3d22df8069270bbfad8f1895",
+    "text": "Hamburg*",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Hamburg* | Atlantic | 1750s — Hamburg*"
+  },
+  {
+    "anchorId": "anchor_92351d502aae8ba85cbd13bcb1df2c26793d2eaf2c8231b8ecd2c9341c8e5577",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Hamburg* | Atlantic | 1750s — Atlantic"
+  },
+  {
+    "anchorId": "anchor_980fce13e9636fe631ef4c2f26da5f32edf4e7fcab4b2612649df977266c51f4",
+    "text": "1750s",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Hamburg* | Atlantic | 1750s — 1750s"
+  },
+  {
+    "anchorId": "anchor_1c9e8688a58eea1fc2612a0a337434421bf824f7e9e948926701f7baf61002a3",
+    "text": "Bremen*",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Bremen* | Atlantic | 1750s — Bremen*"
+  },
+  {
+    "anchorId": "anchor_5b1c83a67a3e1b9f6203d29673851b9cbc3430d6dbb65f94803de7edfeeb8778",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Bremen* | Atlantic | 1750s — Atlantic"
+  },
+  {
+    "anchorId": "anchor_3b6df31809d62c1ed9ae421d809c0fcb9fd3a46b4978782505396b9d7da2884d",
+    "text": "1750s",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Bremen* | Atlantic | 1750s — 1750s"
+  },
+  {
+    "anchorId": "anchor_ee8e3bccf39f707383b2de9578b962f7070e591be78d8f54dc994c9342894a75",
+    "text": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies) | Atlantic Atlantic | 1764 — Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies)"
+  },
+  {
+    "anchorId": "anchor_a4fccc12fcd51a6fb42db0cd1c4936172e232dcdcee7065d97258273cbdd7f4c",
+    "text": "Atlantic Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies) | Atlantic Atlantic | 1764 — Atlantic Atlantic"
+  },
+  {
+    "anchorId": "anchor_a8bd292000b88e5c24a4bc5e0e43ef05c3657984e820ce8ed1edf37c5a4129b7",
+    "text": "1764",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint Thomas (Town), Saint Thomas (Danish West Indies) St John (Danish West Indies) | Atlantic Atlantic | 1764 — 1764"
+  },
+  {
+    "anchorId": "anchor_f5591df0ed364b6a3355b067dada8088caf87a75343e531575e68519b2d289fd",
+    "text": "Monte Christi (Saint Domingue)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Monte Christi (Saint Domingue) | Atlantic | 1764 1756 — Monte Christi (Saint Domingue)"
+  },
+  {
+    "anchorId": "anchor_a127e839a338edd2e9135c62e042e2e937b0f3f89b9ea37b515b88cb9f306091",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Monte Christi (Saint Domingue) | Atlantic | 1764 1756 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_73ca8180d2d6188cfde2f8657ae75ff612ad00da86c55c0ce571997707e9ad49",
+    "text": "1764 1756",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Monte Christi (Saint Domingue) | Atlantic | 1764 1756 — 1764 1756"
+  },
+  {
+    "anchorId": "anchor_9c6bd3b1702a9d96e13e3e0ae20cc80497f4397bcfd73efff6913e8cd361a4ee",
+    "text": "Saint-Luce (Martinique)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint-Luce (Martinique) | Atlantic | 1765 — Saint-Luce (Martinique)"
+  },
+  {
+    "anchorId": "anchor_684da98facfbebe3a120e3b30e27794574c894816be5ea8720b5d80f6c847f8e",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint-Luce (Martinique) | Atlantic | 1765 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_1589a3021fcb0da9b39aa88c0b04cbf085dcba87141cac76226758630cc5aced",
+    "text": "1765",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint-Luce (Martinique) | Atlantic | 1765 — 1765"
+  },
+  {
+    "anchorId": "anchor_0bbd16ebafa268755e6a8ea0bc27baf04a8651e526750ee99f2396f7933bdd4b",
+    "text": "Kingston (Jamaica)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Kingston (Jamaica) | Atlantic | 1766 — Kingston (Jamaica)"
+  },
+  {
+    "anchorId": "anchor_eb8da2b840fb75f9ec3cbb16e9d98ca73ce88c02423d74e481521bdfd4759151",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Kingston (Jamaica) | Atlantic | 1766 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_1ec2abd17b732c437c7c21694db405940ce801f3a5fae083334bb388818922ae",
+    "text": "1766",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Kingston (Jamaica) | Atlantic | 1766 — 1766"
+  },
+  {
+    "anchorId": "anchor_793a2e03941b9daf263d282b33072e9edae327cdbfc4c0fc14487d599e2eef99",
+    "text": "Kingston (Saint-Vincent)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Kingston (Saint-Vincent) | Atlantic | 1766 — Kingston (Saint-Vincent)"
+  },
+  {
+    "anchorId": "anchor_4dee7afe1d98aff5990d1c236402cba5baae2a58c3b6b75f3a5f680459754793",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Kingston (Saint-Vincent) | Atlantic | 1766 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_73bd442e84f9b6bfa81c8e26c63579441994ab01d8965af9652eb2248b1de77e",
+    "text": "1766",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Kingston (Saint-Vincent) | Atlantic | 1766 — 1766"
+  },
+  {
+    "anchorId": "anchor_466210236d7c8a95b81ca77f663de2c1e43575394761488b2d9adf58c84ddfb3",
+    "text": "Montego Bay (Jamaica)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Montego Bay (Jamaica) | Atlantic | 1766 — Montego Bay (Jamaica)"
+  },
+  {
+    "anchorId": "anchor_79e9f6b9d3e23bef96f18793c7c787fccc1fac8b30a1c090338ebf0cd85fee9f",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Montego Bay (Jamaica) | Atlantic | 1766 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_a509e89f5668c5f3c4c97c042e99c757fcdef4dc2476022a06988ac735346315",
+    "text": "1766",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Montego Bay (Jamaica) | Atlantic | 1766 — 1766"
+  },
+  {
+    "anchorId": "anchor_f46556c743abf40ad3b066a1f1d1e51f344dd5beed493e9e4e95726d29532338",
+    "text": "Nassau (Bahamas)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Nassau (Bahamas) | Atlantic | 1766 — Nassau (Bahamas)"
+  },
+  {
+    "anchorId": "anchor_b966d4104c74e305eb2f592187a1eea3af61c94caa321f4646ed581096f67e8a",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Nassau (Bahamas) | Atlantic | 1766 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_ff608eaf4a39aa49f488e2718e39f8a63a4d3dba38f37130652bb9dfe0e48720",
+    "text": "1766",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Nassau (Bahamas) | Atlantic | 1766 — 1766"
+  },
+  {
+    "anchorId": "anchor_381ebb19d7e52eecb7ada44ffd54f9ba7b38cb66c38e397c436152a31608b603",
+    "text": "Prince Rupert Bay (Dominica)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Prince Rupert Bay (Dominica) | Atlantic | 1766 — Prince Rupert Bay (Dominica)"
+  },
+  {
+    "anchorId": "anchor_05b8a48a6d8e20a4b1900ed468147cf7ee360c9c2c8ca675d92489328d1de001",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Prince Rupert Bay (Dominica) | Atlantic | 1766 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_0bfed4de2c08f4b9b0f6f066920974ac3a3ed9a366ac0e930e28448898d33f3c",
+    "text": "1766",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Prince Rupert Bay (Dominica) | Atlantic | 1766 — 1766"
+  },
+  {
+    "anchorId": "anchor_0acc2a53234367cfbe44fcf6921bfc4f1060904d5bcc81136148a522b0452662",
+    "text": "Roseau (Dominica)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Roseau (Dominica) | Atlantic | 1766 — Roseau (Dominica)"
+  },
+  {
+    "anchorId": "anchor_6af1fcc21a76b58100b71b0772780530d913b57b92511d3ecee97c95dc9b74e5",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Roseau (Dominica) | Atlantic | 1766 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_3f2484f4ec076e7e6d6f1bd5094e8d4384517c9ef9e37cd36805ca452002cb04",
+    "text": "1766",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Roseau (Dominica) | Atlantic | 1766 — 1766"
+  },
+  {
+    "anchorId": "anchor_6cbd14fab1072f20b70d40119b06b6e906d8c1e6450ef578a2cf0c57afacc049",
+    "text": "Saint George (Granada)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint George (Granada) | Atlantic | 1766 — Saint George (Granada)"
+  },
+  {
+    "anchorId": "anchor_95ef23a0aa40172554873106b35657c777d8c9a9b228afed9a0cf57bd598d2e5",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint George (Granada) | Atlantic | 1766 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_e415399105d534970f03abc66b998b08b6113829e802037c6e02b4d2c555f9fb",
+    "text": "1766",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint George (Granada) | Atlantic | 1766 — 1766"
+  },
+  {
+    "anchorId": "anchor_645b4df433c9030c2d00264abcd3b9b453cf1a565495f88be35f9eaba0533942",
+    "text": "Lucea (Jamaica)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Lucea (Jamaica) | Atlantic | 1766 — Lucea (Jamaica)"
+  },
+  {
+    "anchorId": "anchor_d2f916cfa7f2b1fe21b15c6bc326d5f490c106be862de4da551f4e61794717d1",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Lucea (Jamaica) | Atlantic | 1766 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_e074254080c3af9f8934939a965e85b5641b1655577286fd34a8d212f6d3b371",
+    "text": "1766",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Lucea (Jamaica) | Atlantic | 1766 — 1766"
+  },
+  {
+    "anchorId": "anchor_7f42a08c7bfe814281d04b9b075f5931c116cea3f6b2ae92037f15c6b786d17a",
+    "text": "Savanna la Mar (Jamaica)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Savanna la Mar (Jamaica) | Atlantic | 1766 — Savanna la Mar (Jamaica)"
+  },
+  {
+    "anchorId": "anchor_94ca4801bf3da57aca828185026e8d50ee95b4359495a4568b7e3415283b466f",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Savanna la Mar (Jamaica) | Atlantic | 1766 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_133614422964d0a3af7339d225ff472ca819bdb95c33314c4800dc97c8d36a0c",
+    "text": "1766",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Savanna la Mar (Jamaica) | Atlantic | 1766 — 1766"
+  },
+  {
+    "anchorId": "anchor_96d09b003149fc8a2d26ef67f76478a6457ef94de7f20489a24e97ee9dc069f1",
+    "text": "Mole Saint-Nicolas (Saint Domingue)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Mole Saint-Nicolas (Saint Domingue) | Atlantic | 1767 — Mole Saint-Nicolas (Saint Domingue)"
+  },
+  {
+    "anchorId": "anchor_469449a384a92db20d0cc80798ae0e4bf75786f9f0be0b8603729ce39ce53324",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Mole Saint-Nicolas (Saint Domingue) | Atlantic | 1767 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_cd5ed3fbb098b254f3f5215ccba2aacfa5b4b50ed753442b4083906ebcdf7b72",
+    "text": "1767",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Mole Saint-Nicolas (Saint Domingue) | Atlantic | 1767 — 1767"
+  },
+  {
+    "anchorId": "anchor_751042367da7834dc6ea6dab8a5150f90a33611df0e46a27d3731f431c4b621c",
+    "text": "Marstrand",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Marstrand | Atlantic | 1775 — Marstrand"
+  },
+  {
+    "anchorId": "anchor_6ff3b2cfa43268c57d65327efd22d8a354075ae7c6c37601466dbffe1c330df3",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Marstrand | Atlantic | 1775 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_af561216886c38fe91238e9be0d59729eb1054e93f7365a0b9ab72ebce7c2fb0",
+    "text": "1775",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Marstrand | Atlantic | 1775 — 1775"
+  },
+  {
+    "anchorId": "anchor_ea2f4ddaad45623f73184a3e3efc1269dae8d9062b333dbacccb39d79f4a5e9a",
+    "text": "Ostend",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Ostend | Atlantic | 1781 — Ostend"
+  },
+  {
+    "anchorId": "anchor_88181d9d6b931e6a06f1d2b4f913c505ed57369844b2cf10ae3d6a3db1825ce5",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Ostend | Atlantic | 1781 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_ee39e3bb9e805d554d47c95ce9b8886f74b6da1387ae11ecc448d3f44e28f450",
+    "text": "1781",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Ostend | Atlantic | 1781 — 1781"
+  },
+  {
+    "anchorId": "anchor_3162601cd98dc74ffec9de3893f246bed17af41ce4551dc989cd2ce06243a918",
+    "text": "Saint John (New France)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint John (New France) | Atlantic | 1781 — Saint John (New France)"
+  },
+  {
+    "anchorId": "anchor_6cc476c01fd1c2d44416386dfa0c7501eecc8e7d3d9263ca7f9fe695913edf55",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint John (New France) | Atlantic | 1781 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_079098634b1e91b44af95031c84b78c6f6a7461e7c5fb15b4cf6bf17937bb68c",
+    "text": "1781",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint John (New France) | Atlantic | 1781 — 1781"
+  },
+  {
+    "anchorId": "anchor_b74cfedcfaf417d3354813c5918e21f78d65e2d29306672cfac43c2a1c6ba563",
+    "text": "Charlotte Amalia, Saint Thomas (Danish West Indies)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Charlotte Amalia, Saint Thomas (Danish West Indies) | Atlantic | 1781 — Charlotte Amalia, Saint Thomas (Danish West Indies)"
+  },
+  {
+    "anchorId": "anchor_b9307a4781310b4d7212f37ecef5f4ea0bddaf92e9c2d2498dc9e20870ea1c7f",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Charlotte Amalia, Saint Thomas (Danish West Indies) | Atlantic | 1781 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_dfa27b51edf11f16dac27a75f17d94be8c85b853ded4a6a9b10006268cb0e8cf",
+    "text": "1781",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Charlotte Amalia, Saint Thomas (Danish West Indies) | Atlantic | 1781 — 1781"
+  },
+  {
+    "anchorId": "anchor_cd8e655c2bdbff98ae29335ec91cb5eb46a54b902460a50b6088ad83d76f774b",
+    "text": "Cap Français (Saint Domingue)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Cap Français (Saint Domingue) | Atlantic | 1784 — Cap Français (Saint Domingue)"
+  },
+  {
+    "anchorId": "anchor_c588cf7de11fd69a5661d2af6ff3f35823cd7adf98bcb88bb23c9ea9b146f386",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Cap Français (Saint Domingue) | Atlantic | 1784 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_132fe7b04530627dda0a98ff9afd6cbf1adda08ccd4c5ca4ab7b112d03acfa79",
+    "text": "1784",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Cap Français (Saint Domingue) | Atlantic | 1784 — 1784"
+  },
+  {
+    "anchorId": "anchor_0409d570a032be585ce1db7a092a3167ed9e538cee94a6ccac809067fafa730b",
+    "text": "Cayes (Saint Domingue)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Cayes (Saint Domingue) | Atlantic | 1784 — Cayes (Saint Domingue)"
+  },
+  {
+    "anchorId": "anchor_267e518ef4352fe652ed4adf8ba63af74c187ddb072c113041715f2b78eca030",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Cayes (Saint Domingue) | Atlantic | 1784 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_0f3f7fdc95eaf60ff9c42a3eae7a26e35f0f26aad40456c198f74fd9358090f1",
+    "text": "1784",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Cayes (Saint Domingue) | Atlantic | 1784 — 1784"
+  },
+  {
+    "anchorId": "anchor_1250fef50a5e1d236be3b02fb0452a8e355e7a887bc5ef1fb049dbe297b440a9",
+    "text": "Lorient",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Lorient | Atlantic | 1784 — Lorient"
+  },
+  {
+    "anchorId": "anchor_c6d38caaa7e6534823260403cf0d7798f7fa9463a4a50555a8ba1331f82e04b3",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Lorient | Atlantic | 1784 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_2ff4f1bb444410cef042e7e9668551a3d32d4f813d8748c7c34c9d702a54fb1f",
+    "text": "1784",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Lorient | Atlantic | 1784 — 1784"
+  },
+  {
+    "anchorId": "anchor_a5bdd8e8849da0bb491bf672b7b9f0a7cc96988a2d18adaceee85a35e8874730",
+    "text": "Pointe-à-Pitre (Guadeloupe)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Pointe-à-Pitre (Guadeloupe) | Atlantic | 1784 — Pointe-à-Pitre (Guadeloupe)"
+  },
+  {
+    "anchorId": "anchor_af8616f80dd13b5b25b2786cf94012d66307719011b1fda82f41331775399233",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Pointe-à-Pitre (Guadeloupe) | Atlantic | 1784 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_7da6def7bb8eecafc0faf620ed64560c08a6376f1901c1d946c0fb6cdc09e1b9",
+    "text": "1784",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Pointe-à-Pitre (Guadeloupe) | Atlantic | 1784 — 1784"
+  },
+  {
+    "anchorId": "anchor_46429381adc18f5df75dd49fec0d829e9af48575f5d0004b8ba858fb6ab67152",
+    "text": "Port au Prince (Haiti)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Port au Prince (Haiti) | Atlantic | 1784 — Port au Prince (Haiti)"
+  },
+  {
+    "anchorId": "anchor_20a5e296352a2467faac58984e9a4ce670aef6c882193f481ef9d3341b0f58d2",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Port au Prince (Haiti) | Atlantic | 1784 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_8b1157a2cbdf1e8445cb0bb0b448af0857c5f9706186836f32b09254a699ec06",
+    "text": "1784",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Port au Prince (Haiti) | Atlantic | 1784 — 1784"
+  },
+  {
+    "anchorId": "anchor_b217032c593bba87f0f0b7f9cb2566d31722411d09c5566cc39e6a184120403e",
+    "text": "Saint-Pierre (Martinique)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint-Pierre (Martinique) | Atlantic | 1784 — Saint-Pierre (Martinique)"
+  },
+  {
+    "anchorId": "anchor_b45d8873dfc231db0031d3d663dd838ad596d65d5a79edb00588f1ebc923d63a",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint-Pierre (Martinique) | Atlantic | 1784 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_954e431796d2dae470d681c904def667ad3c3282d71158116d501f2b69c84218",
+    "text": "1784",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Saint-Pierre (Martinique) | Atlantic | 1784 — 1784"
+  },
+  {
+    "anchorId": "anchor_722897069e84357861932574da5d727455cbfb9665396b2b510e042da9757986",
+    "text": "St Barthélemy",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "St Barthélemy | Atlantic | 1785 — St Barthélemy"
+  },
+  {
+    "anchorId": "anchor_d2a8f6d517a6e77de9a98721fc7fa79613791a57a2e1a45027bc77ca2cce488d",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "St Barthélemy | Atlantic | 1785 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_98ca0f2835e6d80380f38152f863ffdafa44456c2cfe07dc23f6ec195160a57d",
+    "text": "1785",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "St Barthélemy | Atlantic | 1785 — 1785"
+  },
+  {
+    "anchorId": "anchor_fab11d6465eb0ae9d32e774d5a640560016a6edf6a74eaf11a33c30a6205e807",
+    "text": "Scarborough (Tobago)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Scarborough (Tobago) | Atlantic | 1784 — Scarborough (Tobago)"
+  },
+  {
+    "anchorId": "anchor_9fc9c1561474c3cb86ccb38f0dea7d88e30b8aaf7cd0a99d090d6d1302a98341",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Scarborough (Tobago) | Atlantic | 1784 — Atlantic"
+  },
+  {
+    "anchorId": "anchor_e4a61f56a4e0889f55b5057826737986260672f8f62602bfdcc4597bb4f93206",
+    "text": "1784",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Scarborough (Tobago) | Atlantic | 1784 — 1784"
+  },
+  {
+    "anchorId": "anchor_01b82b966814f036494a4fc54a440601afc1b429557f204de5918a52de496349",
+    "text": "Sebastopol",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Sebastopol | other | 1786 — Sebastopol"
+  },
+  {
+    "anchorId": "anchor_13a48f6997ff775456d36e2ab170bcab808ed18b9039e7098f3c2b67d51700ee",
+    "text": "other",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Sebastopol | other | 1786 — other"
+  },
+  {
+    "anchorId": "anchor_c2e057e48007ac096b1bffa14552015d0f2d18c5e5d630b48aeb1732b3d7df33",
+    "text": "1786",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Sebastopol | other | 1786 — 1786"
+  },
+  {
+    "anchorId": "anchor_c591c049d4487ed6e9b5ed3cda2a603e04578d3332de4f33be6fc524b02f7dfb",
+    "text": "Tortola*",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Tortola* | Atlantic | 1790s* — Tortola*"
+  },
+  {
+    "anchorId": "anchor_9a183fb652c6a51304106b1e208393e2093c022e8090fc57ddfd84161a0c4488",
+    "text": "Atlantic",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Tortola* | Atlantic | 1790s* — Atlantic"
+  },
+  {
+    "anchorId": "anchor_b69e75988e58bbb3f40601ede15e16b24110ebc2ad61b2916633559d7731d4c8",
+    "text": "1790s*",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Tortola* | Atlantic | 1790s* — 1790s*"
+  },
+  {
+    "anchorId": "anchor_410143f52f628addc7bb012194d947b9d3bd7f40e84edb6ad83ab158e78fcd00",
+    "text": "Port Louis (Mauritius)",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Port Louis (Mauritius) | other | 1787 — Port Louis (Mauritius)"
+  },
+  {
+    "anchorId": "anchor_a4067984bdf20bc5ae51e951561bacca5d3d98886329db8edfbd35626cb8d40b",
+    "text": "other",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Port Louis (Mauritius) | other | 1787 — other"
+  },
+  {
+    "anchorId": "anchor_26c545cff70cd2ed567e093389c68098060df9e5e36beece1af1db8cb5a03560",
+    "text": "1787",
+    "page": 7,
+    "kind": "table_cell",
+    "context": "Port Louis (Mauritius) | other | 1787 — 1787"
+  },
+  {
+    "anchorId": "anchor_bd257a4cdd62d826bdcd827911fca8a2d7a414937e3f1440892209bc61bbab76",
+    "text": "Table 1. The establishment of free ports, 1591 -1800",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1d31481b2e514b61425362fcb904dcfd7c98363ccdea86457e050ee62b8bbcdd",
+    "text": "* Ports marked with an asterisk debated becoming a free port but did not proceed before 1800. I include North Sea Ports in the category ' Atlantic ' as the North Sea formed the gateway to the Atlantic. Sources: see text.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cbed8db2ac0f8f1efe348909234d0f202df34fbc59c4f46b665b74a02ed3a02a",
+    "text": "can be observed during the mid-seventeenth century: the total number of free ports increased dramatically, as shown in Table 1. Between 1650 and 1800, forty ports were declared ' free ' . 31",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_616dcfca4cb623959cc7033810c5b36fbc772b0f24087cc334c74bb908b930d7",
+    "text": "31 I rely mainly on Corey Tazzara, ' Managing Free Trade ' and his list of free ports. For ports not included in Tazzara, see Tortola: Mulich, ' Microregionalism and Intercolonial Relations ' ; Hamburg, Amsterdam, and Bremen: Pfister, ' Great",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3309b8fdc1f2a7ae7a772bfbeb5225e1977face1d59a604662fb1fa65a7bfddb",
+    "text": "Figure 2. European free ports, 1500 -1800",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d9f88513ebc9330164182a826e41f0979448fdfccad02ae92a63f1ec86e9f29f",
+    "text": "Note: Ports marked with an * debated becoming a free port, but decided against it.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_97071871c398bb04025c5f160ec65f420b6e08ce6ad26b8fb6799ba26e3115b1",
+    "text": "Along with their numerical increase, free ports ' geographic focus changed. Plotting free ports on a map shows that all those founded prior to 1650 were located on the Mediterranean (see Figure 2). Of the forty free ports founded after 1650, a staggering thirty-one (75 per cent) were situated on the Atlantic. What is more, Hamburg and Amsterdam were two of an additional four ports located either on the Atlantic or functioning primarily as entrepôts for Atlantic goods that deliberated becoming ' free ' but did not proceed during the 1750s (Bremen, Amsterdam, and Hamburg) or the 1790s (Tortola). Of the remaining free ports, eight (20 per cent) were on the Mediterranean, one was in the Indian Ocean (Mauritius), and one in the Black Sea (Sevastopol).",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_efe73c6a64542c7a4b2875a225f54180f431dd26ee52164a3631597c1770f217",
+    "text": "The data suggests a pattern: free ports followed commercial development. Until the early seventeenth century, the Mediterranean constituted Europe ' s most important economic theatre. Over the course of the seventeenth century, this situation changed: trade in the Atlantic increased while that in the Mediterranean stagnated. Europe ' s centre of economic gravity shifted from the south to the north-west. Free ports followed this move. Of course, correlation does not equal causation. However, given that free ports ' primary purpose was the facilitation of trade, it seems likely that their evolution and the growth of the Atlantic trade, as the period ' s most important commercial development, were indeed connected. Accordingly, this article suggests that the two were causally related: governments adopted and adapted the free port model in order to benefit from the new economic opportunities the growing Atlantic trade promised.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_10fd553e04d2c105f2312917699fc90635847147f1c3962012fa2d58c2e74fcd",
+    "text": "Divergence ' ; Lucea (Jamaica) 1766: Hunt, ' Contraband, Free Ports, and British Merchants ' ; Barthélemy 1785: Jordaan and Wilson, ' The Eighteenth-Century Danish, Dutch and Swedish Free Ports ' ; St Eustacius 1663: Kleiser, ' An Empire of Free Ports ' .",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_94fe951fd0c882a38093ba00dda96dac793769fc2bbebf13db1b02b6dacc5487",
+    "text": "Hamburg",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_26e7bd9a373984264d2a34ae15f4f7fb79fd00ea19cd69cce1b3156f748bf6de",
+    "text": "During the early modern period, the term ' free port ' referred to a bundle of liberal trade policies implemented in a certain port. As Tazzara and others have shown, rather than a comprehensive political ideology, the policies the Medici introduced in Livorno constituted codifications of preexisting practices, which had evolved over time and proven useful. 32 Free ports thus constituted early experiments in liberal trade policies, with conditions varying greatly between locations and over time. 33 ' Free ' , as Grant Kleiser recently put it, meant ' commerce that extended beyond national and imperial borders ' . 34 The essence was not a complete absence of duties on goods, as modern usage of the term might suggest, but trading conditions that were simply more favourable than what merchants would find elsewhere. 35 The brothers Savary ' s Dictionnaire Universel de Commerce of 1723 first defined the ideal form of a free port, as contemporaries thought of it then: free ports were places where merchants could trade on equal terms, irrespective of place of origin or religion, with low or few duties on storage or transit. 36",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0fc263b9d8271992c129545419bfe2e8c80abd353ffc1f1e14dcb885c2b38ea6",
+    "text": "This changed with the opening of Hamburg ' s free port in 1888. At that moment, free ports became tangible. City authorities cut off a slice of Hamburg ' s harbour and designated it ' free ' . Henceforth, this piece of Hamburg would exist outside the customs zone, beyond the economic border of the German Zollverein, which Hamburg had joined a few years earlier. The new free port area constituted ' an exclusively commercial space ' , home to large warehouses and other commercial infrastructure, but without inhabitants. 37 According to Dara Orenstein, Hamburg ' s innovative free port ' dazzled visitors ' . 38 It was quickly replicated by foreign policymakers and served as a model for modern free ports across Europe and the United States. What was more, it constitutes the ancestor of foreign trading zones, of which over 3,500 are spread across the globe today. As such, Hamburg played an important part in the genesis of modern free trade policy instruments. 39",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fc0726eda1023578266b06015c56d4f71462ab51e2e0ee5be2a917b34cf251da",
+    "text": "Despite its apparent importance within the family tree of free trade institutions, the new history of free ports has largely ignored Hamburg. 40 Instead, the city on the Elbe is best known for the commercial importance it achieved as one of the leading towns in the Medieval Hanseatic League, connecting trade in the Baltic and North Seas. During the early modern period, most Hanseatic ports declined, but Hamburg continued to flourish. 41 Economic historians have explained Hamburg ' s continued commercial importance with reference to its ability to forge ties to the growing Atlantic economies. 42 As a city-republic without colonies of its own, Hamburg was excluded from intercontinental trade. 43 However, beginning in the seventeenth century, it found a way of working around this predicament: it introduced policies with the specific goal of encouraging merchants to build commercial relationships with the American colonies. This is when we first find traces of free trade ideas in Hamburg ' s sources: the city emulated elements of Livorno ' s free port model by inviting minoritized and persecuted Atlantic merchants to settle and trade from the city, especially Sephardic Jews and French Huguenots. 44 Furthermore, Hamburg merchants settled in British, French, Spanish, and Portuguese ports in order to trade with these countries ' colonies. 45 They bought primary products from the Americas, especially sugar, tobacco, indigo, and coffee, and shipped these to their home town. France and England were Hamburg ' s two most important partners in overseas trade, accounting for 80 per cent and more of all recorded imports up to c. 1790. As Ulrich Pfister put it, during the eighteenth century, Hamburg ' functioned as the downstream end of France ' s merchant empire for Central Europe ' . 46 Hamburg merchants re-exported these colonial goods all over Central and Eastern Europe, as far as Austria, Bohemia, Hungary, and eastern Poland. 47 In return, as Klaus Weber and Margit Schulte-Beerbühl showed, they channelled especially Central and Eastern European textiles to the same European Atlantic ports, from where they found their way to Africa and the Americas. 48",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b49ba6b1f8b7e0ffde8bb03a956a3924e7e37c84509c6877c908fecab4b83951",
+    "text": "32 Tazzara, ' Managing Free Trade ' , 501.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2b3b9d156fac498c2ae134388428c9c388c180a007ee99fba1e08934cf8c0e4e",
+    "text": "33 Ibid., 499.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fa36fef98668c801e368ad012525be44b3d7d15b2cb7c01f0a6be4d9190939db",
+    "text": "34 Kleiser, ' An Empire of Free Ports Empire ' , 342.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6bcc3abf55aff7d7c5c06e19fc4167976ca4ffe9f81aa7716f43717335aba027",
+    "text": "35 Guillaume Calafat, ' Être étranger dans un port franc. Droits, privilèges et accès au travail à Livourne (1590 -1715) ' , Cahiers de la Méditerranée 84 (2012): 103 -22.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_522d3841bc414786e5ef97233990230682e79adafa34515206f96c792cea3570",
+    "text": "36 Tazzara, ' Managing Free Trade ' , 499.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2c969ea8414b4360f7dc8ba84cd13aa1e5ba286478af81fa83a061f0905bbed0",
+    "text": "37 Lasse Heerten, ' An Imperial Adventus into a City of Warehouses: History, Modernity, and Urbanity in the Symbolic and Material Construction of Hamburg ' s Free Port ' , Central European History 57, no. 3 (2024): 311 -37, 312.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7096ef3221ec243f89b818877cd3f0502009e06517370034866ff36f489ec90f",
+    "text": "38 Dara Orenstein, Out of Stock: The Warehouse in the History of Capitalism (University of Chicago Press, 2019), 123. On the importance of Hamburg ' s free port in this later era, see also Stapelbroek and Tazzara ' Global History of the Free Port ' , 661.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ef6face886a16902948f8d5f0584906272d754d3a62f0e8917645ee088b1c744",
+    "text": "39 Dara Orenstein, ' Foreign-trade Zones and the Cultural Logic of Frictionless Production ' , Radical History Review 109 (2011): 36 -61, 54. Wilson, ' Enclaves of Exception ' , 730 makes a similar point.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b223c7eda00ce223c17d912ef311def1702515830dbbe7d1827b61d5d9f6b8aa",
+    "text": "40 The older German historiography dates the beginning of Hamburg ' s free port largely to the nineteenth century. Kugler, for instance, considered Hamburg a free port after a series of toll reductions between the 1820s and 1870s: Hellmuth Kugler, ' Die Entstehung der Neuen Freihafenformen ' , Weltwirtschaftliches Archiv (1923): 188 -219, 192.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ecf6653b90dacafdce6b8087047fa4ab98d1e13d876a78ed6d4e839764fa33b5",
+    "text": "41 On comparison with other Hanseatic towns, see Erik Lindberg, ' The Rise of Hamburg as a Global Marketplace in the Seventeenth Century: A Comparative Political Economy Perspective ' , Comparative Studies in Society and History 50, no. 3 (2008): 641 -62, 643, 647; Pierre Jeannin, ' Die Hansestädte im europäischen Handel des 18. Jahrhunderts ' , Hansische Geschichtsblätter 89 (1971): 41 -73. On wages and population growth in Hamburg, see Pfister, ' Great Divergence ' , 3. The jury is still out on when the Hanseatic League ended. As Hamburg, Bremen, and Lübeck continued to present themselves as the Hanse during the seventeenth century at least, and Hamburg ' s sources in the eighteenth century still refer to the city as part of that organization, I also employ that term. See also Magnus Ressel, ' Von der Hanse zur Hanseatischen Gemeinschaft: Die Entstehung der Konsulatsgemeinschaft von Bremen, Hamburg und Lübeck ' , Hansische Geschichtsblätter 130 (2012): 127 -74.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d8bea2c6d29c498330a77978fce9af67409c6e05db506ecad9b3b630ddc2d89f",
+    "text": "By the 1750s, commercial ties to the Atlantic had come to dominate the city-republic ' s economy, and colonial imports made up roughly half of Hamburg ' s overall import values. 49 The city ' s inner economy also changed. Hamburg emerged as one of Europe ' s leading centres for sugar refining, counting about 350 sugar boiling houses in 1750. 50 Calico printing and tobacco processing were also important industries. 51 Clearly, its commercial relationships to the Atlantic played an important role for Hamburg ' s economy. Thus, despite a lack of direct involvement in New World colonialism, Hamburg emerged as a major entrepôt for colonial goods sold to the European hinterland, as well as linens destined for the Atlantic.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a74bff9082d980fd44afdcdd893dc185ab78bc1ec4ce6fda8206fdb0277f3746",
+    "text": "Politically, too, Hamburg constitutes a useful example for the study of free ports: it differed from the free ports the literature has focused on so far, in that it was not a monarchy, but a small city-republic. While formally part of the Holy Roman Empire, legislative and executive power rested with the Council and Assembly, the Rat and Bürgerschaft. Furthermore, a formal body representing the merchant community, the Commerzdeputation, while not formally part of the government, was in constant conversation with the Council and wielded substantial influence. 52 Debates at government level therefore immediately reflect the interest of different stakeholder groups in the city. The merchants ' perspective, especially, emerges with greater clarity than in locations with less popular representation in government. While proponents of a free port did not prevail at this point, the Hamburg debate sheds light on how global economic forces and local economic, political, and social interests conspired to shape trade policies at a time when Central Europe became irrevocably entangled in the global economy. If Atlantic trade expansion drove the proliferation of free ports, we would expect Hamburg ' s records to reflect this.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_48a484b80e55a2630b99ca950fc43310d735e4de3bb13ebe4f57e96c2dda6a2f",
+    "text": "42 For example, see Karin Newman, ' Hamburg in the European Economy, 1660 -1750 ' , Journal of European Economic History 14, no. 1 (1985): 57 -93; Lindberg, ' The Rise of Hamburg ' ; Klaus Weber, Deutsche Kaufleute im Atlantikhandel, 1680 -1830: Unternehmen und Familien in Hamburg, Cadiz und Bordeaux (C. H. Beck, 2004); Hermann Kellenbenz, Sephardim an der unteren Elbe: Ihre wirtschaftliche und politische Bedeutung vom Ende des 16. bis zum Beginn des 18. Jahrhunderts (Franz Steiner Verlag, 1958); Joachim Whaley, Religious Toleration and Social Change in Hamburg, 1529 -1819 (Cambridge University Press, 2002).",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7f2d2eeccfe923e5cd93a52d9186f2aa9fc07e82dd084bbab255d165dd034c40",
+    "text": "43 Lindberg, ' The Rise of Hamburg ' , 654.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a8c816af3666edb9e4eb11a827bcd3dfe5c890af96c54fb7785a5af4782cc9a5",
+    "text": "44 Jorun Poettering, Handel, Nation und Religion: Kaufleute zwischen Hamburg und Portugal im 17. Jahrhundert (Vandenhoeck & Ruprecht, 2019); Whaley, Religious Toleration and Social Change ; Kellenbenz, Sephardim an der unteren Elbe ; Lindberg, ' The Rise of Hamburg ' : 657.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b4277ab064d39ef7017e874163d95b69fdfe1ea661123972ed5dad54314969e2",
+    "text": "45 Weber, Deutsche Kaufleute ; Margin Schulte Beerbühl, Deutsche Kaufleute in London: Welthandel und Einbürgerung (1600 -1818) (R. Oldenbourg Verlag, 2007).",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_431b9bcd8ce03d5e1f863a78cc6df0f55c5a0dfa704784fd28c963706c1e55a4",
+    "text": "46 Pfister, ' Great Divergence ' , 56.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_27f6abc715dd11bb09d154d89e984b15acb768a69649aaa731cd21ebd7bd2ea1",
+    "text": "47 Newman, ' Hamburg in the European Economy ' , 63, 65; Lindberg, ' The Rise of Hamburg ' , 641.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_df1292ebdb0506be78bf7f8380d59b34337d3c158b36f8eeb57f87b21662fb59",
+    "text": "48 Pfister, ' Great Divergence ' , 4; Weber, Deutsche Kaufleute ; Beerbühl, Deutsche Kaufleute in London ; Steffen, ' A Fierce Competition! ' .",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b77b8bc5ab19b6e085c89488a32cd3af419df05d5f8af3baccb907a981426f49",
+    "text": "49 Pfister, ' Great Divergence ' .",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7b1d9dc6911d121552fa74941754a195582d8c63ecd6a191dd265b5e1e016c7c",
+    "text": "50 Johan Georg Büsch, Über die hamburgische Zuckerfabrik (Hamburg, 1790), 18.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_838ecdda4322986327c53d28c916eb32f4d9bc0f4f1a2ecb52419baef0aba1fc",
+    "text": "51 Astrid Petersson, Zuckersiedergewerbe und Zuckerhandel in Hamburg im Zeitraum von 1814 bis 1834: Entwicklung und Struktur zweier wichtiger Hamburger Wirtschaftszweige des vorindustriellen Zeitalters (Franz Steiner Verlag, 1998), 47; Pfister, ' Great Divergence ' ; Weber, Deutsche Kaufleute , 227.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_77877cfc0b9f040b99f4f64e70893e45dc0a8dde3fe0f1e8d3422e889bb37d5c",
+    "text": "The main proponent of a free port in Hamburg was the Commerzdeputation. During the 1750s, it petitioned the Council for a free port at least eleven times. The merchants had reason to expect sympathy from the Council: of its twenty-four members, thirteen were merchants, whilst the other eleven were lawyers. Election to all posts was by co-option, provided that the candidate was Lutheran and over thirty years of age. 53 The Council ' s powers included foreign policy, the dispensation of justice, and numerous other aspects of domestic administration. In most areas the Council ' s power was administered in mixed disputations consisting of senators and citizens elected by the Bürgerschaft. Importantly for Hamburg ' s free trade debate, the Council could not change or make new laws, or levy taxes, without the Bürgerschaft ' s consent. 54 Unlike the Council, the Bürgerschaft primarily represented the interests of Hamburg ' s guilds, artisans, and craftsmen who did not usually make their living from trade. As the new processing industries of sugar, tobacco, and coffee were not organized in guilds, their interests were not represented in the Bürgerschaft. Admission to the Bürgerschaft was based on freeholder property in the city. 55 The Bürgerschaft met biannually, at the Council ' s request. At these meetings, it passed important legislation affecting the interpretation of the constitution. Importantly, its remit also included all matters relating to taxation, tolls, and customs. 56",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1dbf797a299709f8c7613a74804c01c818af5d6ed8d3c017ebcad664d871a03d",
+    "text": "During the eighteenth century, Hamburg ' s main tolls were the admiralty and convoy tolls, levied to fund convoys for the protection of Hamburg ' s merchant fleet from Mediterranean piracy. However, not all imports were subject to the admiralty and convoy tolls. Toll-free goods included all maritime imports from the northern Netherlands, the neighbouring German sea ports, the Baltic and Scandinavia, all river and overland trade, and all imports of goods for the use of citizens themselves, as well as coal and grain. 57 Liberalization of the port ' s tolls began early in the eighteenth century. In 1713, the Council cut tolls on the transit of wares through the city and on goods that would be stored in Hamburg for up to six months. In 1727 it declared the city a porto transito , which meant tolls on exported goods were limited to a few areas of trade, notably grain. In 1748 tolls on grain exports were also abolished. 58 In 1751, when our analysis sets in, the city still levied tolls on all imports from France, Britain, Spain, Portugal, and the Mediterranean. The sources reveal that the inclusion of agricultural products from these countries ' colonies such as raw sugar, coffee, and cotton were a particular concern. In addition, exports of manufactures produced in the city continued to be subject to tolls.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cd7802b50e13c51fc497eb03bb8927d3b9fa5188e5f0cc0e7bc8a2d00afe128f",
+    "text": "One hundred years earlier, these toll reductions might have sufficed for contemporaries to consider Hamburg a free port. As the sources show, during the 1750s, it no longer did. Extensive records of the Council and the Commerzdeputation survive, while those of the Bürgerschaft do not. The Council and the Commerzdeputation ' s records show Hamburg ' s merchants and magistrates discussing the pros and cons of a free port for over 200 years. Ernst Baasch, perhaps the most prolific writer on Hamburg ' s pre-modern economic history, noted that the free port debate entered a particularly heated phase during the 1750s. 59 Following his lead, I identified four sub-collections of sources related to the free port debate during this decade. Comprising almost 900 pages, the files include copies of the same documents and repeat the same arguments over and over, suggesting that they provide a comprehensive picture of the debate. Specifically, the documents viewed are first, the ' Extracts of the Protocols of the Commerzdeputation, February 1751 -September 1760 ' . This contains the minutes of sixty-two Commerzdeputation meetings during that time, spread relatively evenly across the decade. Second, the ' Investigation whether the Hamburg tolls have an impact so detrimental to its commerce that they need to be abolished entirely ' , from 1751, comprising eleven pages of anonymous authorship, parts of which appear identically in other records of the Council ' s collection. Third, the ' Recentiora regarding a free port ' , a collection of around 600 pages, including copies of the Commerzdeptuation ' s petitions to the Council, and extracts of minutes of Council meetings on these petitions. Fourth and finally, the ' Toll-deliberations regarding the introduction of a free port, 1752 -1756 ' , containing about fifty pages of commentary by Council member Z. Amsinck, explaining his views on a potential free port. Through these records, we can trace the ebb and flow of the free port debate.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_84580a60ddb1fccb064d5f3917edc4122c56cb7b686f7504fbd57ed6158c3ffd",
+    "text": "52 It included all Christian overseas merchants trading on their own account. Poettering, Handel Nation und Religion , 276; Weber, Deutsche Kaufleute , 227.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_eaf23fcce946f7ffc3ef74da8f4cda11ba97128439ce521f475a4cf093a92e99",
+    "text": "53 Whaley, Religious Toleration and Social Change , 20.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_466c941fbfef9a6f3ca8b66395011a16954211f71330dbfab3ba39b4dcd6bf90",
+    "text": "54 Lindberg, ' The Rise of Hamburg ' : 655.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3af0007ebd561c38f49275e54bfd909124d15c3315d85d8c67d28cb51f0119f5",
+    "text": "55 Whaley, Religious Toleration and Social Change , 20. In addition to non-freeholders, non-Lutherans, employees of foreign rulers, city employees, bankrupts, and non-guild craftsmen were not admitted.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_913629bd5404ed50132aa21092d9ab49b31a5ba81daaf1567b8f2f4e9ccc4bd5",
+    "text": "56 The Hamburg constitution at this time was complex. For details, see Whaley, Religious Toleration and Social Change , ch. 1. 57 Pfister, ' Great Divergence ' , 9 -11.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6cab2b15e1ec7ff614bf94ac684b2594311d04f882eaede262df00ca0f82924e",
+    "text": "58 Markus A. Denzel, ' Der seewärtige Einfuhrhandel Hamburgs nach den ' Admiralitätsund ConvoygeldEinnahmebüchern ' (1733 -1798): Für Hans Pohl zum 27. März 2015 ' , Vierteljahrschrift für Sozial-und Wirtschaftsgeschichte 102 (2015): 131 -60, 134.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fd2c9b801764969f2e9f15c4657eeb767e2ceef53cf617f06a46c420dc7d3598",
+    "text": "The sources show that the debate over a free port rested upon two tropes: first, concerns over what contemporaries called the ' jealousy of trade ' -that is, European states ' propensity to defend their commercial interests through military force; 60 and second, and perhaps even more importantly, participants considered contemporary ideas regarding both governments ' and individual citizens ' responsibility to contribute to the well-being of the polity as a whole. While both themes at first glance appear to reflect local and regional concerns, the sources show merchants and magistrates relating them explicitly to the Atlantic trade.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_db922a04303d2669187237a3620c9d36b2d2e6238b663a5e6f64e66cfe2a1704",
+    "text": "The Dutch threat and the competition for colonial imports",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0876265aeac65f12e839ceb44b6498ec55577021874ae1dbacc1d0d93e3978cf",
+    "text": "Hamburg ' s free port debate during the 1750s was triggered by news arriving from Amsterdam, the city ' s main commercial rival on the European continent. 61 First, in the summer of 1751, the Dutch Stadtholder William IV, commander-in-chief of the army and de facto head of state of the United Provinces, presented the States General with a ' Proposal : : : for the reform and improvement of the trade of the republic ' . This pamphlet lamented the decline of Dutch trade since its seventeenthcentury heyday. It outlined a plan to recapture the Netherlands ' former commercial glory and regain its place among the world ' s leading political powers. Its central point: the introduction of a free port at Amsterdam. 62 Plans for a free port in Amsterdam were halted when the Stadtholder unexpectedly died later that year. However, public debate on the benefits and drawbacks of a free port at Amsterdam continued. This led to the second piece of news to send Hamburg ' s merchants into a frenzy: the Dutch abolition in 1754 of tolls on imported goods also prominently traded through Hamburg, namely wax, indigo, Russian leather, and jute. 63",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3779906671800d4a2fc3da101a79643b31f2170f0832c9e817b0be49e34296e2",
+    "text": "59 Ernst Baasch, ' Hamburg und Holland im 17. und 18. Jahrhundert ' , Hansische Geschichtsblätter 16 (1910): 45 -102.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_990896ddbd68355c262eb73fca49ce1120ec9a8d4ec4fa64b3bb4599aaa3be70",
+    "text": "60 A detailed discussion of the arguments in the context of the ' Jealousy of Trade ' follows in the next section of this article.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5d37d34a50dd69d0efb8658142efffc2f9d0c59e7ee5579090e541a4c5d83233",
+    "text": "61 Baasch commented on the influence of Amsterdam developments on Hamburg ' s free port debate in this century, but did not go into any detail. Baasch, ' Hamburg und Holland ' .",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f303edd054b4e8bc452e003df40b39089a30327dba80a8059875cc8c6eb49112",
+    "text": "62 Stapelbroek Koen, ' Dutch Commercial Decline Revisited: The Future of International Trade and the 1750s debate about a limited Free Port ' , in Governare il mondo. L ' economia come linguaggio della politica nell ' Europa del Settecento , ed. Albertone, Manuela Antonietta (Feltrinelli editore, 2009), 227 -256; Helen Liebel, ' Laissez-faire vs. Mercantilism: The Rise of Hamburg & the Hamburg Bourgeoisie vs. Frederick the Great in the Crisis of 1763 ' , Vierteljahrschrift für Sozial- und Wirtschaftsgeschichte 52, no. 2 (1965): 207 -38, 215.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2f68d2ede73fbfa3741f71f78ae43d6864432a2d9eca213195e7601d60779066",
+    "text": "63 Stapelbroek, ' Decline ' , 230.",
+    "page": 12,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cf6fc6e4bd36fa21d0f1d647bdb8d7121aa10496e67a6e58c7f67de49f1d45c4",
+    "text": "Hamburg constituted Europe ' s third-largest port after London and Amsterdam and vied with the latter for the role of primary gateway between Central Europe and the Atlantic, as both served as hubs for the import of colonial goods to Central, Eastern, and Northern Europe, and the export of continental European textiles into the Atlantic. 64 News from Amsterdam travelled quickly to Hamburg, and a copy of the Proposal is included among the Hamburg Council ' s records of 1752. 65 The Hanseatic merchants perceived the plan of a free port at Amsterdam as a threat to their own business interests, as well as to Hamburg as a whole. Galvanized, they began petitioning the Council. The Commerzdeputation demanded the Council take measures to avert the pending disaster. They argued that it was to be expected that the Amsterdam free port would ' overthrow ' Hamburg ' s trade completely. Hamburg was in no position to compete with a Dutch free port, as its trade was already struggling due to the ' manifold burdens ' the Council refused to lift. 66 The only way of avoiding ' the Dutch robbing us of the major part of our trade ' was to immediately abolish tolls on trade in the same wares ' for all nations ' . The Commerzdeputation impressed upon the Council the urgent need to introduce a free port in Hamburg, too: ' according to the majority of voices ' , they warned, the introduction of an unlimited free port was ' near unavoidable : : : lest the Dutch, once they executed their free port project, cause our trade a great disadvantage ' . 67",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5f7e19d8dbcac8d6e5b7d852c889f4dd6068a0b50d041dda50f5eb046a48d3fd",
+    "text": "Upon learning of the introduction of toll exemptions in Amsterdam in 1754, the Commerzdeputation again contacted the Council, informing it that the ' latest post from Amsterdam contains reports that the introduction of a general free port there is imminent ' . 68 They emphasized that the Dutch plan presented an immediate and grave threat to Hamburg, as ' [c]ertainly, the foreign merchant will send his wares to places, and order them from places, that cost him least ' . Merchants, always on the look-out for ways of saving costs, were bound to abandon Hamburg and move their business to Amsterdam. Even the smallest differences in transaction costs between ports would make merchants redirect their business, the Commerzdeputation argued. 69 A typical letter of the many the Commerzdeputation directed to the Council during this time read as follows:",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1ff41692f955f554605fd3ff8a0162d075b304a240a8654f40a0d730f80ff5ea",
+    "text": "For several years now, trade has increasingly abandoned our city, and our neighbouring towns, who are thriving, do so mostly thanks to trade that formerly went through Hamburg. And what other cause do foreigners have for abandoning us, than the tolls they have to pay here, but not elsewhere? 70",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b1678947f0cce201ca8d446a03754d04d4c613dd1cb1b80e78ce77bbc9b53603",
+    "text": "An abolition of tolls at Amsterdam would increase the relative cost of trading through Hamburg, which the latter ' s trade would not survive. No loyalty could be expected from merchants presently trading through Hamburg, as even ' German friends are writing that they will obtain wares from Holland with greater profit. ' 71",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_42f5c827e15d16899f773a971f1f6c0c52b07c893bb3ffc23ff78d44de2bb8e5",
+    "text": "The Commerzdeputation framed Dutch plans to liberalize trade as acts of political aggression directed purposefully at Hamburg. The merchants accused the Dutch Republic of deliberating a free port specifically out of ' jealousy against Hamburg ' s trade ' . 72 Referring to the Proposal, they argued:",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1cf0d5081795730bf0106dad65f48cbfa06841e8eaf63d4c30018ccabf3bb784",
+    "text": "64 Pfister, ' Great Divergence ' : 54.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_379d845849cc9476084856373a3de35cf61aca555418f1e02da96fe085ea2131",
+    "text": "65 At least one copy of the ' Proposal ' is included in a 1752 file of the Hamburg Council: 111-1_54446, ' Was in Holland wegen eines einzuführenden Porto Franco beschlossen und zum Teil unvollzogen gelassen wurde ' , Staatsarchiv Hamburg (hereafter, StAHH).",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8ae42f7e0cb253bf740ca40b3bbf4d0eab7d744e75a8d703fcbbfc8bb23c8d32",
+    "text": "66 ' Recentiora hinsichtlich Porto Franco, Veneris d. 18. Febr. Anno 1752 ' , StAHH.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3cfca4a017142b8ae47c1ba83905b556f1e8361f7caf025ab42b0725eaf3a662",
+    "text": "67 Ibid.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8abc94c97eaa0075974fc1b232f0deb845349a1c4914fd62f853728436e9b80f",
+    "text": "68 ' Recentiora, Veneris d. 29. Martii Anno 1754 ' , 111-1_54449, StAHH.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_10dc4929f0bb3a7311bf41c07bd4d7403da1d721fe9f85597569bad203a4d7ca",
+    "text": "69 ' Recentiora, Antrag Deputator. Commercii Lunae d. 11. Juliii 1757 ' , StAHH.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_83b68b450045788a336bb3e5b0487633a8a3d8ef385a1eb177c3b09523017df4",
+    "text": "70 Ibid.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_371e3a9ccc6eb006c27707d985b094fd48b7987fe7abc996c543af98cc653504",
+    "text": "71 ' Recentiora, Veneris d. 29. Martii Anno 1754 ' , StAHH.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a42820a06e913eba80ec26c57a8c4fbb3af1e7cd91e18a7b6c2a3c73ef5d8e1b",
+    "text": "72 ' Zoll-Deliberationen zur Einführung eines Freihafens 1752 -1756, Mense May 1756 von Z. Amsick entworfene recapitulation der Zoll deliberationen und deßen votum ' , 111-1_54535, StAHH.",
+    "page": 13,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d403375bdc29d302ee835d24673848a5596c2947d0dfecd56311418821b9d9ff",
+    "text": "It has come to light now that the true aim of the free port is no other, than to benefit from the present depressed state of the economy to draw the Spanish trade, and with it the most considerable part of our trade, away from us and towards Amsterdam. 73",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_28838f981649126e061a4f7b197fbc2a16994480e97abb6c9bb629c1415ab68e",
+    "text": "There was some base to this argument. The Proposal of 1751 did name Hamburg as one of the Netherlands ' main competitors, together with the much smaller ports of Ostend, Dunkirk, Bremen, Lübeck, and Altona. 74 Indeed, the Commerzdeputation pointed out that ' when in 1752 trade between Hamburg and Spain was disrupted, Holland immediately concluded a treaty with Spain, which freed linen and various other import and exports to Spain from tolls ' . 75 The letter did not mention how Hamburg had provided this opportunity, angering Spain by signing a treaty with Algiers to protect its ships from Barbary pirates. The treaty had included a secret passage in which Hamburg pledged to provide guns, powder, lead, and ship-building materials to the North African state. Spain learned of this promised aid to its enemy and cut Hamburg off. 76",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a4674dfb5144710f512458bcde7fe58b6635e844af3db01c4a8d5ae9dc699e7c",
+    "text": "The extent to which Hamburg ' s merchants experienced losses due to the short disruption of trade with Spain is not clear. However, by the mid-1750s, they certainly struggled. War in the Atlantic, which raged in the years 1701 -14, 1740 -48, and 1756 -63, had become increasingly impactful. Its political neutrality offered some protection to Hamburg ships, though many still fell victims to warring powers ' privateers. As the importance of the colonial trades for the city ' s economy grew, so did Hamburg ' s sensitivity to war in the Atlantic. The city ' s reliance on French, British, and Spanish colonial imports meant that its trade and industries suffered from the disruption of those countries ' trade. The impact of the Seven Years War (1756 -63) was the greatest. This saw Europe ' s leading colonial powers battling each other around the globe, which severely disrupted maritime trade. Fighting in the Baltic disrupted trade flows to Prussian ports. As a consequence, one of the Commerzdeputation ' s missives to the Council in July 1757 pointed out, ' wares necessarily will have to be transited through either Hamburg or Altona in order to reach the Brandenburg lands ' . They went on to say that unless Hamburg eliminated tolls on those goods, the Altonaers, who already enjoyed a free port, would be able to capture all trade in wine and spirits. ' In view of the many advantages tied to [the Baltic trade], such as securing insurance, payment of bills of exchange, and employment for many people ' , the letter warned, preventing them from underselling the Altona merchants by keeping tolls in place would be strategically unwise. 77 Hamburg imports dropped by about 20 per cent, and prices of colonial groceries in Hamburg exceeded peacetime levels by almost 40 per cent. 78 After the war, the city ' s trade took an unusually long time to recover, compared with post-war periods earlier and later in the eighteenth century. Researchers have not been able to fully explain this, but lack of competitiveness with the new Dutch toll regime may have been one factor. 79",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fe6e75427041cc708407bbe3e37b582eb66aa113fed6a51e4661067cf1a82813",
+    "text": "The merchants ' framing of the Dutch policy proposal as an act of aggression, founded in ' jealousy ' and intended to harm Hamburg, hints at a key theme underlying the debate: the contemporary relationship between commercial competition and warfare. European states relied on monopolizing and taxing commerce in order to support their armies and navies. By excluding foreigners, European states hoped to secure revenue from trade for themselves. Their trade policies therefore aimed at generating income to fund military campaigns. At the same time, European powers employed military means to support their trade interests. Wars in support of commercial interests generated further need of funds, resulting in a vicious cycle of trade -war trade. 80 Contemporaries across Europe referred to this political-economic relationship as ' the jealousy of trade ' . 81",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f54e4ace38c86c7a9e21c8b403a9b009e8c2b660a5ec20a9f6b7486b30b9eac0",
+    "text": "73 ' Extract Protocolli Commercii Das Porto Franco betreffend, Port Community B6 # Anno 1752 d 17 Febr ' , 621-1/38_123, StAHH.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e41c1c9f1c0803130dca68356896e34fb37e672f183a353547b2448941f568e8",
+    "text": "74 Cited in Stapelbroek, ' Decline ' , 236.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_30079d3ac2ae73f64789ce8780baf815e464ac7501fbba45e91e30d129a30c53",
+    "text": "75 ' Recentiora, Antrag Deputator. Commercii an E. Ehrbahren Kaufmann ' , StAHH.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_42010b516fe156d9b1692f075b279e1e03c74cbbfc3a9f240a4cf95d14751d24",
+    "text": "76 Weber, Deutsche Kaufleute , 107.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f3c0bc4c7848e9dbec5edfc2bc9f8d443614617d717e7a73914046b1282f2008",
+    "text": "77 ' Recentiora, Antrag Deputator. Commercii Lunae d. 11. Juliii 1757 ' , StAHH.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cd80a4be1a0971fe5d228f03bd28411a1c81f59afaa331dc48b939d2dfbcb5dd",
+    "text": "78 Pfister, ' Great Divergence ' , 28, 34.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_eb43ef66943b2e98f70282e0f9871f36cf129581d83d2620f6bbce4da119a8a5",
+    "text": "79 Ibid.",
+    "page": 14,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b5bed4ffa51a7a6094edcd0f07757041f459451afa2a45d3926f23439ac9459d",
+    "text": "Differences in economic power translated into hierarchical relations between states. 82 Their prominent role in trade allowed small republics like the United Provinces, and Hamburg to interact with greater empires like France and Britain on the global commercial stage. However, as a city-republic, Hamburg, far more than its peers Amsterdam and London, faced the threat of European rivals without the financial and military backing of a territorial ruler. 83 Indeed, one senator questioned whether Hamburg, ' as the only city without any territory isn ' t getting ahead of itself in pursuing commercial pretentions like some of the greatest nations in Europe? ' 84",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6fac7d883066d72ec8f6ff5242c94d8400ff1dff70e1907a365e052af7fdcb69",
+    "text": "Hamburg ' s position within the European state system rested entirely on its neutrality and favourable diplomatic relationships with the great powers. This constituted a delicate equilibrium, the maintenance of which was paramount to the city ' s survival. Given the commonly understood connection between trade policies and war-finance, the senators warned that foreign powers might conceive the introduction of a free port in Hamburg as an act of political aggression -mirroring the merchants ' argument that the Dutch Proposal constituted just that. The senators argued that ' most princes are watching our trade jealously and any new means of further encouraging the expansion of our commerce would only provoke them further ' . 85",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5a4fd537e8ee9d0b9481286102669e20ed53598e0248a32c207bde147e08299d",
+    "text": "Hamburg especially struggled with aggression from neighbouring Denmark, who threatened Hamburg ' s independence and its gateway function between inland and maritime trade. The Danish crown repeatedly used its superior military power to extort large sums from Hamburg. 86 It also weakened the Hamburg emporium by creating alternative seaports on the lower Elbe River and supporting the development of a commercial infrastructure there. Most important among these was Altona, which immediately bordered Hamburg and became an early free port in 1665. The Hamburg senators argued that Denmark had been forcing its subjects to purchase goods directly from the first port of origin, circumventing intermediary trades and thus putting traders out of business. 87",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c999c6ce2d1ad21a1066709af0d296adcfd2c1a17ad7597dc62608af8787e9be",
+    "text": "In the face of the Council ' s staunch objections, in 1756 the Commerzdeputation suggested a limited free port as a compromise. 88 This would extend the transito of 1727 to abolish tolls on exports via the North Sea. Some senators acknowledged that this would help Hamburg ' s trade, but warned that the geopolitical risks were still too great. They thought that ' favouring certain powers and their countries over others would clearly cause the most dangerous consequences for the city : : : France is paying close attention to our tolls ' , Senator Z. Amsinck explained in May 1756 in his ' Recapitulation of the toll deliberations ' in which he summed up the discussion of the preceding years. If Hamburg were to abolish any further levies, France would immediately demand the lifting of duties on all goods arriving from French ports, he predicted. 89",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_81909721679c81f2d695b55c74430721d87aff3413ec093a6bc2f34fcdc6733a",
+    "text": "Hamburg had concluded a commercial treaty with France in 1716. It provided the Hanseatic town with the most favoured status reserved until now for the Dutch, and protected its citizens '",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6f4fbfe853ac84df5f75bbdee12207314b626d073a80c3cee912329e9752ba32",
+    "text": "80 Istvan Hont, Jealousy of Trade: International Competition and the Nation-State in Historical Perspective (Harvard University Press, 2005); Sophus A. Reinert, ' Rivalry: Greatness in Early Modern Political Economy ' , in Mercantilism Reimagined: Political Economy in Early Modern Britain and Its Empire , ed. Philip J. Stern and Carl Wennerlind (Oxford University Press, 2013).",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_563574512c03df3eca21e53d9bb43a7679ca869ece0739dac00b7384dbf4b12b",
+    "text": "81 Reinert, ' Rivalry ' ; Hont, Jealousy of Trade , ' Introduction ' .",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_67f03e8e771975a22352ca4f186d55cfc2e8b0a62e98d2fd2e9cd5c449f3921d",
+    "text": "82 Reinert, ' Rivalry ' , 353.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ccfd2369b24f1cfd811de1080f263c2e370199813fb47c947241db559af3e2fd",
+    "text": "83 Weber, Deutsche Kaufleute , 225.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_36bb009bd438b74943f43af76439b49cabe23833d5626b99f6481c4524d785fc",
+    "text": "84 ' Zoll-Deliberationen ' , 12, StAHH.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c932355fffc8a9a18ee02b693df5715eeb0c79150acb15a15c99aeb407d75895",
+    "text": "85 Ibid., 40.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e8bd2cfcf222c5547a48a970c7acb033e3019ad00d82f7b9b6c279583b0d558b",
+    "text": "86 Pfister, ' Great Divergence ' , 9.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_927ec3946697f54cbcfb39dad2e5cef64655dec6a7c0772d765578f46acef03b",
+    "text": "87 ' Zoll-Deliberationen ' , 21, StAHH.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b460bd54d058dc58c4a38b1baf1db9aa1d922dd87847be07b60cc14d6c701ea3",
+    "text": "88 ' Recentiora, Commerzdeputierte an den Rath, Oktober 20, 1756 ' , StAHH.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2781cb9c3b6bf228d398805de701b6955cbcf9fa72eeb1eb1b23abb958dd55a3",
+    "text": "89 ' Zoll-Deliberationen ' , 9, StAHH.",
+    "page": 15,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4dada3f155b3092a2b0aba8ae6206b8fa8268f868b268ef1d4e9164de9290f98",
+    "text": "freedom of movement and property rights in French seaports. 90 The treaty of 1716 thus granted Hamburg political neutrality and protected its commerce. Combined with the emergence of Hanseatic merchant communities in French seaports and a Huguenot community in Hamburg from the late seventeenth century, this treaty constituted a major institutional basis for Hamburg ' s new commercial focus on sugar and coffee. Robert Stein estimated that during the eighteenth century, Hamburg received about four-fifths of its raw sugar from France. 91 By the 1730s, France was Hamburg ' s principal trading partner. 92 Angering France might cause the more powerful partner to end the treaty, and thus the ' loss of our entire neutral trade and shipping ' . 93 The senators were right to be worried: with the onset of the Seven Years War in 1756, Hamburg ' s relationship with France became increasingly strained and in 1760 the larger state did cancel the treaty. 94 While France remained Hamburg ' s principal trading partner for more than two decades, Hamburg merchants in France now had to pay higher taxes and lost the preferential status they had long enjoyed. This sent the Commerzdeputation pushing for a new treaty, which was not concluded until 1769. It was similar to the treaty of 1716, except in the matter of several secret articles in which Hamburg granted French merchants far-reaching toll exceptions. 95",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9c9eb75654804108f758669c3d121423faf85d2ab6aed4f6b03f9db3c1df3010",
+    "text": "The senators emphasized that as a city-state, Hamburg found itself in a particularly precarious position vis-à-vis larger European powers ' aggressive commercial overbearance, even with commercial treaties in place. ' Trading cities [such as Hamburg] hardly benefit from these [commercial treaties with foreign powers] as they are forced to follow them to the letter, while great powers interpret them as they wish and follow or ignore them as they please. ' The best way to avoid provoking the ' jealousy of the great powers ' was to avoid ' bragging about one ' s own commerce to foreigners ' and hope that nobody would notice one ' s success. 96 This reprimand hinted at Hamburg ' s rivalry with Amsterdam, its main competitor for channelling Atlantic goods into continental Europe. Hamburg ' s merchants were terrified that if the rival introduced a free port while Hamburg did not, this would tilt the scales significantly in Amsterdam ' s favour. Hamburg would lose the benefits it enjoyed from its close ties to the Atlantic economies, followed by economic decline. In their petitions to the senate, Hamburg ' s merchants framed the Dutch proposal as part of the contemporary ' jealousy of trade ' . Its threat to Hamburg ' s economic interest was not an unfortunate by-product of the United Provinces ' economic policies, but an intentional provocation. When responding to the Commerzdeputation ' s petitions, Hamburg ' s Council also highlighted the threat the city faced given the ' jealousy of trade ' . However, the Council saw danger lurking in another corner: in their view, liberalizing Hamburg ' s port might bring France onto the scene. France played an important role in supplying Hamburg with Atlantic goods. In the Council ' s eyes, potential retaliations from France outweighed any threat Dutch competition might pose. Similarly, the Council saw a risk of attacks by Denmark, who had been threatening the cityrepublic both economically, through creating a number of free ports in Hamburg ' s immediate vicinity, as well as militarily. As a small city-republic, Hamburg lacked the military means to support its economic interests vis-à-vis greater territorial states. Hence, it needed to find diplomatic means to ensure both its economic and political survival. While the merchants thought a free port would help with the former, the Council feared it would endanger the latter. In other words, in 1750s Hamburg both proponents and opponents to a free port saw the city ' s commercial ties to the Atlantic at risk. They differed merely on their interpretation of how best to protect this relationship.",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a2e7d818bbb5242aa9ce2f9c16541e9b0698fc4de5df085d606576d119d97a33",
+    "text": "90 Fred-Konrad Huhn, Die Handelsbeziehungen zwischen Frankreich und Hamburg im 18. Jahrhundert unter besonderer Berücksichtigung der Handelsverträge von 1716 und 1769 (PhD diss., University of Hamburg, 1952), 88 -101; Weber, Deutsche Kaufleute , 166 -7.",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_629654cf74ce3d2ee7dbe47259f7ba78f9f06fdf12fd48caabf19088fd4253ad",
+    "text": "91 Robert Stein, ' The French Sugar Business in the Eighteenth Century: A Quantitative Study ' , in The Atlantic Slave Trade , ed. Jeremy Black (Routledge, 2022), 319 -33.",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_03fc6ce83c06bba0cfde8074e05980540d5aad736d53a066b654d81651e47ef0",
+    "text": "92 Weber, Deutsche Kaufleute , 172 -224, 239 -55; Pourchasse, Le Commerce du nord , ' Introduction ' . 93",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5a9d39381d03447449fd63abaf55612d9d3f12a7e07b02ed4861fba1020ad19c",
+    "text": "' Zoll-Deliberationen ' , 28, StAHH.",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_54c64369e9c70bd1eeeafb439cbbac1fa72f5718a0f700406672a4fa2f700111",
+    "text": "94 Huhn, Handelsbeziehungen , 130 -47.",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d7cf2a02ad49b62f54fcca0b414664a07c3d71a39a4541f28508fef439605a08",
+    "text": "95 Weber, Deutsche Kaufleute , 167 -8.",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_782041f5a17e0c769b3632f914ccddc8272570782fbb3373d17a323ddbf1e186",
+    "text": "96 ' Untersuchung ' , 8, StAHH.",
+    "page": 16,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6fe66f7ce009f808c109c3379d244cfa6035261f218cd46b86127b66ecbcc1a6",
+    "text": "The question of social responsibility: Or, who foots the bill?",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f536b0d1441e965bc2a60efa07ed6343ef8d5f34a9934fd05b93ebe13d57cd5f",
+    "text": "The Senators mostly agreed that trade was suffering. However, they objected to the free port as an appropriate remedy for Hamburg ' s commercial crisis. Frequently, they pointed out that there had always been levies on trade in the past, and commerce had flourished anyway. 97 It was therefore not reasonable to blame the current crisis on tolls. Instead, the Council identified broader developments in European political economy as the root cause of Hamburg ' s trouble. Specifically, Hamburg ' s senators blamed other states ' protectionist policies. This period saw the ascent of Prussia and Russia as major powers, whose economic policies pivoted on controlling foreign trade and subsidizing local industries. 98 These developments presented a new and serious challenge to Hamburg ' s commerce. According to the Council, foreign princes had lost their way: ' In this century, monarchs in nearly all European states have been paying particular attention to increasing their own trade by building factories and banning the importation of foreign goods ' , they argued. 99 No longer prioritizing the well-being of their citizens as a whole, they had begun to favour policies which enriched the few, while causing great harm to everyone else.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_eb2ab2d065898add64c81997607c3dbf3663fff499f9e9b1b06d5d7d3a8afca2",
+    "text": "To illustrate their reasoning, the Council pointed to measures Russia had recently taken. In 1703, Peter the Great had founded St Petersburg. To increase trade, he invited merchants to settle there as well as ordered trade formerly transacted through Moscow to move to the new port. 100 They argued that the ' building of St Petersburg and that government ' s moving trade there ' made it more advantageous for many in Prussia, Bohemia, Hungary, and Austria, who formerly obtained goods from Hamburg, to import these through St Petersburg instead. 101 In 1721, the Tsar forced foreigners to move their bank accounts from the old Hanseatic port of Archangelsk to St Petersburg. While Archangelsk declined, St Petersburg ascended to become the growing empire ' s primary port. 102 This necessarily also affected Hamburg ' s traditional trade to the eastern Baltic.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cf8fa40fed3454ff7527ed1f07d8da9ef945cc090fe96869409da9627ad3c766",
+    "text": "Furthermore, the Council explained that Hamburg ' s calico printers ' decline was due to their products having been ' banned in so many places ' . The merchants themselves bore some blame for goading others into such measures: ' [we] wish to God one [meaning the merchants] hadn ' t screamed and bragged so much to foreigners about [Hamburg calicos] ' , they wrote. 103 A further important sector of Hamburg ' s industry which protectionist measures threatened was sugar refining. Following the Caribbean sugar revolution, production increased and prices for sugar declined. During that time, Europe ' s growing middling sorts were in the process of forging a culture of their own, which relied on new habits of consumption as markers of identity. 104 They especially enjoyed ' exotic ' goods from overseas, and added sugar to their new favourite beverages of tea and coffee. 105 By the eighteenth century, the sweet stuff had become a staple of European diets. Merchants shipped raw sugar from the Caribbean to the colonial motherlands. From there, more often than not, it was re-exported for refining. The main locations for sugar refining at the time were Copenhagen, capital of Hamburg ' s long-term political nemesis, Denmark, and Amsterdam, Hamburg ' s main economic rival. The third was the Elbe city itself. By the mideighteenth century, sugar refining constituted one of Hamburg ' s most important industries. 106",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_dcf14feae2acca29693d6e6c3cc9129c6542bc75a7a4210cdda1f580c792d228",
+    "text": "97 ' Zoll-Deliberationen ' , 32, StAHH.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_052ee242cf8828340dd48c573b260c05d51cb39970e0a2e2e17ab8cbace58838",
+    "text": "98 Pourchasse, Le Commerce du Nord , Introduction, §8 (The e-book I used provides paragraph numbers instead of page numbers). Specifically on Prussia, see Felix Töppel, ' Die Preußische Seehandlung und die Konsulate ' , Forschungen zur Brandenburgischen und Preußischen Geschichte 1 (2022): 19 -51.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_49ade8c285ceb5951788a78cff72156d30083da65edfb0c0cdb1417767314f4e",
+    "text": "99 ' Recentiora, Mercurii d. 23. Martii 1757 ' , StAHH.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a50132a1968191664b5eebe96619585035e715f9ec5da8d97ebed170931ce3a6",
+    "text": "100 Pourchasse, Le Commerce du nord , Introduction, §16.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0bd852b54a33886cb5ba1827b83639026c14032e17036f8cb8a0f6e9db573e3b",
+    "text": "101 ' Zoll-Deliberationen ' , 14, StAHH.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_91936adc167476dc6ae5581e7db93492b20713533ceebc452f7cb0e3dacbaf20",
+    "text": "102 Pourchasse, Le Commerce du nord , ch. 1, 64.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_39fc3151632c41c8bd897651c080f031fd6832d7037ad84798b11d0d932321ac",
+    "text": "103 ' Untersuchung ' , 7, StAHH.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_611be51624fb6e56363c2f3a895cc1ebd17dc966132ceff78424673c44b8168c",
+    "text": "104 Maxine Berg, ' Asian Luxuries and the Making of the European Consumer Revolution ' , in Luxury in the Eighteenth Century: Debates, Desires and Delectable Goods , ed. Maxine Berger and Elizabeth Eger (Palgrave Macmillan UK, 2003), 228 -44.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_eaeb9d7acb623e5d141e1d9c346b161c0576f354f0bbfbfd175c5bd6a79d42ca",
+    "text": "105 Mintz, Sweetness and Power , ch. 3.",
+    "page": 17,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_508a22e53d59886b7049a6e62c1fe1d225f17636db6c0dd38ecb033a92a19667",
+    "text": "European states ' new economic polies threatened Hamburg ' s refineries: Prussia and Austria, Hamburg ' s main markets for refined sugar, had recently begun implementing protectionist tariffs in order to foster their own fledgling sugar industries. 107 The aim was to push export-led growth through import substitution. 108 Prussia also began implementing measures to redirect trade from the Elbe, Hamburg ' s main route to Central Europe, towards the Oder river to establish alternative trade routes through its Baltic ports. 109 The end of the first Silesian War in 1742 had made this possible, as Prussia had gained the greater part of Silesia, and with it control of the Oder, which connected the Baltic to Central Europe. 110 The Prussian ports on the Baltic were built in order to avoid Hamburg, serving as alternative gateways to the German lands. 111 Especially during the Seven Years War, raw sugar from the Danish West Indies was exported via Copenhagen to various Baltic ports. Numerous Hamburg sugar refineries went bankrupt during the war. 112",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0e63a4824eb0a83328e8cc76dd44b84456c2fe487aaa4b18d8ab1aeff4a8f651",
+    "text": "Unsurprisingly, the senators were highly critical of other governments ' protectionist measures. They argued that these harmed those countries ' own inhabitants. Commenting on Prussia ' s efforts to establish its own sugar industry, one senator wrote: ' I doubt, whether such means of establishing sugar refineries in a country are even feasible. After all, to be successful, such a policy would require all inhabitants to pay far higher prices for sugar than if they imported it from abroad. ' 113 They argued that foreign princes implementing protectionism were under the sway of projecteers, unscrupulous businessmen, who put their own interests before their countries ' . The policies these individuals lobbied for served only their own interests, while inflicting great harm on the majority of the people. ' [The projecteers] grow rich ' , the senators lamented, ' while 100 of their fellow citizens, who formerly had plenty of bread, are impoverished. ' 114 In this instance the senators were alluding to Frederick II ' s new economic policies. He aimed to further foreign trade by granting monopolies to private individuals and companies. This included monopolies on trade with sugar and tobacco, both key products of Hamburg ' s processing industries. 115 Fredrick furthermore supported the founding of the Emden East Asian Company in 1751, which traded with China from Prussia ' s newly acquired North Sea port of Emden, near the Dutch border, and the Bengal Company, in 1753. 116",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e62a3af86fd95001b36f4afdac709afd36cd4b3d345e8b6887feb273cf6938c6",
+    "text": "' If a sovereign prince wants to support certain factories in his lands, as the King of Prussia wants to develop sugar refineries in his country, and in order to do so places levies on foreign sugar, what is one supposed to do about it? ' , the senators asked rhetorically in 1751. 117 After only a few years, such policies would cause the ' sad consequences of great poverty and thirst ' . 118 The",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a79a330cebb89e438f28ae91895f110b6d63b909be7ada798509c00f376c3626",
+    "text": "106 Pfister, ' Great Divergence ' : 55.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e7203ff0d2a7734b5044c38e2fde73fd8646a10dd2789b8896357af749a3daf5",
+    "text": "107 Petersson, Zuckersiedergewerbe und Zuckerhandel, 49; Liebel, ' Laissez-faire vs. Mercantilism ' , 214; Marco Cavarzere, ' The Rise of a Trading Nation: Prussia and the Convention préliminaire de commerce with France (1753) ' , in The Politics of Commercial Treaties in the Eighteenth Century: Balance of Power, Balance of Trade , ed. Antonella Alimento and Koen Stapelbroek (Palgrave Macmillan, 2017), 295 -320; Michael Zeuske and Jörg Ludwig, ' Amerikanische Kolonialwaren und Wirtschaftspolitik in Preußen und Sachsen: Prolegomena (17./18. und frühes 19. Jahrhundert) ' , Jahrbuch für Geschichte Lateinamerikas 32, no. 1 (1995): 268 -83.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5367851419c7d3cdb2a6bfb093f630c8aa3bcbfe308cd7b4103ed0faebda4a3f",
+    "text": "108",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b1b4e8beaae9b02a534b7e7c0ae10609ec537f2a71784752fdceac7436a8a7d8",
+    "text": "Reinert,",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_253cdda8b78bd4ba6ea471548cb0c54ffb960d93154711f32ad6bc94fa8db109",
+    "text": "'",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3cbd1a26514be19a638111514f4c8fdd36478880f2a074c1926ee5f1c598e88b",
+    "text": "Rivalry",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_647c511065d64e01e4335f48676ec8c7b338f127f6ed2030af5ee3be8d561886",
+    "text": "'",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ce05bdb6177f28a549517b6a2706391f8287c72518530e4d108bdc933d483ca8",
+    "text": ", 356. For effects on Hamburg, see Petersson, Zuckersiedergewerbe und Zuckerhandel",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fb1166104ff1ac34d006007ad42f88c9f07a923929b2bdbf54a7ad99bc27c259",
+    "text": "109 Zeuske and Ludwig, ' Kolonialwaren ' , 268 -83.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6b0602951f7ad5b6cf389786990da1cfbb213a0db108ec42969711df0dfd7f07",
+    "text": "110 Liebel, ' Laissez-faire vs. Mercantilism ' , 214.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_dddac641dc02c4b960e34b03178288eea2349e41670e01cb008c950087a67e3a",
+    "text": "111 Zeuske and Ludwig, ' Kolonialwaren ' .",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_881760f01bbf569c8f47383ade674ec562d58a0f8135776025b24b797fd4bae9",
+    "text": "112 Petersson, Zuckersiedergewerbe und Zuckerhandel , 49; Liebel, ' Laissez-faire vs. Mercantilism ' , 214.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fba20f23fb88fd266af51c8bd2df4936d2494c9c34e27bdbdb4ed980a60522d3",
+    "text": "113 ' Untersuchung ' , 8, StAHH.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_84006719998153b72476b23894cab55942a061160ecb77d2e2a683e603baad16",
+    "text": "114 ' Zoll-Deliberationen ' , 24, StAHH.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f915c5db1c00f8d9d64865bc90c6152fb36b2c7265a17a8f1cb0d5d61ff6aed9",
+    "text": "115 Liebel, ' Laissez-faire vs. Mercantilism ' , 229.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c2cf081bd9f74cae30a5779dfffd5b32c12be8af30ec39edc4fee25f84853d15",
+    "text": "116 Töppel, ' Die Preußische Seehandlung ' , 25; Felicia Gottmann, ' Prussia All at Sea? The Emden-Based East India Companies and the Challenges of Transnational Enterprise in the Eighteenth Century ' , Journal of World History 31, no. 3 (2020): 538 -66.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d9759a09bb6870fb3cf87b353f34c266e02b7d5d328550ad073a573d9ff094ad",
+    "text": "117 ' Untersuchung ' , 8, StAHH.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_27c6bf6c23603b1f1f3bb5e687acb40946bcda75d1192716f1328da6c9f3b698",
+    "text": "118 ' Zoll-Deliberationen ' , 24, StAHH.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1a7c8f9ae88fecb51472c794bb09e86e54d3f21918f70a6d699e102430f0adce",
+    "text": ", 49.",
+    "page": 18,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c602d973316a589aeb91e11458f2b3e8938546b8200d04d03cb49bbb5469f6bb",
+    "text": "senators pointed to the example of Britain, probably referring to its Navigation Acts, a set of protectionist policies which reserved trade with its colonies to British merchants and ships. They argued that while some might ' hold [England] up as an ideal to all other nation[s] ' , all was not well with this country ' s business, as evidenced by ' near daily examples of desperate suicide ' . Britain was also accumulating debts in the millions and one of these days ' all ropes will tear ' and the government fall. 119 Prussia for its part would ' soon discover, to their own great disadvantage, that trade through the Baltic during the six months of autumn and winter will be subject to danger and retardation ' . 120",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_28b359c4213278f0f2b6ea58a625ce74bf66275dbc4e1022da3de76cab03ab70",
+    "text": "Anyway, the senators asked, ' if such regents do not want to hear of the ruin their own countries are facing and change their erroneous ways, what can Hamburg hope to gain from lifting its own, really limited tolls? How will any of the current free ports benefit? ' An abolition of levies in Hamburg would hardly make foreign princes change their erroneous ways. 121 Hamburg ' s tolls were moderate to start with; hence they posed a limited burden on merchants. ' The declining public welfare would not be improved [by abolishing them]; rather the loss of the income from tolls would further weaken it. ' 122 While foreign rulers were willing to neglect their responsibility towards their subjects and implement policies that supported business people to the detriment of their fellow citizens, Hamburg ' s senators were not willing to follow their example. At the same time, they recognized that as a city-republic, Hamburg ' s situation was different from its territorial neighbours. According to the senators, if Hamburg alone liberalized trade while its larger neighbours did not, this would have similarly destructive consequences for its inhabitants as foreign kings ' protectionism had on their subjects.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8c4c6cc8e5b84bca78554938c5a942ef17e9adc779293707d4f0bbfb723914de",
+    "text": "The senators ' concern over social justice related directly to the distribution of political and economic power within the city. Lifting tolls on trade would require an alternative source of income for the public purse. In practice, this would mean a shift of the financial burden from the merchants to the city ' s non-mercantile inhabitants. Not only was this unethical; it was also not practical. Changes in customs and taxation required the consent of the Bürgerschaft, which was unlikely to be forthcoming. 123 The guilds and tradespeople whose interest the Bürgerschaft represented generally did not make their living from overseas trade. An alternative levy to replace the loss of income, should the tolls be slashed, would thus burden the Bürgerschaft ' s electoral base and so it was unlikely to consent.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4637eb5066b189d8edbb5040d078486a7fc352e944537a1751f447cdbd54dd28",
+    "text": "The senators pointed out that the Commerzdeputation ' s earlier pushes for a free port, in 1710 and 1727, had failed and that the Council had considered a free port but decided against it because no alternative source of income was identified. 124 To further support their argument, the senators pointed out that the main reason Amsterdam ' s free port had not been established was that officials had not found an alternative revenue stream. 125 Some senators argued that ' [a] free port does not suit a great trading city, which has great expenses to bear, for which the tolls present the primary source of income ' . 126",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1b4e5424b11518c32c21d80dd90e2fea3100ddeee18b48d05e7ec7981126ea13",
+    "text": "The senators ' financial argument was immediately related to the ethical objections they raised against other states ' protectionism: they framed the tolls as a matter of the merchants ' morality and their financial responsibilities to the community. Replacing the income from the tolls through other means would amount to shifting the financial burden of public goods away from the merchant community and toward the city ' s other inhabitants. As the senators explained, ' the tolls are a levy that is certain and commonly accepted. They irritate nobody, because everybody knows and is used to them. They provide an essential public income without anyone really noticing. ' 127 They argued that tolls on trade goods were fair and therefore socially acceptable:",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c7ba044096f70db51577a303527af6215fd485840578d15e7be330153f582c91",
+    "text": "119 Ibid., 17.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8a115005431212378f270957202b0165074aef32b0c9dcb013c5703c2a26e2f4",
+    "text": "120 ' Untersuchung ' , 7, StAHH; see also ibid., 21.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d12a547ed1016917c3a0d4ddfd5982087d165d398e7163afd7c198578c80b283",
+    "text": "121 ' Untersuchung ' , 8, StAHH.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_381789fb15932baa42d1f6ba5b794cd5ee1cb43ce781d0ea3f6c840de5cd0480",
+    "text": "122 ' Zoll-Deliberationen ' , 24, StAHH.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2fd6f3f48c18745f989a342c2e2709669e1a970759b7587f93a7438a79ba9ed1",
+    "text": "123 Ibid.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cbcbdba62d218ada66c3a84dc468d272a66df676ed6d56f44a691190f32a6951",
+    "text": "124 The council ' s files include evidence of the Commerzdeputation ' s petitions even earlier, from 1690, as well as from 1710: 111-1_54430, ' Innere Verordnung und Nachrichten vom Hamburgischen Zoll ' , 1690 -1712, especially ' Communicatu Deputatis Commercii, 12.02.1695 ' ; and extracts of the Council ' s minutes regarding a free port of 9 February 1707, 3 February 1710, 28 February 1710, 13 March 1710, 7 April 1710, 2 June 1710, 19 December 1710, n.p.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f58a7f7dca40cf5bad44ecd1e59b47a977986d50aff1768415e9e9e8eb4f98a9",
+    "text": "125 ' Zoll-Deliberationen ' , 17, StAHH.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7f76c0aba8676834cd56086df25d62ee1918ee2d1607a69fb85512525a8c1e40",
+    "text": "126 ' Untersuchung ' , 5, StAHH.",
+    "page": 19,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2743bba2c8be2a88220de37b3921972eec9dd2500e84f7221e087fe20257fc11",
+    "text": "The tolls are the most proportionate and tolerable contribution [to the public purse], as he who does not consume much, also contributes little. However, he who out of his own free will choses to consume a great deal, can and ought to also contribute to the public [accordingly]. 128",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6ebe8a41fee565e6b68c7681f1a7e8adda92549bb26ffed3f6afafd44a0aab09",
+    "text": "Thus, only those who wanted to directly profit from trade would suffer by the tolls. This was particularly the case for the convoy tolls, which funded Hamburg merchant ships ' protection against Mediterranean piracy. 129 Moreover, the tolls were the main contribution of the business community. The merchants ought to financially contribute to the public purse, just like anyone else. Granting the merchants, who constituted one social group within the town among many, preferential treatment over others would be unjust. 130",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_629ddcdebeff4724346e7154a4c2b7f6254b8a86ed3fad20d908b2e53d6623a3",
+    "text": "It is likely that the Council ' s worries over redistributing the city ' s financial burden were fuelled not only by a sense of social justice, but by real concern over the city ' s political stability. From the end of the Thirty Years War in 1648 to 1713, Hamburg descended into a ' virtual civil war ' . 131 The causes for this conflict were complicated and historians have not yet been able to fully explain them. It appears, however, that at their heart lay discontent over the relationship between the populace and the magistrates. Peace had been restored in 1712 through the intervention of an imperial commission, which reformed the city ' s constitution and affirmed its Lutheran status. 132 Moreover, in 1750 and 1753, Hamburg again experienced violent protests by artisans. 133 While these episodes never reached the extent and levels of violence of the earlier protests, they likely added pressure on the city government not to pass policies that might trigger discontent among the populace.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_23ff6fa54d22cdd5a0695a090583a7e760b8ed59463afe28b4a75c71f1305bab",
+    "text": "Given these considerations, the senators wondered whether the ' advantage the merchants obtain from lifting the tolls would far exceed the damage the public would suffer? ' 134 The Commerzdeputation insisted that it would. Trade itself would boost the public good, due to the ' benefits it created to all employment and income of people of all stations ' . 135 They argued that if local merchants were ' forced to abandon the city for more suitable locations, local citizens, tolls and the conscience would suffer ' , as trade supported a ' great number of citizens ' . 136 The Commerzdeputation explained that trade was the origin of the well-being of the citizens; the more trade flourished, the more the public would benefit. An increase in trade would eventually benefit the wider public through creating jobs in related sectors. Carrier fees, rents for storage facilities, labourers, packers, insurance, and bills of exchange would all benefit from a free port, as they were connected to trade ' like links on a chain ' . 137 Should, however, foreigners turn for their commissions to our neighbours, as they have already begun to do, shortly a great many of our merchants will find themselves without trade, a not small number of attics and warehouses without goods, and a great number of all sorts of people, who depend on the merchant for their livelihood, will be without bread. 138",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_714df4c1233147767a15c47eb5bd4e8786860a968c2098df6a812d9ffc2fea30",
+    "text": "127 ' Recentiora, part 7, Extractus Protocolli Senatus Hamburgensis Mercurii d. 7. Martii 1753 ' , StAHH.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5a24fab41a529648557ad6aa4696fd079334e1f15dec12956157473829f2fced",
+    "text": "128 ' Untersuchung ' , 1, StAHH.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7a178fa5a105ba66f2005b359b03f82ebc5144ae49a7fa01e8b67571a48aec03",
+    "text": "129 Magnus Ressel, Zwischen Sklavenkassen und Türkenpässen: Nordeuropa und die Barbaresken in der frühen Neuzeit (De Gruyter, 2012), especially chs. III.2 and IV.2.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3ae4f45c7df1745fdb4edca1a7ee2160a2b4e85f4b1a8f42f8286feddc755de4",
+    "text": "130 ' Zoll-Deliberationen ' , 8, StAHH.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_76354db5814b54ac63d53e28fedeb5a465c262f32dc43dc840d422361bdc9a8d",
+    "text": "131 Whaley, Religious Toleration and Social Change , 13.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8254edfb63c4aa1a0dc335309cd3b5278315c51beb79d91b48f9c02612032979",
+    "text": "132 Ibid.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_474e09f4298790ce1e302bf531ff367439d8b49e4ce5415af089e234d331b6a8",
+    "text": "133 Mary Lindemann, The Merchant Republics (Cambridge University Press, 2015), 167, 168. 134 ' Untersuchung, 4, §5 ' , StAHH.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_71c7ade2ff1c83ccace9d6c8de544187885557450ad547325121cf47aad74021",
+    "text": "135 ' Untersuchung, part 5, Antrag Deputator. Commercii Lunae d. 11. Juliii 1757 ' , StAHH.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d1cf2804804afa9208dc50e5b77df5cc56077a62c9ef52172c11e8df14774d0e",
+    "text": "136 ' Recentiora part 6, Veneris d. 18. Febr. Anno 1752 ' , StAHH.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0fc681f9b0fd4213d08f6858eff408c3328e23db9eeda05b50d92fd397a9de71",
+    "text": "137 ' Recentiora, part 2 ' , n.p., StAHH.",
+    "page": 20,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_51a9630dc0c11357db4bf4c30d05ac8a6d905fb9c59d218c15d2cf526e8f9e0b",
+    "text": "Without trade, the merchants explained, ' we are like a body without a soul. ' 139 As the wealth gained from trade was the ' soul and life of the whole city ' , salvaging trade was ' a matter of the heart for every righteous patriot ' . 140 By citing patriotism, the authors appealed to its mid-eighteenthcentury understanding as ' the spirit of commitment to public service and the public good ' , as Mary Lindemann defined it. 141 Accordingly, the merchants argued that for the well-being of the state and the public, ' all other concerns have to give way, no difficulties must seem too great, to protect the continuation of commerce ' . 142 The ' patriotic goal ' at hand, they concluded, was no less than ' saving our beloved hometown from the threat of near downfall ' . 143",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7628c16664e26b5fb93ec5d5599a3bf78ba93d73961ea72daa6cb5b5eebac657",
+    "text": "One of the risks that came with the loss of trade was that bills of exchange and the income derived from interest for loans would be redirected elsewhere, to the detriment of Hamburg ' s financial industry. Its emergence was closely connected to the increasing importance of the colonial trades to the city ' s economy. As Karin Newman explained, during the seventeenth century, the presence of a large foreign merchant community, along with its increasingly global trade and Central European location, conspired to make Hamburg ' a major financial centre holding a key position in the international exchange system, second only to Amsterdam ' . 144 At its core stood the Bank of Hamburg, a public bank which facilitated the cashless settlement of balances. 145 During the wars of the eighteenth century, this established position and Hamburg ' s status as a city-republic, as well as political neutrality, enabled it to serve as a hub for wares and financial services, diplomacy, and news, outcompeting ports who were part of one of the belligerent states. 146 Hamburg insurance firms, moreover, provided securities for vessels travelling initially to the North Sea and Baltic, but increasingly to the Atlantic and Mediterranean, and ultimately to the Indian Ocean and East Asia. 147",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_745d3a22b77f85ed3e3d538cf100e54d386dc3afa1a29effae68c94e82871782",
+    "text": "Its integration into the Atlantic trade since the seventeenth century also transformed the city ' s manufacturing sectors. While the late medieval areas of ship building and brewing declined, the processing of colonial raw materials expanded. By the mid-eighteenth century, Hamburg ' s most prominent industries were sugar refining, calico printing, and tobacco processing. 148 These depended on French imports. Indeed, Hamburg ' s refineries processed the greatest part of French sugar. 149 It was all part of an economic system that, the merchants claimed, a free port would ensure would continue to flourish. Any decline in trade would cause a decline in the city ' s secondary industries and thus the livelihood of the people in their employ. ' Factories ' , the Commerzdeputation explained, ' contribute greatly to [the public good] (this is an indisputable truth) ' . The Commerzdeputation therefore warned: ' Our factories are struggling: this is especially the case for sugar refineries ' , but also ' Calico printers have declined greatly. ' Indeed, calico printers, sugar refineries, and dyers, they wrote, ' appear to be nearing their downfall ' . 150 The Commerzdeputation ' s warnings were warranted at least in the matter of calico: Hamburg ' s calico printers depended on imports of cotton, which at this time largely originated in India and reached Europe via the Atlantic. 151 Cotton goods had emerged as the second most important item in Hamburg ' s import trade during the early decades of the eighteenth century. However, between 1740 and 1786 their value fell by 94.6 per cent. Indigo, the industry ' s most important dye stuff, grown in the Americas, equally declined from the 1750s. 152",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3dae808a617d8a45bb31616275514f6a7b81e603812daf0a56fcc6a832060f7a",
+    "text": "138 ' Recentiora, part 4, Mercurii d. 23. Martii 1757 ' , StAHH.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_870e13322cfb61831aded97c8defd6ba5409f9cd10e9409df100f9afe8091689",
+    "text": "139 ' Recentiora, part 8, Veneris d. 14. Martii 1755 ' , StAHH.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_df241109d5652da184b32aa699b512b76f2693e426f31b0cccfa1e7e51069e68",
+    "text": "140 ' Recentiora, part 4, Mercurii d. 23. Martii 1757 ' , StAHH.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8894d3a6add185dbb21bc98d52a7ebc3cdd50eedd1600b351e3fdb9407663e50",
+    "text": "141 Mary Lindemann, Patriots and Paupers: Hamburg, 1712 -1830 (Oxford University Press, 1990), 8. Similarly, see Katherine Aaslestad, ' Republican Traditions: Patriotism, Gender, and War in Hamburg, 1770 -1815 ' , European History Quarterly 37, no. 4 (2007): 582 -602.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e96f1530718a75c4bbae779218fd0bf5770e456b2512e6a2a7011db4b5a767a4",
+    "text": "142 ' Recentiora, part 10, Mercurii d. 20. October 1756 ' , StAHH.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ae6b1711de29f673dc93f5293394033c76c1345eb33c1fabc96032b063a6d629",
+    "text": "143 Ibid.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_df92e5775be5a3da23d3b96ec192662cfe4e81dab176a19f7aa614e3164229db",
+    "text": "144 Newman, ' Hamburg in the European Economy ' , 85.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cf69c057976328098cf3a85dcb53ac59feabb0b65d65333c955027b8852f054a",
+    "text": "145 Heinrich Sieveking, ' Die Hamburger Bank ' , in History of the Principal Public Banks accompanied by Extensive Bibliographies of the History of Banking and Credit in Eleven European Countries , ed. J. G. van Dillen (Martinus Nijhoff, 1934), 125 -60.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8b523f112400cf773758edece43b58c117c097d2e4bb1964d74f56b7fbbbcd25",
+    "text": "146 Denzel, ' Der seewärtige Einfuhrhandel Hamburgs ' , 46; Weber, Deutsche Kaufleute , 225.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1afcd02f0e31fe9bc1c387fce25b96ad9dcb5692c59f532c91e4c6a716fbe2c5",
+    "text": "147 Markus A. Denzel, The Hamburg Marine Insurance , 1736 -1859 (Brill, 2022).",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_129bb87fcd8c1ec30ae108f3a92fdd270c7dc11455de6ec7f02f9df8a84fe09e",
+    "text": "148 Pfister, ' Great Divergence ' , 55.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_343fd75a251de237644200af0d96266d1a19e874b471ee290c89167357c6eb7d",
+    "text": "149 Ibid., 56.",
+    "page": 21,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_474474c3df8ad8f5b45de1b6f9924e939ee7098757770bbd289a8b9aff963799",
+    "text": "The secondary industries were the reason the Commerzdeputation was particularly concerned over export tolls. The processing industries depended on markets for finished goods. Hamburg as a cityrepublic had no market of its own; all production had to be exported abroad. What was more, the city had no unified market in its hinterland until the introduction of the Zollverein, the German customs union of 1834. This meant that re-exports from Hamburg had to pass multiple borders where tolls were levied before reaching consumers. 153 That such duties were harmful to local industries, they claimed, was the ' first principle of all those who have written on commerce and financial matters ' . They argued that the contrast between the toll-free transito , which meant that primary goods could pass through the city without being subjected to tolls, while any products finished in local manufacturing were subject to export tolls, directed raw materials away from the city and to its competitors, thus proving a competitive disadvantage to Hamburg ' s secondary industries. 154",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bb2c8114c86daa2c6e0c019e48bcaadbeb5cb12139eaebd4ef839bccde4fd6b4",
+    "text": "As the above discussion shows, concern over public welfare figured strongly in Hamburg ' s free port debate. Merchants and members of the Council both in favour of and against a free port framed their arguments in terms of the contribution trade did or did not make to the public good. The Council raised concern over the distribution of the burden of the city ' s financial upkeep and the merchants ' responsibility of contributing to this. The Commerzdeputation agreed in principle with the Council ' s ethical concerns. In their responses, they outlined how trade was linked to various other sectors of Hamburg ' s economy, including sugar refining, tobacco processing, calico printing, as well as the financial industry -all of which rested on the city ' s trade with the Atlantic. The merchants argued that by engaging in trade, they created jobs and income opportunities for a great number of Hamburg ' s inhabitants. A free port would increase trade, and thereby benefit the urban economy as a whole. Thus, the benefits the city as a whole derived from trade with the Atlantic outweighed the financial costs of taxes to replace the income from tolls.",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9804f126ac175f01b43b5509392f374c0be299de9bbb3ae9fea82fb35c9f7671",
+    "text": "Conclusion",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bd4d69ec05b201fb0011097948ceed4ce57dca9d0bc12552beb67e84de6b609a",
+    "text": "For a while now, historians have problematized the traditional understanding of European trade policies as having moved from early modern ' mercantilist ' protectionism to nineteenth-century free trade. 155 By highlighting how rulers introduced free ports alongside the better-known protectionist policies of the English/British Navigation Acts and the French Exclusif, the new history of free ports has added further nuance to this picture. Authors like Tazzara, Stapelbroek, Røge, and Kleiser have emphasized each port ' s individual circumstances and local agency for their creation. 156 In doing so, they also reacted to an earlier literature which, influenced by world system ' s theory, portrayed free ports as instruments of Northwestern European domination over the ' periphery ' . Along with rejecting this simplistic model, however, historians abandoned economic explanations for the spread of free ports altogether. Given ports ' function as institutions for the facilitation of trade, this perspective, however, remains important. Considering their global economic context, I have argued, sheds light on common factors driving the proliferation of early modern free ports.",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b6bdd4c2c01ca0797b5a5407872c78e59181c7f6fa48d28405e4bbe0da271eb7",
+    "text": "150 ' Zoll-Deliberationen ' , 12, StAHH.",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9442198449e28d2db7905a372b96ef2f1c4adc3a375d06f9297c3dd0de6a4587",
+    "text": "151 On the methodological inclusion of Indian Ocean goods as part of Atlantic trade, see Acemoglu, Johnson, and Robinson, ' The Rise of Europe ' .",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ab667ca93007717d29ff45866f2d6be56bbf094df2173887f52d2d14d74de358",
+    "text": "152 Pfister, ' Great Divergence ' , 23, 51.",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_00e3b77a9234074c3e0b9ce746062e4f381d52673d9a6d84d4ff68b82b5615f3",
+    "text": "153 Ibid., 9.",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b3736559db2b0d3b38085cb23bc46cba66bffa1040aa7bc2cf9c2af8b4d9fc4f",
+    "text": "154 ' Untersuchung, part 5 ' , StAHH.",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cbc55de770a26846a14e7df3db5e0220cfdddc81aecf9e8c91120520825ac133",
+    "text": "155 Philip J. Stern and Carl Wennerlind, eds., Mercantilism Reimagined: Political Economy in Early Modern Britain and Its Empire (Oxford University Press, 2013).",
+    "page": 22,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1f2aac90f961b1f152cf6797951ffc3652b264cbf0d00fe07d036318cd7c3d98",
+    "text": "The period in which free ports originated was characterized by the biggest economic transformation of the early modern era: Atlantic trade expansion. This began in the sixteenth century, intensifying in the mid-seventeenth century with the emergence of the Caribbean plantation complex. Historians consider the resulting system of trade, connecting Europe, Africa, the Americas, and Asia, as the beginnings of globalization. They have also credited it with triggering the onset of sustained economic growth in Europe. 157 Given the far-reaching nature of these commercial changes, we may expect them to have impacted the development of local trade policies, too, including free ports.",
+    "page": 23,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_032249ffd9595ab8e4ec2571d3861e12a3d82d68c6df904991db7754baf93117",
+    "text": "To investigate this possibility, the first part of this article gathered all available data on early modern free ports available in the secondary literature in different European languages. This revealed, first, a strong chronological correlation between the growing numbers of free ports on the one hand and Atlantic trade expansion on the other. Second, data on the location of these ports showed their geographical spread to have been equally correlated with Atlantic trade expansion: while early free ports clustered around the Mediterranean, ports liberalized after 1650 -that is, following the Caribbean sugar revolution -were located overwhelmingly on the Atlantic, in line with the early modern shift of Europe ' s centre of economic gravity in that direction.",
+    "page": 23,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bdc87a487dd7e045afce707335716f9eab27132b3df40b80491ccab4b33c622c",
+    "text": "While these correlations are striking, the quantitative data does not allow conclusions regarding causality. In order to explore the possibility of a causal relationship between Atlantic trade expansion and free ports, the second part of the article undertook a qualitative analysis of the free port debate in 1750s Hamburg. As the main entrepôt connecting production sites in the Caribbean and Eastern Europe, Hamburg played a central role for the emerging global trade system. By the mid-eighteenth century, the city had become well-integrated into the new Atlantic economy. Moreover, its constitution as a city-republic rather than a monarchy, meant that its sources allow an unusually clear view of different stakeholder groups ' motives and reasoning.",
+    "page": 23,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a63abe5e2b8d35bdba901fe2f67e045445d1e42d77cfba72e992c402adf7db72",
+    "text": "Hamburg did not become a free port at this time. The Council ' s objections to the port rested on concerns over the city ' s inner stability, as well as its position within the European state system. Its reasoning against a free port thus partly echoes the findings of earlier studies on individual free ports -local and regional factors mattered and, in this case, proved decisive. However, the sources also revealed that the Commerzdeputation ' s arguments in favour of a free port centred entirely on securing and expanding the city ' s commercial ties to the Atlantic. The merchants expressed concern that Hamburg might lose out to Amsterdam, its main rival as a hub for the importation and distribution of colonial goods across continental Europe. They argued that the Atlantic trade supported the livelihoods of a great part of the city ' s population, as it supplied the raw materials for its new main industries: sugar, coffee, and calico. Hamburg ' s financial industry also emerged as a side-effect of its growing entanglement in the expanding Atlantic economies. The merchants felt that a weakening of the city ' s commercial ties to the Atlantic threatened both.",
+    "page": 23,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8d443c87c2b4c74973eb96801d3a29f10affd52b9ee2a98f09dd494af669123b",
+    "text": "156 Tazzara, ' Managing Free Trade ' ; Wilson ' Enclaves of Exception ' ; Hunt, ' Contraband, Free Ports, and British Merchants ' ; Kleiser, ' An Empire of Free Ports ' ; Kleiser and Røge, ' Emulating Empires ' ; Jordaan and Wilson, ' The Eighteenth-Century Danish, Dutch and Swedish Free Ports ' ; Stapelbroek and Tazzara, ' Global History ' .",
+    "page": 23,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6842937dc47bca7361599ba1489a42eca2982baa6464dd4705e89480d1338660",
+    "text": "157 Jan de Vries, ' The Limits of Globalization in the Early Modern World ' , Economic History Review 63, no. 3 (2010): 710 -33; Roger Fouquet and Stephen Broadberry, ' Seven Centuries of European Economic Growth and Decline ' , Journal of Economic Perspectives 29, no. 4 (2015): 227 -44, 230; Curtin, The Rise and Fall of the Plantation Complex .",
+    "page": 23,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_130d6c33328b8ac0ed0bfaffabf624bd34ef8c3dd07b81607776e7d0b56f6b85",
+    "text": "The evidence from Hamburg thus supports the hypothesis that the relationship between Atlantic trade expansion and the spread of free ports was no mere coincidence, but a causal one. It shows that the emergence of free trade policies was closely intertwined with that of early modern globalization: the unprecedented growth of long-distance trade provided states with an incentive to experiment with liberal trade policies alongside those of mercantilist protectionism. They considered, and sometimes chose, liberalizing trade in individual ports in order to better benefit from the opportunities the growing Atlantic economy offered. In other words, local economic policy emerged in reaction to global economic change, without being determined by it. Early modern economic globalization and local agency were not mutually exclusive. On the contrary, to fully understand local developments, we need to consider the global economic contexts which shaped them and to which they responded.",
+    "page": 24,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_aea94878bf46975c38f90f0feeaef8d33be214e4d91752ebbd2ad57c3e37c4ae",
+    "text": "Acknowledgements. I would like to thank the five anonymous reviewers for their constructive comments, Guido van Meersbergen for exceptional editorial guidance, Theresa Duval and Inga Lange for supporting this work in lots of different ways, Ulrich Pfister for the idea, and Patrick Wallis and Kim Czajkowski for reading early drafts of this article.",
+    "page": 24,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2fd54a3b6300ab496a1f53ae6aa0f7d32b9cfdb7eb1d1d1e13d34f124ec77b5f",
+    "text": "Financial support. None to declare.",
+    "page": 24,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d485efaf940e42e1ec93b2bb39b432c3bbba80fb006c04e10fcf2941fafb61fe",
+    "text": "Competing interests. The author declares none.",
+    "page": 24,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_44e6909168b02aff60747dc488656b6b1cbd53ed08b8589b3ba6012a500ff978",
+    "text": "Esther Sahle holds a PhD in Economic history from the London School of Economics and at present an assistant professor of economic history at the University of Copenhagen.",
+    "page": 24,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1476e1268ddba2b8b1d837206b11342694883cf1a02f8a4d3b34233ef6c619f2",
+    "text": "Cite this article: Sahle, E., ' Free ports, political economy, and early globalization: Evidence from 1750s Hamburg ' , Journal of Global History (2026). doi:10.1017/S1740022825100314",
+    "page": 24,
+    "kind": "text"
+  }
+]

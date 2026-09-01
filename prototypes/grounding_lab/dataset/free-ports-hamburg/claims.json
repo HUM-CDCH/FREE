@@ -1,0 +1,133 @@
+[
+  {
+    "value": "Free ports, political economy, and early globalization: Evidence from 1750s Hamburg",
+    "resultPath": [
+      "title"
+    ],
+    "note": "REVIEW multi-gold: title block + citation footer",
+    "goldAnchorIds": [
+      "anchor_715a690ae19e872c69bb9fedeb8c0d8d40caf7ba27732a917adad8ef80a48b55",
+      "anchor_1476e1268ddba2b8b1d837206b11342694883cf1a02f8a4d3b34233ef6c619f2"
+    ]
+  },
+  {
+    "value": "Esther Sahle",
+    "resultPath": [
+      "author"
+    ],
+    "note": "REVIEW multi-gold: byline + running headers (decide if headers count as evidence)",
+    "goldAnchorIds": [
+      "anchor_88f4fa65a5b0ca3d65d1898285f6c82ad3018e8d90ae626e4c8ff16020c3714e",
+      "anchor_0818d48dc5cc4c4acf3c4a7150a89f0008300b843d1eb7a9625435edc5a344d5",
+      "anchor_5f4b01d8e7c2883d7197a60eaf3a5603536b182c1a958addaad1bdc6351e2c3f",
+      "anchor_44e6909168b02aff60747dc488656b6b1cbd53ed08b8589b3ba6012a500ff978"
+    ]
+  },
+  {
+    "value": "University of Copenhagen, Saxo Institute",
+    "resultPath": [
+      "author_affiliations",
+      1
+    ],
+    "goldAnchorId": "anchor_f526f6d7993cdd2f629675a7315351a7408c0c1eef749ea2e683ede13e3018b9",
+    "note": "unique"
+  },
+  {
+    "value": "Cambridge University Press",
+    "resultPath": [
+      "publisher"
+    ],
+    "goldAnchorId": "anchor_bf89e84c6f592a2912e18b7263d6e97f7a839434de5eec51df994dd1a6b02eee",
+    "note": "hard: 9 lexical hits (many footnote citations); gold = the © / open-access statement"
+  },
+  {
+    "value": "1591",
+    "resultPath": [
+      "records",
+      0,
+      "free_port_year"
+    ],
+    "goldAnchorId": "anchor_4d4f009f7ea2f9e4de73eb1ca64b806efb6a80ceabdd258e3db76d0f3f67e7a0",
+    "note": "REVIEW: 2 hits; gold = Livorno year cell in table 1; claim is for Livorno row",
+    "context": "port: Livorno, region: Med"
+  },
+  {
+    "value": "Livorno",
+    "resultPath": [
+      "records",
+      0,
+      "port"
+    ],
+    "goldAnchorId": "anchor_b771fc1a9408f68d31e3c115e01fe47372532525cf6bcd0365bce5f169d7b6f2",
+    "note": "hard: 11 lexical hits across prose/footnotes; gold = table 1 port cell",
+    "context": "region: Med, free_port_year: 1591"
+  },
+  {
+    "value": "1664",
+    "resultPath": [
+      "records",
+      8,
+      "free_port_year"
+    ],
+    "goldAnchorId": "anchor_e6b6e28c6209c2613b2f303cbedc01bc7c15418e740c27fd01953a3ecc833d5e",
+    "note": "unique, Altona year cell"
+  },
+  {
+    "value": "1706",
+    "resultPath": [
+      "records",
+      12,
+      "free_port_year"
+    ],
+    "goldAnchorId": "anchor_1215213c04a718d3aeacc6db21fe1c7d1b75b8256e476b20a114775b2c6f42a8",
+    "note": "unique, Gibraltar year cell"
+  },
+  {
+    "value": "1766",
+    "resultPath": [
+      "records",
+      24,
+      "free_port_year"
+    ],
+    "goldAnchorId": "anchor_1ec2abd17b732c437c7c21694db405940ce801f3a5fae083334bb388818922ae",
+    "note": "was KNOWN-HARD (identical year cells) — row context should now disambiguate",
+    "context": "port: Kingston (Jamaica), region: Atlantic"
+  },
+  {
+    "value": "University of Oxford",
+    "resultPath": [
+      "author_affiliations",
+      0
+    ],
+    "goldAnchorId": null,
+    "note": "not in document — must abstain"
+  },
+  {
+    "value": "Esther Sahler",
+    "resultPath": [
+      "author"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: misspelled author name — must abstain"
+  },
+  {
+    "value": "1592",
+    "resultPath": [
+      "records",
+      0,
+      "free_port_year"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: off-by-one of present 1591 — must abstain"
+  },
+  {
+    "value": "159",
+    "resultPath": [
+      "records",
+      0,
+      "free_port_year"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: substring trap: appears only inside longer numbers (6 anchors) — must abstain"
+  }
+]

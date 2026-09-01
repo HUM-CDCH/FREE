@@ -1,0 +1,1814 @@
+[
+  {
+    "anchorId": "anchor_cb07a985fd644a2a53296c6fe5c8fc8d104748246f9f8b6f97d75f35ec675b76",
+    "text": "Contents lists available at ScienceDirect",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_dcaf435b4d3f8c0e7537102d40727359754907e72514c214caee66337c2b9f6f",
+    "text": "International Journal of Paleopathology",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f56d2152d544202ed84a1876d832b049ab3dfdd5a5b16e8d1d8f4e93ad0beaf2",
+    "text": "journal homepage: www.elsevier.com/locate/ijpp",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_de57395d0c40d2970bc63268b9899e3a1c099a2d31f23718d7e47c4a44d61c8e",
+    "text": "Age-related disease or disease-related age? Perspectives for paleopathological research",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_233d1ab87aa9e30091e765d72789fb3d7690ec783702d2410a70a694f711c40c",
+    "text": "Katharina Fuchs a,*,1 , Jo Appleby b,1 , Marie Louise Schjellerup J ø rkov c , George R. Milner d , Niels Lynnerup e , Katherine D. van Schaik f,g , Julia Gresky h , Fabian Crespo i,j , Molly Zuckerman k,l,m , Kathryn E. Marklein i,j",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1eeb7fa3207c51ff075f720978898ef3551deb135dff769b27bbf8c9450593c2",
+    "text": "a Institute of Prehistoric and Protohistoric Archaeology, Kiel University, Johanna-Mestorf-Str. 2 -6, Kiel 24118, Germany",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_028b35c685595b705107ee424857fcd95c265ba100398179f4e5d29b5c3daea9",
+    "text": "b School of Archaeology and Ancient History, University of Leicester, University Road, Leicester LE1 7RH, United Kingdom",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c900f0797a4305cc1c33c0d5519c65189c07a4b073985f9ab3844d9839cbf238",
+    "text": "c Laboratory of Biological Anthropology, Globe Institute, University of Copenhagen, Ø ster Voldgade 5 -7, K ø benhavn K 1350, Denmark",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a85e4ea17007b2bdee71775f942c58a1096379734f379dbbfb1b5a90c6e66f20",
+    "text": "d Department of Anthropology (Emeritus), The Pennsylvania State University, 245 Susan Welch Building, University Park, PA 16802, United States",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e0a244380a2531468536e718a7f5c470d02fb1abbdd46219be70be22642db086",
+    "text": "e Department of Forensic Medicine, University of Copenhagen, Frederik V's Vej 11, K ø benhavn Ø 1350, Denmark",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f51c592e3bde15a093eec1a9915cdda1e369a2900edca045ce81d69497fad5f2",
+    "text": "f Department of Radiology and Radiological Sciences, Vanderbilt University Medical Center, 1211 Medical Center Drive, Nashville, TN 37232, United States",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bfd3adec2b5bceab8a60f94bd2df9eb8b505e1cf8b4e2877322e5ae3dd8b08ab",
+    "text": "g Department of Classical and Mediterranean Studies, Vanderbilt University, 37232, United States",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_773ccee8569872b478d5031751fc6baca0c6e2a97e47dd89c90f4f8c223dc8c9",
+    "text": "h Division of Natural Sciences, German Archaeological Institute, Im Dol 2 -6, Berlin, Germany",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3ca73e761b15819e7f86ddfc4071e49935f306ddc7b1b8a62ad929acf8a82fbf",
+    "text": "i Department of Anthropology, University of Louisville, Louisville, KY 40292, United States",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f87a179542e272f0dc9361b25776d9c4b8db7257f02b375f1c4dd6a4198b1b97",
+    "text": "j Center for Archaeology and Cultural Heritage, University of Louisville, United States",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_78e15c3560d575d5a24c5187b2787bc00035b8114de4856e47909c09790ff110",
+    "text": "k Cobb Institute of Archaeology, Mississippi State University, Mississippi State, MS 39762, United States",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_60e37591ea7437e22d42408871e424cca0929b47fcb822793e487884139e1cab",
+    "text": "l Department of Anthropology and Middle Eastern Cultures, Mississippi State University, Mississippi State, MS 39762, United States",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_27e8f4591f2ec2ca1e066ed30a5ec7c1d97c98c46fe13a03104fb7a111753d9e",
+    "text": "m The Department of Anthropology, National Museum of Natural History, Washington, DC, United States",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cd14d6be4ace1f97a2c243410ccb383553ceb107bf3e0c810662a8e785a1fc81",
+    "text": "A R T I C L E  I N F O",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4fffaf1c13a1b3f879bbaa1c287cf0d12fda98810f739ee22701a50f86860086",
+    "text": "Keywords: Aging Age at death Pathophysiology Skeletal marker formation Paleoepidemiology Paleodemography",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_156c73af9217448e387b299a3e5d43ce40a17b2bc6320379c2992416356b83cc",
+    "text": "* Corresponding author.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fdffe17370029495709d50d198d9ff7783a9ffdf3b24e9d7fcb0b499b98c44d3",
+    "text": "E-mail addresses: k.fuchs@ufg.uni-kiel.de (K. Fuchs), ja253@leicester.ac.uk (J. Appleby), mljorkov@sund.ku.dk (M.L.S. J ø rkov), ost@psu.edu (G.R. Milner), nly@ sund.ku.dk (N.  Lynnerup),  katherine.d.van.schaik@vumc.org (K.D.  van  Schaik),  Julia.Gresky@dainst.de (J.  Gresky),  fabian.crespo@louisville.edu (F.  Crespo), mzuckerman@anthro.msstate.edu (M. Zuckerman), kathryn.marklein@louisville.edu (K.E. Marklein).",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_81a0115d030bca65bd8ec7c84a675a577b743e23e9f321340413a91f35af9890",
+    "text": "1 First Authorship shared by Katharina Fuchs and Jo Appleby",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6adfba012ee3b67ffc47df682be138c241dfdaafc1fe6a4722b212be89662573",
+    "text": "https://doi.org/10.1016/j.ijpp.2026.02.003",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9e735ed0829b91c68ca1206f643ddef98eb06b8941f0d53f92be9927b636cbe8",
+    "text": "A B S T R A C T",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a687ebc7c414c4e9ffaad3ed1ef41dc512543ab902b7b5de14d5b7993ef08596",
+    "text": "Objective: The  interconnection  of  biological  aging  and  disease  throughout  the  life  course  profoundly  affects almost every aspect of paleopathological research but is rarely explored. This paper presents a theoretical and practical framework  for an informed research approach that explicitly acknowledges  these  complex interrelationships.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_37e343d18243d035d5d87209d60492dc96a5fa9a328d88feebd2729634f43e63",
+    "text": "Methods: We discuss the existing concept of age-related disease and introduce the new concept of disease-related age . Their relevance and practical applicability are demonstrated through selected paleopathological examples, which propose modifications to existing practice and avenues for future research.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_430bc2c5e133a943196efbbb8475c1a364cbc3ad19fa5c66b2e3fa6b791f04f8",
+    "text": "Conclusion: Diseases and pathological lesions influence the ability to estimate skeletal age at death, whilst our inability to accurately estimate age and death affects our ability to understand past disease. By incorporating consideration of age-related disease and disease-related age into paleopathological research, alongside adopting specific methodological approaches, we will significantly improve our understanding of both past disease and past demography.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4684209b4dfd869c4dcd30524b76ff7fb9db97e125f89a85ff7b414904083d06",
+    "text": "Significance: We offer the first comprehensive assessment of the nature and implications of skeletal age-disease interrelationships and their impact on researching past health and disease.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4bff54556fc742c85794fc100cfab0a12d326e5e50ad48886b16cbcd32f3a366",
+    "text": "Limitations: This paper is the first step forward in engaging with the complex, but critically important, issues of the inter-relationship of age and disease in paleopathology.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_85dacb2bc82a4819c6b6d76a4b50f686aa760cea6f6c5fb57a7f7a0f863c86d0",
+    "text": "Suggestions for further research: The nature of the interaction between pathophysiology and aging processes and its osseous  manifestations  require  further  interdisciplinary  research,  both  on  a  case-specific  and  systemic  level. Results will need to be integrated into osteobiographical, paleodemographical, and paleoepidemiological studies.",
+    "page": 1,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_439225c0889d2fb17bc2913101fa1cc3e4d3f02b20b14b779740000ff26c9e8a",
+    "text": "K. Fuchs et al.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ae06992ce6ab65bbc4e9934eea8bd1759580bf34f88ff10e03ebf3a41f30a0f2",
+    "text": "1. Introduction",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d9e6963487a13036c8c59dc30368bab102ab80b622b78737067424adf0c4c910",
+    "text": "Since  the  founding  of  the  Paleopathological  Association  50  years ago, palaeopathology has established itself as a formal scientific field (Grauer,  2018).  Paleopathologists  routinely  deal  with  the  complex challenges  of  assessing  hard  and  preserved  soft  tissue  abnormalities, exploring  molecular  evidence  of  health  and  disease,  developing  and interpreting  differential  diagnoses,  estimating  individual  disease  his­ tories,  and  reconstructing  paleoepidemiological  patterns,  all  whilst incorporating  social  and  evolutionary  theory,  and  holistic  and  bio­ cultural conceptions of health and disease (Grauer, 2018; Grauer and Buikstra,  2019).  One  important  topic  which  remains  largely  unad­ dressed, though, is the interplay between age and disease. Yet, aging and disease are inherently connected. This interconnection affects almost every  aspect  of  paleopathology,  including  our  understanding  and interpretation of bone biology, our methodological practice, our ability to reconstruct the relationship between bony changes and functionality, and our conceptualization and interpretation of age and aging.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d26547ebd425a91ca4f2a1ee78b6028dd0cd5cba8bdedec06c700ebb13f2138b",
+    "text": "Both osteological age-at-death estimation and paleopathological in­ quiry are significantly affected by the fact that there is no simple rela­ tionship between chronological and biological age. Whilst chronological age refers to age [since birth] in years, biological age relates to processes of  physiological  development,  bodily  maintenance  and  degeneration, and is not simply a matter of straightforward change over time. Studies have  revealed  non-linear  and  sometimes  considerable  discrepancies between chronological and phenotypic age in living humans and chro­ nological and skeletal age in osteological collections (e.g., Couoh, 2017; Pala et al., 2024). Biological aging is complex and interlinked with ge­ netic,  environmental,  economic,  cultural,  and  social  factors.  Associa­ tions between estimated age, indicators of health, disease, stress, and frailty, and aspects of social identity often remain unclear, whilst disease and aging are themselves intertwined to such an extent that we will probably never be able to fully disentangle them.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_24b4f0e803541f9a8498e627b913d1d823a95cb31f3471e1a0fbbf40e9c4ba16",
+    "text": "Aging, therefore, has two interrelated effects on paleopathological inquiry. On one hand, many diseases are either associated with specific age groups or change in prevalence and severity with age. On the other hand, disease processes may interact with bodily processes to affect the age markers used to establish age at death. Thus, diseases affect our ability  to  accurately  estimate  age  at  death,  whilst  our  inability  to accurately estimate age at death affects our ability to understand past diseases. Although the inherently close relationship between age, aging, physiological stress, disease and its nature of cumulative exposure and chronicity is commonly known (e.g., Mays, 2015; Milner and Boldsen, 2017; van Schaik et al., 2018), research on this topic is limited within paleopathology and has yet to become an integral part of the field.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e2de3ea7ca8455916e719fd4c68b36012ec23c655ec488cc7c46e53dbacc469b",
+    "text": "This perspective paper presents some strategies for how to approach the relationship between age and disease in paleopathological practice. We  use  two  concepts -age-related  disease and disease-related  age -as useful tools for outlining the interactions between disease and the aging process,  as  well  as  estimating  their  influence  on  skeletal  marker morphology.  Using  examples,  we  demonstrate  the  relevance  and application  of  these  concepts  so  that  they  can  be  considered  more effectively in the field ' s future. In response to the seemingly intractable issue of the inter-relationship of age and disease, we provide recom­ mendations for adjusting our everyday practice and suggest avenues of research that could lead the way forward.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1002c7cf4f2017e30d2aeea1a9fbd18c0666803a3a0c3ffa027f07545d75c912",
+    "text": "2. Age-related disease or disease-related age?",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7b21cb453f1726f1f01dbf40681ca8c40418126666af34292eb2751b827ba5b7",
+    "text": "2.1. Age-related disease",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e2b7404769b218db065f30d2199ed400494347b517fc063dd1c520ac461bfdf9",
+    "text": "Age-related disease , while a frequently used term with an apparently common-sense definition, has no universally-accepted definition in the clinical  or  public  health  literature  (Appleby,  2024;  Le  Couteur  and Thillainadesan,  2022). Until  now, paleopathological inquiry has pro­ ceeded on the assumption that ' normal ' aging and disease can, to at least some extent, be separated out for the purposes of analysis; how­ ever, close reading of the literature on age-related disease reveals that there is no clear consensus on how to identify and separate diseases that are  inherently  caused  by  the  aging  process  itself  (sometimes  distin­ guished as aging-related diseases) and those that are merely associated with  age  due  to  (for  example)  cumulative  exposure  to  risk  factors (age-related; Kuan et al., 2021; Le Couteur and Thillainadesan, 2022). Some diseases  that  are  commonly  cited  as  diseases  of  aging  are  not age-progressive in all cultural contexts. For example, amongst the Tsi­ mane in Bolivia, low exposure to risk factors means that cardiovascular disease risk does not increase with age (Strandberg and Kivim ¨ aki, 2022), despite  the  normal  assumption  that  cardiovascular  disease  is  an aging-related  disease.  This  leaves  the  boundary  between  normal degenerative changes of aging and age-related disease unclear.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_718504e059e9022ce3ec95fba9b587a60d717628e8c64f9201db237d1e82e4d1",
+    "text": "It is worth noting that the term degenerative refers to time-related breakdown of cells or structures and can be associated with the idea of  aging-related  diseases,  but  it  is  often  used  interchangeably  with degeneration, which is loss of specialized cellular function due to defect or  disease  and  not  necessarily  caused  by  aging  (Wigley  et  al.,  2011; \"degeneration\", Oxford Reference, 2025). This terminological discussion underscores the paleopathological need to address the issue of which diseases are truly age-progressive in a given cultural context, rather than simply assuming age-related progression.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3a5c2adc54425f33a7561dfc187085297d74d4224fbe2fd3ec397aaf86541aef",
+    "text": "Our  understanding  of age-related  disease is  also  hampered  by  our definitions  of  both  aging  and  disease.  Instinctive  understandings  of aging belie the fact that there is little consensus amongst gerontologists about what aging actually is (Chmielewski, 2020; de Magalh ˜ aes, 2024). In  addition,  the  definition  of  the  term ' disease ' has  been  subject  to considerable discussion (e.g., Fisher et al., 2025; Moynihan et al., 2013). A common approach is to define it as a ' harmful ' deviation from the norm (e.g. Burrows and Scarpelli, 2024; Funkhouser, 2020). This defi­ nition  cannot  apply  to age-related  disease since,  as  noted,  many  such diseases, e.g., various forms of cardiovascular disease, can be seen as normal within a given context. Age-related diseases are certainly harmful, but so are many of the processes of ' normal ' aging (Appleby, 2024, Caruso et al.,  2021;  see  O ' Rourke and Ceci, 2013). The difficulty in locating the boundary between aging and disease is thus partly due to difficulties in defining aging and disease, partly due to the lack of clarity in categorization, and partly because we do not have a clear way to separate age-related disease from other pathological processes that an individual experiences over the life course.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6881755a02e29ea99055344573d3fa0d540f2137355e010a9cb8f0a441f70ba8",
+    "text": "2.2. Disease-related age",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1610236b7e20a48fb8f3de6e83945c13cea48f2d44d37e95ed142819e3ee139e",
+    "text": "It is commonly accepted that disease progression may be linked to age, and this is something that is frequently discussed in paleopatho­ logical  studies.  Yet  the  corollary  of  this -that  skeletal  age  can  be affected by disease -is rarely explicitly considered. In fact, many disease processes can influence skeletal age markers and thus our final age es­ timates,  making  skeletal  age  a disease-related  age .  In  principle,  any skeletal age indicator can be exposed to disease processes at any stage of life. However, this circumstance may not be reflected in either reporting or the way the age estimates obtained are used, such as in a biological profile.  In  light  of  the  importance  of  age  at  death  as  an  analytical parameter, this omission is worrying.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ef46c684e3b64d5067e5272591de2970aebeeba9cb9b65f819fc9d49e25ed9aa",
+    "text": "Whilst it is easier to ascertain a precise and accurate age at death for the  skeletally  immature  than  for  adults,  even  in  juveniles  most  age markers can be affected by chronic diseases. For example, premature epiphyseal fusion is associated with vitamin C deficiency (scurvy), hy­ pervitaminosis A, certain infectious diseases such as tuberculosis, and various forms of anemia (Currarino and Erlandson, 1964; Lawson et al., 1983;  Parke  et  al.,  1949).  Similarly,  in  both  clinical  medicine  and paleopathology, long bone length is simultaneously used as both a cri­ terion for age-typical growth and a signifier of various developmental disorders, such as malnutrition or other types of physiological stress (e. g.,  stunting)  (Decrausaz  and  Cameron,  2022).  In  adults,  obtaining K. Fuchs et al.",
+    "page": 2,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4ab699d3e12b296d83f287c4e69ffbe99f713d0ff8ffb1f80a414241ec281efa",
+    "text": "narrow age estimation ranges is a serious methodological issue. Mays (2015) notes that for a given skeletal assemblage, approximately 60 % of variation in adult skeletal age markers can be caused by factors other than  age.  Perhaps  the  most  notable  disease  process  involved  in  this variation is osteoarthritis (e.g., Calce et al., 2018; and see Section 3.4). On a more systemic scale, other factors such as vitamin D deficiency and concentrations of circulating sex steroid hormones are also influential, which may have implications for bone remodeling in individuals with these  diseases.  In  fact,  any  condition  affecting  bone  remodeling  or cartilage  ossification  may  also  affect  at  least  some  age  estimation methods  (Mays,  2015).  While  the  multifaceted  aetiologies  of  the morphology of entheses, crucial for some aging methods such as Tran­ sition Analysis 3 (TA3, Milner et al., 2019) are recognized, the influence of  pathogenic  factors  (e.g.,  collagen  malformation,  ruptures,  inflam­ mation)  is typically difficult to grasp and  operationalize in an age-related context.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cc5f4eb500c468dba2063728df931847cb4a452e98af6334f01d5fb172606329",
+    "text": "Despite significant levels of interest in the reasons for variation in skeletal age markers, there has been very little published investigation into how disease contributes to skeletal aging beyond consideration of osteoporosis, joint and dental disease. In a recent content analysis of the literature on age estimation methods (Campanacho and Alves-Cardoso, 2023) the words ' disease ' and ' pathology ' are not mentioned. This is a significant research lacuna.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_46587195713cede09ef9f2700a2556c3ccc97f664d8ae520caf9a0950c767773",
+    "text": "A fundamental problem for this endeavor is the lack of independent skeletal data on chronological age for disentangling, or ' calibrating ' , the biological processes of aging and the pathological processes of dis­ eases. Even in living populations, there is no biomarker for age that may be unaffected by pathological processes (Marcante et al., 2025). Oste­ ological age estimation in adults is both imprecise and inaccurate. This is because of a number of methodological and statistical problems, which have been discussed extensively over the years (e.g., Bocquet-Appel and Masset, 1982; Konigsberg and Frankenberg, 1992, 1994; Boldsen et al., 2022; Buckberry, 2015; Mays, 2015 Hoppa and Vaupel, 2002;). Statis­ tical methods designed to overcome these issues (e.g., Konigsberg and Frankenberg, 1992, 1994; Moser et al., 2024; Müller-Schee ß el  et  al., 2025;  McFadden et  al.,  2019;  S ´ eguy  and  Buchet,  2013;  Rizos  et  al., 2024)  can  be  effective  for  reconstructing  age  structure  of  past  pop­ ulations, but they cannot give a precise and accurate age or age range for individual skeletons. This also applies to the technique of counting tooth cementum annulation, whose potential as a disease-independent chro­ nological age marker is under discussion (Bertrand et al., 2016, 2019; Couoh, 2017; Foster et al., 2022; Meinl et al., 2008).",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c24049cb5d6347bc470e42492eb51e04399afcf6db60772281535d2c722b832d",
+    "text": "These issues make it difficult to disentangle the relationship between chronological age and the development of particular diseases, which in turn has a significant impact on our ability to understand which diseases progressed with age in the past and how.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_91c71ab23bbdf967149654574ae1bcd8ad14e550fb1d1c00a1d40a99810b9819",
+    "text": "3. Age-related disease and disease-related age in current paleopathological research",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a6effd71dbdc7dc01d4376023e1dbae57d1171a29fc9c796381d1e48e71523ae",
+    "text": "3.1. Frailty and resilience",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_39c3497877511949335201e87272be08475e461b368df523ea8cb1723a1036d3",
+    "text": "While the concept of frailty was introduced to the field of demog­ raphy by Vaupel and coauthors in 1979, it was only with Wood and colleagues ' (Wood et al., 1992) presentation of the osteological paradox that  it  became  widely  discussed  in  paleopathology.  The  concept  of frailty has been operationalized in many ways in paleopathology, but perhaps most commonly in calculating the risk of mortality or increased hazard of death of an individual relative to other individuals within a population  (Vaupel  et  al.,  1979).  Many  paleopathological  and  bio­ archaeological studies have effectively applied this concept of frailty in relation to mortality risk, with consideration of hidden heterogeneity in frailty and selective mortality in past populations (e.g., DeWitte, 2010; DeWitte and Stojanowski, 2015; DeWitte and Wood, 2008; Wyatt et al., 2022; Yaussy et al., 2016, 2024). Paleopathologists have also evaluated how specific lesions impacted frailty in past populations (Biehler-Gomez et al., 2025a; DeWitte, 2014). However, while it is widely accepted that pathological skeletal lesions do not incur equal frailty across once-living populations or over time, the calculation of frailty is inherently linked to the estimated age-at-death, making it difficult to disentangle the inter­ pretation of lesions from the aging process.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d7826a20f10c22a1adef278711d80c93e74478c38c806a3f71f9244aa521a703",
+    "text": "In gerontology and clinical medicine, frailty is a concept that en­ compasses limitations and declines in functions and capabilities (Fried et  al.,  2001;  Walston  et  al.,  2006).  As  a  phenotype  that  reflects  the accumulation of a wide variety of physiological and pathophysiological processes, frailty typically increases into and during older age (Crews, 2022; Rockwood and Mitnitski, 2011). This means that understanding frailty in its clinical sense is critical to understanding the aging process both in individuals and populations in past societies (Crews and Mar­ klein,  2023;  Marklein  and  Crews,  2017;  Marklein  and  Crews,  2022; Petrosino et al., 2025; Tuggle et al., 2021; Zedda et al., 2021).",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ec063fa52c9a0e51f34bd36ff5ef5c543f853923de9548b7c65937858a85a39a",
+    "text": "In studies of living populations, we can statistically evaluate how frailty  changes  with  chronological  age  (Rockwood  et  al.,  2004; Romero-Ortuno and Kenny, 2012). In the skeleton, however, estimated skeletal age at death and frailty may result from the same or similar processes, and it is oftentimes difficult, if not impossible, to systemati­ cally  separate  the  two  (Marklein  et  al.,  2016;  Marklein  and  Crews, 2022).  In  turn,  this  means  that  it  can  be  difficult  or  impossible  to empirically compare frailty between past populations with respect to specific patterns of aging, mortality, and disease. In one past population, age-related diseases may have appeared earlier (or later) in life than in another; the aging process itself may manifest differently on the skel­ eton; or markers may have been differentially affected by pathological processes. For example, a recent diachronic study comparing individuals from five historic contexts (Roman to Contemporary periods) in Milan has  demonstrated  how  frailty  varied  by  lesion  presence  amongst  in­ dividuals between periods (Biehler-Gomez et al., 2025b). However, siteor period-specific frailty indices may provide ways to identify patterns in age-related  diseases  within  certain  archaeological  contexts  (Yaussy et al., 2024).",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_66e5886a8a9f3dabfe31cbb843a4668a792fa42f6d48c75de0d82b02ea7f760f",
+    "text": "The corollary of the relationship between frailty, aging and disease is that, what at first glance looks like a difference in the chronological age distribution of frailty indicators may not hold true. This has significant implications for the use of concepts of frailty in paleoepidemiology and paleodemography.",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e3c681feaeafd991f248d34f97f70bffbe536eb22857780d4e6a80f841aabf5f",
+    "text": "3.2. Aging and inflammation",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_13c101c5c4b450af7f026eabbd4853ee4553129d41268c589491e29e4f2c65fa",
+    "text": "One major factor affecting frailty can be inflammaging. Researchers in  gerontology  and  immunology  have  long  linked  chronic,  low-level inflammation to increased age, otherwise known as inflammaging (e. g., L ´ opez-Otín et al., 2023a). This increased chronic inflammation fea­ tures  systemic  manifestations  as  well  as  localized  phenotypes  (e.g., intervertebral disc disease) (Baechle et al., 2023; Sanada et al., 2018). Dysregulation of the expression of signaling immune proteins, or cyto­ kines, likely plays a crucial role in reshaping the immune system at an older age, with evidence pointing to an aging body ' s increasing inability to  fine-control  systemic  inflammation  (Rea  et  al.,  2018).  Immune function  declines  alongside  increased  inflammation  (Carrasco  et  al., 2022), leading to systemic chronic inflammation or a systemic inflam­ matory phenotype. Inflammaging may also occur as a result of other systemic and localized hallmarks of aging (e.g., epigenetic alterations, telomere  attrition;  L ´ opez-Otín  et  al.,  2023a),  and  it  is  influenced  by different  biological,  dietary,  social,  and  environmental  factors  that affect inflammatory responses and overall systemic inflammatory phe­ notypes. This means that chronic, low-level inflammation, like other immunological processes (Crespo and Lawrenz, 2014; McDade, 2005), may be highly contextualized and manifest differently in past spatio­ temporal  and  cultural  contexts.  Indeed,  recent  research  in  human biology and immunology has demonstrated that inflammaging is not a universal hallmark of aging but is linked to extrinsic factors (Franck et al., 2025a, 2025b).",
+    "page": 3,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_139b3d7d882d389b19ca0e6bca39d52f2dd669918a101b4546d6de019a555123",
+    "text": "K. Fuchs et al.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_654670a87587e15545ba625f0d32a2bd0745fffb5812971fcd175f34bf003620",
+    "text": "The understanding that increased chronological age can be associ­ ated with low-level, chronic inflammation and systemic inflammatory phenotypes will likely help refine paleopathological work on the rela­ tionship  between  aging  and  disease  in  older  adults.  Future  research could explore how biological age could influence the systemic dysre­ gulation of immune responses and vice versa, while attending to the non-universality  of  inflammaging  and  the  potential  for  substantial variation  between  cultural  and  spatiotemporal  contexts.  A  chronic dysregulation  of  inflammatory  responses  could  accelerate  aspects  of biological  aging,  accounting  for  mismatches  between  skeletal  and chronological age. Inflammaging and a systemic inflammatory pheno­ type are likely to be underlying, silent players in other aspects of aging for some past populations, though potentially less so in pre-industrial contexts.  Chronic  inflammatory  changes  associated  with  aging  also contribute to reduced bone density (see section 3.3), as seen in meta­ bolic disorders that affect even the bone health of juveniles. Indeed, as recently proposed, chronic and dysregulated inflammation can be both a product of and contributor to functional declines across many systems and tissues  that  can  generate  age-related  increases  in  morbidity  and mortality (Carrasco et al., 2022; Franceschi and Campisi, 2014; McDade, 2023).",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b285767c260354a145a2e8afe2ce066760197cc6b47bd03a5737dc04b65fca73",
+    "text": "3.3. Aging and osteoporosis",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5fba26febd07043f1a654373416802e2959d9da1ceb6e80dac0a74240ec69e59",
+    "text": "Osteoporosis and osteopenia are conditions characterized by decreased bone mineral density, leading to increased susceptibility to fractures. Both are often associated with aging and are more prevalent in elderly individuals, and several studies have explored using bone loss to estimate adult age at death (Brickley, 2002; Castillo and L ´ opez Ruiz, 2011;  Curate  et  al.,  2022,  Gocha  et  al.,  2018,  Karydi  et  al.,  2022). However, the mechanisms behind bone loss are complex and studies in a wide  variety  of  populations  have  emphasized  that  the  idea  of  a ' normative ' pattern of bone loss is itself a product of cultural bias (see references in Agarwal, 2021).",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b5b03cc862bf3a023d5436c462980e89df5693d753b968e0c73d63304f84b85c",
+    "text": "Osteopenia is an early stage of bone loss, preceding osteoporosis, and is diagnosed based on bone mineral density measurements. The molec­ ular mechanisms underlying osteoporosis and osteopenia involve com­ plex interactions between  genetic,  hormonal,  and  environmental factors, amplified with aging (Rachner et al., 2011; Riggs et al., 2004; Taylor et al., 2016). Epigenetic modifications, especially DNA methyl­ ation, have been linked to osteoporosis and osteopenia. This is because aging can lead to DNA methylation changes, which can silence or acti­ vate the expression of genes involved in bone metabolism (Bell et al., 2012; Xu et al., 2021). Similarly, hypomethylation of genes that promote osteoclastogenesis can increase bone resorption, further contributing to age-related  bone  loss  (Seeman  and  Delmas,  2006;  Xu  et  al.,  2021). Research on osteoporosis in ancient populations (e.g., Agarwal, 2012, 2021; Agarwal and Grynpas, 2009) has demonstrated the impact of diet, physical  activity  post  menopause,  and  childbirth  frequency  on  bone health across time and cultures.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_954edd844ae803b794b9c641a3091e22f811c48d0e8cb9a8adac71bd83f6ff16",
+    "text": "In summary, osteoporosis and osteopenia are linked to aging through hormonal  changes,  oxidative  stress,  inflammation,  and  epigenetic modifications which are themselves linked to culture and behavior. As all of these can also influence the rate of bone remodeling, the effects on microscopic age estimation methods such as morphometry and bone mineral density are important to consider (Agarwal, 2018; Dominguez and Mavroudas, 2019; Gocha et al., 2018; Hale et al., 2024).",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0d768bdd550b2aa9f5c3f02936a11543fa74aa6278d43bd35741358162d27a2e",
+    "text": "3.4. Osteoarthritis, joint degeneration and age",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5dea0008e54f378443515c4a4c46489e9db0bfb256278161f6e8e56185ea6168",
+    "text": "In 20th -21st century living populations, joint diseases like osteoar­ thritis (OA) occur at high rates among older adults (Allen et al., 2022), and  are  often  correlated  with  aging,  although  numerous  factors contribute to OA (Anderson and Loeser, 2010; Waldron, 2020). Signs of joint degeneration have sometimes been used to assess age, especially when  age-at-death  estimation  is  attempted  on  highly  fragmentary, commingled, and cremated skeletons (Strasheim et al., 2023; Winburn and Stock, 2019). However, reliance on the appearance of joint surfaces as a marker of age is complicated by difficulties in differentiating be­ tween  time-related  (i.e.,  chronological  age-related)  wear  and  tear  of cartilaginous and bony structures and other inflammatory processes that disrupt surfaces, such as septic arthritis, avascular necrosis, and rheu­ matoid arthritis, as well as by the relationship between osteoarthritis and activity.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_40013e74f90a8a03dd245699d5ad87519d48b51f63395a5dc7602efddd6c24e3",
+    "text": "While OA has been associated with higher survivorship in skeletal assemblages from archaeological contexts (Biehler-Gomez et al., 2025a; Yaussy et al., 2024), the etiology, pathogenesis and clinical form of OA remains a variable composite of genetic, biological, age, and lifestyle factors in living populations (Strasheim et al., 2023; Waldron, 2019). Despite  this,  many  palaeopathological  and  bioarchaeological  studies pertaining to joint disease address age at death as a covariate (Baker and Pearson, 2006; Cheverko and Hubbe, 2017), rather than as a dependent variable. More recently, forensic anthropologists have operationalized OA as a potential indicator of age at death alongside more conventional age estimation techniques when constructing biological profiles (Brennaman et al., 2017;Strasheim et al., 2023). Despite its potential promise in some forensic contexts, the application of OA to age-at-death estimation in paleopathology and bioarchaeology is problematic due to the many interdependent and interactive variables (e.g., genetic pre­ disposition,  weight,  physical  fitness/musculoskeletal  strength)  that impact the initiation and progression of joint disease. Moreover, mani­ festations of primary and secondary OA, as well as other arthropathies such  as  rheumatoid  arthritis,  share  osseous  phenotypic  markers,  but have  different  causations,  ages  of  onset  and  disease  courses  (Eagle, 2021; Rogers et al., 1987).",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_24dbb3125839ab4c29af82ed2f218bc34c225428a237672bf194589c27bb31da",
+    "text": "3.5. Teeth, oral health and aging",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1b932a7fb9db986e4409eb3a9ab0a7a6da47e57008e8377aa472bd0f5ab39ed8",
+    "text": "For  juveniles,  enamel  hypoplasia  is  often  used  as  an  indicator  of physiological  stress  during  tooth  development  (e.g.,  Goodman  et  al., 1991; Towle and Irish, 2020), although other factors can also influence their formation and severity (Cardoso et al., 2024; Lawrence et al., 2021; Taji et al., 2008). It is unclear, however, whether the unknown time span of growth interruption impacts age estimation results based on tooth development stages. Over the life course, pathological changes accu­ mulate in the oral cavity, since the risks of developing dental and oral diseases  increase,  as  dental  tissue  does  not  remodel  (Lukacs,  2012; Temple, 2015; R ¨ osing and Kvaal, 1998). Tooth wear plays a key role, especially with respect to developing periapical infections and lesions, and  eventual  antemortem  tooth  loss  (AMTL)  (Mays,  2014;  Morgan, 2012).  Much  like  joint  wear,  dental  wear  has  been  utilized  for  age estimation (e.g., Lovejoy, 1985; Miles, 1963), even though the correla­ tions  between age-at-death and oral disease prevalence are inherent. Although this relationship is known (Clarke and Hirsch, 1991; Cucina et al., 2019; Davies-Barrett et al., 2025; Fuchs, 2020), its actual depth and significance is largely overlooked.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_64fe268e55f15aaf4ec1b588979dbd7be20fa476aa26bac8a3ff681e476f5752",
+    "text": "Firstly,  dental  wear  removes the crown, starting with the enamel formed early in life and all the direct evidence of health and stress, but also  other  aspects  of  lived  experience  (e.g.,  diet)  archived  therein. Consequently,  comparing  levels  of  physiological  stress  derived  from simple counts of EH within or between skeletal assemblages from past populations with different mortality structures is not straightforward. Dental  wear  and  antemortem  tooth  loss  (AMTL)  should  always  be considered because it can lead to a loss of information (Fuchs, 2020). Similarly, advanced caries damage can lead to AMTL. This is why caries correction procedures based on AMTL frequencies, dental preservation, and tooth position susceptibility should also be applied in any study of oral health and age (Erdal and Duyar, 1999; Lukacs, 1995). Secondly, AMTL is considered to be a typical condition observed among elderly individuals. However, given the wide range of factors influencing oral diseases and eventual AMTL, including genetics, diet, hygiene, occu­ pation and behavior, and socio-economic backgrounds, the K. Fuchs et al.",
+    "page": 4,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9317170fe8f992fd2154b83ea1ae5fccb274a92594d601defd3a6959e0a5550d",
+    "text": "chronological stage when edentulousness is reached differs across pe­ riods  and  contexts  of  studied  populations.  Thirdly,  oral  health  is  an important  determinant  of  general  health.  For  example,  chronic  peri­ odontal inflammation, which usually increases with advancing age in industrialized contexts (e.g., Clark et al., 2022), promotes a systemic inflammatory status, which, amongst other things, can affect bone ho­ meostasis, remodeling, and aging (Terkawi et al., 2022).",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_16cd6f7a153a1832c2f723c440ca8ba30ff42006cba0e39cb2949724c12686ab",
+    "text": "3.6. Cancer and age",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b47745d8ed6f7c627b076514dda306644388c23521f773ef3b51bab8bf8838d6",
+    "text": "Aging  and  cancer  are  closely  related  (Mont ´ egut  et  al.,  2024). Childhood  cancer  (e.g.,  leukemia,  lymphomas;  Siegel  et  al.,  2025; Kaatsch, 2010) have specific age periods when they occur more often, and affected children generally die between 10 -14 years (Centers for Disease Control and Prevention, 2015). In adults, the risk of developing malignancies increases during adulthood until it peaks between 85 and 90 years (Siegel et al., 2024). Two main factors responsible for increased frequency of cancers with increasing age include accumulated exposure to carcinogenic impacts and an age-related decrease in the self-regulatory  potential  of  genomic  and  cellular  factors  (e.g.,  DNA repair systems, Niedernhofer et al., 2018). Studies suggest a common­ ality of hallmarks of aging and cancer, referred to as ' agonistic hall­ marks ' (L ´ opez-Otín et al., 2023b). These include genomic instability, epigenetic alterations, chronic inflammation, and dysbiosis (Mont ´ egut et al., 2024). In contrast, in individuals older than 90 years, some hall­ marks of aging seem to protect against the development of malignancies (e.g.,  telomere  attrition  and  stem  cell  exhaustion,  L ´ opez-Otín  et  al., 2023b).",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d56548ef631bd2d7e178a7a3b2a49d72ce4f49195a209d9a61292ed0fea574e8",
+    "text": "In paleopathology, cancer is considered an age-related disease, but this  is  difficult  to  verify  in  archaeological  human  remains  because identifying neoplastic disease is challenging (Binder et al., 2014; Mar­ ques, 2018). Nevertheless, the ' paleo-oncological paradigm ' tradition­ ally treats cancer as a rare condition in the past (Marques et al., 2021, 2022). This assumption is largely based on the overall lower life ex­ pectancy  of  ancient populations  and  the  effects of  evolutionary mismatch over time.  Marques and colleagues (2022) challenged this view by adjusting diachronic prevalence rates of malignant neoplasms in ancient skeletal material for both time and age. However, the correlation with age remained insignificant due to uneven representation of the age groups, especially the elderly. In an ideal world, future studies would aim for improved age-adjustment of prevalence rates (Marques et al., 2022), but here again we meet the non-independence of skeletal aging and disease. This may prevent us from finally answering the question of how rare cancer was in past populations.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2e208e8ca762735a2099bf3c1e07545214112173d315ada1fef9a03e43d66b3a",
+    "text": "3.7. Ancient rare diseases and age",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b474244881de8b4ec3b813fbec1337150c89d101f92cfc21244ffbb8b462d8e0",
+    "text": "Rare diseases form a diverse group of pathological conditions that affect  only  a  small  number  of  people  worldwide  (Orphanet,  2024). Although there is no single agreed definition for Ancient Rare Diseases (Gresky et al., 2021), eighty percent or more of modern rare diseases are of genetic origin (Orphanet, 2024; Jackson et al., 2018) and, following utilitarian principles, similar prevalences may have also occurred in the past.  Most  of  these  Rare  Diseases  are  not  usually  conceptualized  in relation to aging, but many of them have age-related aspects -they can either change the rate of aging or they can change how aging takes place.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fbcefe5827afbbd76a8621b1b58f77591639a9f824ae7e181a50f3c403ac7a59",
+    "text": "Many Ancient Rare Diseases have a predefined specific age of onset. For example, osteopetrosis occurs in two different main  types: autosomal-dominant types, which usually start in late childhood/early adulthood  and  represent  the  benign  form  of  this  skeletal  dysplasia (Bollerslev et al., 2013; Gresky et al., 2020), and the autosomal-recessive form, which starts in early life and, without medical intervention, leads to  death  by  age  ten  (Penna  et  al.,  2021;  Nielsen  and  Alexandersen, 1971).  Often,  these  disease  types  significantly  limit  the  lifespan  of affected individuals. For example, individuals suffering from trisomy 18 die shortly after birth (Goldstein and Nielsen, 1988). Here, a proposed paleopathological  case  must  match  early  infant  age;  otherwise,  the diagnosis  should  be  reconsidered  (Gresky,  2024).  In  contrast,  in­ dividuals born with trisomy 21 before the 20th century could potentially have reached an older age, although the frequently accompanying lung and heart diseases would often have led to an earlier death in childhood (Anastasiadou et al., 2024; Rohrlach et al., 2024) due to the lack of 20th -21st century medical care. The effects of trisomy 21 on the skel­ eton may include reduced bone density and scoliosis, suggesting that it may affect the appearance of at least some skeletal features.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f0fb6b5010c2cbd3c9c6128ce0b031357b9fd8b0833db68060e02b7ffdaabbce",
+    "text": "Very rarely, a disease directly affects biological age by accelerating it.  One  example  is  the  syndrome  complex  of  progeria  (Lessel  and Kubisch, 2019), which causes rapid aging from the first year of life on­ wards until children die around the age of 15 years from a stroke or heart attack (Gordon et al., 2003). However, due to the diverse picture of the syndromes and their non-specific skeletal changes, like small stature, cranio-facial dysplasia (e.g., micrognathia), and osteoporosis, progeria is  not  easily  detectable  by  macroscopic  evaluation  in  archaeological human remains.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7b51ffdf22e39b41fd61aacccc91984be0649ab100725d5dc50ff1aff0ef0e4f",
+    "text": "4. Recommendations for age-at-death estimation in paleopathological practice",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_975252b73edf741c4108f63637611efd89ab8d8b6b281eda9b0cbea7b843b8d1",
+    "text": "4.1. Non-independence, bias and data collection",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e3d7d940e7a99eed71668e433224ee82debefc4f273f2566dc81fbb63887c734",
+    "text": "Skeletal age estimation is beset with inherent problems that are well articulated in the field (e.g., Buckberry, 2015, Mays, 2015). The po­ tential for inter- and intra-observer error is also well understood; how­ ever,  the  non-independence  of  skeletal  aging  and  disease  introduces another source of error: visible skeletal lesions of age-related diseases may  influence  the  osteological  age-estimation  process,  producing  a systematic bias. This bias is in addition to the fact that the same under­ lying biological processes may affect the appearance of skeletal lesions and the alteration of age estimation markers. Thus, an osteologist who observes markers of age-related disease in the skeleton may consciously or subconsciously adjust the assigned age to reflect this. For example, if using  a  categorical  (i.e.,  grades,  phases)  approach  to  aging,  when  a marker sits at the boundary between two categories, the presence of osteophytes might prompt the osteologist to put the skeleton into an older category. When repeated for a skeletal series, this would lead to a systematic increase in the apparent age of skeletons with osteophytes in comparison  to  those  without.  Hence,  the  overall  difficulty  lies  in obtaining age information that is as independent of disease as possible while preserving the ability to trace meaningful biological associations between age and disease.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1372a9f4687dacdd698e97a27061c424de9f872fe2233c980d9ca1fa03752a01",
+    "text": "Whilst  it  seems  impossible  to  correct  for  the  underlying  nonindependence of skeletal age-estimation markers and pathological le­ sions, under some circumstances it could be possible to correct for the potential additive bias. One would be to separate out skeletal elements involved in age estimation and then record age-at-death without prior knowledge of pathological conditions: one osteologist/paleopathologist would age all skeletons in the first stage of analysis, and only those skeletal elements used in aging would be observed. Pathologies would then be recorded separately in a later stage of analysis. If two osteolo­ gists/paleopathologists were to independently assess age and disease in the  same  assemblage,  the a  priori bias  could  be  avoided  even  more readily. In both approaches, the two sets of data could then be combined skeleton by skeleton, resulting in more informed age assessments and evaluations of age-disease related associations. Such protocols would increase the attention towards intra-population variability and charac­ teristics of osseous age-disease relationships.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_74ab6d6b864de74954dba38779b492a7d2417c2e2cd667740442d1060abbf25c",
+    "text": "Generally, standardized data collection that is as comprehensive as possible  is  likely  to  be  preferable  to  the  prior  exclusion  of  skeletal markers or methods, which would mean a loss of information. Only in this  way can possible correlations between age-at-death markers and disease be examined. Case by case, particular markers could be excluded for the estimation of age at death. At the same time, this provides useful K. Fuchs et al.",
+    "page": 5,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_dbc8209a6c213f233be7624bc8e201c49919b770fc17af0bef86500df070e04c",
+    "text": "data for future analyses such as in statistical approaches that account for likely covariation of age and disease (e.g., van Schaik et al., 2018). For instance, whenever a specific subset of diseases is investigated that is clearly age-related, age indicators unaffected by these diseases should be given priority in the assessment of age at death (e.g., research into oral health should not use age-at-death estimation methods based on dental wear,  research  into  osteoarthritis  should  not  be  based  on  the  auric­ ular/pubic  surface  alterations,  see  Sections  3.4  and  3.5).  Whilst  this approach could prove very useful in the assessment of specific diseases, in a general osteological analysis of a skeletal assemblage, this ' work around ' is not applicable and would rule out multifactorial approaches to aging (e.g., Clark et al., 2023; Milner et al., 2019).",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f43a6c2e2eff7a6828e1611ae592ede4e58c451a2fa8c3812ae19425056e15b6",
+    "text": "In an ideal world, the choice of method for estimating the age-atdeath of archaeological skeletons would be aligned with their respec­ tive  in  vivo  socio-economic, genetic, geographical and cultural back­ grounds. Whilst this is not possible in reality, researchers could consider why a particular approach to age-at-death estimation is suitable for the assemblage they are working with and justify that in their work (see Section  4.2).  In  any  case,  it  is  crucial  to  explore  population-specific morphological variation of skeletal traits, which are critical for both, age-at-death estimations and disease frequencies and distributions.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_87198bd75ed560905056fd39a3ceacd2c5db7050482e33497ecf4ad1a07ae647",
+    "text": "It is clear that the fundamental problems of bias and methods are not easy to solve, if they can be solved at all. For a practicable approach for the future our best approach may be to explicitly consider such bias. A simple way to achieve this would be to include a brief evaluation of potential biases introduced by age-disease-dependencies as in skeletal reports and studies, especially pathological reports that examine con­ ditions  that  are  associated  with  aging  in  the  present.  Here,  possible correlations between specific pathological changes and age markers can be pointed out and discussed, achieving more meaningful information for  osteobiographies,  highlighting  potential  confounding  factors  for palaeoepidemiology,  and  indicating  potential  impacts  on  mortality profiles.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ebe2252668037ca0a54a78d0232e45298f23f9994918ad180d1e67a0a80cb8a9",
+    "text": "4.2. Adjusting our reporting practice",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ed9d3653fbfc5d602ac967b027c1e00c9eb02c28236ac48ed6ba768d8788b10c",
+    "text": "For decades, researchers have recommended the standardization of age-at-death reporting (see Buckberry, 2015; Clark et al., 2023; Falys and  Lewis,  2011).  This  usually  takes  the  form  either  of  proposing  a standard set of age categories, which come with their own challenges (Appleby, 2022; Mays, 2015; Roksandic and Armstrong, 2011), or using maximum likelihoods or point estimates of age-at-death and reporting associated errors (e.g., DeWitte, 2010; Boldsen et al., 2022). Neither approach, however, has led to standardized reporting -skeletal age-at-death estimates are still reported in myriad ways and age cate­ gories remain inconsistent. Although the use of standardized age cate­ gories offers an apparent ground for comparability of datasets, in reality those categories mean different things in different contexts, since the aging process is contextual and we currently know little about skeletal aging as it pertains to the age indicators conventionally used. Therefore, unless skeletal assemblages are well-matched in genetics, environment, behavior and exposure to variables that influence aging, skeletal age categories will have different relations with chronological age in each population  studied.  Age  categories  therefore  offer  a  false  idea  of comparability. The same is true of point estimates of age-at-death. One must be aware that both the rate and process of skeletal aging can differ between the reference collection used to develop the estimation method and the skeletal assemblage to which it is being applied. As long as we are struggling with this ' age mimicry bias ' (Navitainuck et al., 2024; Vossoughi et al., 2022; and see Section 5.3), this is a problem because it seems to rule out our current age-at-death reporting practices. Rather than further entering into this debate, however, here we suggest two steps  to  integrate  into  our  data-reporting  practice  which,  if  widely adopted, could improve the overall usability reproducibility of age data (including for statistical purposes).",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e83324f50971efff0baf79689decbd50d1bfd4eb18787c71e8704cbebab01bb0",
+    "text": "First, we argue that it would be enormously helpful to include details of  age-at-death  estimation,  specifically  original  scores  per  skeletal marker  and  method  used,  within  osteological  and  paleopathological studies, ideally at both the population and individual level. With this basic morphological information provided, preservation issues, the final age-at-death for each skeleton (or skeletal element), classification into an age category, and possible interactions with pathological processes are visible to every researcher. This enables us to consider populationspecific  aging  processes  and  age  structures  in  future  projects  that make use of existing raw data, which is in turn useful for life history, frailty and modeling approaches. These data do not need to be presented or discussed in detail, but could be made available in supplementary materials or in freely accessible repositories (e.g., digital tables). Such reporting would be not only straightforward and quick to implement, since these data are always generated during osteological analysis, but would  also comply  with FAIR principles for  data  management (Wilkinson et al., 2016). Although we are primarily concerned with age, this recommendation could also extend to other aspects of osteological and paleopathological work, such as sex estimation.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_abb50b1db446df88edd4ba76af4ba105a0b53a681101c5cb2dd8cf56d759a6e6",
+    "text": "Secondly,  whenever  possible,  but  specifically  in  case  reports  and osteobiographies, it makes sense to include individual-level consider­ ations of potential age-disease interactions. In studies of single assem­ blages,  researchers  could  explicitly  consider  potential  interactions  of aging and disease at the population-level and any relevant sub-levels (e. g., sex, socioeconomic status). In multi-assemblage studies, researchers could  consider  likely  differences  in  age-disease  interactions  between populations and the potential implications of these for the interpretation of demographic differences in disease and frailty.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_998053f9c28181c9206a5af304195910404e6492fe6424ddddd797a67cd58c4a",
+    "text": "These  two  steps  may  seem  trivial  at  first,  but  they  could  have  a transformative effect when applied widely and in the long term. They would enable us as a field to move away from the all-too-common sit­ uation wherein the relationship between aging and disease sits in an unexamined black box, instead foregrounding this relationship as an overt  focus  of  interest  and  research.  It  is  likely  that  this  will  enable enhanced understanding both of aging and of disease in the past.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4199f4563f1c1d49b62d3d43905a3b4c8796d023e4a5b269d468da250cffe2c1",
+    "text": "5. Recommendations for future research",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4232679379b7a70aeded782c81dd3d41906ffb64cfb59a8dc7f00acb4c2ff981",
+    "text": "5.1. Physiological mechanisms of skeletal age markers",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_82d83b27cfff94d4b684442a88dc0419c1d96575a5d98675a81407b6889aecc4",
+    "text": "On a practical level, there has been little dedicated research into the mechanisms driving changes in skeletal age markers over the life course. Our information is largely extrapolated from medical, physiological, and anatomical studies in which skeletal aging was not the main focus (e.g., Mays,  2015).  Whilst  this  gives  us  a  certain  amount  of  foundational knowledge, we remain ignorant of the specific interaction of disease processes  with  remodeling  of  skeletal  features  used  in  age-at-death estimation.  Taking  inspiration  from  the  pathophysiological  approach in paleopathology (e.g., Mays, 2015), there is room to consider potential mechanisms of disease and their likely effects on skeletal age markers. The relationship between chronic, low-level inflammation and skeletal aging, for instance, is poised for such research (see Section 3.2).",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ecae27dba49c6c7267fa2e2f4cfd08e24ef4cad7fcea6cccb7e1fb934fed4835",
+    "text": "In order to study the interaction between osseous and soft tissues, radiological data (CT, x-ray) from forensic cases and living populations can be used. Written records of premodern or forensic skeletal collec­ tions do not deliver the same level of information, yet might be helpful in answering specific case-related questions. Thus, in practice, research into the relationship between disease and skeletal age markers could be developed through the use of modern clinical data (Anderson et al., 2025; van Schaik et al., 2014; 2018), and recent to modern skeletal collections for which chronological ages and health data are available, although resolution  and  capture  of  surface  features  remain  an  issue. Where modern clinical data is used, appropriate attention will also need to be paid to relevant ethical principles (e.g., CARE Principles, 2025).",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_092687be36157665265f2014eaa82d76482b2759c01df335251505f9d21daa99",
+    "text": "Imaging studies in living patients have great potential, but may pose significant access restrictions that limit their application (Stull et al., 2021).  Large  amounts  of  data  are  also  being  accrued  in  forensic K. Fuchs et al.",
+    "page": 6,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_da440192547c612bcb8825e8f7a9d8d4ad57b1163f9dd2a29e8f4efef741b439",
+    "text": "pathology through postmortem CT scanning, which, in contrast to that of  living  patients,  provide  opportunities  to  recognize  changes  in  dry bone morphologies. Combined with autopsy findings and health data, as well as modern diagnostics and treatments, this may be translatable to paleopathological  research.  Where  we  have  documented  reference skeletal collections with known medical histories (e.g., donated collec­ tions), we can develop case-control studies exploring differences in age markers  between  individuals  with  and  without  a  specific  diagnosed disease (see Bertsatos et al., 2020; Milner and Boldsen, 2017). Obtaining sufficient sample sizes that control for factors other than the disease of interest will be a key obstacle to overcome (for successful attempts see Daneshvari  and  Edgar,  2021;  Joshi  and  Tallman,  2023  ;  Wyatt  and O ' Donnell, 2025). Where sequential scans are available for living in­ dividuals,  we  can  carry  out  case-control  studies  to  investigate  how skeletal age markers change over time and how they relate to disease history, potentially alongside genetic and epigenetic profiles. Finding suitable and large enough samples is likely to be difficult, although the increasing availability of digital datasets may help with this. One chal­ lenge  in  extrapolating  from  clinical  data  for  paleopathology  is  the non-comparability of modern and past populations because of differing biosocial and environmental conditions and human plasticity, amongst other  variables.  This  is  clearly  evident  for  aspects  of  nutrition  and physical activity that directly influence bone remodeling and morphology, as well as for medical and therapeutic measures.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4fb06b5df2682f5d78461cfcec3f2fbec4a52020075d9e60646e747da848a787",
+    "text": "For developing age-at-death estimation methods, there is a need for investigations of more phenotypically, genetically, geographically and socially diverse skeletal collections (for example, as pioneered in the development of the transition analysis method (Boldsen et al., 2002; Milner et al., 2019)). Since a close correspondence between reference and archaeological skeletal collections is  lacking,  inclusion  of  varied populations when testing and validating new age-at-death estimation methods will enable us to investigate the effects of different environ­ mental and biosocial conditions on the morphology of age markers. In turn,  this  will  allow  researchers  to  consider  these  parameters  when choosing age-at-death estimation methods and selecting methods most appropriate for the assemblage they are analysing.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0c2ee84f5b62e96951091a0709fc80727db5e36bff70752445db8d319f212569",
+    "text": "New techniques, such as CT scanning and radiometrics, can also help visualize age-informative bone structures and changes within knownage  individuals.  Scanning,  alongside  machine-learning  approaches using quantitative use of 3D data, may help us understand shape and textural changes and may reduce the effect of intra- and interobserver bias (Barszcz and Wo ´ zniak, 2025).",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bbc46b747941f40093f6f85ada48333360734a396633ee745c492e599e0253e6",
+    "text": "5.2. Biomedical prospects",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6f838707a86e335815d79141d1185d912ad509001c7c4d6840bff5c7c516eae7",
+    "text": "There are promising biomedical perspectives to better understand the morphology of skeletal markers and skeletal age-disease relation­ ships. As proposed for the potential relationship between physiological stress and age-at-death estimations (Simon et al., 2023; Raghu et al., 2021), we suggest that paleopathological studies explicitly consider the interplay of inflammatory phenotypes and biological age (see Section 3.2). For example, we could consider bone alterations, such as those associated  with  periodontal  disease,  as  markers  of  chronic  systemic inflammation and use these to reconstruct skeletal inflammatory phe­ notypes for past individuals and populations (Crespo, 2020). From an evolutionary  perspective,  we  may  be  able  to  integrate  recent  paleo­ genetic research on changes in immune genes, cytokine production ca­ pacities, and the development of autoimmune diseases (e.g., da Silva et al., 2025; Domínguez-Andr ´ es et al. 2021, Krause-Kyora et al., 2025; Plascencia et al., 2025) into paleopathological research. Paleopathology would benefit from considering potential skeletal, oral, biomolecular and genetic markers of inflammaging and related processes of chronic physiological stress (e.g., Forshaw, 2024; Webb et al., 2015), as well as systemic  inflammatory  phenotypes,  in  their  assessments  of  disease relative to age, aging, and even age-at-death estimation.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e56e96c3bf025f83654eb949e86ef194df72484ddab9445cc727a968d6934167",
+    "text": "Paleopathology  will  also  benefit  from  new  approaches  such  as epigenetics and metabolomics in order to better understand processes of skeletal aging and disease. For example, there is increasing evidence that DNA  methylation  plays  a  role  in  aging  processes  and  contributes significantly to inflammaging (Wang et al., 2022). Indeed, the degree of DNA methylation is a biomarker of aging associated with age-related disease and all-cause mortality. Metabolomic clocks also offer informa­ tion about the aging process (see Huang et al., 2025). Current research has established that bone is a suitable target for metabolomic research (Badillo-Sanchez et al., 2023; Bonicelli et al., 2024). Epigenetics and omics-based approaches, therefore, hold potential to help us to better understand  both  skeletal aging, past age-related disease and dis­ ease-related  age .  While  these  methods  have  the  potential  to  include samples  from  chronologically  older,  fragmentary,  and  commingled contexts, they are destructive, relatively expensive, and require excel­ lent preservation of skeletal tissue.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_27b84cab5b7dd8ef9321c95e6942b3dc14d244286cc8510aa79c7be3e01bcf09",
+    "text": "5.3. Statistics, modeling and ' big data '",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_823f54b15dc4205b98d4a737b6def5b7e3dc31467c388bb8095345bdd70b81c1",
+    "text": "While individual life histories often reveal potential interconnections between aging and disease, potential also lies in statistical analysis and modeling. Age-related disease and disease-related age interactions could be incorporated into Bayesian models of aging and age-at-death estima­ tions. For instance, the use of priors in Bayesian statistical approaches could be used in advanced probabilistic modeling approaches for testing relationships between parameters of aging (e.g., diet, occupation, ge­ netics) and disease (e.g., physical strain, pathogen exposure) at different levels of analysis from the skeletal marker, to individual-level-age pro­ files,  to  cross-population  studies.  The  approaches  could  also  help address the issue of age mimicry bias in our traditional methods (see Navitainuck  et  al.,  2024;  Vossoughi  et  al.,  2022).  The  latest  paleo­ demographic research has demonstrated its functional power (e.g., Hens and Godde, 2022; Müller-Schee ß el et al., 2025), operable by multiple sources of information and with different data qualities (i.e., fragmen­ tary  material).  With  machine  learning  and  artificial  intelligence,  big data approaches also offer possibilities for pattern recognition However, this requires sufficient standardized osteological and paleopathological data. Existing data repositories, such as the one generated by the Global History of Health project (Steckel et al., 2018), could potentially be used for basic tests of age-disease interrelations -' basic ' because the original age marker scores are not (yet) available (see Section 4.2).",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_efadde47e8997234c8eae85a3435bc9971bdc8c40d3a56902ec2e3670696b21f",
+    "text": "Techniques such as TA3 (Milner et al., 2019) take a holistic approach to  offer  more  accurate  age-at-death  estimations  across  populations (although validation studies have yet to be undertaken on skeletal col­ lections  different  from  those  used  when  developing  the  method). Keeping in mind that age estimates are affected by the relationship be­ tween age and disease, the inclusion in the TA3 reference sample of individuals,  regardless  of  their  life  histories,  renders  confidence  in­ tervals longer than if we could adequately control for life (including disease) variables. As a large number of skeletal markers are included in the  TA3  assessment  the  technique  appears  promising  for  disparate skeletal  assemblages  and,  even  for  commingled  and  disarticulated skeletal remains (Bolster et al., 2024; Getz, 2020). Further research into the mechanisms underlying the skeletal features included within TA3 might allow refinement of the method and an associated reduction in confidence intervals.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0d8e9b21395b0f1d6137185f3d0f1edeee33b057ffb0ca5a6ab7c30b3abb4073",
+    "text": "6. Conclusion",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3a120ca2df65833e44ad5f6de30103cec2b299ca9dada1c8a1021de0b18715e0",
+    "text": "The  aim  of  this  perspective  paper  was  to  draw  attention  to  a complicated  and  ubiquitous,  yet  largely  unaddressed,  topic  within osteology, paleopathology and paleoepidemiology: the relationship be­ tween  skeletal  age  and  disease.  We  outline  a  framework  to  aid  in recognizing  the  effects  of  age-disease  interrelations  and  discuss  the significance of age-related disease and disease-related age using paleo­ pathological examples. These examples demonstrate the multifaceted nature of the relationships between disease and aging. Additionally, we K. Fuchs et al.",
+    "page": 7,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_84dbe3a77abab29d740bbf5442084ee7067c5886499a4f1c6d47d060192fdecc",
+    "text": "make clear that the osteological standard parameter ' age at death ' is not an isolated variable, since skeletal age markers impact disease processes and disease markers affect aging. We argue success in understanding health and disease in the past likely lies in promoting interdisciplinary and transdisciplinary exchange between osteologists, paleopathologists, clinicians, radiologists, immunologists, geneticists, gerontologists, human biologists, bioarchaeologists, paleodemographers and archeolo­ gists. We hope that this paper marks a first step in this direction.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9cd351fddfeca232ba251437950dab1b1b0308885aa8ad13cdc1648dd116e422",
+    "text": "CRediT authorship contribution statement",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d8215394f36fbbea1e4e1e5358f52df4a20d9f049dabe80300e7ee222323bc40",
+    "text": "Kathryn E. Marklein: Writing -review & editing, Writing -original draft,  Investigation. Molly  Zuckerman: Writing -review & editing, Writing -original  draft,  Investigation. Marie  Louise  Schjellerup J ø rkov: Writing -review & editing, Investigation, Conceptualization. George R. Milner: Writing -review & editing, Writing -original draft, Investigation. Katharina Fuchs: Writing -review & editing, Writing -original  draft,  Project  administration,  Investigation,  Funding  acquisi­ tion,  Conceptualization. Jo  Appleby: Writing -review & editing, Writing -original draft, Investigation, Conceptualization. Julia Gresky: Writing -review & editing,  Writing -original  draft,  Investigation. Fabian Crespo: Writing -review & editing, Writing -original draft, Investigation. Niels Lynnerup: Writing -review & editing, Writing -original draft, Investigation. Katherine van Schaik: Writing -review & editing, Writing -original draft, Investigation.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3b472c37bdfe1b8077b0b0067b25c10ca700d4f2c60fd9a2589e21551d204733",
+    "text": "Acknowledgments",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c3eb2c0cdf3abd29cee8c410ad4fa56db3fbbcea8eba98b6ca2399f1716d9bac",
+    "text": "This  paper  is  the  first  outcome  of  a  working  group  that  further explored the theme of the symposium ' It's Complicated -the Relation­ ship Between Age and Disease in Palaeopathology ' , which took place in 2022 as part of the 49th Annual Meeting of the Palaeopathology Asso­ ciation  in  North  America.  Many  thanks  to  the  PPA,  without  whose organizational and scientific framework this paper would not have been possible. We would like to thank all our staff and colleagues, especially Nils Müller-Schee ß el, Douglas Crews, Kerri Widrik and Daria Moser for the helpful discussions and comments during both within and outside group discussions. This work was supported by the German Excellence Strategy ' ROOTS -Social, Ecological and Cultural Networking in Past Societies ' [EXC 2150, 390870439] at Kiel University, Germany.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f868dff861e06d3bfe9bc43de32e7c21bd6d5c0a6941fa1a5c821c609b09a739",
+    "text": "References",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fce1ad699805d2c7c3b61c0a5050025f96a94db19546160c8ec20c804ae4fb8b",
+    "text": "Agarwal, S.C., 2012. The past of sex, gender, and health: bioarchaeology of the aging skeleton. Am. Anthropol. 114, 322 -335. https://doi.org/10.1111/j.15481433.2012.01428.x.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_91515ed84992ae3a7213bb2011f967c4a2f609bb214b6e30d14ccbad60e09665",
+    "text": "Agarwal, S.C., 2018. Understanding bone aging, loss, and osteoporosis in the past. In: Katzenberg, M., Grauer, A. (Eds.), Biological Anthropology of the Human Skeleton. John Wiley & Sons, Ltd, pp. 385 -414. https://doi.org/10.1002/9781119151647. ch11.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_50e2701e4592ac993ef2dc9a8bee6384489d39a82da43545175483d9e44d4b03",
+    "text": "Agarwal, S.C., 2021. What is normal bone health? A bioarchaeological perspective on meaningful measures and interpretations of bone strength, loss, and aging. Am. J. Hum. Biol. 33, e23647. https://doi.org/10.1002/ajhb.23647.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_811fc56d1c589c031a4f511f33e3f9eafadbc865014a684184db0b4b578c563c",
+    "text": "Agarwal, S.C., Grynpas, M.D., 2009. Measuring and interpreting age-related loss of vertebral bone mineral density in a medieval population. Am. J. Phys. Anthropol. 139, 244 -252. https://doi.org/10.1002/ajpa.20977.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3a7e7f0a92a48aa56c15f35904716ace87169cb44b220c6a329fb49057fb48e9",
+    "text": "Allen, K.D., Thoma, L.M., Golightly, Y.M., 2022. Epidemiology of osteoarthritis. Osteoarthr. Cartil. 30, 184 -195. https://doi.org/10.1016/j.joca.2021.04.020.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b42203fd21eaef6add8ff7e8dc84ca2a054fba9f85c5451f500f9bf2b4fe8288",
+    "text": "Anastasiadou, K., Silva, M., Booth, T., Speidel, L., Audsley, T., Barrington, C., Buckberry, J., Fernandes, D., Ford, B., Gibson, M., Gilardet, A., Glocke, I., Keefe, K., Kelly, M., Masters, M., McCabe, J., McIntyre, L., Ponce, P., Rowland, S., Ruiz Ventura, J., Swali, P., Tait, F., Walker, D., Webb, H., Williams, M., Witkin, A., Holst, M., Loe, L., Armit, I., Schulting, R., Skoglund, P., 2024. Detection of chromosomal aneuploidy in ancient genomes. Commun. Biol. 7, 14. https://doi.org/ 10.1038/s42003-023-05642-z.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fd0dda21a005f86eb9c00f6d9ef8ddcf4d2587928b8907a5cb618596e346ef35",
+    "text": "Anderson, A.S., Blackwell, A., Sutherland, M.L., Kraft, T., Sutherland, J., Beheim, B., Cummings, D., Ghafoor, S., Hooper, P.L., Rodriguez, D.E., Irimia, A., Gatz, M., Mack, W., Rowan, C., Miyamoto, M., Buetow, K., Finch, C., Wann, L.S., Allam, A., Thompson, R.C., Thomas, G., Kaplan, H., Stieglitz, J., Trumble, B., Gurven, M.D., 2025. Childhood skeletal lesions common in prehistory are present in living foragerfarmers and predict adult markers of immune function. Sci. Adv. 11, eadw3697. https://doi.org/10.1126/sciadv.adw3697.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e1a7cb77dbe41fa82a497f0ba950489ba74082ba50e007a1a499dcf334b76cd2",
+    "text": "Anderson, S.A., Loeser, R.F., 2010. Why is osteoarthritis an age-related disease? Best practice & research clinical rheumatology. Osteoarthritis 24, 15 -26. https://doi.org/ 10.1016/j.berh.2009.08.006.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_157b183819220c6665063c417523f21031a720ec825cbc97f0a94a47ac07a5cc",
+    "text": "Appleby, J., 2022. Afterword history, archaeology, and osteology in conversation. In: Porck, T., Soper, H. (Eds.), Early Medieval English Life Courses: Cultural-Historical Perspectives, Explorations in Medieval Culture. Brill, Leiden, pp. 319 -324.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_105a5e18806d1287b9c36710f881719710eb9cfbe9a08219925e036399af1636",
+    "text": "Appleby, J., 2024. Aging and disease risk factors: a new paleoepidemiological methodology for understanding disease in the past. Int. J. Paleopathol. 44, 33 -45. https://doi.org/10.1016/j.ijpp.2023.11.004.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_63ab2da4abcf90ad20ca567a331a6e4775858b7348be781ac1ab0e2c57eb672b",
+    "text": "Badillo-Sanchez, D., Serrano Ruber, M., Davies-Barrett, A., Jones, D.J.L., Hansen, M., Inskip, S., 2023. Metabolomics in archaeological science: a review of their advances and present requirements. Sci. Adv. 9, eadh0485. https://doi.org/10.1126/sciadv. adh0485.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a335af90c4bcc4b5db0928b823cf19a5de903da90e89f28da2be9c49a1daeba6",
+    "text": "Baechle, J.J., Chen, N., Makhijani, P., Winer, S., Furman, D., Winer, D.A., 2023. Chronic inflammation and the hallmarks of aging. Mol. Metab. 74, 101755. https://doi.org/ 10.1016/j.molmet.2023.101755.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_032b17d42327677ea0298f87adb2bea202c35991ca71bee5d02488aff126c413",
+    "text": "Baker, J., Pearson, O.M., 2006. Statistical methods for bioarchaeology: applications of age-adjustment and logistic regression to comparisons of skeletal populations with differing age-structures. J. Archaeol. Sci. 33, 218 -226. https://doi.org/10.1016/j. jas.2005.07.019.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_581f2de8ac8ec8dc8ba5d1bf3059aa900e0af93ab5b6c2fe49cf3ad069508ba3",
+    "text": "Barszcz, M., Wo ´ zniak, K.J., 2025. A review of methods of age estimation based on postmortem computed tomography. Forensic Sci. Res. 10, owae036. https://doi.org/ 10.1093/fsr/owae036.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_04aa0ae9d77186389dbdecf3d2c5438baca2d78fd1e723439de6e2161444c93b",
+    "text": "Bell, J.T., Tsai, P.-C., Yang, T.-P., Pidsley, R., Nisbet, J., Glass, D., Mangino, M., Zhai, G., Zhang, F., Valdes, A., Shin, S.-Y., Dempster, E.L., Murray, R.M., Grundberg, E., Hedman, A.K., Nica, A., Small, K.S., The MuTHER Consortium, Dermitzakis, E.T., McCarthy, M.I., Mill, J., Spector, T.D., Deloukas, P., 2012. Epigenome-wide scans identify differentially methylated regions for age and age-related phenotypes in a healthy ageing population. PLOS Genet. 8, e1002629. https://doi.org/10.1371/ journal.pgen.1002629.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b3208c629e063d77963fec5988877cc9cec4d69bb974b6efddb40acaa0eae5ae",
+    "text": "Bertrand, B., Cunha, E., B ´ ecart, A., Gosset, D., H ´ edouin, V., 2019. Age at death estimation by cementochronology: too precise to be true or too precise to be accurate? Am. J. Phys. Anthropol. 169, 464 -481. https://doi.org/10.1002/ajpa.23849.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8a503b5d5fbaabfb4ec27e5014ef1ffc5c6d37e24d846089b88981e412a5b839",
+    "text": "Bertrand, B., Robbins Schug, G., Polet, C., Naji, S., Colard, T., 2016. Age-at-death estimation of pathological individuals: a complementary approach using teeth cementum annulations. Int. J. Paleopathol. 15, 120 -127. https://doi.org/10.1016/j. ijpp.2014.04.001.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_79124d20982d0f59cd3a73114247ffd482faa4aaf076ff804a524e60342bdb8e",
+    "text": "Bertsatos, A., Chovalopoulou, M., Boskovits, N., Garoufi, N., Nikita, E., 2020. The impact of activity on pelvic age-at-death estimation. Int. J. Osteoarchaeol., oa.2941 https:// doi.org/10.1002/oa.2941.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_39d8d1a0ce7a25fc9da30df68fe48b79ddf48837e2ffede5f4c3c67c6918014b",
+    "text": "Biehler-Gomez, L., Marklein, K.E., Yaussy, S.L., Crews, D.E., DeWitte, S.N., Cattaneo, C., 2025b. Sex differences in frailty in milan over the last 2000 years: a hazards-based and cumulative phenotype approach. Am. J. Biol. Anthropol. 187, e70111. https:// doi.org/10.1002/ajpa.70111.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_98fa52a66a482258315435208f5cc5619ab40079c7ab1810729abcbb7023dd25",
+    "text": "Biehler-Gomez, L., Yaussy, S.L., Moro, C., Morandini, P., Mondellini, M., Petrosino, D., Mattia, M., Cattaneo, C., 2025a. Stress markers and survivorship over the last 2,000 years in Milanese females and males. J. Archaeol. Sci. 179, 106240. https://doi.org/ 10.1016/j/jas/2025.106240.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_555482b3cea35ebbab71847bef73840566ebae12faac006b1e77ff5b1e407770",
+    "text": "Binder, M., Roberts, C., Spencer, N., Antoine, D., Cartwright, C., 2014. On the antiquity of cancer: evidence for metastatic carcinoma in a young man from ancient nubia (c. 1200BC). PLOS ONE 9, e90924. https://doi.org/10.1371/journal.pone.0090924.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_805988508804823edb04fa54dea131877da30175a858e9269cf9e1ad6b91044e",
+    "text": "Bocquet-Appel, J.-P., Masset, C., 1982. Farewell to paleodemography. J. Hum. Evol. 11, 321 -333. https://doi.org/10.1016/S0047-2484(82)80023-7.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1f9a7d3b4e42da733aef23624f288162f1ec0744c0c845bec4eaa3cebe94a335",
+    "text": "Boldsen, J.L., Milner, G.R., Ousley, S.D., 2022. Paleodemography: From archaeology and skeletal age estimation to life in the past. Am. J. Biol. Anthropol. 178, 115 -150. https://doi.org/10.1002/ajpa.24462.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_61cb8d9d83c35fe8cd6baf82da5338466c93d6dc96f95fe0d1c15c2d38aefd05",
+    "text": "Boldsen, J.L., Milner, G.R., Konigsberg, L.W., Wood, J.W., 2002. Transition analysis: a new method for estimating age from skeletons. In: Hoppa, R.D., Vaupel, J.W. (Eds.), Paleodemography: Age Distributions from Skeletal Samples. Cambridge Studies in Biological and Evolutionary Anthropology. Cambridge University Press, pp. 73 -106. https://doi.org/10.1017/CBO9780511542428.005.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_efce5f5d0c4d9ba10f2190a4f488575fd7bb9c2a079edb8670832d26c43207a4",
+    "text": "Bollerslev, J., Henriksen, K., Nielsen, M.F., Brixen, K., Van Hul, W., 2013. Autosomal dominant osteopetrosis revisited: lessons from recent studies. Eur. J. Endocrinol. 169, R39 -R57. https://doi.org/10.1530/EJE-13-0136.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b0da03ede97438df8864db7203a20763bb72887ac28875b180403a3c354576dc",
+    "text": "Bolster, A.L., JeanLouis, H.J., Gregoricka, L.A., Ullinger, J.M., 2024. Estimating adult age categories in commingled skeletons with Transition Analysis 3. Am. J. Biol. Anthropol. 183. https://doi.org/10.1002/ajpa.24890.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_62a39499ed88763e5af7e4d3ce1b7ec1072e9873245af54b6e934576b8c1d546",
+    "text": "Bonicelli, A., Taylor, G., Procopio, N., 2024. Extraction and untargeted analysis of metabolome from undemineralised cortical bone matrix. Mol. Omics 20, 517 -523. https://doi.org/10.1039/D4MO00015C.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_20c68bcf3199b74955d5d75c7e9d40bf66599f447b81673d4a83b0e6f509dc80",
+    "text": "Brennaman, A.L., Love, K.R., Bethard, J.D., Pokines, J.T., 2017. A Bayesian approach to age-at-death estimation from osteoarthritis of the shoulder in modern North Americans. J. Forensic Sci. 62 (3), 573 -584. https://doi.org/10.1111/15564029.13327.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_963db686797e73c54a4a9eb4980a00b16e0cc5e04a97a972e25af1b170459919",
+    "text": "Brickley, M., 2002. An investigation of historical and archaeological evidence for agerelated bone loss and osteoporosis. Int. J. Osteoarchaeol. 12, 364 -371. https://doi. org/10.1002/oa.635.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4bb69f5b123807a44475dbaa44aace47b8922306a6434acd7d7bb0aeeecd2f2f",
+    "text": "Buckberry, J.L., 2015. The (mis)use of adult age estimates in osteology. Ann. Hum. Biol. 42, 323 -331. https://doi.org/10.3109/03014460.2015.1046926.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9dc71704be2ad34b0696ac2e20eaccfef58b32a2e0bad67024adfe0159d9a781",
+    "text": "Burrows, W., Scarpelli, D.G., 2024. Disease | Definition, Types, & Control. Encyclopedia Britannica. 〈 https://www.britannica.com/science/disease 〉 ([Online]).",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_816f5f05dedba817173a63f556ba7b077774cd152369e58b63c051537da3e8f5",
+    "text": "Calce, S.E., Kurki, H.K., Weston, D.A., Gould, L., 2018. The relationship of age, activity, and body size on osteoarthritis in weight-bearing skeletal regions. Int. J. Paleopathol. 22, 45 -53. https://doi.org/10.1016/j.ijpp.2018.04.001.",
+    "page": 8,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5e7750a9ab27c1a441842c915428317204287dfd3031d24c11280abfe8021155",
+    "text": "K. Fuchs et al.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5c3859368637d6599afcf31ab2608733ed26afb2264b915eb983f54831efcbdc",
+    "text": "Campanacho, V., Alves-Cardoso, F., 2023. Exploring adult age-at-death research in anthropology: bibliometric mapping and content analysis. Forensic Sci. 3 (1), 125 -148. https://doi.org/10.3390/forensicsci3010011.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9dd424fe6be0d85ec984de52761ce54787e226c606d5f3e0809efb12ffaf1e19",
+    "text": "Cardoso, I.L., Leal, F., Teles, A.M., Pina, C., 2024. Aetiology of Oral Diseases and their Association with Systemic Diseases. Cambridge Scholars Publishing.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_badb874769a02b17f0d54f7007e4831a4dfe29818eb1890325bf9314e4a1c3eb",
+    "text": "CARE Principles [WWW Document], 2025. Global Indigenous Data Alliance. URL 〈 https ://www.gida-global.org/care 〉 (accessed 9.16.25).",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b66e403752be60ec8989e0734ea86aa8fceb635cb961270b97d7b9826417b4bb",
+    "text": "Carrasco, E., G ´ omez de las Heras, M.M., Gaband ´ e-Rodríguez, E.D., Desdín-Mic ´ o, G., Aranda, J.F., Mittelbrunn, M., 2022. The role of T cells in age-related diseases. Nat. Rev. Immunol. 22, 97 -111. https://doi.org/10.1038/s41577-021-00557-4.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_96144342f5a215b262c1c7366caa39b14bf80ee615f6e33519fdce5cdd829d0c",
+    "text": "Caruso, C., Accardi, G., Ligotti, M.E., Vasto, S., Candore, G., 2021. Pathobiology of aging: An introduction to age-related diseases. In: Caruso, C., Candore, G. (Eds.), Human Aging. Academic Press 46, Press, pp. 35 -73.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1534183a7e4e06575beabe12a931dca70fd97925ddd2c0bc2e8ed2466cd250d2",
+    "text": "Castillo, R.F., L ´ opez Ruiz, M.D.C., 2011. Assessment of age and sex by means of DXA bone densitometry: application in forensic anthropology. Forensic Sci. Int. 209, 53 -58. https://doi.org/10.1016/j.forsciint.2010.12.008.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c03436672925734661d2bef8ab71cb4e0b3a1744b4f23044fa06e55ee0c49013",
+    "text": "Centers for Disease Control and Prevention, 2015: Cancer in Children. Centers for Disease Control and Prevention. 〈 http://www.cdc.gov/cancer/dcpc/data/children. html 〉 (accessed 9.12.25).",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6e033db5cbe4a55f653f555cdfd0aff0c9f14b8fb9502cfdf771bc617efc9777",
+    "text": "Cheverko, C.M., Hubbe, M., 2017. Comparisons of statistical techniques to assess agerelated skeletal markers in bioarchaeology. Am. J. Phys. Anthropol. 163 (2), 407 -416. https://doi.org/10.1002/ajpa.23206.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6692b02fe2ff608693d2a0d8a5505e4c381a6cfb02d186dd0da1164b9acc70bc",
+    "text": "Chmielewski, P.P., 2020. Human ageing as a dynamic, emergent and malleable process: from disease-oriented to health-oriented approaches. Biogerontology 21, 125 -130. https://doi.org/10.1007/s10522-019-09839-w.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2eb48b055d402ac97089a90fc46710d914a12796eb8625978833997670fe5372",
+    "text": "Clark, M.A., Cheverko, C.M., Simon, A., Lagan, E.M., Hubbe, M., 2023. The decade under review: recent trends and challenges in the use of macroscopic age-at-death estimation methods in bioarchaeology. Int. J. Osteoarchaeol. 33 (1), 150 -163. https://doi.org/10.1002/oa.3142.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6cf3afa79650fed6de3d70c010804bc9a99cddf63f2c4269b48d09f74d68682f",
+    "text": "Clark, D., Radaic, A., Kapila, Y., 2022. Cellular mechanisms of inflammaging and periodontal disease. Front. Dent. Med. 3. https://doi.org/10.3389/ fdmed.2022.844865.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_daa4d05bca88e4660226bc586bcaabf32984db54c7bf30e48d65abd519b1e408",
+    "text": "Clarke, N.G., Hirsch, R.S., 1991. Tooth dislocation: the relationship with tooth wear and dental abscesses. Am. J. Phys. Anthropol. 85, 293 -298. https://doi.org/10.1002/ ajpa.1330850307.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5f0d52aa38e3bb1960fb4fa199b20bf657d86ebd13b58c6a2f0d2339cbddbf78",
+    "text": "Couoh, L.R., 2017. Differences between biological and chronological age-at-death in human skeletal remains: a change of perspective. Am. J. Phys. Anthropol. 163, 671 -695. https://doi.org/10.1002/ajpa.23236.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2400dc7ae5c17900cfcefdc44da3451393b67f92b21f6baaef6bece150112b30",
+    "text": "Crespo, F., 2020. Reconstructing immune competence in skeletal samples. In: Cheverko, C.M., Prince-Buitenhuys, J.R., Hubbe, M. (Eds.), Theoretical Approaches in Bioarchaeology. Routledge, pp. 76 -92. https://doi.org/10.4324/9780429262340.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_16759014267eca2e3263300f3febef69936f9286b32ae323ddffa920467e803f",
+    "text": "Crespo, F., Lawrenz, M., 2014. Heterogeneous immunological landscapes and medieval plague: an invitation to a new dialogue between historians and immunologists. In: Green, M.H. (Ed.), The Medieval Globe: Pandemic Disease in the Medieval World: Rethinking the Black Death (1 ed). Kalamazoo, Bradford. Arc Medieval Press, pp229 -258. https://doi.org/10.2307/j.ctvmd83jc.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2ab8b252dc9861422d48028b22c121c0802a6c7108fb94d68cc2e4aa3fbba9e8",
+    "text": "Crews, D.E., 2022. Aging, frailty, and design of built environments. J. Physiol. Anthropol. 41, 2. https://doi.org/10.1186/s40101-021-00274-w.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_58d5afac92fa98cbcd211735033edee80e117bdd81a2d49471ec189432ec55d3",
+    "text": "Crews, D.E., Marklein, K.E., 2023. Conceptualizing frailty in the quick and the dead. In: Howell, B., Harrod, R. (Eds.), Anthropological Perspectives on Aging. University Press of Florida, Gainesville, pp. 242 -270. https://doi.org/10.2307/j.ctv36k5f03.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e602ef321a6e6e191901a00f5149b10202115750ac661b56dbf7fd8fa40e3786",
+    "text": "Cucina, A., Chiappa, O., Sierra Sosa, T., 2019. Age and sex-related topography of carious lesions and oral conditions among Prehispanic coastal Mayas. Dent. Anthropol. 32 (2), 67 -76. https://doi.org/10.26575/daj.v32i2.287.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d12cc5288a6a9633902b635036f1f1f41f77f66b966aa75c8da05d103626cbe4",
+    "text": "Curate, F., Navega, D., Cunha, E., Coelho, J. d ' Oliveira, 2022. DXAGE 2.0 -adult age at death estimation using bone loss in the proximal femur and the second metacarpal. Int. J. Leg. Med. 136, 1483 -1494. https://doi.org/10.1007/s00414-022-02840-y.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e8c17caa9441a7aac28e54e00c78ceeb8bc3b5adb5c30cc20e63d9c898da56ce",
+    "text": "Currarino, G., Erlandson, M.E., 1964. Premature fusion of epiphyses in Cooley's anemia. Radiology 83 (4), 656 -664. https://doi.org/10.1148/83.4.656.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_48aa1d2c2b26ebcc09db33eb6a05a9d45c4b47a0cdee259e128a6bd0c08b8c41",
+    "text": "da Silva, N.A., ¨ Ozer, O., Haller-Caskie, M., Chen, Y.-R., Kolbe, D., Schade-Lindig, S., Wahl, J., Berszin, C., Francken, M., G ¨ orner, I., Schierhold, K., Pechtl, J., Grupe, G., Rinne, C., Müller, J., Lenz, T.L., Nebel, A., Krause-Kyora, B., 2025. Admixture as a source for HLA variation in Neolithic European farming communities. Genome Biol. 26, 43. https://doi.org/10.1186/s13059-025-03509-6.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d890ba160da9f6eed92a85c58d7b759b10b98daa3c1d8a5d4fe9f5b8c6a06226",
+    "text": "Daneshvari, S., Edgar, H.J.H., 2021. A new resource for pathology informatics: the New Mexico decent image database. J. Pathol. Inform. 12 (1). https://doi.org/10.4103/ 2153-3539.330157.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d16598eefa0d6fa0a9afcef54bdcfb622f5669abe32a3a916d5f7171b672b773",
+    "text": "Davies-Barrett, A.M., Holliday, R., Jakubovics, N.S., Inskip, S.A., 2025. An 'Index of orodental disease ' : a holistic method for understanding the impacts of different risk factors on oral health in archaeological populations. Int. J. Paleopathol. 48, 43 -56. https://doi.org/10.1016/j.ijpp.2024.12.001.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5537a0a88b309d828d457dbb794ff2dd7bcda3ae30fc098292fb5d654582c44b",
+    "text": "de Magalh ˜ aes, J.P., 2024. Distinguishing between driver and passenger mechanisms of aging. Nat. Genet. 56, 204 -211. https://doi.org/10.1038/s41588-023-01627-0.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_956a14079a6851be84f7741fd819bdcb928d717ca0a240a5b223bed70c230b5a",
+    "text": "Decrausaz, S.-L., Cameron, M.E., 2022. A growth area. Evol. Med. Public Health 10, 108 -122. https://doi.org/10.1093/emph/eoac005.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0a7538cc9446c3fea86aa046906252fc706dde1b58196e5ebf55a70b46a3f95a",
+    "text": "DeWitte, S.N., 2010. Age patterns of mortality during the Black Death in London, A.D. 1349-1350. J. Archaeol. Sci. 37 (12), 3394 -3400. https://doi.org/10.1016/j. jas.2010.08.006.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cf5792da719e82adf46eae8b76b033ca04db178ec18070b36b6feafa3932cb03",
+    "text": "DeWitte, S.N., 2014. Differential survival among individuals with active and healed periosteal new bone formation. Int. J. Paleopathol. 7, 38 -44. https://doi.org/ 10.1016/j.ijpp.2014.06.001.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_237380f8442f0a98ceefa3eb92bf874bc1cf5b4219da500dd54a7d9100327ac0",
+    "text": "DeWitte, S.N., Stojanowski, C.M., 2015. The osteological paradox 20 years later: past perspectives, future directions. J. Archaeol. Res. 23, 397 -450. https://doi.org/ 10.1007/s10814-015-9084-1.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4d1299a78d7ebd608ac57c328a7438ff5ca642154a157e240590e05a5bc01487",
+    "text": "DeWitte, S.N., Wood, J.W., 2008. Selectivity of Black Death mortality with respect to preexisting health. Proc. Natl. Acad. Sci. USA 105 (5), 1436 -1441. https://doi.org/ 10.1073/pnas.0705460105.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_54ece5da837a079a0d674496528840fd97d23c9c399f0b4120e9909245418823",
+    "text": "Dominguez, V.M., Mavroudas, S., 2019. Bone histology for skeletal age-at-death estimation. In: Adersias-Garriga, J. (Ed.), Age Estimation. A Multidisciplinary Approach. Elsevier, pp. 145 -159. https://doi.org/10.1016/B978-0-12-8144916.00010-8.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_163f8d562b7b05e0ffc03856a6b5af398ad623e5aa1bd826be5a12aa79ef7d0f",
+    "text": "Domínguez-Andr ´ es, J., Kuijpers, Y., Bakker, O.B., Jaeger, M., Xu, C.-J., Van der Meer, J. W., Jakobsson, M., Bertranpetit, J., Joosten, L.A., Li, Y., Netea, M.G., 2021. Evolution of cytokine production capacity in ancient and modern European populations. eLife 10, e64971. https://doi.org/10.7554/eLife.64971.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_83f261bcc7a10016bc967959219eb3fc19ce4da72ce927a9010ea27f970fc0a1",
+    "text": "Eagle, T., 2021. Rheumatoid arthritis: an examination of arthropathy in antiquity. Pathways 2, 83 -101. https://doi.org/10.29173/pathways24.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6e335e201741dc1162683fb3cfbe82998567dbfd11e3d7eb9f98bdb8ce83aa68",
+    "text": "Erdal, Y.S., Duyar, I., 1999. A new correction procedure for calibrating dental caries frequency. Am. J. Phys. Anthropol. 108, 237 -240. https://doi.org/10.1002/(SICI) 1096-8644(199902)108:2 < 237::AID-AJPA8 > 3.0.CO;2-Z.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0d830a58f758139ec24ba79816d5d2f0dc323d5dc170af338df1d5f617037b0b",
+    "text": "Falys, C.G., Lewis, M.E., 2011. Proposing a way forward: a review of standardisation in the use of age categories and ageing techniques in osteological analysis (2004 -2009). Int. J. Osteoarchaeol. 21, 704 -716. https://doi.org/10.1002/oa.1179.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2981448d06935d01eefcd4f0874a0cba9c9dd09ea2b941f9297cf9b7ee58cb0d",
+    "text": "Fisher, R., Rissman, S., Prestridge, P., 2025. General concepts of disease. MRAJ 13. https://doi.org/10.18103/mra.v13i8.6912.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_97149c1bd1a77b8a418e48f2f6235d560e6dcecd028904b9da1295ad9b1930ff",
+    "text": "Forshaw, R., 2024. Windows into the past: recent scientific techniques in dental analysis. Br. Dent. J. 236 (3), 205 -211. https://doi.org/10.1038/s41415-024-7053-0.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3907975db7bc2f841c5096196c0b65708482e6dff5f3802e32d516fb05581b91",
+    "text": "Foster, B.L., Chavez, M.B., Kolli, T.N., Oldershaw, L., 2022. Insights into cementogenesis from human disease and genetically engineered mouse models. In: Gourichon, L., Naji, S., Rendu, W. (Eds.), Dental Cementum in Anthropology. Cambridge University Press, Cambridge, pp. 65 -82. https://doi.org/10.1017/9781108569507.005.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b90bcd7dad046343037cf12fa4a7cf166bd42456644f675592e5c3ff222a8daf",
+    "text": "Franceschi, C., Campisi, J., 2014. Chronic inflammation (inflammaging) and its potential contribution to age-associated diseases. S4 -D9 J. Gerontol. Ser. A 69 (1). https://doi. org/10.1093/gerona/glu057.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5e73f71bde586604180279941872eff459433d86e2c7fc33874307530fda2103",
+    "text": "Franck, M., Daunizeau, C., Aronoff, J.E., Tanner, K., Trumble, B.C., Franceschi, C., Hertel, J., Fül ¨ op, T., Lemoine, M., Gurven, M., Cohen, A.A., 2025a. Inflamm-aging as a diverse and context-dependent process: from species and population differences to individual trajectories. Ageing Res. Rev., 102880 https://doi.org/10.1016/j. arr.2025.102880.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_662be81d0afb3628e4ceb72a6d77af89acf9eb5364ec4ae04ac1978e24101e23",
+    "text": "Franck, M., Tanner, K.T., Tennyson, R.L., Daunizeau, C., Ferrucci, L., Bandinelli, S., Trumble, B.C., Kaplan, H.S., Aronoff, J.E., Stieglitz, J., Kraft, T.S., Lea, A.J., Venkataraman, V.V., Wallace, I.J., Lim, Y.A.L., Ng, K.S., Yeong, J.P.S., Ho, R., Lim, X., Mehrjerd, A., Charalambous, E.G., Aiello, A.E., Pawelec, G., Franceschi, C., Hertel, J., Fül ¨ op, T., Lemoine, M., Gurven, M., Cohen, A.A., 2025b. Nonuniversality of inflammaging across human populations. Nat. Aging 5, 1471 -1480. https://doi. org/10.1038/s43587-025-00888-0.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_12b4d91c1f4f03ddfa65fa86c66fcd4929b3073386e14830dccc5f742b26bff8",
+    "text": "Fried, L.P., Tangen, C.M., Walston, J., Newman, A.B., Hirsch, C., Gottdiener, J., Seeman, T., McBurnie, M.A., 2001. Frailty in older adults: evidence for a phenotype. J. Gerontol. Ser. A 56 (3), M146 -M157. https://doi.org/10.1093/gerona/56.3. M146.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f2bda770e1aac4133991cf9a8c96af29f666bc683e2aa6ec9fb54d320ab3a711",
+    "text": "Fuchs, K., 2020. Interdisciplinary Analysis of the Cemetery ' Kudachurt 14 ' : Evaluating Indicators of Social Inequality, Demography, Oral Health and Diet During the Bronze Age Key Period 2200 -1650 BCE in the Northern Caucasus. Scales of Transformation 11. Sidestone Press, Leiden. https://doi.org/10.59641/l4568ox.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_de28da5b9e001bfe2a866a541785bb0c68ebd1c9c69e4271a540e2c033c5fb1e",
+    "text": "Funkhouser, W.K., 2020. Pathology: the clinical description of human disease. In: Coleman, W.B., Tsongalis, G.J. (Eds.), Essential Concepts in Molecular Pathology. Academic Press, pp. 177 -190. https://doi.org/10.1016/B978-0-12-8132579.00011-5.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cc658fd7887a882add9d3c3348e0bd14678cbcfc675c3a1fb3138d399988d2b8",
+    "text": "Getz, S.M., 2020. The use of transition analysis in skeletal age estimation. WIREs Forensic Sci. 2, e1378. https://doi.org/10.1002/wfs2.1378.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_78d2e5f4f0eee6974e9aace234faf762a6a69cfd11ba8b544a7c2acca0d1c5e2",
+    "text": "Gocha, T.P., Robling, A.G., Stout, S.D., 2018. Histomorphometry of human cortical bone: applications to age estimation. In: Katzenberg, M.A., Grauer, A.L. (Eds.), Biological Anthropology of the Human Skeleton. Hoboken, NJ, USA: John Wiley & Sons, Inc, pp. 145 -187. 〈 https://onlinelibrary.wiley.com/doi/10.1002/9781119151647.ch5 〉 .",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7d89e5b6d779814677fa75496918fae98a9b76b937e8382cf59e9ccc69f4e73e",
+    "text": "Goldstein, H., Nielsen, K.G., 1988. Rates and survival of individuals with trisomy 13 and 18. Data from a 10-year period in Denmark. Clin. Genet. 34, 366 -372. https://doi. org/10.1111/j.1399-0004.1988.tb02894.x.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6086fbfa5b6bf2012f388df8d42c6ae8fb5ed9d8feffc80358e69601e0de1a8e",
+    "text": "Goodman, A.H., Martinez, Celia, Chavez, Adolfo, 1991. Nutritional supplementation and the development of linear enamel hypoplasias in children from Tezonteopan, Mexico. Am. J. Clin. Nutr. 53 (3), 773 -781. https://doi.org/10.1093/ajcn/53.3.773.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4e461ed1ef8230c2077ec75b3889e6cace64a33b4ecd1fb072f7202a4b8ae789",
+    "text": "Gordon, L.B., Brown, W.T., Collins, F.S., 2003. [Updated 2025 Mar 13]. In: Adam M.P., Feldman J., Mirzaa G.M., et al., editors. GeneReviews ® [Internet]. Seattle (WA): University of Washington, Seattle; 1993-2025. Available from: https://www.ncbi. nlm.nih.gov/books/NBK1121/https://www.ncbi.nlm.nih.gov/books/NBK1121/.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_86efa3f15438630f4a5d66a3473de5affd313c7040ecda439dc66bab28ad548f",
+    "text": "Grauer, A.L., 2018. A century of paleopathology. Am. J. Phys. Anthropol. 165 (4), 90 -4914. https://doi.org/10.1002/ajpa.23366.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_161ba7a6e7b7cf4600d9c417e9428df790688837dc2ba1860e599352a7f4ccf4",
+    "text": "Grauer, A.L., Buikstra, J.E., 2019. Themes in paleopathology. In: Buikstra, J.E. (Ed.), Ortner's Identification of Pathological Conditions in Human Skeletal Remains. Academic Press, pp. 21 -33. https://doi.org/10.1016/B978-0-12-809738-0.00003-X.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0deef7b7d24c7a2b49d7bc7d33e1c6b171233353d5936e29f312ddbe343ae899",
+    "text": "Gresky, J., 2024. Assessing autosomal aneuploidy in ancient genomes. Trends Genet. 40 (6), 463 -464. https://doi.org/10.1016/j.tig.2024.04.006.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_006051a310bdd78729c7bb3822cd7c4b4184a487e03b72f8c0e1b777b642d2b0",
+    "text": "Gresky, J., Dorn, J., Tessmann, B., Petiti, E., 2021. How rare is rare? A literature survey of the last 45 years of paleopathological research on ancient rare diseases. Int. J. Paleopathol. 33, 94 -102. https://doi.org/10.1016/j.ijpp.2021.03.003.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_58a1d12ab2862d3280746c6c6eb7f61a3baf09232ef7964de5e9e652e3dd426d",
+    "text": "Gresky, J., Sokiranski, R., Witzmann, F., Petiti, E., 2020. The oldest case of osteopetrosis in a human skeleton: exploring the history of rare diseases. Lancet 8 (10), 806 -808. https://doi.org/10.1016/S2213-8587(20)30307-7.",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9c3c03668a61d6a460819004ca3435f84ec92ce8c4b14661b066b1fb22640783",
+    "text": "Hale, A.R., Pilloud, M.A., Ross, A.H., 2024. The applicability of bone mineral density for adult age estimation. Methodological and Technological Advances in Death",
+    "page": 9,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f2aeabb17a655aa7a957d8b267376c7cb35733340ba083b60be78e211546165a",
+    "text": "K. Fuchs et al.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_31ed70bcda78b4d5a759ad7d7b39b992226d1325c05efa3fac5518a414346864",
+    "text": "Investigations. Elsevier, pp. 333 -348. https://doi.org/10.1016/B978-0-12-8193945.00001-8.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_598fa47498e8afa04061a52568bd1eae41629a5e9541bc93532c2a64b7640ae8",
+    "text": "Hens, S.M., Godde, K., 2022. A Bayesian approach to estimating age from the auricular surface of the ilium in modern American skeletal samples. Forensic Sci. 2, 682 -695. https://doi.org/10.3390/forensicsci2040051.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5cef3da5f87aeb8cdad48e5d810bc1b8a24b109f4873b88c6cd697c460cbb7b3",
+    "text": "Hoppa, R.D., Vaupel, J.W., 2002. Paleodemography: Age Distributions from Skeletal Samples. Cambridge University Press, Cambridge.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_58a2c1fc3f43ef7f0b0ffb55b5bfd7a0efff7b55c3f274e53e0f80a7bb9ce638",
+    "text": "Huang, H., Chen, Y., Xu, W., Cao, L., Qian, K., Bischof, E., Kennedy, B.K., Pu, J., 2025. Decoding aging clocks: new insights from metabolomics. Cell Metab. 37, 34 -58. https://doi.org/10.1016/j.cmet.2024.11.007.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b84ab819552eada8a7ee486c505e05d7d6b55336cdad58e64a19d2c4888bcc4e",
+    "text": "Jackson, M., Marks, L., May, G.H.W., Wilson, J.B., 2018. The genetic basis of disease. Essays Biochem. 62 (5), 643 -723. https://doi.org/10.1042/EBC20170053.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c99cd36017a2a9e3363cbd2ff2adb418aeb079828b8e355f86634b6229d9d291",
+    "text": "Joshi, M.A., Tallman, S.D., 2023. Three-dimensional convolutional neural network for age-at-death estimation of deceased individuals through cranial computed tomography scans. Forensic Imaging 34, 200557. https://doi.org/10.1016/j. fri.2023.200557.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1257f708ec41782c0586f742c1aed1be4307a4255a29da93bdeff926100257e1",
+    "text": "Kaatsch, P., 2010. Epidemiology of childhood cancer. Cancer Treat. Rev. 36 (4), 277 -285. https://doi.org/10.1016/j.ctrv.2010.02.003.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_20487840d24eccc208328c7f269c8317070775449999480baeb27ffa948d6c80",
+    "text": "Karydi, C., García-Donas, J.G., Tsiminikaki, K., Bonicelli, A., Moraitis, K., Kranioti, E.F., 2022. Estimation of age-at-death using cortical bone histomorphometry of the rib and femur: a validation study on a British population. Biology 11, 1615. https://doi. org/10.3390/biology11111615.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fd02331c57a24765af26291bd59273917662ca08e894b89afcb1e60a8b03f202",
+    "text": "Konigsberg, L.W., Frankenberg, S.R., 1992. Estimation of age structure in anthropological demography. Am. J. Phys. Anthropol. 89, 235 -256. https://doi.org/ 10.1002/ajpa.1330890208.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_72163013a8d84d9ac1d8a47bec6dd4ff5b009aa2706bf5dd10c929881ed53c4f",
+    "text": "Konigsberg, L.W., Frankenberg, S.R., 1994. Paleodemography: ' not quite dead. Evolut. Anthropol. 3, 92 -105. https://doi.org/10.1002/evan.1360030306.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bf574de9a138f0c234d683313e779200b797e24e088a9574d669d41c24c06a09",
+    "text": "Krause-Kyora, B., da Silva, N.A., Kaplan, E., Kolbe, D., Schade-Lindig, S., Wahl, J., Berszin, C., Francken, M., G ¨ orner, I., Schierhold, K., Pechtl, J., Grupe, G., Müller, J., Wohlers, I., Busch, H., Ellinghaus, D., Caliebe, A., Sezgin, E., Nebel, A., Schreiber, S., 2025. Neolithic introgression of IL23R-related protection against chronic inflammatory bowel diseases in modern Europeans. eBioMedicine 113, 105591. https://doi.org/10.1016/j.ebiom.2025.105591.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ed1f28bd1decad230fca2d8d4680bdf49c626565f8ef6b5a32138d0e6beadbb8",
+    "text": "Kuan, V., Fraser, H.C., Hingorani, M., Denaxas, S., Gonzalez-Izquierdo, A., Direk, K., Nitsch, D., Mathur, R., Parisinos, C.A., Lumbers, R.T., Sofat, R., Wong, I.C.K., Casas, J.P., Thornton, J.M., Hemingway, H., Partridge, L., Hingorani, A.D., 2021. Data-driven identification of ageing-related diseases from electronic health records. Sci. Rep. 11, 2938. https://doi.org/10.1038/s41598-021-82459-y.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_544d305e97124568bcdd788df48a7b68e2784a7356312cb0b9b41dbd1f0e0432",
+    "text": "Lawrence, J., Stojanowski, C.M., Paul, K.S., Seidel, A.C., Guatelli-Steinberg, D., 2021. Heterogeneous frailty and the expression of linear enamel hypoplasia in a genealogical population. Am. J. Phys. Anthrophol. 176, 638 -651. https://doi.org/ 10.1002/ajpa.24288.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f55e60d0174875ee44b27140fe2638207d52caa8417e96ba651cbb5c469aa328",
+    "text": "Lawson, J.P., Ablow, R.C., Pearson, H.A., 1983. Premature fusion of the proximal humeral epiphyses in thalassemia. Am. J. Roentgenol. 140 (2), 239 -244. https://doi. org/10.2214/ajr.140.2.239.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_324d7ffa054e892cded095bcbc51719b8f9e4abc2c755eb2ffb5467a6671be80",
+    "text": "Le Couteur, D.G., Thillainadesan, J., 2022. What is aging-related disease? An epidemiological perspective. J. Gerontol. Ser. A 77 (11), 2168 -2174. https://doi. org/10.1093/gerona/glac039.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_35dad610b376e5952707b44f10dbd66b6cbf5280f21ab8396b701ab402a894b6",
+    "text": "Lessel, D., Kubisch, C., 2019. Hereditary syndromes with signs of premature aging. Dtsch. Arzteblatt Int. 116, 489 -496. https://doi.org/10.3238/arztebl.2019.0489.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_95670ae12863a32a1bede3a84cc98894ba4e27d393e326986a155e2cd797b170",
+    "text": "L ´ opez-Otín, C., Blasco, M.A., Partridge, L., Serrano, M., Kroemer, G., 2023a. Hallmarks of aging: an expanding universe. Cell 186 (2), 243 -278. https://doi.org/10.1016/j. cell.2022.11.001.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9a564a2c22a5111ea88b838fa480167da56e04a67cec3b6f36105a0d661d7ec0",
+    "text": "L ´ opez-Otín, C., Pietrocola, F., Roiz-Valle, D., Galluzzi, L., Kroemer, G., 2023b. Metahallmarks of aging and cancer. Cell Metab. 35 (1), 12 -35. https://doi.org/10.1016/j. cmet.2022.11.001.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_13193848a0f731fa1954a46b8a261b5052a40b43005e49d7b8b2e1eb84475b0d",
+    "text": "Lovejoy, C.O., 1985. Dental wear in the Libben population: its functional pattern and role in the determination of adult skeletal age at death. Am. J. Phys. Anthropol. 68 (1), 47 -56. https://doi.org/10.1002/ajpa.1330680105.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_df6c857ef15b052bb9a96e0b16a156c8a842d169abf37e855caacc65c80d730f",
+    "text": "Lukacs, J.R., 1995. The 'caries correction factor ' : a new method of calibrating dental caries rates to compensate for antemortem loss of teeth. Int. J. Osteoarchaeol. 5, 151 -156. https://doi.org/10.1002/oa.1390050207.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_84e98e1146ffc70415a6ab4319c948cd94dd7b65997d919c89493619351ec5b1",
+    "text": "Lukacs, J.R., 2012. Oral health in past populations: context, conceps ans controversies. In: Grauer, A.L. (Ed.), A Companion to Paleopathology, Blackwell Companions to Anthropology. Wiley-Blackwell, Chichester, West Sussex, Malden, MA, pp. 553 -580.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fee0ea1a683a518f24ffb14e62627e7269893abff02bcdefabc8205c8e263382",
+    "text": "Marcante, B., Marino, L., Cattaneo, N.E., Delicati, A., Tozzo, P., Caenazzo, L., 2025. Advancing forensic human chronological age estimation: biochemical, genetic, and epigenetic approaches from the last 15 years: a systematic review. Int. J. Mol. Sci. 26, 3158. https://doi.org/10.3390/ijms26073158.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7bff2cf8680c6e870ec947d40a99411e252b4a2fc7d56974faf9eda3489346c4",
+    "text": "Marklein, K.E., Crews, D.E., 2017. Frail or hale: skeletal frailty indices in medieval London skeletons. PLOS One 12 (5), e0176025. https://doi.org/10.1371/journal. pone.0176025.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_22d6c611c185ea245533350742e8dac77641cc0522c4af05ed72cba58ab2902d",
+    "text": "Marklein, K.E., Crews, D.E., 2022. Highs and lows of frailty: skeletal frailty differentials among socioeconomic groups in Postmedieval London. Archaeol. Anthropol. Sci. 14 (43). https://doi.org/10.1007/s12520-021-01480-4.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a755511f155145c972bceb6410ed56ca4d57a3281a2310e2d92838cfd739e1e0",
+    "text": "Marklein, K.E., Leahy, R.E., Crews, D.E., 2016. In sickness and in death: assessing frailty in human skeletal remains. Am. J. Phys. Anthropol. 161, 208 -225. https://doi.org/ 10.1002/ajpa.23019.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ea48434b0f376e5d11e8b6f5064e491903a2f09e5f48a4953d4bd9aeda249927",
+    "text": "Marques, C., 2018. A diachronic approach to neoplasms: skeletal evidence from the Portugese identified osteological collections (19th -20th Centuries). PhD thesis, Universidade de Coimbra (Portugal).",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9741d79692b6ea7f90ec2467afa91c37f4e3e3098275c46ca26fe1000787f47e",
+    "text": "Marques, C., Compton, Z., Boddy, A.M., 2022. Connecting palaeopathology and evolutionary medicine to cancer research: past and present. In: Plomp, K.A., Roberts, C., Elton, S., Bentley, G.R. (Eds.), 2022. Palaeopathology and Evolutionary Medicine: An Integrated Approach. Oxford university press, Oxford, United Kingdom, pp. 239 -260. https://doi.org/10.1093/oso/9780198849711.003.0013.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2716f751cc82b9c4e9d45b642f870abc7a81cf8ecf20ab876cf6665f1378d894",
+    "text": "Marques, C., Roberts, C., Matos, V.M.J., Buikstra, J.E., 2021. Cancers as rare diseases: terminological, theoretical, and methodological biases. Int. J. Paleopathol. 32, 111 -122. https://doi.org/10.1016/j.ijpp.2020.12.005.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c58e1db305b43e36432a107556729399d52a33bc15fd4ad162d6e041c922d587",
+    "text": "Mays, S., 2014. Resorption of mandibular alveolar bone following loss of molar teeth and its relationship to age at death in a human skeletal population. Am. J. Phys. Anthropol. 153, 643 -652. https://doi.org/10.3109/03014460.2015.1044470.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_11edf8571d109629a3c93b46b36d22da4f876530331a916d0feaf1957e3cf0e8",
+    "text": "Mays, S., 2015. The effect of factors other than age upon skeletal age indicators in the adult. Ann. Hum. Biol. 42 (4), 332 -341. https://doi.org/10.3109/ 03014460.2015.1044470.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5140768cf0a03e7d8e25118716e8193cc275054c947567f7b7ae75560df8cf41",
+    "text": "McDade, T.W., 2005. The ecologies of human immune function. Annu. Rev. Anthropol. 34, 495 -521. https://doi.org/10.1146/annurev.anthro.34.081804.120348.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_73a3848662388390008e2e0f6303f0c074b2386e4cb7a41f134b86e2e8f58108",
+    "text": "McDade, T.W., 2023. Three common assumptions about inflammation, aging, and health that are probably wrong. Proc. Natl. Acad. Sci. USA 120 (51), e2317232120. https:// doi.org/10.1073/pnas.2317232120.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6c334dbf844d0dd5e78849375d29cdd10503923b17a9c217c5d620ff4b673249",
+    "text": "McFadden, C., Cave, C.M., Oxenham, M.F., 2019. Ageing the elderly: a new approach to the estimation of the age-at-death distribution from skeletal remains. Int. J. Osteoarchaeol. 29 (6), 1072 -1078. https://doi.org/10.1002/oa.2820.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ffa2ac5d063083211d1d5c4e44a4550deeb72eb0948e62db48ae5d54d478e57b",
+    "text": "Meinl, A., Huber, C.D., Tangl, S., Gruber, G.M., Teschler-Nicola, M., Watzek, G., 2008. Comparison of the validity of three dental methods for the estimation of age at death. Forensic Sci. Int. 178, 96 -105. https://doi.org/10.1016/j. forsciint.2008.02.008.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cc42fb2fbc6db89fbd8addc643bdc3fd3e41e6acf0c7a60908fe1632a5457d2d",
+    "text": "Miles, A.E.W., 1963. Dentition in the estimation of age. J. Dent. Res. 42, 255 -263. https://doi.org/10.1177/00220345630420012701.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b985f9279ec9bc4b0d9cba5cd0ef26a47a7a3966f66cc4a2fccb19c3e328f1a1",
+    "text": "Milner, G.R., Boldsen, J.L., 2017. Life not death: epidemiology from skeletons. Int. J. Paleopathol. 17, 26 -39. https://doi.org/10.1016/j.ijpp.2017.03.007.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e55003c01d7b6e4b5ce2372be42b39ee1aba98234fc29cf1be742f649d1df36c",
+    "text": "Milner, G.R., Ousley, S.D., Boldsen, J.L., Getz, S.M., Weise, S., Tarp, P., 2019. Transition Analysis 3 (TA3) trait manual. Public Distribution Version 1.0. https://www. statsmachine.net/software/TA3/docs/TA3_Trait_Scoring_Manual_1.0.pdf.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3acd27b857d0d7a191b8516962213d148a10167dc2a31a534b409f8d7f2d4881",
+    "text": "Mont ´ egut, L., L ´ opez-Otín, C., Kroemer, G., 2024. Aging and cancer. Mol. Cancer 23, 106. https://doi.org/10.1186/s12943-024-02020-z.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_cfce31cfb3b8f412e26dabac879e57b81a9205fa277032113834d2154f6ee920",
+    "text": "Morgan, J., 2012. Observable Stages and Scheduling for Alveolar Remodeling following Antemortem Tooth Loss. Dissertation Johannes Gutenberg University Mainz, Germany. https://doi.org/10.25358/openscience-3175.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e86da9c9e6c576048fb056fcfde7fb94b2a6425dcb5b4836cc2281dd380f557c",
+    "text": "Moser, D., Pichler, S.L., Santos, A.L., Klimscha, F., Fuchs, K., 2024. A tool for nonparametric approximation of mortality in skeletal samples of imprecise age estimations. Int. J. Osteoarchaeol., e3363 https://doi.org/10.1002/oa.3363.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1f474bbbc4a80161e04e89da7f01c2cadebc02d9d7fc123c34e2f194ed408d14",
+    "text": "Moynihan, R.N., Cooke, G.P.E., Doust, J.A., Bero, L., Hill, S., Glasziou, P.P., 2013. Expanding disease definitions in guidelines and expert panel ties to industry: a crosssectional study of common conditions in the United States. PLOS Med. 10, e1001500. https://doi.org/10.1371/journal.pmed.1001500.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_471718cabd2f35b7d8f174a8e77e1d49d33276c54e48615878231b76299da574",
+    "text": "Müller-Schee ß el, N., Rinne, C., Fuchs, K., 2025. Adult mortality in the metropolis of London 1100 -1850: a Bayesian view based on osteological data. Am. J. Biol. Anthropol. 185, e25025. https://doi.org/10.1002/ajpa.25025.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_099c40311c87f4a38548e73a33c4fcd21b02aca494d36dda342f9e3601b8d8a6",
+    "text": "Navitainuck, D.U., Vach, W., Alt, K.W., Pichler, S.L., 2024. Osteological age-at-death estimation in an archaeological sample avoiding age-mimicry: a six-step approach. Archaeol. Anthropol. Sci. 16, 126. https://doi.org/10.1007/s12520-024-02034-0.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ce31dc64b7ed9021ce459263949be364ab30484b9f322a5fa4772f580d527a8b",
+    "text": "Niedernhofer, L.J., Gurkar, A.U., Wang, Y., Vijg, J., Hoeijmakers, J.H.J., Robbins, P.D., 2018. Nuclear genomic instability and aging. Annu. Rev. Biochem. 87, 295 -322.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7d8fdf85fdae3d8acfa402a1f56e0af01e64c48902e8c1da1193a313fddcd679",
+    "text": "https://doi.org/10.1146/annurev-biochem-062917-012239. Nielsen, O.V., Alexandersen, V., 1971. Malignant osteopetrosis in ancient Nubia. A case from the period 350-550 A. D. Dan. Med. Bull. 18, 125 -128.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_05059549ff69a58a694bdc1bc40cf2221814847b59b8a0ee771c3815a88bac15",
+    "text": "O ' Rourke, H.M., Ceci, C., 2013. Reexamining the boundaries of the 'normal ' in ageing. Nurs. Inq. 20, 51 -59. https://doi.org/10.1111/j.1440-1800.2011.00583.x. Orphanet, 2024. 〈 https://www.orpha.net/en/other-information/about-rare-diseases 〉 .",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fb0dd4d7a7b5b222f92de365c1c25550d68144242eac9226997ff8acf1c6ce2b",
+    "text": "(accessed July 14.6. 24).",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_0b580d940fe15f51fe9f28694520622800adbf2b13dcd7a138b8450555cfb271",
+    "text": "Oxford Reference, 2025. Oxford Reference 'degeneration ' , 2025.. WWW Document. https://doi.org/10.1093/oi/authority.20110803095707399.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8a6027bd43f5b6d591290203600b5985f0b13a98a4eba9ad2cd85eabd1062cfc",
+    "text": "Pala, D., Xu, J., Xie, Y., Zhang, Y., Shen, L., 2024. Identifying biological markers and sociodemographic factors that influence the gap between phenotypic and chronological ages. Inform. Health Soc. Care 49 (3 -4), 162 -176. https://doi.org/ 10.1080/17538157.2024.2400247.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_37247643299e81379ffec92ffe26962509ae7b5d5efb246dbce9f6de2da0c494",
+    "text": "Parke, W., Colvin, G.S., Almond, A.H.G., 1949. Premature epiphyseal fusion at the knee joint in tuberculous disease of the hip. J. Bone Joint Surg. 31-B (1), 63 -73. https:// doi.org/10.1302/0301-620X.31B1.63.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_191d6f6eaf802af9c42d6cb6956316cc1c97b861a14fa4bf1ff3dcfe8112929f",
+    "text": "Penna, S., Villa, A., Capo, V., 2021. Autosomal recessive osteopetrosis: mechanisms and treatments. Dis. Models Mech. 14 (5), dmm048940. https://doi.org/10.1242/ dmm.048940.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8fea728c5ffa1e6ac4a56f716ed0efe6d3de5a37030e8eaacfc1483debee5e33",
+    "text": "Petrosino, D., Biehler-Gomez, L., Marklein, K.E., Mondellini, M., Moro, C., Mattia, M., Fedeli, A.M., Cattaneo, C., 2025. We are the sons of our own deeds ' : comparing skeletal health and frailty indices in deceased individuals across 2000 years of milanese history. Am. J. Biol. Anthropol. 186 (3), e70025. https://doi.org/10.1002/ ajpa.70025.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8647d5b8afc061def886f75cbf7e90bf2431960721e2632ed5bf4700058aded8",
+    "text": "Plascencia, A.G., Jakobsson, M., S ´ anchez-Quinto, F., 2025. Ancient DNA HLA typing reveals significant shifts in frequency in Europe since the Neolithic. Sci. Rep. 15, 6161. https://doi.org/10.1038/s41598-024-82449-w.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_bd0ba623de41dc5b8130927a506a4f350f147693e58caafc59bd2cd4a874b807",
+    "text": "Rachner, T.D., Khosla, S., Hofbauer, L.C., 2011. Osteoporosis: now and the future. The Lancet 377, 1276 -1287. https://doi.org/10.1016/S0140-6736(10)62349-5.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9855f73f806268d1bf7f3face7beadf7a84a3f4aa9525a9f7bc3d35916b69a97",
+    "text": "Raghu, V.K., Weiss, J., Hoffmann, U., Aerts, H.J.W.L., Lu, M.T., 2021. Deep learning to estimate biological age from chest radiographs. JACC Cardiovasc. Imaging 14, 2226 -2236. https://doi.org/10.1016/j.jcmg.2021.01.008.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_88cb07a654c1210e063945d1db9664b724a1a2647b5ec96ef3028e643a49beb8",
+    "text": "Rea, I.M., Gibson, D.S., McGilligan, V., McNerlan, S.E., Alexander, H.D., Ross, O.A., 2018. Age and age-related diseases: role of inflammation triggers and cytokines. Front. Immunol. 9 (586). https://doi.org/10.3389/fimmu.2018.00586.",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_8c4235ec5996cecabb895a2e8ed8f7b95048e255b5ad9cc1297b9a5b0965f3cf",
+    "text": "Riggs, B.L., Melton III, L.J., Robb, R.A., Camp, J.J., Atkinson, E.J., Peterson, J.M., Rouleau, P.A., McCollough, C.H., Bouxsein, M.L., Khosla, S., 2004. Population-based study of age and sex differences in bone volumetric density, size, geometry, and",
+    "page": 10,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f9939bf10bb5f572a8dc8b6f317547d74acc6741ce63fc6fb3c4e5d9937f8b4b",
+    "text": "K. Fuchs et al.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_71cfca0634c150ada57398514cefb19761f2534ea221d03d086fb98363c3a305",
+    "text": "structure at different skeletal sites. J. Bone Miner. Res. 19, 1945 -1954. https://doi. org/10.1359/jbmr.040916.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_158596daee10a8f9df38219317c2b9471abd06a3f12b617504a53e2b8b9165ac",
+    "text": "Rizos, L., Garoufi, N., Valakos, E., Nikita, E., Chovalopoulou, M.-E., 2024. Testing the accuracy of the DRNNAGE software for age estimation in a modern Greek sample. Int. J. Leg. Med. 138, 917 -926. https://doi.org/10.1007/s00414-023-03129-4.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_675f8e470558259a83ad2d4d0f8f28501261d1708eff526ef6f0c998d49a5c39",
+    "text": "Rockwood, K., Mitnitski, A., 2011. Frailty defined by deficit accumulation and geriatric medicine defined by frailty. Clin. Geriatr. Med. 27, 17 -26. https://doi.org/10.1016/ j.cger.2010.08.008.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_900f9b6bd1de0a17c968fbd58dabdd61dab54eb93386477ac7a55313bfb05cab",
+    "text": "Rockwood, K., Mogilner, A., Mitnitski, A., 2004. Changes with age in the distribution of a frailty index. Mech. Ageing Dev. 125 (7), 517 -519. https://doi.org/10.1016/j. mad.2004.05.003.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9f923435b4af3e27b69bf0cfe5543db91b05d92be74ee47751e18c27df16b9d6",
+    "text": "Rogers, J., Waldron, T., Dieppe, P., Watt, I., 1987. Arthropathies in palaeopathology: the basis of classification according to most probable cause. J. Archaeol. Sci. 14, 179 -193. https://doi.org/10.1016/0305-4403(87)90005-7.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fe2a5702a32063316421b3f1d803fe80c92612cb860b1d6431efd6963636a8cd",
+    "text": "Rohrlach, A.B., Rivollat, M., de-Miguel-Ib ´ a ˜ nez, P., Nordfors, U., Liira, A.-M., Teixeira, J. C., Roca-Rada, X., Armend ´ ariz-Martija, J., Boyadzhiev, K., Boyadzhiev, Y., Llamas, B., Tiliakou, A., M ¨ otsch, A., Tuke, J., Prevedorou, E.-A., PolychronakouSgouritsa, N., Buikstra, J., Onkamo, P., Stockhammer, P.W., Heyne, H.O., Lemke, J. R., Risch, R., Schiffels, S., Krause, J., Haak, W., Prüfer, K., 2024. Cases of trisomy 21 and trisomy 18 among historic and prehistoric individuals discovered from ancient DNA. Nat. Commun. 15, 1294. https://doi.org/10.1038/s41467-024-45438-1.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c71773be26aa25d22e8d8a2d9f3bf6067c0550a480d1d0f37595064c1c1844d2",
+    "text": "Roksandic, M., Armstrong, S.D., 2011. Using the life history model to set the stage(s) of growth and senescence in bioarchaeology and paleodemography. Am. J. Phys. Anthropol. 145, 337 -347. https://doi.org/10.1002/ajpa.21508.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_63f8ae9dfb30656d0d782d5cd1d48769b280087757c712793caee694f58b2821",
+    "text": "Romero-Ortuno, R., Kenny, R.A., 2012. The frailty index in Europeans: association with age and mortality. Age Ageing 41, 684 -689. https://doi.org/10.1093/ageing/ afs051.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_675b5c45845b1854f4e128a3a3f4e88be4fd9e79ee048fb497bf9652d00502a1",
+    "text": "R ¨ osing, F.W., Kvaal, S.I., 1998. Dental age in adults -a review of estimation. In: Alt, K. W., R ¨ osing, F.W., Teschler-Nicola, M. (Eds.), Dental Anthropology: Fundamentals, Limits and Prospects. Springer Vienna, Vienna, pp. 443 -468. https://doi.org/ 10.1007/978-3-7091-7496-8_22.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_eab43d22df92b96fdcc42d1e158a2e39ff824ea0a95137dba15e51cd1f5a34cc",
+    "text": "Sanada, F., Taniyama, Y., Muratsu, J., Otsu, R., Shimizu, H., Rakugi, H., Morishita, R., 2018. Source of chronic inflammation in aging. Front. Cardiovasc. Med. 5. https:// doi.org/10.3389/fcvm.2018.00012.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_6b5d03acf369055e38281473f676c159b4030ebb5dbe3591530f582f2155478a",
+    "text": "Seeman, E., Delmas, P.D., 2006. Bone quality - the material and structural basis of bone strength and fragility. N. Engl. J. Med. 354, 2250 -2261. https://doi.org/10.1056/ NEJMra053077.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9e5070be32b621d4dfd4f603c8817ec194d0a13888ec897a33a073757749e327",
+    "text": "S ´ eguy, I., Buchet, L., 2013. Handbook of Palaeodemography. Springer, Cham. https:// doi.org/10.1007/978-3-319-01553-8.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ee86dc58653db492d79993e33f7baf89cec44b2b9e0022cc3f8c42bd21685361",
+    "text": "Siegel, R.L., Giaquinto, A.N., Jemal, A., 2024. Cancer statistics, 2024. CA A Cancer J. Clin. 74, 12 -49. https://doi.org/10.3322/caac.21820.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b0807945cb176dc0f7ca8c12395cc7da92a4f253cf78ef02d68d74178e819109",
+    "text": "Siegel, R.L., Kratzer, T.B., Giaquinto, A.N., Sung, H., Jemal, A., 2025. Cancer statistics, 2025. CA A Cancer J. Clin. 75, 10 -45. https://doi.org/10.3322/caac.21871.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_721c92f01fe8cd9cdf6d3d4a2d650d39f7dc24b4008d001fa9b0dda614b8f187",
+    "text": "Simon, A.M., Cheverko, C.M., Clark, M.A., Mellendorf, T.D., Hubbe, M., 2023. The effects of physiological stress on the accuracy of age-at-death estimation in the HamannTodd collection. Forensic Sci. 3 (1), 149 -168. https://doi.org/10.3390/ forensicsci3010012.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2561314414d2298ff2d6d8b3fb19ce65865f06e52cfa2ba42c3109a4a5a6b4ed",
+    "text": "Steckel, R.H., Larsen, C.S., Roberts, C.A., Baten, J. (Eds.), 2018. The Backbone of Europe: Health, Diet, Work and Violence over Two Millennia, 1st ed. Cambridge University Press. https://doi.org/10.1017/9781108379830.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_9c9a17454d9bd150dc2088f6769fb37c865306ba41e1d2708db7c86c751b9f16",
+    "text": "Strandberg, T.E., Kivim ¨ aki, M., 2022. Comment on: ' what is aging-related disease? An epidemiological perspective ' by Le Couteur and Thillainadesan. J. Gerontol. Ser. A 77, 2175 -2176. https://doi.org/10.1093/gerona/glac072.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1a542728b61dfac00a82763b37cd11005a13a4f27d328e8ed54518148d88b0c8",
+    "text": "Strasheim, A.N., Winburn, A.P., Stock, M.K., 2023. Utility of osteoarthritis as an indicator of age in human skeletal remains: validating the Winburn and Stock, 2019. methods. Forensic Sci. 3, 205 -230. https://doi.org/10.3390/forensicsci3020016.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_37e94324a41fb26dd0a7d197af93c8318648443442a6e0f62256aaf695310702",
+    "text": "Stull, K.E., Wolfe, C.A., Corron, L.K., Heim, K., Hulse, C.N., Pilloud, M.A., 2021. A comparison of subadult skeletal and dental development based on living and deceased samples. Am. J. Phys. Anthropol. 175, 36 -58. https://doi.org/10.1002/ ajpa.24170.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_1150459a0ba13c7b37f723cc3888fdb8a55d69ed063eb921292d2f445f37fe9b",
+    "text": "Taji, S., Hughes, T., Rogers, J., Townsend, G., 2008. Localised enamel hypoplasia of human deciduous canines: genotype or environment? Aust. Dent. J. 45, 83 -90. https://doi.org/10.1111/j.1834-7819.2000.tb00246.x.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_41d1c75cceb5a92e58ad76277b4b50b6038ba2070f8cb9ad712561840f0bead8",
+    "text": "Taylor, A.P., Lee, H., Webb, M.L., Joffe, H., Finkelstein, J.S., 2016. The effects of testosterone and estradiol deficiency in men. The New England. N. Engl. J. Med. 369 (11), 1011 -1022. https://doi.org/10.1210/jc.2016-1612.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7a694fe7d1322c6b2fcfc52b7d35152a8a83334e40e16a626b48d62fd81f2987",
+    "text": "Temple, Daniel H., 2015. Caries: the ancient scourge. In: Irish, J.D., Scott, G.R. (Eds.), A Companion to Dental Anthropology. Wiley. https://doi.org/10.1002/ 9781118845486.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_ce135f2c6b48df61db4643636c53d5d2f4aca2a3e548c64a2aa879f535083f06",
+    "text": "Terkawi, M.A., Matsumae, G., Shimizu, T., Takahashi, D., Kadoya, K., Iwasaki, N., 2022. Interplay between inflammation and pathological bone resorption: insights into recent mechanisms and pathways in related diseases for future perspectives. Int. J. Mol. Sci. 23, 1786. https://doi.org/10.3390/ijms23031786.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_163bdeed7004a5763eb82d255cd57d4200a92c53dc917e3edf84f7d672cc28e2",
+    "text": "Towle, I., Irish, J.D., 2020. Recording and interpreting enamel hypoplasia in samples from archaeological and palaeoanthropological contexts. J. Archaeol. Sci. 114, 105077. https://doi.org/10.1016/j.jas.2020.105077.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f7abaff7ecfd604325790b60b49fefbc1dc3aa057757273f852b61b6300793ee",
+    "text": "Tuggle, A.C., Marklein, K.E., Douglas, E.C., 2021. Skeletal frailty at Ka ł dus, a medieval Poland early Piast dynasty cemetery. Coll. Antropol. 45 (1), 11 -23. https://doi.org/ 10.5671/ca.45.1.2.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_5c09557451acf6a3943c6169effce44676220e9435c1166473960aa7b8b10b89",
+    "text": "van Schaik, K., Eisenberg, R., Bekvalac, J., Rühli, F., 2018. Evaluating the relationship between lesion burden and aging among the skeletons of an 18th-19th century London cemetery using osteological and radiological analysis. PLOS One 13, e0196448. https://doi.org/10.1371/journal.pone.0196448.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d5effa944647772aaa0776f4f77c5082613e37e7ad6a257eedcca6c8e65f3223",
+    "text": "van Schaik, K., Vinichenko, D., Rühli, F., 2014. Health Is not always written in bone: using a modern comorbidity index to assess disease load in paleopathology, 154 Am. J. Phys. Anthropol. 154 (2), 215 -221. https://doi.org/10.1002/ajpa.22494.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_3ade456ebe6589fca0eb9d46fad8be9919b28c5026d429d044245a95e2a44759",
+    "text": "Vaupel, J.W., Manton, K.G., Stallard, E., 1979. The impact of heterogeneity in individual frailty on the dynamics of mortality. Demography 16 (3), 439 -454. https://doi.org/ 10.2307/2061224.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_7d082c2eaac6d7fa5667df4e2d5815928270c9eb7f1dc303ed28a8c362270113",
+    "text": "Vossoughi, M., Movahhedian, N., Ghafoori, A., 2022. The impact of age mimicry bias on the accuracy of methods for age estimation based on Kvaal ' s pulp/tooth ratios: a bootstrap study. Int J. Leg. Med 136, 269 -278. https://doi.org/10.1007/s00414021-02651-7.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b6798afe35b2a0903f35b76126ac96903644d737ff9d957a86c79b68c0e2c38e",
+    "text": "Waldron, T., 2019. Joint disease. In: J.E. (Ed.), Ortner's Identification of Pathological Conditions in Human Skeletal Remains. Academic Press, pp. 719 -748. https://doi. org/10.1016/B978-0-12-809738-0.00003-X.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d29b4a5a51844033f9f34438c35f92c77c09e8db12b6ed04cbd84e7937f4cd43",
+    "text": "Waldron, T., 2020. Palaeopathology, second ed. Cambridge University Press. https://doi. org/10.1017/9781108583961.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_d40dfb8aea15321f4804ae57199263163a72f2442d834ed17f82834c396362e5",
+    "text": "Walston, J., Hadley, E.C., Ferrucci, L., Guralnik, J.M., Newman, A.B., Studenski, S.A., Ershler, W.B., Harris, T., Fried, L.P., 2006. Research agenda for frailty in older adults: toward a better understanding of physiology and etiology: summary from the American Geriatrics Society/National Institute on aging research conference on frailty in older adults. J. Am. Geriatr. Soc. 54, 991 -1001. https://doi.org/10.1111/ j.1532-5415.2006.00745.x.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_4f18d541923940a6a0484a4737a87cb59c53c7843f9ce6f99c81a9b930c7fae9",
+    "text": "Wang, K., Liu, H., Hu, Q., Wang, L., Liu, J., Zheng, Z., Zhang, W., Ren, J., Zhu, F., Liu, G.H., 2022. Epigenetic regulation of aging: implications for interventions of aging and diseases. Signal Transduct. Target. Ther. 7, 374. https://doi.org/10.1038/s41392022-01211-8.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_b05b244e9528afa7b86fd7ae89a1c63ee2084ca45e9216bdb0f2f0acbfb985d5",
+    "text": "Webb, E.C., White, C.D., Van Uum, S., Longstaffe, F.J., 2015. Integrating cortisol and isotopic analyses of archeological hair: Reconstructing individual experiences of health and stress. Am. J. Phys. Anthropol. 156, 577 -594. https://doi.org/10.1002/ ajpa.22673.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_a5f5d0ca3a8e5dc1220f05c26abdcfdc0cac9caea51388b643c3d00f499c902c",
+    "text": "Wigley, R., Walls, C., Brougham, D., Dixon, P., 2011. What does degeneration mean? The use and abuse of an ambiguous word. N. Z. Med. J. 124 (1335), 73 -79.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_fa1bffd9e70a9aa0df990ce8af0748909ef82ae98214f9fa8273190459e94f9d",
+    "text": "Wilkinson, M., Dumontier, M.D., Aalbersberg, M., Appleton, I.J., Axton, G., Baak, M., Blomberg, A., et al., 2016. The FAIR Guiding Principles for scientific data management and stewardship. Sci. Data 3, 160018. https://doi.org/10.1038/ sdata.2016.18.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2e08abda86deaf3026951693c004f6e2b3026c5395493b42b1c8aea6f4992640",
+    "text": "Winburn, A.P., Stock, M.K., 2019. Reconsidering osteoarthritis as a skeletal indicator of age at death. Am. J. Phys. Anthropol. 170, 459 -473. https://doi.org/10.1002/ ajpa.23914.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_c3d539b0781dbdcd4abdb33476fdc82e31ec0cb7ca783e0b3d892b446d4bcb56",
+    "text": "Wood, J.W., Milner, G.R., Harpending, H.C., Weiss, K.M., 1992. The osteological paradox: problems of inferring prehistoric health from skeletal samples. Curr. Anthropol. 33, 343 -370. https://doi.org/10.1086/204084.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2a88c335bcd1ab43b18cebecd4bd572a3453055b488596e1571f8c6b2f7f8331",
+    "text": "Wyatt, B., McFadden, C., Ward, S., Wilson, L.A., 2022. Exploring associations between presence of skeletal indicators of disease and sub-adult mortality. J. Archaeol. Sci. 148, 105693. https://doi.org/10.1016/j.jas.2022.105693.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_2853997f28fc001e34048fea1081167f482abb7f69b8ef14f9e4df662bdd9d9c",
+    "text": "Wyatt, B., O ' Donnell, L., 2025. How does social inequality alter relationships between porous cranial lesions and mortality? Examining the relationship between skeletal indicators of stress, socioeconomic status, and survivorship in a pediatric autopsy sample. Am. J. Hum. Biol. 37, e24164. https://doi.org/10.1002/ajhb.24164.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_f556b0c63446341844d83223757f7ae81c1c4555aff97f5bff51a83116f65eb4",
+    "text": "Xu, F., Li, W., Yang, X., Na, L., Chen, L., Liu, G., 2021. The roles of epigenetics regulation in bone metabolism and osteoporosis. Front. Cell Dev. Biol. 8. https://doi.org/ 10.3389/fcell.2020.619301.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_503de6ff5c9b4930d25ab8538727887059c74a9f12b48526e2a747ff0344f8bd",
+    "text": "Yaussy, S.L., DeWitte, S.N., Redfern, R.C., 2016. Frailty and famine: patterns of mortality and physiological stress among victims of famine in medieval London. Am. J. Phys. Anthropol. 160 (2), 272 -283. https://doi.org/10.1002/ajpa.22954.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_799e5d57297671b90e814feaec3ff7586ef2472dfac4623ad5747f082a3d70b1",
+    "text": "Yaussy, S.L., Marklein, K.E., DeWitte, S.N., Crews, D.E., 2024. Frailty or resilience? Hazard-based and cumulative phenotype approaches to discerning signals of health inequality in medieval London. Sci. Adv. 10 (46), eadq5703. https://doi.org/ 10.1126/sciadv.adq5703.",
+    "page": 11,
+    "kind": "text"
+  },
+  {
+    "anchorId": "anchor_e0c6281280a059131dfed15469150bc25038fb7797e6f59852fd0ff43d16b015",
+    "text": "Zedda, N., Bramanti, B., Gualdi-Russo, E., Ceraico, E., Rinaldo, N., 2021. The biological index of frailty: a new index for the assessment of frailty in human skeletal remains. Am. J. Phys. Anthropol. 176 (3), 459 -473. https://doi.org/10.1002/ajpa.24394.",
+    "page": 11,
+    "kind": "text"
+  }
+]

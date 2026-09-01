@@ -1,0 +1,165 @@
+[
+  {
+    "value": "Grav 8",
+    "resultPath": [
+      "records",
+      0,
+      "grave_label"
+    ],
+    "note": "REVIEW multi-gold: grave heading + 'Fundliste grav 8' both evidence the label",
+    "goldAnchorIds": [
+      "anchor_540e94d0e16d6eb0c87c327739efd0988fbe15228bc751395e0485efd1c17f85",
+      "anchor_39473e76ce26f858dda877e36448c06e2079281176dcd5461ac1f0a817f8a7d3"
+    ]
+  },
+  {
+    "value": "over 45 år",
+    "resultPath": [
+      "records",
+      0,
+      "estimated_age"
+    ],
+    "goldAnchorId": "anchor_3b23e3358bf38d326b4ac99cc162b0fe67d423e6a8f2ca1225e52cdebc53a7c3",
+    "note": "unique containment, grave 8 anthropological assessment"
+  },
+  {
+    "value": "jernspænde",
+    "resultPath": [
+      "records",
+      0,
+      "finds",
+      0,
+      "description"
+    ],
+    "note": "REVIEW multi-gold: find-list cell + prose mention",
+    "goldAnchorIds": [
+      "anchor_13264f1691a0383315806606d040488a4d45756ef2c5c9e661deead13299793e",
+      "anchor_3b23e3358bf38d326b4ac99cc162b0fe67d423e6a8f2ca1225e52cdebc53a7c3"
+    ]
+  },
+  {
+    "value": "25-35 år",
+    "resultPath": [
+      "records",
+      1,
+      "estimated_age"
+    ],
+    "goldAnchorId": "anchor_faa3abc3e1c5350196e62c5bbbe3fb0b07e9a0f21687548ab82f99383dff91a6",
+    "note": "unique, grave 13"
+  },
+  {
+    "value": "Yngre romersk jernalder per. C3",
+    "resultPath": [
+      "records",
+      2,
+      "dating"
+    ],
+    "goldAnchorId": "anchor_64a5a183460fb3a1f1c9db158a9eccd7b97fa4c5349211fa972e7f3dbf00753c",
+    "note": "REVIEW: substring also in grave 26's dating anchor_504ddb2; gold = grave 24's dating line"
+  },
+  {
+    "value": "Perle af mat rødligt glas",
+    "resultPath": [
+      "records",
+      2,
+      "finds",
+      6,
+      "description"
+    ],
+    "goldAnchorId": "anchor_0dacceee60e3bfc004f0ef8c68f68b9259667c1034a545c0d0a75deb0ecfc477",
+    "note": "unique table cell, find 24-7"
+  },
+  {
+    "value": "Lå mellem de to underarmsknogler (24-18)",
+    "resultPath": [
+      "records",
+      2,
+      "finds",
+      10,
+      "remarks"
+    ],
+    "goldAnchorId": "anchor_d6a0d525a812c423e8775a14050f2ffb11c3801a2a522eff0c4ee44638ba10bb",
+    "note": "unique table cell, find 24-16"
+  },
+  {
+    "value": "16-18 år",
+    "resultPath": [
+      "records",
+      3,
+      "estimated_age"
+    ],
+    "goldAnchorId": "anchor_0f6b71abf276e670eefcf6ecbe7d1e5c2a766ba615444bf058e4b3bf1fc18f4d",
+    "note": "unique, grave 26"
+  },
+  {
+    "value": "15",
+    "resultPath": [
+      "records",
+      3,
+      "tooth_count"
+    ],
+    "goldAnchorId": "anchor_61cb7f12f88945cba763763f5cd1a16675753f07b7b176ddddc2704e9eb4f46d",
+    "note": "hard: bare number, lexically ambiguous everywhere; source says 'i alt 15 tænder'",
+    "context": "grave_label: Grav 26, estimated_age: 16-18 år"
+  },
+  {
+    "value": "2.8 x 1.3 meter",
+    "resultPath": [
+      "records",
+      3,
+      "grave_dimensions"
+    ],
+    "goldAnchorId": "anchor_72d2d7354264c35aea495635b1f4ae384d1add489d3d83b4eb1b4b320f424686",
+    "note": "normalization test: source has decimal commas '2,8 x 1,3 meter'"
+  },
+  {
+    "value": "1450 BP",
+    "resultPath": [
+      "records",
+      0,
+      "radiocarbon_date"
+    ],
+    "goldAnchorId": null,
+    "note": "not in document — must abstain"
+  },
+  {
+    "value": "Nationalmuseet i København",
+    "resultPath": [
+      "storage_location"
+    ],
+    "goldAnchorId": null,
+    "note": "not in document — must abstain"
+  },
+  {
+    "value": "Yngre romersk jernalder per. C2",
+    "resultPath": [
+      "records",
+      2,
+      "dating"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: near-variant of present per. C3 — must abstain"
+  },
+  {
+    "value": "17-18 år",
+    "resultPath": [
+      "records",
+      3,
+      "estimated_age"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: near-variant of present 16-18 år — must abstain"
+  },
+  {
+    "value": "8-5",
+    "resultPath": [
+      "records",
+      0,
+      "finds",
+      1,
+      "find_number"
+    ],
+    "goldAnchorIds": [],
+    "note": "ADVERSARIAL: hallucinated find id; 8-1..8-4 exist — must abstain"
+  }
+]

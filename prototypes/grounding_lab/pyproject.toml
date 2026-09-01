@@ -1,0 +1,27 @@
+[project]
+name = "grounding-lab"
+version = "0.1.0"
+description = "Prototype harness for tiered non-LLM evidence grounding with confidence scores"
+requires-python = ">=3.13"
+dependencies = [
+  "peft>=0.15.2",
+  "sentence-transformers>=3.3",
+  # Direct dep only so tool.uv.sources can pin it to the CUDA wheel index.
+  "torch>=2.13",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cuda" }
+
+[[tool.uv.index]]
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[build-system]
+requires = ["uv_build>=0.9,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "grounding_lab"
+module-root = ""

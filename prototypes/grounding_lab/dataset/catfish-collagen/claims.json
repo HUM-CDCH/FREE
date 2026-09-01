@@ -1,0 +1,204 @@
+[
+  {
+    "value": "Properties of Skin Collagen from Southern Catfish (Silurus meridionalis) Fed with Raw and Cooked Food",
+    "resultPath": [
+      "title"
+    ],
+    "note": "REVIEW multi-gold: title + citation block",
+    "goldAnchorIds": [
+      "anchor_4b6b6143a77baa7647e95c67ea7cfe67f8519984cca750471c84e695dc70114a",
+      "anchor_ac8808d5fad978f97af52f59ab2b75259993e0e633ec078d6df109379bcb46c2"
+    ]
+  },
+  {
+    "value": "zhangxi@mail.hzau.edu.cn",
+    "resultPath": [
+      "corresponding_email"
+    ],
+    "note": "unique p1",
+    "goldAnchorId": "anchor_cd670a8ada5847554dce941f98e9d817f501889317f548b7bf1fbe1150bf5976"
+  },
+  {
+    "value": "+86-18672306015",
+    "resultPath": [
+      "corresponding_phone"
+    ],
+    "note": "unique p1",
+    "goldAnchorId": "anchor_cd670a8ada5847554dce941f98e9d817f501889317f548b7bf1fbe1150bf5976"
+  },
+  {
+    "value": "Carlos José Dias Pereira",
+    "resultPath": [
+      "academic_editor"
+    ],
+    "note": "OCR reads 'Jos é' with split accent — lexical must miss, neural must catch",
+    "goldAnchorId": "anchor_281439a9f9613360f6a8b3381ad7a03b06ad634700e1976a31930f5375a5fb0a"
+  },
+  {
+    "value": "1 August 2024",
+    "resultPath": [
+      "received_date"
+    ],
+    "note": "unique p1",
+    "goldAnchorId": "anchor_f781e0cbbe10f99369f0a3e664041ff5a98162a4e7aa093032950c2c9780fa90"
+  },
+  {
+    "value": "13 September 2024",
+    "resultPath": [
+      "published_date"
+    ],
+    "note": "unique p1",
+    "goldAnchorId": "anchor_2c556afc880a0c8b114572dfcb1619e0de71abc6a36238ae0afc7b4dd2f077cb"
+  },
+  {
+    "value": "Hokkaido University",
+    "resultPath": [
+      "affiliations",
+      1
+    ],
+    "note": "affiliation 2",
+    "goldAnchorId": "anchor_156d421e102a74b21c6122c06fa8cd3384662bd749f770a4a67a77cb4f4bf0f2"
+  },
+  {
+    "value": "takagi@fish.hokudai.ac.jp",
+    "resultPath": [
+      "authors",
+      7,
+      "email"
+    ],
+    "note": "in affiliation line",
+    "goldAnchorId": "anchor_156d421e102a74b21c6122c06fa8cd3384662bd749f770a4a67a77cb4f4bf0f2"
+  },
+  {
+    "value": "6 weeks",
+    "resultPath": [
+      "culture_period"
+    ],
+    "note": "methods p3",
+    "goldAnchorId": "anchor_7d5aa15172d255938426326f03387e8b9dcb75be9abe7f0d3fd3484499c0f218"
+  },
+  {
+    "value": "27.09 ± 0.89 g",
+    "resultPath": [
+      "rf_body_weight"
+    ],
+    "note": "methods p3",
+    "goldAnchorId": "anchor_a986c2a37ab41a78a83088f3d079b645e86cf61e12598bc3e9dbc8b1bf4e79e8"
+  },
+  {
+    "value": "8.66 ± 0.11%",
+    "resultPath": [
+      "rf_wet_extraction_rate"
+    ],
+    "note": "REVIEW multi-gold: results p5 + abstract",
+    "goldAnchorIds": [
+      "anchor_b73a9b0ba0d660b5d20b3b504e5186815fd9b89a13bbcc1384305954bb3bd06f",
+      "anchor_8aa3365415508b6f470500b250b41154d67e62ea553cbdbe1cfe0047cd590af0"
+    ]
+  },
+  {
+    "value": "61.78 ± 3.91%",
+    "resultPath": [
+      "cf_dpph_rate"
+    ],
+    "note": "REVIEW multi-gold: results p10 + abstract + DPPH paragraph",
+    "goldAnchorIds": [
+      "anchor_eb71e1b5f9ac6db0184297f448ed98a84f572ec8d5d083913400cc0ceecd904e",
+      "anchor_8aa3365415508b6f470500b250b41154d67e62ea553cbdbe1cfe0047cd590af0",
+      "anchor_29223a9d63a6612ea435d6ecb14de92eabc858e5bb048b0e2755b3c9c98e5af4"
+    ]
+  },
+  {
+    "value": "SPSS Base 25",
+    "resultPath": [
+      "statistics_software"
+    ],
+    "note": "unique p5",
+    "goldAnchorId": "anchor_58009cbd2db5436a0aa1ec7876786f714a7b854faef7b05863ac4f8e667aaead"
+  },
+  {
+    "value": "GACGCTGTATGTGAAACGGC",
+    "resultPath": [
+      "primers",
+      0,
+      "sequence"
+    ],
+    "note": "REVIEW multi-gold: col1a1-R row label anchor (table context) + sequence anchor",
+    "goldAnchorIds": [
+      "anchor_8d86be60f2f94ba44e9b28a7c3957318b026f2d30a32438c7954bdddcaf750d0",
+      "anchor_c850e50e68a66bcc4c607b45dd8a66d54533dd2206f80a1501f9cc7b2bf785db"
+    ]
+  },
+  {
+    "value": "TATCTCCCCTTGGTCCCGAT",
+    "resultPath": [
+      "primers",
+      1,
+      "sequence"
+    ],
+    "note": "REVIEW multi-gold: col1a2-R row label anchor (table context) + sequence anchor",
+    "goldAnchorIds": [
+      "anchor_4faa09e9a4856ecb9da07e5d49ff04ef0fb46bafe6da9306542f51770245ec40",
+      "anchor_223d719df9928a3ffacf507b5c9a2eb5e372c75bb76ce9e584cbb6299b3185d3"
+    ]
+  },
+  {
+    "value": "Nicolet IS50",
+    "resultPath": [
+      "ftir_instrument"
+    ],
+    "note": "unique p4",
+    "goldAnchorId": "anchor_32cca9ee8babfefef8fc8c58e1c062bb5c8a16ed446da1f7646b431c3af100c2"
+  },
+  {
+    "value": "12,000 × g",
+    "resultPath": [
+      "centrifuge_speed"
+    ],
+    "note": "unique p4, needs grouping-separator + symbol normalization",
+    "goldAnchorId": "anchor_161b1292bbdfef9e7a8322e34784c4157036438d185ac56a1ee4d5ea4feb19e1"
+  },
+  {
+    "value": "zhangxi@mail.hzau.edu.com",
+    "resultPath": [
+      "corresponding_email"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL near-variant email (.com for .cn); verified absent"
+  },
+  {
+    "value": "8.66 ± 0.12%",
+    "resultPath": [
+      "rf_wet_extraction_rate"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL numeric near-variant; verified absent"
+  },
+  {
+    "value": "col1a3-F",
+    "resultPath": [
+      "primers",
+      2,
+      "name"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL: only col1a1/col1a2 primers exist; verified absent"
+  },
+  {
+    "value": "Kyoto University",
+    "resultPath": [
+      "affiliations",
+      2
+    ],
+    "goldAnchorId": null,
+    "note": "plain absent affiliation"
+  },
+  {
+    "value": "15 September 2024",
+    "resultPath": [
+      "published_date"
+    ],
+    "goldAnchorId": null,
+    "note": "ADVERSARIAL near-variant of 13 September 2024; verified absent"
+  }
+]
