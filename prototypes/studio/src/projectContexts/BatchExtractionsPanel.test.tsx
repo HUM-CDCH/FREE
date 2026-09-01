@@ -1411,11 +1411,12 @@ describe('BatchExtractionsPanel', () => {
       fireEvent.change(screen.getByLabelText('Extraction Schema'), {
         target: { value: '__suggest_common_fields__' },
       })
+      await screen.findByLabelText('Suggested common fields')
     }
 
     await openSuggestion()
     fireEvent.click(
-      screen.getByRole('button', { name: 'Suggest common fields' }),
+      await screen.findByRole('button', { name: 'Suggest common fields' }),
     )
     expect(await screen.findByText('place')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: /Back to history/ }))
@@ -2074,6 +2075,7 @@ describe('BatchExtractionsPanel', () => {
       sourceRepresentationRevisionId: succeededMember.sourceRepresentationRevisionId,
       schemaRevisionId,
       strategy: 'ARTICLE' as const,
+      executionStatus: 'COMPLETED' as const,
       outcome: 'SUCCEEDED' as const,
       complete: true,
       modelAttribution: { provider: 'ollama', modelId: 'fixture' },

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useExtraction } from './useExtraction'
+import { useExtraction, type ReviewTarget } from './useExtraction'
 import * as api from './api'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import {
@@ -30,6 +31,7 @@ function attempt(
     sourceRepresentationRevisionId: representationId,
     schemaRevisionId,
     strategy: 'ARTICLE',
+    executionStatus: 'COMPLETED',
     outcome: 'SUCCEEDED',
     complete: true,
     modelAttribution: { provider: 'ollama', modelId: 'fixture' },
@@ -82,6 +84,165 @@ beforeEach(() => {
 })
 
 describe('useExtraction server-owned lifecycle', () => {
+  it('polls a queued job through provisional values to completion', async () => {
+    vi.useFakeTimers()
+    const queued = attempt({
+      executionStatus: 'QUEUED',
+      outcome: null,
+      complete: null,
+      modelAttribution: null,
+      diagnostics: null,
+      resultPayload: null,
+      evidenceLinks: null,
+      reviewable: false,
+    })
+    const provisional = attempt({
+      executionStatus: 'RUNNING',
+      outcome: null,
+      resultPayload: { records: [{ place: 'Rome' }] },
+      evidenceLinks: null,
+      reviewable: false,
+    })
+    vi.mocked(api.requestExtraction).mockResolvedValue(queued)
+    vi.mocked(api.readExtraction)
+      .mockResolvedValueOnce({ extraction: provisional, pendingReviewDecisions: null })
+      .mockResolvedValueOnce({ extraction: attempt(), pendingReviewDecisions: [] })
+    const input = options()
+    const { result } = renderHook(() => useExtraction(input))
+
+    let run!: Promise<ExtractionAttempt | null | undefined>
+    act(() => { run = result.current.runExtraction() })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    expect(result.current.state).toMatchObject({
+      status: 'ready',
+      result: { records: [{ place: 'Rome' }] },
+    })
+    expect(result.current.review.available).toBe(false)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000)
+      await run
+    })
+    expect(result.current.attempt?.executionStatus).toBe('COMPLETED')
+    expect(input.onTerminal).toHaveBeenCalledOnce()
+    vi.useRealTimers()
+  })
+
+  it('keeps a checkpointed restored job cancellable', async () => {
+    const restored = attempt({
+      executionStatus: 'RUNNING',
+      outcome: null,
+      evidenceLinks: null,
+      reviewable: false,
+    })
+    vi.mocked(api.cancelExtraction).mockResolvedValue(undefined)
+    const { result, unmount } = renderHook(() =>
+      useExtraction(options(restored)),
+    )
+
+    expect(result.current.state.status).toBe('ready')
+    await act(() => result.current.requestCancellation())
+
+    expect(api.cancelExtraction).toHaveBeenCalledWith(restored.extractionId)
+    unmount()
+  })
+
+  it('keeps polling through transient schema hydration for a restored job', async () => {
+    vi.useFakeTimers()
+    const restored = attempt({
+      executionStatus: 'RUNNING',
+      outcome: null,
+      evidenceLinks: null,
+      reviewable: false,
+    })
+    vi.mocked(api.readExtraction).mockResolvedValue({
+      extraction: attempt(),
+      pendingReviewDecisions: [],
+    })
+    const onTerminal = vi.fn()
+    const hook = renderHook(
+      ({ reviewTarget }) =>
+        useExtraction({
+          ...options(restored),
+          reviewTarget,
+          onTerminal,
+        }),
+      {
+        wrapper: StrictMode,
+        initialProps: {
+          reviewTarget: {
+            sourceRepresentationId: representationId,
+            schemaRevisionId,
+          } as ReviewTarget | null,
+        },
+      },
+    )
+
+    hook.rerender({ reviewTarget: null })
+    hook.rerender({
+      reviewTarget: {
+        sourceRepresentationId: representationId,
+        schemaRevisionId,
+      },
+    })
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+
+    expect(hook.result.current.attempt?.executionStatus).toBe('COMPLETED')
+    expect(onTerminal).toHaveBeenCalledOnce()
+    hook.unmount()
+    vi.useRealTimers()
+  })
+
+  it('ignores a stale restored-job read after its document changes', async () => {
+    vi.useFakeTimers()
+    const nextRepresentationId = '55555555-5555-4555-8555-555555555555'
+    const restored = attempt({
+      executionStatus: 'RUNNING',
+      outcome: null,
+      evidenceLinks: null,
+      reviewable: false,
+    })
+    const replacement = attempt({
+      extractionId: '66666666-6666-4666-8666-666666666666',
+      sourceRepresentationRevisionId: nextRepresentationId,
+    })
+    const response = Promise.withResolvers<{
+      extraction: ExtractionAttempt
+      pendingReviewDecisions: []
+    }>()
+    const onTerminal = vi.fn()
+    vi.mocked(api.readExtraction).mockReturnValueOnce(response.promise)
+    const hook = renderHook(
+      ({ initialAttempt, documentKey }) =>
+        useExtraction({
+          ...options(initialAttempt),
+          documentKey,
+          onTerminal,
+        }),
+      {
+        initialProps: {
+          initialAttempt: restored,
+          documentKey: restored.sourceRepresentationRevisionId,
+        },
+      },
+    )
+
+    await act(() => vi.advanceTimersByTimeAsync(2_000))
+    hook.rerender({
+      initialAttempt: replacement,
+      documentKey: nextRepresentationId,
+    })
+    await act(async () => {
+      response.resolve({ extraction: attempt(), pendingReviewDecisions: [] })
+      await Promise.resolve()
+    })
+
+    expect(hook.result.current.attempt?.extractionId).toBe(replacement.extractionId)
+    expect(onTerminal).not.toHaveBeenCalled()
+    hook.unmount()
+    vi.useRealTimers()
+  })
+
   it('posts only new identity pins and presents the persisted attempt', async () => {
     vi.mocked(api.requestExtraction).mockResolvedValue(attempt())
     const input = options()
@@ -109,7 +270,7 @@ describe('useExtraction server-owned lifecycle', () => {
       attempt({
         strategy: 'CATALOG',
         diagnostics: {
-          ...attempt().diagnostics,
+          ...attempt().diagnostics!,
           catalog: { stages: [], records: [] },
         },
       }),
@@ -141,8 +302,12 @@ describe('useExtraction server-owned lifecycle', () => {
 
     const catalog = attempt({
       strategy: 'CATALOG',
+      executionStatus: 'FAILED',
+      outcome: null,
+      evidenceLinks: null,
+      reviewable: false,
       diagnostics: {
-        ...attempt().diagnostics,
+        ...attempt().diagnostics!,
         catalog: { stages: [], records: [] },
       },
     })
@@ -190,7 +355,21 @@ describe('useExtraction server-owned lifecycle', () => {
     )
   })
 
-  it('returns to idle when changed pins cancel a running extraction', () => {
+  it('schedules only one job when a run is invoked twice before the next render', () => {
+    vi.mocked(api.requestExtraction).mockImplementation(
+      () => new Promise(() => {}),
+    )
+    const { result } = renderHook(() => useExtraction(options()))
+
+    act(() => {
+      void result.current.runExtraction()
+      void result.current.runExtraction()
+    })
+
+    expect(api.requestExtraction).toHaveBeenCalledOnce()
+  })
+
+  it('returns to idle when changed pins stop local polling', () => {
     vi.mocked(api.requestExtraction).mockImplementation(
       () => new Promise(() => {}),
     )
@@ -213,7 +392,7 @@ describe('useExtraction server-owned lifecycle', () => {
     rerender({ revision: '55555555-5555-4555-8555-555555555555' })
 
     expect(result.current.state.status).toBe('idle')
-    expect(api.cancelExtraction).toHaveBeenCalledOnce()
+    expect(api.cancelExtraction).not.toHaveBeenCalled()
   })
 
   it('keeps the POST live until persisted cancellation returns', async () => {
@@ -255,7 +434,7 @@ describe('useExtraction server-owned lifecycle', () => {
       useExtraction(options(attempt({
         complete: false,
         diagnostics: {
-          ...attempt().diagnostics,
+          ...attempt().diagnostics!,
           grounding: {
             groundedPaths: [],
             ungroundedPaths: [['records', 0, 'title']],

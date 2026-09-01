@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type APIRequestContext } from '@playwright/test'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path'
 import { createCanonicalPackageStore } from '../../../packages/db/src/artifact-store.js'
 import { db } from '../../../packages/db/src/prisma/db.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
+import { extractionAttemptSchema, type ExtractionAttempt } from '../shared/extraction.contract.js'
 import type { ParsedContentBlock, ParsedDocument } from 'extraction/parsed-document'
 import { DEVELOPMENT_ENTRA_TENANT_ID } from '../server/entraIdentityProvider.js'
 import {
@@ -27,6 +28,29 @@ const nodeRequire = createRequire(import.meta.url)
 
 const sha256 = (value: Uint8Array) =>
   createHash('sha256').update(value).digest('hex')
+
+async function waitForExtraction(
+  request: APIRequestContext,
+  extractionId: string,
+  predicate: (attempt: ExtractionAttempt) => boolean = (attempt) =>
+    attempt.executionStatus === 'COMPLETED' || attempt.executionStatus === 'FAILED',
+): Promise<ExtractionAttempt> {
+  const deadline = Date.now() + 30_000
+  for (;;) {
+    const response = await request.get(
+      e2eStudioPath(`/api/extractions/${extractionId}`),
+    )
+    if (response.ok()) {
+      const attempt = extractionAttemptSchema.parse(
+        (await response.json()).extraction,
+      )
+      if (predicate(attempt)) return attempt
+    }
+    if (Date.now() >= deadline)
+      throw new Error(`Timed out waiting for Extraction ${extractionId}.`)
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 50))
+  }
+}
 
 const lifecycleSchemaNodes = [
   { id: 'title', name: 'title', type: 'string' },
@@ -104,6 +128,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   browser,
   page,
 }, testInfo) => {
+  test.setTimeout(120_000)
   test.skip(
     !process.env.EXTRACTION_TEST_DATABASE_URL ||
       process.env.DATABASE_URL !== process.env.EXTRACTION_TEST_DATABASE_URL,
@@ -117,9 +142,14 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
       : join(configHome, 'FREE Studio-nodejs')
   await rm(configHome, { recursive: true, force: true })
 
-  let delayNextResponse = false
   let omitGrounding = false
   let addUnexpectedField = false
+  let blockNextValues = false
+  let blockNextGrounding = false
+  let failNextValues = false
+  let failNextGrounding = false
+  const groundingGate: { release: (() => void) | null } = { release: null }
+  const valuesGate: { release: (() => void) | null } = { release: null }
   const modelServer = createServer((request, response) => {
     let body = ''
     request.setEncoding('utf8')
@@ -128,7 +158,15 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     })
     request.on('end', () => {
       const prompt = JSON.parse(body) as { prompt: string }
-      const generated = prompt.prompt.includes('"links"')
+      const grounding = prompt.prompt.includes('"links"')
+      if ((grounding && failNextGrounding) || (!grounding && failNextValues)) {
+        if (grounding) failNextGrounding = false
+        else failNextValues = false
+        response.writeHead(500, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: 'Deterministic model failure.' }))
+        return
+      }
+      const generated = grounding
         ? JSON.stringify({
             links: Object.fromEntries(
               [...prompt.prompt.matchAll(/"(C\d+)"\s*:/g)]
@@ -153,9 +191,22 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
         response.writeHead(200, { 'content-type': 'application/json' })
         response.end(JSON.stringify({ response: generated, done_reason: 'stop', prompt_eval_count: 10, eval_count: 4, total_duration: 1_000_000 }))
       }
-      if (delayNextResponse) {
-        delayNextResponse = false
-        setTimeout(send, 1_000)
+      if (!grounding && blockNextValues) {
+        blockNextValues = false
+        const blocked = Promise.withResolvers<void>()
+        valuesGate.release = blocked.resolve
+        void blocked.promise.then(() => {
+          valuesGate.release = null
+          send()
+        })
+      } else if (grounding && blockNextGrounding) {
+        blockNextGrounding = false
+        const blocked = Promise.withResolvers<void>()
+        groundingGate.release = blocked.resolve
+        void blocked.promise.then(() => {
+          groundingGate.release = null
+          send()
+        })
       } else send()
     })
   })
@@ -260,11 +311,14 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   await expect(page.getByText('6 pages', { exact: true })).toBeVisible({
     timeout: 20_000,
   })
-  await activateWithKeyboard(
-    page,
-    page.getByRole('button', { name: '▶ Run extraction' }),
-  )
+  let interactivePosts = 0
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/api/extractions'))
+      interactivePosts += 1
+  })
+  await page.getByRole('button', { name: '▶ Run extraction' }).dblclick()
   await expect(page.getByRole('button', { name: '↻ Re-run extraction' })).toBeVisible()
+  expect(interactivePosts).toBe(1)
 
   const otherPackage = await canonicalPackage(
     'different-document.pdf',
@@ -460,6 +514,7 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
 
   const newerExtractionId = randomUUID()
   omitGrounding = true
+  blockNextGrounding = true
   const created = await page.request.post(e2eStudioPath('/api/extractions'), {
     headers: { Origin: E2E_ORIGIN },
     data: {
@@ -470,12 +525,37 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
     },
   })
   expect(created.status()).toBe(201)
+  await waitForExtraction(
+    page.request,
+    newerExtractionId,
+    (attempt) => attempt.executionStatus === 'RUNNING' && attempt.resultPayload !== null,
+  )
 
   const fresh = await browser.newContext()
   const freshPage = await fresh.newPage()
   await loginResearcher(freshPage, researcherObjectId)
   await freshPage.goto(url)
   await freshPage.getByRole('tab', { name: /Results/ }).click()
+  await expect(
+    freshPage.getByText('Values extracted · linking Evidence…'),
+  ).toBeVisible()
+  await expect(freshPage.getByRole('button', { name: 'Export' })).toBeDisabled()
+  await expect(freshPage.getByRole('button', { name: 'Rerun' })).toBeDisabled()
+  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
+  await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
+  await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
+
+  await freshPage.goto(e2eStudioPath('/projects'))
+  await freshPage.goto(url)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
+  await expect(
+    freshPage.getByText('Values extracted · linking Evidence…'),
+  ).toBeVisible()
+  if (!groundingGate.release) throw new Error('Grounding was not blocked.')
+  groundingGate.release()
+  await expect(
+    freshPage.getByText('Values extracted · linking Evidence…'),
+  ).toBeHidden({ timeout: 30_000 })
   await expect(freshPage.getByText('No reviewable result')).toBeVisible()
   await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
   await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
@@ -518,12 +598,125 @@ test('real Article lifecycle persists review, exports its reviewed result, and r
   })
   await freshPage.getByLabel('Extraction snapshot').selectOption(newerExtractionId)
   await expect(freshPage.locator('iframe[title="Pinned Source Document"]')).toHaveCount(0)
-  delayNextResponse = true
+  omitGrounding = false
+  blockNextGrounding = true
   await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
+  await expect(freshPage.getByText('Values extracted · linking Evidence…')).toBeVisible()
+  await freshPage.goto(e2eStudioPath('/projects'))
+  await freshPage.goto(url)
+  await freshPage.getByRole('tab', { name: /Results/ }).click()
+  await expect(freshPage.getByText('Values extracted · linking Evidence…')).toBeVisible()
   await freshPage.getByRole('button', { name: 'Cancel extraction' }).click()
-  await expect(
-    freshPage.getByRole('tabpanel', { name: 'Results' }).getByText('Extraction cancelled', { exact: true }),
-  ).toBeVisible()
+  await expect(freshPage.getByText('Evidence linking stopped: Extraction cancelled.')).toBeVisible()
+  await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
+  await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
+  await expect(freshPage.getByRole('button', { name: 'Export' })).toBeDisabled()
+  groundingGate.release?.()
+
+  failNextValues = true
+  await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
+  await expect(freshPage.getByText('Extraction failed', { exact: true })).toBeVisible()
+  await expect(freshPage.getByRole('tab', { name: 'Raw JSON' })).toHaveCount(0)
+
+  failNextGrounding = true
+  await freshPage.getByRole('button', { name: 'Retry extraction' }).click()
+  await expect(freshPage.getByText('Incomplete Extraction', { exact: true })).toBeVisible()
+  await expect(freshPage.getByRole('button', { name: 'Export' })).toBeEnabled()
+  await expect(freshPage.getByRole('button', { name: 'Save Review' })).toHaveCount(0)
+  await freshPage.getByRole('tab', { name: 'Raw JSON' }).click()
+  await expect(freshPage.locator('pre').filter({ hasText: 'Résumé, source' })).toBeVisible()
+
+  const blockerId = randomUUID()
+  blockNextValues = true
+  expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
+    headers: { Origin: E2E_ORIGIN },
+    data: {
+      id: blockerId,
+      sourceRepresentationRevisionId: otherRepresentationId,
+      schemaRevisionId: secondSchemaRevisionId,
+      strategy: 'ARTICLE',
+    },
+  })).status()).toBe(201)
+  await expect.poll(() => valuesGate.release !== null).toBe(true)
+  await freshPage.getByRole('button', { name: '↻ Re-run extraction' }).click()
+  await expect(freshPage.getByText('Queued extraction…')).toBeVisible()
+  await freshPage.getByRole('button', { name: 'Cancel extraction' }).click()
+  await expect(freshPage.getByText('Extraction cancelled', { exact: true })).toBeVisible()
+  valuesGate.release?.()
+  await waitForExtraction(freshPage.request, blockerId)
+
+  const replayRequest = {
+    id: reviewed!.id,
+    sourceRepresentationRevisionId: firstRepresentationId,
+    schemaRevisionId: firstSchemaRevisionId,
+    strategy: 'ARTICLE',
+  }
+  expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
+    headers: { Origin: E2E_ORIGIN },
+    data: replayRequest,
+  })).status()).toBe(200)
+  expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
+    headers: { Origin: E2E_ORIGIN },
+    data: { ...replayRequest, sourceRepresentationRevisionId: otherRepresentationId },
+  })).status()).toBe(409)
+  expect((await freshPage.request.delete(e2eStudioPath(`/api/extractions/${reviewed!.id}`), {
+    headers: { Origin: E2E_ORIGIN },
+  })).status()).toBe(404)
+
+  const foreign = await browser.newContext()
+  const foreignPage = await foreign.newPage()
+  await loginResearcher(foreignPage, randomUUID())
+  expect((await foreignPage.request.get(e2eStudioPath(`/api/extractions/${reviewed!.id}`))).status()).toBe(404)
+  await foreign.close()
+
+  const activeId = randomUUID()
+  blockNextValues = true
+  expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
+    headers: { Origin: E2E_ORIGIN },
+    data: {
+      id: activeId,
+      sourceRepresentationRevisionId: secondRepresentationId,
+      schemaRevisionId: secondSchemaRevisionId,
+      strategy: 'ARTICLE',
+    },
+  })).status()).toBe(201)
+  await expect.poll(() => valuesGate.release !== null).toBe(true)
+  const activeDeletes = await Promise.all([
+    freshPage.request.delete(e2eStudioPath(`/api/extractions/${activeId}`), { headers: { Origin: E2E_ORIGIN } }),
+    freshPage.request.delete(e2eStudioPath(`/api/extractions/${activeId}`), { headers: { Origin: E2E_ORIGIN } }),
+  ])
+  expect(activeDeletes.map((response) => response.status())).toEqual([202, 202])
+  valuesGate.release?.()
+  await waitForExtraction(freshPage.request, activeId)
+  expect((await freshPage.request.delete(e2eStudioPath(`/api/extractions/${activeId}`), {
+    headers: { Origin: E2E_ORIGIN },
+  })).status()).toBe(404)
+
+  const batchResponse = await freshPage.request.post(e2eStudioPath('/api/batch-extractions'), {
+    headers: { Origin: E2E_ORIGIN },
+    data: {
+      projectContextId,
+      schemaRevisionId: secondSchemaRevisionId,
+      strategy: 'ARTICLE',
+      sourceDocumentIds: [otherSourceDocumentId],
+      force: true,
+    },
+  })
+  expect(batchResponse.status()).toBe(202)
+  const batchExtractionId = (await batchResponse.json()).batchExtraction.batchExtractionId as string
+  const batchMember = await db.orm.public.ExtractionJob.where({ batchExtractionId })
+    .select('id', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy')
+    .first()
+  expect(batchMember).not.toBeNull()
+  expect((await freshPage.request.post(e2eStudioPath('/api/extractions'), {
+    headers: { Origin: E2E_ORIGIN },
+    data: {
+      id: batchMember!.id,
+      sourceRepresentationRevisionId: batchMember!.sourceRepresentationRevisionId,
+      schemaRevisionId: batchMember!.schemaRevisionId,
+      strategy: batchMember!.strategy,
+    },
+  })).status()).toBe(409)
   await fresh.close()
   } finally {
     await new Promise<void>((resolveClose, reject) =>
@@ -587,6 +780,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
     status?: number
     delayMs?: number
     grounding?: boolean
+    finishReason?: 'stop' | 'length'
   }
   type FixtureStage = 'document' | 'discovery' | 'record' | 'grounding'
   const queues: Record<FixtureStage, FixtureResponse[]> = {
@@ -650,7 +844,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
         response.end(
           JSON.stringify({
             response: JSON.stringify(result),
-            done_reason: 'stop',
+            done_reason: fixture.finishReason ?? 'stop',
             prompt_eval_count: 10,
             eval_count: 4,
             total_duration: 1_000_000,
@@ -787,7 +981,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
       data: { id: partialId, sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },
     })
     expect(partialResponse.status()).toBe(201)
-    const partial = await partialResponse.json()
+    const partial = await waitForExtraction(page.request, partialId)
     expect(partial).toMatchObject({
       outcome: 'SUCCEEDED',
       complete: false,
@@ -798,28 +992,84 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
         ],
       },
     })
-    expect(partial.resultPayload.records).not.toContainEqual({})
-    expect(partial.diagnostics.catalog.records[1]).toMatchObject({ outcome: 'failed', calls: 1 })
+    const partialCatalog = partial.diagnostics!.catalog!
+    expect(partial.resultPayload!.records).not.toContainEqual({})
+    expect(partialCatalog.records[1]).toMatchObject({ outcome: 'failed', calls: 1 })
+    const failedRecordStart = partialCatalog.records[1].boundary.startBlockId
+
+    resetQueues()
+    enqueue('record', { result: { records: [{ title: 'B' }] } })
+    enqueue('grounding', { grounding: true }, { grounding: true }, { grounding: true })
+    await expect.poll(async () =>
+      (await page.request.get(e2eStudioPath(
+        `/api/project-contexts/${projectContextId}/source-documents/${sourceDocumentId}/reopen`,
+      ))).status(),
+    ).toBe(200)
+    await page.goto(url)
+    await page.getByRole('tab', { name: /Results/ }).click()
+    await page.getByRole('button', { name: 'Run details' }).click()
+    await page.getByLabel('Retry record 2: Second').check()
+    await page.getByRole('button', { name: 'Retry selected components' }).click()
+    let selectedRetryId = ''
+    await expect.poll(async () => {
+      const retried = await db.orm.public.Extraction.where({ sourceDocumentId, retryOfId: partialId })
+        .select('id').orderBy((attempt) => attempt.createdAt.desc()).first()
+      selectedRetryId = retried?.id ?? ''
+      return selectedRetryId
+    }).not.toBe('')
+
+    resetQueues()
+    enqueue('grounding', { grounding: true }, { grounding: true }, { grounding: true })
+    await page.getByRole('button', { name: 'Run details' }).click()
+    await page.getByRole('button', { name: 'Grounding only' }).click()
+    await expect.poll(async () =>
+      (await db.orm.public.Extraction.where({ sourceDocumentId, retryOfId: selectedRetryId })
+        .select('id').orderBy((attempt) => attempt.createdAt.desc()).first())?.id ?? '',
+    ).not.toBe('')
+
+    resetQueues()
+    enqueue('document', { status: 500 })
+    enqueue('discovery', { result: { starts: ['H1'] } })
+    enqueue('record', { result: { records: [{ title: 'A' }] } })
+    enqueue('grounding', { grounding: true })
+    const documentFailureId = randomUUID()
+    expect((await page.request.post(e2eStudioPath('/api/extractions'), {
+      headers: { Origin: E2E_ORIGIN },
+      data: { id: documentFailureId, sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },
+    })).status()).toBe(201)
+    const documentFailure = await waitForExtraction(page.request, documentFailureId)
+    expect(documentFailure.diagnostics?.catalog?.stages.find((stage) => stage.stage === 'document-values')?.outcome).toBe('failed')
+    resetQueues()
+    enqueue('document', { result: { records: [{ year: 2026 }] } })
+    enqueue('grounding', { grounding: true })
+    await page.goto(url)
+    await page.getByRole('tab', { name: /Results/ }).click()
+    await page.getByRole('button', { name: 'Run details' }).click()
+    await page.getByLabel('Retry failed or truncated document metadata').check()
+    await page.getByRole('button', { name: 'Retry selected components' }).click()
+    await expect.poll(async () =>
+      (await db.orm.public.Extraction.where({ sourceDocumentId, retryOfId: documentFailureId })
+        .select('id').orderBy((attempt) => attempt.createdAt.desc()).first())?.id ?? '',
+    ).not.toBe('')
 
     resetQueues()
     enqueue('document', { result: { records: [{ year: 2026 }] } })
     enqueue('discovery', { result: { starts: ['H999'] } })
+    const discoveryFailureId = randomUUID()
     const discoveryFailureResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },
-      data: { id: randomUUID(), sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },
+      data: { id: discoveryFailureId, sourceRepresentationRevisionId: firstRepresentationId, schemaRevisionId: firstSchemaRevisionId, strategy: 'CATALOG' },
     })
     expect(discoveryFailureResponse.status()).toBe(201)
-    const discoveryFailure = await discoveryFailureResponse.json()
-    expect(discoveryFailure).toMatchObject({ outcome: 'FAILED', resultPayload: null })
-    expect(discoveryFailure.diagnostics.catalog.records).toEqual([])
-    expect(discoveryFailure.diagnostics.catalog.stages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ stage: 'discovery', outcome: 'failed', failureCode: 'unknown_start' }),
-        expect.objectContaining({ stage: 'record-values', outcome: 'not_attempted', calls: 0 }),
-      ]),
-    )
+    const discoveryFailure = await waitForExtraction(page.request, discoveryFailureId)
+    expect(discoveryFailure).toMatchObject({
+      executionStatus: 'FAILED',
+      outcome: null,
+      resultPayload: null,
+      diagnostics: null,
+      failure: { code: 'catalog_discovery_failed' },
+    })
 
-    const failedRecordStart = partial.diagnostics.catalog.records[1].boundary.startBlockId
     resetQueues()
     enqueue('record', { result: { records: [{ title: 'B' }] } })
     enqueue('grounding', { grounding: true }, { grounding: true }, { grounding: true })
@@ -835,7 +1085,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
       },
     })
     expect(retryResponse.status()).toBe(201)
-    const retry = await retryResponse.json()
+    const retry = await waitForExtraction(page.request, retryId)
     expect(retry).toMatchObject({
       outcome: 'SUCCEEDED',
       resultPayload: {
@@ -846,8 +1096,8 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
         ],
       },
     })
-    expect(retry.diagnostics.catalog.records.map((record: { provenance: string }) => record.provenance)).toEqual(['reused', 'executed', 'reused'])
-    expect(retry.diagnostics.retry).toMatchObject({
+    expect(retry.diagnostics!.catalog!.records.map((record: { provenance: string }) => record.provenance)).toEqual(['reused', 'executed', 'reused'])
+    expect(retry.diagnostics!.retry).toMatchObject({
       retryOfId: partialId,
       retryRecordStartBlockIds: [failedRecordStart],
     })
@@ -887,17 +1137,31 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
       result: {
         starts: Array.from({ length: 101 }, (_, index) => `H${index + 1}`),
       },
+      finishReason: 'length',
     })
+    const truncationId = randomUUID()
     const truncationResponse = await page.request.post(e2eStudioPath('/api/extractions'), {
       headers: { Origin: E2E_ORIGIN },
-      data: { id: randomUUID(), sourceRepresentationRevisionId: truncationRepresentationId, schemaRevisionId: packageSchemaRevisionId, strategy: 'CATALOG' },
+      data: { id: truncationId, sourceRepresentationRevisionId: truncationRepresentationId, schemaRevisionId: packageSchemaRevisionId, strategy: 'CATALOG' },
     })
     expect(truncationResponse.status()).toBe(201)
-    const truncation = await truncationResponse.json()
+    const truncation = await waitForExtraction(page.request, truncationId)
     expect(truncation).toMatchObject({ outcome: 'SUCCEEDED', complete: false })
-    expect(truncation.resultPayload.records).toHaveLength(100)
-    expect(truncation.diagnostics.catalog.records).toHaveLength(101)
-    expect(truncation.diagnostics.catalog.records[100]).toMatchObject({ outcome: 'not_attempted', failureCode: 'not_attempted_limit', calls: 0 })
+    expect(truncation.resultPayload!.records).toHaveLength(100)
+    expect(truncation.diagnostics!.catalog!.records).toHaveLength(101)
+    expect(truncation.diagnostics!.catalog!.records[100]).toMatchObject({ outcome: 'not_attempted', failureCode: 'not_attempted_limit', calls: 0 })
+
+    resetQueues()
+    enqueue('discovery', { result: { starts: ['H1'] } })
+    await page.goto(url)
+    await page.getByRole('tab', { name: /Results/ }).click()
+    await page.getByRole('button', { name: 'Run details' }).click()
+    await page.getByLabel('Rediscover Catalog record boundaries').check()
+    await page.getByRole('button', { name: 'Retry selected components' }).click()
+    await expect.poll(async () =>
+      (await db.orm.public.Extraction.where({ sourceDocumentId, retryOfId: truncationId })
+        .select('id').orderBy((attempt) => attempt.createdAt.desc()).first())?.id ?? '',
+    ).not.toBe('')
 
     const cancellationId = randomUUID()
     const callsBeforeCancellation = callCount
@@ -918,10 +1182,13 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
       headers: { Origin: E2E_ORIGIN },
     })
     expect(cancellationDelete.status()).toBe(202)
-    const cancelledResponse = await cancellationPost
-    expect(cancelledResponse.status()).toBe(201)
-    const cancelled = await cancelledResponse.json()
-    expect(cancelled).toMatchObject({ outcome: 'CANCELLED', resultPayload: null })
+    expect((await cancellationPost).status()).toBe(201)
+    const cancelled = await waitForExtraction(page.request, cancellationId)
+    expect(cancelled).toMatchObject({
+      executionStatus: 'FAILED',
+      outcome: null,
+      failure: { code: 'cancelled' },
+    })
 
     const fresh = await browser.newContext()
     const freshPage = await fresh.newPage()
@@ -966,7 +1233,7 @@ test('real Catalog lifecycle covers partials, retry, truncation, cancellation, r
         )
       ).json(),
     )
-    expect(reopened.latestAttempt).toMatchObject({ extractionId: cancellationId, sourceRepresentationRevisionId: cancellationRepresentationId, schemaRevisionId: firstSchemaRevisionId, outcome: 'CANCELLED' })
+    expect(reopened.latestAttempt).toMatchObject({ extractionId: cancellationId, sourceRepresentationRevisionId: cancellationRepresentationId, schemaRevisionId: firstSchemaRevisionId, executionStatus: 'FAILED', outcome: null, failure: { code: 'cancelled' } })
     expect(reopened.latestReviewed?.extractionId).toBe(finalizedRetry.extractionId)
     expect(reopened.latestReviewed?.strategy).toBe('CATALOG')
     expect(reopened.latestReviewed?.retryOfId).toBe(partialId)

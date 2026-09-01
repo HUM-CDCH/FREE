@@ -728,14 +728,18 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
       {
         id: batchId,
         projectContextId: PROJECT,
-        executionStatus: 'RUNNING',
         createdAt: new Date('2026-08-05T08:00:00Z'),
       },
     ]
     database.tables.BatchExtractionMember = [
-      { batchExtractionId: batchId, executionStatus: 'COMPLETED' },
-      { batchExtractionId: batchId, executionStatus: 'COMPLETED' },
-      { batchExtractionId: batchId, executionStatus: 'RUNNING' },
+      { batchExtractionId: batchId, initialExtractionJobId: 'job-1' },
+      { batchExtractionId: batchId, initialExtractionJobId: 'job-2' },
+      { batchExtractionId: batchId, initialExtractionJobId: 'job-3' },
+    ]
+    database.tables.ExtractionJob = [
+      { id: 'job-1', executionStatus: 'COMPLETED' },
+      { id: 'job-2', executionStatus: 'FAILED' },
+      { id: 'job-3', executionStatus: 'RUNNING' },
     ]
 
     const running = await store.listProjectContexts(20)
@@ -746,7 +750,7 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
 
     // A finished batch stops reporting progress but remains activity.
-    database.tables.BatchExtraction[0].executionStatus = 'COMPLETED'
+    database.tables.ExtractionJob[2].executionStatus = 'COMPLETED'
     const finished = await store.listProjectContexts(20)
     const finishedSummary = finished.find(
       (item) => item.projectContextId === PROJECT,

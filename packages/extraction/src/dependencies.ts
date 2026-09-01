@@ -1,12 +1,13 @@
 import type {
   BatchExtractionResults,
   BatchExtractionSnapshot,
+  CancellationResult,
   DocumentExtractionsSnapshot,
   ExtractionDiagnostics,
+  ExtractionAttemptSnapshot,
   EvidenceLink,
   ExtractionFailure,
   ExtractionModelAttribution,
-  ExtractionModule,
   ExtractionSnapshot,
   ExtractionStrategy,
   ModelAttribution,
@@ -14,6 +15,7 @@ import type {
   ReadBatchInput,
   ReadDocumentExtractionsInput,
   ReviewDecisionInput,
+  RunSingleInput,
   RunSingleResult,
   ScheduleBatchInput,
   ScheduleBatchResult,
@@ -47,11 +49,6 @@ export type TerminalExtraction = Readonly<{
   batchExtractionId: string | null
 }>
 
-export type PersistExtractionResult =
-  | Readonly<{ status: 'created' | 'replayed'; extraction: ExtractionSnapshot }>
-  | Readonly<{ status: 'conflict'; extraction: ExtractionSnapshot }>
-  | Readonly<{ status: 'invalid' }>
-
 export type ReviewAuthority = Readonly<{
   reviewDecisions: readonly ReviewDecisionInput[]
   occurrenceIdsByAnchor: ReadonlyMap<string, ReadonlySet<string>>
@@ -69,8 +66,9 @@ export interface ExtractionPersistence {
   ): Promise<LoadedExtractionInputs | null>
   readCanonicalParsedDocument(sourceRepresentationRevisionId: string): Promise<unknown | null>
   readExtraction(extractionId: string): Promise<ExtractionSnapshot | null>
-  isExtractionIdAvailable(extractionId: string): Promise<boolean>
-  persistExtraction(extraction: TerminalExtraction): Promise<PersistExtractionResult>
+  scheduleExtraction(input: RunSingleInput): Promise<RunSingleResult | null>
+  readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
+  cancelExtraction(extractionId: string): Promise<CancellationResult>
   finalizeReview(extractionId: string, authority: ReviewAuthority): Promise<PersistedReviewResult>
   readDocumentExtractions(input: ReadDocumentExtractionsInput): Promise<DocumentExtractionsSnapshot | null>
   scheduleBatch(input: ScheduleBatchInput): Promise<ScheduleBatchResult | null>
@@ -136,15 +134,46 @@ export type BatchMemberExtractionInput = Readonly<{
   batchExtractionId: string
 }>
 
-export interface ExtractionExecutionModule extends ExtractionModule {
-  runBatchMember(input: BatchMemberExtractionInput, signal: AbortSignal): Promise<RunSingleResult>
+export type ExtractionJobInput =
+  | RunSingleInput
+  | (BatchMemberExtractionInput & Readonly<{ kind: 'batch-member' }>)
+
+export type ExtractionValueCheckpoint = Readonly<{
+  complete: boolean
+  modelAttribution: ExtractionModelAttribution
+  diagnostics: ExtractionDiagnostics
+  result: Readonly<Record<string, unknown>>
+}>
+
+export type ClaimedExtractionJob = Readonly<{
+  input: ExtractionJobInput
+  checkpoint: ExtractionValueCheckpoint | null
+  lease: Readonly<{ owner: string; version: number; expiresAt: Date }>
+}>
+
+export type ExtractionJobFailure = Readonly<{
+  code: string
+  message: string
+  phase: ExtractionDiagnostics['phase']
+}>
+
+export interface InternalExtractionJobStore {
+  claim(owner: string, now: Date, leaseExpiresAt: Date): Promise<ClaimedExtractionJob | null>
+  renew(extractionId: string, lease: ClaimedExtractionJob['lease'], leaseExpiresAt: Date): Promise<'owned' | 'cancelled' | 'lost'>
+  checkpoint(extractionId: string, lease: ClaimedExtractionJob['lease'], checkpoint: ExtractionValueCheckpoint): Promise<boolean>
+  complete(extractionId: string, lease: ClaimedExtractionJob['lease'], extraction: TerminalExtraction, finishedAt: Date): Promise<boolean>
+  fail(extractionId: string, lease: ClaimedExtractionJob['lease'], failure: ExtractionJobFailure, finishedAt: Date): Promise<boolean>
 }
 
+export type ExtractionJobExecutor = (
+  input: ExtractionJobInput,
+  checkpoint: ExtractionValueCheckpoint | null,
+  saveCheckpoint: (checkpoint: ExtractionValueCheckpoint) => Promise<void>,
+  signal: AbortSignal,
+) => Promise<TerminalExtraction>
 
 export type ExtractionModuleDependencies = Readonly<{
   persistence: ExtractionPersistence
   models: ExtractionModelSessions
   now?: () => number
 }>
-
-export type ExtractionModuleFactory = (dependencies: ExtractionModuleDependencies) => ExtractionExecutionModule

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ExtractionModule, ExtractionSnapshot } from 'extraction'
+import type { ExtractionAttemptSnapshot, ExtractionModule } from 'extraction'
 import type { DocumentReopenSnapshot } from '../../../packages/db/src/project-store.js'
 import { documentReopenResponseSchema } from '../shared/projectContext.contract.js'
 import { createGetDocumentReopen } from './document_reopen.js'
@@ -15,7 +15,7 @@ const definition = {
   schemaNodes: [{ id: 'title', name: 'title', type: 'string' }],
 }
 
-const extraction: ExtractionSnapshot = {
+const extraction: ExtractionAttemptSnapshot = {
   extractionId,
   sourceDocumentId: documentId,
   sourceRepresentationRevisionId: representationId,
@@ -24,6 +24,7 @@ const extraction: ExtractionSnapshot = {
   extractionSchemaId,
   schemaRevisionNumber: 2,
   strategy: 'ARTICLE',
+  executionStatus: 'COMPLETED',
   outcome: 'SUCCEEDED',
   complete: true,
   modelAttribution: { provider: 'openai', modelId: 'fixture' },

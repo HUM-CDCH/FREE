@@ -133,6 +133,31 @@ export type ExtractionSnapshot = Readonly<{
   reviewDecisions: readonly ReviewDecision[]
 }>
 
+export type ExtractionAttemptSnapshot = Readonly<{
+  extractionId: string
+  sourceDocumentId: string
+  sourceRepresentationRevisionId: string
+  sourceRepresentationRevisionNumber: number
+  schemaRevisionId: string
+  extractionSchemaId: string
+  schemaRevisionNumber: number
+  strategy: ExtractionStrategy
+  executionStatus: ProjectOperationStatus
+  outcome: ExtractionOutcome | null
+  complete: boolean | null
+  modelAttribution: ExtractionModelAttribution | null
+  diagnostics: ExtractionDiagnostics | null
+  result: Readonly<Record<string, unknown>> | null
+  evidence: readonly EvidenceLink[] | null
+  failure: ExtractionFailure | null
+  reviewable: boolean
+  retryOfId: string | null
+  batchExtractionId: string | null
+  createdAt: Date
+  reviewedAt: Date | null
+  reviewDecisions: readonly ReviewDecision[]
+}>
+
 export type FreshExtractionInput = Readonly<{
   kind: 'fresh'
   extractionId: string
@@ -153,11 +178,10 @@ export type RetryExtractionInput = Readonly<{
 export type RunSingleInput = FreshExtractionInput | RetryExtractionInput
 export type RunSingleResult = Readonly<{
   disposition: ExtractionDisposition
-  extraction: ExtractionSnapshot
+  extraction: ExtractionAttemptSnapshot
 }>
 export type CancellationResult =
   | 'cancellation-requested'
-  | 'already-terminal'
   | 'not-found'
 
 export type FinalizeReviewResult = Readonly<{
@@ -257,13 +281,14 @@ export type ReadDocumentExtractionsInput = Readonly<{
 
 export type DocumentExtractionsSnapshot = Readonly<{
   sourceRepresentationRevisionId: string
-  latestAttempt: ExtractionSnapshot | null
-  latestReviewed: ExtractionSnapshot | null
+  latestAttempt: ExtractionAttemptSnapshot | null
+  latestReviewed: ExtractionAttemptSnapshot | null
 }>
 
 
 export interface ExtractionModule {
   runSingle(input: RunSingleInput, signal?: AbortSignal): Promise<RunSingleResult>
+  readExtractionAttempt(extractionId: string): Promise<ExtractionAttemptSnapshot | null>
   cancelSingle(extractionId: string): Promise<CancellationResult>
   prepareReview(extractionId: string): Promise<ReviewPreparation>
   finalizeReview(extractionId: string, decisions: readonly ReviewDecisionInput[]): Promise<FinalizeReviewResult>

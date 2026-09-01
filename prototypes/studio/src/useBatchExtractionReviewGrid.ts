@@ -118,7 +118,9 @@ export function useBatchExtractionReviewGrid(
     readExtraction(extractionId, signal).then(
       ({ extraction, pendingReviewDecisions }) => {
         if (signal.aborted) return
-        const decisions = extraction.reviewedAt ? extraction.reviewDecisions : pendingReviewDecisions
+        const decisions = extraction.reviewedAt
+          ? extraction.reviewDecisions
+          : pendingReviewDecisions ?? []
         setMembers((current) =>
           new Map(current).set(sourceDocumentId, {
             status: 'ready',

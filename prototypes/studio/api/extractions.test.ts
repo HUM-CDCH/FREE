@@ -75,13 +75,17 @@ const snapshot: ExtractionSnapshot = {
   reviewedAt: null,
   reviewDecisions: [],
 }
+const attemptSnapshot = { ...snapshot, executionStatus: 'COMPLETED' as const }
 
 function extractionModule(overrides: Partial<ExtractionModule> = {}) {
   const module: ExtractionModule = {
     runSingle: vi.fn<ExtractionModule['runSingle']>(async () => ({
       disposition: 'created',
-      extraction: snapshot,
+      extraction: attemptSnapshot,
     })),
+    readExtractionAttempt: vi.fn<ExtractionModule['readExtractionAttempt']>(
+      async () => attemptSnapshot,
+    ),
     cancelSingle: vi.fn<ExtractionModule['cancelSingle']>(
       async () => 'cancellation-requested',
     ),
@@ -186,7 +190,7 @@ describe('/api/extractions transport', () => {
 
     vi.mocked(module.runSingle).mockResolvedValueOnce({
       disposition: 'replayed',
-      extraction: snapshot,
+      extraction: attemptSnapshot,
     })
     expect((await handle(request(fresh))).status).toBe(200)
   })
@@ -218,7 +222,7 @@ describe('/api/extractions transport', () => {
     const module = extractionModule({
       runSingle: vi.fn<ExtractionModule['runSingle']>(async () => ({
         disposition: 'created',
-        extraction: catalogSnapshot,
+        extraction: { ...catalogSnapshot, executionStatus: 'COMPLETED' },
       })),
     })
     const response = await handlerFor(module)(
@@ -227,11 +231,11 @@ describe('/api/extractions transport', () => {
     const body = extractionAttemptSchema.parse(await response.json())
 
     expect(response.status).toBe(201)
-    expect(body.diagnostics.catalog).toEqual({
+    expect(body.diagnostics!.catalog).toEqual({
       stages: [documentStage],
       records: [],
     })
-    expect(body.diagnostics.catalog).not.toHaveProperty('documentValues')
+    expect(body.diagnostics!.catalog).not.toHaveProperty('documentValues')
   })
 
   it('maps targeted retry requests to retry inputs without caller pins', async () => {
@@ -311,6 +315,38 @@ describe('/api/extractions transport', () => {
     expect(await reviewed.json()).toMatchObject({
       reviewedAt: '2026-08-20T10:01:00.000Z',
     })
+  })
+
+  it('reads provisional job values without granting review authority', async () => {
+    const provisional = {
+      ...attemptSnapshot,
+      executionStatus: 'RUNNING' as const,
+      outcome: null,
+      evidence: null,
+      failure: null,
+      reviewable: false,
+      reviewedAt: null,
+      reviewDecisions: [],
+    }
+    const module = extractionModule({
+      readExtractionAttempt: vi.fn(async () => provisional),
+    })
+    const response = await handlerFor(module)(
+      new Request(`http://test/api/extractions/${EXTRACTION}`),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      extraction: {
+        executionStatus: 'RUNNING',
+        outcome: null,
+        resultPayload: snapshot.result,
+        evidenceLinks: null,
+        reviewable: false,
+      },
+      pendingReviewDecisions: null,
+    })
+    expect(module.prepareReview).not.toHaveBeenCalled()
   })
 
   it('uses bounded cancellation and domain-error HTTP mappings', async () => {

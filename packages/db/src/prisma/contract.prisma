@@ -46,6 +46,11 @@ enum ProjectOperationStatus {
   FAILED
 }
 
+enum ExtractionJobKind {
+  INTERACTIVE
+  BATCH_MEMBER
+}
+
 enum BatchSchemaSuggestionPhase {
   SOURCES
   MERGING
@@ -62,6 +67,7 @@ model ProjectContext {
   sourceDocuments   SourceDocument[]
   extractionSchemas ExtractionSchema[]
   batchExtractions  BatchExtraction[]
+  extractionJobs    ExtractionJob[]
   batchSchemaSuggestions BatchSchemaSuggestion[]
 
   @@index([researcherAccountId])
@@ -101,6 +107,7 @@ model SourceRepresentationRevision {
   extractions            Extraction[]
   batchMembers           BatchExtractionMember[]
   batchSchemaSuggestionSources BatchSchemaSuggestionSource[]
+  extractionJobs         ExtractionJob[]
 
   @@unique([sourceDocumentId, revisionNumber])
   @@unique([id, sourceDocumentId])
@@ -219,6 +226,7 @@ model SchemaRevision {
   conversationalEditBases    ConversationalSchemaEdit[] @relation("ConversationalEditBase")
   extractions                Extraction[]
   batchExtractions           BatchExtraction[]
+  extractionJobs             ExtractionJob[]
 
   @@unique([extractionSchemaId, revisionNumber])
 }
@@ -232,18 +240,14 @@ model BatchExtraction {
   projectContextId Uuid
   schemaRevisionId Uuid
   strategy         String
-  executionStatus  ProjectOperationStatus  @default(QUEUED)
   failure          Json?
-  startedAt        Timestamptz6?
   finishedAt       Timestamptz6?
-  leaseOwner       String?
-  leaseVersion     Int                     @default(0)
-  leaseExpiresAt   Timestamptz6?
   createdAt        Timestamptz6            @default(now())
   projectContext   ProjectContext          @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
   schemaRevision   SchemaRevision          @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
   members          BatchExtractionMember[]
   extractions      Extraction[]
+  extractionJobs   ExtractionJob[]
 
   @@unique([id, schemaRevisionId, strategy], map: "batch_extraction_pin_key")
   @@index([projectContextId, createdAt])
@@ -253,19 +257,64 @@ model BatchExtractionMember {
   batchExtractionId              Uuid
   sourceDocumentId               Uuid
   sourceRepresentationRevisionId Uuid
-  executionStatus                ProjectOperationStatus        @default(QUEUED)
-  failure                        Json?
-  startedAt                      Timestamptz6?
-  finishedAt                     Timestamptz6?
+  initialExtractionJobId         Uuid                            @unique
   batchExtraction                BatchExtraction              @relation(fields: [batchExtractionId], references: [id], onDelete: Cascade)
   // Named explicitly: the generated identity would exceed PostgreSQL's
   // 63-character limit and be silently truncated.
   sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId, sourceDocumentId], references: [id, sourceDocumentId], onDelete: Cascade, map: "batch_member_representation_fkey")
+  initialExtractionJob           ExtractionJob                 @relation("BatchMemberInitialJob", fields: [initialExtractionJobId, batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId], references: [id, batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId], onDelete: Restrict, map: "batch_member_initial_job_fkey")
   extractions                    Extraction[]                @relation("BatchMemberAttempts")
 
   @@id([batchExtractionId, sourceDocumentId])
+  @@unique([initialExtractionJobId, batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId], map: "batch_member_initial_job_key")
   @@unique([batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId], map: "batch_member_exact_pin_key")
   @@index([sourceRepresentationRevisionId, sourceDocumentId], map: "batch_member_representation_idx")
+}
+
+// One durable unit of Extraction model work. Interactive and initial Batch
+// Extraction member jobs share execution without becoming generic operations.
+model ExtractionJob {
+  id                             Uuid                    @id
+  kind                           ExtractionJobKind
+  projectContextId               Uuid
+  sourceDocumentId               Uuid
+  sourceRepresentationRevisionId Uuid
+  schemaRevisionId               Uuid
+  strategy                       String
+  retryOfId                      Uuid?
+  retryDocument                  Boolean?
+  rediscover                     Boolean?
+  retryRecordStartBlockIds       Json?
+  batchExtractionId              Uuid?
+  executionStatus                ProjectOperationStatus  @default(QUEUED)
+  complete                       Boolean?
+  modelAttribution               Json?
+  diagnostics                    Json?
+  resultPayload                  Json?
+  failure                        Json?
+  cancelRequestedAt              Timestamptz6?
+  startedAt                      Timestamptz6?
+  finishedAt                     Timestamptz6?
+  leaseOwner                     String?
+  leaseVersion                   Int                     @default(0)
+  leaseExpiresAt                 Timestamptz6?
+  createdAt                      Timestamptz6            @default(now())
+  projectContext                 ProjectContext          @relation(fields: [projectContextId], references: [id], onDelete: Cascade)
+  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields: [sourceRepresentationRevisionId, sourceDocumentId], references: [id, sourceDocumentId], onDelete: Cascade, map: "extraction_job_representation_fkey")
+  schemaRevision                 SchemaRevision          @relation(fields: [schemaRevisionId], references: [id], onDelete: Cascade)
+  retryOf                        ExtractionJob?          @relation("ExtractionJobRetries", fields: [retryOfId, sourceRepresentationRevisionId, schemaRevisionId, strategy], references: [id, sourceRepresentationRevisionId, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_job_retry_pin_fkey")
+  retries                        ExtractionJob[]         @relation("ExtractionJobRetries")
+  batchExtraction                BatchExtraction?        @relation(fields: [batchExtractionId, schemaRevisionId, strategy], references: [id, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_job_batch_pin_fkey")
+  initialBatchMember             BatchExtractionMember?  @relation("BatchMemberInitialJob")
+
+  @@unique([id, batchExtractionId, sourceDocumentId, sourceRepresentationRevisionId], map: "extraction_job_batch_member_key")
+  @@unique([id, sourceRepresentationRevisionId, schemaRevisionId, strategy], map: "extraction_job_retry_pin_key")
+  @@index([executionStatus, kind, createdAt])
+  @@index([executionStatus, leaseExpiresAt])
+  @@index([sourceDocumentId, createdAt])
+  @@index([sourceRepresentationRevisionId, sourceDocumentId], map: "extraction_job_representation_idx")
+  @@index([retryOfId, sourceRepresentationRevisionId, schemaRevisionId, strategy], map: "extraction_job_retry_pin_idx")
+  @@index([batchExtractionId, schemaRevisionId, strategy], map: "extraction_job_batch_pin_idx")
 }
 
 // A server-owned suggestion pins every selected representation and retains every

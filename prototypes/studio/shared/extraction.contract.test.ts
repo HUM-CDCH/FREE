@@ -13,6 +13,7 @@ const completed = {
   sourceRepresentationRevisionId: id('3'),
   schemaRevisionId: id('4'),
   strategy: 'ARTICLE',
+  executionStatus: 'COMPLETED',
   outcome: 'SUCCEEDED',
   complete: true,
   modelAttribution: { provider: 'ollama', modelId: 'fixture' },
@@ -39,6 +40,34 @@ const completed = {
 } as const
 
 describe('Article lifecycle contracts', () => {
+  it('accepts queued and checkpointed running jobs but rejects partial checkpoints', () => {
+    const queued = {
+      ...completed,
+      executionStatus: 'QUEUED',
+      outcome: null,
+      complete: null,
+      modelAttribution: null,
+      diagnostics: null,
+      resultPayload: null,
+      evidenceLinks: null,
+      reviewable: false,
+    }
+    expect(extractionAttemptSchema.safeParse(queued).success).toBe(true)
+    expect(extractionAttemptSchema.safeParse({
+      ...queued,
+      executionStatus: 'RUNNING',
+      complete: true,
+      modelAttribution: completed.modelAttribution,
+      diagnostics: completed.diagnostics,
+      resultPayload: completed.resultPayload,
+    }).success).toBe(true)
+    expect(extractionAttemptSchema.safeParse({
+      ...queued,
+      executionStatus: 'RUNNING',
+      resultPayload: completed.resultPayload,
+    }).success).toBe(false)
+  })
+
   it('accepts a strict completed empty attempt and rejects contradictory terminal fields', () => {
     expect(extractionAttemptSchema.safeParse(completed).success).toBe(true)
     expect(
@@ -160,6 +189,16 @@ describe('Article lifecycle contracts', () => {
   })
 
   it('separates fresh requests from strict targeted retry selections', () => {
+    const normalized = extractionRequestSchema.parse({
+      id: 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA',
+      sourceRepresentationRevisionId: 'BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB',
+      schemaRevisionId: 'CCCCCCCC-CCCC-4CCC-8CCC-CCCCCCCCCCCC',
+      strategy: 'ARTICLE',
+    })
+    expect(normalized.id).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
+    expect(normalized.sourceRepresentationRevisionId)
+      .toBe('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+
     expect(
       extractionRequestSchema.safeParse({
         id: id('1'),

@@ -6,6 +6,7 @@ import { CATALOG_NOT_ATTEMPTED_LIMIT, CATALOG_RECORD_LIMIT } from './catalog.js'
 import type {
   ExtractionModelSession,
   ExtractionPersistence,
+  ExtractionValueCheckpoint,
   TerminalExtraction,
 } from './dependencies.js'
 import { ExtractionError } from './errors.js'
@@ -50,11 +51,13 @@ function harness(
       })),
 ) {
   let opened = 0
+  let valueCalls = 0
   let persisted: TerminalExtraction | null = null
   const session: ExtractionModelSession = {
     attribution,
     model: {
       async extract() {
+        valueCalls += 1
         return { result: { records }, metadata }
       },
     },
@@ -74,9 +77,6 @@ function harness(
     async readExtraction() {
       return null
     },
-    async isExtractionIdAvailable() {
-      return true
-    },
     async loadExtractionInputs(
       sourceRepresentationRevisionId: string,
       schemaRevisionId: string,
@@ -90,12 +90,8 @@ function harness(
         parsedDocument,
       }
     },
-    async persistExtraction(terminal: TerminalExtraction) {
-      persisted = terminal
-      return { status: 'created' as const, extraction: snapshot(terminal) }
-    },
   } as unknown as ExtractionPersistence
-  const module = createExtractionModule({
+  const execution = createExtractionModule({
     persistence,
     models: {
       async open() {
@@ -105,9 +101,23 @@ function harness(
     },
     now: () => 10,
   })
+  const module = {
+    ...execution,
+    async runSingle(runInput: Parameters<typeof execution.executeJob>[0]) {
+      const terminal = await execution.executeJob(
+        runInput,
+        null,
+        async () => {},
+        new AbortController().signal,
+      )
+      persisted = terminal
+      return { disposition: 'created' as const, extraction: snapshot(terminal) }
+    },
+  }
   return {
     module,
     opened: () => opened,
+    valueCalls: () => valueCalls,
     persisted: () => persisted,
   }
 }
@@ -123,6 +133,28 @@ function input() {
 }
 
 describe('ExtractionModule Article contract', () => {
+  it('resumes grounding from a value checkpoint without repeating extraction', async () => {
+    const article = harness([{ title: 'Alpha', year: 1901 }])
+    const run = input()
+    let checkpoint: ExtractionValueCheckpoint | null = null
+    await article.module.executeJob(
+      run,
+      null,
+      async (value) => { checkpoint = value },
+      new AbortController().signal,
+    )
+    assert.equal(article.valueCalls(), 1)
+    assert.ok(checkpoint)
+
+    await article.module.executeJob(
+      run,
+      checkpoint,
+      async () => assert.fail('resumed values must not checkpoint again'),
+      new AbortController().signal,
+    )
+    assert.equal(article.valueCalls(), 1)
+  })
+
   it('retains valid zero- and multi-record Article results', async () => {
     const empty = harness([])
     assert.deepEqual((await empty.module.runSingle(input())).extraction.result, {
@@ -265,8 +297,11 @@ function catalogHarness(options: {
     async readExtraction(extractionId: string) {
       return store.get(extractionId) ?? null
     },
-    async isExtractionIdAvailable() {
-      return true
+    async readExtractionAttempt(extractionId: string) {
+      const extraction = store.get(extractionId)
+      return extraction
+        ? { ...extraction, executionStatus: 'COMPLETED' as const }
+        : null
     },
     async loadExtractionInputs(
       sourceRepresentationRevisionId: string,
@@ -281,13 +316,8 @@ function catalogHarness(options: {
         parsedDocument: document,
       }
     },
-    async persistExtraction(terminal: TerminalExtraction) {
-      const stored = snapshot(terminal)
-      store.set(terminal.extractionId, stored)
-      return { status: 'created' as const, extraction: stored }
-    },
   } as unknown as ExtractionPersistence
-  const module = createExtractionModule({
+  const execution = createExtractionModule({
     persistence,
     models: {
       async open() {
@@ -296,6 +326,20 @@ function catalogHarness(options: {
     },
     now: () => 10,
   })
+  const module = {
+    ...execution,
+    async runSingle(runInput: Parameters<typeof execution.executeJob>[0]) {
+      const terminal = await execution.executeJob(
+        runInput,
+        null,
+        async () => {},
+        new AbortController().signal,
+      )
+      const stored = snapshot(terminal)
+      store.set(terminal.extractionId, stored)
+      return { disposition: 'created' as const, extraction: stored }
+    },
+  }
   return {
     module,
     calls,
@@ -404,17 +448,15 @@ describe('ExtractionModule Catalog contract', () => {
     ]
     for (const [starts, failureCode] of cases) {
       const harness = catalogHarness({ starts })
-      const { extraction } = await harness.module.runSingle(catalogInput())
-      assert.equal(extraction.outcome, 'FAILED')
-      assert.equal(extraction.failure?.code, 'catalog_discovery_failed')
-      assert.equal(extraction.result, null)
-      const catalog = extraction.diagnostics.catalog
-      assert.equal(
-        catalog?.stages.find((stage) => stage.stage === 'discovery')
-          ?.failureCode,
-        failureCode,
+      await assert.rejects(
+        harness.module.runSingle(catalogInput()),
+        (error: unknown) =>
+          error instanceof ExtractionError &&
+          error.code === 'catalog_discovery_failed' &&
+          error.cause instanceof Error &&
+          'code' in error.cause &&
+          error.cause.code === failureCode,
       )
-      assert.equal(catalog?.records.length, 0)
       assert.equal(harness.calls.length, 1)
     }
   })
@@ -534,220 +576,6 @@ describe('ExtractionModule Catalog contract', () => {
     )
   })
 
-  it('requires rediscovery before retrying a failed-discovery parent', async () => {
-    const harness = catalogHarness({ starts: ['H999'] })
-    const parent = (await harness.module.runSingle(catalogInput())).extraction
-    assert.equal(parent.outcome, 'FAILED')
-
-    await assert.rejects(
-      harness.module.runSingle(
-        retryInput(parent.extractionId, { retryRecordStartBlockIds: [] }),
-      ),
-      (error: unknown) =>
-        error instanceof ExtractionError && error.code === 'invalid_retry',
-    )
-
-    harness.setStarts(['H1', 'H2'])
-    const child = (
-      await harness.module.runSingle(
-        retryInput(parent.extractionId, { rediscover: true }),
-      )
-    ).extraction
-    assert.equal(child.outcome, 'SUCCEEDED')
-    assert.equal(child.diagnostics.catalog?.records.length, 2)
-  })
-
-  it('reuses retained document values after failed parent discovery', async () => {
-    const harness = catalogHarness({
-      starts: ['H999'],
-      schemaTree: {
-        recordDescription: 'Catalog records.',
-        schemaNodes: [
-          { id: 'archive', name: 'archive', type: 'string', valueSource: 'document' },
-          { id: 'title', name: 'title', type: 'string' },
-        ],
-      },
-      script: [{ result: { records: [{ archive: 'Copenhagen' }] } }],
-    })
-    const parent = (await harness.module.runSingle(catalogInput())).extraction
-    assert.equal(parent.outcome, 'FAILED')
-    assert.deepEqual(parent.diagnostics.catalog?.documentValues, {
-      archive: 'Copenhagen',
-    })
-
-    harness.calls.length = 0
-    harness.setStarts(['H1', 'H2'])
-    harness.setScript([
-      { result: { records: [{ title: 'Alpha' }] } },
-      { result: { records: [{ title: 'Beta' }] } },
-    ])
-    const child = (
-      await harness.module.runSingle(
-        retryInput(parent.extractionId, {
-          rediscover: true,
-          retryDocument: false,
-        }),
-      )
-    ).extraction
-
-    assert.equal(child.outcome, 'SUCCEEDED')
-    assert.deepEqual(child.result, {
-      records: [
-        { archive: 'Copenhagen', title: 'Alpha' },
-        { archive: 'Copenhagen', title: 'Beta' },
-      ],
-    })
-    assert.equal(harness.calls.length, 3)
-    assert.ok('starts' in harness.calls[0].template)
-    assert.ok(
-      harness.calls.slice(1).every((call) => {
-        const records = call.template.records
-        return (
-          Array.isArray(records) &&
-          typeof records[0] === 'object' &&
-          records[0] !== null &&
-          !Object.hasOwn(records[0], 'archive')
-        )
-      }),
-    )
-    assert.equal(
-      child.diagnostics.catalog?.stages.find(
-        (stage) => stage.stage === 'document-values',
-      )?.provenance,
-      'reused',
-    )
-    assert.deepEqual(child.diagnostics.catalog?.documentValues, {
-      archive: 'Copenhagen',
-    })
-    assert.equal(
-      child.diagnostics.catalog?.stages.find(
-        (stage) => stage.stage === 'grounding',
-      )?.outcome,
-      'succeeded',
-    )
-  })
-
-  it('records empty discovery as failed and requires rediscovery', async () => {
-    const harness = catalogHarness({ starts: [] })
-    const parent = (await harness.module.runSingle(catalogInput())).extraction
-    const discovery = parent.diagnostics.catalog?.stages.find(
-      (stage) => stage.stage === 'discovery',
-    )
-    assert.equal(parent.outcome, 'FAILED')
-    assert.equal(parent.failure?.code, 'catalog_no_records')
-    assert.deepEqual(
-      discovery && {
-        outcome: discovery.outcome,
-        failureCode: discovery.failureCode,
-        finishReason: discovery.finishReason,
-        calls: discovery.calls,
-        inputTokens: discovery.inputTokens,
-        outputTokens: discovery.outputTokens,
-        durationMs: discovery.durationMs,
-      },
-      {
-        outcome: 'failed',
-        failureCode: 'catalog_no_records',
-        finishReason: metadata.finishReason,
-        calls: 1,
-        inputTokens: metadata.inputTokens,
-        outputTokens: metadata.outputTokens,
-        durationMs: metadata.durationMs,
-      },
-    )
-    assert.equal(parent.diagnostics.catalog?.records.length, 0)
-    assert.equal(harness.calls.length, 1)
-
-    harness.calls.length = 0
-    await assert.rejects(
-      harness.module.runSingle(retryInput(parent.extractionId)),
-      (error: unknown) =>
-        error instanceof ExtractionError && error.code === 'invalid_retry',
-    )
-    assert.equal(harness.calls.length, 0)
-  })
-
-  it('retains returned metadata for malformed Catalog outputs', async () => {
-    const documentHarness = catalogHarness({
-      schemaTree: {
-        recordDescription: 'Catalog records.',
-        schemaNodes: [
-          { id: 'archive', name: 'archive', type: 'string', valueSource: 'document' },
-        ],
-      },
-      script: [{ result: { records: [] } }],
-    })
-    const documentAttempt = (
-      await documentHarness.module.runSingle(catalogInput())
-    ).extraction
-    const documentDiagnostic = documentAttempt.diagnostics.catalog?.stages.find(
-      (stage) => stage.stage === 'document-values',
-    )
-
-    const discoveryHarness = catalogHarness({
-      discoveryResult: { starts: 'invalid' },
-    })
-    const discoveryAttempt = (
-      await discoveryHarness.module.runSingle(catalogInput())
-    ).extraction
-    const discoveryDiagnostic =
-      discoveryAttempt.diagnostics.catalog?.stages.find(
-        (stage) => stage.stage === 'discovery',
-      )
-
-    const recordHarness = catalogHarness({
-      labels: ['First'],
-      script: [{ result: { records: [] } }],
-    })
-    const recordAttempt = (
-      await recordHarness.module.runSingle(catalogInput())
-    ).extraction
-    const recordDiagnostic = recordAttempt.diagnostics.catalog?.records[0]
-
-    for (const diagnostic of [
-      documentDiagnostic,
-      discoveryDiagnostic,
-      recordDiagnostic,
-    ]) {
-      assert.ok(diagnostic)
-      assert.equal(diagnostic.outcome, 'failed')
-      assert.equal(diagnostic.failureCode, 'invalid_model_output')
-      assert.equal(diagnostic.finishReason, metadata.finishReason)
-      assert.equal(diagnostic.calls, 1)
-      assert.equal(diagnostic.inputTokens, metadata.inputTokens)
-      assert.equal(diagnostic.outputTokens, metadata.outputTokens)
-      assert.equal(diagnostic.durationMs, metadata.durationMs)
-    }
-  })
-
-  it('replays reordered retry record IDs as the same selection', async () => {
-    const harness = catalogHarness({
-      script: [
-        { error: new Error('first failed') },
-        { error: new Error('second failed') },
-      ],
-    })
-    const parent = (await harness.module.runSingle(catalogInput())).extraction
-    harness.setScript([
-      { result: { records: [{ title: 'Alpha', year: 1901 }] } },
-      { result: { records: [{ title: 'Beta', year: 1902 }] } },
-    ])
-    const childInput = retryInput(parent.extractionId, {
-      retryRecordStartBlockIds: ['h0', 'h1'],
-    })
-    const created = await harness.module.runSingle(childInput)
-    const callsAfterCreate = harness.calls.length
-    const replayed = await harness.module.runSingle({
-      ...childInput,
-      retryRecordStartBlockIds: ['h1', 'h0'],
-    })
-
-    assert.equal(created.disposition, 'created')
-    assert.equal(replayed.disposition, 'replayed')
-    assert.equal(replayed.extraction.extractionId, created.extraction.extractionId)
-    assert.equal(harness.calls.length, callsAfterCreate)
-  })
-
   it('rejects Article targeted retries', async () => {
     const harness = catalogHarness()
     const parent = (await harness.module.runSingle(input())).extraction
@@ -758,29 +586,4 @@ describe('ExtractionModule Catalog contract', () => {
     )
   })
 
-  it('cancels Catalog without persisting records already extracted', async () => {
-    const harness = catalogHarness({
-      labels: ['First', 'Second'],
-      script: [
-        { result: { records: [{ title: 'Alpha', year: 1901 }] } },
-        { error: new DOMException('Aborted', 'AbortError') },
-      ],
-    })
-    const { extraction } = await harness.module.runSingle(catalogInput())
-    assert.equal(extraction.outcome, 'CANCELLED')
-    assert.equal(extraction.result, null)
-    assert.equal(extraction.complete, null)
-    assert.equal(extraction.reviewable, false)
-  })
-
-  it('rejects reuse of an Extraction UUID with a different strategy', async () => {
-    const harness = catalogHarness()
-    const fresh = input()
-    await harness.module.runSingle(fresh)
-    await assert.rejects(
-      harness.module.runSingle({ ...fresh, strategy: 'CATALOG' as const }),
-      (error: unknown) =>
-        error instanceof ExtractionError && error.code === 'extraction_id_conflict',
-    )
-  })
 })
