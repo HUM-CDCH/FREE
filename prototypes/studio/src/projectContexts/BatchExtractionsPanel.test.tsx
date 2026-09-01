@@ -1387,7 +1387,12 @@ describe('BatchExtractionsPanel', () => {
             },
           } as Response)
         if (url.startsWith('/api/extraction-schemas?'))
-          return Promise.resolve(response({ extractionSchemas: [] }))
+          return new Promise<Response>((resolve) => {
+            setTimeout(
+              () => resolve(response({ extractionSchemas: [] })),
+              25,
+            )
+          })
         if (
           url === '/api/batch-schema-suggestions' &&
           init?.method === 'POST'
@@ -1407,6 +1412,9 @@ describe('BatchExtractionsPanel', () => {
       )
       await waitFor(() =>
         expect(screen.getAllByRole('checkbox')).toHaveLength(2),
+      )
+      await waitFor(() =>
+        expect(screen.getByLabelText('Extraction Schema')).toBeEnabled(),
       )
       fireEvent.change(screen.getByLabelText('Extraction Schema'), {
         target: { value: '__suggest_common_fields__' },
