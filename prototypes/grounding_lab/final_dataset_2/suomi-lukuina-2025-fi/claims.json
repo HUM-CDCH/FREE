@@ -1,0 +1,179 @@
+[
+ {
+  "value": "5 635 971",
+  "resultPath": [
+   "population2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_8ae75212d1d84e3c30761c58ff2da4e7d09172188808e8ba1b62b3412333c259",
+   "anchor_dc2fd190be598324643ec3418c2c22fed41623229b79bc405272674ac73099a3",
+   "anchor_7a392e6970fcf18a70b6e8e755c9c279077b1fe3cbad33126125a6547617c254",
+   "anchor_0c2f1df256fb1f2a740adf20340d30d2b0902ab4938ec4f6a273cfeabf5a1ad4",
+   "anchor_0db860f286ad36a1340df4c28e8d7eda29c9c5e4ce2159143a93e607271da37d"
+  ]
+ },
+ {
+  "value": "2 790 772",
+  "resultPath": [
+   "men2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_14650f3772d9cc431b0fc86eb522e4a726b0471c318e8620ca9dd260f1bf70a6"
+  ]
+ },
+ {
+  "value": "338 491",
+  "resultPath": [
+   "totalAreaKm2"
+  ],
+  "goldAnchorIds": [
+   "anchor_1fa57ac1cdd36b7f5e9aa6c70552567109f4526cff0ed62741342606d0f3d48f"
+  ]
+ },
+ {
+  "value": "1 324",
+  "resultPath": [
+   "haltiHeightMetres"
+  ],
+  "goldAnchorIds": [
+   "anchor_9e804d334d91d73fd327805bbf9d2b1c0f66a3f3b5a15b6aea8f44fa5cbc6535"
+  ]
+ },
+ {
+  "value": "1 393",
+  "resultPath": [
+   "saimaaAreaKm2"
+  ],
+  "goldAnchorIds": [
+   "anchor_e25809e35cfb46fe22d46a90c2f5ece45553f8ebe5320fe542b2b4c4a81cb145"
+  ]
+ },
+ {
+  "value": "1 082",
+  "resultPath": [
+   "paijanneAreaKm2"
+  ],
+  "goldAnchorIds": [
+   "anchor_c77b10a4e4c883f88b5655ccce6988fa1ffd8bc2e1051590e925f9f253ce0922"
+  ],
+  "note": "Inarijärvi has the same area in the neighbouring row."
+ },
+ {
+  "value": "43 720",
+  "resultPath": [
+   "liveBirths2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_98b108b2b8f1e6c7a15f192686125125a31fdf11bbea2acee2659e761454ae5b"
+  ]
+ },
+ {
+  "value": "58 267",
+  "resultPath": [
+   "deaths2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_aae5183f85def1160f9f5cbbe186c4e970305ec5069049db2093adda1926a8d1"
+  ]
+ },
+ {
+  "value": "47 051",
+  "resultPath": [
+   "netImmigration2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_3cfdb61f073dcb6415924649d98bb635bd1565aa3b9f89102b2d09a4edf84a09"
+  ]
+ },
+ {
+  "value": "21 420",
+  "resultPath": [
+   "marriages2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_a94166c06862505fa50935cec880885212cfc3882986005799d0747d7404e8ea"
+  ]
+ },
+ {
+  "value": "610 148",
+  "resultPath": [
+   "foreignLanguageSpeakers2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_a602a37251216bd41fd0fab0d9e440e0ab9d37484ea36467809f2b2224075c1b"
+  ]
+ },
+ {
+  "value": "41 403",
+  "resultPath": [
+   "ukrainianCitizens2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_bdbc9634b66c89abbbcb540a1776dac337c985422092f54540b0c69c06610ed5"
+  ]
+ },
+ {
+  "value": "1 782 300",
+  "resultPath": [
+   "uusimaaPopulation2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_858a164e6f0192196ba6571f1a36ab81584821d562840c0fa2a003be69c5cdd3"
+  ]
+ },
+ {
+  "value": "84,1",
+  "resultPath": [
+   "finnishMotherTongueSharePercent2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_4eeb985e37521b89ccfd7d51eb134f0f6a88170e17868c7ede5a882c01085da3",
+   "anchor_688fc99c236743b156a0353287993de1280c0d911d18904bc2b6ae115d695ffb"
+  ]
+ },
+ {
+  "value": "238",
+  "resultPath": [
+   "unemployedThousands2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_56ab893a1e6de1906f0097c37f97fae2b25be84afcf4303e5bcfdcdcfb6bd718"
+  ],
+  "note": "The 4 238 cell on p31 is a different figure."
+ },
+ {
+  "value": "5 635 972",
+  "resultPath": [
+   "adversarialPopulation"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "43 721",
+  "resultPath": [
+   "adversarialLiveBirths"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "47 052",
+  "resultPath": [
+   "adversarialNetImmigration"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "1 782 301",
+  "resultPath": [
+   "adversarialUusimaa"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "58 268",
+  "resultPath": [
+   "adversarialDeaths"
+  ],
+  "goldAnchorIds": []
+ }
+]

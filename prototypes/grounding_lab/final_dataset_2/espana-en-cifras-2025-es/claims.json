@@ -1,0 +1,189 @@
+[
+ {
+  "value": "48.619.695",
+  "resultPath": [
+   "poblacionEspana1Enero2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_20cd905eb1c986199f610edc9c9b24a0ea884fe143415dffa6a187ce637c7624",
+   "anchor_9753f3915db107f0ee6115815d5eae23a49bc137a611f556189b9a154a15debe",
+   "anchor_ce9d18fc8442baf72374ab574b2b5e40a1d54bae3d3c253d102066dfdbc01eb8"
+  ],
+  "note": "Narrative, p10 table, and p54 annex all state the 1 January 2024 population."
+ },
+ {
+  "value": "13,28",
+  "resultPath": [
+   "saldoMigratorioPorMil2023"
+  ],
+  "goldAnchorIds": [
+   "anchor_970b715926c1e5d881429ae14b0dbca36ae829267c8a3bf42d52c9653ad9f915"
+  ]
+ },
+ {
+  "value": "320.656",
+  "resultPath": [
+   "nacimientos2023"
+  ],
+  "goldAnchorIds": [
+   "anchor_82dde24429a9b833d1f409e573228d9e14bb34ed761f0310631859ea0f8df869",
+   "anchor_86d6ed20f98ce22b9e5d6eb8e6b46360ab163f60bb1965b4dcb8ab9379959290"
+  ]
+ },
+ {
+  "value": "1,12",
+  "resultPath": [
+   "hijosPorMujer2023"
+  ],
+  "goldAnchorIds": [
+   "anchor_bdce4b10f37d8e571839b62172ef5b811bedffa94b240ccb86dad7634d08c33b",
+   "anchor_e0157b6d8a4dc85cc9d4193b4dabd4f63590b9f9b97b1e2a435082b23914738a",
+   "anchor_f018fa6cdb0680be19b2c378db431b4121de34b94c639ebb3ed51586a0055a64"
+  ],
+  "note": "p55 annex España row carries the same fertility indicator."
+ },
+ {
+  "value": "436.124",
+  "resultPath": [
+   "fallecidos2023"
+  ],
+  "goldAnchorIds": [
+   "anchor_14e401a7ce6572385c4aefdfe192ad45754ad6e217d17e5951f92a16f4ce9c1a",
+   "anchor_9c5aac6d3530eed297def033ad158220104550f347e0dd3593b471c87539779a",
+   "anchor_cafddbb214f1eef128c4baaadb5172763045be41e4e50d042d0a8718388de9b0",
+   "anchor_a4f8afb962fd42ab8fadafe09be6d8129f81a52dcfcee623f529bbd6fe557037"
+  ],
+  "note": "Both the MNP and the causes-of-death statistic report the same 2023 death count."
+ },
+ {
+  "value": "83,77 años",
+  "resultPath": [
+   "esperanzaVidaNacimiento2023"
+  ],
+  "goldAnchorIds": [
+   "anchor_53ff69bae58db849103f7eb92e7d4bbedeb3f75a86cea5c71b0298792ea3ffa7"
+  ]
+ },
+ {
+  "value": "172.430",
+  "resultPath": [
+   "matrimonios2023"
+  ],
+  "goldAnchorIds": [
+   "anchor_d9e5318467703122afe19fd0f034d19d85d4210846e8537fdc034017d40dfa3c",
+   "anchor_3ed0548706d9189417207c45b860177edf2711f8c4eb9b2c958585a15db5cd4a"
+  ]
+ },
+ {
+  "value": "22.880 millones de euros",
+  "resultPath": [
+   "impuestosAmbientales2023"
+  ],
+  "goldAnchorIds": [
+   "anchor_e2fd7ed7f24ebc1c124f427eaae4dc1848afc408851ef55c6c3bc4de9f2fa214"
+  ]
+ },
+ {
+  "value": "128 litros",
+  "resultPath": [
+   "consumoAguaPorHabitanteDia2022"
+  ],
+  "goldAnchorIds": [
+   "anchor_34104d1efa6c0995ab123205367e534ab41b70def3cc4da092c46b744af87f16"
+  ]
+ },
+ {
+  "value": "25.107 millones de euros",
+  "resultPath": [
+   "gastoProteccionAmbiental2023"
+  ],
+  "goldAnchorIds": [
+   "anchor_a51e42c73643652ccc9bc932088243b565f4947666360a549e7aa54aa38beb74"
+  ]
+ },
+ {
+  "value": "13,4%",
+  "resultPath": [
+   "porcentajePoblacionExtranjera"
+  ],
+  "goldAnchorIds": [
+   "anchor_fc59cfe9559e448902b7cda8ce303ab769f0df17a8ae5f975d64d138b47b2128",
+   "anchor_4e9563605bcd5891897046ebcc9410532b5ba0baebc9c0f3a61d103621f0435f",
+   "anchor_01ff6560420be34550abbaa6beb297cbe3889ad526a0ee83b6e4fae450d82992"
+  ],
+  "note": "The p17 13,4% is the decline in non-paper ISBN registrations, not the foreign-population share."
+ },
+ {
+  "value": "505.983",
+  "resultPath": [
+   "superficieEspanaKm2"
+  ],
+  "goldAnchorIds": [
+   "anchor_980945c84254cb8c482953b57b9e307656c998e5fc2c17f949ecda4f50975da6"
+  ]
+ },
+ {
+  "value": "83.445,0",
+  "resultPath": [
+   "poblacionAlemaniaMiles2024"
+  ],
+  "goldAnchorIds": [
+   "anchor_e03992d2afb4d32e0eebb05d167211e95f9740748e2bd86149ef9841661d6bef"
+  ]
+ },
+ {
+  "value": "5,07",
+  "resultPath": [
+   "tasaMedicosColegiadosPorMil"
+  ],
+  "goldAnchorIds": [
+   "anchor_ecb5227d3bf38dfdfc0a26307dc3edf010b9c1a2bc7beca0df818ab4c3ab1292"
+  ]
+ },
+ {
+  "value": "52,0%",
+  "resultPath": [
+   "jovenes25a34EstudiosSuperiores"
+  ],
+  "goldAnchorIds": [
+   "anchor_704ab7f5c3d4d5d1b1f7ca3359caa55d232c717fffe0dab89b0d86455f8ee754",
+   "anchor_7374c48689220b314684a38c3a1503e8ccf7ad2f54a0e10c1057d2f649ac77fb"
+  ],
+  "note": "The p36 52,0% is the share of firms without employees; the p54 Ourense cell is a regional value."
+ },
+ {
+  "value": "48.619.696",
+  "resultPath": [
+   "adversarialPoblacion"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "320.657",
+  "resultPath": [
+   "adversarialNacimientos"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "83,78 años",
+  "resultPath": [
+   "adversarialEsperanzaVida"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "172.431",
+  "resultPath": [
+   "adversarialMatrimonios"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "6,6 millones",
+  "resultPath": [
+   "adversarialExtranjeros"
+  ],
+  "goldAnchorIds": []
+ }
+]

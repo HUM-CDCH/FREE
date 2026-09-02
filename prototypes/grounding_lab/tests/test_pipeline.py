@@ -1,10 +1,12 @@
 """Lexical-tier self-check — runs without torch installed."""
 
 import io
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import patch
 
 from grounding_lab.pipeline import (
@@ -38,6 +40,46 @@ class NormalizeTest(unittest.TestCase):
     def test_casefold_and_punctuation(self):
         self.assertEqual(normalize("Ærø, Danmark!"), "ærø danmark")
 
+    def test_month_name_dates_iso_ize(self):
+        self.assertEqual(normalize("13. august 2004"), "2004-08-13")
+        self.assertEqual(normalize("August 13, 2004"), "2004-08-13")
+        self.assertEqual(normalize("17 juin 1790"), "1790-06-17")
+        self.assertEqual(normalize("den 13. august 2004."), "den 2004-08-13.")
+        self.assertEqual(normalize("40 august 2004"), "40 august 2004")
+
+    def test_space_grouping_and_unicode_minus(self):
+        # typographic no-break spaces are grouping in documents...
+        self.assertEqual(normalize("645 000"), "645000")
+        self.assertEqual(normalize("1 234 567,89"), "1234567.89")
+        # ...a plain space is not: "page 5 200" / adjacent table cells stay two numbers
+        self.assertEqual(normalize("page 5 200"), "page 5 200")
+        self.assertFalse(bounded_contains("5200", "page 5 200"))
+        # Grouped scalars match in either representation.
+        self.assertTrue(bounded_contains("1234", "1 234"))
+        self.assertTrue(bounded_contains("645000", "645 000 bebes"))
+        self.assertTrue(bounded_contains("645 000", "645000 bebes"))
+        self.assertTrue(bounded_contains("645 000", "645 000 bebes"))
+        self.assertTrue(bounded_contains("645 000", "645 000 bebes"))
+        self.assertEqual(normalize("in 2024 100 cases"), "in 2024 100 cases")
+        self.assertTrue(bounded_contains("−6 000", "-6000"))
+
+    def test_glued_unit_splits(self):
+        self.assertEqual(normalize("1300m2"), normalize("1300 m2"))
+        self.assertEqual(normalize("1,300m2"), normalize("1,300 m2"))
+        self.assertTrue(bounded_contains("1300 m2", "udgrave 1300m2 i 100m zonen"))
+        self.assertTrue(bounded_contains("1,300 m2", "area 1,300m2"))
+        self.assertFalse(bounded_contains("2", "1300m2"))
+
+    def test_percent_and_currency_markers_are_preserved(self):
+        self.assertEqual(normalize("50 %"), normalize("50%"))
+        self.assertEqual(normalize("$ 50"), normalize("$50"))
+        self.assertEqual(normalize("50 €"), normalize("50€"))
+        self.assertTrue(bounded_contains("50%", "rate: 50 %"))
+        self.assertTrue(bounded_contains("$50", "budget: $ 50"))
+        self.assertFalse(bounded_contains("50%", "budget: $50"))
+        self.assertFalse(bounded_contains("$50", "rate: 50%"))
+        self.assertFalse(bounded_contains("$50", "budget: €50"))
+
 
 class BoundedContainmentTest(unittest.TestCase):
     def test_shared_semantics(self):
@@ -45,8 +87,10 @@ class BoundedContainmentTest(unittest.TestCase):
             ("1.234,56", "Total 1,234.56 kg", True),
             ("18", "dated 1834", False),
             ("8-1", "find 8-1", True),
-            ("x", "x", False),
-            (True, "true", False),
+            ("x", "x", True),
+            ("x", "grade x", False),
+            (5, "there were 5 cases", True),
+            (True, "true", True),
         ]
         for value, text, expected in cases:
             with self.subTest(value=value, text=text):
@@ -65,8 +109,19 @@ class LexicalMatchTest(unittest.TestCase):
         anchors = [anchor("a1", "born 1790"), anchor("a2", "died 1790")]
         self.assertIsNone(lexical_match(claim("1790"), anchors))
 
-    def test_boolean_abstains(self):
-        self.assertIsNone(lexical_match(claim(True), [anchor("a1", "true")]))
+    def test_boolean_and_short_cell_values_link(self):
+        self.assertEqual(
+            lexical_match(claim(True), [anchor("a1", "true")]).anchor_id,
+            "a1",
+        )
+        self.assertEqual(
+            lexical_match(claim("A"), [anchor("a1", "A")]).anchor_id,
+            "a1",
+        )
+        self.assertEqual(
+            lexical_match(claim(5), [anchor("a1", "there were 5 cases")]).anchor_id,
+            "a1",
+        )
 
     def test_no_match_abstains(self):
         anchors = [anchor("a1", "completely unrelated prose about fish")]
@@ -94,7 +149,8 @@ class ConfigRoutingTest(unittest.TestCase):
         import grounding_lab.pipeline as pipeline
 
         class FakeIndex:
-            anchors = [anchor("a1", "unrelated")]
+            # two hits: lexical configs disambiguate inside the hit set
+            anchors = [anchor("a1", "value 1591 here"), anchor("a2", "1591 again")]
 
             def shortlist(self, _text):
                 return self.anchors
@@ -113,8 +169,61 @@ class ConfigRoutingTest(unittest.TestCase):
             with patch.object(pipeline, target, fake):
                 other = "cross_encoder_match" if scorer == "nli" else "nli_match"
                 with patch.object(pipeline, other, side_effect=AssertionError(config)):
-                    pipeline.ground(claim("no lexical hit"), FakeIndex(), config)
+                    pipeline.ground(claim("1591"), FakeIndex(), config)
             self.assertTrue(called, f"{config} did not call {target}")
+
+    def test_lexical_configs_abstain_on_zero_hits_without_neural_pass(self):
+        from unittest.mock import patch
+
+        import grounding_lab.pipeline as pipeline
+
+        class FakeIndex:
+            anchors = [anchor("a1", "unrelated")]
+
+            def shortlist(self, _text):
+                raise AssertionError("dense shortlist must not run for a zero-hit claim")
+
+        for config in ("lexical", "lexical+ce", "lexical+nli", "lexical+ce-bare", "lexical+nli-bare"):
+            with patch.object(pipeline, "cross_encoder_match", side_effect=AssertionError(config)):
+                with patch.object(pipeline, "nli_match", side_effect=AssertionError(config)):
+                    link = pipeline.ground(claim("no lexical hit"), FakeIndex(), config)
+            self.assertEqual((link.anchor_id, link.tier), (None, "lexical"), config)
+
+    def test_neural_only_configs_skip_tier_one(self):
+        from unittest.mock import patch
+
+        import grounding_lab.pipeline as pipeline
+
+        class FakeIndex:  # one verbatim hit; ce-only must still go dense, not lexical
+            anchors = [anchor("a1", "1591"), anchor("a2", "prose")]
+
+            def shortlist(self, _text):
+                return self.anchors
+
+        seen = {}
+        fake = lambda text, sl: (seen.setdefault("text", text), pipeline.Link("a2", 0.9, 0.5, "fake"))[1]
+        with patch.object(pipeline, "cross_encoder_match", fake):
+            link = pipeline.ground(claim("1591", context="port: Livorno"), FakeIndex(), "ce-only")
+        self.assertEqual(link.anchor_id, "a2")
+        self.assertEqual(seen["text"], "field: 1591 (port: Livorno)")
+
+    def test_hit_set_rendering_is_field_only_or_bare(self):
+        from unittest.mock import patch
+
+        import grounding_lab.pipeline as pipeline
+
+        class FakeIndex:
+            anchors = [anchor("a1", "1591 a"), anchor("a2", "1591 b")]
+
+            def shortlist(self, _text):
+                raise AssertionError("multi-hit must rerank inside the hit set")
+
+        for config, expected in (("lexical+ce", "field: 1591"), ("lexical+ce-bare", "1591")):
+            seen = {}
+            fake = lambda text, sl: (seen.setdefault("text", text), pipeline.Link("a1", 0.9, 0.5, "fake"))[1]
+            with patch.object(pipeline, "cross_encoder_match", fake):
+                pipeline.ground(claim("1591", context="port: Livorno"), FakeIndex(), config)
+            self.assertEqual(seen["text"], expected, config)
 
 
 class MarginLinkTest(unittest.TestCase):
@@ -125,6 +234,37 @@ class MarginLinkTest(unittest.TestCase):
 
         link = _margin_link(numpy.array([]), [], "cross-encoder")
         self.assertIsNone(link.anchor_id)
+
+
+class CrossEncoderConfigTest(unittest.TestCase):
+    def test_selected_qwen_reranker_is_pinned_and_instruction_aware(self):
+        import grounding_lab.pipeline as pipeline
+
+        calls = {}
+        sentence_transformers = ModuleType("sentence_transformers")
+        torch = ModuleType("torch")
+        torch.bfloat16 = object()
+
+        def fake_cross_encoder(model, **kwargs):
+            calls.update(model=model, **kwargs)
+            return object()
+
+        sentence_transformers.CrossEncoder = fake_cross_encoder
+        pipeline._cross_encoder.cache_clear()
+        try:
+            with patch.dict(
+                sys.modules,
+                {"sentence_transformers": sentence_transformers, "torch": torch},
+            ):
+                pipeline._cross_encoder()
+        finally:
+            pipeline._cross_encoder.cache_clear()
+
+        self.assertEqual(calls["model"], "Qwen/Qwen3-Reranker-0.6B")
+        self.assertEqual(calls["revision"], pipeline.CROSS_ENCODER_REVISION)
+        self.assertEqual(calls["prompts"], {"evidence": pipeline.RERANK_INSTRUCTION})
+        self.assertEqual(calls["default_prompt_name"], "evidence")
+        self.assertIs(calls["model_kwargs"]["dtype"], torch.bfloat16)
 
 
 class VerbatimDowngradeTest(unittest.TestCase):
@@ -144,14 +284,12 @@ class VerbatimDowngradeTest(unittest.TestCase):
         link = Link("a1", 0.99, 0.95, "cross-encoder")
         self.assertEqual(verbatim_downgrade(link, claim("TAK 1506"), anchors), link)
 
-    def test_boolean_link_untouched(self):
+    def test_wrong_boolean_link_is_downgraded(self):
         from grounding_lab.pipeline import Link, verbatim_downgrade
 
         link = Link("a1", 0.99, 0.95, "cross-encoder")
-        self.assertEqual(
-            verbatim_downgrade(link, claim(True), [anchor("a1", "false")]),
-            link,
-        )
+        downgraded = verbatim_downgrade(link, claim(True), [anchor("a1", "false")])
+        self.assertLessEqual(downgraded.confidence, 0.25)
 
     def test_row_context_does_not_rescue_wrong_sibling_cell(self):
         # A wrong sibling cell shares the row context that contains the value;
@@ -270,7 +408,7 @@ class LabelReviewTest(unittest.TestCase):
             redirect_stdout(output),
         ):
             self.assertEqual(main(), 0)
-        self.assertIn("OK: 10 doc(s) validated, 18 warning(s)", output.getvalue())
+        self.assertIn("OK: 10 doc(s) validated, 17 warning(s)", output.getvalue())
 
 
 class DateGuardTest(unittest.TestCase):

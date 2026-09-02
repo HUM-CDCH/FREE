@@ -1,0 +1,22 @@
+[
+  {"value":"69,1 millions d'habitants","resultPath":["populationFrance"],"goldAnchorIds":["anchor_bd888d09155e6de7e510de5d048b614b21f1e5f1c12d31b95a6b8c00de0b70a7","anchor_35a8f3572b9b1bac36cae163f886894face6a39fb19a58ac02e38d0293b33c54"]},
+  {"value":"66,8 millions","resultPath":["populationMetropolitanFrance"],"goldAnchorId":"anchor_bd888d09155e6de7e510de5d048b614b21f1e5f1c12d31b95a6b8c00de0b70a7"},
+  {"value":"2,3 millions","resultPath":["populationOverseasDepartments"],"goldAnchorId":"anchor_bd888d09155e6de7e510de5d048b614b21f1e5f1c12d31b95a6b8c00de0b70a7"},
+  {"value":"+0,25 %","resultPath":["populationAnnualChange"],"goldAnchorIds":["anchor_bd888d09155e6de7e510de5d048b614b21f1e5f1c12d31b95a6b8c00de0b70a7","anchor_35a8f3572b9b1bac36cae163f886894face6a39fb19a58ac02e38d0293b33c54"]},
+  {"value":"-6 000","resultPath":["naturalBalance"],"goldAnchorIds":["anchor_057076fde35cba28bde1d8d9bdb60eebacf32cbf6506ba8c8557a558746827d6","anchor_548ec9741987e8e2dcddda0a825d848227b25681938fa1a5e1910d5cc5208f19"]},
+  {"value":"+176 000 personnes","resultPath":["migrationBalance"],"goldAnchorId":"anchor_057076fde35cba28bde1d8d9bdb60eebacf32cbf6506ba8c8557a558746827d6"},
+  {"value":"15 % de la population de l'Union européenne","resultPath":["euPopulationShare"],"goldAnchorId":"anchor_b27a0fa2b4200223080d0f548c12345722ccf5ddd067b3b438dc7f88c4595471"},
+  {"value":"645 000 bébés","resultPath":["births"],"goldAnchorIds":["anchor_ab1996c6347a75966f1e3bd8e5f435b9a49085d6eb77ad2e3b00593e6cb244e3","anchor_76d54bc3828075b209d1e7c5c6f29f4d90f11b6c3471db0938db870b4ae2123b","anchor_4a0fb1eb7432e2987be60a500f92eaf313dabbf2618c532551d2f07b0e90cd85"],"note":"Reviewed: one gold says 645,000 births rather than the authored scalar's 645,000 babies."},
+  {"value":"2,1 % de moins","resultPath":["birthsAnnualChange"],"goldAnchorIds":["anchor_ab1996c6347a75966f1e3bd8e5f435b9a49085d6eb77ad2e3b00593e6cb244e3","anchor_76d54bc3828075b209d1e7c5c6f29f4d90f11b6c3471db0938db870b4ae2123b"],"note":"Reviewed: one gold expresses the same change as en baisse de 2,1 %."},
+  {"value":"24 % de moins","resultPath":["birthsChangeSince2010"],"goldAnchorId":"anchor_ab1996c6347a75966f1e3bd8e5f435b9a49085d6eb77ad2e3b00593e6cb244e3"},
+  {"value":"1,56 enfant par femme","resultPath":["fertilityRate"],"goldAnchorIds":["anchor_ab1996c6347a75966f1e3bd8e5f435b9a49085d6eb77ad2e3b00593e6cb244e3","anchor_edb18b7e9bec485a477187598d0fa3d753c2598e4579381c34fa9849f837a3d2","anchor_36bd1b9fcc5c7bcf44047f8341b2587ee77bbe4da22658294f76741c4ad58375"]},
+  {"value":"651 000 personnes sont décédées","resultPath":["deaths"],"goldAnchorIds":["anchor_ade6d4626c3df289ea8ab2a3ee5dcf6dd74a050157fb31c2045109fe361e4ac6","anchor_4a0fb1eb7432e2987be60a500f92eaf313dabbf2618c532551d2f07b0e90cd85"]},
+  {"value":"1,5 %","resultPath":["deathsAnnualChange"],"goldAnchorIds":["anchor_ade6d4626c3df289ea8ab2a3ee5dcf6dd74a050157fb31c2045109fe361e4ac6","anchor_aa4242841c748f2d4cf06b773a60ff2f75da25b8c220475017d41e75f359659d","anchor_f87574ccf1b24a166cb0967ff195c41109492f58afc5aaf5784329165c9093d4"]},
+  {"value":"85,9 ans pour les femmes","resultPath":["femaleLifeExpectancy"],"goldAnchorIds":["anchor_ade6d4626c3df289ea8ab2a3ee5dcf6dd74a050157fb31c2045109fe361e4ac6","anchor_bace438c057d2c686854b5cf6d0218a7d8be0df1c3f63fd54de4c0276afb8a28"]},
+  {"value":"80,3 ans pour les hommes","resultPath":["maleLifeExpectancy"],"goldAnchorIds":["anchor_ade6d4626c3df289ea8ab2a3ee5dcf6dd74a050157fb31c2045109fe361e4ac6","anchor_bace438c057d2c686854b5cf6d0218a7d8be0df1c3f63fd54de4c0276afb8a28"]},
+  {"value":"69,2 millions d'habitants","resultPath":["adversarialPopulation"],"goldAnchorId":null},
+  {"value":"-5 000","resultPath":["adversarialNaturalBalance"],"goldAnchorId":null},
+  {"value":"646 000 bébés","resultPath":["adversarialBirths"],"goldAnchorId":null},
+  {"value":"1,57 enfant par femme","resultPath":["adversarialFertilityRate"],"goldAnchorId":null},
+  {"value":"86,0 ans pour les femmes","resultPath":["adversarialLifeExpectancy"],"goldAnchorId":null}
+]

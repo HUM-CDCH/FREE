@@ -5,7 +5,7 @@ description = "Prototype harness for tiered non-LLM evidence grounding with conf
 requires-python = ">=3.13"
 dependencies = [
   "peft>=0.15.2",
-  "sentence-transformers>=3.3",
+  "sentence-transformers>=6.0",
   # Direct dep only so tool.uv.sources can pin it to the CUDA wheel index.
   "torch>=2.13",
 ]

@@ -1,8 +1,8 @@
-"""Tiered evidence-grounding pipeline: lexical -> bi-encoder shortlist -> CE/NLI.
+"""Tiered evidence-grounding pipeline: lexical containment, then CE/NLI.
 
-Every tier answers (anchor_id | None, score in [0, 1]); None means abstain and
-fall through to the next tier. Neural models load lazily so the lexical tier
-and its tests never touch torch.
+Every tier answers with an anchor (or abstention), model-native relevance, and
+a normalized margin confidence. Neural models load lazily so lexical checks do
+not touch torch.
 """
 
 from __future__ import annotations
@@ -13,11 +13,18 @@ from dataclasses import dataclass
 from functools import cache
 
 BI_ENCODER_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-CROSS_ENCODER_MODEL = "BAAI/bge-reranker-v2-m3"
+CROSS_ENCODER_MODEL = "Qwen/Qwen3-Reranker-0.6B"
+CROSS_ENCODER_REVISION = "e61197ed45024b0ed8a2d74b80b4d909f1255473"
+CROSS_ENCODER_BATCH_SIZE = 16
+CROSS_ENCODER_ABSTAIN_THRESHOLD = float("-inf")
+RERANK_INSTRUCTION = (
+    "Judge whether the candidate passage directly supports the extracted scalar. "
+    "Near-variant names, identifiers, dates, units, and numbers are not evidence."
+)
 NLI_MODEL = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
 
 SHORTLIST_K = 10
-ABSTAIN_THRESHOLD = 0.5
+NLI_ABSTAIN_THRESHOLD = 0.5
 
 
 @dataclass(frozen=True)
@@ -61,9 +68,48 @@ class Link:
 # 17.06.1790 / 17/06/1790 / 17-06-1790 -> 1790-06-17 (zero-padded)
 _DMY_DATE = re.compile(r"\b(\d{1,2})[./-](\d{1,2})[./-](\d{4})\b")
 _ISO_DATE = re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b")
-_GROUPING_SEP = re.compile(r"(?<=\d)[.,](?=\d{3}\b)")
-_PUNCT = re.compile(r"[^\w\s.-]", re.UNICODE)
+_GROUPING_SEP = re.compile(r"(?<=\d)[.,](?=\d{3}(?!\d))")
+# Digit grouping by space. Documents: only typographic no-break spaces
+# (U+00A0/U+202F) are joined, before NFKC folds them — a plain space between
+# numbers in a table row ("page 5 200", "475 482") is two values, not one.
+# A scalar claim value is one number, so there a plain space is grouping too.
+_NBSP_GROUPING = re.compile(r"(?<=\d)[\u00a0\u202f](?=\d{3}(?!\d))")
+_SPACE_GROUPING = re.compile(r"(?<!\d)(\d{1,3})((?: \d{3})+)(?!\d)")
+# "1300m2" -> "1300 m2": extractors emit "1300 m2", documents glue the unit.
+_DIGIT_LETTER = re.compile(r"(?<=\d)(?=[^\W\d_])")
 _WS = re.compile(r"\s+")
+
+# Month names (en/da/de/fr/it/es, casefolded): "13. august 2004" -> 2004-08-13
+_MONTHS: dict[str, int] = {
+    name: number
+    for number, names in enumerate(
+        [
+            "january januar janvier gennaio enero jan",
+            "february februar février fevrier febbraio febrero feb",
+            "march marts märz maerz mars marzo mar",
+            "april avril aprile abril apr",
+            "may maj mai maggio mayo",
+            "june juni juin giugno junio jun",
+            "july juli juillet luglio julio jul",
+            "august août aout agosto aug",
+            "september septembre settembre septiembre sep sept",
+            "october oktober octobre ottobre octubre oct okt",
+            "november novembre noviembre nov",
+            "december dezember décembre decembre dicembre diciembre dec dez",
+        ],
+        start=1,
+    )
+    for name in names.split()
+}
+_DAY_MONTHNAME_YEAR = re.compile(r"\b(\d{1,2})\.?\s+([^\W\d_]+)\.?\s+(\d{4})\b")
+_MONTHNAME_DAY_YEAR = re.compile(r"\b([^\W\d_]+)\.?\s+(\d{1,2}),?\s+(\d{4})\b")
+
+
+def _named_date(day: str, month: str, year: str, original: str) -> str:
+    number = _MONTHS.get(month)
+    if number is None or not 1 <= int(day) <= 31:
+        return original
+    return f"{year}-{number:02d}-{int(day):02d}"
 
 
 def _dmy_to_iso(m: re.Match) -> str:
@@ -74,45 +120,120 @@ def _dmy_to_iso(m: re.Match) -> str:
 
 
 def normalize(text: str) -> str:
-    out = unicodedata.normalize("NFKC", text).casefold()
+    out = _NBSP_GROUPING.sub("", text)
+    out = unicodedata.normalize("NFKC", out).casefold().replace("−", "-")
+    out = _DAY_MONTHNAME_YEAR.sub(lambda m: _named_date(m[1], m[2], m[3], m[0]), out)
+    out = _MONTHNAME_DAY_YEAR.sub(lambda m: _named_date(m[2], m[1], m[3], m[0]), out)
     out = _DMY_DATE.sub(_dmy_to_iso, out)
     out = _ISO_DATE.sub(lambda m: f"{m[1]}-{int(m[2]):02d}-{int(m[3]):02d}", out)
     # ponytail: grouping-separator heuristic — "1.234,56" and "1,234.56" both
     # become "1234.56"; ambiguous 3-digit decimals ("1,234") read as grouping.
     out = _GROUPING_SEP.sub("", out)
     out = re.sub(r"(?<=\d),(?=\d)", ".", out)
-    out = _PUNCT.sub(" ", out)
-    return _WS.sub(" ", out).strip()
+    # Keep semantic numeric markers. Dropping them makes "$50" and "50%"
+    # indistinguishable and turns a wrong lexical link into confidence 1.0.
+    out = "".join(
+        ch
+        if ch.isalnum()
+        or ch.isspace()
+        or ch in "_.-%"
+        or unicodedata.category(ch) == "Sc"
+        else " "
+        for ch in out
+    )
+    out = _WS.sub(" ", out)
+    out = re.sub(r"\s+%", "%", out)
+    out = re.sub(
+        r"(\S)\s+(?=\d)",
+        lambda m: m[1] if unicodedata.category(m[1]) == "Sc" else m[0],
+        out,
+    )
+    out = re.sub(
+        r"(?<=\d)\s+(\S)",
+        lambda m: m[1] if unicodedata.category(m[1]) == "Sc" else m[0],
+        out,
+    )
+    out = _DIGIT_LETTER.sub(" ", out)
+    return out.strip()
+
+
+def _join_space_groups(scalar: str) -> str:
+    return _SPACE_GROUPING.sub(lambda m: m[1] + m[2].replace(" ", ""), scalar)
+
+
+def _join_document_space_groups(text: str) -> str:
+    def join(m: re.Match) -> str:
+        digits = m[1] + m[2].replace(" ", "")
+        outside = (text[:m.start()] + text[m.end():]).strip()
+        isolated_cell = all(
+            ch in "-%" or unicodedata.category(ch) == "Sc" for ch in outside
+        )
+        # ponytail: ambiguous four-digit groups join only in an isolated table
+        # cell; "page 5 200" remains two adjacent values.
+        return digits if len(digits) >= 5 or isolated_cell else m[0]
+
+    return _SPACE_GROUPING.sub(join, text)
 
 
 def bounded_contains(value: str | int | float | bool, text: str) -> bool:
-    """Whether a non-boolean scalar appears as a normalized bounded token."""
-    if isinstance(value, bool):
-        return False
+    """Whether a scalar appears as a normalized bounded token."""
     needle = normalize(str(value))
-    return len(needle) >= 2 and bool(
-        re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", normalize(text))
+    haystack = normalize(text)
+    if not needle:
+        return False
+    if len(needle) == 1 and not needle.isdigit():
+        return haystack == needle  # safe for one-character table cells
+    return any(
+        re.search(rf"(?<!\w){re.escape(n)}(?!\w)", candidate)
+        for n in {needle, _join_space_groups(needle)}
+        for candidate in {haystack, _join_document_space_groups(haystack)}
     )
 
 
-def render_claim(claim: Claim) -> str:
+def render_claim(claim: Claim, siblings: bool = True) -> str:
+    """field name + value, plus sibling context unless siblings=False."""
     field = next(
         (seg for seg in reversed(claim.result_path) if isinstance(seg, str)),
         "value",
     )
-    rendered = f"{field.replace('_', ' ')}: {claim.value}"
-    return f"{rendered} ({claim.context})" if claim.context else rendered
+    # snake_case and camelCase both become words: "medianIncome2024" ->
+    # "median Income 2024" so a reranker sees the year, not one opaque token.
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Za-z])(?=\d)", " ", field.replace("_", " "))
+    rendered = f"{words}: {claim.value}"
+    if siblings and claim.context:
+        return f"{rendered} ({claim.context})"
+    return rendered
 
 
 # --- tier 1: lexical ---------------------------------------------------------
 
-def lexical_match(claim: Claim, anchors: list[Anchor]) -> Link | None:
+def lexical_candidates(claim: Claim, anchors: list[Anchor]) -> list[Anchor]:
+    """Every anchor containing the value as a bounded token.
+
+    Two or more hits mean the value is verbatim in the document and the gold
+    is one of them: disambiguate inside this set instead of re-retrieving.
+    """
     # Word-boundary containment: "18" must not match inside "1834". \w bounds
     # cover digits and letters; hyphens/dots are non-word so "8-1" still works.
-    containing = [a for a in anchors if bounded_contains(claim.value, a.text)]
-    if len(containing) == 1:
-        return Link(containing[0].anchor_id, 1.0, 1.0, "lexical")
-    return None  # absent or ambiguous — let a scoring tier decide
+    return [a for a in anchors if bounded_contains(claim.value, a.text)]
+
+
+def lexical_tier(claim: Claim, anchors: list[Anchor]) -> tuple[Link | None, list[Anchor]]:
+    """One anchor scan -> (decision, hits). One hit links; zero hits abstain
+    (absent or paraphrased); several hits return decision None and the hit
+    set for a scorer to disambiguate. Shared by ground(), calibrate and the
+    model benchmark so the policy lives in one place."""
+    hits = lexical_candidates(claim, anchors)
+    if len(hits) == 1:
+        return Link(hits[0].anchor_id, 1.0, 1.0, "lexical"), hits
+    if not hits:
+        return Link(None, 0.0, 0.0, "lexical"), hits
+    return None, hits
+
+
+def lexical_match(claim: Claim, anchors: list[Anchor]) -> Link | None:
+    link, _ = lexical_tier(claim, anchors)
+    return link if link is not None and link.anchor_id else None
 
 
 # --- tier 2: bi-encoder shortlist -------------------------------------------
@@ -148,11 +269,23 @@ class AnchorIndex:
 @cache
 def _cross_encoder():
     from sentence_transformers import CrossEncoder
+    import torch
 
-    return CrossEncoder(CROSS_ENCODER_MODEL)
+    return CrossEncoder(
+        CROSS_ENCODER_MODEL,
+        revision=CROSS_ENCODER_REVISION,
+        prompts={"evidence": RERANK_INSTRUCTION},
+        default_prompt_name="evidence",
+        model_kwargs={"dtype": torch.bfloat16},
+    )
 
 
-def _margin_link(scores, shortlist: list[Anchor], tier: str) -> Link:
+def _margin_link(
+    scores,
+    shortlist: list[Anchor],
+    tier: str,
+    abstain_threshold: float = NLI_ABSTAIN_THRESHOLD,
+) -> Link:
     """Gate on absolute best score; confidence = best minus runner-up.
 
     Both quantities are kept and reported separately: `score` says "is this
@@ -166,16 +299,23 @@ def _margin_link(scores, shortlist: list[Anchor], tier: str) -> Link:
     best = float(scores[order[0]])
     runner_up = float(scores[order[1]]) if len(order) > 1 else 0.0
     confidence = min(1.0, max(0.0, best - runner_up))
-    if best < ABSTAIN_THRESHOLD:
+    if best < abstain_threshold:
         return Link(None, best, confidence, tier)
     return Link(shortlist[int(order[0])].anchor_id, best, confidence, tier)
 
 
 def cross_encoder_match(claim_text: str, shortlist: list[Anchor]) -> Link:
     scores = _cross_encoder().predict(
-        [(claim_text, a.scoring_text) for a in shortlist]
+        [(claim_text, a.scoring_text) for a in shortlist],
+        batch_size=CROSS_ENCODER_BATCH_SIZE,
+        show_progress_bar=False,
     )
-    return _margin_link(scores, shortlist, "cross-encoder")
+    return _margin_link(
+        scores,
+        shortlist,
+        "cross-encoder",
+        CROSS_ENCODER_ABSTAIN_THRESHOLD,
+    )
 
 
 # --- tier 3b: NLI entailment -------------------------------------------------
@@ -226,7 +366,7 @@ def verbatim_downgrade(link: Link, claim: Claim, shortlist: list[Anchor]) -> Lin
     Checks raw `text`, not `scoring_text`: row context would let a wrong
     sibling cell pass whenever the value appears anywhere in its table row.
     """
-    if link.anchor_id is None or isinstance(claim.value, bool):
+    if link.anchor_id is None:
         return link
     anchor = next(a for a in shortlist if a.anchor_id == link.anchor_id)
     if bounded_contains(claim.value, anchor.text):
@@ -237,25 +377,33 @@ def verbatim_downgrade(link: Link, claim: Claim, shortlist: list[Anchor]) -> Lin
 # --- pipeline configs --------------------------------------------------------
 
 def ground(claim: Claim, index: AnchorIndex, config: str) -> Link:
-    """config: CONFIGS below. "-bare" renders the claim as the bare value only,
-    matching what the production GroundingModelRequest can carry today."""
+    """config: CONFIGS below.
+
+    lexical* configs scan the anchors once: one hit links, zero hits abstain
+    (absent or paraphrased — no neural pass), several hits are disambiguated
+    by the scorer inside that hit set. There the claim is rendered as
+    "field name: value" (no siblings), or as the bare value for "-bare"
+    configs, matching what the production GroundingModelRequest carries today.
+    ce-only / nli-only skip tier 1 entirely: dense shortlist, rich claim.
+    """
     if config not in CONFIGS:
         raise ValueError(f"unknown config: {config!r}")
     if config.startswith("lexical"):
-        link = lexical_match(claim, index.anchors)
-        if link is not None:
-            return link
+        decided, hits = lexical_tier(claim, index.anchors)
+        if decided is not None:
+            return decided
         if config == "lexical":
             return Link(None, 0.0, 0.0, "lexical")
-    claim_text = (
-        str(claim.value) if config.endswith("-bare") else render_claim(claim)
-    )
-    shortlist = index.shortlist(claim_text)
-    if "nli" in config:
-        link = nli_match(claim_text, shortlist)
+        shortlist = hits
+        claim_text = (
+            str(claim.value) if config.endswith("-bare")
+            else render_claim(claim, siblings=False)
+        )
     else:
-        link = cross_encoder_match(claim_text, shortlist)
-    return verbatim_downgrade(link, claim, shortlist)
+        claim_text = render_claim(claim)
+        shortlist = index.shortlist(claim_text)
+    scorer = nli_match if "nli" in config else cross_encoder_match
+    return verbatim_downgrade(scorer(claim_text, shortlist), claim, shortlist)
 
 
 CONFIGS = [

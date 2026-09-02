@@ -1,0 +1,189 @@
+[
+ {
+  "value": "2.1 percent",
+  "resultPath": [
+   "pcePriceIndexChangeApril"
+  ],
+  "goldAnchorIds": [
+   "anchor_637278e70bc80b394f6eef83df903e3ec3243d486bc356e64c262ac7a9ea2f29",
+   "anchor_293a4cd53b99b0ecb38e78a695c0c81ea622f1eb4340b06594b458be3d3851de",
+   "anchor_202a6d2d1f1fce08e8ec8cd10cc542db64bc8afa7c97c0e2b1eeace6fe6922a8"
+  ],
+  "note": "Three passages state the 12-month PCE change through April."
+ },
+ {
+  "value": "2.5 percent",
+  "resultPath": [
+   "corePceChangeApril"
+  ],
+  "goldAnchorIds": [
+   "anchor_637278e70bc80b394f6eef83df903e3ec3243d486bc356e64c262ac7a9ea2f29",
+   "anchor_293a4cd53b99b0ecb38e78a695c0c81ea622f1eb4340b06594b458be3d3851de"
+  ],
+  "note": "The p28 2.5 percent is private domestic final purchases growth, not core PCE."
+ },
+ {
+  "value": "4.2 percent in May",
+  "resultPath": [
+   "unemploymentRateMay"
+  ],
+  "goldAnchorIds": [
+   "anchor_56eff06af46a888da841e551adf9681568245f833ab857fb5c61fa48a87a844d",
+   "anchor_b353c8afdbefa05c4ef3e6d58814901278c8f702cfb3199d4ee6d16d5e3fe462"
+  ]
+ },
+ {
+  "value": "3.3 percent",
+  "resultPath": [
+   "marketImpliedFedFundsRateEnd2026"
+  ],
+  "goldAnchorIds": [
+   "anchor_5ae2c980a2982b3052498dfd90eb0f295febbfc6fee863a6b680edce5ac8c0ed",
+   "anchor_6efb19577f7955a2ce6d1e0f3e087b0bed8a482417dc1508241bbc83abec05ea"
+  ],
+  "note": "The p34 3.3 percent is the trade-deficit share of GDP, not the funds rate."
+ },
+ {
+  "value": "$180 billion",
+  "resultPath": [
+   "securitiesHoldingsReductionSinceJanuary"
+  ],
+  "goldAnchorIds": [
+   "anchor_7a2e08d89cdecd34ee8e37f80eb6bc1bcb4b4c1f68c97cee62bcde753f621762"
+  ]
+ },
+ {
+  "value": "more than $2 trillion",
+  "resultPath": [
+   "securitiesHoldingsReductionSinceMid2022"
+  ],
+  "goldAnchorIds": [
+   "anchor_7a2e08d89cdecd34ee8e37f80eb6bc1bcb4b4c1f68c97cee62bcde753f621762"
+  ]
+ },
+ {
+  "value": "4¼ to 4½ percent",
+  "resultPath": [
+   "federalFundsTargetRange"
+  ],
+  "goldAnchorIds": [
+   "anchor_bce0ae564ed66090c74e7e6a9e9a9ea49445771a376e13ca7687619530df86a7",
+   "anchor_c95be44a44f2e8baa0ae9ef5d9da79dfd4ecbf7e33da7d2703587d657d5f4028",
+   "anchor_019ed1b2bdcc8c897d0042d2e943f7a7eb76fc7c5b6fe74520250def38e64f9c",
+   "anchor_71b3d27236b30f38ee887a2ff517f880abf5d52aade03263160da1b081b7214f",
+   "anchor_7347be7bf82f74d8ab67741b2d72f7238fffec644a49d85b93dd8d2f2441acd5"
+  ],
+  "note": "Every passage states the maintained/current target range."
+ },
+ {
+  "value": "4,212",
+  "resultPath": [
+   "treasurySecuritiesJune2025Billions"
+  ],
+  "goldAnchorIds": [
+   "anchor_20bfd7ef67c7931c29f1e986cfede6631b99cdfad6f9c030683a77e07d71a613"
+  ]
+ },
+ {
+  "value": "6,677",
+  "resultPath": [
+   "totalAssetsJune2025Billions"
+  ],
+  "goldAnchorIds": [
+   "anchor_606b44c0b0c48c7d4b2ecd71d3dd21841fd069e51ed1cee6aec9bbf21b97e8a7"
+  ],
+  "note": "Total liabilities and capital shows the same figure but is a different line item."
+ },
+ {
+  "value": "-344",
+  "resultPath": [
+   "treasuryGeneralAccountChangeSinceJanuary"
+  ],
+  "goldAnchorIds": [
+   "anchor_efea88b1631f7056ca02f507940cbfe83e7d9990c58378fbd03535e795d0dbd3"
+  ]
+ },
+ {
+  "value": "4.4",
+  "resultPath": [
+   "unemploymentRateMedianProjection2027"
+  ],
+  "goldAnchorIds": [
+   "anchor_d35f71741c9fd2e5d000778679bc60d975d331307e2a6e21539a7e30285e3102"
+  ],
+  "note": "Only the plain 4.4 cell in the Unemployment rate row; March-projection and range cells are other facts."
+ },
+ {
+  "value": "3.9",
+  "resultPath": [
+   "federalFundsRateMedianProjection2025"
+  ],
+  "goldAnchorIds": [
+   "anchor_37e5d712fdb53cebb85b5c320782a1672c9a5ae07d8e683b93c582f5a26dde4a"
+  ],
+  "note": "Only the plain 3.9 cell in the Federal funds rate row; March projection and ranges are other facts."
+ },
+ {
+  "value": "1.4",
+  "resultPath": [
+   "realGdpGrowthMedianProjection2025"
+  ],
+  "goldAnchorIds": [
+   "anchor_173d245909cb69211513f51f2edb22f1e2c1519a789b7d111816641cdb491177"
+  ],
+  "note": "The ± 1.4 cells are forecast-uncertainty bands."
+ },
+ {
+  "value": "June 18, 2025",
+  "resultPath": [
+   "informationCutoffDate"
+  ],
+  "goldAnchorIds": [
+   "anchor_3926618b2e0b88ec09f0eff573c190bf0450abcb2ade343607a7e2511df2ce5b"
+  ]
+ },
+ {
+  "value": "January 30, 2024",
+  "resultPath": [
+   "strategyStatementReaffirmedDate"
+  ],
+  "goldAnchorIds": [
+   "anchor_68a456a72e5b41d386db6b3f3cf54093e3b8672c8557283e552727578c5bbbbf"
+  ]
+ },
+ {
+  "value": "$190 billion",
+  "resultPath": [
+   "adversarialSecuritiesReduction"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "4.3 percent in May",
+  "resultPath": [
+   "adversarialUnemploymentRateMay"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "6,678",
+  "resultPath": [
+   "adversarialTotalAssets"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "2.4 percent",
+  "resultPath": [
+   "adversarialCorePceApril"
+  ],
+  "goldAnchorIds": []
+ },
+ {
+  "value": "more than $3 trillion",
+  "resultPath": [
+   "adversarialReductionSinceMid2022"
+  ],
+  "goldAnchorIds": []
+ }
+]

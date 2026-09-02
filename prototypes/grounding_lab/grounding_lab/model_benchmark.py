@@ -11,9 +11,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import math
-import re
 import statistics
+import threading
 import time
 from dataclasses import dataclass
 from datetime import date
@@ -23,16 +24,23 @@ import numpy as np
 
 from .calibrate import DEFAULT_HELDOUT, ci, decide, evaluate
 from .harness import load_dataset
-from .pipeline import Claim, lexical_match, normalize, render_claim
+from .pipeline import (
+    CROSS_ENCODER_BATCH_SIZE,
+    CROSS_ENCODER_MODEL,
+    CROSS_ENCODER_REVISION,
+    RERANK_INSTRUCTION,
+    Claim,
+    bounded_contains,
+    lexical_match,
+    lexical_tier,
+    render_claim,
+)
 
 K_VALUES = (10, 20, 30, 50)
 RERANK_K = 30
 CONTAINMENT_CAP = 0.25
 INCUMBENT_VALIDATION_WRONG = 7
-TASK_INSTRUCTION = (
-    "Judge whether the candidate passage directly supports the extracted scalar. "
-    "Near-variant names, identifiers, dates, units, and numbers are not evidence."
-)
+TASK_INSTRUCTION = RERANK_INSTRUCTION
 
 
 @dataclass(frozen=True)
@@ -44,6 +52,8 @@ class ModelSpec:
     instruction_aware: bool = False
     listwise: bool = False
     trust_remote_code: bool = False
+    code_revision: str | None = None
+    required_modules: tuple[str, ...] = ()
 
 
 RETRIEVERS = {
@@ -83,6 +93,8 @@ RETRIEVERS = {
         8,
         research_only=True,
         trust_remote_code=True,
+        code_revision="bd55a5ec8e6c0fb1d6c26efb4b6a4a74ce8a88d3",
+        required_modules=("einops",),
     ),
 }
 
@@ -93,9 +105,9 @@ RERANKERS = {
         16,
     ),
     "qwen-0.6b": ModelSpec(
-        "Qwen/Qwen3-Reranker-0.6B",
-        "e61197ed45024b0ed8a2d74b80b4d909f1255473",
-        16,
+        CROSS_ENCODER_MODEL,
+        CROSS_ENCODER_REVISION,
+        CROSS_ENCODER_BATCH_SIZE,
         instruction_aware=True,
     ),
     "qwen-4b": ModelSpec(
@@ -122,12 +134,18 @@ RERANKERS = {
 }
 
 
-def claim_text(claim: Claim, mode: str) -> str:
-    if mode == "bare":
+def claim_text(claim: Claim, rendering: str, in_hitset: bool = False) -> str:
+    """bare: value only. rich: field + siblings always. rich-hitset: field name
+    only when disambiguating inside a verbatim hit set (abstention is not at
+    stake there; row context is on the anchor side), bare for the dense path
+    where rich context eroded abstention."""
+    if rendering == "bare" or (rendering == "rich-hitset" and not in_hitset):
         return str(claim.value)
-    if mode == "rich":
+    if rendering == "rich":
         return render_claim(claim)
-    raise ValueError(f"unknown claim mode: {mode!r}")
+    if rendering == "rich-hitset":
+        return render_claim(claim, siblings=False)
+    raise ValueError(f"unknown claim rendering: {rendering!r}")
 
 
 def scores_from_ranking(ranking: list[dict], count: int) -> np.ndarray:
@@ -166,33 +184,101 @@ def _torch():
     return torch
 
 
+_DEVICE_PEAK_BYTES = 0
+
+
 def _reset_peak_vram() -> None:
+    global _DEVICE_PEAK_BYTES
+    _DEVICE_PEAK_BYTES = 0
     torch = _torch()
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
 
 
-def _peak_vram_gib() -> float:
+def _sample_device_vram(stop: threading.Event) -> None:
+    global _DEVICE_PEAK_BYTES
     torch = _torch()
     if not torch.cuda.is_available():
-        return 0.0
-    return torch.cuda.max_memory_allocated() / 1024**3
+        return
+    while not stop.is_set():
+        free, total = torch.cuda.mem_get_info()
+        _DEVICE_PEAK_BYTES = max(_DEVICE_PEAK_BYTES, total - free)
+        stop.wait(0.02)
+
+
+def _vram_monitor() -> tuple[threading.Event, threading.Thread]:
+    stop = threading.Event()
+    thread = threading.Thread(target=_sample_device_vram, args=(stop,), daemon=True)
+    thread.start()
+    return stop, thread
+
+
+def _vram_lines() -> list[str]:
+    torch = _torch()
+    if not torch.cuda.is_available():
+        return ["Peak device VRAM in use: 0.00 GiB"]
+    return [
+        f"Peak device VRAM in use: {_DEVICE_PEAK_BYTES / 1024**3:.2f} GiB "
+        "(whole-device sample)",
+        "Peak PyTorch CUDA reservation: "
+        f"{torch.cuda.max_memory_reserved() / 1024**3:.2f} GiB",
+    ]
+
+
+def _model_path(spec: ModelSpec) -> str:
+    missing = [
+        name
+        for name in spec.required_modules
+        if importlib.util.find_spec(name) is None
+    ]
+    if missing:
+        raise RuntimeError(
+            f"{spec.repo} requires {', '.join(missing)}; the benchmark does not add "
+            "optional dependencies beyond peft"
+        )
+    if not spec.trust_remote_code:
+        return spec.repo
+
+    from huggingface_hub import snapshot_download
+
+    # Remote model code may load sibling artifacts by name. Passing the local,
+    # exact-revision snapshot keeps those secondary loads pinned as well.
+    return snapshot_download(spec.repo, revision=spec.revision)
 
 
 def _load_retriever(spec: ModelSpec):
-    from sentence_transformers import SentenceTransformer
+    from sentence_transformers import MultiVectorEncoder, SentenceTransformer
 
     torch = _torch()
-    model_kwargs = {"dtype": torch.bfloat16} if spec.repo != RETRIEVERS["mini"].repo else None
-    return SentenceTransformer(
-        spec.repo,
-        revision=spec.revision,
+    model_path = _model_path(spec)
+    model_kwargs = (
+        {"dtype": torch.bfloat16}
+        if spec.repo != RETRIEVERS["mini"].repo
+        else None
+    )
+    if spec.code_revision:
+        model_kwargs = {**(model_kwargs or {}), "code_revision": spec.code_revision}
+    is_colbert = spec.repo == RETRIEVERS["jina-colbert"].repo
+    encoder = MultiVectorEncoder if is_colbert else SentenceTransformer
+    return encoder(
+        model_path,
+        revision=None if model_path != spec.repo else spec.revision,
         trust_remote_code=spec.trust_remote_code,
         model_kwargs=model_kwargs,
+        processor_kwargs={"fix_mistral_regex": True} if is_colbert else None,
     )
 
 
 def _encode(model, spec: ModelSpec, texts: list[str], *, query: bool):
+    if spec.repo == RETRIEVERS["jina-colbert"].repo:
+        encode = model.encode_query if query else model.encode_document
+        return encode(
+            texts,
+            batch_size=spec.batch_size,
+            show_progress_bar=False,
+            convert_to_numpy=False,
+            normalize_embeddings=True,
+        )
     prompt = None
     if spec.instruction_aware:
         prompt = (
@@ -222,17 +308,16 @@ def _load_reranker(spec: ModelSpec):
     if spec.listwise:
         from transformers import AutoModel, AutoTokenizer
 
+        model_path = _model_path(spec)
         model = AutoModel.from_pretrained(
-            spec.repo,
-            revision=spec.revision,
+            model_path,
             trust_remote_code=True,
             dtype=torch.bfloat16,
         ).to("cuda" if torch.cuda.is_available() else "cpu")
         # The inspected pinned custom code otherwise loads this tokenizer from
         # an unqualified repo id. Supplying it here keeps every artifact pinned.
         model._tokenizer = AutoTokenizer.from_pretrained(
-            spec.repo,
-            revision=spec.revision,
+            model_path,
         )
         model.eval()
         return model
@@ -262,11 +347,7 @@ def _rerank_scores(model, spec: ModelSpec, query: str, documents: list[str]) -> 
 
 
 def _verbatim_flags(claim: Claim, anchors) -> list[bool]:
-    if isinstance(claim.value, bool):
-        return [False] * len(anchors)
-    needle = normalize(str(claim.value))
-    bounded = re.compile(rf"(?<!\w){re.escape(needle)}(?!\w)")
-    return [bool(bounded.search(normalize(anchor.text))) for anchor in anchors]
+    return [bounded_contains(claim.value, anchor.text) for anchor in anchors]
 
 
 def _warm_retriever(model, spec: ModelSpec) -> None:
@@ -326,30 +407,47 @@ def _retrieval_metrics(rows, names: set[str]) -> dict:
     }
 
 
-def _score_entries(documents, retriever, retriever_spec, reranker, reranker_spec, mode):
+def _candidates(hits, index, retriever, retriever_spec, document_embeddings, text, k, source):
+    """Rerank candidates: the lexical hit set when the value is verbatim in
+    several anchors (gold is one of them), else the dense shortlist."""
+    if source == "hitset" and len(hits) > 1:
+        return hits
+    query_embeddings = _encode(retriever, retriever_spec, [text], query=True)
+    retrieval_scores = _similarities(retriever, query_embeddings, document_embeddings)
+    order = retrieval_scores.argsort()[::-1][:k]
+    return [index.anchors[int(i)] for i in order]
+
+
+def _score_entries(
+    documents, retriever, retriever_spec, reranker, reranker_spec, rendering, k=RERANK_K,
+    candidates="hitset", zero_hit="abstain",
+):
     entries = []
-    latencies: list[tuple[str, float]] = []
+    latencies: list[tuple[str, str, float]] = []
+    dense = not (candidates == "hitset" and zero_hit == "abstain")
     for doc_name, index, claims in documents:
+        # Document embeddings only serve the dense path; hitset + abstain never reaches it.
         document_embeddings = _encode(
             retriever,
             retriever_spec,
             [anchor.scoring_text for anchor in index.anchors],
             query=False,
-        )
+        ) if dense else None
         for claim in claims:
             started = time.perf_counter()
-            lexical = lexical_match(claim, index.anchors)
-            if lexical is not None:
-                entries.append((doc_name, claim, "lexical", lexical.anchor_id))
-                latencies.append((doc_name, time.perf_counter() - started))
+            decided, hits = lexical_tier(claim, index.anchors)
+            if decided is not None and (decided.anchor_id or zero_hit == "abstain"):
+                # one hit links; zero hits abstain without a neural pass (only
+                # 2/177 lab claims are linkable paraphrases; 0/100 on final set 2)
+                tier = "lexical" if decided.anchor_id else "abstain"
+                entries.append((doc_name, claim, tier, decided.anchor_id))
+                latencies.append((doc_name, "lexical", time.perf_counter() - started))
                 continue
-            text = claim_text(claim, mode)
-            query_embeddings = _encode(retriever, retriever_spec, [text], query=True)
-            retrieval_scores = _similarities(
-                retriever, query_embeddings, document_embeddings
+            in_hitset = candidates == "hitset" and len(hits) > 1
+            text = claim_text(claim, rendering, in_hitset)
+            shortlist = _candidates(
+                hits, index, retriever, retriever_spec, document_embeddings, text, k, candidates
             )
-            order = retrieval_scores.argsort()[::-1][:RERANK_K]
-            shortlist = [index.anchors[int(i)] for i in order]
             scores = _rerank_scores(
                 reranker,
                 reranker_spec,
@@ -364,14 +462,14 @@ def _score_entries(documents, retriever, retriever_spec, reranker, reranker_spec
                     (shortlist, scores, _verbatim_flags(claim, shortlist)),
                 )
             )
-            latencies.append((doc_name, time.perf_counter() - started))
+            latencies.append((doc_name, "neural", time.perf_counter() - started))
     return entries, latencies
 
 
 def choose_thresholds(entries) -> tuple[float, float, dict]:
     """Tune score and auto-accept gates on dev without assuming a score scale."""
     best_scores = [
-        float(np.max(payload[1][:RERANK_K]))
+        float(np.max(payload[1]))
         for _, _, tier, payload in entries
         if tier == "neural"
     ]
@@ -384,19 +482,15 @@ def choose_thresholds(entries) -> tuple[float, float, dict]:
         for entry in entries:
             if entry[2] != "neural":
                 continue
-            picked, confidence, _ = decide(
-                entry, RERANK_K, abstain, CONTAINMENT_CAP
-            )
+            picked, confidence, _ = decide(entry, abstain, CONTAINMENT_CAP)
             if picked is not None:
                 confidences.add(confidence)
         accept = 1.0
-        metrics = evaluate(
-            entries, RERANK_K, abstain, CONTAINMENT_CAP, accept
-        )
+        metrics = evaluate(entries, abstain, CONTAINMENT_CAP, accept)
         for threshold in sorted(confidences):
-            current = evaluate(
-                entries, RERANK_K, abstain, CONTAINMENT_CAP, threshold
-            )
+            if threshold <= CONTAINMENT_CAP:
+                continue  # a capped (non-verbatim) link must never auto-accept
+            current = evaluate(entries, abstain, CONTAINMENT_CAP, threshold)
             if current["auto"] == current["auto_correct"]:
                 accept, metrics = threshold, current
                 break
@@ -413,22 +507,122 @@ def choose_thresholds(entries) -> tuple[float, float, dict]:
 
 def _evaluation_metrics(entries, names, abstain, accept, latencies):
     selected = [entry for entry in entries if entry[0] in names]
-    metrics = evaluate(
-        selected, RERANK_K, abstain, CONTAINMENT_CAP, accept
+    metrics = evaluate(selected, abstain, CONTAINMENT_CAP, accept)
+    fallback_linkable = [
+        entry for entry in selected
+        if entry[2] == "neural" and entry[1].gold_anchor_ids
+    ]
+    metrics["recall_at_k"] = sum(
+        any(
+            anchor.anchor_id in entry[1].gold_anchor_ids
+            for anchor in entry[3][0]
+        )
+        for entry in fallback_linkable
     )
-    timings = [seconds for name, seconds in latencies if name in names]
+    metrics["recall_total"] = len(fallback_linkable)
+    timings = [
+        seconds
+        for name, tier, seconds in latencies
+        if name in names and tier == "neural"
+    ]
     metrics["median_ms"] = 1000 * (statistics.median(timings) if timings else 0)
     return metrics
+
+
+def cv_folds(names, folds: int) -> list[list[str]]:
+    """Deterministic document-level folds: sorted names dealt round-robin."""
+    ordered = sorted(names)
+    return [ordered[i::folds] for i in range(folds)]
+
+
+def cv_evaluate(entries, latencies, folds):
+    """Per fold: tune thresholds on the other folds, evaluate on the fold.
+    Returns (per-fold rows, pooled counts summed over folds)."""
+    rows = []
+    pooled: dict = {}
+    for fold in folds:
+        held = set(fold)
+        train = [entry for entry in entries if entry[0] not in held]
+        abstain, accept, _ = choose_thresholds(train)
+        metrics = _evaluation_metrics(entries, held, abstain, accept, latencies)
+        rows.append((fold, abstain, accept, metrics))
+        for key, value in metrics.items():
+            if key != "median_ms":
+                pooled[key] = pooled.get(key, 0) + value
+    timings = [seconds for _, tier, seconds in latencies if tier == "neural"]
+    pooled["median_ms"] = 1000 * (statistics.median(timings) if timings else 0)
+    return rows, pooled
+
+
+def _metrics_cells(metrics) -> str:
+    total = metrics["linkable"] + metrics["abstains_due"]
+    return (
+        f"{metrics['recall_at_k']}/{metrics['recall_total']} | "
+        f"{metrics['total_correct']}/{total} | "
+        f"{metrics['correct_links']}/{metrics['linkable']} | "
+        f"{metrics['correct_abstains']}/{metrics['abstains_due']} | "
+        f"{metrics['wrong']} | {metrics['auto_correct']}/{metrics['auto']} | "
+        f"{ci(metrics['total_correct'], total)} | "
+        f"{ci(metrics['auto_correct'], metrics['auto'])} | "
+        f"{metrics['median_ms']:.0f}"
+    )
+
+
+def _candidate_labels(args) -> tuple[str, str]:
+    if args.candidates == "retrieval":
+        return f"top-{args.k} retrieval", f"recall@{args.k}"
+    if args.zero_hit == "abstain":
+        return "all lexical hits", "hit-set recall"
+    return f"all lexical hits; zero-hit top-{args.k} retrieval", "candidate recall"
+
+
+def cv_report(args, documents, entries, latencies, retriever_loaded) -> str:
+    folds = cv_folds([name for name, _, _ in documents], args.cv)
+    rows, pooled = cv_evaluate(entries, latencies, folds)
+    candidate_scope, recall_label = _candidate_labels(args)
+    lines = [
+        f"# Neural model benchmark — {args.cv}-fold cross-validation",
+        "",
+        f"Generated {date.today().isoformat()} by `grounding_lab.model_benchmark`.",
+        "",
+        *_model_lines(args.retriever, args.reranker, retriever_loaded),
+        f"- claim mode: `{args.claim_mode}`",
+        f"- candidates: `{args.candidates}`",
+        f"- zero-hit claims: `{args.zero_hit}`",
+        f"- candidate scope: {candidate_scope}",
+        f"- containment cap: {CONTAINMENT_CAP}",
+        f"- documents: {len(documents)} from {', '.join(f'`{root}`' for root in args.root)}",
+        "",
+        f"| fold | documents | abstain | accept | {recall_label} | correct decisions | correct links | correct abstains | wrong links | auto precision | total 95% CI | auto 95% CI | median neural ms |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for i, (fold, abstain, accept, metrics) in enumerate(rows, 1):
+        lines.append(
+            f"| {i} | {', '.join(fold)} | {_fmt_threshold(abstain)} | {accept:.4f} | "
+            + _metrics_cells(metrics) + " |"
+        )
+    lines.append(f"| **pooled** | all | — | — | " + _metrics_cells(pooled) + " |")
+    lines += ["", "## Document results (thresholds from the document's own fold)", "",
+              "| document | fold | correct decisions | wrong links |", "|---|---:|---:|---:|"]
+    for i, (fold, abstain, accept, _) in enumerate(rows, 1):
+        for name in fold:
+            metrics = _evaluation_metrics(entries, {name}, abstain, accept, latencies)
+            total = metrics["linkable"] + metrics["abstains_due"]
+            lines.append(f"| {name} | {i} | {metrics['total_correct']}/{total} | {metrics['wrong']} |")
+    lines += ["", *_vram_lines(),
+              "Each fold's thresholds were selected on the other folds only; pooled counts sum the held-out folds."]
+    return "\n".join(lines) + "\n"
 
 
 def _fmt_threshold(value: float) -> str:
     return "-∞" if value == -math.inf else f"{value:.6f}"
 
 
-def _model_lines(retriever_key: str, reranker_key: str | None = None) -> list[str]:
+def _model_lines(retriever_key: str, reranker_key: str | None = None, retriever_loaded: bool = True) -> list[str]:
     retriever = RETRIEVERS[retriever_key]
     lines = [
         f"- retriever: `{retriever_key}` — `{retriever.repo}@{retriever.revision}`"
+        + ("" if retriever_loaded else " (not loaded: hit-set candidates with zero-hit abstain never retrieve)")
     ]
     if reranker_key:
         reranker = RERANKERS[reranker_key]
@@ -474,7 +668,7 @@ def retrieval_report(args, documents, model, spec) -> str:
     lines += [
         "",
         f"Indexing seconds for requested split: {indexing:.1f}",
-        f"Peak CUDA allocation: {_peak_vram_gib():.2f} GiB",
+        *_vram_lines(),
     ]
     return "\n".join(lines) + "\n"
 
@@ -487,14 +681,19 @@ def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker
         reranker,
         reranker_spec,
         args.claim_mode,
+        args.k,
+        args.candidates,
+        args.zero_hit,
     )
-    if args.split == "final":
-        if args.abstain_threshold is None or args.accept_threshold is None:
-            raise ValueError(
-                "final evaluation requires --abstain-threshold and --accept-threshold"
-            )
+    if args.cv is not None:
+        return cv_report(args, documents, entries, latencies, retriever is not None)
+    if args.abstain_threshold is not None:
         abstain, accept = args.abstain_threshold, args.accept_threshold
-        requested = ["final"]
+        requested = (
+            [args.split]
+            if args.split != "all"
+            else ["dev", "validation", "all"]
+        )
         dev_metrics = None
     else:
         dev_names = split_names(documents, "dev")
@@ -504,20 +703,23 @@ def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker
         abstain, accept, dev_metrics = choose_thresholds(dev_entries)
         requested = [args.split] if args.split != "all" else ["dev", "validation", "all"]
 
+    candidate_scope, recall_label = _candidate_labels(args)
     lines = [
         "# Neural model benchmark — reranking",
         "",
         f"Generated {date.today().isoformat()} by `grounding_lab.model_benchmark`.",
         "",
-        *_model_lines(args.retriever, args.reranker),
+        *_model_lines(args.retriever, args.reranker, retriever is not None),
         f"- claim mode: `{args.claim_mode}`",
-        f"- K: {RERANK_K}",
+        f"- candidates: `{args.candidates}`",
+        f"- zero-hit claims: `{args.zero_hit}`",
+        f"- candidate scope: {candidate_scope}",
         f"- abstain threshold: {_fmt_threshold(abstain)}",
         f"- containment cap: {CONTAINMENT_CAP}",
         f"- auto-accept threshold: {accept:.6f}",
         "",
-        "| split | correct decisions | correct links | correct abstains | wrong links | auto precision | total 95% CI | auto 95% CI | median ms/claim |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        f"| split | {recall_label} | correct decisions | correct links | correct abstains | wrong links | auto precision | total 95% CI | auto 95% CI | median neural ms |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     metrics_by_split = {}
     for split in requested:
@@ -526,7 +728,8 @@ def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker
         metrics_by_split[split] = metrics
         total = metrics["linkable"] + metrics["abstains_due"]
         lines.append(
-            f"| {split} | {metrics['total_correct']}/{total} | "
+            f"| {split} | {metrics['recall_at_k']}/{metrics['recall_total']} | "
+            f"{metrics['total_correct']}/{total} | "
             f"{metrics['correct_links']}/{metrics['linkable']} | "
             f"{metrics['correct_abstains']}/{metrics['abstains_due']} | "
             f"{metrics['wrong']} | {metrics['auto_correct']}/{metrics['auto']} | "
@@ -538,7 +741,7 @@ def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker
         validation = metrics_by_split["validation"]
         lines += [
             "",
-            "Production-candidate gate: "
+            "Validation wrong-link gate: "
             + (
                 "PASS"
                 if validation["wrong"] <= INCUMBENT_VALIDATION_WRONG
@@ -556,26 +759,46 @@ def rerank_report(args, documents, retriever, retriever_spec, reranker, reranker
         lines.append(
             f"| {name} | {metrics['total_correct']}/{total} | {metrics['wrong']} |"
         )
-    lines += ["", f"Peak CUDA allocation: {_peak_vram_gib():.2f} GiB"]
+    lines += ["", *_vram_lines()]
     if dev_metrics is not None:
         lines.append(
             "Thresholds were selected from development documents only; validation was not used for calibration."
+        )
+    else:
+        lines.append(
+            "Thresholds were supplied explicitly; this run performed no calibration."
         )
     return "\n".join(lines) + "\n"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("root", nargs="?", default="dataset", type=Path)
+    parser.add_argument("root", nargs="*", default=[Path("dataset")], type=Path)
     parser.add_argument("--stage", choices=("retrieval", "rerank"), required=True)
     parser.add_argument("--retriever", choices=tuple(RETRIEVERS), required=True)
     parser.add_argument("--reranker", choices=tuple(RERANKERS))
-    parser.add_argument("--claim-mode", choices=("bare", "rich"), default="bare")
+    parser.add_argument(
+        "--claim-mode", choices=("bare", "rich", "rich-hitset"), default="rich-hitset",
+        help="rich-hitset: field-name rendering only inside the lexical hit set (needs --candidates hitset)",
+    )
+    parser.add_argument(
+        "--candidates", choices=("retrieval", "hitset"), default="hitset",
+        help="hitset: rerank inside the lexical multi-hit set instead of the dense top-K",
+    )
+    parser.add_argument(
+        "--zero-hit", choices=("neural", "abstain"), default="abstain",
+        help="abstain: a value verbatim in no anchor abstains without a neural pass",
+    )
     parser.add_argument(
         "--split", choices=("dev", "validation", "all", "final"), default="all"
     )
     parser.add_argument("--abstain-threshold", type=float)
     parser.add_argument("--accept-threshold", type=float)
+    parser.add_argument("--k", type=int, default=RERANK_K)
+    parser.add_argument(
+        "--cv", type=int, metavar="FOLDS",
+        help="document-level k-fold cross-validation: thresholds are tuned on the other folds",
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
@@ -583,28 +806,54 @@ def main() -> int:
         parser.error("--reranker is required for --stage rerank")
     if args.stage == "retrieval" and args.reranker:
         parser.error("--reranker is only valid for --stage rerank")
+    if args.k < 1:
+        parser.error("--k must be positive")
+    if args.claim_mode == "rich-hitset" and args.candidates != "hitset":
+        parser.error("--claim-mode rich-hitset requires --candidates hitset")
+    if (args.abstain_threshold is None) != (args.accept_threshold is None):
+        parser.error(
+            "--abstain-threshold and --accept-threshold must be supplied together"
+        )
+    if args.split == "final" and args.abstain_threshold is None:
+        parser.error("--split final requires frozen abstain and accept thresholds")
 
-    documents = load_dataset(args.root)
+    documents = [doc for root in args.root for doc in load_dataset(root)]
     if not documents:
         parser.error(f"no documents with anchors.json + claims.json under {args.root}")
+    if len({name for name, _, _ in documents}) != len(documents):
+        parser.error("duplicate document names across roots")
+    if args.cv is not None and (args.cv < 2 or args.cv > len(documents)):
+        parser.error("--cv needs between 2 and the number of documents")
+    if args.cv is not None and args.abstain_threshold is not None:
+        parser.error("--cv tunes thresholds per fold; do not pass thresholds")
     if args.split in {"dev", "validation"}:
         missing = set(DEFAULT_HELDOUT) - {name for name, _, _ in documents}
         if missing:
             parser.error(f"split requires missing documents: {sorted(missing)}")
 
     _reset_peak_vram()
-    retriever_spec = RETRIEVERS[args.retriever]
-    retriever = _load_retriever(retriever_spec)
-    _warm_retriever(retriever, retriever_spec)
-    if args.stage == "retrieval":
-        report = retrieval_report(args, documents, retriever, retriever_spec)
-    else:
-        reranker_spec = RERANKERS[args.reranker]
-        reranker = _load_reranker(reranker_spec)
-        _warm_reranker(reranker, reranker_spec)
-        report = rerank_report(
-            args, documents, retriever, retriever_spec, reranker, reranker_spec
+    stop, monitor = _vram_monitor()
+    try:
+        retriever_spec = RETRIEVERS[args.retriever]
+        needs_retriever = args.stage == "retrieval" or not (
+            args.candidates == "hitset" and args.zero_hit == "abstain"
         )
+        retriever = None
+        if needs_retriever:
+            retriever = _load_retriever(retriever_spec)
+            _warm_retriever(retriever, retriever_spec)
+        if args.stage == "retrieval":
+            report = retrieval_report(args, documents, retriever, retriever_spec)
+        else:
+            reranker_spec = RERANKERS[args.reranker]
+            reranker = _load_reranker(reranker_spec)
+            _warm_reranker(reranker, reranker_spec)
+            report = rerank_report(
+                args, documents, retriever, retriever_spec, reranker, reranker_spec
+            )
+    finally:
+        stop.set()
+        monitor.join()
 
     if args.output:
         args.output.write_text(report, encoding="utf-8")

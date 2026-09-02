@@ -181,7 +181,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "peft", specifier = ">=0.15.2" },
-    { name = "sentence-transformers", specifier = ">=3.3" },
+    { name = "sentence-transformers", specifier = ">=6.0" },
     { name = "torch", specifier = ">=2.13", index = "https://download.pytorch.org/whl/cu130" },
 ]
 

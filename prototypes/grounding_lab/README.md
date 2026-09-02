@@ -1,120 +1,94 @@
 # Grounding Lab
 
 Prototype answering one design question: can a tiered non-LLM pipeline
-(lexical match → bi-encoder shortlist → cross-encoder / NLI scoring) replace
+(lexical containment, then a cross-encoder inside the lexical hit set) replace
 LLM evidence grounding with comparable accuracy and an *honest* confidence
 score per link?
 
-Nothing here touches FREE. Productionizing is NOT a one-line swap: the
-current `GroundingModelRequest` carries only opaque labels and bare scalar
-values, so the rich claim rendering (field name + sibling context) needs a
-contract change (feasible — `grounding.ts` already holds `claim.path`), and
-per-link confidence needs fields on `GroundingSelection`/`EvidenceLink` plus a
-persistence/review-UI decision. The harness therefore reports `-bare` config
-variants that use only what the contract carries today. Still open before a
-production decision: tier-specific gates calibrated on held-out documents.
+Nothing here touches FREE. Productionizing needs a contract change: today
+`GroundingModelRequest` carries opaque labels and bare values, so field-name
+and sibling rendering needs `claim.path` (already in `grounding.ts`) and
+per-link confidence needs a field on `EvidenceLink` plus a review-UI decision.
+Production `anchorText()` also keeps only the first cell per table row; the
+lab bypasses it through `canonicalAnchorInventory`.
 
 ## Setup
 
 ```
-pnpm --filter grounding-lab install:python   # uv sync — downloads torch (CUDA cu130 build; runs on CPU too)
-pnpm --filter grounding-lab test             # lexical-tier self-check, no torch needed
+pnpm --filter grounding-lab install:python   # uv sync; torch (CUDA cu130 build, CPU works)
+pnpm --filter grounding-lab test             # lexical-tier checks, no torch needed
 ```
 
-Models (multilingual — documents include Danish/German and historical English)
-download from the HF hub on first harness run; ids are constants at the top of
-`grounding_lab/pipeline.py`.
+Models download from the HF hub on first run; every revision is pinned in
+`grounding_lab/model_benchmark.py` and listed in `MODEL_REPORT.md`. Jina
+models are diagnostic only (CC BY-NC) and must not be promoted into FREE.
 
-## Building the dataset
+## Building a dataset
 
-Each `dataset/<doc-slug>/` needs `anchors.json` and `claims.json`.
+Each `<root>/<doc-slug>/` needs `anchors.json` and `claims.json`. Roots:
+`dataset/` (10 docs, 177 claims; dev = the five original docs, validation =
+the five added later), `final_dataset/` (100 claims, invalidated as a
+one-shot test, `FINAL_TEST_SOURCES.md`) and `final_dataset_2/` (100 claims,
+completed one-shot set, now used and diagnostic only,
+`FINAL_TEST_SOURCES_2.md`).
 
-1. Run the parsing service (`pnpm --filter parsing-service dev`), parse 2–3
-   Source Documents from `examples/` (pick one Danish/German, one historical
-   English), and
-   save each result as `dataset/<doc-slug>/parsed_document.json`. Old fixtures
-   under `.omo/worktrees/` are pre-v2 schema and will not decode.
-2. Dump anchors (uses FREE's canonical reading order, avoiding the
-   `anchorText()` table-cell quirk in `packages/extraction/src/grounding.ts`):
+1. Parse with the Parsing Service's own environment (never add Docling here):
+
+   ```powershell
+   pnpm --filter parsing-service install:python
+   prototypes/parsing_service/.venv/Scripts/python.exe -X utf8 prototypes/grounding_lab/scripts/parse-source.py SOURCE.pdf prototypes/grounding_lab/<root>/<doc>
+   ```
+
+2. Dump anchors with FREE's canonical reading order (adds table-row context):
 
    ```
-   pnpm --filter grounding-lab dump-anchors dataset/<doc>/parsed_document.json dataset/<doc>/anchors.json
+   pnpm --filter grounding-lab dump-anchors <root>/<doc>/parsed_document.json <root>/<doc>/anchors.json
    ```
 
-3. Author `dataset/<doc>/claims.json` by hand (run one extraction in studio
-   for realistic claims, or draft from the Source Document, then verify each
-   gold anchor against the document). Make ~20% of claims unlinkable
-   (`goldAnchorId: null`) so abstention is measured.
+3. Author `claims.json` by hand. Make ~25% unlinkable (`goldAnchorId: null`,
+   including near-variant traps) so abstention is measured; `goldAnchorIds`
+   lists every anchor a reviewer would accept; `context` holds sibling values.
 
    ```json
    [
-     {
-       "value": "1.234,56",
-       "resultPath": ["records", 0, "total_weight"],
-       "goldAnchorId": "anchor-abc123",
-       "note": "table cell, page 3"
-     },
+     { "value": "1591", "resultPath": ["records", 0, "free_port_year"], "goldAnchorId": "anchor-abc123", "context": "port: Livorno" },
      { "value": "not in the document", "resultPath": ["source"], "goldAnchorId": null }
    ]
    ```
 
-## Running
+4. Validate: `uv run --no-sync python -X utf8 -m grounding_lab.label_review <root>`
+   fails on a gold id missing from `anchors.json` or a must-abstain value
+   found verbatim, and prints every containment/gold mismatch for review.
 
-```
-pnpm --filter grounding-lab harness
-```
+## Current policy
 
-Prints a markdown report: per-config accuracy@1 / correct-abstain / latency,
-a calibration table (score buckets × precision — the confidence question),
-and a per-claim breakdown showing which tier resolved each claim.
+`lexical_tier` scans the anchors once. One verbatim hit links with confidence
+1.0; zero hits abstain with no neural pass (3/279 linkable claims across the
+three datasets remain zero-hit PDF text artifacts); several hits are disambiguated by
+`Qwen/Qwen3-Reranker-0.6B` inside that hit set, the claim rendered as
+`field name: value`. Confidence is best minus runner-up; a pick whose own
+cell text does not contain the value is capped at 0.25 and always reviewed.
+The bi-encoder is never loaded. Results: `MODEL_REPORT.md`.
 
-```
-pnpm --filter grounding-lab calibrate
-```
+All recorded results are diagnostic. The exact runner used for the second
+one-shot set was not preserved in committed code, and that set was later reused
+for cross-validation. A production decision requires a new frozen set evaluated
+once from committed code; the current datasets also contain no true extractor
+paraphrases.
 
-Prints CALIBRATION.md content: dev/held-out split (dev = the five original
-documents the policy constants were tuned on), a dev-only sweep of the
-constants (shortlist K, abstain gate, containment cap, auto-accept), held-out
-numbers at chosen vs incumbent constants, and shortlist recall@K.
-
-Configs: `lexical`, `lexical+ce`, `lexical+nli`, their `-bare` variants
-(claim rendered as the bare value only — what the production contract carries
-today), and `ce-only` / `nli-only` (which skip tier 1 to measure what the
-lexical tier is worth).
-
-```
-pnpm --filter grounding-lab label-review
-```
-
-Validates all evaluated documents (fails on a gold id missing from anchors.json
-or a must-abstain value found in the document), reports every complete
-containment/gold mismatch for human review, and prints the LABEL_REVIEW.md skim
-sheet.
-
-## Comparing neural models
-
-`model-benchmark` loads exactly one pinned retriever and, when requested, one
-pinned reranker per process. The existing five development documents tune the
-score/auto-accept gates; the five documents named in `calibrate.py` are
-validation only.
+## Running the current policy on dev/validation
 
 ```bash
-pnpm --filter grounding-lab model-benchmark -- dataset \
-  --stage retrieval --retriever qwen-0.6b --split all
-
-pnpm --filter grounding-lab model-benchmark -- dataset \
-  --stage rerank --retriever qwen-0.6b --reranker qwen-0.6b \
-  --claim-mode bare --split all --output MODEL_REPORT.md
+pnpm --filter grounding-lab model-benchmark -- dataset --stage rerank \
+  --retriever mini --reranker qwen-0.6b --candidates hitset \
+  --claim-mode rich-hitset --zero-hit abstain --split all
 ```
 
-Retriever keys: `mini`, `qwen-0.6b`, `qwen-4b`, `qwen-8b`, `jina-v5`, and
-`jina-colbert`. Reranker keys: `bge`, `qwen-0.6b`, `qwen-4b`, `qwen-8b`, and
-`jina-v3.5`. Jina models are diagnostic only under CC BY-NC; their pinned
-revisions must not be promoted into FREE. The pinned Jina v3.5 `modeling.py`
-was inspected before enabling custom code, and the runner injects a tokenizer
-loaded from the same revision to prevent an unpinned fetch.
+The five development documents tune thresholds; the five validation documents
+report held-out results. Existing final-set and cross-validation runs are
+diagnostic reproductions only, not final or adoption evidence.
 
-Select the top two retrievers by recall@30 (recall@10 then latency break ties),
-compare their rerankers, and run `--claim-mode rich` only for the winning pair.
-For a one-shot final dataset, pass `--split final` plus the frozen
-`--abstain-threshold` and `--accept-threshold`; final runs never calibrate.
+Older tools, still runnable: `harness` (the Qwen/NLI configs on `dataset`),
+`calibrate` (dev sweep of the `lexical+ce` constants) and
+`smoke:qwen-0.6b` (resource-gated pinned-model smoke), all via
+`pnpm --filter grounding-lab <script>`.

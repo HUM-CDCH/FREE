@@ -1,0 +1,22 @@
+[
+  {"value":"449,3 Millionen","resultPath":["euPopulation2024"],"goldAnchorId":"anchor_442681bf8b5c2a6a8acfee3c27d43121e539d173a6e25e20057066d6f2a04076"},
+  {"value":"1,6 Millionen mehr","resultPath":["euPopulationAnnualIncrease"],"goldAnchorId":"anchor_442681bf8b5c2a6a8acfee3c27d43121e539d173a6e25e20057066d6f2a04076"},
+  {"value":"0,6 Millionen in Malta","resultPath":["maltaPopulation"],"goldAnchorId":"anchor_c9e8dc16f72d838b4f567b8bca11f2c0399c2b1ae39bfbe9529eb9c891b7b78d"},
+  {"value":"83,5 Millionen in Deutschland","resultPath":["germanyPopulation"],"goldAnchorId":"anchor_c9e8dc16f72d838b4f567b8bca11f2c0399c2b1ae39bfbe9529eb9c891b7b78d"},
+  {"value":"65,9 %","resultPath":["fiveLargestCountriesShare"],"goldAnchorId":"anchor_c9e8dc16f72d838b4f567b8bca11f2c0399c2b1ae39bfbe9529eb9c891b7b78d"},
+  {"value":"5,5 %","resultPath":["euWorldPopulationShare2024"],"goldAnchorId":"anchor_b86e6322c4a5f512eacdcdf75b83c2132688e676a2849e29c79edf8bbd28db5c","note":"Reviewed: other 5.5% hits concern services, freight, and fishing, not population."},
+  {"value":"453,3 Millionen Einwohner","resultPath":["projectedEuPopulation2026"],"goldAnchorId":"anchor_b86e6322c4a5f512eacdcdf75b83c2132688e676a2849e29c79edf8bbd28db5c"},
+  {"value":"7,0 Millionen Menschen","resultPath":["populationGrowth2014To2024"],"goldAnchorId":"anchor_935d91e4a1d79925ec4472a905c4570658498224e4137c1e89e7c468c129b80f"},
+  {"value":"31,6 %","resultPath":["maltaPopulationGrowth"],"goldAnchorId":"anchor_935d91e4a1d79925ec4472a905c4570658498224e4137c1e89e7c468c129b80f"},
+  {"value":"22,3 %","resultPath":["luxembourgPopulationGrowth"],"goldAnchorId":"anchor_935d91e4a1d79925ec4472a905c4570658498224e4137c1e89e7c468c129b80f","note":"Reviewed: other 22.3% hits concern services exports and Italian vegetables."},
+  {"value":"419,5 Millionen","resultPath":["projectedEuPopulation2100"],"goldAnchorId":"anchor_81ab49f5492138024d9a750b573785519e207f3065110a76da93114bc7b7ccd4"},
+  {"value":"4,1 % der Weltbevölkerung","resultPath":["projectedWorldShare2100"],"goldAnchorId":"anchor_81ab49f5492138024d9a750b573785519e207f3065110a76da93114bc7b7ccd4"},
+  {"value":"1,81 Lebendgeburten pro Frau","resultPath":["bulgariaFertilityRate"],"goldAnchorId":"anchor_e50bebbc5746aa798fe7650e68070ebd9cabb0742f4c8948b0fa4246a679ab24"},
+  {"value":"1,38 Lebendgeburten pro Frau","resultPath":["euAverageFertilityRate"],"goldAnchorId":"anchor_e50bebbc5746aa798fe7650e68070ebd9cabb0742f4c8948b0fa4246a679ab24"},
+  {"value":"43,0 Millionen ausländische Staatsangehörige","resultPath":["foreignNationals"],"goldAnchorId":"anchor_dc77a67197dee6f34e29534e81fa6fdfab554b188c7dc15615afaba6a1ce71e5"},
+  {"value":"449,4 Millionen","resultPath":["adversarialEuPopulation"],"goldAnchorId":null},
+  {"value":"83,6 Millionen in Deutschland","resultPath":["adversarialGermanyPopulation"],"goldAnchorId":null},
+  {"value":"66,0 %","resultPath":["adversarialFiveLargestShare"],"goldAnchorId":null},
+  {"value":"1,82 Lebendgeburten pro Frau","resultPath":["adversarialFertilityRate"],"goldAnchorId":null},
+  {"value":"44,0 Millionen ausländische Staatsangehörige","resultPath":["adversarialForeignNationals"],"goldAnchorId":null}
+]
